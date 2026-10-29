@@ -21,6 +21,15 @@ class EndpointError(RuntimeError):
     """A CDP endpoint that cannot be used, said once and in the caller's words."""
 
 
+def check_navigation(url: str) -> None:
+    """Distinguish Chromium's failed-load page from a domain policy refusal."""
+    if url.startswith("chrome-error://"):
+        raise EndpointError(
+            "The browser could not load the page. Check its network connection, "
+            "egress proxy and the destination's availability. This is not a domain allowlist refusal."
+        )
+
+
 def version_url(cdp_url: str) -> str:
     """The `/json/version` address for an HTTP CDP endpoint.
 

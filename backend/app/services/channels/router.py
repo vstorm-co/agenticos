@@ -49,6 +49,7 @@ from app.services.channels.base import (
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
 from app.services.channels.live_reply import (
     WORKING,
     AnswerSink,
@@ -406,6 +407,12 @@ class ChannelMessageRouter:
         if not bot or not bot.is_active:
             logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return
+
+        if incoming.platform == "telegram" and incoming.chat_type != "private":
+            incoming.addressed = await get_adapter(incoming.platform).resolve_addressing(
+                unseal_bot_token(bot), incoming
+            )
+        self._apply_broadcast_policy(incoming, bot)
 
         if self._is_overheard(incoming):
             # Decided before anything is created or refused, not after. A bot in a
@@ -996,6 +1003,7 @@ class ChannelMessageRouter:
         return BoundChannelDirectory(
             adapter=adapter,
             bot_token=unseal_bot_token(bot),
+            bot_id=bot.id,
             channel_id=channel_id,
             api_base_url=getattr(bot, "api_base_url", None),
             # The conversation this run is in, which on a threaded platform is not
@@ -1003,6 +1011,7 @@ class ChannelMessageRouter:
             # so an agent asked to summarise what was decided above summarised
             # whatever else the room had been saying (#1353).
             thread_id=thread_id or None,
+            private_chat=incoming.chat_type == "private",
         )
 
     @staticmethod
@@ -1249,7 +1258,9 @@ class ChannelMessageRouter:
         if not incoming.attachments:
             return [], []
         if identity.user_id is None:
-            return [], ["Files can only be accepted once you have run /link."]
+            return [], [
+                "To read your files, connect your account first. " + LINK_ACCOUNT_INSTRUCTION
+            ]
 
         adapter = get_adapter(incoming.platform)
         return await ChannelAttachmentService(db).receive(
@@ -1376,6 +1387,13 @@ class ChannelMessageRouter:
         return not bool(policy.get("require_link", False))
 
     @staticmethod
+    def _apply_broadcast_policy(incoming: IncomingMessage, bot: ChannelBot) -> None:
+        if incoming.broadcast_mention and incoming.addressed is not True:
+            incoming.addressed = (
+                ChannelMessageRouter._parse_policy(bot).get("respond_to_broadcasts") is True
+            )
+
+    @staticmethod
     def _is_overheard(incoming: IncomingMessage) -> bool:
         """Whether this message was said *near* the bot rather than to it.
 
@@ -1432,10 +1450,7 @@ class ChannelMessageRouter:
         so a channel gets the instruction and the direct message gets the link.
         """
         if incoming.chat_type != "private":
-            return (
-                "Send me a direct message to connect your account - the link is "
-                "personal, so it does not belong in a channel."
-            )
+            return LINK_ACCOUNT_INSTRUCTION
         url = await ChannelLinkService(db).request(incoming)
         return (
             f"Connect your account to start: {url}\n\nThe link is yours alone and expires shortly."
@@ -1872,7 +1887,7 @@ class ChannelMessageRouter:
         somebody's storage quota, so only the last few files come back.
         """
         _, thread_id = split_thread(incoming.platform_chat_id)
-        if not thread_id or identity.user_id is None:
+        if not thread_id:
             return [], [], True
         if incoming.message_id and thread_id == incoming.message_id:
             return [], [], True
@@ -1912,6 +1927,9 @@ class ChannelMessageRouter:
         wanted = [h for h in handles if (h.filename, h.size) not in already]
         if not wanted:
             return [], [], True
+
+        if identity.user_id is None:
+            return [], ["To read the files in this thread, " + LINK_ACCOUNT_INSTRUCTION], False
 
         received, refusals = await ChannelAttachmentService(db).receive(
             adapter,

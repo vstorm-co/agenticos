@@ -44,6 +44,7 @@ from app.agents.capabilities.browser_use._elements import (
 )
 from app.agents.capabilities.browser_use._endpoint import (
     EndpointError,
+    check_navigation,
     domain_allowed,
     egress_refused,
     pin_host,
@@ -719,6 +720,7 @@ class CdpPage:
         }
         result = await self._evaluate(script)
         snapshot = parse_snapshot(result.get("value"), self._policy.candidate_cap)
+        check_navigation(snapshot.url)
         if not domain_allowed(snapshot.url, self._policy.allowed_domains):
             raise DomainRefused(
                 f"The browser navigated to {snapshot.url}, which this agent's "

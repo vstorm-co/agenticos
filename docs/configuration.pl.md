@@ -1,5 +1,5 @@
 ---
-source_sha: "cab5ae5fc22f"
+source_sha: "2521b4441b6c"
 ---
 
 # Konfiguracja { #configuration }
@@ -78,6 +78,8 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
 
 Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
+
+Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Ustaw `browser_use.cdp_url` agenta na `http://browser:9222` i opublikuj jego szkic. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
 
 Renderer nie publikuje portu i nie ma dostępu do internetu, obsługuje API i worker oraz ma limit 1 CPU i 1 GiB RAM. Publikowane obrazy backendu zawierają dodatek `browser`; własny obraz wymaga `EXTRAS="--extra browser"`. Jeżeli renderowanie zawiedzie, odpowiedź na kanale wyraźnie informuje, że nie udało się dołączyć grafiki. Każde renderowanie dopuszcza najwyżej 256 żądań i 32 oczekujące odpowiedzi; kafelki map podlegają też wspólnemu limitowi `RATE_LIMIT_MAP_TILES_PER_MINUTE`.
 
