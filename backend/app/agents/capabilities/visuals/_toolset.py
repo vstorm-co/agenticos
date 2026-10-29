@@ -259,8 +259,9 @@ class VisualsToolset:
             A line naming the drawing and its visual id, and - when somebody is
             watching - how it rendered in their browser: cleanly, or the script
             errors, failed loads and refused requests to fix with `revise_visual`.
-            The user is already looking at it: do not repeat its source or describe
-            it at length. Pass the id to `read_visual` to read it back.
+            Describe it briefly without repeating its source. Claim it is on
+            screen only when the result confirms that. Pass the id to
+            `read_visual` to read it back.
         """
         if ctx.deps.delegated:
             return DELEGATED
@@ -522,7 +523,9 @@ async def _checked(ctx: RunContext[AgentDeps], call_id: str) -> str:
         # Not "under your message": where nobody watches the web chat, the person
         # sees it later, or as a picture in a chat app.
         return (
-            "It is kept with the conversation and shown where the person reads it. "
+            "It is kept with the conversation; delivery is not confirmed. Chat apps "
+            "receive a picture only if the deployment's visual renderer succeeds. "
+            "Do not claim it is on screen or has been sent. "
             "Refer to it, do not repeat it."
         )
     report = await reports.wait(call_id, REPORT_TIMEOUT)
