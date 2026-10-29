@@ -1,5 +1,5 @@
 ---
-source_sha: "1fd38ee24d0d"
+source_sha: "71934ba4ef54"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2055,6 +2055,7 @@ para mostrar diferencias entre la consola y Mattermost.
 
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
 
+- **Las llamadas MCP personales requieren aprobación en apps de chat, incluidas las lecturas.** Vincular una cuenta identifica la conexión utilizada; no autoriza publicar automáticamente resultados personales. La misma regla se aplica a agentes delegados y llamadas reanudadas.
 - **El agent conoce dónde responde y qué cuenta está disponible.** Las indicaciones de ejecución identifican el comunicador y la consola del despliegue, explican el workspace gestionado y distinguen conexiones MCP de la organización y servicios personales. Estos necesitan la identidad vinculada del remitente y su propia conexión autorizada al servicio. Para vincular se envía `link`, sin barra, en un mensaje directo; el enlace privado no pertenece a un canal. El agent comunica resultados reales y un siguiente paso concreto si falta autorización o capacidad.
 - **Un mensaje reentregado se responde una vez.** Todas las plataformas entregan al
   menos una vez: las rutas de webhook responden 200 antes de hacer ningún trabajo,

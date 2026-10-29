@@ -410,7 +410,7 @@ class SlackAdapter(ChannelAdapter):
         """
         response = await self._web(bot_token).conversations_members(channel=channel_id, limit=limit)
         return [
-            ChannelMember(user_id=str(user_id))
+            ChannelMember(user_id=str(user_id), display_name=f"<@{user_id}>")
             for user_id in (response.get("members") or [])[:limit]
         ]
 

@@ -253,3 +253,41 @@ async def test_telegram_resolves_own_mentions_replies_and_commands_and_refreshes
         assert api.get_me.await_count == 2
         incoming.chat_type = "private"
         assert await adapter.resolve_addressing("token-two", incoming) is True
+
+
+async def test_telegram_identity_cache_expires_without_token_rotation():
+    adapter = TelegramAdapter()
+    api = SimpleNamespace(
+        get_me=AsyncMock(
+            side_effect=[
+                SimpleNamespace(id=42, username="helper_bot"),
+                SimpleNamespace(id=42, username="renamed_bot"),
+            ]
+        )
+    )
+
+    @asynccontextmanager
+    async def client(*args, **kwargs):
+        yield api
+
+    now = [0.0]
+    with (
+        patch.object(adapter, "_bot", client),
+        patch("app.services.channels.telegram.time.monotonic", side_effect=lambda: now[0]),
+    ):
+        incoming = adapter.parse_incoming(
+            telegram_message(
+                "@helper_bot", entities=[{"type": "mention", "offset": 0, "length": 11}]
+            ),
+            "b",
+        )
+        assert await adapter.resolve_addressing("same-token", incoming)
+        now[0] = 301
+        incoming = adapter.parse_incoming(
+            telegram_message(
+                "@renamed_bot", entities=[{"type": "mention", "offset": 0, "length": 12}]
+            ),
+            "b",
+        )
+        assert await adapter.resolve_addressing("same-token", incoming)
+    assert api.get_me.await_count == 2

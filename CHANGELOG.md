@@ -41,8 +41,17 @@ Two things are versioned separately from this file and worth knowing about:
   `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and allowed CDP hosts for both.
   Point each agent's browser capability at `http://browser:9222` and republish.
 
+### Changed
+
+- Personal MCP calls in chat apps now require explicit approval, including
+  reads. Linking an account does not authorize publishing its private results
+  into a conversation. This applies to resumed and delegated calls too.
+
 ### Fixed
 
+- Slack roster entries use native user references without profile fan-out;
+  Telegram bot identity refreshes within five minutes after a username change.
+  Capped Teams rosters report an unknown count rather than an exact 500.
 - Channel history tools default to recent messages of the current channel and
   support an explicit thread scope; automatic context backfill stays thread-only.
 - Channel pictures render at twice the CSS resolution and reflow very wide

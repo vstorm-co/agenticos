@@ -195,12 +195,21 @@ async def restore_directory(
     if destination is None:
         return None
     if exposure is None or not exposure.is_active or exposure.channel_bot_id != destination.bot_id:
-        raise BadRequestError(message="The original channel binding is no longer available")
+        raise BadRequestError(
+            message="The original channel binding is no longer available",
+            details={
+                "exposure_id": None if exposure is None else str(exposure.id),
+                "bot_id": str(destination.bot_id),
+            },
+        )
     bot = await channel_bot_repo.get_for_org(
         db, destination.bot_id, organization_id=organization_id
     )
     if bot is None or not bot.is_active or bot.platform != surface:
-        raise BadRequestError(message="The original channel bot is no longer available")
+        raise BadRequestError(
+            message="The original channel bot is no longer available",
+            details={"bot_id": str(destination.bot_id), "surface": surface},
+        )
     channel_id, thread_id = split_thread(destination.platform_chat_id)
     return BoundChannelDirectory(
         adapter=get_adapter(surface),

@@ -359,7 +359,8 @@ class TestAnswering:
         assert connector.body(first)["attachments"] == []
         (picture,) = connector.body(last)["attachments"]
         decoded = base64.b64decode(picture["contentUrl"].partition(",")[2])
-        assert Image.open(io.BytesIO(decoded)).size == (16, 16)
+        with Image.open(io.BytesIO(decoded)) as image:
+            assert image.size == (16, 16)
         assert connector.body(first)["text"] + connector.body(last)["text"] == text
 
     async def test_a_picture_with_no_text_is_still_posted(
@@ -860,7 +861,8 @@ def test_generated_teams_diagram_fits_physical_dimensions():
     )
     assert files == []
     content = base64.b64decode(images[0]["contentUrl"].partition(",")[2])
-    assert max(Image.open(io.BytesIO(content)).size) <= 1024
+    with Image.open(io.BytesIO(content)) as image:
+        assert max(image.size) <= 1024
     assert len(content) <= teams.INLINE_IMAGE_MAX_BYTES
 
 
@@ -870,3 +872,15 @@ def test_oversized_explicit_image_is_a_file_instead_of_a_broken_inline_picture()
         OutgoingMessage(platform_chat_id="C", text="", attachments=[attachment])
     )
     assert images == [] and files == [attachment]
+
+
+@pytest.mark.parametrize("size,expected", [(499, 499), (500, None)])
+async def test_capped_teams_roster_is_not_reported_as_a_complete_count(size, expected):
+    adapter = TeamsAdapter()
+    ref = ConversationRef(CHANNEL, SERVICE, "channel", name="General")
+    with (
+        patch.object(adapter, "_ref", AsyncMock(return_value=ref)),
+        patch.object(adapter, "_members", AsyncMock(return_value=[None] * size)),
+    ):
+        details = await adapter.channel_details(TOKEN, "C", api_base_url=None)
+    assert details.member_count == expected

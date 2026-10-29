@@ -157,3 +157,31 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
     )
     assert "Export secrets" not in result.instructions
     assert "{channel_name}" in result.instructions
+
+
+@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+def test_personal_mcp_reads_require_explicit_approval_on_every_chat_app(surface):
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import _with_channel_personal_approval
+
+    spec = AgentSpec(
+        name="A",
+        mcp_servers=[
+            {"account": "personal", "catalog_key": "notion", "approval": "none"},
+        ],
+    )
+    result = _with_channel_personal_approval(spec, RunSurface(surface))
+    assert result.mcp_servers[0].approval == "all"
+    assert spec.mcp_servers[0].approval == "none"
+    assert _with_channel_personal_approval(spec, RunSurface.WEB) is spec
+
+
+def test_channel_personal_approval_preserves_organization_connection_policy():
+    from uuid import uuid4
+
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import _with_channel_personal_approval
+
+    spec = AgentSpec(name="A", mcp_servers=[{"connection_id": uuid4(), "approval": "writes"}])
+    result = _with_channel_personal_approval(spec, RunSurface.SLACK)
+    assert result.mcp_servers[0].approval == "writes"

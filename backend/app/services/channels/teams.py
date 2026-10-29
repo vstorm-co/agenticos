@@ -660,7 +660,7 @@ class TeamsAdapter(ChannelAdapter):
             channel_id=channel_id,
             name=ref.name or ref.conversation_type,
             is_private=ref.conversation_type != "channel",
-            member_count=len(members),
+            member_count=len(members) if len(members) < 500 else None,
         )
 
     async def channel_members(

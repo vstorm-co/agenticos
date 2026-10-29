@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import hmac
 import logging
+import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
@@ -152,17 +153,17 @@ class TelegramAdapter(ChannelAdapter):
 
     def __init__(self) -> None:
         self._polling_tasks: dict[str, asyncio.Task[None]] = {}
-        self._own_accounts: dict[str, tuple[str, int, str]] = {}
+        self._own_accounts: dict[str, tuple[str, int, str, float]] = {}
 
     async def resolve_addressing(self, bot_token: str, incoming: IncomingMessage) -> bool | None:
         if incoming.chat_type == "private":
             return True
         fingerprint = hashlib.sha256(bot_token.encode()).hexdigest()
         own = self._own_accounts.get(incoming.bot_id)
-        if own is None or own[0] != fingerprint:
+        if own is None or own[0] != fingerprint or time.monotonic() - own[3] >= 300:
             async with self._bot(bot_token) as bot:
                 account = await bot.get_me()
-            own = (fingerprint, account.id, (account.username or "").casefold())
+            own = (fingerprint, account.id, (account.username or "").casefold(), time.monotonic())
             self._own_accounts[incoming.bot_id] = own
         message = incoming.raw.get("message") or incoming.raw.get("edited_message") or {}
         if ((message.get("reply_to_message") or {}).get("from") or {}).get("id") == own[1]:

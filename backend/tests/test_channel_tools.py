@@ -1086,6 +1086,7 @@ async def test_slack_roster_snapshot_does_not_fan_out_to_profile_requests():
     with patch.object(adapter, "_web", return_value=client):
         members = await adapter.channel_members("token", "C1", api_base_url=None, limit=2)
     assert [person.user_id for person in members] == ["U1", "U2"]
+    assert [person.display_name for person in members] == ["<@U1>", "<@U2>"]
     client.users_info.assert_not_awaited()
     client.conversations_members.assert_awaited_once_with(channel="C1", limit=2)
 
