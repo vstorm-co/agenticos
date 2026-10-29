@@ -1,3 +1,4 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -85,6 +86,7 @@ function open(props: Partial<Parameters<typeof ChatControls>[0]> = {}) {
 const trigger = () => screen.getByRole("button", { name: /Chat controls/ });
 
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   state.desktop = false;
   useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   state.profiles = [{ id: "p-1", label: "openai default", provider: "openai", model: "gpt-4.1" }];
@@ -136,11 +138,11 @@ describe("the chat controls trigger", () => {
     document.body.appendChild(caption);
     await userEvent.click(trigger());
     await userEvent.click(caption);
-    expect(screen.getByText("Saves on send")).toBeInTheDocument();
+    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
 
     caption.remove();
     await userEvent.click(document.body);
-    expect(screen.queryByText("Saves on send")).toBeNull();
+    expect(screen.queryByText("Remembered across chats")).toBeNull();
   });
 
   it("is one icon, titled 'Chat controls' when the agent's model could not be read", () => {
@@ -197,13 +199,13 @@ describe("the chat controls trigger", () => {
     // Before the first turn there is no conversation to save it against.
     const { unmount } = render(<ChatControls onModelProfileChange={vi.fn()} />);
     await userEvent.click(trigger());
-    expect(screen.getByText("Saves on send")).toBeInTheDocument();
+    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
     unmount();
 
     state.conversationId = "c-1";
     render(<ChatControls onModelProfileChange={vi.fn()} />);
     await userEvent.click(trigger());
-    expect(screen.getByText("Saved for this chat")).toBeInTheDocument();
+    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
   });
 
   it("names a model that is no longer in the organization's list as no model", async () => {
@@ -301,15 +303,12 @@ describe("the approval mode", () => {
   });
 });
 
-it("names the active folder and access beside the composer and opens its controls", async () => {
+it("keeps the composer controls free of a duplicate folder badge", () => {
   state.desktop = true;
   useWorkOnStore.getState().set(null, { folder: "/approved/Launch", mode: "read_only" });
   open();
-  const badge = screen.getByRole("button", { name: /Working in \/approved\/Launch/i });
-  expect(badge).toHaveTextContent("Launch");
-  expect(badge).toHaveAttribute("title", expect.stringContaining("/approved/Launch"));
-  await userEvent.click(badge);
-  expect(screen.getByRole("button", { name: /pick a model/ })).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Working in \/approved\/Launch/i })).toBeNull();
+  expect(trigger()).toBeVisible();
 });
 
 it("puts browser and sandbox choices before permissions, with notifications afterwards", async () => {

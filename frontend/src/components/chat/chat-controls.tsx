@@ -1,21 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import type { ApprovalMode } from "@/stores/chat-controls-store";
+import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useId, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Check, FolderOpen, HelpCircle, SlidersHorizontal, X } from "lucide-react";
+import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useShell } from "@/hooks/use-shell";
-import { isDesktopShell } from "@/lib/desktop/shell";
-import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
 import { IconButton, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
-import { useConversationStore, useOrgStore } from "@/stores";
+import { useOrgStore } from "@/stores";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -27,9 +26,10 @@ import { cn } from "@/lib/utils";
 const APPROVAL_MODES: readonly ApprovalMode[] = ["follow_agent", "approve_all", "ask_all"];
 
 /** The three answers to "how much do I want to be asked", server-side names. */
-export type ApprovalMode = "follow_agent" | "approve_all" | "ask_all";
+export type { ApprovalMode } from "@/stores/chat-controls-store";
 
 interface ChatControlsProps {
+  agentCapabilities?: readonly string[] | null;
   /** The model profile this conversation runs on, or null for the agent's own. */
   onModelProfileChange?: (profileId: string | null) => void;
   /** How much this conversation wants to be asked before a gated tool runs. */
@@ -75,6 +75,7 @@ export function ChatControls({
   onModelProfileChange,
   onApprovalModeChange,
   agentModel = null,
+  agentCapabilities = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
   const tc = useTranslations("common");
@@ -84,10 +85,6 @@ export function ChatControls({
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
   const [open, setOpen] = useState(false);
-  const currentConversationId = useConversationStore((state) => state.currentConversationId);
-  const shell = useShell();
-  const target = useWorkOnStore((state) => state.targetFor(currentConversationId));
-  const tWork = useTranslations("chat.controls.workOn");
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -98,8 +95,13 @@ export function ChatControls({
   // here may.
   const mayWaive = can(Perm.approvalsDecide) && activeOrg?.chat_may_waive_approvals === true;
 
-  const [profileId, setProfileId] = useState<string | null>(null);
-  const [approvalMode, setApprovalMode] = useState<ApprovalMode>("follow_agent");
+  const {
+    modelProfileId: profileId,
+    approvalMode,
+    update: savePreferences,
+  } = useSavedChatControls(mayWaive);
+  const setProfileId = (modelProfileId: string | null) => savePreferences({ modelProfileId });
+  const setApprovalMode = (approvalMode: ApprovalMode) => savePreferences({ approvalMode });
 
   const selectedProfile = profiles.find((profile) => profile.id === profileId) ?? null;
   // The model that answers, whichever it is: an override when there is one,
@@ -112,26 +114,6 @@ export function ChatControls({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {isDesktopShell(shell) && target && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          title={`${target.folder} · ${tWork(`mode.${target.mode}`)}`}
-          aria-label={tWork("activeFolder", {
-            folder: target.folder,
-            access: tWork(`mode.${target.mode}`),
-          })}
-          className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 inline-flex min-h-9 min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs"
-        >
-          <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="max-w-28 truncate">
-            {target.computer_grant
-              ? tWork("wholeComputer")
-              : (target.folder.split(/[\\/]/).filter(Boolean).at(-1) ?? target.folder)}
-          </span>
-          <span className="hidden shrink-0 xl:inline">{tWork(`mode.${target.mode}`)}</span>
-        </button>
-      )}
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -142,7 +124,7 @@ export function ChatControls({
           data-chat-settings-trigger
           data-tour="chat-settings"
           // One icon beside the microphone: the model is a choice made once
-          // per conversation, and its name took the width of the row it sat in.
+          // and remembered across chats; its name took the width of the row it sat in.
           // The dot is what an override leaves visible once the popover closes.
           className={cn(
             "hover:bg-foreground/[0.06] hover:text-foreground relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
@@ -212,7 +194,7 @@ export function ChatControls({
             </button>
           )}
 
-          <WorkOn />
+          <WorkOn agentCapabilities={agentCapabilities} />
 
           <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-approval-mode">
             <div className="mb-2 flex items-center gap-1">
@@ -333,7 +315,7 @@ export function ChatControls({
         <div className="border-foreground/10 text-muted-foreground flex shrink-0 items-center justify-between border-t px-4 py-2 text-[11px]">
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden className="bg-foreground inline-block h-1 w-1 rounded-full" />
-            {currentConversationId ? t("savedForChat") : t("savesOnSend")}
+            {t("savedPreferences")}
           </span>
           <span>{t("escToClose")}</span>
         </div>

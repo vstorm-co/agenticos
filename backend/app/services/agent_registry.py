@@ -1104,6 +1104,9 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        published_capabilities = await agent_repo.published_capabilities(
+            self.db, version_ids=version_ids
+        )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -1145,6 +1148,9 @@ class AgentRegistryService:
                 context_window_tokens=(
                     windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
+                published_capabilities=published_capabilities.get(agent.current_version_id, [])
+                if agent.current_version_id
+                else [],
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id

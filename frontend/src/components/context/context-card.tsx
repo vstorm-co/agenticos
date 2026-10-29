@@ -1,7 +1,5 @@
 "use client";
 
-import { FileIcon } from "@/components/files/file-icon";
-import { displayName } from "./file-name";
 import { BlankPeek, Card, DocPeek, TextPeek } from "@/components/ui";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
@@ -49,10 +47,6 @@ export function ContextCard({ file, onOpen }: ContextCardProps) {
       <UsedBy agents={file.used_by} className="text-foreground/85 mx-4 mb-3 gap-2" />
       <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          <span className="inline-flex items-center gap-1">
-            <FileIcon name={displayName(file.name, file.format)} className="size-3.5" />
-            {file.format.toUpperCase()}
-          </span>
           <AudienceChip visibility={file.visibility} groups={file.shared_groups} />{" "}
         </div>
         <AddToAgent

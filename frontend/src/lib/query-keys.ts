@@ -13,6 +13,10 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  releases: {
+    latest: () => ["releases", "latest"] as const,
+    current: (version: string) => ["releases", "notes", version] as const,
+  },
   // The same document for everybody and every organization: it changes on a
   // redeploy, not while somebody reads it.
   publicApi: {

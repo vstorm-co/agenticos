@@ -14,8 +14,10 @@ const MAX_SHOWN = 3;
  * takes about the room of two - and how far they stand apart once the stack is
  * pointed at, so every face can be seen whole.
  */
-const TUCK = { two: "-ml-1.5", more: "-ml-3.5" } as const;
-const SPREAD = "group-hover/stack:ml-0.5";
+const TUCK = {
+  sm: { two: "-ml-3 group-hover/stack:-ml-2", more: "-ml-4 group-hover/stack:-ml-3" },
+  md: { two: "-ml-5 group-hover/stack:-ml-4", more: "-ml-6 group-hover/stack:-ml-5" },
+} as const;
 
 /**
  * Who answered in a conversation, as a list view shows it.
@@ -70,9 +72,9 @@ export function ConversationAgents({
             className={cn(
               "transition-[margin] duration-200 ease-out motion-reduce:transition-none",
               !unframed && "ring-background ring-2",
-              compact && ["relative z-30", "relative z-20", "relative z-10"][index],
+              ["relative z-30", "relative z-20", "relative z-10"][index],
               index > 0 &&
-                (compact ? compactTuck : [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD]),
+                (compact ? compactTuck : shown.length > 2 ? TUCK[size].more : TUCK[size].two),
             )}
           />
         ))}

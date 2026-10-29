@@ -514,6 +514,8 @@ export interface Agent {
    * profile has been deleted. Listing only.
    */
   published_model?: PublishedModel | null;
+  /** Enabled bindings from the frozen version; absent on older servers. */
+  published_capabilities?: string[] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   created_at?: string;

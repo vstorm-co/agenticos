@@ -11,6 +11,9 @@ import { version } from "../../../package.json";
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
+vi.mock("@/hooks/use-release-update", () => ({
+  useReleaseUpdate: () => ({ data: { latest: null } }),
+}));
 vi.mock("@/components/layout/sidebar-search", () => ({
   SidebarSearch: () => <button>the search row</button>,
 }));

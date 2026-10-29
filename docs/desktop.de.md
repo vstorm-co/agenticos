@@ -1,5 +1,5 @@
 ---
-source_sha: "3779aa8c0038"
+source_sha: "e1b7adc58dca"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -301,7 +301,9 @@ Modi stehen in den Einstellungen der App, und jede Operation nennt einen Ordner 
 einen Modus, die die App damit abgleicht: ein Ordner, den Sie nie gewählt haben,
 ein Modus, der weiter geht als erlaubt, oder ein Pfad, der aus dem Ordner
 herausführt, wird auf dem Computer abgelehnt, egal was der Server verlangt hat. Die
-Wahl wird je Unterhaltung gespeichert, und ein neuer Chat beginnt in der Cloud.
+Wahl wird je Unterhaltung gespeichert. Neue Chats übernehmen die letzten Ordner-
+und Werkzeugeinstellungen dieses Kontos und dieser Organisation; Projekteinstellungen
+haben Vorrang. Die Zustimmung zum gesamten Computer wird niemals übernommen.
 
 **Nur Ihre eigenen Runs.** Ein Chat erreicht Ihren Computer nur, wenn er Ihr
 eigener ist - nie ein API-Schlüssel, ein Widget-Besucher oder der Chat eines

@@ -1,3 +1,4 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { act, render as renderView, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
@@ -82,6 +83,7 @@ vi.mock("@/hooks/use-desktop", () => ({
   }),
 }));
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   computer.allow.mockReset();
   computer.revoke.mockReset();
   pick.mockClear();
@@ -105,7 +107,7 @@ beforeEach(() => {
   });
 });
 it("keeps local service choices when the approved folder changes", async () => {
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.click(screen.getByRole("radio", { name: /second/ }));
   expect(useWorkOnStore.getState().targetFor("chat")).toEqual({
     folder: "/second",
@@ -115,9 +117,9 @@ it("keeps local service choices when the approved folder changes", async () => {
     browser: true,
   });
 });
-it("applies local service choices to this conversation only", async () => {
+it("remembers local service choices for subsequent conversations", async () => {
   const user = userEvent.setup();
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await user.selectOptions(screen.getByRole("combobox", { name: "Model for this chat" }), "");
   for (const checkbox of screen.getAllByRole("checkbox")) await user.click(checkbox);
   expect(useWorkOnStore.getState().targetFor("chat")).toEqual({
@@ -127,11 +129,13 @@ it("applies local service choices to this conversation only", async () => {
     mcp_services: [],
     browser: true,
   });
-  expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
+  expect(useWorkOnStore.getState().targetFor("other")).toEqual(
+    useWorkOnStore.getState().targetFor("chat"),
+  );
 });
 
 it("selects an offered mode when this computer cannot sandbox shell commands", async () => {
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const access = screen.getByRole("combobox", { name: "Folder access" });
   expect(access).toHaveValue("read_only");
   expect(access).toHaveAccessibleDescription(
@@ -152,7 +156,7 @@ it("selects an offered mode when this computer cannot sandbox shell commands", a
 
 it("waits for native access modes before granting another folder", async () => {
   modeState.ready = false;
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const choose = screen.getByRole("button", { name: /Choose a folder/ });
   expect(choose).toBeDisabled();
   await userEvent.click(choose);
@@ -162,7 +166,7 @@ it("waits for native access modes before granting another folder", async () => {
 it("links from This computer and offers folders only after native confirmation", async () => {
   deviceState.linked = false;
   useWorkOnStore.getState().set("chat", null);
-  const view = render(<WorkOn />);
+  const view = render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   expect(link).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
   expect(link).toHaveBeenCalledOnce();
@@ -171,7 +175,7 @@ it("links from This computer and offers folders only after native confirmation",
 
   deviceState.linked = true;
   await act(async () => link.mock.calls[0]?.[1].onSuccess({ linked: true, connected: false }));
-  view.rerender(<WorkOn />);
+  view.rerender(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
   expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
@@ -188,7 +192,7 @@ it("links from This computer and offers folders only after native confirmation",
 it("keeps Cloud selected when linking is refused or fails", async () => {
   deviceState.linked = false;
   useWorkOnStore.getState().set("chat", null);
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
   await act(async () => link.mock.calls[0]?.[1].onSuccess({ linked: false, connected: false }));
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
@@ -200,7 +204,7 @@ it("prevents another link while waiting for confirmation", async () => {
   deviceState.linked = false;
   deviceState.pending = true;
   useWorkOnStore.getState().set("chat", null);
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const computer = screen.getByRole("radio", { name: "Linking…" });
   expect(computer).toBeDisabled();
   expect(computer).toHaveAttribute("aria-busy", "true");
@@ -211,7 +215,7 @@ it("prevents another link while waiting for confirmation", async () => {
 
 it("does not pair until the native device status has loaded", async () => {
   deviceState.ready = false;
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const computer = screen.getByRole("radio", { name: "This computer" });
   expect(computer).toBeDisabled();
   await userEvent.click(computer);
@@ -220,7 +224,7 @@ it("does not pair until the native device status has loaded", async () => {
 
 it("selects an already linked computer without pairing again", async () => {
   useWorkOnStore.getState().set("chat", null);
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
   expect(pick).toHaveBeenCalledWith("read_only", expect.any(Object));
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
@@ -237,21 +241,23 @@ it("selects an already linked computer without pairing again", async () => {
 it("does not switch another conversation to the computer when pairing finishes", async () => {
   deviceState.linked = false;
   useWorkOnStore.getState().set("chat", null);
-  const view = render(<WorkOn />);
+  const view = render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
   act(() => useConversationStore.setState({ currentConversationId: "other" }));
   deviceState.linked = true;
   await act(async () => link.mock.calls[0]?.[1].onSuccess({ linked: true, connected: false }));
-  view.rerender(<WorkOn />);
+  view.rerender(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
-  expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
+  expect(useWorkOnStore.getState().targetFor("other")).toEqual(
+    useWorkOnStore.getState().targetFor("chat"),
+  );
 });
 
 it("keeps the approved folder and mode when the settings popover remounts", () => {
   useWorkOnStore.getState().set("chat", { folder: "/first", mode: "full_access" });
-  const view = render(<WorkOn />);
+  const view = render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   view.unmount();
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   expect(screen.getByRole("radio", { name: "This computer" })).toHaveAttribute(
     "aria-checked",
     "true",
@@ -260,7 +266,7 @@ it("keeps the approved folder and mode when the settings popover remounts", () =
 });
 
 it("keeps the actual grant when a requested access change is cancelled", async () => {
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.selectOptions(
     screen.getByRole("combobox", { name: "Folder access" }),
     "full_access",
@@ -272,7 +278,7 @@ it("keeps the actual grant when a requested access change is cancelled", async (
 
 it("does not show a local selection if the folder picker is cancelled", async () => {
   useWorkOnStore.getState().set("chat", null);
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.click(screen.getByRole("radio", { name: "This computer" }));
   await act(async () => pick.mock.calls.at(-1)?.[1].onSuccess(null));
   expect(screen.getByRole("radio", { name: "Cloud" })).toHaveAttribute("aria-checked", "true");
@@ -285,7 +291,7 @@ it("selects a local browser while keeping the cloud sandbox and never asks for a
     browserByConversation: {},
     draftBrowser: undefined,
   });
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await userEvent.click(screen.getByRole("radio", { name: "Local browser" }));
   expect(useWorkOnStore.getState().browserFor("chat")).toBe(true);
   expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
@@ -303,7 +309,7 @@ it("requires native consent for whole-computer access without picking a folder a
   const grant = { folder: "/Users/person", mode: "full_access", computer_grant: "native-consent" };
   computer.allow.mockResolvedValueOnce(null).mockResolvedValueOnce(grant);
   computer.revoke.mockResolvedValue(undefined);
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const before = useWorkOnStore.getState().targetFor("chat");
   await user.click(screen.getByRole("button", { name: "Whole computer" }));
   expect(computer.allow).toHaveBeenCalledWith("chat");
@@ -325,7 +331,7 @@ it("keeps whole-computer access visible when revocation fails", async () => {
     .getState()
     .set("chat", { folder: "/Users/person", mode: "full_access", computer_grant: "saved" });
   computer.revoke.mockRejectedValue(new Error("Could not save"));
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   await user.click(screen.getByRole("radio", { name: "Cloud" }));
   expect(
     await screen.findByRole("button", { name: "Revoke whole-computer access" }),
@@ -334,7 +340,7 @@ it("keeps whole-computer access visible when revocation fails", async () => {
 });
 
 it("keeps browser and workspace explanations behind their header information buttons", async () => {
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const browserHint = /Available in desktop chat even when the agent has no browser capability/;
   const workspaceHint = /Local tools are available here without enabling Sandbox/;
   expect(screen.queryByText(browserHint)).not.toBeInTheDocument();
@@ -350,7 +356,7 @@ it("keeps browser and workspace explanations behind their header information but
 it("opts into local computer use without granting files or changing the browser", async () => {
   useWorkOnStore.getState().resetDraft();
   useConversationStore.setState({ currentConversationId: null });
-  render(<WorkOn />);
+  render(<WorkOn agentCapabilities={["sandbox", "browser_use", "computer_use"]} />);
   const group = screen.getByRole("radiogroup", { name: "Computer use" });
   await userEvent.click(within(group).getByRole("radio", { name: "Local computer" }));
   expect(useWorkOnStore.getState().computerFor(null)).toBe(true);
@@ -360,4 +366,38 @@ it("opts into local computer use without granting files or changing the browser"
   expect(computer.allow).not.toHaveBeenCalled();
   await userEvent.click(within(group).getByRole("radio", { name: "Agent setting" }));
   expect(useWorkOnStore.getState().computerFor(null)).toBe(false);
+});
+
+it("disables absent agent capabilities without choosing local access", () => {
+  useWorkOnStore.setState({
+    byConversation: {},
+    draft: null,
+    browserByConversation: {},
+    computerByConversation: {},
+  });
+  useChatControlsStore.setState({ byScope: {} });
+  render(<WorkOn agentCapabilities={[]} />);
+  for (const option of screen.getAllByRole("radio", { name: "Agent setting" })) {
+    expect(option).toBeDisabled();
+    expect(option).toHaveAttribute("aria-checked", "false");
+  }
+  expect(screen.getByRole("radio", { name: "Cloud" })).toBeDisabled();
+  expect(screen.getByRole("radio", { name: "Local browser" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  expect(screen.getByRole("radio", { name: "Local computer" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  expect(pick).not.toHaveBeenCalled();
+  expect(computer.allow).not.toHaveBeenCalled();
+});
+
+it("can turn off local use even when the agent has no equivalent capability", async () => {
+  useWorkOnStore.getState().setComputer("chat", true);
+  render(<WorkOn agentCapabilities={[]} />);
+  const group = screen.getByRole("radiogroup", { name: "Computer use" });
+  await userEvent.click(within(group).getByRole("radio", { name: "Local computer" }));
+  expect(useWorkOnStore.getState().computerFor("chat")).toBe(false);
 });

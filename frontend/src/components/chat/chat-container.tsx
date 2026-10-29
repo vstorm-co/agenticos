@@ -17,6 +17,7 @@ import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
+import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -199,11 +200,13 @@ export function ChatContainer({
   const { rereadMessages } = useChatStore();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
-  const [modelProfileId, setModelProfileId] = useState<string | null>(null);
+  const { modelProfileId } = useSavedChatControls();
   const contextWindow = useContextWindow(modelProfileId);
   const { agents } = useAgents({ includeArchived: true });
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  const agentModel = agents.find((agent) => agent.id === selectedAgentId)?.published_model ?? null;
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const agentModel = selectedAgent?.published_model ?? null;
+  const agentCapabilities = selectedAgent?.published_capabilities ?? null;
   // Deliberately unfiltered, which is what calling this with no arguments
   // means. The sidebar's copy of this list is narrowed by whatever is in its
   // search box, and reading the two facts below off *that* would flip the
@@ -731,6 +734,7 @@ export function ChatContainer({
       // conversation somebody has just reopened instead of after their next message.
       lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
       contextWindow={contextWindow}
+      agentCapabilities={agentCapabilities}
       agentModel={agentModel}
       // Only for the thread that is actually open. The store keeps the transcript
       // it last loaded, so between clicking another conversation and its messages
@@ -754,7 +758,6 @@ export function ChatContainer({
       // that is really at 390% of a 128K one.
       onModelProfileChange={(profileId) => {
         setModelProfile(profileId);
-        setModelProfileId(profileId);
       }}
       // Only into the hook: nothing on screen is a share of it, unlike the
       // context gauge the model switch has to move.
@@ -834,6 +837,7 @@ interface ChatUIProps {
   contextWindow: number | null;
   /** The selected agent's published model, shown as current in the model picker. */
   agentModel: PublishedModel | null;
+  agentCapabilities: string[] | null;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -933,6 +937,7 @@ function ChatUI({
   conversationCost,
   contextWindow,
   agentModel,
+  agentCapabilities,
   delegations,
   browses,
   conversationId,
@@ -1661,6 +1666,7 @@ function ChatUI({
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}
                                     agentModel={agentModel}
+                                    agentCapabilities={agentCapabilities}
                                   />
                                 </SheetRow>
                                 <SheetRow icon={Gauge} label={t("input.contextUsed")}>
@@ -1688,6 +1694,7 @@ function ChatUI({
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}
                                     agentModel={agentModel}
+                                    agentCapabilities={agentCapabilities}
                                   />
                                 </div>
                                 {/* The call stands in Send's place, as one that can

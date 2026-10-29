@@ -1,6 +1,7 @@
 "use client";
 
 import type { Mentionable } from "@/types/mention";
+import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
 import { useDesktopLiveTurn } from "./use-desktop-live-turn";
@@ -19,7 +20,7 @@ import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
 import { nextStepEvent, withNextSteps, type NextStepEvent } from "@/lib/next-step-events";
 import { coalesceChatFrames } from "@/lib/chat-frame-batch";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
-import { useTenantId } from "@/hooks/use-organizations";
+import { useTenantId, useOrganizationList } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
 import { addVisualImages, appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
 import { isVisualTool } from "@/lib/visuals";
@@ -1724,6 +1725,16 @@ export function useChat(options: UseChatOptions = {}) {
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
   // without it is not asked to 403 on every reopened conversation.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
+  const { data: controlOrgs } = useOrganizationList();
+  const savedControls = useSavedChatControls(
+    can(Perm.approvalsDecide) &&
+      controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,
+  );
+  useEffect(() => {
+    modelProfileRef.current = savedControls.modelProfileId;
+    approvalModeRef.current = savedControls.approvalMode;
+  }, [savedControls.modelProfileId, savedControls.approvalMode]);
+
   const canDecide = can(Perm.approvalsDecide);
 
   // The other direction of `tool_approval_required`: that frame exists only for

@@ -1,5 +1,5 @@
 ---
-source_sha: "3779aa8c0038"
+source_sha: "e1b7adc58dca"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -283,8 +283,9 @@ wtedy, gdy jest zainstalowany `bwrap`.
 ustawieniach aplikacji, a każda operacja podaje folder i tryb, które aplikacja z
 nimi porównuje: folder, którego nie wybrałeś, tryb szerszy niż dozwolony albo
 ścieżka wychodząca poza folder są odrzucane na komputerze, cokolwiek serwer
-poprosił. Wybór jest zapamiętywany dla każdej rozmowy, a nowy czat zaczyna w
-chmurze.
+poprosił. Wybór jest zapamiętywany dla każdej rozmowy. Nowe czaty dziedziczą ostatni folder
+i narzędzia dla konta i organizacji; ustawienia projektu mają pierwszeństwo.
+Zgoda na cały komputer nigdy nie przechodzi do innej rozmowy.
 
 **Tylko twoje runy.** Czat sięga twojego komputera tylko wtedy, gdy jest twój -
 nigdy klucz API, gość widżetu czy czat kogoś innego - a

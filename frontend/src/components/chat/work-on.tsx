@@ -35,15 +35,25 @@ function folderName(path: string): string {
  * Only in the desktop app, which is the only place that can pick a folder and
  * carry the work out. Cloud is the agent's own sandbox; this computer is a folder
  * the person picks in the native dialog, with the mode they allow there. The
- * choice is remembered per conversation, and a new chat starts in the cloud.
+ * choice is remembered per conversation; new chats inherit the last preferences.
  */
-export function WorkOn() {
+export function WorkOn({
+  agentCapabilities = null,
+}: {
+  agentCapabilities?: readonly string[] | null;
+}) {
   const shell = useShell();
   return isDesktopShell(shell) ? (
     <>
-      <LocalToolControl tool="browser" />
-      <LocalToolControl tool="computer" />
-      <ComputerWorkOn />
+      <LocalToolControl
+        tool="browser"
+        agentEnabled={agentCapabilities?.includes("browser_use") === true}
+      />
+      <LocalToolControl
+        tool="computer"
+        agentEnabled={agentCapabilities?.includes("computer_use") === true}
+      />
+      <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
     </>
   ) : null;
 }
@@ -58,7 +68,13 @@ export function ConversationNotifications() {
   ) : null;
 }
 
-function LocalToolControl({ tool }: { tool: "browser" | "computer" }) {
+function LocalToolControl({
+  tool,
+  agentEnabled,
+}: {
+  tool: "browser" | "computer";
+  agentEnabled: boolean;
+}) {
   const computer = tool === "computer";
   const t = useTranslations("chat.controls.workOn");
   const conversationId = useConversationStore((state) => state.currentConversationId);
@@ -91,12 +107,12 @@ function LocalToolControl({ tool }: { tool: "browser" | "computer" }) {
         <button
           type="button"
           role="radio"
-          aria-checked={!local}
-          disabled={selection.isPending}
+          aria-checked={!local && agentEnabled}
+          disabled={!agentEnabled || selection.isPending}
           onClick={() => setLocal(conversationId, false)}
           className={cn(
-            "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs",
-            !local && "bg-background shadow-sm",
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs disabled:cursor-not-allowed disabled:opacity-40",
+            !local && agentEnabled && "bg-background shadow-sm",
           )}
         >
           <Globe className="size-4" aria-hidden />
@@ -107,9 +123,12 @@ function LocalToolControl({ tool }: { tool: "browser" | "computer" }) {
           role="radio"
           aria-checked={local}
           disabled={device === undefined || selection.isPending}
-          onClick={() => selection.mutate({ conversationId, linked: device?.linked === true })}
+          onClick={() => {
+            if (local) setLocal(conversationId, false);
+            else selection.mutate({ conversationId, linked: device?.linked === true });
+          }}
           className={cn(
-            "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs",
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs disabled:cursor-not-allowed disabled:opacity-40",
             local && "bg-background shadow-sm",
           )}
         >
@@ -126,7 +145,7 @@ function LocalToolControl({ tool }: { tool: "browser" | "computer" }) {
   );
 }
 
-function ComputerWorkOn() {
+function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const t = useTranslations("chat.controls.workOn");
   const modeHintId = useId();
   const { data: device } = useDeviceStatus();
@@ -224,7 +243,12 @@ function ComputerWorkOn() {
       >
         {(
           [
-            { key: "cloud", icon: Cloud, active: !onComputer, onClick: chooseCloud },
+            {
+              key: "cloud",
+              icon: Cloud,
+              active: !onComputer && agentEnabled,
+              onClick: chooseCloud,
+            },
             {
               key: "computer",
               icon: Laptop,
@@ -242,7 +266,8 @@ function ComputerWorkOn() {
               link.isPending ||
               pick.isPending ||
               selection.isPending ||
-              (key === "computer" && (device === undefined || modes.length === 0))
+              (key === "computer" && (device === undefined || modes.length === 0)) ||
+              (key === "cloud" && !agentEnabled)
             }
             aria-busy={key === "computer" && link.isPending}
             onClick={onClick}

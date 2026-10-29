@@ -57,9 +57,9 @@ describe("ContextCard", () => {
     expect(screen.queryByText("disabled")).not.toBeInTheDocument();
   });
 
-  it("shows the format without repeating file size", () => {
+  it("does not repeat the file extension or size below the card", () => {
     renderCard();
-    expect(screen.getByText("MD")).toBeInTheDocument();
+    expect(screen.queryByText("MD")).toBeNull();
     expect(screen.queryByText(/KB/)).toBeNull();
   });
 

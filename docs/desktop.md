@@ -274,8 +274,9 @@ when `bwrap` is installed.
 are kept in the app's settings, and every operation names a folder and a mode that
 the app checks against them: a folder you never picked, a mode wider than you
 allowed, or a path that climbs out of the folder is refused on the computer,
-whatever the server asked. The choice is remembered per conversation, and a new
-chat starts in the cloud.
+whatever the server asked. The choice is remembered per conversation. New chats inherit the last folder
+and tool preferences for this account and organization; project settings take
+precedence. Whole-computer consent is never inherited.
 
 **Only your own runs.** A chat reaches your computer only when it is your own -
 never an API key, a widget visitor or someone else's chat - and a

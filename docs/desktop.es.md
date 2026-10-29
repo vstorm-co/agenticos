@@ -1,5 +1,5 @@
 ---
-source_sha: "3779aa8c0038"
+source_sha: "e1b7adc58dca"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -293,8 +293,9 @@ solo cuando `bwrap` está instalado.
 guardan en los ajustes de la app, y cada operación nombra una carpeta y un modo que
 la app compara con ellos: una carpeta que nunca elegiste, un modo más amplio que
 el permitido o una ruta que sale de la carpeta se rechazan en el ordenador, pida
-lo que pida el servidor. La elección se recuerda por conversación, y un chat nuevo
-empieza en la nube.
+lo que pida el servidor. La elección se recuerda por conversación. Los chats nuevos heredan la última
+carpeta y las herramientas de esta cuenta y organización; los ajustes del proyecto
+tienen prioridad. El consentimiento para todo el ordenador nunca se hereda.
 
 **Solo tus propios runs.** Un chat llega a tu ordenador solo cuando es tuyo -
 nunca una clave de API, un visitante del widget o el chat de otra persona - y un

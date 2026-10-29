@@ -313,3 +313,33 @@ closes the editor only after successful removal. Failed deletion keeps it open.
 Verification: the initial five-file card/editor batch passed 96 tests; TypeScript
 passed. Tests cover preview/metadata visibility, usage, menu selection, read-only
 access and disabling deletion while saving. Computer Use remains disabled.
+
+
+## Automatic release availability in the sidebar
+
+The embedded console version remains visible without a network dependency. A
+shared same-origin release query highlights it and adds a green dot only when the
+validated latest stable release is newer. The popover offers the current/latest
+versions and a canonical official release link; no reload or installation occurs.
+The collapsed rail places the dot above the version without widening its footer.
+
+The server fetches public GitHub release metadata without user credentials, with
+a five-second deadline and five-minute shared cache. Expected upstream failures
+return a distinct 503, never an up-to-date claim. The client checks on mount,
+every 30 active minutes and on stale focus/reconnect, without retry bursts.
+Stable versions compare numerically, handle build metadata and recognize a
+stable successor to a running prerelease. Drafts, prereleases and malformed
+metadata cannot create a notification.
+
+Verification: 51 initial focused tests cover comparison, transport validation,
+error outcomes, the BFF contract, sidebar integration, update popover interaction
+and periodic deduped checks. The live public endpoint and local BFF both returned
+release v1.28.1 while this frontend embeds 1.28.0. No Computer Use or browser
+automation was performed.
+
+## Remembered controls and release discovery
+
+- Public GitHub release metadata drives the sidebar update dot. Installed-version notes appear after sign-in, once per account on a device, after onboarding closes. Failed checks remain explicit and never block chat.
+- Persist model, permission mode and local tool defaults by account and organization. Project settings override folder defaults; whole-computer grants never carry across chats. Current approval permissions and organization policy still cap remembered approval mode.
+- Agent listings expose only enabled capability IDs from published versions, in one bulk projection. Disabled or absent capabilities disable Agent setting without selecting a local replacement.
+- Keep full-size portraits overlapped in expanded chat rows with a small hover spread; remove the Context format label and duplicate composer folder badge; add mute/unmute icons.

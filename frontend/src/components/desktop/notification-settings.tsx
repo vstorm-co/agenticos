@@ -1,4 +1,5 @@
 "use client";
+import { Bell, BellOff } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Switch } from "@/components/ui";
@@ -130,6 +131,7 @@ export function ConversationNotificationToggle({
         })
       }
     >
+      {muted ? <Bell className="size-4" aria-hidden /> : <BellOff className="size-4" aria-hidden />}
       {t(muted ? "unmute" : "mute")}
     </Button>
   );

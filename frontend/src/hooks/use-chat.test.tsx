@@ -1,3 +1,4 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -158,6 +159,7 @@ function parkedTurn() {
 }
 
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   vi.clearAllMocks();
   socket.isConnected = true;
   socket.getProtocols = null;
@@ -4546,7 +4548,7 @@ it("files the local target when the conversation is created with settings closed
     act(() => result.current.sendMessage("read local files"));
     expect(lastFrame().local).toEqual(target);
     receive("conversation_created", { conversation_id: "created-local" });
-    expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+    expect(useWorkOnStore.getState().targetFor(null)).toEqual(target);
     expect(useWorkOnStore.getState().targetFor("created-local")).toEqual(target);
     receive("complete", {});
     receive("session_ready", {});

@@ -459,8 +459,11 @@ class TestList:
     @pytest.fixture(autouse=True)
     def _no_published_starters(self):
         """The listing reads each version's starters; these tests are about the rest."""
-        with patch(
-            f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
+            ),
         ):
             yield
 
@@ -501,12 +504,18 @@ class TestList:
                 f"{REGISTRY_PATH}.agent_repo.published_starters",
                 new=AsyncMock(return_value={version_id: ["What can you do?"]}),
             ) as starters,
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_capabilities",
+                new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
+            ),
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
         assert rows[1].starters == []
+        assert rows[0].published_capabilities == ["sandbox", "computer_use"]
+        assert rows[1].published_capabilities == []
 
     @pytest.mark.anyio
     async def test_a_role_that_sees_everything_never_looks_up_grants(self):

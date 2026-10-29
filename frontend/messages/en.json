@@ -1175,8 +1175,6 @@
         "ask_all": "Ask before every tool this agent can use, including the ones it does not normally gate."
       },
       "modelTitle": "Model: {model}",
-      "savedForChat": "Saved for this chat",
-      "savesOnSend": "Saves on send",
       "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is.",
       "workOn": {
         "browserTitle": "Browser",
@@ -1208,7 +1206,6 @@
         "agentModel": "Agent’s configured model",
         "accessHint": "Local tools are available here without enabling Sandbox in the Builder. The folder mode controls files and commands; browser and MCP permissions are approved separately.",
         "mcpLimit": "Choose up to 8 local MCP services per chat.",
-        "activeFolder": "Working in {folder} · {access}. Change work location",
         "wholeComputer": "Whole computer",
         "revokeComputer": "Revoke whole-computer access",
         "computerConsent": "Allowed for this conversation. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply.",
@@ -1222,7 +1219,8 @@
       "waiverPermission": "You need permission to decide approvals to use this mode. Ask an organization administrator.",
       "waiverOrg": "Your organization has disabled this mode. It can be enabled under Budget and approvals.",
       "waiverUnknown": "Organization approval settings are not available yet. Try again when the organization has loaded.",
-      "waiverSettings": "Open approval settings"
+      "waiverSettings": "Open approval settings",
+      "savedPreferences": "Remembered across chats"
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",
@@ -3116,7 +3114,8 @@
     "requestFailed": "Request failed",
     "sessionExpired": "Session expired",
     "unexpected": "An unexpected error occurred",
-    "uploadFailed": "Upload failed"
+    "uploadFailed": "Upload failed",
+    "releaseCheckUnavailable": "Could not check for a new release. Try again later."
   },
   "files": {
     "couldNotBeFetched": "That file could not be fetched",
@@ -4049,7 +4048,14 @@
     "mobileApp": "Mobile app",
     "inbox": "Inbox",
     "inboxCount": "{count, plural, =1 {1 waiting} other {# waiting}}",
-    "consoleVersion": "Console version {version}"
+    "consoleVersion": "Console version {version}",
+    "updateAvailable": "Version {version} is available",
+    "updateTitle": "Update available",
+    "updateDescription": "You are using {current}. AgenticOS {latest} is available.",
+    "viewRelease": "View release",
+    "whatsNewTitle": "What’s new in {version}",
+    "whatsNewDescription": "Recent changes in the version you are using.",
+    "whatsNewDone": "Got it"
   },
   "navigation": {
     "dashboard": "Dashboard",

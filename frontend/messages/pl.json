@@ -1175,8 +1175,6 @@
         "ask_all": "Pytaj przed każdym narzędziem tego agenta, także tym, którego zwykle nie pilnuje."
       },
       "modelTitle": "Model: {model}",
-      "savedForChat": "Zapisane dla tego czatu",
-      "savesOnSend": "Zapisuje się przy wysłaniu",
       "whichModelRunsHere": "Na którym modelu działa ta rozmowa. Wszystko inne w agencie zostaje bez zmian.",
       "workOn": {
         "browserTitle": "Przeglądarka",
@@ -1208,7 +1206,6 @@
         "agentModel": "Model skonfigurowany dla agenta",
         "accessHint": "Lokalne narzędzia są dostępne bez włączania Sandbox w Builderze. Tryb folderu obejmuje pliki i polecenia; przeglądarka i MCP mają osobne uprawnienia.",
         "mcpLimit": "Wybierz maksymalnie 8 lokalnych usług MCP dla czatu.",
-        "activeFolder": "Praca w {folder} · {access}. Zmień miejsce pracy",
         "wholeComputer": "Cały komputer",
         "revokeComputer": "Cofnij dostęp do całego komputera",
         "computerConsent": "Zgoda dla tej rozmowy. Polecenia działają bez osobnych okien potwierdzenia. Tutaj możesz cofnąć dostęp; uprawnienia systemu nadal obowiązują.",
@@ -1222,7 +1219,8 @@
       "waiverPermission": "Ten tryb wymaga uprawnienia do zatwierdzania. Poproś administratora organizacji.",
       "waiverOrg": "Organizacja wyłączyła ten tryb. Można go włączyć w sekcji Budżet i zatwierdzenia.",
       "waiverUnknown": "Ustawienia zatwierdzeń organizacji nie są jeszcze dostępne. Spróbuj po załadowaniu organizacji.",
-      "waiverSettings": "Otwórz ustawienia zatwierdzeń"
+      "waiverSettings": "Otwórz ustawienia zatwierdzeń",
+      "savedPreferences": "Zapamiętane między chatami"
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",
@@ -3116,7 +3114,8 @@
     "requestFailed": "Żądanie nie powiodło się",
     "sessionExpired": "Sesja wygasła",
     "unexpected": "Wystąpił nieoczekiwany błąd",
-    "uploadFailed": "Przesyłanie nie powiodło się"
+    "uploadFailed": "Przesyłanie nie powiodło się",
+    "releaseCheckUnavailable": "Nie udało się sprawdzić nowych wydań. Spróbuj później."
   },
   "files": {
     "couldNotBeFetched": "Nie udało się pobrać tego pliku",
@@ -3819,7 +3818,14 @@
     "mobileApp": "Aplikacja mobilna",
     "inbox": "Inbox",
     "inboxCount": "{count, plural, =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}",
-    "consoleVersion": "Wersja konsoli {version}"
+    "consoleVersion": "Wersja konsoli {version}",
+    "updateAvailable": "Dostępna jest wersja {version}",
+    "updateTitle": "Dostępna aktualizacja",
+    "updateDescription": "Używasz wersji {current}. Dostępny jest AgenticOS {latest}.",
+    "viewRelease": "Zobacz wydanie",
+    "whatsNewTitle": "Co nowego w {version}",
+    "whatsNewDescription": "Zmiany w wersji, z której korzystasz.",
+    "whatsNewDone": "Rozumiem"
   },
   "navigation": {
     "dashboard": "Panel",

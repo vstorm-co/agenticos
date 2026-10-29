@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Show installed-version GitHub release notes after login, once per account on a device.
+- Remember chat model, approval and local-tool preferences per account and organization; keep whole-computer consent per conversation.
+- Highlight the sidebar console version with an update dot and release details when a newer stable AgenticOS version is available.
+
 - Let desktop chats opt into local Computer use independently of agent capabilities and file access.
 
 - Quick Ask accepts picked, pasted and dropped attachments, supports file-only

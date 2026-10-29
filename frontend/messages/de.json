@@ -1175,8 +1175,6 @@
         "ask_all": "Vor jedem Tool fragen, das dieser Agent nutzen darf, auch vor denen, die er sonst nicht bremst."
       },
       "modelTitle": "Modell: {model}",
-      "savedForChat": "Für diesen Chat gespeichert",
-      "savesOnSend": "Wird beim Senden gespeichert",
       "whichModelRunsHere": "Auf welchem Modell diese Unterhaltung läuft. Alles andere am Agent bleibt, wie es ist.",
       "workOn": {
         "browserTitle": "Browser",
@@ -1208,7 +1206,6 @@
         "agentModel": "Konfiguriertes Modell des Agenten",
         "accessHint": "Lokale Werkzeuge sind hier ohne Sandbox im Builder verfügbar. Der Ordnermodus gilt für Dateien und Befehle; Browser und MCP haben eigene Berechtigungen.",
         "mcpLimit": "Wähle bis zu 8 lokale MCP-Dienste pro Chat.",
-        "activeFolder": "Arbeiten in {folder} · {access}. Arbeitsort ändern",
         "wholeComputer": "Gesamter Computer",
         "revokeComputer": "Zugriff auf den gesamten Computer widerrufen",
         "computerConsent": "Für dieses Gespräch erlaubt. Befehle laufen ohne einzelne native Bestätigungen. Hier können Sie den Zugriff widerrufen; Systemberechtigungen gelten weiterhin.",
@@ -1222,7 +1219,8 @@
       "waiverPermission": "Dieser Modus erfordert die Berechtigung, Genehmigungen zu entscheiden. Wende dich an die Organisationsverwaltung.",
       "waiverOrg": "Deine Organisation hat diesen Modus deaktiviert. Er lässt sich unter Budget und Genehmigungen aktivieren.",
       "waiverUnknown": "Die Genehmigungseinstellungen der Organisation sind noch nicht verfügbar. Versuche es nach dem Laden der Organisation erneut.",
-      "waiverSettings": "Genehmigungseinstellungen öffnen"
+      "waiverSettings": "Genehmigungseinstellungen öffnen",
+      "savedPreferences": "Für weitere Chats gespeichert"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
@@ -3116,7 +3114,8 @@
     "requestFailed": "Anfrage fehlgeschlagen",
     "sessionExpired": "Sitzung abgelaufen",
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten",
-    "uploadFailed": "Upload fehlgeschlagen"
+    "uploadFailed": "Upload fehlgeschlagen",
+    "releaseCheckUnavailable": "Neue Releases konnten nicht geprüft werden. Versuche es später erneut."
   },
   "files": {
     "couldNotBeFetched": "Diese Datei konnte nicht abgerufen werden",
@@ -3927,7 +3926,14 @@
     "loadingPage": "Seite wird geöffnet",
     "inbox": "Posteingang",
     "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}",
-    "consoleVersion": "Konsolenversion {version}"
+    "consoleVersion": "Konsolenversion {version}",
+    "updateAvailable": "Version {version} ist verfügbar",
+    "updateTitle": "Update verfügbar",
+    "updateDescription": "Du verwendest {current}. AgenticOS {latest} ist verfügbar.",
+    "viewRelease": "Release ansehen",
+    "whatsNewTitle": "Neu in {version}",
+    "whatsNewDescription": "Änderungen in der verwendeten Version.",
+    "whatsNewDone": "Verstanden"
   },
   "navigation": {
     "dashboard": "Dashboard",

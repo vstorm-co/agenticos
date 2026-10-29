@@ -1,4 +1,5 @@
 "use client";
+import { Bell, BellOff } from "lucide-react";
 import { qk } from "@/lib/query-keys";
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -88,6 +89,7 @@ export function MobileConversationNotifications({
         })
       }
     >
+      {muted ? <Bell className="size-4" aria-hidden /> : <BellOff className="size-4" aria-hidden />}
       {t(muted ? "unmute" : "mute")}
     </Button>
   );

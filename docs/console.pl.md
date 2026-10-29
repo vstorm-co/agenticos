@@ -1,5 +1,5 @@
 ---
-source_sha: "03397203ebc1"
+source_sha: "e2879c5149f0"
 ---
 
 # Konsola { #the-console }
@@ -21,7 +21,7 @@ Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informac
 
 W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
 
-Karty agentów pokazują status, dostęp i datę edycji bez rozwijania. Karty Skills i Context zachowują podgląd dokumentu, opis, **Used by** z avatarami i **Dodaj do agenta**. Kategoria, odbiorcy i format pliku są w zwartym wierszu obok akcji. Nie ma rozwijanych Szczegółów. Aby usunąć skill lub plik contextu, otwórz edytor i menu z trzema kropkami obok **Share**; usunięcie nadal wymaga potwierdzenia i jest dostępne tylko dla edytora.
+Karty agentów pokazują status, dostęp i datę edycji bez rozwijania. Karty Skills i Context zachowują podgląd dokumentu, opis, **Used by** z avatarami i **Dodaj do agenta**. Kategoria i odbiorcy są w zwartym wierszu obok akcji. Nie ma rozwijanych Szczegółów. Aby usunąć skill lub plik contextu, otwórz edytor i menu z trzema kropkami obok **Share**; usunięcie nadal wymaga potwierdzenia i jest dostępne tylko dla edytora.
 
 Nazwy, nawigacja i wartości formularzy używają wyraźnego tekstu pierwszego planu;
 metadane pozostają drugorzędne. Główne akcje mają kontrastujące neutralne
@@ -757,3 +757,12 @@ problem zostaje odczytany jako cisza.
   pustym zasobem.
 
 Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i powiadomień, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.
+
+
+Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropkę. Kliknięcie pokazuje uruchomioną i dostępną wersję oraz odnośnik do oficjalnego wydania. Sprawdzenie w tle odbywa się przy otwarciu konsoli, co 30 minut podczas pracy oraz po odzyskaniu fokusu lub połączenia, jeśli dane są nieaktualne. Serwer współdzieli wyniki publicznych sprawdzeń przez pięć minut i nie wysyła do GitHuba danych konta, organizacji ani wdrożenia. Awaria sieci pozostawia numer uruchomionej wersji bez stwierdzenia, że jest najnowsza. Powiadomienie nie przeładowuje strony ani nie instaluje aktualizacji automatycznie.
+
+Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji.
+
+Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla konta i organizacji między chatami. Ustawienia plików projektu mają pierwszeństwo. Zgoda na cały komputer nadal dotyczy jednej rozmowy. Pomijanie zatwierdzeń wymaga bieżących uprawnień i zgody organizacji. Agent setting (lub Cloud dla plików) jest nieaktywne, jeśli opublikowany agent nie ma tej funkcji; lokalna opcja nie włącza się sama. Kliknięcie wybranej lokalnej opcji wyłącza ją.
+
+Wyciszanie powiadomień ma ikonę dzwonka; pole wiadomości nie powtarza już plakietki folderu i dostępu. Avatary wielu agentów zachodzą na siebie bez zmiany rozmiaru, a w rozwiniętej liście delikatnie rozsuwają się po najechaniu.

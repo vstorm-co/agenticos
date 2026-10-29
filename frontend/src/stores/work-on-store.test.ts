@@ -1,8 +1,10 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { beforeEach, expect, it } from "vitest";
 import { useWorkOnStore } from "./work-on-store";
 
 const target = { folder: "/approved", mode: "read_only" } as const;
-beforeEach(() =>
+beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   useWorkOnStore.setState({
     byConversation: {},
     draft: null,
@@ -11,14 +13,14 @@ beforeEach(() =>
     draftComputer: undefined,
     browserByConversation: {},
     draftBrowser: undefined,
-  }),
-);
+  });
+});
 it("moves a new chat's local choice under its server identity", () => {
   const store = useWorkOnStore.getState();
   store.set(null, target);
   expect(store.targetFor(null)).toEqual(target);
   store.adopt("created");
-  expect(store.targetFor(null)).toBeNull();
+  expect(store.targetFor(null)).toEqual(target);
   expect(store.targetFor("created")).toEqual(target);
   store.set("other", { ...target, folder: "/other" });
   store.set("created", null);
@@ -74,7 +76,7 @@ it("adopts a browser-only choice and preserves it when the sandbox returns to Cl
   expect(store.browserFor("new")).toBe(false);
   store.setBrowser(null, true);
   store.resetDraft();
-  expect(store.browserFor(null)).toBe(false);
+  expect(store.browserFor(null)).toBe(true);
 });
 
 it("adopts an independent screen choice and keeps it when files return to Cloud", () => {
@@ -86,7 +88,37 @@ it("adopts an independent screen choice and keeps it when files return to Cloud"
   store.set("screen-only", target);
   store.set("screen-only", null);
   expect(store.computerFor("screen-only")).toBe(true);
-  expect(store.computerFor(null)).toBe(false);
+  expect(store.computerFor(null)).toBe(true);
   store.setComputer("screen-only", false);
   expect(store.computerFor("screen-only")).toBe(false);
+});
+
+it("remembers tool choices and folder defaults for the next conversation", () => {
+  const store = useWorkOnStore.getState();
+  store.set("one", target);
+  store.setBrowser("one", true);
+  store.setComputer("one", true);
+  store.resetDraft();
+  expect(store.targetFor(null)?.folder).toBe(target.folder);
+  expect(store.browserFor(null)).toBe(true);
+  expect(store.computerFor(null)).toBe(true);
+  store.applyProject("different-project", null);
+  expect(store.targetFor(null)).toBeNull();
+});
+it("never carries a whole-computer consent token to a new conversation", () => {
+  const store = useWorkOnStore.getState();
+  store.set("one", { folder: "/home", mode: "full_access", computer_grant: "one-chat-only" });
+  store.resetDraft();
+  expect(store.targetFor(null)).toBeNull();
+  expect(store.targetFor("one")?.computer_grant).toBe("one-chat-only");
+});
+
+it("files an explicit project Cloud default instead of falling back to an unrelated folder", () => {
+  const store = useWorkOnStore.getState();
+  store.set("other", target);
+  store.applyProject("cloud-project", null);
+  store.adopt("project-chat");
+  expect(store.targetFor("project-chat")).toBeNull();
+  store.set("third", { ...target, folder: "/third" });
+  expect(store.targetFor("project-chat")).toBeNull();
 });

@@ -4,9 +4,8 @@
  * destinations; notifications and account stay within reach below them. */
 
 import type { ReactNode } from "react";
-import { useTranslations } from "next-intl";
 
-import { version } from "../../../package.json";
+import { ConsoleVersion } from "@/components/layout/console-version";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
@@ -20,8 +19,6 @@ export function SidebarShell({
   children: ReactNode;
   collapsed?: boolean;
 }) {
-  const t = useTranslations("nav");
-
   return (
     <>
       {!collapsed && (
@@ -46,16 +43,7 @@ export function SidebarShell({
         <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
           {collapsed && <SidebarSearch variant="icon" />}
           <NotificationBell variant="icon" />
-          <span
-            aria-label={t("consoleVersion", { version })}
-            title={t("consoleVersion", { version })}
-            className={cn(
-              "text-muted-foreground font-mono text-[11px] tabular-nums select-all",
-              !collapsed && "ml-auto pr-2",
-            )}
-          >
-            v{version}
-          </span>
+          <ConsoleVersion collapsed={collapsed} />
         </div>
         <SidebarUser compact={collapsed} />
       </div>

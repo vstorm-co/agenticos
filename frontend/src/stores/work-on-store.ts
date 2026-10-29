@@ -1,5 +1,6 @@
 "use client";
 
+import { readChatControlPreferences, saveChatControlPreferences } from "./chat-controls-store";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useAuthStore } from "./auth-store";
@@ -14,8 +15,8 @@ export type { LocalTarget };
  * this computer (#2305).
  *
  * Remembered per conversation, so reopening a chat that worked in a project
- * folder keeps working there, and a new chat starts in the cloud. `draft` is the
- * choice made before a new chat has an id; it moves under that id when the
+ * folder keeps working there. New chats inherit account and organization defaults.
+ * `draft` is the choice made before a new chat has an id; it moves under that id when the
  * server files the conversation. Only paths and modes are kept - what the person
  * granted is the desktop app's to check on every operation, not this store's.
  */
@@ -31,7 +32,7 @@ interface WorkOnState {
   draftBrowser: boolean | undefined;
   browserFor: (conversationId: string | null) => boolean;
   setBrowser: (conversationId: string | null, local: boolean) => void;
-  byConversation: Record<string, LocalTarget>;
+  byConversation: Record<string, LocalTarget | null>;
   draft: LocalTarget | null;
   draftProjectKey: string | null;
   /** Apply a project default once; subsequent edits belong to this draft. */
@@ -54,8 +55,9 @@ export const useWorkOnStore = create<WorkOnState>()(
           ? get().draftComputer
           : get().computerByConversation[browserKey(conversationId)]) ??
         get().targetFor(conversationId)?.computer ??
-        false,
+        readChatControlPreferences().computer,
       setComputer: (conversationId, local) => {
+        saveChatControlPreferences({ computer: local });
         const target = get().targetFor(conversationId);
         if (target !== null) get().set(conversationId, { ...target, computer: local });
         if (conversationId === null) set({ draftComputer: local });
@@ -74,8 +76,9 @@ export const useWorkOnStore = create<WorkOnState>()(
           ? get().draftBrowser
           : get().browserByConversation[browserKey(conversationId)]) ??
         get().targetFor(conversationId)?.browser ??
-        false,
+        readChatControlPreferences().browser,
       setBrowser: (conversationId, local) => {
+        saveChatControlPreferences({ browser: local });
         const target = get().targetFor(conversationId);
         if (target !== null) get().set(conversationId, { ...target, browser: local });
         if (conversationId === null) set({ draftBrowser: local });
@@ -100,40 +103,41 @@ export const useWorkOnStore = create<WorkOnState>()(
           draftBrowser: undefined,
           draftComputer: undefined,
         }),
-      targetFor: (conversationId) =>
-        conversationId === null ? get().draft : (get().byConversation[conversationId] ?? null),
+      targetFor: (conversationId) => {
+        if (conversationId === null)
+          return get().draftProjectKey !== null
+            ? get().draft
+            : (get().draft ?? readChatControlPreferences().localTarget);
+        return Object.hasOwn(get().byConversation, conversationId)
+          ? (get().byConversation[conversationId] ?? null)
+          : readChatControlPreferences().localTarget;
+      },
       set: (conversationId, target) => {
+        // Whole-computer consent belongs to one conversation and is never inherited.
+        saveChatControlPreferences({ localTarget: target?.computer_grant ? null : target });
         if (conversationId === null) {
           set({ draft: target });
           return;
         }
-        const { [conversationId]: _previous, ...rest } = get().byConversation;
-        set({ byConversation: target === null ? rest : { ...rest, [conversationId]: target } });
+        set({ byConversation: { ...get().byConversation, [conversationId]: target } });
       },
       adopt: (conversationId) => {
-        const { draft, byConversation, draftBrowser, browserByConversation } = get();
-        const { draftComputer, computerByConversation } = get();
-        if (draftComputer !== undefined)
-          set({
-            draftComputer: undefined,
-            computerByConversation: {
-              ...computerByConversation,
-              [browserKey(conversationId)]: draftComputer,
-            },
-          });
-        if (draftBrowser !== undefined)
-          set({
-            draftBrowser: undefined,
-            browserByConversation: {
-              ...browserByConversation,
-              [browserKey(conversationId)]: draftBrowser,
-            },
-          });
-        if (draft === null || conversationId in byConversation) return;
+        const state = get();
+        if (Object.hasOwn(state.byConversation, conversationId)) return;
+        const key = browserKey(conversationId);
+        const target = state.targetFor(null);
         set({
           draft: null,
           draftProjectKey: null,
-          byConversation: { ...byConversation, [conversationId]: draft },
+          draftComputer: undefined,
+          draftBrowser: undefined,
+          browserByConversation: Object.hasOwn(state.browserByConversation, key)
+            ? state.browserByConversation
+            : { ...state.browserByConversation, [key]: state.browserFor(null) },
+          computerByConversation: Object.hasOwn(state.computerByConversation, key)
+            ? state.computerByConversation
+            : { ...state.computerByConversation, [key]: state.computerFor(null) },
+          byConversation: { ...state.byConversation, [conversationId]: target },
         });
       },
     }),
