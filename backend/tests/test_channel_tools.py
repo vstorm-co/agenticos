@@ -1092,7 +1092,9 @@ async def test_slack_roster_snapshot_does_not_fan_out_to_profile_requests():
 
 
 @pytest.mark.parametrize(
-    "mime,content", [("image/webp", b"image"), ("image/png", b"x" * 1_000_001)]
+    "mime,content",
+    [("image/webp", b"image"), ("image/png", b"x" * 1_000_001)],
+    ids=["unsupported-format", "over-size-limit"],
 )
 @pytest.mark.parametrize("private", [False, True])
 async def test_unsuitable_teams_images_require_personal_file_consent(mime, content, private):
