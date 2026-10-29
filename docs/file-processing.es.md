@@ -1,5 +1,5 @@
 ---
-source_sha: "fc4256f89c31"
+source_sha: "9d664a3154e4"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -823,6 +823,15 @@ que los documentos registraran su base) también se van, con sus archivos y frag
 salvo que otra base de esa organización tenga el nombre y aún las liste. Eliminar una
 colección borraba antes todas las filas de documentos con ese nombre, también las de
 otra organización (#2560).
+
+`rag-drop <name>` pasa por el mismo teardown. Antes borraba la tabla de vectores
+directamente, sin comprobar referencias, sin bloqueo ni reserva, y dejaba las filas de
+documentos, así que podía destruir una tabla que otra base aún usaba. Ahora vacía la
+única base que tiene el nombre, o elimina un nombre que ninguna base tiene (uno que
+llenó `rag-ingest`) con sus filas de documentos. Si varias bases tienen el nombre, lo
+rechaza y lista sus ids; `--knowledge-base <id>` indica la base que vaciar, y la tabla
+se queda para las demás. Un worker borra la tabla y los archivos después del commit
+del comando (#2560).
 
 `documents` era además la colección **predeterminada**, así que el inicio rápido
 de la CLI apuntaba a la tabla de seguimiento; ahora el predeterminado es

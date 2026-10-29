@@ -761,6 +761,14 @@ recorded their base) go too, with their files and chunks, unless another base of
 organization holds the name and still lists them. A drop used to delete every
 document row under the name, another organization's included (#2560).
 
+`rag-drop <name>` goes through the same teardown. It used to drop the vector table
+directly, with no reference check, lock or reservation, and left the document rows
+behind, so it could destroy a table another base still used. Now it clears the one
+base that holds the name, or drops a name no base holds (one `rag-ingest` filled) with
+its document rows. When several bases hold the name it refuses and lists their ids;
+`--knowledge-base <id>` names the one to clear, and the table stays for the others.
+A worker drops the table and removes the files after the command commits (#2560).
+
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
 the old name before this landed still exists and is still deletable, but nothing

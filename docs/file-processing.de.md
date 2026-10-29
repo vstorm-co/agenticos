@@ -1,5 +1,5 @@
 ---
-source_sha: "fc4256f89c31"
+source_sha: "9d664a3154e4"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -859,6 +859,15 @@ Basis speicherten) verschwinden mit ihren Dateien und Chunks ebenfalls, außer e
 andere Basis dieser Organisation hält den Namen und listet sie noch. Das Löschen einer
 Collection löschte früher jede Dokumentzeile unter dem Namen, auch die einer anderen
 Organisation (#2560).
+
+`rag-drop <name>` läuft durch denselben Teardown. Früher löschte es die Vektortabelle
+direkt, ohne Referenzprüfung, Sperre oder Reservierung, und ließ die Dokumentzeilen
+zurück, sodass es eine Tabelle zerstören konnte, die eine andere Basis noch nutzte.
+Jetzt leert es die eine Basis, die den Namen hält, oder löscht einen Namen ohne Basis
+(von `rag-ingest` befüllt) mit seinen Dokumentzeilen. Halten mehrere Basen den Namen,
+lehnt es ab und listet ihre IDs; `--knowledge-base <id>` nennt die zu leerende Basis,
+und die Tabelle bleibt für die anderen. Ein Worker löscht Tabelle und Dateien, nachdem
+der Befehl committet hat (#2560).
 
 `documents` war auch die **Vorgabe**-Collection, der CLI-Schnellstart zielte also
 früher auf die Verfolgungstabelle; die Vorgabe ist jetzt `default`. Eine

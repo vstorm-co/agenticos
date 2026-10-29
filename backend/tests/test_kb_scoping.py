@@ -925,6 +925,98 @@ class TestKBAccessControl:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_rag_drop_refuses_a_name_several_bases_hold(self, mock_db, monkeypatch):
+        """`rag-drop` dropped the table by name with no reference check, so a name
+        another organization's base still held lost its table (#2560). With
+        several holders and no base named, nothing is deleted and nothing queued."""
+        kb = _kb("org", organization_id=uuid.uuid4())
+        kb.collection_name = "docs"
+        theirs = _kb("org", organization_id=uuid.uuid4())
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb, theirs])
+
+        with pytest.raises(BadRequestError) as refused:
+            await KnowledgeBaseService(mock_db).drop_collection_by_name("docs")
+
+        assert refused.value.details["knowledge_base_ids"] == [kb.id, theirs.id]
+        repos["by_name"].assert_not_awaited()
+        repos["by_base"].assert_not_awaited()
+        repos["delete"].assert_not_awaited()
+        dispatch.assert_not_awaited()
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_rag_drop_of_a_named_base_keeps_the_shared_table(self, mock_db, monkeypatch):
+        """Naming one of the holders clears it as `DELETE /rag/collections/{name}`
+        does: its documents and row go, its chunks are purged, the table stays."""
+        kb = _kb("org", organization_id=uuid.uuid4())
+        kb.collection_name = "docs"
+        theirs = _kb("org", organization_id=uuid.uuid4())
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb, theirs])
+
+        cleared = await KnowledgeBaseService(mock_db).drop_collection_by_name(
+            "docs", knowledge_base_id=kb.id
+        )
+
+        assert cleared is kb
+        repos["by_name"].assert_not_awaited()
+        repos["delete"].assert_awaited_once_with(mock_db, kb.id)
+        assert dispatch.await_args.args[2] == []
+
+    @pytest.mark.anyio
+    async def test_rag_drop_of_a_base_not_on_the_name_is_refused(self, mock_db, monkeypatch):
+        """An id that holds no base under the name is refused, not taken as the
+        sole holder."""
+        kb = _kb("org", organization_id=uuid.uuid4())
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb])
+
+        with pytest.raises(NotFoundError):
+            await KnowledgeBaseService(mock_db).drop_collection_by_name(
+                "docs", knowledge_base_id=uuid.uuid4()
+            )
+
+        repos["delete"].assert_not_awaited()
+        dispatch.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_rag_drop_of_the_sole_holder_drops_the_table(self, mock_db, monkeypatch):
+        """One base holds the name, so it is cleared and the table dropped."""
+        kb = _kb("org", organization_id=uuid.uuid4())
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb])
+
+        cleared = await KnowledgeBaseService(mock_db).drop_collection_by_name("docs")
+
+        assert cleared is kb
+        repos["delete"].assert_awaited_once_with(mock_db, kb.id)
+        dispatch.assert_awaited_once_with(
+            mock_db, ["rag/docs/legacy.txt"], ["docs"], base_purges=[]
+        )
+
+    @pytest.mark.anyio
+    async def test_rag_drop_of_an_unclaimed_name_reserves_and_drops_it(self, mock_db, monkeypatch):
+        """A collection `rag-ingest` filled with no base goes whole, its rows with
+        it, under a reservation so a claim cannot adopt the table first (#1362)."""
+        from app.repositories import collection_teardown_repo
+
+        reserve = AsyncMock()
+        monkeypatch.setattr(collection_teardown_repo, "reserve", reserve)
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[])
+
+        cleared = await KnowledgeBaseService(mock_db).drop_collection_by_name("cli-docs")
+
+        assert cleared is None
+        repos["by_name"].assert_awaited_once_with(mock_db, "cli-docs")
+        reserve.assert_awaited_once_with(mock_db, "cli-docs")
+        dispatch.assert_awaited_once_with(mock_db, ["rag/docs/legacy.txt"], ["cli-docs"])
+
+    @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):
         """Somebody else's personal base is reported absent, not forbidden.
 

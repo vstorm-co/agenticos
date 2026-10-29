@@ -70,6 +70,15 @@ Two things are versioned separately from this file and worth knowing about:
   too, with their files and chunks, unless another base of that organization holds
   the name. Before, they stayed, and the organization's next base on the name
   listed and served them again (#2560).
+- `rag-drop` goes through the knowledge-base teardown. Before, it dropped the
+  vector table directly, with no reference check, lock or reservation, and left
+  the document rows behind, so it could destroy a table another knowledge base,
+  possibly another organization's, still used. It now clears the knowledge base
+  that holds the name, or drops a name no base holds with its document rows, and
+  a worker removes the table and the files after the command commits. A name
+  several knowledge bases hold is refused with their ids; pass
+  `--knowledge-base <id>` to clear one of them, and the table stays for the
+  others (#2560).
 
 ## [1.28.1] - 2026-10-28
 

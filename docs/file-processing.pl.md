@@ -1,5 +1,5 @@
 ---
-source_sha: "fc4256f89c31"
+source_sha: "9d664a3154e4"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -807,6 +807,15 @@ bazy poniżej. Nieprzypisane wiersze dokumentów organizacji tej bazy (uploady z
 zanim dokumenty zaczęły zapisywać swoją bazę) też znikają, razem z plikami i chunkami,
 chyba że inna baza tej organizacji ma tę nazwę i nadal je listuje. Usunięcie kolekcji
 kasowało wcześniej każdy wiersz dokumentu pod tą nazwą, także innej organizacji
+(#2560).
+
+`rag-drop <name>` przechodzi przez ten sam teardown. Wcześniej usuwał tabelę wektorów
+bezpośrednio, bez sprawdzenia referencji, blokady ani rezerwacji, i zostawiał wiersze
+dokumentów, więc mógł zniszczyć tabelę, której nadal używała inna baza. Teraz czyści
+jedyną bazę, która ma tę nazwę, albo usuwa nazwę bez żadnej bazy (wypełnioną przez
+`rag-ingest`) razem z jej wierszami dokumentów. Gdy nazwę ma kilka baz, odmawia i
+wypisuje ich identyfikatory; `--knowledge-base <id>` wskazuje bazę do wyczyszczenia,
+a tabela zostaje dla pozostałych. Tabelę i pliki usuwa worker po commicie polecenia
 (#2560).
 
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś

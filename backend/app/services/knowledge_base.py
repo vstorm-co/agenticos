@@ -353,6 +353,59 @@ class KnowledgeBaseService:
             self.db, storage_paths, collections_to_drop, base_purges=base_purges
         )
 
+    async def drop_collection_by_name(
+        self, collection: str, *, knowledge_base_id: UUID | None = None
+    ) -> KnowledgeBase | None:
+        """Drop a collection by its name, for `rag-drop`, which has no caller to scope by.
+
+        Goes through the same teardown as `DELETE /rag/collections/{name}`: the
+        base holding the name is cleared by `delete_for_rag_collection`, so its
+        documents go, a table another base still holds stays, and the drop is a
+        cleanup job queued in this transaction under the teardown lock and a
+        reservation (#1359, #1362). The command used to drop the vector table
+        straight away, with no reference check, and left the document rows behind
+        - destroying a table another base, possibly another organization's, still
+        used (#2560).
+
+        The name is not tenant-unique (#913), so when several bases hold it the
+        operator names one by `knowledge_base_id`; without one this refuses rather
+        than pick. A name no base holds - a collection `rag-ingest` filled from
+        the command line - is dropped whole, its document rows with it.
+
+        Returns the base cleared, or `None` for a name no base holds.
+        """
+        # The teardown lock before the lookup, so the holders read here are the
+        # ones the drop decides on; `delete_for_rag_collection` takes it again,
+        # which a transaction-level advisory lock allows.
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        holders = await knowledge_base_repo.list_by_collection_name(self.db, collection)
+        if knowledge_base_id is not None:
+            kb = next((holder for holder in holders if holder.id == knowledge_base_id), None)
+            if kb is None:
+                raise NotFoundError(
+                    message="No knowledge base with this id holds the collection",
+                    details={"collection": collection, "knowledge_base_id": knowledge_base_id},
+                )
+        elif len(holders) > 1:
+            raise BadRequestError(
+                message="Several knowledge bases hold this collection name; name one by its id",
+                details={
+                    "collection": collection,
+                    "knowledge_base_ids": [holder.id for holder in holders],
+                },
+            )
+        elif holders:
+            kb = holders[0]
+        else:
+            storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
+            await collection_teardown_repo.reserve(self.db, collection)
+            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
+
+            await queue_external_state_cleanup(self.db, storage_paths, [collection])
+            return None
+        await self.delete_for_rag_collection(kb)
+        return kb
+
     async def _delete_documents_from_kept_table(
         self, kb: KnowledgeBase, others: list[KnowledgeBase]
     ) -> tuple[list[str], list[BasePurge]]:

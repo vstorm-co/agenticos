@@ -1149,6 +1149,52 @@ class TestADeletedBasesChunksOnAKeptTable:
                 await s.commit()
 
     @pytest.mark.security
+    async def test_rag_drop_of_a_shared_name_keeps_the_other_organizations_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`rag-drop` dropped the table by name, whoever else held it (#2560).
+        Unnamed, a shared name is refused; naming one base clears only it, on
+        the real teardown lock taken twice in one transaction."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            doomed_id, kept_id = doomed.id, kept.id
+
+        try:
+            async with factory() as s:
+                with pytest.raises(BadRequestError):
+                    await KnowledgeBaseService(s).drop_collection_by_name(collection)
+                await s.rollback()
+            async with factory() as s:
+                await KnowledgeBaseService(s).drop_collection_by_name(
+                    collection, knowledge_base_id=doomed_id
+                )
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(KnowledgeBase, kept_id) is not None
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
     async def test_dropping_a_collection_removes_its_bases_documents_and_chunks_only(
         self, engine: AsyncEngine
     ) -> None:

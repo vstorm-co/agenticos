@@ -1,5 +1,5 @@
 ---
-source_sha: "0925d704b4b2"
+source_sha: "5e1c57ae866b"
 ---
 
 # Comandos { #commands }
@@ -582,7 +582,16 @@ uv run agenticos cmd rag-drop my_collection
 
 # Drop without confirmation
 uv run agenticos cmd rag-drop my_collection --yes
+
+# Clear one of several knowledge bases that share the name
+uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 ```
+
+`rag-drop` vacía la base de conocimiento que tiene el nombre, como lo hace la consola, y
+un worker borra la tabla de vectores y los archivos guardados después del commit del
+comando. Un nombre que tienen varias bases de conocimiento - también en organizaciones
+distintas - se rechaza, con sus ids, hasta que `--knowledge-base` indique una; la tabla
+se queda entonces para las demás.
 
 #### Sincronización con Google Drive { #google-drive-sync }
 
