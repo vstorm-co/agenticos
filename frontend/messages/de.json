@@ -2904,7 +2904,7 @@
         "knowledge": "Die Dokumente, aus denen er antwortet.",
         "departments": "Gruppen entscheiden, wer welchen Agent sieht.",
         "teammate": "Agents nutzt man besser gemeinsam.",
-        "channel": "Slack, Teams, Telegram oder Mattermost."
+        "channel": "Slack, Teams, Telegram, Mattermost oder Discord."
       },
       "left": "{count, plural, =1 {Noch 1 Schritt} other {Noch # Schritte}}",
       "ratio": "{done}/{total}",
@@ -4909,7 +4909,7 @@
     },
     "channels": {
       "addChannel": "Kanal hinzufügen",
-      "addChannelDescription": "Registrieren Sie einen Slack-, Telegram- oder Mattermost-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
+      "addChannelDescription": "Registrieren Sie einen Slack-, Teams-, Telegram-, Mattermost- oder Discord-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
       "addOneBecomesBindable": "Registrieren Sie einen, und Agents lassen sich über ihren Tab Verfügbarkeit darauf bereitstellen.",
       "appLevelToken": "App-Level-Token",
       "appLevelTokenHint": "Das xapp--Token, für den Socket Mode in der Entwicklung. Optional.",
@@ -4921,6 +4921,7 @@
       "botTokenHintMattermost": "Das Access-Token des Bot-Kontos",
       "botTokenHintSlack": "Das OAuth-Token des Bot-Benutzers (xoxb-…) aus Ihrer Slack-App",
       "botTokenHintTeams": "Der geheime Clientschlüssel der App-Registrierung des Azure Bots (Zertifikate & Geheimnisse in Entra).",
+      "botTokenHintDiscord": "Das Token unter Bot im Discord Developer Portal. Aktivieren Sie dort Message Content Intent und laden Sie den Bot mit den Scopes bot und applications.commands ein.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "In der Azure-Bot-Ressource unter Konfiguration. Legen Sie den Bot als Single-Tenant an.",
       "teamsTenantId": "Mandanten-ID",
@@ -5011,7 +5012,7 @@
       "transcriptionInheritsFromOrg": "{pair}, von der Organisation",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
+      "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} discord {Discord sendet Sprachnachrichten als Ogg/Opus} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
       "transcriptionProviderNoKey": "{name} (kein geeigneter Schlüssel)",
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird."
     },
@@ -5435,6 +5436,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceDiscord": "Discord",
       "surfaceFollowUps": "Nächste Schritte",
       "surfaceSchedule": "Zeitplan",
       "surfaceSlack": "Slack",

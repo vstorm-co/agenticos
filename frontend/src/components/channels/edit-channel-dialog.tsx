@@ -40,6 +40,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  discord: "Discord",
 };
 
 const MAX_NAME = 255;

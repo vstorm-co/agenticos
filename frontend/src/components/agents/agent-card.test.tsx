@@ -115,10 +115,10 @@ describe("AgentCard", () => {
   it("names the surfaces an agent answers on, and passes an unknown one through", () => {
     // A new platform must not vanish from the card between a backend release and
     // a frontend one.
-    mount({ channels: ["slack", "discord"] });
+    mount({ channels: ["slack", "whatsapp"] });
 
     expect(screen.getByText("Slack")).toBeInTheDocument();
-    expect(screen.getByText("discord")).toBeInTheDocument();
+    expect(screen.getByText("whatsapp")).toBeInTheDocument();
   });
 
   it("says when an agent was last edited, and says so when it never was", () => {

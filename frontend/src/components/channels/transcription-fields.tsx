@@ -123,7 +123,7 @@ export function TranscriptionFields({
     onChange({ mode, provider: first.provider, model: first.models[0]!.id, secretId: null });
   };
 
-  // Telegram sends a voice note as Ogg/Opus and Slack's desktop app records a
+  // Telegram and Discord send a voice note as Ogg/Opus and Slack's desktop app records a
   // clip as WebM, and Mistral lists neither: an inherited Mistral is the case
   // nobody chose and nobody would think to check. Mattermost carries whatever
   // was uploaded, so there is no one format to warn about.

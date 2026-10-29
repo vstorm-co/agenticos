@@ -15,6 +15,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  discord: "Discord",
 };
 
 /**
