@@ -7,6 +7,8 @@ beforeEach(() =>
     byConversation: {},
     draft: null,
     draftProjectKey: null,
+    computerByConversation: {},
+    draftComputer: undefined,
     browserByConversation: {},
     draftBrowser: undefined,
   }),
@@ -73,4 +75,18 @@ it("adopts a browser-only choice and preserves it when the sandbox returns to Cl
   store.setBrowser(null, true);
   store.resetDraft();
   expect(store.browserFor(null)).toBe(false);
+});
+
+it("adopts an independent screen choice and keeps it when files return to Cloud", () => {
+  const store = useWorkOnStore.getState();
+  store.setComputer(null, true);
+  store.adopt("screen-only");
+  expect(store.computerFor("screen-only")).toBe(true);
+  expect(store.targetFor("screen-only")).toBeNull();
+  store.set("screen-only", target);
+  store.set("screen-only", null);
+  expect(store.computerFor("screen-only")).toBe(true);
+  expect(store.computerFor(null)).toBe(false);
+  store.setComputer("screen-only", false);
+  expect(store.computerFor("screen-only")).toBe(false);
 });

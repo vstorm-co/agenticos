@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useId, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Check, FolderOpen, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -78,6 +79,7 @@ export function ChatControls({
   const t = useTranslations("chat.controls");
   const tc = useTranslations("common");
   const panel = useRef<HTMLDivElement>(null);
+  const waiverHintId = useId();
   const tOnboarding = useTranslations("onboarding");
   const pathname = usePathname();
   const openPage = useOnboardingStore((state) => state.openPage);
@@ -229,7 +231,12 @@ export function ChatControls({
                 </ul>
               </ContextHelp>
             </div>
-            <div role="radiogroup" aria-label={t("approvalMode")} className="space-y-1">
+            <div
+              role="radiogroup"
+              aria-label={t("approvalMode")}
+              aria-describedby={!mayWaive ? waiverHintId : undefined}
+              className="space-y-1"
+            >
               {APPROVAL_MODES.map((mode) => {
                 // Rendered but unavailable, rather than hidden: "you cannot waive
                 // approvals here" is a fact worth reading, where a menu that is
@@ -279,9 +286,26 @@ export function ChatControls({
               })}
             </div>
             {!mayWaive && (
-              <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
-                {t("cannotWaive")}
-              </p>
+              <div className="text-muted-foreground mt-2 space-y-2 text-xs leading-relaxed">
+                <p id={waiverHintId}>
+                  {t(
+                    !can(Perm.approvalsDecide)
+                      ? "waiverPermission"
+                      : typeof activeOrg?.chat_may_waive_approvals !== "boolean"
+                        ? "waiverUnknown"
+                        : "waiverOrg",
+                  )}
+                </p>
+                {can(Perm.approvalsDecide) && activeOrg?.chat_may_waive_approvals === false && (
+                  <Link
+                    href={`/orgs/${activeOrg.id}/members?tab=governance`}
+                    onClick={() => setOpen(false)}
+                    className="text-foreground underline underline-offset-4"
+                  >
+                    {t("waiverSettings")}
+                  </Link>
+                )}
+              </div>
             )}
           </div>
           <ConversationNotifications />

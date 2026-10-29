@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Let desktop chats opt into local Computer use independently of agent capabilities and file access.
+
 - Quick Ask accepts picked, pasted and dropped attachments, supports file-only
   messages and can stay pinned above other applications.
 
@@ -376,6 +378,8 @@ Two things are versioned separately from this file and worth knowing about:
   shorter motion without per-word blur.
 
 ### Fixed
+
+- Explain why Approve everything is unavailable and link authorized users to organization approval settings.
 
 - Chat fills the desktop content area without the empty top strip; its list
   header can drag the window. Browser and workspace choices appear before

@@ -1161,7 +1161,6 @@
     "controls": {
       "approvalMode": "Tryb zatwierdzania",
       "backAgentAposS": "Wróć do modelu agenta",
-      "cannotWaive": "Pomijanie zatwierdzeń wymaga uprawnienia do ich podejmowania, a organizacja musi na to pozwolić.",
       "escToClose": "esc, aby zamknąć",
       "howMuchToBeAsked": "Ile pytań przed uruchomieniem narzędzia?",
       "label": "Ustawienia czatu",
@@ -1213,10 +1212,17 @@
         "wholeComputer": "Cały komputer",
         "revokeComputer": "Cofnij dostęp do całego komputera",
         "computerConsent": "Zgoda dla tej rozmowy. Polecenia działają bez osobnych okien potwierdzenia. Tutaj możesz cofnąć dostęp; uprawnienia systemu nadal obowiązują.",
-        "computerFailed": "Nie udało się zmienić dostępu do komputera. Spróbuj ponownie."
+        "computerFailed": "Nie udało się zmienić dostępu do komputera. Spróbuj ponownie.",
+        "computerUseTitle": "Computer use",
+        "computerUseIndependent": "Użyj ekranu, myszy i klawiatury tego komputera, nawet jeśli agent nie ma zdolności Computer use. Nie daje to dostępu do plików. Aplikacja desktopowa poprosi o potrzebne uprawnienia do ekranu i dostępności.",
+        "computerUseLocal": "Lokalny komputer"
       },
       "modelSection": "Model",
-      "permissionsSection": "Uprawnienia"
+      "permissionsSection": "Uprawnienia",
+      "waiverPermission": "Ten tryb wymaga uprawnienia do zatwierdzania. Poproś administratora organizacji.",
+      "waiverOrg": "Organizacja wyłączyła ten tryb. Można go włączyć w sekcji Budżet i zatwierdzenia.",
+      "waiverUnknown": "Ustawienia zatwierdzeń organizacji nie są jeszcze dostępne. Spróbuj po załadowaniu organizacji.",
+      "waiverSettings": "Otwórz ustawienia zatwierdzeń"
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",
@@ -7909,7 +7915,7 @@
       },
       "allowed_domains": {
         "title": "Dozwolone domeny",
-        "description": "Hosty, na których może być przeglądarka; brak listy nie ogranicza, a pusta lista blokuje wszystkie. Dozwolone wzorce typu *.example.com. Sprawdzane w każdym kroku, nie tylko pierwszym."
+        "description": "Hosty dostępne w przeglądarce; null nie ogranicza dostępu, a pusta lista blokuje wszystko. Dozwolone są wzorce, np. *.example.com. Sprawdzane przy każdym kroku, nie tylko pierwszym."
       },
       "max_steps": {
         "title": "Maksymalnie kroków na wywołanie",
@@ -8249,7 +8255,7 @@
     "sandbox": {
       "backend": {
         "title": "Gdzie są pliki",
-        "description": "state: tylko pliki, bez powłoki, przechowywane przez platformę - działa na każdym wdrożeniu bez dodatkowych usług. service: kontener lub sandbox w chmurze, na jednym z połączeń zarejestrowanych przez organizację."
+        "description": "state: tylko pliki, bez powłoki, przechowywane przez platformę — działa bez dodatkowych usług. service: kontener lub sandbox w chmurze na połączeniu zarejestrowanym przez organizację. local: użytkownik wybiera i zatwierdza własny komputer w aplikacji desktopowej; spec nie przechowuje ścieżek tego komputera ani natywnej zgody."
       },
       "connection_id": {
         "title": "Połączenie sandbox",
@@ -9395,7 +9401,7 @@
         },
         "local": {
           "label": "Local",
-          "description": "Użyj sparowanej aplikacji desktopowej użytkownika. Czat musi mieć wybrane Ten komputer, a użytkownik musi zatwierdzić dostęp do ekranu."
+          "description": "Użyj sparowanej aplikacji desktopowej. W chacie wybierz lokalne Computer use lub pracę na tym komputerze. Użytkownik musi zezwolić na dostęp do ekranu."
         },
         "daemon": {
           "label": "Zdalny komputer",

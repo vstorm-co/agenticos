@@ -23,6 +23,10 @@ const browserKey = (conversationId: string) =>
   `${useAuthStore.getState().user?.id ?? "-"}:${useOrgStore.getState().activeOrgId ?? "-"}:${conversationId}`;
 
 interface WorkOnState {
+  computerByConversation: Record<string, boolean>;
+  draftComputer: boolean | undefined;
+  computerFor: (conversationId: string | null) => boolean;
+  setComputer: (conversationId: string | null, local: boolean) => void;
   browserByConversation: Record<string, boolean>;
   draftBrowser: boolean | undefined;
   browserFor: (conversationId: string | null) => boolean;
@@ -43,6 +47,26 @@ interface WorkOnState {
 export const useWorkOnStore = create<WorkOnState>()(
   persist(
     (set, get) => ({
+      computerByConversation: {},
+      draftComputer: undefined,
+      computerFor: (conversationId) =>
+        (conversationId === null
+          ? get().draftComputer
+          : get().computerByConversation[browserKey(conversationId)]) ??
+        get().targetFor(conversationId)?.computer ??
+        false,
+      setComputer: (conversationId, local) => {
+        const target = get().targetFor(conversationId);
+        if (target !== null) get().set(conversationId, { ...target, computer: local });
+        if (conversationId === null) set({ draftComputer: local });
+        else
+          set({
+            computerByConversation: {
+              ...get().computerByConversation,
+              [browserKey(conversationId)]: local,
+            },
+          });
+      },
       browserByConversation: {},
       draftBrowser: undefined,
       browserFor: (conversationId) =>
@@ -69,7 +93,13 @@ export const useWorkOnStore = create<WorkOnState>()(
       applyProject: (key, target) => {
         if (key !== get().draftProjectKey) set({ draftProjectKey: key, draft: target });
       },
-      resetDraft: () => set({ draft: null, draftProjectKey: null, draftBrowser: undefined }),
+      resetDraft: () =>
+        set({
+          draft: null,
+          draftProjectKey: null,
+          draftBrowser: undefined,
+          draftComputer: undefined,
+        }),
       targetFor: (conversationId) =>
         conversationId === null ? get().draft : (get().byConversation[conversationId] ?? null),
       set: (conversationId, target) => {
@@ -82,6 +112,15 @@ export const useWorkOnStore = create<WorkOnState>()(
       },
       adopt: (conversationId) => {
         const { draft, byConversation, draftBrowser, browserByConversation } = get();
+        const { draftComputer, computerByConversation } = get();
+        if (draftComputer !== undefined)
+          set({
+            draftComputer: undefined,
+            computerByConversation: {
+              ...computerByConversation,
+              [browserKey(conversationId)]: draftComputer,
+            },
+          });
         if (draftBrowser !== undefined)
           set({
             draftBrowser: undefined,
@@ -101,9 +140,10 @@ export const useWorkOnStore = create<WorkOnState>()(
     {
       name: "work-on",
       version: 1,
-      partialize: ({ byConversation, browserByConversation }) => ({
+      partialize: ({ byConversation, browserByConversation, computerByConversation }) => ({
         byConversation,
         browserByConversation,
+        computerByConversation,
       }),
     },
   ),

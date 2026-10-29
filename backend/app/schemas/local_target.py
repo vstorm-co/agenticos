@@ -35,6 +35,9 @@ class LocalTarget(BaseModel):
     )
     """Approved HTTP MCP services to add for this run, explicitly chosen by its owner."""
 
+    computer: bool = False
+    """Use this person's screen and input, independently of files and the agent spec."""
+
     browser: bool = False
     """Override the agent browser with this computer, independently of its sandbox."""
 
@@ -43,7 +46,11 @@ class LocalTarget(BaseModel):
         if self.computer_grant is not None and (self.folder is None or self.mode != "full_access"):
             raise ValueError("Whole-computer access requires its home folder and full access")
         if self.folder is None and (
-            not self.browser or self.model_service is not None or self.mcp_services
+            not (self.browser or self.computer)
+            or self.model_service is not None
+            or self.mcp_services
         ):
-            raise ValueError("Choose a folder for local work, or select only the local browser")
+            raise ValueError(
+                "Choose a folder for local work, or select only local browser or computer use"
+            )
         return self

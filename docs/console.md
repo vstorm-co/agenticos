@@ -38,6 +38,8 @@ Chat settings use a fixed heading and close button above a scrolling body. Infor
 
 Conversation agents are ordered by their latest message or top-level run, newest first. The collapsed chat rail keeps full-size avatars, overlaps up to three, and hides older participants; the full participant list remains available in the tooltip.
 
+When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

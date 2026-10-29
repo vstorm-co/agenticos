@@ -1,5 +1,5 @@
 ---
-source_sha: "c897221fc5c9"
+source_sha: "369a36674976"
 ---
 
 # La consola { #the-console }
@@ -45,6 +45,8 @@ permisos.
 Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el contenido desplazable. Los iconos de información explican el modelo, Browser, Work on y los modos de permisos cuando se solicitan; la explicación del modo seleccionado permanece visible. En **Knowledge bases → Integrations**, los paneles compactos de integraciones y servicios locales se ajustan al contenido, con explicaciones en los iconos de información.
 
 Los agentes de una conversación se ordenan por su último mensaje o ejecución principal, del más reciente al más antiguo. La barra de chat contraída mantiene los avatares a tamaño completo, superpone hasta tres y oculta a los participantes más antiguos; la lista completa sigue disponible en la ayuda emergente.
+
+Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
 
 ## El dashboard { #the-dashboard }
 

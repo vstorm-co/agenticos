@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT, RunContext
@@ -14,6 +15,7 @@ from app.agents.capabilities.computer_use._backends import (
     ComputerError,
     ComputerFactory,
     DaemonComputer,
+    LocalComputer,
     check_daemon_url,
     open_e2b_desktop,
     open_local_desktop,
@@ -68,6 +70,8 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     """
 
     backend: Literal["auto", "sandbox", "daemon", "local", "e2b"] = "auto"
+    local_session_id: UUID | None = None
+    """The authenticated initiating person's device; screen access grants no files."""
     daemon_url: str = ""
     daemon_token: str = field(default="", repr=False)
     policy: ToolPolicy = field(default_factory=ToolPolicy)
@@ -81,9 +85,15 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     def _on_persons_computer(self, workspace: Workspace) -> bool:
         """Whether a run in this workspace drives the person's own screen, through the desktop app."""
         on_computer = workspace.attached and isinstance(workspace.backend, DeviceWorkspace)
-        return self.backend == "local" or (self.backend == "auto" and on_computer)
+        return (
+            self.local_session_id is not None
+            or self.backend == "local"
+            or (self.backend == "auto" and on_computer)
+        )
 
     async def _open(self, workspace: Workspace) -> Computer:
+        if self.local_session_id is not None:
+            return LocalComputer(self.local_session_id)
         if self._on_persons_computer(workspace):
             return open_local_desktop(workspace)
         # Under `auto` a key on the binding can only be an E2B key: a daemon is

@@ -6160,13 +6160,15 @@ class TestAFailedRunOverTheApi:
 class TestPerRunLocalServices:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
-        "connected, voice_call, model_selected, browser_selected, browser_only",
+        "connected, voice_call, model_selected, browser_selected, browser_only, computer_selected",
         [
-            (True, False, True, True, False),
-            (False, False, True, True, False),
-            (True, True, True, True, False),
-            (True, False, False, False, False),
-            (True, False, False, True, True),
+            (True, False, True, True, False, False),
+            (False, False, True, True, False, False),
+            (True, True, True, True, False, False),
+            (True, False, False, False, False, False),
+            (True, False, False, True, True, False),
+            (True, False, False, False, True, True),
+            (True, False, False, False, False, True),
         ],
     )
     async def test_native_services_use_only_the_resolved_workspace_session(
@@ -6176,6 +6178,7 @@ class TestPerRunLocalServices:
         model_selected: bool,
         browser_selected: bool,
         browser_only: bool,
+        computer_selected: bool,
     ):
         from app.agents.voice import VoiceOptions
         from app.schemas.local_target import LocalTarget
@@ -6200,6 +6203,7 @@ class TestPerRunLocalServices:
             model_service="model" if model_selected else None,
             mcp_services=[] if browser_only else ["files", "files"],
             browser=browser_selected,
+            computer=computer_selected,
         )
         assert ctx.user_id is not None
         workspace = (
@@ -6293,6 +6297,11 @@ class TestPerRunLocalServices:
             assert build.call_args.kwargs["resources"]["local_browser_session"] == session
         else:
             assert "local_browser_session" not in build.call_args.kwargs["resources"]
+        assert (
+            "local_computer_session" in build.call_args.kwargs["resources"]
+        ) == computer_selected
+        if computer_selected:
+            assert build.call_args.kwargs["resources"]["local_computer_session"] == session
         if browser_only:
             tools.assert_not_called()
         else:

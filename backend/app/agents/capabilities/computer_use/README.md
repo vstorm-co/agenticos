@@ -172,3 +172,11 @@ run using the capability's vault key. **Local** requires the paired app and a
 chat working on that computer. **Remote computer** uses an approved computerd
 address and its token. Automatic retains its existing Local → E2B → sandbox
 resolution; the form does not change execution or migrate existing specs.
+
+
+Desktop chat can opt into this capability for one run through `LocalTarget.computer`,
+even when the published spec does not bind it. The runner resolves the initiating
+person's paired session and passes `local_computer_session` as an internal UUID
+resource. The capability uses that device without requiring a filesystem workspace.
+It retains the author's action limits and approval settings; native consent and OS
+permissions still apply. Screen selection grants neither files nor shell access.

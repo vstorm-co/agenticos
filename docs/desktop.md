@@ -24,6 +24,8 @@ permissions and the same tenant checks a browser tab would. It is a
 Without a saved preference, the desktop starts with **System** theme and **Glass**
 look. An explicit saved theme or look takes precedence.
 
+In **Chat controls → Computer use**, select **Local computer** to give this conversation screenshot, mouse and keyboard tools even when the agent has no Computer use binding. The choice is independent of Browser and Work on: it does not grant a folder or command access, and the published agent stays unchanged. The initiating person must have their own paired device connected; native screen consent and operating-system permissions still apply.
+
 ## Running it
 
 Before choosing a local installation or connecting to a server, the first-run wizard

@@ -1,4 +1,4 @@
-import { act, render as renderView, screen } from "@testing-library/react";
+import { act, render as renderView, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
@@ -100,6 +100,8 @@ beforeEach(() => {
       },
     },
     draft: null,
+    computerByConversation: {},
+    draftComputer: undefined,
   });
 });
 it("keeps local service choices when the approved folder changes", async () => {
@@ -288,7 +290,11 @@ it("selects a local browser while keeping the cloud sandbox and never asks for a
   expect(useWorkOnStore.getState().browserFor("chat")).toBe(true);
   expect(useWorkOnStore.getState().targetFor("chat")).toBeNull();
   expect(pick).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole("radio", { name: "Agent setting" }));
+  await userEvent.click(
+    within(screen.getByRole("radiogroup", { name: "Browser" })).getByRole("radio", {
+      name: "Agent setting",
+    }),
+  );
   expect(useWorkOnStore.getState().browserFor("chat")).toBe(false);
 });
 
@@ -337,6 +343,21 @@ it("keeps browser and workspace explanations behind their header information but
   await userEvent.click(help[0]!);
   expect(screen.getByText(browserHint)).toBeVisible();
   await userEvent.keyboard("{Escape}");
-  await userEvent.click(help[1]!);
+  await userEvent.click(help[2]!);
   expect(screen.getByText(workspaceHint)).toBeVisible();
+});
+
+it("opts into local computer use without granting files or changing the browser", async () => {
+  useWorkOnStore.getState().resetDraft();
+  useConversationStore.setState({ currentConversationId: null });
+  render(<WorkOn />);
+  const group = screen.getByRole("radiogroup", { name: "Computer use" });
+  await userEvent.click(within(group).getByRole("radio", { name: "Local computer" }));
+  expect(useWorkOnStore.getState().computerFor(null)).toBe(true);
+  expect(useWorkOnStore.getState().browserFor(null)).toBe(false);
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+  expect(pick).not.toHaveBeenCalled();
+  expect(computer.allow).not.toHaveBeenCalled();
+  await userEvent.click(within(group).getByRole("radio", { name: "Agent setting" }));
+  expect(useWorkOnStore.getState().computerFor(null)).toBe(false);
 });

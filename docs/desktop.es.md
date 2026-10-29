@@ -1,5 +1,5 @@
 ---
-source_sha: "37479ce8c330"
+source_sha: "3779aa8c0038"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -28,6 +28,8 @@ un shell de [Tauri](https://tauri.app) en `desktop/`.
 
 Sin una preferencia guardada, la aplicación de escritorio usa el tema **Sistema**
 y el estilo **Glass**. Una elección explícita guardada tiene prioridad.
+
+En **Chat controls → Computer use**, selecciona **Local computer** para dar a esta conversación herramientas de capturas de pantalla, ratón y teclado, aunque el agente no tenga la capacidad Computer use. La elección es independiente de Browser y Work on: no concede acceso a carpetas ni comandos y no modifica el agente publicado. La persona debe tener conectado su propio dispositivo emparejado; siguen siendo necesarios el consentimiento nativo para la pantalla y los permisos del sistema operativo.
 
 ## Ejecutarla { #running-it }
 

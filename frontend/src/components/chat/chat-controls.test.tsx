@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   // and the organization's ceiling (#925).
   mayDecide: true,
   orgAllowsWaiving: true,
+  orgLoaded: true,
   pathname: "/chat",
   openPage: vi.fn(),
 }));
@@ -45,7 +46,9 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [] }),
   usePermissions: () => ({ can: () => state.mayDecide }),
   useOrganizationList: () => ({
-    data: [{ id: "org-1", chat_may_waive_approvals: state.orgAllowsWaiving }],
+    data: state.orgLoaded
+      ? [{ id: "org-1", chat_may_waive_approvals: state.orgAllowsWaiving }]
+      : [],
   }),
 }));
 vi.mock("@/stores", () => ({
@@ -88,6 +91,7 @@ beforeEach(() => {
   state.conversationId = null;
   state.mayDecide = true;
   state.orgAllowsWaiving = true;
+  state.orgLoaded = true;
   state.pathname = "/chat";
   state.openPage = vi.fn();
 });
@@ -265,7 +269,7 @@ describe("the approval mode", () => {
     await openControls();
 
     expect(screen.getByRole("radio", { name: /Approve everything/ })).toBeDisabled();
-    expect(screen.getByText(/Waiving approvals needs permission/)).toBeVisible();
+    expect(screen.getByText(/You need permission to decide approvals/)).toBeVisible();
   });
 
   it("refuses waiving where the organization has not allowed it", async () => {
@@ -345,4 +349,25 @@ describe("the compact settings panel", () => {
     await userEvent.click(help[1]!);
     expect(screen.getByText(askHint)).toBeInTheDocument();
   });
+});
+
+it("explains an organization policy refusal and links directly to its approval settings", async () => {
+  state.orgAllowsWaiving = false;
+  open();
+  await userEvent.click(trigger());
+  expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
+  expect(screen.getByText(/Your organization has disabled this mode/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open approval settings" })).toHaveAttribute(
+    "href",
+    "/orgs/org-1/members?tab=governance",
+  );
+});
+
+it("does not call a missing organization policy disabled or offer its settings link", async () => {
+  state.orgLoaded = false;
+  open();
+  await userEvent.click(trigger());
+  expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
+  expect(screen.getByText(/Organization approval settings are not available yet/)).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Open approval settings" })).toBeNull();
 });

@@ -41,7 +41,8 @@ export function WorkOn() {
   const shell = useShell();
   return isDesktopShell(shell) ? (
     <>
-      <BrowserWorkOn />
+      <LocalToolControl tool="browser" />
+      <LocalToolControl tool="computer" />
       <ComputerWorkOn />
     </>
   ) : null;
@@ -57,29 +58,34 @@ export function ConversationNotifications() {
   ) : null;
 }
 
-function BrowserWorkOn() {
+function LocalToolControl({ tool }: { tool: "browser" | "computer" }) {
+  const computer = tool === "computer";
   const t = useTranslations("chat.controls.workOn");
   const conversationId = useConversationStore((state) => state.currentConversationId);
-  const local = useWorkOnStore((state) => state.browserFor(conversationId));
-  const setBrowser = useWorkOnStore((state) => state.setBrowser);
+  const local = useWorkOnStore((state) =>
+    computer ? state.computerFor(conversationId) : state.browserFor(conversationId),
+  );
+  const setLocal = useWorkOnStore((state) => (computer ? state.setComputer : state.setBrowser));
   const { data: device } = useDeviceStatus();
   const { link } = useDeviceLink();
   const selection = useMutation({
     mutationFn: async (choice: { conversationId: string | null; linked: boolean }) =>
       choice.linked || (await link.mutateAsync()).linked,
     onSuccess: (linked, choice) => {
-      if (linked) setBrowser(choice.conversationId, true);
+      if (linked) setLocal(choice.conversationId, true);
     },
   });
   return (
     <div className="border-foreground/10 mt-4 border-t pt-4">
       <div className="mb-2 flex items-center gap-1">
-        <p className="text-foreground/85 text-[13px] font-medium">{t("browserTitle")}</p>
-        <ContextHelp>{t("browserIndependent")}</ContextHelp>
+        <p className="text-foreground/85 text-[13px] font-medium">
+          {t(computer ? "computerUseTitle" : "browserTitle")}
+        </p>
+        <ContextHelp>{t(computer ? "computerUseIndependent" : "browserIndependent")}</ContextHelp>
       </div>
       <div
         role="radiogroup"
-        aria-label={t("browserTitle")}
+        aria-label={t(computer ? "computerUseTitle" : "browserTitle")}
         className="bg-foreground/4 grid grid-cols-2 gap-1 rounded-xl p-1"
       >
         <button
@@ -87,7 +93,7 @@ function BrowserWorkOn() {
           role="radio"
           aria-checked={!local}
           disabled={selection.isPending}
-          onClick={() => setBrowser(conversationId, false)}
+          onClick={() => setLocal(conversationId, false)}
           className={cn(
             "flex min-h-10 items-center justify-center gap-2 rounded-lg px-2 text-xs",
             !local && "bg-background shadow-sm",
@@ -108,7 +114,7 @@ function BrowserWorkOn() {
           )}
         >
           <Laptop className="size-4" aria-hidden />
-          {t("computerBrowser")}
+          {t(computer ? "computerUseLocal" : "computerBrowser")}
         </button>
       </div>
       {local && device?.connected === false && (

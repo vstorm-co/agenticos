@@ -1,6 +1,7 @@
 """Computer use - an agent operating a desktop through screenshots, mouse and keyboard."""
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 from pydantic_ai.capabilities import AbstractCapability
@@ -50,7 +51,7 @@ class ComputerUseConfig(BaseModel):
                 "auto": "Use Local when the chat works on this computer; otherwise E2B if this capability has a key, or the agent's sandbox.",
                 "sandbox": "Use the agent's Sandbox connection (Docker or E2B) with the desktop runtime. Configure the connection in the Sandbox capability.",
                 "daemon": "Connect to a computer running computerd. Set its approved address and select its access token below.",
-                "local": "Use the person's paired desktop app. The chat must have This computer selected and the person must approve screen access.",
+                "local": "Use the person's paired desktop app. In chat, select local Computer use or work on This computer. The person must approve screen access.",
                 "e2b": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
             },
         },
@@ -166,8 +167,10 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     """Build the capability; a missing sandbox, URL or token is refused by the tool, in a sentence."""
     config = ctx.config if isinstance(ctx.config, ComputerUseConfig) else ComputerUseConfig()
     token = ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else ""
+    local_session = ctx.resources.get("local_computer_session")
     return ComputerUse(
         backend=config.desktop,
+        local_session_id=local_session if isinstance(local_session, UUID) else None,
         daemon_url=config.daemon_url,
         daemon_token=token,
         policy=ToolPolicy(

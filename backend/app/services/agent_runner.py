@@ -1627,6 +1627,10 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
             )
         if local.browser:
             selected.append("Browser tools use the approved local browser, not a cloud browser.")
+        if local.computer:
+            selected.append(
+                "Computer tools operate this person's own screen and input, not a cloud desktop."
+            )
         if local.model_service is not None:
             selected.append(
                 "Inference uses the selected local model service; do not claim it runs in the cloud."
@@ -1650,6 +1654,8 @@ def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> Agen
         requested[SANDBOX_CAPABILITY_ID] = {}
     if local.browser:
         requested[BROWSER_CAPABILITY_ID] = {"connection": "local"}
+    if local.computer:
+        requested["computer_use"] = {"desktop": "local"}
     bindings = list(spec.capabilities)
     for capability_id, config in requested.items():
         own = next((entry for entry in bindings if entry.id == capability_id), None)
@@ -2941,11 +2947,13 @@ class AgentRunnerService:
 
     @staticmethod
     async def _browser_session(ctx: AuthContext, local: LocalTarget) -> UUID:
-        """Resolve only the initiating person's paired browser, without opening a folder."""
+        """Resolve only the initiating person's paired device, without opening a folder."""
         from app.services import device_hub
 
         if ctx.user_id is None or ctx.api_key_id is not None or ctx.subject_is_publisher_fallback:
-            raise BadRequestError(message="Only your own chats can use your computer's browser")
+            raise BadRequestError(
+                message="Only your own chats can use your computer's browser or screen"
+            )
         device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
         if device is None:
             raise BadRequestError(
@@ -3388,12 +3396,16 @@ class AgentRunnerService:
             on_wait=on_sandbox_wait,
             local=local,
         )
-        if local is not None and local.browser and local.folder is None:
-            resources["local_browser_session"] = await self._browser_session(workspace_ctx, local)
+        if local is not None and (local.browser or local.computer) and local.folder is None:
+            session_id = await self._browser_session(workspace_ctx, local)
+            if local.browser:
+                resources["local_browser_session"] = session_id
+            if local.computer:
+                resources["local_computer_session"] = session_id
         if local is not None and (
             local.model_service is not None
             or local.mcp_services
-            or (local.browser and local.folder is not None)
+            or ((local.browser or local.computer) and local.folder is not None)
         ):
             # _open_local has authenticated the actual sender and resolved only
             # their own paired session before any local service is contacted.
@@ -3409,6 +3421,8 @@ class AgentRunnerService:
             session_id = workspace.workspace.backend.session_id
             if local.browser:
                 resources["local_browser_session"] = session_id
+            if local.computer:
+                resources["local_computer_session"] = session_id
             if local_model_choice is not None:
                 service_id, profile_id = local_model_choice
                 service = await describe_service(session_id, service_id, "model")

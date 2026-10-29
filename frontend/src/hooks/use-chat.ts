@@ -1444,12 +1444,18 @@ export function useChat(options: UseChatOptions = {}) {
       }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
+      const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
       if (local)
         payload.local = {
           ...local,
+          ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
           ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
         };
-      else if (localBrowser) payload.local = { browser: true };
+      else if (localBrowser || localComputer)
+        payload.local = {
+          ...(localBrowser ? { browser: true } : {}),
+          ...(localComputer ? { computer: true } : {}),
+        };
       const test = testingRef.current;
       if (test) {
         payload.test = true;

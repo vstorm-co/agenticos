@@ -88,3 +88,31 @@ async def test_computer_backend_publishes_without_container_and_requires_a_chat_
         }
     )
     assert len(await _sandbox_problems(db, ctx, invalid)) == 2
+
+
+@pytest.mark.parametrize("folder", [None, "/approved"])
+def test_computer_opt_in_needs_no_published_capability_or_file_access(folder: str | None) -> None:
+    original = AgentSpec(name="Plain")
+    local = LocalTarget(folder=folder, computer=True)
+    runnable = _with_local_capabilities(original, local)
+    bindings = {binding.id: binding for binding in runnable.capabilities}
+    assert bindings["computer_use"].config == {"desktop": "local"}
+    assert ("sandbox" in bindings) == (folder is not None)
+    assert "browser_use" not in bindings
+    assert not original.capabilities
+    guarded = AgentSpec(
+        name="Guarded",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="computer_use",
+                enabled=False,
+                approval="required",
+                config={"desktop": "sandbox", "max_actions": 10},
+                tool_approval={"computer_act": "required"},
+            )
+        ],
+    )
+    enabled = _with_local_capabilities(guarded, local).capabilities[-1]
+    assert enabled.enabled and enabled.approval == "required"
+    assert enabled.tool_approval == {"computer_act": "required"}
+    assert enabled.config == {"desktop": "local", "max_actions": 10}

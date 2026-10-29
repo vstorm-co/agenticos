@@ -279,6 +279,8 @@ async def test_context_replacement_is_retried_through_the_local_error_adapter(
         {},
         {"model_service": "model", "browser": True},
         {"mcp_services": ["files"], "browser": True},
+        {"model_service": "model", "computer": True},
+        {"mcp_services": ["files"], "computer": True},
     ],
 )
 def test_browser_only_target_cannot_grant_local_files_or_services(payload):

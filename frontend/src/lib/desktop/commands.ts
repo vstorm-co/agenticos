@@ -354,6 +354,7 @@ export interface LocalTarget {
   mode: LocalMode;
   computer_grant?: string;
   browser?: boolean;
+  computer?: boolean;
   model_service?: string | null;
   mcp_services?: string[];
 }

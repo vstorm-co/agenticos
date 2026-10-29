@@ -278,3 +278,23 @@ performed because Computer Use is disabled for this task.
 
 The full-size correction passed 57 avatar/sidebar tests. Repository regressions
 cover ordering across both evidence sources and reuse of an earlier participant.
+
+
+## Per-conversation local screen and approval policy feedback
+
+Computer use is a desktop conversation opt-in alongside the browser. It is kept
+per account, organization and conversation, adopted from drafts, and sent without
+a folder when only screen tools are selected. The runner adds the existing
+capability for this run, preserves author limits/approval rules, and resolves only
+the initiating person's paired session. An internal UUID resource lets the
+capability operate that screen without borrowing a filesystem workspace. Native
+screen consent and operating-system permissions remain mandatory.
+
+Approve everything was legitimately disabled by organization policy in the local
+organizations. The UI now distinguishes that from missing decision permission or
+unavailable organization settings, and links authorized decision-makers directly
+to the governance tab. It does not change organization policy on selection.
+
+Validation: 310 focused frontend tests and 55 backend tests passed, including
+screen-only transport, preserved sandbox selection, per-run capability injection,
+paired-session ownership and existing author limits.

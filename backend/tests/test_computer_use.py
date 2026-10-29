@@ -1715,6 +1715,15 @@ class TestRegistration:
             "",
         )
 
+    @pytest.mark.anyio
+    async def test_a_resolved_local_screen_does_not_need_a_filesystem_workspace(self):
+        session = uuid4()
+        capability = _build({"desktop": "local"}, resources={"local_computer_session": session})
+        computer = await capability._open(document_workspace())
+        assert computer._session_id == session
+        assert capability._on_persons_computer(document_workspace())
+        assert "launcher" in capability.get_instructions()(_ctx())
+
     def test_a_batch_larger_than_the_run_is_refused(self):
         with pytest.raises(ValidationError, match="cannot be larger than max_actions"):
             ComputerUseConfig(max_actions=5, max_actions_per_call=10)

@@ -1,5 +1,5 @@
 ---
-source_sha: "37479ce8c330"
+source_sha: "3779aa8c0038"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -28,6 +28,8 @@ tenanta co karta przeglądarki. To powłoka [Tauri](https://tauri.app) w
 
 Bez zapisanej preferencji desktop uruchamia się z motywem **Systemowym** i stylem
 **Glass**. Wcześniejszy jawny wybór motywu lub stylu ma pierwszeństwo.
+
+W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępnić tej rozmowie narzędzia zrzutów ekranu, myszy i klawiatury, nawet jeśli agent nie ma zdolności Computer use. Wybór jest niezależny od Browser i Work on: nie daje dostępu do folderu ani komend i nie zmienia opublikowanego agenta. Osoba rozpoczynająca pracę musi mieć połączone własne, sparowane urządzenie; nadal obowiązują natywna zgoda na ekran i uprawnienia systemu operacyjnego.
 
 ## Uruchamianie { #running-it }
 

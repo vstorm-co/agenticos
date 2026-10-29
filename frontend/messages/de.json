@@ -1161,7 +1161,6 @@
     "controls": {
       "approvalMode": "Freigabemodus",
       "backAgentAposS": "Zurück zum eigenen Modell des Agents",
-      "cannotWaive": "Freigaben zu übergehen braucht die Berechtigung, über sie zu entscheiden, und diese Organisation muss es erlauben.",
       "escToClose": "Esc zum Schließen",
       "howMuchToBeAsked": "Wie oft möchten Sie gefragt werden, bevor ein Tool läuft?",
       "label": "Chat-Steuerung",
@@ -1213,10 +1212,17 @@
         "wholeComputer": "Gesamter Computer",
         "revokeComputer": "Zugriff auf den gesamten Computer widerrufen",
         "computerConsent": "Für dieses Gespräch erlaubt. Befehle laufen ohne einzelne native Bestätigungen. Hier können Sie den Zugriff widerrufen; Systemberechtigungen gelten weiterhin.",
-        "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut."
+        "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut.",
+        "computerUseTitle": "Computer use",
+        "computerUseIndependent": "Bildschirm, Maus und Tastatur dieses Computers verwenden, auch wenn der Agent keine Computer-use-Fähigkeit hat. Dies gewährt keinen Dateizugriff. Die Desktop-App fragt bei Bedarf nach Bildschirm- und Bedienungshilfenberechtigungen.",
+        "computerUseLocal": "Lokaler Computer"
       },
       "modelSection": "Modell",
-      "permissionsSection": "Berechtigungen"
+      "permissionsSection": "Berechtigungen",
+      "waiverPermission": "Dieser Modus erfordert die Berechtigung, Genehmigungen zu entscheiden. Wende dich an die Organisationsverwaltung.",
+      "waiverOrg": "Deine Organisation hat diesen Modus deaktiviert. Er lässt sich unter Budget und Genehmigungen aktivieren.",
+      "waiverUnknown": "Die Genehmigungseinstellungen der Organisation sind noch nicht verfügbar. Versuche es nach dem Laden der Organisation erneut.",
+      "waiverSettings": "Genehmigungseinstellungen öffnen"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
@@ -8003,7 +8009,7 @@
       },
       "allowed_domains": {
         "title": "Erlaubte Domains",
-        "description": "Erlaubte Hosts; eine nicht gesetzte Liste erlaubt alle, eine leere Liste verweigert alle. Muster wie *.example.com sind erlaubt. Prüfung bei jedem Schritt, nicht nur beim ersten."
+        "description": "Erlaubte Browser-Hosts; null bedeutet uneingeschränkt, eine leere Liste verweigert alle. Muster wie *.example.com sind erlaubt. Wird bei jedem Schritt geprüft, nicht nur beim ersten."
       },
       "max_steps": {
         "title": "Höchstens Schritte pro Aufruf",
@@ -8343,7 +8349,7 @@
     "sandbox": {
       "backend": {
         "title": "Wo die Dateien liegen",
-        "description": "state: nur Dateien, keine Shell, von der Plattform gespeichert - funktioniert auf jeder Installation ohne zusätzliche Dienste. service: ein Container oder eine Cloud-Sandbox, über eine der Verbindungen, die diese Organisation registriert hat."
+        "description": "state: nur Dateien, keine Shell, von der Plattform gespeichert — funktioniert ohne zusätzliche Dienste. service: ein Container oder eine Cloud-Sandbox auf einer Verbindung der Organisation. local: die Person wählt und genehmigt ihren eigenen Computer im Desktop-Chat; dieser Spec speichert weder Gerätepfade noch native Zustimmung."
       },
       "connection_id": {
         "title": "Sandbox-Verbindung",
@@ -9279,7 +9285,7 @@
         },
         "local": {
           "label": "Local",
-          "description": "Die gekoppelte Desktop-App der Person verwenden. Im Chat muss Dieser Computer ausgewählt sein, und die Person muss den Bildschirmzugriff bestätigen."
+          "description": "Die gekoppelte Desktop-App verwenden. Im Chat lokales Computer use oder die Arbeit auf diesem Computer auswählen. Die Person muss dem Bildschirmzugriff zustimmen."
         },
         "daemon": {
           "label": "Remote-Computer",

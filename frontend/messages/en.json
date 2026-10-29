@@ -1161,7 +1161,6 @@
     "controls": {
       "approvalMode": "Approval mode",
       "backAgentAposS": "Back to the agent's own model",
-      "cannotWaive": "Waiving approvals needs permission to decide them, and this organization has to allow it.",
       "escToClose": "esc to close",
       "howMuchToBeAsked": "How much do you want to be asked before a tool runs?",
       "label": "Chat controls",
@@ -1213,10 +1212,17 @@
         "wholeComputer": "Whole computer",
         "revokeComputer": "Revoke whole-computer access",
         "computerConsent": "Allowed for this conversation. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply.",
-        "computerFailed": "Could not change computer access. Try again."
+        "computerFailed": "Could not change computer access. Try again.",
+        "computerUseTitle": "Computer use",
+        "computerUseIndependent": "Use this computer's screen, mouse and keyboard, even when the agent has no Computer use capability. This does not grant file access. The desktop app asks for screen and accessibility permissions when needed.",
+        "computerUseLocal": "Local computer"
       },
       "modelSection": "Model",
-      "permissionsSection": "Permissions"
+      "permissionsSection": "Permissions",
+      "waiverPermission": "You need permission to decide approvals to use this mode. Ask an organization administrator.",
+      "waiverOrg": "Your organization has disabled this mode. It can be enabled under Budget and approvals.",
+      "waiverUnknown": "Organization approval settings are not available yet. Try again when the organization has loaded.",
+      "waiverSettings": "Open approval settings"
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",
@@ -8124,7 +8130,7 @@
       },
       "allowed_domains": {
         "title": "Allowed domains",
-        "description": "Hosts the browser may be on; leaving the list unset is unrestricted and an empty list denies all. Globs like *.example.com are allowed. Checked on every step, not only the first."
+        "description": "Hosts the browser may be on; null is unrestricted and an empty list denies all. Globs like *.example.com are allowed. Checked on every step, not only the first."
       },
       "max_steps": {
         "title": "Steps per call at most",
@@ -8464,7 +8470,7 @@
     "sandbox": {
       "backend": {
         "title": "Where files live",
-        "description": "state: files only, no shell, stored by the platform - works on every deployment with no extra services. service: a container or cloud sandbox, on one of the connections this organization has registered."
+        "description": "state: files only, no shell, stored by the platform - works on every deployment with no extra services. service: a container or cloud sandbox, on one of the connections this organization has registered. local: the person selects and approves their own computer in desktop chat; no machine path or native consent is stored in this spec."
       },
       "connection_id": {
         "title": "Sandbox connection",
@@ -9610,7 +9616,7 @@
         },
         "local": {
           "label": "Local",
-          "description": "Use the person's paired desktop app. The chat must have This computer selected and the person must approve screen access."
+          "description": "Use the person's paired desktop app. In chat, select local Computer use or work on This computer. The person must approve screen access."
         },
         "e2b": {
           "label": "E2B",

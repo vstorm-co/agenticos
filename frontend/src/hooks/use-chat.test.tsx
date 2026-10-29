@@ -4919,3 +4919,16 @@ it("keeps a finished browser preview through a follow-up turn", () => {
   expect(result.current.browses).toHaveLength(1);
   expect(result.current.browses[0]).toMatchObject({ tabId: "main", outcome: "done" });
 });
+
+it("sends a screen-only override without giving the agent a local folder", () => {
+  const store = useWorkOnStore.getState();
+  store.setComputer(null, true);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("use my computer"));
+    expect(lastFrame().local).toEqual({ computer: true });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});

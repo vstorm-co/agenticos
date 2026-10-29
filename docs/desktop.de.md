@@ -1,5 +1,5 @@
 ---
-source_sha: "37479ce8c330"
+source_sha: "3779aa8c0038"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -28,6 +28,8 @@ und denselben Mandantenprüfungen wie ein Browser-Tab. Sie ist eine
 
 Ohne gespeicherte Auswahl startet die Desktop-App mit dem **System**-Modus und
 dem Stil **Glass**. Eine ausdrücklich gespeicherte Auswahl hat Vorrang.
+
+Unter **Chat controls → Computer use** bietet **Lokaler Computer** dieser Unterhaltung Screenshot-, Maus- und Tastaturwerkzeuge, auch wenn der Agent keine Computer-use-Fähigkeit hat. Die Auswahl ist unabhängig von Browser und Work on: Sie gewährt weder Ordner- noch Befehlszugriff und ändert den veröffentlichten Agenten nicht. Die Person muss ihr eigenes gekoppeltes Gerät verbunden haben; die native Bildschirmzustimmung und Betriebssystemberechtigungen gelten weiterhin.
 
 ## Starten { #running-it }
 
