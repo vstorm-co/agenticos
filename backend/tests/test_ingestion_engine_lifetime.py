@@ -66,6 +66,7 @@ def _ingest_result(status: IngestionStatus = IngestionStatus.DONE) -> MagicMock:
         replaced_document_id=None,
         error_message=None,
         message="",
+        refused=False,
     )
 
 

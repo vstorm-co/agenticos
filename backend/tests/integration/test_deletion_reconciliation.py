@@ -1254,6 +1254,8 @@ class TestAnIngestRacingItsBasesDelete:
             assert result.error_message == (
                 "The knowledge base was deleted while this file was being indexed"
             )
+            # Refused, which the worker ends without a retry (RR3-c1a).
+            assert result.refused is True
             async with factory() as s:
                 assert await _filed_under(s, table, doomed.id) == 0
                 assert await _filed_under(s, table, kept.id) == 1

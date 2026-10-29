@@ -5,13 +5,18 @@ The lock itself, against a real delete, is `TestAnIngestRacingItsBasesDelete` in
 """
 
 import logging
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from app.core.exceptions import NotFoundError
+from app.db.models.rag_document import DocumentStatus
 from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo
 from app.services.rag.ingestion import IngestionService
@@ -20,9 +25,13 @@ from app.services.rag.models import (
     DocumentMetadata,
     DocumentPage,
     DocumentPageChunk,
+    IngestionResult,
     IngestionStatus,
 )
 from app.services.rag.vectorstore import KnowledgeBaseRemovedError, PgVectorStore
+from app.worker.attempt import Attempt, running
+from app.worker.jobs import IngestDocument
+from app.worker.tasks import rag_tasks
 
 pytestmark = pytest.mark.anyio
 
@@ -165,3 +174,159 @@ class TestTheIngesterReportsTheRemovedBase:
         on_event.assert_not_awaited()
         assert [r.levelno for r in caplog.records] == [logging.INFO]
         assert caplog.records[0].exc_info is None
+
+
+def _ingester(store: MagicMock) -> IngestionService:
+    processor = MagicMock(process_file=AsyncMock(return_value=_document()))
+    return IngestionService(processor, store)
+
+
+class TestTheIngesterMarksARefusal:
+    """A write skipped on purpose is `refused`, so the worker can end it rather
+    than retry it (RR3-c1a)."""
+
+    async def test_a_removed_base_is_a_refusal(self) -> None:
+        store = MagicMock(
+            find_existing_document=AsyncMock(return_value=None),
+            insert_document=AsyncMock(
+                side_effect=KnowledgeBaseRemovedError(message="gone", details={})
+            ),
+        )
+
+        result = await _ingester(store).ingest_file(Path("a.md"), "docs", replace=False)
+
+        assert result.refused is True
+
+    async def test_a_collection_torn_down_is_a_refusal_with_a_written_reason(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        store = MagicMock(find_existing_document=AsyncMock(return_value=None))
+
+        with caplog.at_level(logging.INFO, logger="app.services.rag.ingestion"):
+            result = await _ingester(store).ingest_file(
+                Path("a.md"), "docs", replace=False, still_wanted=AsyncMock(return_value=False)
+            )
+
+        assert result.status is IngestionStatus.ERROR
+        assert result.refused is True
+        assert result.error_message == "The collection was removed while this file was parsed"
+        store.insert_document.assert_not_called()
+        assert all(r.exc_info is None for r in caplog.records)
+
+    async def test_an_index_that_broke_is_not_a_refusal(self) -> None:
+        store = MagicMock(
+            find_existing_document=AsyncMock(return_value=None),
+            insert_document=AsyncMock(side_effect=RuntimeError("provider refused")),
+        )
+
+        result = await _ingester(store).ingest_file(Path("a.md"), "docs", replace=False)
+
+        assert result.status is IngestionStatus.ERROR
+        assert result.refused is False
+
+
+REFUSAL = "The knowledge base was deleted while this file was being indexed"
+
+
+@asynccontextmanager
+async def _session() -> AsyncIterator[MagicMock]:
+    yield MagicMock()
+
+
+@pytest.fixture
+def worker() -> Iterator[dict[str, Any]]:
+    """`ingest_document` up to `ingest_file`, which answers what the test sets."""
+    answer: dict[str, Any] = {}
+    documents = MagicMock(
+        get_document=AsyncMock(
+            return_value=MagicMock(
+                organization_id=None,
+                ingestion_config={},
+                knowledge_base_id=None,
+                status=DocumentStatus.PROCESSING,
+            )
+        ),
+        fail_ingestion=AsyncMock(),
+    )
+    ingester = MagicMock(ingest_file=AsyncMock(side_effect=lambda **_: answer["result"]))
+
+    @asynccontextmanager
+    async def ingestion_service(**_: object) -> AsyncIterator[MagicMock]:
+        yield ingester
+
+    with (
+        patch.object(rag_tasks, "get_worker_db_context", new=_session),
+        patch.object(rag_tasks, "_ingestion_service", new=ingestion_service),
+        patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
+        patch.object(rag_tasks, "IngestionConfigService") as config_service,
+        patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+    ):
+        config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+        answer["documents"] = documents
+        yield answer
+
+
+def _job() -> IngestDocument:
+    return IngestDocument(
+        rag_document_id=uuid4(),
+        collection_name="docs",
+        filepath="queued/a.md",
+        source_path="a.md",
+        replace=False,
+        attempt=1,
+    )
+
+
+class TestTheWorkerEndsARefusal:
+    """A refused upload is terminal: the row fails with the written reason on the
+    first attempt, the job returns rather than raising into a retry, and the log
+    has a line at INFO, not a traceback (RR3-c1a)."""
+
+    async def test_a_refusal_fails_the_row_and_is_not_retried(
+        self, worker: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ) -> None:
+        worker["result"] = IngestionResult(
+            status=IngestionStatus.ERROR, error_message=REFUSAL, refused=True
+        )
+
+        with (
+            running(Attempt(number=1, of=2)),
+            caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"),
+        ):
+            outcome = await rag_tasks.ingest_document(_job())
+
+        assert outcome["status"] == "refused"
+        worker["documents"].fail_ingestion.assert_awaited_once()
+        assert worker["documents"].fail_ingestion.await_args.kwargs["error_message"] == REFUSAL
+        assert all(r.exc_info is None for r in caplog.records)
+        assert max(r.levelno for r in caplog.records) == logging.INFO
+
+    async def test_a_refusal_for_a_row_already_gone_records_nothing_quietly(
+        self, worker: dict[str, Any], caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A collection drop deletes the rows it tears down, so the row a
+        `still_wanted` refusal would fail is usually gone."""
+        worker["result"] = IngestionResult(
+            status=IngestionStatus.ERROR, error_message=REFUSAL, refused=True
+        )
+        record = await worker["documents"].get_document()
+        worker["documents"].get_document = AsyncMock(
+            side_effect=[record, NotFoundError(message="Document not found")]
+        )
+
+        with caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"):
+            outcome = await rag_tasks.ingest_document(_job())
+
+        assert outcome["status"] == "refused"
+        worker["documents"].fail_ingestion.assert_not_awaited()
+        assert max(r.levelno for r in caplog.records) == logging.INFO
+
+    async def test_a_failure_that_is_not_a_refusal_is_still_retried(
+        self, worker: dict[str, Any]
+    ) -> None:
+        worker["result"] = IngestionResult(status=IngestionStatus.ERROR, error_message="broke")
+
+        with running(Attempt(number=1, of=2)), pytest.raises(RuntimeError):
+            await rag_tasks.ingest_document(_job())
+
+        worker["documents"].fail_ingestion.assert_not_awaited()

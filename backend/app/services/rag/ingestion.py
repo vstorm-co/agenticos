@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.core.exceptions import AppException
 from app.db.vector_tables import VectorScope
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.failures import IngestionStage, failure_summary
@@ -12,11 +13,14 @@ from app.services.rag.vectorstore import BaseVectorStore, KnowledgeBaseRemovedEr
 logger = logging.getLogger(__name__)
 
 
-class _CollectionRemoved(Exception):
+class _CollectionRemoved(AppException):
     """The collection was deleted while a file was being ingested into it.
 
-    Carried into `_failed` only so the failure names a cause; the document row is
-    gone by the time this is raised, so the message is never stored (#1275)."""
+    Carried into `_failed` so the failure names a cause. The document row is
+    usually gone by then (#1275), but a default base cleared with a sync running
+    keeps its row (#1382), so the message is one of ours and may be stored."""
+
+    message = "The collection was removed while this file was parsed"
 
 
 @dataclass(frozen=True)
@@ -222,9 +226,10 @@ class IngestionService:
                     "Skipping index for %s: collection %s is gone", filepath.name, collection_name
                 )
                 return self._failed(
-                    _CollectionRemoved(collection_name),
+                    _CollectionRemoved(details={"collection": collection_name}),
                     stage=IngestionStage.INDEX,
                     filename=filepath.name,
+                    refused=True,
                 )
 
             try:
@@ -236,7 +241,9 @@ class IngestionService:
             except KnowledgeBaseRemovedError as exc:
                 # Lost the race with the base's delete (#2561): expected, no traceback.
                 logger.info("Skipping index for %s: its knowledge base is gone", filepath.name)
-                return self._failed(exc, stage=IngestionStage.INDEX, filename=filepath.name)
+                return self._failed(
+                    exc, stage=IngestionStage.INDEX, filename=filepath.name, refused=True
+                )
 
             if existing_id:
                 try:
@@ -288,7 +295,9 @@ class IngestionService:
             return self._failed(exc, stage=IngestionStage.INDEX, filename=filepath.name)
 
     @staticmethod
-    def _failed(exc: Exception, *, stage: IngestionStage, filename: str) -> IngestionResult:
+    def _failed(
+        exc: Exception, *, stage: IngestionStage, filename: str, refused: bool = False
+    ) -> IngestionResult:
         """The failure a caller may store, for an exception it may not.
 
         `error_message` reaches `rag_documents` and the documents page, so it
@@ -302,6 +311,7 @@ class IngestionService:
             status=IngestionStatus.ERROR,
             error_message=failure_summary(exc, stage=stage),
             message=f"Failed to process {filename}",
+            refused=refused,
         )
 
     async def remove_document(
