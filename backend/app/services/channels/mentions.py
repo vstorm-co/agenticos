@@ -60,6 +60,7 @@ from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
 from app.services.channels.chart_png import render_chart_png
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.transcript import RecordedToolCall
@@ -165,7 +166,7 @@ async def drawn_picture(
 _CHART_TOOL = "create_chart"
 """What the charts capability registers. One name, read in one place."""
 
-_LINK_FIRST = "Link your account before talking to an agent - send /link to this bot."
+_LINK_FIRST = LINK_ACCOUNT_INSTRUCTION
 
 # Said when the handle names a real agent that nobody has made available here.
 # Deliberately *not* the same answer a typo gets: the bindings are new, so the
@@ -212,13 +213,14 @@ def parse_mention(text: str) -> Mention | None:
     addressing an agent, which makes this a property of the parser rather than a
     refusal further down.
     """
-    match = _MENTION.match(text)
-    if match is None:
-        return None
-    slug, prompt = match.group(1), match.group(2).strip()
-    if not prompt or slug in ROOM_HANDLES:
-        return None
-    return Mention(slug=slug, prompt=prompt)
+    while match := _MENTION.match(text):
+        slug, prompt = match.group(1), match.group(2).strip()
+        if not prompt:
+            return None
+        if slug not in ROOM_HANDLES:
+            return Mention(slug=slug, prompt=prompt)
+        text = prompt
+    return None
 
 
 class UnaddressedMessage(Exception):
