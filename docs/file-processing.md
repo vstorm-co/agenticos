@@ -756,8 +756,10 @@ and the next upload recreates it. The table is spared only when a sibling base s
 holds the same name, since the vector namespace is not tenant-unique and dropping it
 would take their chunks too (#913). Then only the dropped base's own document rows and
 files go, and its chunks are removed from the kept table, as for a deleted base below.
-A drop used to delete every document row under the name, another organization's
-included (#2560).
+Unfiled document rows of the base's organization (uploads from before documents
+recorded their base) go too, with their files and chunks, unless another base of that
+organization holds the name and still lists them. A drop used to delete every
+document row under the name, another organization's included (#2560).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -861,8 +863,8 @@ only the chunks of the documents it deleted, so an upload made after the drop ke
 its own, and a chunk with no document row stays
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Unfiled chunks stay, matched by their tenant, and unfiled document rows stay listed
-under the bases of their tenant
+When a knowledge base is deleted, unfiled chunks stay, matched by their tenant, and
+unfiled document rows stay listed under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by

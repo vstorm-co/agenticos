@@ -1,5 +1,5 @@
 ---
-source_sha: "2ed9c486a670"
+source_sha: "ba6d8293c042"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -803,8 +803,11 @@ ją na nowo. Tabela jest oszczędzana tylko wtedy, gdy siostrzana baza wciąż t
 tę samą nazwę, bo przestrzeń nazw wektorów nie jest unikalna per tenant
 i usunięcie zabrałoby także jej chunki (#913). Wtedy znikają tylko wiersze dokumentów
 i pliki usuwanej bazy, a jej chunki są usuwane z zachowanej tabeli, jak dla usuniętej
-bazy poniżej. Usunięcie kolekcji kasowało wcześniej każdy wiersz dokumentu pod tą
-nazwą, także innej organizacji (#2560).
+bazy poniżej. Nieprzypisane wiersze dokumentów organizacji tej bazy (uploady z czasu,
+zanim dokumenty zaczęły zapisywać swoją bazę) też znikają, razem z plikami i chunkami,
+chyba że inna baza tej organizacji ma tę nazwę i nadal je listuje. Usunięcie kolekcji
+kasowało wcześniej każdy wiersz dokumentu pod tą nazwą, także innej organizacji
+(#2560).
 
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś
 w tabelę śledzącą; teraz domyślną jest `default`. Baza wiedzy utworzona pod starą
@@ -912,8 +915,9 @@ usuwa tylko chunki usuniętych dokumentów, więc upload wykonany po usunięciu 
 swoje, a chunk bez wiersza dokumentu zostaje
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Nieprzypisane chunki zostają i pasują po swoim tenancie, a nieprzypisane wiersze
-dokumentów nadal są listowane w bazach swojego tenanta
+Gdy baza wiedzy zostaje usunięta, nieprzypisane chunki zostają i pasują po swoim
+tenancie, a nieprzypisane wiersze dokumentów nadal są listowane w bazach swojego
+tenanta
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,

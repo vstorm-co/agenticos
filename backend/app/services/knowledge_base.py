@@ -301,11 +301,12 @@ class KnowledgeBaseService:
         the cleanup job (#2537) - for a kept default, only the deleted documents'
         chunks, since it takes uploads again under the same id. Deleting by name
         reached every base's rows under it, another organization's included, and
-        queued their files for unlinking (#2560). Unfiled rows stay then, as they
-        do when a base is deleted: other bases of the tenant take them too. If no
-        other base holds the name, every row under it goes - unfiled ones
-        included, since nothing could read them once the table is dropped - and
-        so does the table.
+        queued their files for unlinking (#2560). The unfiled rows the base takes
+        - its tenant's - go with it unless another base of that tenant on the
+        name takes them too, and their chunks with the purge: a kept default
+        would otherwise go on listing and serving them. If no other base holds
+        the name, every row under it goes - unfiled ones included, since nothing
+        could read them once the table is dropped - and so does the table.
 
         The stored files, the purge and the drop are a cleanup job queued in this
         transaction (`queue_external_state_cleanup`), not run in the request, so
@@ -336,23 +337,45 @@ class KnowledgeBaseService:
         base_purges: list[BasePurge] = []
         # The documents go before the KB row: `ON DELETE SET NULL` would unfile
         # them first, and a delete by the base's id would then find nothing.
-        if others and kb.is_default:
-            deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
-            storage_paths = deleted.storage_paths
-            ids = deleted.vector_document_ids
-            # Split, so a large default's purge spreads across entries and jobs
-            # rather than one payload and one array holding every document.
-            base_purges = [
+        if others:
+            scope = CollectionScope.of(kb)
+            # The unfiled rows the base takes go with it, unless another base on
+            # the name takes them too - one of the same tenant - and still reads
+            # them. A kept default would otherwise go on listing them (#2560).
+            takes_unfiled = scope.takes_unfiled and not any(
+                other.vector_scope.takes_unfiled and other.vector_scope.tenant == scope.tenant
+                for other in others
+            )
+            unfiled = (
+                await rag_document_repo.delete_unfiled_with_vectors(self.db, scope)
+                if takes_unfiled
+                else rag_document_repo.DeletedDocuments(storage_paths=[], vector_document_ids=[])
+            )
+            if kb.is_default:
+                deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(
+                    self.db, kb.id
+                )
+                storage_paths = deleted.storage_paths + unfiled.storage_paths
+                named = deleted.vector_document_ids + unfiled.vector_document_ids
+            else:
+                storage_paths = (
+                    await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+                    + unfiled.storage_paths
+                )
+                named = unfiled.vector_document_ids
+                base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+            # Split, so a large purge spreads across entries and jobs rather than
+            # one payload and one array holding every document.
+            base_purges += [
                 BasePurge(
                     collection=collection,
                     knowledge_base_id=kb.id,
-                    vector_document_ids=ids[i : i + _PURGE_IDS_PER_ENTRY],
+                    vector_document_ids=named[i : i + _PURGE_IDS_PER_ENTRY],
+                    takes_unfiled=takes_unfiled,
+                    tenant=scope.tenant if takes_unfiled else None,
                 )
-                for i in range(0, len(ids), _PURGE_IDS_PER_ENTRY)
+                for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
             ]
-        elif others:
-            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
-            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
         else:
             storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
             collections_to_drop = [collection]

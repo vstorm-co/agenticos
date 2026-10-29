@@ -143,7 +143,7 @@ def _personal_kb(org_id: uuid.UUID, owner_id: uuid.UUID, collection_name: str) -
 
 
 def _kb_document(
-    collection_name: str, kb_id: uuid.UUID, org_id: uuid.UUID, storage_path: str
+    collection_name: str, kb_id: uuid.UUID | None, org_id: uuid.UUID, storage_path: str
 ) -> RAGDocument:
     return RAGDocument(
         id=uuid.uuid4(),
@@ -1025,16 +1025,19 @@ async def _filed_table(s, table: str, chunks: dict[str, uuid.UUID]) -> None:
 
 
 async def _document_chunk(
-    s, table: str, chunk_id: str, parent_doc_id: str, kb_id: uuid.UUID
+    s,
+    table: str,
+    chunk_id: str,
+    parent_doc_id: str,
+    kb_id: uuid.UUID | None,
+    org_id: uuid.UUID | None = None,
 ) -> None:
-    """One chunk of a document, filed under a base, in a table `parent_doc_id` keys."""
+    """One chunk of a document in a table `parent_doc_id` keys: filed under a
+    base, or unfiled (`kb_id=None`) and tagged with its tenant."""
+    meta = {"knowledge_base_id": str(kb_id)} if kb_id else {"organization_id": str(org_id)}
     await s.execute(
         text(f"INSERT INTO {table} VALUES (:id, :doc, CAST(:meta AS jsonb))"),  # noqa: S608
-        {
-            "id": chunk_id,
-            "doc": parent_doc_id,
-            "meta": json.dumps({"knowledge_base_id": str(kb_id)}),
-        },
+        {"id": chunk_id, "doc": parent_doc_id, "meta": json.dumps(meta)},
     )
 
 
@@ -1185,6 +1188,120 @@ class TestADeletedBasesChunksOnAKeptTable:
                 assert await s.get(KnowledgeBase, default_id) is not None
                 assert await s.get(RAGDocument, old_id) is None
                 assert await _chunk_ids(s, table) == {"new-0", "sibling-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_clearing_a_kept_default_removes_its_tenants_unfiled_documents(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A kept default lists the unfiled rows its organization holds under the
+        name - legacy uploads from before documents recorded their base. The drop
+        deleted only rows filed under the base, so a cleared default still listed
+        and served them and their chunks stayed searchable; the route's own delete
+        by name used to take them. Now they go with the clear, files and chunks
+        included, and another organization's unfiled rows under the name stay."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        ours_file = await storage.save("drop-unfiled", "ours.txt", b"ours")
+        theirs_file = await storage.save("drop-unfiled", "theirs.txt", b"theirs")
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            sibling = _org_collection(other_org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            ours = _kb_document(collection, None, org.id, ours_file)
+            ours.vector_document_id = "ours-doc"
+            theirs = _kb_document(collection, None, other_org.id, theirs_file)
+            theirs.vector_document_id = "theirs-doc"
+            s.add_all([ours, theirs])
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "ours-0", "ours-doc", None, org.id)
+            await _document_chunk(s, table, "theirs-0", "theirs-doc", None, other_org.id)
+            await s.commit()
+            default_id, ours_id, theirs_id = default.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await s.get(RAGDocument, ours_id) is None
+                assert await s.get(RAGDocument, theirs_id) is not None
+                assert await _chunk_ids(s, table) == {"theirs-0"}
+            assert not await storage.exists(ours_file)
+            assert await storage.exists(theirs_file)
+        finally:
+            await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_clearing_a_default_leaves_unfiled_documents_to_a_same_tenant_base(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Another base of the same organization on the name still lists the
+        unfiled rows, so clearing the default leaves them and their chunks to it,
+        and removes only the default's own documents' chunks."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            sibling = _org_collection(org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            filed = _kb_document(collection, default.id, org.id, "drop-unfiled/filed.txt")
+            filed.vector_document_id = "filed-doc"
+            legacy = _kb_document(collection, None, org.id, "drop-unfiled/legacy.txt")
+            legacy.vector_document_id = "legacy-doc"
+            s.add_all([filed, legacy])
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "filed-0", "filed-doc", default.id)
+            await _document_chunk(s, table, "legacy-0", "legacy-doc", None, org.id)
+            await s.commit()
+            default_id, filed_id, legacy_id = default.id, filed.id, legacy.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(RAGDocument, filed_id) is None
+                assert await s.get(RAGDocument, legacy_id) is not None
+                assert await _chunk_ids(s, table) == {"legacy-0"}
         finally:
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))

@@ -1,5 +1,5 @@
 ---
-source_sha: "2ed9c486a670"
+source_sha: "ba6d8293c042"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -818,8 +818,11 @@ hermana sigue teniendo el mismo nombre, ya que el espacio de nombres de vectores
 no es único por tenant y eliminarla se llevaría también sus fragmentos (#913). Entonces
 solo se van las filas de documentos y los archivos de la base eliminada, y sus
 fragmentos se quitan de la tabla conservada, como para una base borrada más abajo.
-Eliminar una colección borraba antes todas las filas de documentos con ese nombre,
-también las de otra organización (#2560).
+Las filas de documentos sin asignar de la organización de la base (subidas de antes de
+que los documentos registraran su base) también se van, con sus archivos y fragmentos,
+salvo que otra base de esa organización tenga el nombre y aún las liste. Eliminar una
+colección borraba antes todas las filas de documentos con ese nombre, también las de
+otra organización (#2560).
 
 `documents` era además la colección **predeterminada**, así que el inicio rápido
 de la CLI apuntaba a la tabla de seguimiento; ahora el predeterminado es
@@ -930,8 +933,9 @@ documentos borrados, así que una subida hecha después conserva los suyos, y un
 fragmento sin fila de documento se queda
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
-documentos sin asignar siguen listadas en las bases de su tenant
+Cuando se borra una base de conocimiento, los fragmentos sin asignar se quedan y
+coinciden por su tenant, y las filas de documentos sin asignar siguen listadas en las
+bases de su tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio

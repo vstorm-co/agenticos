@@ -12,6 +12,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
+from app.db.vector_tables import VectorScope
 from app.repositories.rag_document import CollectionCounts, CollectionScope, DeletedDocuments
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
@@ -575,9 +576,17 @@ class TestKBAccessControl:
     def _drop_repos(monkeypatch, *, holders: list) -> dict[str, AsyncMock]:
         """The repositories a collection drop reaches, at the boundary.
 
-        `holders` is what the name lookup returns: the bases that hold it."""
+        `holders` is what the name lookup returns: the bases that hold it. Each
+        gets the vector scope a real row derives, so whose unfiled rows a base
+        takes is decided as it would be."""
         from app.repositories import knowledge_base_repo, rag_document_repo
 
+        for holder in holders:
+            holder.vector_scope = VectorScope(
+                tenant=holder.organization_id,
+                knowledge_base_id=holder.id,
+                takes_unfiled=holder.organization_id is not None,
+            )
         repos = {
             "lock": AsyncMock(),
             "delete": AsyncMock(),
@@ -592,7 +601,13 @@ class TestKBAccessControl:
                 storage_paths=["rag/docs/ours.txt"], vector_document_ids=["doc-1"]
             )
         )
+        repos["unfiled"] = AsyncMock(
+            return_value=DeletedDocuments(
+                storage_paths=["rag/docs/legacy-ours.txt"], vector_document_ids=["legacy-1"]
+            )
+        )
         monkeypatch.setattr(rag_document_repo, "delete_by_collection", repos["by_name"])
+        monkeypatch.setattr(rag_document_repo, "delete_unfiled_with_vectors", repos["unfiled"])
         monkeypatch.setattr(rag_document_repo, "delete_by_knowledge_base", repos["by_base"])
         monkeypatch.setattr(
             rag_document_repo, "delete_by_knowledge_base_with_vectors", repos["by_kept_base"]
@@ -752,6 +767,91 @@ class TestKBAccessControl:
 
         dispatch.assert_awaited_once_with(
             mock_db, [], [], base_purges=[BasePurge(collection="docs", knowledge_base_id=kb.id)]
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_clearing_a_default_takes_its_tenants_unfiled_documents(
+        self, mock_db, monkeypatch
+    ):
+        """A kept default lists its organization's unfiled rows under the name, so
+        a clear that left them kept them listed and downloadable, their chunks
+        searchable (#2560). Another organization's base on the name does not take
+        them, so they go - and the purge names them within the tenant."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id, is_default=True)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(
+            monkeypatch, holders=[kb, _kb("org", organization_id=uuid.uuid4())]
+        )
+
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        repos["unfiled"].assert_awaited_once_with(mock_db, CollectionScope.of(kb))
+        repos["by_name"].assert_not_awaited()
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/ours.txt", "rag/docs/legacy-ours.txt"],
+            [],
+            base_purges=[
+                BasePurge(
+                    collection="docs",
+                    knowledge_base_id=kb.id,
+                    vector_document_ids=["doc-1", "legacy-1"],
+                    takes_unfiled=True,
+                    tenant=org_id,
+                )
+            ],
+        )
+
+    @pytest.mark.anyio
+    async def test_a_same_tenant_base_on_the_name_keeps_the_unfiled_documents(
+        self, mock_db, monkeypatch
+    ):
+        """Another base of the same organization on the name still reads the
+        unfiled rows, so clearing this one leaves them to it."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id, is_default=True)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb, _kb("org", organization_id=org_id)])
+
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        repos["unfiled"].assert_not_awaited()
+        assert dispatch.await_args.kwargs["base_purges"] == [
+            BasePurge(collection="docs", knowledge_base_id=kb.id, vector_document_ids=["doc-1"])
+        ]
+
+    @pytest.mark.anyio
+    async def test_dropping_a_base_takes_its_tenants_unfiled_documents(self, mock_db, monkeypatch):
+        """A dropped non-default base's unfiled rows go too when no base of its
+        tenant still takes them: left, they would come back with the tenant's
+        next base on the name. The whole base is purged, and the unfiled chunks
+        by the deleted documents' ids."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        self._drop_repos(monkeypatch, holders=[kb, _kb("org", organization_id=uuid.uuid4())])
+
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/ours.txt", "rag/docs/legacy-ours.txt"],
+            [],
+            base_purges=[
+                BasePurge(collection="docs", knowledge_base_id=kb.id),
+                BasePurge(
+                    collection="docs",
+                    knowledge_base_id=kb.id,
+                    vector_document_ids=["legacy-1"],
+                    takes_unfiled=True,
+                    tenant=org_id,
+                ),
+            ],
         )
 
     @pytest.mark.anyio

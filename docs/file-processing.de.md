@@ -1,5 +1,5 @@
 ---
-source_sha: "2ed9c486a670"
+source_sha: "ba6d8293c042"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -853,7 +853,10 @@ an. Die Tabelle wird nur dann verschont, wenn eine Geschwister-Wissensdatenbank
 denselben Namen hält, denn der Vektor-Namensraum ist nicht Tenant-eindeutig und
 sie zu löschen würde deren Chunks mitnehmen (#913). Dann verschwinden nur die
 Dokumentzeilen und Dateien der gelöschten Basis, und ihre Chunks werden aus der
-behaltenen Tabelle entfernt, wie unten für eine gelöschte Basis. Das Löschen einer
+behaltenen Tabelle entfernt, wie unten für eine gelöschte Basis. Nicht zugeordnete
+Dokumentzeilen der Organisation der Basis (Uploads aus der Zeit, bevor Dokumente ihre
+Basis speicherten) verschwinden mit ihren Dateien und Chunks ebenfalls, außer eine
+andere Basis dieser Organisation hält den Namen und listet sie noch. Das Löschen einer
 Collection löschte früher jede Dokumentzeile unter dem Namen, auch die einer anderen
 Organisation (#2560).
 
@@ -972,8 +975,9 @@ Standardbasis entfernt es nur die Chunks der gelöschten Dokumente, sodass ein U
 nach dem Löschen seine eigenen behält und ein Chunk ohne Dokumentzeile bleibt
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Nicht zugeordnete Chunks bleiben und passen über ihren Tenant, und nicht zugeordnete
-Dokumentzeilen bleiben in den Basen ihres Tenants gelistet
+Wird eine Wissensbasis gelöscht, bleiben nicht zugeordnete Chunks und passen über
+ihren Tenant, und nicht zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants
+gelistet
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen

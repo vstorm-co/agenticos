@@ -61,8 +61,10 @@ Two things are versioned separately from this file and worth knowing about:
   now removes the dropped base's chunks from it. A default base keeps its row and
   takes uploads again, so the job removes only the chunks of the documents the
   drop deleted; chunks with no document row are not removed from it. Document
-  rows filed under no base, from before documents recorded their base, then stay,
-  as they do when a knowledge base is deleted (#2560).
+  rows filed under no base, from before documents recorded their base, go with
+  the drop too, with their files and chunks, when they are the dropped base's
+  organization's and no other base of that organization holds the name. Before,
+  a cleared default base kept listing and serving them (#2560).
 
 ## [1.28.1] - 2026-10-28
 

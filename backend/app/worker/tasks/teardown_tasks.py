@@ -27,6 +27,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
+from app.db.vector_tables import VectorScope
 from app.services.background_jobs import enqueue
 from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge, CleanupExternalState, Restamp
 
@@ -288,6 +289,9 @@ async def cleanup_external_state(
                         purge.collection,
                         purge.knowledge_base_id,
                         vector_document_ids=purge.vector_document_ids,
+                        unfiled_of=VectorScope(tenant=purge.tenant)
+                        if purge.takes_unfiled
+                        else None,
                     )
                 except SQLAlchemyError as exc:
                     logger.warning("Failed to purge collection %s: %s", purge.collection, exc)

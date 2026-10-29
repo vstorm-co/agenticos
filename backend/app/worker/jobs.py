@@ -175,6 +175,13 @@ class BasePurge(Payload):
     takes uploads again under the same id once its drop commits, so a purge of
     every chunk filed under it would take theirs too (#2560). `None` purges the
     whole base. Left out of the dump when `None`, as `prefixes` is."""
+    takes_unfiled: bool = Field(default=False, exclude_if=lambda takes_unfiled: not takes_unfiled)
+    """With `vector_document_ids`, also those documents' unfiled chunks of
+    `tenant`: the base's unfiled document rows went with it, since no other base
+    on the name takes them (#2560). Left out of the dump when off."""
+    tenant: UUID | None = Field(default=None, exclude_if=lambda tenant: tenant is None)
+    """The base's vector tenant, which an unfiled chunk is matched by - `None`
+    for the deployment-wide one."""
 
 
 class CleanupExternalState(Payload):
