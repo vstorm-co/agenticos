@@ -44,7 +44,6 @@ from app.services.file_storage import get_file_storage
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.organization import OrganizationService
 from app.services.rag.vectorstore import PgVectorStore
-from app.services.rag_document import RAGDocumentService
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -584,11 +583,9 @@ class TestDeletingAnOrg:
 
             kb = await dropper.get(KnowledgeBase, kb_id)
 
-            async def _drop() -> None:
-                await KnowledgeBaseService(dropper).delete_for_rag_collection(kb)
-                await RAGDocumentService(dropper).delete_by_collection(collection)
-
-            drop_task = asyncio.ensure_future(_drop())
+            drop_task = asyncio.ensure_future(
+                KnowledgeBaseService(dropper).delete_for_rag_collection(kb)
+            )
             try:
                 await asyncio.sleep(0.25)
                 assert not drop_task.done()  # blocked acquiring the teardown lock
@@ -1068,6 +1065,59 @@ class TestADeletedBasesChunksOnAKeptTable:
             async with factory() as s:
                 assert await _chunk_ids(s, table) == {"kept-0"}
         finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_dropping_a_collection_removes_its_bases_documents_and_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`DELETE /rag/collections/{name}` with another organization's base on the
+        same name: the drop deleted every document row under the name and kept
+        the dropped base's chunks in the shared table (#2560). Now it deletes the
+        base's own rows and files, and the queued cleanup purges its chunks."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        ours_file = await storage.save("drop-shared", "ours.txt", b"ours")
+        theirs_file = await storage.save("drop-shared", "theirs.txt", b"theirs")
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            ours = _kb_document(collection, doomed.id, org.id, ours_file)
+            theirs = _kb_document(collection, kept.id, other_org.id, theirs_file)
+            s.add_all([ours, theirs])
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            doomed_id, kept_id, ours_id, theirs_id = doomed.id, kept.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, doomed_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(RAGDocument, ours_id) is None
+                assert await s.get(KnowledgeBase, kept_id) is not None
+                assert await s.get(RAGDocument, theirs_id) is not None
+                assert await _chunk_ids(s, table) == {"kept-0"}
+            assert not await storage.exists(ours_file)
+            assert await storage.exists(theirs_file)
+        finally:
+            await storage.delete(theirs_file)
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()

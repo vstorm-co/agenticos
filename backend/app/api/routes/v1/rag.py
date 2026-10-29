@@ -218,7 +218,6 @@ async def create_collection(
 )
 async def drop_collection(
     name: str,
-    rag_doc_svc: RAGDocumentSvc,
     kb_svc: KnowledgeBaseSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
@@ -231,18 +230,17 @@ async def drop_collection(
     be used to confirm a deletion, and that 204 was also what another tenant's
     collection returned.
 
-    The document rows and the KB row go in the request; the stored files and the
-    vector table are torn down by the durable cleanup the services hand over after
-    the commit, which takes the collection-teardown lock and re-reads the reference
-    check before dropping only what no base still claims (#1347, #1349, #1355, #913).
+    The resolved base's document rows and its KB row go in the request; the
+    stored files and the vector table are torn down by the durable cleanup the
+    service hands over after the commit, which takes the collection-teardown lock
+    and re-reads the reference check before dropping only what no base still
+    claims (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
+    another base - possibly another organization's - still holds it, only this
+    base's documents go and its chunks are purged from the kept table (#2560).
     So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
-    # delete_for_rag_collection takes the collection's teardown lock; it must run
-    # before the document rows are deleted, because a concurrent org purge takes that
-    # lock before touching the same rows and the opposite order deadlocks (#1387).
     await kb_svc.delete_for_rag_collection(collection)
-    await rag_doc_svc.delete_by_collection(collection.collection_name)
 
 
 @router.get(

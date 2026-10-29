@@ -754,7 +754,10 @@ all the same, so the documents deleted with it stop being searchable rather than
 lingering in a table nothing lists (#1361). A search reads the absent table as empty
 and the next upload recreates it. The table is spared only when a sibling base still
 holds the same name, since the vector namespace is not tenant-unique and dropping it
-would take their chunks too (#913).
+would take their chunks too (#913). Then only the dropped base's own document rows and
+files go, and its chunks are removed from the kept table, as for a deleted base below.
+A drop used to delete every document row under the name, another organization's
+included (#2560).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -852,7 +855,10 @@ outside any organization, whose search and count take none of those
 Deleting a knowledge base whose collection name another base still holds keeps the
 shared table, and the cleanup job queued with the delete removes the chunks filed under
 the deleted base. An organization purge and an account deletion do the same for the
-bases they remove. Unfiled chunks stay, matched by their tenant
+bases they remove, and so does dropping a collection (`DELETE /rag/collections/{name}`),
+which also deletes only that base's document rows
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Unfiled chunks and
+document rows stay, matched by their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by

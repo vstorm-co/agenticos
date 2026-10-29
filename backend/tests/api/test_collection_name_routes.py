@@ -154,9 +154,10 @@ class TestDroppingACollection:
         )
         deleted = AsyncMock()
         monkeypatch.setattr(knowledge_base_repo, "delete", deleted)
-        monkeypatch.setattr(
-            "app.repositories.rag_document_repo.delete_by_collection", AsyncMock(return_value=[])
-        )
+        monkeypatch.setattr(knowledge_base_repo, "lock", AsyncMock())
+        # No other base holds the name, so the drop takes every row under it.
+        documents = AsyncMock(return_value=[])
+        monkeypatch.setattr("app.repositories.rag_document_repo.delete_by_collection", documents)
         dispatch = AsyncMock()
         monkeypatch.setattr(
             "app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch
@@ -166,6 +167,7 @@ class TestDroppingACollection:
 
         assert response.status_code == 204
         deleted.assert_awaited_once()
+        documents.assert_awaited_once()
 
 
 class TestCreatingAKnowledgeBase:

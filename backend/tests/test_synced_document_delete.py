@@ -366,21 +366,3 @@ class TestTheCLISync:
         # And the stored document identifies itself the same way, so the row and
         # the vector agree on which file this is.
         assert ingestion.ingest_file.await_args.kwargs["source_path"] == expected
-
-
-class TestDroppingACollection:
-    async def test_it_queues_the_unlink_on_the_drops_own_session(self, monkeypatch):
-        """The bulk row delete returns the storage paths, and their unlink is a cleanup
-        job queued on the same session - so a rollback keeps the files (#1265, #1293)
-        and a worker restart mid-drain does not orphan them (#1349)."""
-        monkeypatch.setattr(
-            rag_document_repo,
-            "delete_by_collection",
-            AsyncMock(return_value=["rag/docs/a.pdf", "rag/docs/b.md"]),
-        )
-        dispatch = _patch_dispatch(monkeypatch)
-        db = _deferring_db()
-
-        await RAGDocumentService(db).delete_by_collection("docs")
-
-        dispatch.assert_awaited_once_with(db, ["rag/docs/a.pdf", "rag/docs/b.md"], [])

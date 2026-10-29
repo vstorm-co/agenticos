@@ -1,5 +1,5 @@
 ---
-source_sha: "a8658d688185"
+source_sha: "f3a26485ec77"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -851,7 +851,11 @@ sein, statt in einer Tabelle zu verharren, die nichts auflistet (#1361). Eine
 Suche liest die fehlende Tabelle als leer, und der nächste Upload legt sie neu
 an. Die Tabelle wird nur dann verschont, wenn eine Geschwister-Wissensdatenbank
 denselben Namen hält, denn der Vektor-Namensraum ist nicht Tenant-eindeutig und
-sie zu löschen würde deren Chunks mitnehmen (#913).
+sie zu löschen würde deren Chunks mitnehmen (#913). Dann verschwinden nur die
+Dokumentzeilen und Dateien der gelöschten Basis, und ihre Chunks werden aus der
+behaltenen Tabelle entfernt, wie unten für eine gelöschte Basis. Das Löschen einer
+Collection löschte früher jede Dokumentzeile unter dem Namen, auch die einer anderen
+Organisation (#2560).
 
 `documents` war auch die **Vorgabe**-Collection, der CLI-Schnellstart zielte also
 früher auf die Verfolgungstabelle; die Vorgabe ist jetzt `default`. Eine
@@ -962,7 +966,10 @@ Das Löschen einer Wissensbasis, deren Collection-Namen eine andere Basis noch h
 behält die gemeinsame Tabelle, und der mit dem Löschen eingereihte Aufräum-Job
 entfernt die Chunks, die der gelöschten Basis zugeordnet sind. Das Löschen einer
 Organisation und das Löschen eines Kontos tun dasselbe für die Basen, die sie
-entfernen. Nicht zugeordnete Chunks bleiben und passen über ihren Tenant
+entfernen, und ebenso das Löschen einer Collection (`DELETE /rag/collections/{name}`),
+das auch nur die Dokumentzeilen dieser Basis löscht
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Nicht zugeordnete
+Chunks und Dokumentzeilen bleiben und passen über ihren Tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen

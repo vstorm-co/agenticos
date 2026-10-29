@@ -1,5 +1,5 @@
 ---
-source_sha: "a8658d688185"
+source_sha: "f3a26485ec77"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -801,7 +801,10 @@ przestają być wyszukiwalne, zamiast zalegać w tabeli, której nic nie listuje
 (#1361). Wyszukiwanie czyta nieobecną tabelę jako pustą, a kolejny upload tworzy
 ją na nowo. Tabela jest oszczędzana tylko wtedy, gdy siostrzana baza wciąż trzyma
 tę samą nazwę, bo przestrzeń nazw wektorów nie jest unikalna per tenant
-i usunięcie zabrałoby także jej chunki (#913).
+i usunięcie zabrałoby także jej chunki (#913). Wtedy znikają tylko wiersze dokumentów
+i pliki usuwanej bazy, a jej chunki są usuwane z zachowanej tabeli, jak dla usuniętej
+bazy poniżej. Usunięcie kolekcji kasowało wcześniej każdy wiersz dokumentu pod tą
+nazwą, także innej organizacji (#2560).
 
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś
 w tabelę śledzącą; teraz domyślną jest `default`. Baza wiedzy utworzona pod starą
@@ -903,7 +906,10 @@ wyszukiwanie i licznik nie biorą żadnego z nich ([#2537](https://github.com/vs
 Usunięcie bazy wiedzy, której nazwę kolekcji wciąż ma inna baza, zostawia wspólną
 tabelę, a zadanie porządkowe zakolejkowane razem z usunięciem usuwa chunki przypisane
 do usuniętej bazy. Usunięcie organizacji i usunięcie konta robią to samo dla baz,
-które usuwają. Nieprzypisane chunki zostają i pasują po swoim tenancie
+które usuwają, i tak samo usunięcie kolekcji (`DELETE /rag/collections/{name}`),
+które kasuje też tylko wiersze dokumentów tej bazy
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Nieprzypisane chunki
+i wiersze dokumentów zostają i pasują po swoim tenancie
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,

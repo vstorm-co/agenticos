@@ -571,26 +571,48 @@ class TestKBAccessControl:
 
         dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
+    @staticmethod
+    def _drop_repos(monkeypatch, *, holders: list) -> dict[str, AsyncMock]:
+        """The repositories a collection drop reaches, at the boundary.
+
+        `holders` is what the name lookup returns: the bases that hold it."""
+        from app.repositories import knowledge_base_repo, rag_document_repo
+
+        repos = {
+            "lock": AsyncMock(),
+            "delete": AsyncMock(),
+            "list_by_collection_name": AsyncMock(return_value=holders),
+        }
+        for name, mock in repos.items():
+            monkeypatch.setattr(knowledge_base_repo, name, mock)
+        repos["by_name"] = AsyncMock(return_value=["rag/docs/legacy.txt"])
+        repos["by_base"] = AsyncMock(return_value=["rag/docs/ours.txt"])
+        monkeypatch.setattr(rag_document_repo, "delete_by_collection", repos["by_name"])
+        monkeypatch.setattr(rag_document_repo, "delete_by_knowledge_base", repos["by_base"])
+        return repos
+
     @pytest.mark.anyio
     async def test_dropping_a_rag_collection_deletes_the_row_and_dispatches_the_drop(
         self, mock_db, monkeypatch
     ):
-        """`DELETE /rag/collections/{name}` reaches here: the KB row goes in the
-        request, the table drop is handed to the durable, locked cleanup (#1355)."""
+        """`DELETE /rag/collections/{name}` reaches here: the documents and the KB
+        row go in the request, the table drop is handed to the durable, locked
+        cleanup (#1355). No base holds the name any more, so every document row
+        under it goes with the table, unfiled ones included."""
         kb = _kb("org", is_default=False)
         kb.collection_name = "docs"
         dispatch = _patch_dispatch(monkeypatch)
-        with (
-            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[]),
-            ),
-        ):
-            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+        repos = self._drop_repos(monkeypatch, holders=[kb])
 
-        deleted.assert_awaited_once()
-        dispatch.assert_awaited_once_with(mock_db, [], ["docs"])
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        repos["lock"].assert_awaited_once_with(mock_db, kb.id)
+        repos["by_name"].assert_awaited_once_with(mock_db, "docs")
+        repos["by_base"].assert_not_awaited()
+        repos["delete"].assert_awaited_once_with(mock_db, kb.id)
+        dispatch.assert_awaited_once_with(
+            mock_db, ["rag/docs/legacy.txt"], ["docs"], base_purges=[]
+        )
 
     @pytest.mark.anyio
     async def test_dropping_a_default_rag_collection_keeps_the_row_but_drops_the_table(
@@ -607,18 +629,15 @@ class TestKBAccessControl:
         dispatch = _patch_dispatch(monkeypatch)
         reserve = AsyncMock()
         monkeypatch.setattr(collection_teardown_repo, "reserve", reserve)
-        with (
-            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[kb]),
-            ),
-        ):
-            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+        repos = self._drop_repos(monkeypatch, holders=[kb])
 
-        deleted.assert_not_awaited()  # the default row is kept
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        repos["delete"].assert_not_awaited()  # the default row is kept
         reserve.assert_awaited_once()  # reserved until the drop runs
-        dispatch.assert_awaited_once_with(mock_db, [], ["docs"])  # the table is dropped
+        dispatch.assert_awaited_once_with(
+            mock_db, ["rag/docs/legacy.txt"], ["docs"], base_purges=[]
+        )
 
     @pytest.mark.anyio
     async def test_clearing_a_default_whose_name_a_sibling_shares_keeps_the_table(
@@ -626,7 +645,8 @@ class TestKBAccessControl:
     ):
         """The name is not tenant-unique: a sibling (or another org) still holding it
         backs a table their chunks live in too, so clearing this default must not drop
-        it from under them (#913)."""
+        it from under them (#913). Only the default's own documents go, and its
+        chunks are purged from the kept table by its id (#2560)."""
         from app.repositories import collection_teardown_repo
 
         kb = _kb("org", is_default=True)
@@ -634,39 +654,65 @@ class TestKBAccessControl:
         dispatch = _patch_dispatch(monkeypatch)
         reserve = AsyncMock()
         monkeypatch.setattr(collection_teardown_repo, "reserve", reserve)
-        with (
-            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[kb, _kb("org")]),
-            ),
-        ):
-            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+        repos = self._drop_repos(monkeypatch, holders=[kb, _kb("org")])
 
-        deleted.assert_not_awaited()  # the default row is kept
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        repos["delete"].assert_not_awaited()  # the default row is kept
+        repos["by_name"].assert_not_awaited()  # the sibling's documents stay
+        repos["by_base"].assert_awaited_once_with(mock_db, kb.id)
         reserve.assert_not_awaited()  # a sibling holds the name, so it is not reserved
-        dispatch.assert_not_called()  # the shared table is kept
+        dispatch.assert_awaited_once_with(  # the shared table is kept
+            mock_db,
+            ["rag/docs/ours.txt"],
+            [],
+            base_purges=[BasePurge(collection="docs", knowledge_base_id=kb.id)],
+        )
 
     @pytest.mark.anyio
     async def test_dropping_a_rag_collection_a_sibling_still_holds_keeps_the_table(
         self, mock_db, monkeypatch
     ):
-        """The row goes, but a second base still claims the name, so the table is
-        kept and no drop is dispatched (#913)."""
+        """The row goes, but a second base - here another organization's - still
+        claims the name, so the table is kept (#913). Only this base's documents
+        are deleted, by its id, and its chunks are purged from the kept table: the
+        name alone reached the other organization's rows too (#2560)."""
         kb = _kb("org", is_default=False)
         kb.collection_name = "docs"
         dispatch = _patch_dispatch(monkeypatch)
-        with (
-            patch("app.repositories.knowledge_base_repo.delete", new=AsyncMock()) as deleted,
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[MagicMock()]),
-            ),
-        ):
-            await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+        repos = self._drop_repos(
+            monkeypatch, holders=[kb, _kb("org", organization_id=uuid.uuid4())]
+        )
 
-        deleted.assert_awaited_once()
-        dispatch.assert_not_awaited()
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        repos["by_name"].assert_not_awaited()
+        repos["by_base"].assert_awaited_once_with(mock_db, kb.id)
+        repos["delete"].assert_awaited_once_with(mock_db, kb.id)
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/ours.txt"],
+            [],
+            base_purges=[BasePurge(collection="docs", knowledge_base_id=kb.id)],
+        )
+
+    @pytest.mark.anyio
+    async def test_dropping_an_empty_base_a_sibling_holds_still_purges_its_chunks(
+        self, mock_db, monkeypatch
+    ):
+        """No stored file to unlink is no reason to skip the purge: a synced
+        document stores none, and its chunks are in the kept table all the same."""
+        kb = _kb("org", is_default=False)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb, _kb("org")])
+        repos["by_base"].return_value = []
+
+        await KnowledgeBaseService(mock_db).delete_for_rag_collection(kb)
+
+        dispatch.assert_awaited_once_with(
+            mock_db, [], [], base_purges=[BasePurge(collection="docs", knowledge_base_id=kb.id)]
+        )
 
     @pytest.mark.anyio
     async def test_personal_kb_non_owner_is_refused_as_missing(self, mock_db):

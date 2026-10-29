@@ -677,7 +677,10 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     """Delete a collection's document rows, returning their stored file paths.
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
-    that physical collection - which is what the collection-drop route means. The
+    that physical collection, in every organization. Only for a name no base
+    holds any more - the last holder's drop, under the teardown lock - where
+    every row left is one nothing can read once the table is dropped; a base
+    of its own goes by `delete_by_knowledge_base` (#913, #2560). The
     returned `storage_path`s are the uploads the caller still has to unlink; a
     `NULL` one (nothing was stored) is dropped. The bulk delete used to return
     only a rowcount, so the files were orphaned on disk (#1265).
