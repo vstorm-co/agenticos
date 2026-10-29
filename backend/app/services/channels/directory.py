@@ -30,6 +30,7 @@ from app.services.channels.base import (
     OutgoingMessage,
     split_thread,
 )
+from app.services.channels.teams import inline_image_supported
 
 TOOL_METHODS: dict[str, str] = {
     "send_channel_file": "send_message",
@@ -132,7 +133,9 @@ class BoundChannelDirectory:
         )
 
     async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
-        teams_file = self.adapter.platform == "teams" and not mime_type.startswith("image/")
+        teams_file = self.adapter.platform == "teams" and not inline_image_supported(
+            content, mime_type
+        )
         if teams_file and not self.private_chat:
             return "File delivery refused: Teams accepts ordinary bot files only in a personal chat. Ask the user to request it there."
         await self.adapter.send_message(

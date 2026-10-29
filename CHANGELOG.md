@@ -24,7 +24,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Automatic channel context and conversation guidance across Mattermost, Slack,
   Teams and Telegram: channel details, a bounded member snapshot, deployment
   identity and precise organization versus personal MCP connection instructions.
+  Metadata is lower-trust conversation data, outside system instructions.
   `{channel_members}` is the roster placeholder; `{member_list}` stays an alias.
+  Slack rosters use member IDs without per-person profile requests.
 - An opt-in group mention switch per bot. Existing bots default to direct
   invocations; Teams packages request conversation-message consent only when
   enabled. Telegram text aliases require message delivery and its bot identity
@@ -53,6 +55,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Approved channel file actions restore the original bot, channel and workspace
   on resume, with current credentials and without borrowing the approver's account.
   Exports apply workspace secret rules and check file size before reading bytes.
+  Attachment-attempt limits survive approval continuations.
+- Teams generated pictures fit its inline image dimensions and payload limit.
+  Unsupported image formats and larger explicit files require personal-chat
+  file consent instead of being reported as delivered inline.
 
 ## [1.28.1] - 2026-10-28
 

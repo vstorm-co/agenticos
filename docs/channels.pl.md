@@ -1,5 +1,5 @@
 ---
-source_sha: "ee582654eb22"
+source_sha: "1fd38ee24d0d"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2014,7 +2014,7 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
   albo skrypt z tym samym tokenem, i zatrzymać go może tylko jego właściciel.
 - **Kontekst kanału jest dodawany automatycznie przy każdym runie.** Runy z Mattermosta, Slacka, Teams i Telegrama otrzymują nazwę, cel, temat, widoczność, zgłaszaną liczbę członków i ograniczoną listę widocznych osób, także dla istniejących lub wyczyszczonych promptów powiązania. `{channel_members}` to czytelna nazwa listy; `{member_list}` pozostaje aliasem. Pozostałe zmienne to `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` i `{member_count}`.
 
-    Każde źródło jest odpytywane raz na run, bez cache między turami: do 50 widocznych osób i 2000 znaków na wartość. Telegram zwraca administratorów, a nie wszystkich członków. Każde źródło ma limit pięciu sekund; niedostępne wartości pozostają nieznane. Wartości są spłaszczane i oznaczane jako dane platformy, nigdy instrukcje. Edytowalny tekst powiązania dodaje wskazówki obok tego kontekstu.
+    Każde źródło jest odpytywane raz na run, bez cache między turami: do 50 widocznych osób i 2000 znaków na wartość. Telegram zwraca administratorów, a nie wszystkich członków. Każde źródło ma limit pięciu sekund; niedostępne wartości pozostają nieznane. Wartości są spłaszczane i przekazywane jako niezaufane dane rozmowy, poza instrukcjami systemowymi. Slack zwraca identyfikatory członków bez pobierania profilu każdej osoby. Edytowalny tekst powiązania dodaje wskazówki obok tego kontekstu.
 
 - **Wybierz, czy wzmianki grupowe uruchamiają run.** W tworzeniu i edycji bota przełącznik *Reaguj na wzmianki grupowe* jest domyślnie wyłączony. Bezpośrednie wywołania nadal działają. Po włączeniu reaguje też na `@all`, `@here` i `@channel` w Mattermoście, natywne wzmianki grupowe Slacka oraz strukturalne wzmianki o kanale lub zespole Teams. Nadal obowiązują tożsamość nadawcy, reguły dostępu i limity. Wzmianki w kodzie i o innych osobach nie wystarczają.
 

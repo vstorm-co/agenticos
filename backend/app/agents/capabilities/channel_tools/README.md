@@ -45,7 +45,9 @@ invented — which is why there is no allow-list here to get out of step with
 Mattermost's own.
 
 **Automatic channel context is separate from tool grants.** The runner injects
-the channel name, purpose, topic and a bounded visible roster as data. The
+the channel name, purpose, topic and a bounded visible roster as lower-trust
+conversation data, outside system instructions. Slack uses native member IDs
+without profile fan-out. The
 capability grants additional queries and explicit file actions; removing a tool
 does not remove the runtime context. Personal MCP availability is derived from
 the sender identity and their connections, not from the binding's prose.

@@ -174,6 +174,7 @@ def test_teams_manifest_requests_room_message_access_only_when_opted_in(enabled)
     bot.name = "Support"
     manifest = teams_manifest(bot)
     if enabled:
+        assert manifest["webApplicationInfo"]["resource"] == f"api://{bot.teams_app_id}"
         grants = manifest["authorization"]["permissions"]["resourceSpecific"]
         assert {grant["name"] for grant in grants} == {
             "ChannelMessage.Read.Group",

@@ -1179,3 +1179,17 @@ async def test_file_size_is_checked_before_download_and_after_a_changed_file():
         assert "could not be verified" in await queue_channel_file(workspace, [], "large.txt")
     with patch.object(workspace, "stat", AsyncMock(return_value=MagicMock(size=1))):
         assert "size limit" in await queue_channel_file(workspace, [], "large.txt")
+
+
+async def test_attachment_attempt_budget_survives_sender_reassembly():
+    from app.services.channels.attachments import ChannelFileBudget, channel_file_sender
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/main.py", b"hello")
+    directory = MagicMock(send_file=AsyncMock(return_value="Submitted"))
+    budget = ChannelFileBudget()
+    for _ in range(3):
+        assert await channel_file_sender(workspace, directory, budget)("main.py") == "Submitted"
+        budget = ChannelFileBudget(budget.attempts)
+    assert "limit" in await channel_file_sender(workspace, directory, budget)("main.py")
+    assert directory.send_file.await_count == 3

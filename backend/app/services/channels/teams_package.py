@@ -72,7 +72,10 @@ def teams_manifest(bot: ChannelBot) -> dict[str, Any]:
         "validDomains": [host],
     }
     if (bot.access_policy or {}).get("respond_to_broadcasts") is True:
-        manifest["webApplicationInfo"] = {"id": bot.teams_app_id, "resource": ""}
+        manifest["webApplicationInfo"] = {
+            "id": bot.teams_app_id,
+            "resource": f"api://{bot.teams_app_id}",
+        }
         manifest["authorization"] = {
             "permissions": {
                 "resourceSpecific": [

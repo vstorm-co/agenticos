@@ -1,5 +1,5 @@
 ---
-source_sha: "ee582654eb22"
+source_sha: "1fd38ee24d0d"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2049,7 +2049,7 @@ para mostrar diferencias entre la consola y Mattermost.
   su dueño puede pararlo.
 - **El contexto del canal se añade automáticamente en cada run.** Los runs de Mattermost, Slack, Teams y Telegram reciben nombre, propósito, tema, visibilidad, número comunicado de miembros y una lista visible limitada, también con prompts existentes o vacíos. `{channel_members}` nombra la lista; `{member_list}` sigue como alias. Los demás marcadores son `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` y `{member_count}`.
 
-    Cada fuente se consulta una vez por run, sin caché entre turnos: hasta 50 miembros visibles y 2000 caracteres por valor. Telegram devuelve administradores, no todos los miembros. Cada fuente tiene cinco segundos; los valores no disponibles siguen desconocidos. Se aplanan y se marcan como datos de la plataforma, nunca instrucciones. El texto editable añade indicaciones junto al contexto de ejecución.
+    Cada fuente se consulta una vez por run, sin caché entre turnos: hasta 50 miembros visibles y 2000 caracteres por valor. Telegram devuelve administradores, no todos los miembros. Cada fuente tiene cinco segundos; los valores no disponibles siguen desconocidos. Se aplanan y se entregan como datos de conversación no confiables, fuera de las instrucciones del sistema. Slack devuelve identificadores de miembros sin consultar cada perfil. El texto editable añade indicaciones junto al contexto de ejecución.
 
 - **Elija si las menciones de grupo inician un run.** Al crear o editar un bot, *Responder a menciones de grupo* está desactivado por defecto. Las invocaciones directas siguen funcionando. Al activarlo admite también `@all`, `@here` y `@channel` de Mattermost, menciones nativas de Slack y menciones estructuradas de canales o equipos de Teams. Se mantienen las comprobaciones de identidad, acceso y límites. El código citado y las menciones a otras personas no cuentan.
 

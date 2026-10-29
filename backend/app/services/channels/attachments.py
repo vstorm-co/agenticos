@@ -302,20 +302,28 @@ def _why(attachment: IncomingAttachment, error: str | None) -> str:
     return error or "not supported."
 
 
+@dataclass
+class ChannelFileBudget:
+    """Attempts consumed across every approval segment of one turn."""
+
+    attempts: int = 0
+
+
 def channel_file_sender(
-    workspace: Workspace | None, directory: ChannelDirectory
+    workspace: Workspace | None,
+    directory: ChannelDirectory,
+    budget: ChannelFileBudget | None = None,
 ) -> Callable[[str], Awaitable[str]]:
     """A run-local send action; the destination and workspace are server-bound."""
-    attempts = 0
+    budget = ChannelFileBudget() if budget is None else budget
 
     async def send(path: str) -> str:
-        nonlocal attempts
         if workspace is None:
             return "File delivery is unavailable: this run has no workspace."
-        if attempts >= MAX_OUTBOUND_FILES:
+        if budget.attempts >= MAX_OUTBOUND_FILES:
             return "File delivery refused: the per-turn attachment limit was reached."
         # Reserve before awaiting: parallel calls cannot exceed the limit.
-        attempts += 1
+        budget.attempts += 1
         pending: list[OutgoingAttachment] = []
         try:
             result = await queue_channel_file(workspace, pending, path)

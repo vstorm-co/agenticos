@@ -403,35 +403,16 @@ class SlackAdapter(ChannelAdapter):
     async def channel_members(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
     ) -> list[ChannelMember]:
-        """`conversations.members`, then one `users.info` per id, concurrently.
+        """Visible Slack IDs, rendered by Slack as native user mentions.
 
-        Slack has no bulk lookup by id - `users.list` answers with the whole
-        workspace - so the ids are resolved one at a time. Concurrently and
-        bounded by `limit`, because this runs inside a tool call somebody is
-        waiting on, and serially it is the length of the channel in round trips.
+        Do not fan out to users.info on every channel turn: the context snapshot
+        needs membership, not fifty profile requests sharing a rate limit.
         """
-        client = self._web(bot_token)
-        response = await client.conversations_members(channel=channel_id, limit=limit)
-        user_ids = [str(user_id) for user_id in (response.get("members") or [])][:limit]
-        if not user_ids:
-            return []
-
-        found = await asyncio.gather(*(client.users_info(user=user_id) for user_id in user_ids))
-        members: list[ChannelMember] = []
-        for user_id, entry in zip(user_ids, found, strict=True):
-            user: dict[str, Any] = entry.get("user") or {}
-            profile: dict[str, Any] = user.get("profile") or {}
-            members.append(
-                ChannelMember(
-                    user_id=user_id,
-                    username=str(user.get("name") or "") or None,
-                    display_name=str(profile.get("display_name") or profile.get("real_name") or "")
-                    or None,
-                    is_bot=bool(user.get("is_bot")),
-                    role="admin" if user.get("is_admin") else "member",
-                )
-            )
-        return members
+        response = await self._web(bot_token).conversations_members(channel=channel_id, limit=limit)
+        return [
+            ChannelMember(user_id=str(user_id))
+            for user_id in (response.get("members") or [])[:limit]
+        ]
 
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None

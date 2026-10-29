@@ -1076,3 +1076,35 @@ async def test_directories_without_a_persistable_bot_and_old_parks_have_no_desti
         )
         is None
     )
+
+
+async def test_slack_roster_snapshot_does_not_fan_out_to_profile_requests():
+    adapter = SlackAdapter()
+    client = MagicMock()
+    client.conversations_members = AsyncMock(return_value={"members": ["U1", "U2", "U3"]})
+    client.users_info = AsyncMock()
+    with patch.object(adapter, "_web", return_value=client):
+        members = await adapter.channel_members("token", "C1", api_base_url=None, limit=2)
+    assert [person.user_id for person in members] == ["U1", "U2"]
+    client.users_info.assert_not_awaited()
+    client.conversations_members.assert_awaited_once_with(channel="C1", limit=2)
+
+
+@pytest.mark.parametrize(
+    "mime,content", [("image/webp", b"image"), ("image/png", b"x" * 1_000_001)]
+)
+@pytest.mark.parametrize("private", [False, True])
+async def test_unsuitable_teams_images_require_personal_file_consent(mime, content, private):
+    directory = BoundChannelDirectory(
+        adapter=MagicMock(platform="teams", send_message=AsyncMock()),
+        bot_token="token",
+        channel_id="C",
+        private_chat=private,
+    )
+    result = await directory.send_file(filename="image", content=content, mime_type=mime)
+    if private:
+        assert "must accept" in result
+        directory.adapter.send_message.assert_awaited_once()
+    else:
+        assert "refused" in result
+        directory.adapter.send_message.assert_not_awaited()

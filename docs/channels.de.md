@@ -1,5 +1,5 @@
 ---
-source_sha: "ee582654eb22"
+source_sha: "1fd38ee24d0d"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2159,7 +2159,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
   Token, und nur sein Besitzer kann ihn stoppen.
 - **Channel-Kontext wird bei jedem Run automatisch ergänzt.** Runs aus Mattermost, Slack, Teams und Telegram erhalten Name, Zweck, Thema, Sichtbarkeit, gemeldete Mitgliederzahl und eine begrenzte sichtbare Mitgliederliste, auch bei bestehenden oder geleerten Bindungs-Prompts. `{channel_members}` benennt die Liste; `{member_list}` bleibt ein Alias. Weitere Platzhalter sind `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` und `{member_count}`.
 
-    Jede Quelle wird einmal pro Run abgefragt, ohne Cache zwischen Runden: höchstens 50 sichtbare Mitglieder und 2000 Zeichen pro Wert. Telegram liefert Administratoren, nicht alle Mitglieder. Jede Quelle hat fünf Sekunden Zeit; nicht verfügbare Werte bleiben unbekannt. Werte werden abgeflacht und als Plattformdaten statt Instruktionen markiert. Der editierbare Bindungstext ergänzt diesen Laufzeitkontext.
+    Jede Quelle wird einmal pro Run abgefragt, ohne Cache zwischen Runden: höchstens 50 sichtbare Mitglieder und 2000 Zeichen pro Wert. Telegram liefert Administratoren, nicht alle Mitglieder. Jede Quelle hat fünf Sekunden Zeit; nicht verfügbare Werte bleiben unbekannt. Werte werden abgeflacht und als nicht vertrauenswürdige Gesprächsdaten außerhalb der Systemanweisungen übergeben. Slack liefert Mitglieder-IDs ohne einzelne Profilabfragen. Der editierbare Bindungstext ergänzt diesen Laufzeitkontext.
 
 - **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
 
