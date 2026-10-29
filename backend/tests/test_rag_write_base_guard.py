@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo
@@ -82,6 +83,22 @@ def base_exists(monkeypatch: pytest.MonkeyPatch) -> dict[str, bool]:
 
     monkeypatch.setattr(knowledge_base_repo, "hold_key_share", hold)
     return answer
+
+
+@pytest.mark.parametrize("found", [True, False])
+async def test_the_hold_is_a_key_share_that_reports_the_base(found: bool) -> None:
+    """`FOR KEY SHARE`, which two writes into one base both take without waiting;
+    `with_for_update(key_share=True)` alone renders the self-conflicting
+    `FOR NO KEY UPDATE`."""
+    result = MagicMock()
+    result.first.return_value = (BASE,) if found else None
+    db = MagicMock(execute=AsyncMock(return_value=result))
+
+    assert await knowledge_base_repo.hold_key_share(db, BASE) is found
+
+    sql = str(db.execute.await_args.args[0].compile(dialect=postgresql.dialect()))
+    assert sql.endswith("FOR KEY SHARE")
+    assert "knowledge_bases.id =" in sql
 
 
 class TestTheWriteHoldsItsBase:
