@@ -330,6 +330,7 @@ lint-backend:
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py
+	uv run --directory backend python3 ../scripts/check_docs_glossary.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
 # vulture at a confidence high enough to be a gate (unused variables and
@@ -414,11 +415,19 @@ format:
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
 #
-# CI overrides the report because Codecov wants XML. The terminal list of
-# uncovered lines is kept beside it, files at 100% skipped: a red gate that says
-# only "99.99%" sends whoever reads it hunting through every module by hand.
+# The suite runs once, measuring all of `app`; the gate is a report over that
+# data narrowed to the platform layer, `[tool.coverage.run] include` in
+# backend/pyproject.toml, read from there so the list keeps one home. Measured
+# that way an included file no test imports counts at 0% rather than going
+# unreported. `coverage-all` reports the same data whole, so CI does not run the
+# suite a second time for it.
+#
+# CI adds XML for Codecov. The terminal list of uncovered lines is printed either
+# way, files at 100% skipped: a red gate that says only "99.99%" sends whoever
+# reads it hunting through every module by hand. The reports are written even
+# when a test failed, and the recipe then fails with the suite's status.
 COV_REPORT ?= term-missing
-COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:skip-covered)
+PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
 
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
@@ -428,7 +437,11 @@ COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:ski
 # per-worker data, so the 100% gate holds unchanged. A scoped `pytest <file>`
 # stays serial: worker startup is not worth paying for one file.
 test:
-	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) $(COV_TERM) -n auto --maxprocesses 4
+	@status=0; \
+	uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
+	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
@@ -471,12 +484,11 @@ security-report:
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
 #
-# It runs across workers like every other suite here. It was the one that did not,
-# which made it the longest step in the `test` job - 14m46s of the 25 that job is
-# allowed, against 8m39s for the gated suite beside it - so a runner about three
-# times slower than usual took the whole job past its bound (#879).
+# `REUSE_COVERAGE=1` reports the data `make test` just measured instead of running
+# the suite again, which is what CI does: two full runs no longer fit its job.
 coverage-all:
-	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0 -n auto --maxprocesses 4
+	$(if $(REUSE_COVERAGE),,uv run --directory backend pytest tests/ -q --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4)
+	uv run --directory backend coverage report --fail-under=0
 
 test-frontend:
 	cd frontend && bun run test:run

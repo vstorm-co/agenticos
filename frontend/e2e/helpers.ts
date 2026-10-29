@@ -52,6 +52,13 @@ export const SEEDED_SKILL_CONTENT = "## When a customer asks for a refund\n\nChe
 /** A knowledge base, so /rag has a row rather than only an empty state. */
 export const SEEDED_KB_NAME = "E2E Handbook";
 
+/**
+ * The judge every organization is created with: a system agent, seeded by the
+ * backend rather than by this suite, and found by its key, which no rename moves.
+ */
+export const SEEDED_JUDGE_KEY = "eval_judge";
+export const SEEDED_JUDGE_NAME = "Eval judge";
+
 /** A draft agent: the only thing that can prove an unpublished agent will not run. */
 export const DRAFT_AGENT_NAME = "E2E Draft";
 export const DRAFT_AGENT_SLUG = "e2e-draft";
@@ -614,4 +621,41 @@ export async function nowMatching(
     )
     .toHaveLength(0);
   return found!;
+}
+
+/**
+ * Open the page's "?" walk and press Next to its end, failing on a stop that
+ * greys its buttons or does not move on. `onStop` sees each stop's title, with
+ * the page as that stop left it, so a caller can check a tab opened under it.
+ */
+export async function walkPageTour(
+  page: Page,
+  onStop: (title: string) => Promise<void> = async () => {},
+): Promise<string[]> {
+  const popover = page.locator(".driver-popover");
+  const title = page.locator(".driver-popover-title");
+  const next = page.locator(".driver-popover-next-btn");
+  const back = page.locator(".driver-popover-prev-btn");
+  await page.getByRole("button", { name: "Show tips for this page" }).click();
+  const seen: string[] = [];
+  for (let stop = 0; stop < 40; stop += 1) {
+    await expect(title).toBeVisible();
+    const current = (await title.textContent()) ?? "";
+    seen.push(current);
+    await expect(next, `Next on "${current}"`).toBeEnabled();
+    if (stop > 0) await expect(back, `Back on "${current}"`).toBeEnabled();
+    await onStop(current);
+    const finishing = (await next.textContent())?.trim() === "Finish";
+    await next.click();
+    if (finishing) break;
+    await expect
+      .poll(async () => ((await popover.isVisible()) ? await title.textContent() : null), {
+        message: `the walk did not move on from "${current}"`,
+        timeout: 15_000,
+      })
+      .not.toBe(current);
+    if (!(await popover.isVisible())) break;
+  }
+  await expect(popover).toBeHidden();
+  return seen;
 }

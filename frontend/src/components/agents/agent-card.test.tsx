@@ -97,6 +97,119 @@ describe("AgentCard", () => {
     expect(container.querySelector("[data-beam]")).not.toBeNull();
   });
 
+  it("flags an agent that needs attention, saying why on hover", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 1,
+          can_edit: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention")).toHaveAttribute(
+      "title",
+      "5 answers rated down · 1 failing suite",
+    );
+  });
+
+  it("leads an editor from the attention badge to the Improve wizard", () => {
+    render(
+      <AgentCard
+        agent={agent({ id: "a9", name: "Refund desk" })}
+        canEdit
+        attention={{
+          agent_id: "a9",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention").closest("a")).toHaveAttribute(
+      "href",
+      "/agents/a9/improve/new?resume=1",
+    );
+  });
+
+  it("only describes the attention to a reader who may not improve the agent", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refund desk" })}
+        canEdit={false}
+        attention={{
+          agent_id: "a1",
+          name: "Refund desk",
+          rated_down: 5,
+          failed_runs: 0,
+          failing_suites: 0,
+          can_edit: false,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Needs attention").closest("a")).toBeNull();
+  });
+
+  it("flags nothing without a reason to", () => {
+    mount({ name: "Refund desk" });
+
+    expect(screen.queryByText("Needs attention")).toBeNull();
+  });
+
+  it("marks the judge the platform seeded as the default one", () => {
+    mount({ system_key: "eval_judge", name: "Eval judge", kind: "judge" });
+
+    expect(screen.getByText("Default judge")).toBeInTheDocument();
+  });
+
+  it("names the kind a seeded agent is the default of", () => {
+    mount({ system_key: "case_generator", name: "Case generator", kind: "generator" });
+
+    expect(screen.getByText("Default case generator")).toBeInTheDocument();
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
+  it("names the kind of an organization's own system agent, which is nobody's default", () => {
+    mount({ system_key: null, name: "Refunds judge", kind: "judge" });
+
+    expect(screen.getByText("System agent · Judge")).toHaveAttribute(
+      "title",
+      "The platform runs it for the whole organization; nobody chats with it.",
+    );
+    expect(screen.queryByText("Default judge")).toBeNull();
+  });
+
+  it("lets an editor open a card with no menu, as a judge's has none", () => {
+    render(
+      <AgentCard
+        agent={agent({ name: "Refunds judge", kind: "judge" })}
+        canEdit
+        footer={<p>Used by Refunds</p>}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Edit Refunds judge" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more actions/i })).toBeNull();
+    expect(screen.getByText("Used by Refunds")).toBeInTheDocument();
+  });
+
+  it("marks nothing on an agent a person made", () => {
+    mount();
+
+    expect(screen.queryByText("Default judge")).toBeNull();
+    expect(screen.queryByText(/System agent/)).toBeNull();
+  });
+
   it("opens the builder from anywhere on the card", () => {
     mount();
 

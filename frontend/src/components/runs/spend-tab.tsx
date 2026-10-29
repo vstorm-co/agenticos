@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+
+import { formatUsd } from "@/components/dashboard/format";
 import { Activity, KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -69,9 +71,10 @@ function windowLabel(
 
 /** A right-aligned money cell; `partial` marks a floor the way the run table does. */
 function CostCell({ cost, partial, title }: { cost: string; partial?: boolean; title: string }) {
+  const locale = useLocale();
   return (
     <span className="font-mono text-xs tabular-nums">
-      ${Number(cost).toFixed(4)}
+      {formatUsd(cost, locale, 4)}
       {partial && (
         <span className="text-muted-foreground" title={title}>
           {" +"}
@@ -212,8 +215,8 @@ export function SpendTab({
             {row.monthly_cap_usd !== null && (
               <span className="text-muted-foreground block text-xs">
                 {t("monthAgainstCap", {
-                  spent: Number(row.month_to_date_usd ?? 0).toFixed(2),
-                  cap: Number(row.monthly_cap_usd).toFixed(2),
+                  spent: formatUsd(row.month_to_date_usd, locale),
+                  cap: formatUsd(row.monthly_cap_usd, locale),
                 })}
               </span>
             )}
@@ -324,22 +327,22 @@ export function SpendTab({
         <FigureCard
           label={t("spendWindow")}
           caption={t("overTheWindowAbove")}
-          value={`$${windowTotal.toFixed(2)}`}
+          value={formatUsd(windowTotal, locale)}
         />
         <FigureCard
           label={t("monthToDate")}
           caption={t("calendarAligned")}
-          value={`$${Number(spend.month_to_date_usd).toFixed(2)}`}
+          value={formatUsd(spend.month_to_date_usd, locale)}
         />
         <FigureCard
           label={t("perRun")}
           caption={t("overRunsInWindow", { count: runCount })}
-          value={runCount === 0 ? "\u2014" : `$${(windowTotal / runCount).toFixed(4)}`}
+          value={runCount === 0 ? "\u2014" : formatUsd(windowTotal / runCount, locale, 4)}
         />
         <FigureCard
           label={t("dearestAgent")}
           caption={
-            dearest === undefined ? t("noAgentHasSpent") : `$${Number(dearest.cost_usd).toFixed(2)}`
+            dearest === undefined ? t("noAgentHasSpent") : formatUsd(dearest.cost_usd, locale)
           }
           value={dearest?.agent_name ?? "\u2014"}
         />

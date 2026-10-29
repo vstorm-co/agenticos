@@ -51,6 +51,64 @@ function row() {
 }
 
 describe("a run history row", () => {
+  it("says what each run was asked, and what a judge's run graded", () => {
+    const link = {
+      eval_run_id: "eval-1",
+      agent_id: "agent-1",
+      case_id: "case-1",
+      dataset_name: "refunds",
+      case_input: "Can I return it?",
+    };
+    render(
+      <RunTable
+        runs={[
+          run({ id: "chat", preview: "Where is my order?" }),
+          run({
+            id: "answer",
+            surface: "eval",
+            preview: "Can I return it?",
+            eval_case: { ...link, graded: false },
+          }),
+          run({
+            id: "grade",
+            surface: "eval",
+            preview: "Can I return it?",
+            eval_case: { ...link, graded: true },
+          }),
+          run({ id: "api", preview: null }),
+        ]}
+      />,
+    );
+
+    const [chat, answer, grade, api] = screen.getAllByRole("row").slice(1);
+    expect(within(chat!).getByText("Where is my order?")).toBeInTheDocument();
+    expect(within(answer!).getByText("Can I return it?")).toBeInTheDocument();
+    expect(within(grade!).getByText("Grading: Can I return it?")).toBeInTheDocument();
+    expect(within(api!).queryByText(/\?/)).toBeNull();
+  });
+
+  it("names a platform agent no agent list holds, and says what it worked on", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            surface: "eval",
+            agent_id: "improver-1",
+            origin: { kind: "improve", agent_name: "Improver", agent_id: "agent-1" },
+          }),
+        ]}
+        agentsById={new Map()}
+      />,
+    );
+
+    expect(within(row()).getAllByText("Improver").length).toBeGreaterThan(0);
+    expect(within(row()).getByText("Improve")).toBeInTheDocument();
+    expect(within(row()).getByRole("link", { name: "Open the agent" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1",
+    );
+  });
+
   it("says nothing about delegation for a run somebody started", () => {
     render(<RunTable runs={[run()]} />);
 

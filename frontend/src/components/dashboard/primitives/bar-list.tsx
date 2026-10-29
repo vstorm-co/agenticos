@@ -2,6 +2,7 @@
 
 import { forwardRef, type ReactNode } from "react";
 import Link from "next/link";
+import { useLocale } from "next-intl";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui";
 import { MARK_CLASS, TRACK_CLASS } from "@/lib/dashboard/system";
@@ -45,6 +46,7 @@ export interface BarListItem {
  * a native `title` is not reachable from a keyboard.
  */
 export function BarList({ items, className }: { items: BarListItem[]; className?: string }) {
+  const locale = useLocale();
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
     <div className={cn("flex min-h-0 flex-col gap-1", className)}>
@@ -82,13 +84,13 @@ export function BarList({ items, className }: { items: BarListItem[]; className?
                 />
               </span>
               <span className="text-muted-foreground shrink-0 text-right tabular-nums">
-                {item.display ?? item.value.toLocaleString()}
+                {item.display ?? item.value.toLocaleString(locale)}
               </span>
             </Row>
           </TooltipTrigger>
           <TooltipContent side="top" className="flex items-center gap-2">
             <span>{item.label}</span>
-            <span className="font-medium">{item.display ?? item.value.toLocaleString()}</span>
+            <span className="font-medium">{item.display ?? item.value.toLocaleString(locale)}</span>
           </TooltipContent>
         </Tooltip>
       ))}

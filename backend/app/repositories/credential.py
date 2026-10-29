@@ -69,6 +69,21 @@ async def list_profiles(db: AsyncSession, *, organization_id: UUID) -> list[Mode
     return list(result.scalars().all())
 
 
+async def oldest_profile(db: AsyncSession, *, organization_id: UUID) -> ModelProfile | None:
+    """The organization's first model profile, by creation and then id.
+
+    A rule rather than a pick, so the profile a seeded agent publishes on is the
+    same whichever request seeds it.
+    """
+    result = await db.execute(
+        select(ModelProfile)
+        .where(ModelProfile.organization_id == organization_id)
+        .order_by(ModelProfile.created_at.asc(), ModelProfile.id.asc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_profile(
     db: AsyncSession,
     *,

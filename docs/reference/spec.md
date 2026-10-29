@@ -100,3 +100,17 @@ Capabilities a call cannot run do not block publishing; they are left out of
 calls and the Builder lists them.
 
 ::: app.agents.spec.VoiceSpec
+
+## System agents { #system-agents }
+
+A [system agent](../concepts.md#system-agent-spec) - a judge, a case generator, a
+gap drafter or classifier, the authoring assistant - is held to more. Saving its
+draft refuses what it may never use; publishing it also refuses blank
+instructions and a `max_tokens` below its kind's floor. It runs with what its
+version may hold alone, and searches the knowledge bases its run is about.
+
+::: app.agents.system_agents.unusable_parts
+
+::: app.agents.system_agents.incomplete_parts
+
+::: app.agents.system_agents.for_the_platform

@@ -119,6 +119,8 @@ class RunSurface(enum.StrEnum):
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Kept apart so a filter can leave evaluation out of production traffic.
+    EVAL = "eval"
     # Work the platform did for a person on its own initiative, in the background
     # (#2301): noticing a request they keep repeating, writing their first
     # messages. Metered against the organization's per-person proactivity limit.
@@ -163,6 +165,21 @@ class RunRating(enum.StrEnum):
     DOWN = "down"
 
 
+class RunSource(enum.StrEnum):
+    """Whose work a run was, as Activity's Source filter asks.
+
+    `CONVERSATION` is every surface a person, a client or a schedule reaches an
+    agent through. `EVALUATION` is one of the organization's agents answering an
+    eval case - an eval run, or Improve measuring a candidate. `SYSTEM` is a
+    platform agent (`AgentKind` other than `AGENT`) at work: the judge, the
+    improver, the knowledge-gap classifier and drafter, the case generator.
+    """
+
+    CONVERSATION = "conversation"
+    EVALUATION = "evaluation"
+    SYSTEM = "system"
+
+
 class AgentRun(Base, TimestampMixin):
     """One execution of one agent version."""
 
@@ -170,6 +187,12 @@ class AgentRun(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),

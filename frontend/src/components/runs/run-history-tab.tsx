@@ -26,6 +26,7 @@ import {
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
+import { useJudges } from "@/hooks/use-agents";
 import { useOrgStore } from "@/stores";
 import { formatPeriodParam, periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { isNarrowed, type RunFilters } from "@/lib/runs/filter-params";
@@ -100,11 +101,13 @@ export function RunHistoryTab({
   // column is too. The member list is any member's to read.
   const canAgents = can(Perm.agentsView);
   const { agents: agentRows } = useAgents({ enabled: canAgents });
+  // Judges are agents every other list leaves out, and their grading runs here too.
+  const { agents: judges } = useJudges({ enabled: canAgents });
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { members } = useMembers(activeOrgId ?? "");
   const agentsById = useMemo(
-    () => new Map(agentRows.map((agent) => [agent.id, agent])),
-    [agentRows],
+    () => new Map([...agentRows, ...judges].map((agent) => [agent.id, agent])),
+    [agentRows, judges],
   );
   const membersById = useMemo(
     () => new Map(members.map((member) => [member.user_id, member])),
@@ -167,6 +170,7 @@ export function RunHistoryTab({
           ? PROBLEM_STATUSES
           : [filters.status],
     surface: filters.surface === "all" ? undefined : filters.surface,
+    source: filters.source === "all" ? undefined : filters.source,
     modality: filters.modality === "all" ? undefined : filters.modality,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
@@ -192,6 +196,7 @@ export function RunHistoryTab({
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
   if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (filters.source !== "all") exportParams.source = filters.source;
   if (filters.modality !== "all") exportParams.modality = filters.modality;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;

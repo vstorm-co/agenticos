@@ -34,10 +34,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 # The ceiling on any one job's `timeout-minutes`. Set against the slowest job this
-# workflow runs - `test`, which runs the suite twice and took up to 27m29s in
-# October 2026 - with room for a loaded runner on top. A bound much beyond that is
-# the 360-minute default with extra steps.
-MAX_TIMEOUT_MINUTES = 45
+# workflow runs - `test`, which runs the suite twice and took up to 37 minutes on a
+# milestone branch in October 2026 - with room for a loaded runner on top. A bound
+# much beyond that is the 360-minute default with extra steps.
+MAX_TIMEOUT_MINUTES = 60
 
 
 @pytest.fixture(scope="module")

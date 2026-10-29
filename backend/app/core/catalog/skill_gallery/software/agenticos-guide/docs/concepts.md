@@ -575,6 +575,137 @@ delegate to what.
 
 ---
 
+## System agents { #system-agents }
+
+Some agents are started by the platform rather than by a person: **judges**,
+which grade answers for [dataset grading](datasets.md#judge), the
+**Knowledge gap drafter**, which drafts the passage a
+[knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing, and
+the **Knowledge gap classifier**, which reads answers for the
+[questions a knowledge base could not answer](knowledge-gaps.md#answers-and-comments).
+These are **system agents**. An agent's kind says which it is - `agent` for the
+ones people use, `judge`, `drafter` and `classifier` for these. Every
+organization gets the default **Eval judge**, the drafter and the classifier
+when it is created, an organization created earlier gets each the first time
+something needs it, and a dataset may get a judge of its own.
+
+A system agent is the platform's to run, not an agent people use. Agents lists
+them apart, in a folded **System agents** band under **Agents**, grouped by
+kind: **Judges**, each card saying which datasets it grades, then the **Gap
+drafter** and, last, the **Gap classifier**. The seeded agent of each kind is
+marked as that kind's default - **Default judge**, **Default case generator**
+and so on.
+Agent pickers leave them out.
+
+Changing one is an organization setting. Editing its instructions, model or
+budget, publishing it, restoring a version, archiving or deleting it takes
+`org:settings` - the permission that switches
+[AI assistance](governance.md#ai-assistance) - whoever owns the row; everybody
+else who may see agents reads it, and its page says why its controls are
+locked. It is opened from the band or, for the drafter, from **Edit the
+drafter's instructions** on a draft, and its header says **System agent** and
+its kind.
+
+Its page has an agent's own tabs, fewer of them: **Build** for its
+instructions and model, **Toolbox** for what it may bind - Knowledge search,
+Context and Skills - **Limits** for its budget, and **History**. A judge's also
+has **Datasets**, the datasets that picked it, grading or not - each opening on
+its latest grades there and the eval runs they came from - with how often
+people agreed with it on the results it graded and they decided. A classifier's
+Toolbox has no Skills, unless its draft still holds some, and then only to take
+them off.
+
+**New agent** → **System agent** creates any of the five kinds: judge, case
+generator, gap drafter, gap classifier or authoring assistant (`POST /agents/system`).
+It starts from that kind's instructions, temperature and budget, on the
+organization's first model, and publishes when you may publish agents; every
+change after that takes `org:settings`. Pick a
+judge in dataset grading, a generator in Generate cases, knowledge helpers on a
+knowledge base's gaps tab, or an assistant in Improve. Each defaults to the
+organization's seeded agent, named in the picker with its published model; with
+no other agent of the kind there is nothing to pick, so the picker only names
+that agent and links to its page. A selected helper must have the right kind, be
+published and remain runnable by the caller; a missing choice never silently
+adopts the default.
+
+Its runs are budget-checked and recorded like any other, and send no run
+notification. A system agent starts with a small monthly budget of its own, so
+a new organization cannot spend its whole budget on evaluation, drafting or
+checking answers by accident.
+
+The **case generator** is a system agent too, of the `generator` kind: it drafts
+[dataset cases](datasets.md#generating-cases) and is seeded the same way, with a
+budget of its own. It is listed in the same band, after the drafter, and is
+opened and edited like a judge; a dataset's Generated tab links to it for whoever
+may edit it.
+
+Only the platform runs it. Chat, the API, A2A, an embed or a public page, a
+channel, a schedule and delegation from another agent all refuse it, in the
+service that would start the run rather than only in the console. Neither an
+eval nor an improvement session tests or improves one: it answers its caller in
+JSON, never a person's question, so a dataset's questions measure nothing about
+it.
+
+Every run of a system agent is [isolated](environments.md#in-an-eval) as an
+eval's is. A system agent reads text nobody vetted - an answer to grade, a
+document, a conversation - and what it answers reaches people who may not read
+what it read, so the one tool it may hold is a search of the knowledge bases its
+run is about, and nobody's memory is read into it.
+
+### What its spec may hold { #system-agent-spec }
+
+A system agent reaches nothing beyond what its run is about. Its spec may bind
+**Thinking**, **Context**, **Skills** and **Knowledge search** - how it reasons,
+the standing text it reads and a search - and nothing else. Saving a draft, or
+importing YAML, that adds another capability, a bound knowledge base, an MCP
+server, a delegate, voice or dictation, starters, code mode or a reviewer is
+refused field by field, and so is an approval on the four it may bind: nobody
+is there to give one while it runs.
+
+**Knowledge search** binds no knowledge base. The platform picks the ones each
+run is about - the graded agent's for a judge, the gap's for the drafter and
+the classifier, the ones a generation drafts from for the case generator, the
+improved agent's for the authoring assistant - and the run searches only those
+its person may read. A search ends within `max_steps`: 3 unless set, 5 at most,
+each a paid request that estimates count. The context files and skills it reads
+must be shared with the whole organization, and nobody's memory is read into
+its run, whatever its version holds.
+
+Publishing one also needs its instructions, and room for its answer. The answer
+is one JSON object, so a `max_tokens` below its kind's floor would cut every
+answer short rather than one; leaving it unset keeps the model's own limit.
+
+| Kind | Floor | Room for |
+|---|---|---|
+| Judge | 4 096 | A grade per criterion - up to 20 rubric criteria, the reference and the counter-example - with its reason, rule and quotes |
+| Case generator | 20 000 | Up to 50 drafted cases, at the 400 tokens the generation's estimate prices each at |
+| Gap drafter | 6 144 | One passage at its 20 000-character limit, with its title and citations |
+| Gap classifier | 2 048 | A batch of 20 answers, each a label and a reason of at most 300 characters |
+| Authoring assistant | 8 192 | A new skill at its 20 000-character limit beside the instruction changes of the same proposal |
+
+### Its environment and its retirement { #retiring-a-system-agent }
+
+A system agent runs on its default environment, which follows every publish.
+Adding an environment, pinning one, guarding it or promoting a version is
+refused - restore a version instead - and a publish moves a default pinned
+before that was refused.
+
+The organization's default of each kind is never archived or deleted:
+everything that picked no other runs on it. One the organization made is
+archived or deleted once no dataset grades with it, no knowledge base drafts or
+sorts its gaps with it, and no authoring request, case generation, improvement
+session or eval is busy with it; the refusal names what still uses it.
+
+When the organization already has a model profile, a system agent is published
+on the oldest one, or on the one picked when it was created. Without one, it is
+created as a draft. The seeded Eval judge, drafter and classifier are published
+on the organization's first model as soon as one is added; a dataset's own
+judge waits for a person to pick its model and publish it, and the features that
+use it say so until then.
+
+The organization's [AI assistance switch](governance.md#ai-assistance) decides
+whether system agents run at all.
+
 ## Model profiles
 
 A **model profile** is a named model backed by a stored key: `openai default`,

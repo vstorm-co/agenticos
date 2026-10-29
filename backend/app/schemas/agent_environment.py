@@ -1,6 +1,7 @@
 """Agent environment schemas - named pointers at published versions."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -11,6 +12,37 @@ from app.schemas.base import BaseSchema
 # Logfire environment tag and appears in URLs, and "Production (EU)" and
 # "production-eu" must not be two different environments.
 _NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
+
+
+class EnvironmentConnectionWrite(BaseSchema):
+    """One binding this environment answers with a test system.
+
+    `production_id` is the id the agent's spec names - an organization MCP
+    connection or a vault secret - and `test_id` is what runs in its place here,
+    or null for nothing at all. Only ids travel: a secret's value stays in the
+    vault either way.
+    """
+
+    kind: Literal["mcp", "secret"]
+    production_id: UUID = Field(description="The connection or secret the spec binds")
+    test_id: UUID | None = Field(
+        description=(
+            "The connection or secret this environment uses instead. Null switches the "
+            "binding off in this environment - it never falls back to the production one."
+        )
+    )
+
+
+class EnvironmentConnectionRead(BaseSchema):
+    kind: Literal["mcp", "secret"]
+    production_id: UUID
+    test_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Null once the test connection or secret was deleted. The binding is then "
+            "off in this environment - it never falls back to the production one."
+        ),
+    )
 
 
 class EnvironmentCreate(BaseSchema):
@@ -39,6 +71,11 @@ class EnvironmentCreate(BaseSchema):
         ),
     )
     service_name: str | None = Field(default=None, max_length=128)
+    connections: list[EnvironmentConnectionWrite] = Field(
+        default_factory=list,
+        max_length=64,
+        description="Bindings this environment answers with test systems instead",
+    )
 
 
 class EnvironmentUpdate(BaseSchema):
@@ -53,6 +90,30 @@ class EnvironmentUpdate(BaseSchema):
     tracks_latest: bool | None = None
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = Field(default=None, max_length=128)
+    connections: list[EnvironmentConnectionWrite] | None = Field(
+        default=None,
+        max_length=64,
+        description="The whole set of overrides, replacing the current one. Omit to keep it.",
+    )
+    guard_suite_ids: list[UUID] | None = Field(
+        default=None,
+        max_length=20,
+        description=(
+            "The agent's eval suites this environment requires to pass on a version "
+            "before it takes it - the whole set, replacing the current one. Empty "
+            "unguards it; omit to keep it. Changing it needs `promotions:override`."
+        ),
+    )
+    override_reason: str | None = Field(
+        default=None,
+        min_length=10,
+        max_length=2000,
+        description=(
+            "Why this version is promoted although its guards have not passed on it. "
+            "Needs `promotions:override`, and is recorded in the audit log and on the "
+            "version. Ignored when every guard passed."
+        ),
+    )
 
 
 class EnvironmentRead(BaseSchema):
@@ -77,6 +138,11 @@ class EnvironmentRead(BaseSchema):
     )
     logfire_token_secret_id: UUID | None = None
     service_name: str | None = None
+    connections: list[EnvironmentConnectionRead] = Field(default_factory=list)
+    guard_suite_ids: list[UUID] = Field(
+        default_factory=list,
+        description="The eval suites that must pass on a version before this environment takes it",
+    )
     created_at: datetime
 
 

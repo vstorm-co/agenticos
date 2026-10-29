@@ -129,6 +129,24 @@ describe("useSandboxConnections", () => {
     await waitFor(() => expect(api.listSandboxConnections).toHaveBeenCalledTimes(3));
   });
 
+  it("drops what the capability catalog recommends after a write", async () => {
+    // A new agent starts on a container workspace only where one would publish.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useSandboxConnections(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.connections).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.remove("c-1");
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents", "capability-catalog"] });
+  });
+
   it("refreshing asks again", async () => {
     const { result } = renderHook(() => useSandboxConnections(), { wrapper });
     await waitFor(() => expect(result.current.connections).toHaveLength(1));

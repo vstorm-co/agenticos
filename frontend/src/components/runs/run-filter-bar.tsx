@@ -35,6 +35,7 @@ export const SURFACES = [
   "a2a",
   "teams",
   "schedule",
+  "eval",
   "follow_ups",
   "proactive",
 ] as const;
@@ -113,6 +114,20 @@ export function RunFilterBar({
               </span>
             </SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={filters.source}
+        onValueChange={(value) => set({ source: value as RunFilters["source"] })}
+      >
+        <SelectTrigger size="sm" className="w-auto" aria-label={t("sourceFilter")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t("anySource")}</SelectItem>
+          <SelectItem value="conversation">{t("sourceConversations")}</SelectItem>
+          <SelectItem value="evaluation">{t("sourceEvaluation")}</SelectItem>
+          <SelectItem value="system">{t("sourceSystem")}</SelectItem>
         </SelectContent>
       </Select>
       <Select

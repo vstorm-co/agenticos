@@ -6,6 +6,7 @@ import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
+import { ImproveContextButton } from "@/components/authoring/improve-skill-button";
 import { displayName } from "@/components/context/file-name";
 import type { ContextEdit } from "@/hooks/use-context";
 import type { ContextFile } from "@/types/providers";
@@ -96,6 +97,7 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
           canManage={canEdit}
           className="sm:mr-auto"
         />
+        {canEdit && <ImproveContextButton contextId={file.id} unsaved={changed} />}
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel") : t("close")}
         </Button>

@@ -1,5 +1,5 @@
 ---
-source_sha: "957a4208f188"
+source_sha: "c75bda4ec41d"
 ---
 
 # Einen Hintergrund-Task hinzufügen { #add-a-background-task }
@@ -52,6 +52,7 @@ Wählen Sie den Pool danach, was der Job verbraucht:
 | Pool | Wofür | Wie er läuft |
 |---|---|---|
 | `agent` | Runs von Agents und ausgelöste Trigger: lang, warten auf Modelle | Auf der Loop des Workers, `WORKER_AGENT_CONCURRENCY` gleichzeitig |
+| `eval` | Eval-Runs: Stunden über einem Dataset, jeder hält seinen Slot die ganze Zeit | Auf der Loop des Workers, `WORKER_EVAL_CONCURRENCY` gleichzeitig |
 | `ingest` | Parsen und Embeddings: viel CPU und Speicher | Ein Job pro Kindprozess, unter `WORKER_INGEST_MEMORY_MB` |
 | `system` | Aufräumläufe, Bereinigungen, Berichte: kurz | Auf der Loop des Workers, `WORKER_SYSTEM_CONCURRENCY` gleichzeitig |
 

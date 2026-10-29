@@ -10,6 +10,7 @@ import {
   Waypoints,
   BotMessageSquare,
   Building2,
+  FlaskConical,
   LibraryBig,
   KeyRound,
   LayoutDashboard,
@@ -122,6 +123,12 @@ export const NAV_GROUPS: NavGroup[] = [
       // the floor for seeing an agent's schedule; the create controls inside gate
       // further on `agents:run`, so a viewer sees the list without the buttons.
       { labelKey: "routines", href: ROUTES.ROUTINES, icon: Workflow, permission: Perm.agentsView },
+      {
+        labelKey: "datasets",
+        href: ROUTES.DATASETS,
+        icon: FlaskConical,
+        permission: Perm.datasetsView,
+      },
       {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,

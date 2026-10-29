@@ -1,5 +1,5 @@
 ---
-source_sha: "957a4208f188"
+source_sha: "c75bda4ec41d"
 ---
 
 # Añade una tarea en segundo plano { #add-a-background-task }
@@ -50,6 +50,7 @@ Elige el pool según lo que gasta el job:
 | Pool | Para qué | Cómo se ejecuta |
 |---|---|---|
 | `agent` | Runs de agents y disparos de triggers: largos, esperan a los modelos | En el bucle del worker, `WORKER_AGENT_CONCURRENCY` a la vez |
+| `eval` | Eval runs: horas sobre un dataset, cada uno ocupa su slot todo el tiempo | En el bucle del worker, `WORKER_EVAL_CONCURRENCY` a la vez |
 | `ingest` | Parseo y embeddings: mucha CPU y memoria | Un job por proceso hijo, bajo `WORKER_INGEST_MEMORY_MB` |
 | `system` | Barridos, limpiezas, informes: cortos | En el bucle del worker, `WORKER_SYSTEM_CONCURRENCY` a la vez |
 

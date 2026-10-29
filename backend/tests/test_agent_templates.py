@@ -7,6 +7,8 @@ rather than at publish, weeks later, in an organization that installed it.
 
 import re
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -83,9 +85,6 @@ class TestTheStarterTemplate:
     def test_its_bindings_are_keyed_by_capability(self, tmp_path, monkeypatch):
         """What the Toolbox recommends, and what a new agent starts with."""
         monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
-        # A deployment running its own sandbox service, so the binding is kept as
-        # written; without one it falls back - see `TestForThisDeployment`.
-        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "token")
         folder, name = agent_templates.STARTER_TEMPLATE.split("/")
         _write(
             tmp_path,
@@ -95,7 +94,9 @@ class TestTheStarterTemplate:
             "- id: sandbox\n  config:\n    include_execute: true\n---\n\nYou work.\n",
         )
 
-        assert agent_templates.starter_capabilities() == {
+        # An organization that can run a container workspace gets the binding as
+        # written; one that cannot falls back - see `TestForThisDeployment`.
+        assert agent_templates.starter_capabilities(container_workspace=True) == {
             "clock": {"id": "clock"},
             "sandbox": {"id": "sandbox", "config": {"include_execute": True}},
         }
@@ -103,14 +104,14 @@ class TestTheStarterTemplate:
     def test_an_image_without_it_recommends_nothing(self, tmp_path, monkeypatch):
         monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
 
-        assert agent_templates.starter_capabilities() == {}
+        assert agent_templates.starter_capabilities(container_workspace=True) == {}
 
     def test_the_shipped_starter_binds_only_registered_capabilities(self):
         """A typo in the manifest would recommend a switch the Toolbox never shows."""
         from app.agents.capabilities import all_capabilities
 
         registered = {definition.id for definition in all_capabilities()}
-        starter = agent_templates.starter_capabilities()
+        starter = agent_templates.starter_capabilities(container_workspace=True)
 
         assert starter
         assert set(starter) <= registered
@@ -120,8 +121,9 @@ class TestTheStarterTemplate:
         """Marked Recommended in the Toolbox, config and all, and nothing else is."""
         from app.api.routes.v1.agents import list_capability_catalog
 
-        catalog = await list_capability_catalog()
-        starter = agent_templates.starter_capabilities()
+        sandboxes = MagicMock(can_provide=AsyncMock(return_value=True))
+        catalog = await list_capability_catalog(MagicMock(organization_id=uuid4()), sandboxes)
+        starter = agent_templates.starter_capabilities(container_workspace=True)
         by_id = {entry.id: entry for entry in catalog.items}
 
         sandbox = by_id["sandbox"].recommended
@@ -129,6 +131,22 @@ class TestTheStarterTemplate:
         assert sandbox.config == starter["sandbox"].get("config", {})
         assert by_id["guardrails"].recommended is None
         assert {i for i, e in by_id.items() if e.recommended} == set(starter) & set(by_id)
+
+    @pytest.mark.anyio
+    async def test_an_organization_without_a_sandbox_is_recommended_the_files_only_one(self):
+        """So a new agent made with the defaults publishes there; delegation keeps the
+        workspace it shares, since the workspace is still bound."""
+        from app.api.routes.v1.agents import list_capability_catalog
+
+        org = uuid4()
+        sandboxes = MagicMock(can_provide=AsyncMock(return_value=False))
+        catalog = await list_capability_catalog(MagicMock(organization_id=org), sandboxes)
+        by_id = {entry.id: entry for entry in catalog.items}
+
+        sandboxes.can_provide.assert_awaited_once_with(org)
+        workspace = by_id["sandbox"].recommended
+        assert workspace is not None and workspace.config.get("backend") == "state"
+        assert "include_execute" not in workspace.config
 
 
 class TestForThisDeployment:
@@ -142,9 +160,8 @@ class TestForThisDeployment:
 
     def test_its_own_browser_and_sandbox_are_used_where_it_runs_them(self, monkeypatch):
         monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "http://browser:9222")
-        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "token")
 
-        assert agent_templates.for_this_deployment(self.BINDINGS) == [
+        assert agent_templates.for_this_deployment(self.BINDINGS, container_workspace=True) == [
             {"id": "browser_use", "config": {"max_steps": 20, "cdp_url": "http://browser:9222"}},
             {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
             {"id": "clock"},
@@ -153,9 +170,8 @@ class TestForThisDeployment:
     def test_without_them_the_browser_is_left_out_and_the_workspace_keeps_files(self, monkeypatch):
         """Either would refuse at publish, and the starter is every new agent's default."""
         monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
-        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
 
-        assert agent_templates.for_this_deployment(self.BINDINGS) == [
+        assert agent_templates.for_this_deployment(self.BINDINGS, container_workspace=False) == [
             {"id": "sandbox", "config": {"backend": "state"}},
             {"id": "clock"},
         ]
@@ -164,7 +180,7 @@ class TestForThisDeployment:
         monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
         named = ({"id": "browser_use", "config": {"cdp_url": "http://other:9222"}},)
 
-        assert agent_templates.for_this_deployment(named) == list(named)
+        assert agent_templates.for_this_deployment(named, container_workspace=True) == list(named)
 
 
 class TestWhatAManifestMayCarry:

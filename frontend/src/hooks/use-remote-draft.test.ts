@@ -65,6 +65,25 @@ describe("useRemoteDraft", () => {
     expect(view.result.current.held).toBe(false);
   });
 
+  it("is not held by the platform's own work, which is nobody's edit either", () => {
+    const view = mount({ local: mine, stored: kept, fetchedAt: 1 });
+
+    act(() =>
+      announceChange({
+        organization_id: "org-1",
+        resource: "knowledge_gap",
+        id: null,
+        action: "updated",
+        surface: "system",
+        actor_user_id: null,
+        actor_name: null,
+        origin_tab: null,
+      }),
+    );
+
+    expect(view.result.current.held).toBe(false);
+  });
+
   it("keeps an edit typed while the refetch was in flight", () => {
     const view = mount({ local: kept, stored: kept, fetchedAt: 1 });
 

@@ -125,3 +125,139 @@ export function collapseUnchanged(
   if (hidden > 0) out.push({ kind: "gap", hidden });
   return out;
 }
+
+/** A run of words, and whether it differs from the other side. */
+export interface WordPart {
+  text: string;
+  changed: boolean;
+}
+
+/** Words, the spaces between them and punctuation, so a highlight never splits a word. */
+function tokens(text: string): string[] {
+  return text.match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu) ?? [];
+}
+
+function merged(parts: WordPart[]): WordPart[] {
+  return parts.reduce<WordPart[]>((out, part) => {
+    const last = out.at(-1);
+    if (last && last.changed === part.changed) last.text += part.text;
+    else out.push({ ...part });
+    return out;
+  }, []);
+}
+
+/**
+ * Two versions of one line, each split into the words it shares with the other
+ * and the words it does not - what makes a one-word change in a long line visible.
+ */
+export function diffWords(
+  before: string,
+  after: string,
+): { before: WordPart[]; after: WordPart[] } {
+  const a = tokens(before);
+  const b = tokens(after);
+  if (a.length > MAX_DIFF_LINES || b.length > MAX_DIFF_LINES) {
+    return { before: [{ text: before, changed: true }], after: [{ text: after, changed: true }] };
+  }
+  const lengths: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lengths[i]![j] =
+        a[i] === b[j]
+          ? lengths[i + 1]![j + 1]! + 1
+          : Math.max(lengths[i + 1]![j]!, lengths[i]![j + 1]!);
+    }
+  }
+  const left: WordPart[] = [];
+  const right: WordPart[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      left.push({ text: a[i]!, changed: false });
+      right.push({ text: b[j]!, changed: false });
+      i++;
+      j++;
+    } else if (lengths[i + 1]![j]! >= lengths[i]![j + 1]!) {
+      left.push({ text: a[i++]!, changed: true });
+    } else {
+      right.push({ text: b[j++]!, changed: true });
+    }
+  }
+  while (i < a.length) left.push({ text: a[i++]!, changed: true });
+  while (j < b.length) right.push({ text: b[j++]!, changed: true });
+  return { before: merged(left), after: merged(right) };
+}
+
+/** A folded stretch of unchanged lines, kept so it can be opened again. */
+export interface FoldedLines {
+  kind: "fold";
+  lines: DiffLine[];
+}
+
+/**
+ * The diff with long unchanged stretches folded away, `context` lines kept either
+ * side of every change. Unlike `collapseUnchanged`, a fold keeps the lines it hid.
+ */
+export function foldUnchanged(lines: DiffLine[], context = 3): (DiffLine | FoldedLines)[] {
+  const near = new Set<number>();
+  lines.forEach((line, index) => {
+    if (line.kind === "same") return;
+    for (let at = Math.max(0, index - context); at <= index + context; at++) near.add(at);
+  });
+  const out: (DiffLine | FoldedLines)[] = [];
+  let fold: DiffLine[] = [];
+  lines.forEach((line, index) => {
+    if (near.has(index)) {
+      if (fold.length) out.push({ kind: "fold", lines: fold });
+      fold = [];
+      out.push(line);
+    } else fold.push(line);
+  });
+  if (fold.length) out.push({ kind: "fold", lines: fold });
+  return out;
+}
+
+/** A suggested passage and the text around it when it was proposed. */
+export interface Passage {
+  old_text: string;
+  context_before: string;
+  context_after: string;
+}
+
+/**
+ * Where a suggested passage starts in `text`, found the way the server finds it:
+ * the one occurrence its surroundings still match, or the only occurrence there is.
+ * `null` when the text has moved on.
+ */
+export function locatePassage(text: string, passage: Passage): number | null {
+  const surrounded = (position: number) => {
+    const end = position + passage.old_text.length;
+    const before = passage.context_before
+      ? text.slice(0, position).endsWith(passage.context_before)
+      : position === 0;
+    const after = passage.context_after
+      ? text.slice(end).startsWith(passage.context_after)
+      : end === text.length;
+    return before && after;
+  };
+  const occurrences = (needle: string) => {
+    const found: number[] = [];
+    for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1))
+      found.push(at);
+    return found;
+  };
+  if (passage.old_text) {
+    const positions = occurrences(passage.old_text);
+    const exact = positions.filter(surrounded);
+    if (exact.length === 1) return exact[0]!;
+    return positions.length === 1 ? positions[0]! : null;
+  }
+  const candidates = passage.context_before
+    ? occurrences(passage.context_before).map((at) => at + passage.context_before.length)
+    : [0];
+  const exact = candidates.filter(surrounded);
+  return exact.length === 1 ? exact[0]! : null;
+}

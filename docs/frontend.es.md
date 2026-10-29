@@ -1,5 +1,5 @@
 ---
-source_sha: "5538880e71c7"
+source_sha: "5767ea2be981"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -210,3 +210,14 @@ razón para conservar un spec que monta más de lo que leen sus assertions.
 
 [El backend →](architecture.md) · [Añadir una funcionalidad →](adding_features.md) ·
 [Pruebas →](testing.md)
+
+
+## Pruebas en la consola { #evals-in-the-console }
+
+Las pruebas reutilizan `PageHeader`, `ListCard`, tamaños de diálogo, pestañas y `WizardSteps`. Los cambios actualizan las consultas registradas mediante `/ws/events`; una evaluación humana también actualiza suites, sesiones de mejora y protecciones de entorno. Un error de lectura ofrece reintentar en lugar de una vista vacía de éxito. Las vistas estrechas conservan campos de 16 px y espacio para el Arquitecto.
+
+Los datasets mantienen sus propios permisos y opciones para compartir. Se reutilizan entre agentes y departamentos, por lo que la consola no deduce un departamento del agente que los prueba. Los evaluadores siguen siendo agentes tipificados, con los grupos y permisos del catálogo. Las relaciones se eligen en la pestaña de pruebas del agente y la de evaluación del dataset; no se crea una segunda relación competidora para añadirlos a un agente.
+
+El Arquitecto no recibe una nueva capability para escribir datasets en este hito. Crear preguntas es una acción expresamente estimada y autorizada del flujo de mejora; el asistente de la esquina no puede iniciar silenciosamente ese trabajo de pago. Su botón sigue accesible junto a las vistas de pruebas.
+
+`e2e/improvement.mobile.spec.ts` recorre la API y el worker reales. Comprueba casos, editor, evaluación, revisión, resultados, asistente de mejora y publicación confirmada con protección del entorno. Solo el modelo externo se sustituye por una implementación de prueba. GitHub Actions conserva capturas claras y oscuras a anchuras de teléfono y escritorio para la revisión visual.

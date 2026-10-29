@@ -2,6 +2,7 @@ import {
   BellRing,
   CalendarClock,
   Code2,
+  FlaskConical,
   Globe,
   MessageSquare,
   Mic,
@@ -47,6 +48,7 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  eval: FlaskConical,
   proactive: BellRing,
 } as const;
 
@@ -63,6 +65,7 @@ const LABEL_KEYS = {
   teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  eval: "surfaceEval",
   proactive: "surfaceProactive",
 } as const;
 

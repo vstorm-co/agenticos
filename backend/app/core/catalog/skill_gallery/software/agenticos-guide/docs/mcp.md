@@ -506,6 +506,21 @@ two long names stay two tools. The server is still called by its real name.
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
 
+### In a test environment, and in an eval
+
+A named [environment](environments.md#test-connections) can answer an
+organization binding with a test connection — a sandbox CRM in `staging`. The
+turn then reaches the test server under the production connection's name, so the
+model sees the same tools; if the test connection is gone or disabled, the
+binding is off for that turn and production is never reached instead.
+
+In an eval, every call to a production connection is held and recorded with its
+arguments rather than executed. The one exception is a tool the server marks
+`readOnlyHint` on a connection set to trust that mark. The mark is the server's
+own claim, so trusting it is off on every connection. To turn it on, open the
+connection's **Tools** dialog. The dialog says how many tools claim the mark,
+and the change is audited with that count.
+
 ### Connecting one from the Builder
 
 An agent's **MCP servers** tab lists the whole catalog, not only what has
@@ -992,6 +1007,19 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_improvements`, `get_improvement` | read access to the agent; the session's knowledge topics also need `runs:view`, as does listing every open session without naming an agent |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` and edit access to the topic's knowledge base |
+
+The Improve and eval tools call routes that are not yet part of the public API:
+they answer the in-app Architect and an MCP client signed in with OAuth, and
+refuse an organization API key as a console route does. They are the
+[Improve wizard's](authoring.md#the-improve-wizard) own actions, so its checks
+apply, and the Architect uses the ones that change something only when asked.
+An MCP client can start, accept, publish and end sessions too; there, the
+client's own approval prompt stands where the Architect's card does.
 
 Project discovery with `list_projects` returns only project ids and names,
 excluding descriptions, instructions and other authored labels. Reading one chosen

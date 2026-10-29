@@ -40,6 +40,7 @@ __all__ = [
     # so there is nothing here for a person to approve. See `guardrails/_capability.py`.
     tools=(),
     config_schema=GuardrailsConfig,
+    protective=True,
 )
 def _build(ctx: CapabilityBuildContext) -> CombinedCapability[object] | None:
     """Build the configured guardrail edges, or nothing when none are configured.

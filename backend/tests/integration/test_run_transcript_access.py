@@ -272,3 +272,36 @@ class TestTheConversationEndpointStaysOwnerScoped:
             await ConversationService(db).transcript(
                 conversation.id, organization_id=organization.id, user_id=colleague.id
             )
+
+
+async def test_a_listing_previews_what_each_run_was_asked(db) -> None:
+    """The first user turn, on one line and cut short - the transcript's own text."""
+    organization, owner = await _org(db)
+    agent = await _agent(db, organization)
+    conversation = await _conversation(db, organization, owner)
+    asked = await _run(db, organization, agent, conversation=conversation)
+    await _turn(db, conversation, asked, role="assistant", content="Hi!", at=_START)
+    await _turn(
+        db,
+        conversation,
+        asked,
+        role="user",
+        content="Where   is\nmy order? " + "x" * 100,
+        at=_START + timedelta(seconds=1),
+    )
+    await _turn(
+        db, conversation, asked, role="user", content="And now?", at=_START + timedelta(seconds=2)
+    )
+    silent = await _run(db, organization, agent, conversation=None)
+    graded = await _run(db, organization, agent, conversation=None)
+
+    previews = await AgentRunnerService(db).previews(
+        [asked.id, silent.id, graded.id], questions={graded.id: "Can I return it?"}
+    )
+
+    assert previews == {
+        asked.id: "Where is my order? " + "x" * 60 + "…",
+        graded.id: "Can I return it?",
+    }
+    assert len(previews[asked.id]) == 80
+    assert await AgentRunnerService(db).previews([], questions={}) == {}

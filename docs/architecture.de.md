@@ -1,5 +1,5 @@
 ---
-source_sha: "4cea402448d3"
+source_sha: "a05025c94a31"
 ---
 
 # Architektur { #architecture }
@@ -245,7 +245,7 @@ der Run-Pfad committet, und schreibt alles dazwischen über eigene Sessions:
   mit der Zeile in `voice_calls` und ihrem Run, beide geschrieben, bevor der
   Provider aufgerufen wird. Freigabezeilen, der Heartbeat und der Voice-Sweep
   brauchen diese Zeilen aus anderen Sessions lesbar; eine Ablehnung vor diesem
-  Punkt rollt alles zurück, sodass ein abgelehnter Anruf nichts in Activity
+  Punkt rollt alles zurück, sodass ein abgelehnter Anruf nichts in **Aktivität** (Activity)
   hinterlässt.
 - Jede gespeicherte Runde, jeder 15-Sekunden-Heartbeat und jedes Schreiben einer
   Freigabe öffnet eine eigene `get_db_context()`-Session und committet dort, nie
@@ -579,6 +579,14 @@ sind kaputte Referenzen ohne eine Eingabe, die zu markieren wäre. Also antworte
 mit `details.problems` — je eine Zeile, die der Builder auflistet — und mit
 `details.fields` für die Teilmenge, die eines benennt.
 
+Wenn sich ein Teil davon mit einem Klick beheben lässt, antwortet es zusätzlich mit
+`details.fixes`, einer Liste von Codes: `use_state_workspace` verlegt den Workspace
+auf das gespeicherte Backend `state`, das keine Sandbox-Verbindung braucht, und
+`stop_sharing_unbound` streicht aus `share_with_delegates`, was der Agent nicht
+teilen kann. Der Builder bietet für jeden bekannten Code eine Schaltfläche an und
+übergeht den Rest. Eine Korrektur speichert den Entwurf und validiert ihn erneut;
+sie veröffentlicht nie.
+
 Die Konfiguration einer Capability ist der eine Teil eines Specs, der als
 generiertes Formular gerendert wird, ihre Ablehnungen benennen die Eingabe also:
 `capabilities.knowledge.config.default_top_k`, mit `specialists.researcher.` davor
@@ -836,7 +844,7 @@ Vier Konsequenzen, die man kennen sollte:
 Es gibt **keine Möglichkeit mehr, eine Unterhaltung über Tenants hinweg zu lesen.**
 Das Sentinel, das das früher ausbuchstabierte (`UNSCOPED`), hatte genau einen
 Aufrufer, `/admin/conversations/{id}`, und beide gingen mit dem deploymentweiten
-Unterhaltungs-Browser — Activity beantwortet „was ist passiert“ mit den Kosten, dem
+Unterhaltungs-Browser — **Aktivität** (Activity) beantwortet „was ist passiert“ mit den Kosten, dem
 Modell, dem Trace und dem, was dem Modell daneben übergeben wurde, und das ist die
 Frage, für die jener Bildschirm genutzt wurde. Übrig ist davon
 `GET /admin/conversations?user_id=`: die Threads eines benannten Kontos, für die

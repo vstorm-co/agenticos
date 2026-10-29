@@ -53,6 +53,11 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     NotificationEventType.BACKGROUND_TASK_PAUSED: ContentGate.APP_ADMIN,
     NotificationEventType.ANNOUNCEMENT: ContentGate.ANNOUNCEMENT_AUDIENCE,
     NotificationEventType.ARTIFACT_VERSION_PUBLISHED: ContentGate.ARTIFACTS_VIEW,
+    NotificationEventType.EVAL_SUITE_FAILED: ContentGate.RUNS_VIEW,
+    NotificationEventType.EVAL_RUN_FINISHED: ContentGate.RUNS_VIEW,
+    NotificationEventType.CASE_GENERATION_FINISHED: ContentGate.RUNS_VIEW,
+    NotificationEventType.EVAL_SUITE_REEVALUATED: ContentGate.RUNS_VIEW,
+    NotificationEventType.PROMOTION_OVERRIDDEN: ContentGate.RUNS_VIEW,
 }
 
 # `security_event`, `configuration_changed` and `background_task_paused` bypass

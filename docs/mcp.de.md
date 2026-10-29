@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf6eb0fde8e"
+source_sha: "1b2d02388f3b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -558,6 +558,23 @@ Das ist ein bewusster Kompromiss. Der `/test`-Endpunkt und `last_status` sind de
 Weg, es herauszufinden, und der [Audit-Trail](governance.md#audit) hält fest, was
 tatsächlich gelaufen ist.
 
+### In einer Testumgebung und in einem Eval { #in-a-test-environment-and-in-an-eval }
+
+Eine benannte [Umgebung](environments.md#test-connections) kann ein
+organisationsweites Binding mit einer Testverbindung beantworten — einem
+Sandbox-CRM in `staging`. Der Turn erreicht dann den Testserver unter dem Namen
+der Produktionsverbindung, sodass das Modell dieselben Tools sieht; ist die
+Testverbindung weg oder deaktiviert, ist das Binding für diesen Turn aus, und
+die Produktion wird nie stattdessen erreicht.
+
+In einem Eval wird jeder Aufruf einer Produktionsverbindung angehalten und mit
+seinen Argumenten aufgezeichnet statt ausgeführt. Die einzige Ausnahme ist ein
+Tool, das der Server mit `readOnlyHint` markiert, auf einer Verbindung, die
+dieser Markierung vertraut. Die Markierung ist die eigene Angabe des Servers,
+deshalb ist das Vertrauen auf jeder Verbindung aus. Eingeschaltet wird es im
+Dialog **Tools** der Verbindung. Der Dialog nennt, wie viele Tools die
+Markierung beanspruchen, und die Änderung wird mit dieser Zahl im Audit erfasst.
+
 ### Einen aus dem Builder heraus verbinden { #connecting-one-from-the-builder }
 
 Der Tab **MCP servers** eines Agents listet den gesamten Katalog, nicht nur das,
@@ -1074,6 +1091,20 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+| `list_improvements`, `get_improvement` | Lesezugriff auf den Agenten; die Wissensthemen der Sitzung brauchen außerdem `runs:view`, ebenso die Liste aller offenen Sitzungen ohne Angabe eines Agenten |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | Bearbeitungszugriff auf den Agenten und `runs:view`; Starten zusätzlich `datasets:run`, Veröffentlichen `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` und Bearbeitungszugriff auf die Wissensdatenbank des Themas |
+
+Die Verbessern- und Eval-Werkzeuge rufen Routen auf, die noch nicht zur
+öffentlichen API gehören: Sie antworten dem Architekten in der App und einem per
+OAuth angemeldeten MCP-Client und lehnen einen API-Schlüssel der Organisation ab
+wie eine Konsolenroute. Es sind die eigenen Aktionen des
+[Verbessern-Assistenten](authoring.md#the-improve-wizard), daher gelten seine
+Prüfungen, und der Architekt nutzt die ändernden nur auf Bitte. Auch ein
+MCP-Client kann Sitzungen starten, übernehmen, veröffentlichen und beenden; dort
+tritt die eigene Freigabeabfrage des Clients an die Stelle der Karte des Architekten.
 
 Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
 Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein

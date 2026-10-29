@@ -1,5 +1,5 @@
 ---
-source_sha: "4cea402448d3"
+source_sha: "a05025c94a31"
 ---
 
 # Arquitectura { #architecture }
@@ -570,6 +570,13 @@ llevaba `input`, `ctx` y `url`, que nada del frontend leía.
 referencias rotas sin ninguna entrada que marcar. Así que responde con
 `details.problems` — una línea cada uno, que el Builder lista — y con
 `details.fields` para el subconjunto que nombra una.
+
+Cuando un clic puede resolver parte de ellos, responde además con `details.fixes`,
+una lista de códigos: `use_state_workspace` pasa el workspace al backend almacenado
+`state`, que no necesita ninguna conexión de sandbox, y `stop_sharing_unbound`
+quita de `share_with_delegates` lo que el agent no puede compartir. El Builder
+ofrece un botón por cada código que conoce e ignora el resto. Una corrección guarda
+el borrador y lo valida de nuevo; nunca publica.
 
 La configuración de una capability es la única parte de un spec que se dibuja como
 un formulario generado, así que sus rechazos nombran la entrada:

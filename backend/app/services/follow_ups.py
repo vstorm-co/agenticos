@@ -128,7 +128,9 @@ class FollowUpService:
         ):
             # The channel router starts its copy only after posting the answer.
             return []
-        if parent.surface == RunSurface.EMBED:
+        # An eval run - an eval case, Improve measuring a candidate, or a system
+        # agent at work - answers no person, so nobody is offered a next step.
+        if parent.surface in {RunSurface.EMBED, RunSurface.EVAL}:
             return []
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, message.conversation_id

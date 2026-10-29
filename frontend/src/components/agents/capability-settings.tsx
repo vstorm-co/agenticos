@@ -279,6 +279,12 @@ interface CapabilityDetailProps {
    * picker writes what it read, so choosing a key pins the provider it is for.
    */
   resolvedConfig?: Record<string, unknown>;
+  /**
+   * Whether a person may be asked to approve this capability's tools. False on a
+   * system agent's, which runs with nobody there to answer and whose save refuses
+   * any approval set on it, so neither the capability's nor a tool's is offered.
+   */
+  approvals?: boolean;
 }
 
 /**
@@ -308,6 +314,7 @@ export function CapabilityDetail({
   settingsExtra,
   settingsFooter,
   resolvedConfig,
+  approvals = true,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const keyed =
@@ -359,31 +366,35 @@ export function CapabilityDetail({
           <StaleToolSettingsNotice binding={binding} onChange={onChange} disabled={disabled} />
         )}
 
-      <div className="space-y-2">
-        <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
-        <Select
-          value={binding.approval}
-          disabled={disabled}
-          onValueChange={(approval) => onChange({ ...binding, approval: approval as ApprovalMode })}
-        >
-          <SelectTrigger id={`${binding.id}-approval`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {APPROVAL_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {t(option.words)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">
-          {t(approvalHint(binding.approval, definition.side_effecting))}
-          {definition.tools.length > 0 &&
-            definition.tool_settings !== false &&
-            ` ${t("everyToolFollowsThis")}`}
-        </p>
-      </div>
+      {approvals && (
+        <div className="space-y-2">
+          <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
+          <Select
+            value={binding.approval}
+            disabled={disabled}
+            onValueChange={(approval) =>
+              onChange({ ...binding, approval: approval as ApprovalMode })
+            }
+          >
+            <SelectTrigger id={`${binding.id}-approval`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {APPROVAL_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(option.words)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {t(approvalHint(binding.approval, definition.side_effecting))}
+            {definition.tools.length > 0 &&
+              definition.tool_settings !== false &&
+              ` ${t("everyToolFollowsThis")}`}
+          </p>
+        </div>
+      )}
 
       {definition.config_schema && <SchemaPreview schema={definition.config_schema} />}
 
@@ -400,6 +411,7 @@ export function CapabilityDetail({
       contracts={definition.contracts}
       onChange={onChange}
       disabled={disabled}
+      approvals={approvals}
     />
   );
 
@@ -965,6 +977,8 @@ interface ToolListProps {
   contracts: CapabilityToolContract[];
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /** `CapabilityDetailProps.approvals`: false leaves each tool's approval out. */
+  approvals: boolean;
 }
 
 /**
@@ -976,7 +990,7 @@ interface ToolListProps {
  * because the alternative is walking back through every row to find which of
  * them stopped following it.
  */
-function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListProps) {
+function ToolList({ binding, tools, contracts, onChange, disabled, approvals }: ToolListProps) {
   const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
@@ -1015,6 +1029,7 @@ function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListPro
             contract={contracts.find((entry) => entry.tool_id === tool.id)}
             onChange={onChange}
             disabled={disabled}
+            approvals={approvals}
           />
         ))}
       </ul>
@@ -1029,9 +1044,10 @@ interface ToolRowProps {
   contract?: CapabilityToolContract;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  approvals: boolean;
 }
 
-function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) {
+function ToolRow({ binding, tool, contract, onChange, disabled, approvals }: ToolRowProps) {
   const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
@@ -1067,7 +1083,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
         {changed && <Badge variant="secondary">{t("overridden")}</Badge>}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", approvals && "sm:grid-cols-2")}>
         <ToolField
           htmlFor={fieldId("name")}
           label={t("name2")}
@@ -1087,31 +1103,33 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
           />
         </ToolField>
 
-        <ToolField htmlFor={fieldId("approval")} label={t("approval")} disabled={disabled}>
-          <Select
-            value={approval ?? "default"}
-            disabled={disabled}
-            onValueChange={(mode) =>
-              onChange(withToolApproval(binding, tool.id, mode as ApprovalMode))
-            }
-          >
-            <SelectTrigger id={fieldId("approval")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">
-                {resolveCapabilityApproval(binding.approval) === "required"
-                  ? t("followCapabilityAlwaysAsk")
-                  : t("followCapabilityNeverAsk")}
-              </SelectItem>
-              {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.words)}
+        {approvals && (
+          <ToolField htmlFor={fieldId("approval")} label={t("approval")} disabled={disabled}>
+            <Select
+              value={approval ?? "default"}
+              disabled={disabled}
+              onValueChange={(mode) =>
+                onChange(withToolApproval(binding, tool.id, mode as ApprovalMode))
+              }
+            >
+              <SelectTrigger id={fieldId("approval")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">
+                  {resolveCapabilityApproval(binding.approval) === "required"
+                    ? t("followCapabilityAlwaysAsk")
+                    : t("followCapabilityNeverAsk")}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </ToolField>
+                {APPROVAL_OPTIONS.filter((option) => option.value !== "default").map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.words)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </ToolField>
+        )}
       </div>
 
       <ToolField

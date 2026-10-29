@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf6eb0fde8e"
+source_sha: "1b2d02388f3b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -532,6 +532,22 @@ To świadomy kompromis. Dowiadujesz się o tym przez endpoint `/test`
 i `last_status`, a [ślad audytowy](governance.md#audit) zapisuje, co faktycznie
 się wykonało.
 
+### W środowisku testowym i w evalu { #in-a-test-environment-and-in-an-eval }
+
+Nazwane [środowisko](environments.md#test-connections) może zastąpić
+organizacyjny binding połączeniem testowym — sandboxowym CRM w `staging`. Tura
+sięga wtedy do serwera testowego pod nazwą połączenia produkcyjnego, więc model
+widzi te same narzędzia; jeśli połączenie testowe zniknęło albo jest wyłączone,
+binding jest w tej turze wyłączony i zamiast niego nigdy nie trafia na
+produkcję.
+
+W evalu każde wywołanie połączenia produkcyjnego jest wstrzymywane i zapisywane z
+argumentami zamiast wykonywane. Jedyny wyjątek to narzędzie, które serwer oznacza
+`readOnlyHint`, na połączeniu z włączonym zaufaniem do tego oznaczenia.
+Oznaczenie to deklaracja samego serwera, więc zaufanie jest wyłączone na każdym
+połączeniu. Włącza się je w oknie **Tools** połączenia. Okno podaje, ile narzędzi
+deklaruje oznaczenie, a zmiana trafia do audytu razem z tą liczbą.
+
 ### Podłączenie serwera z poziomu Buildera { #connecting-one-from-the-builder }
 
 Zakładka **MCP servers** agenta wypisuje cały katalog, nie tylko to, co ma
@@ -1026,6 +1042,19 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+| `list_improvements`, `get_improvement` | dostęp do odczytu agenta; tematy wiedzy sesji wymagają też `runs:view`, podobnie jak lista wszystkich otwartych sesji bez wskazania agenta |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | dostęp do edycji agenta i `runs:view`; uruchomienie także `datasets:run`, publikacja `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` i dostęp do edycji bazy wiedzy tematu |
+
+Narzędzia Popraw i evali wołają trasy, które nie należą jeszcze do publicznego API:
+odpowiadają Architektowi w aplikacji i klientowi MCP zalogowanemu przez OAuth, a
+kluczowi API organizacji odmawiają tak jak trasa konsoli. To akcje samego
+[kreatora Popraw](authoring.md#the-improve-wizard), więc obowiązują jego
+sprawdzenia, a Architekt używa tych, które coś zmieniają, tylko na prośbę. Klient MCP
+też może uruchamiać, przyjmować, publikować i kończyć sesje; tam zamiast karty
+Architekta decyduje własne okno zgody klienta.
 
 Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
 pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu

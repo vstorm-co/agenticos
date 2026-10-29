@@ -134,6 +134,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
     <div className="space-y-5">
       {canManage && (
         <AddShare
+          resourceType={resourceType}
           members={memberCandidates}
           groups={groupCandidates}
           pending={share.isPending}
@@ -162,6 +163,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
           {sharing.grants.map((grant) => (
             <GrantRow
               key={grant.id}
+              resourceType={resourceType}
               grant={grant}
               groupIcon={groups.find((group) => group.id === grant.subject_group_id)?.icon ?? null}
               canManage={canManage}

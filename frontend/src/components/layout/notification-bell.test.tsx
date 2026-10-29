@@ -92,6 +92,33 @@ describe("NotificationBell", () => {
     expect(await screen.findByText("jarvis's run finished.")).toBeVisible();
   });
 
+  it("words a finished improvement in the reader's language rather than its codes", async () => {
+    renderBell("row", {
+      notifications: [
+        notification({
+          event_type: "improvement_finished",
+          summary: "Your improvement of Refund desk stopped.",
+          agent: {
+            id: "a1",
+            slug: "refunds",
+            name: "Refund desk",
+            has_avatar: false,
+            avatar_color: null,
+          },
+          outcome: { status: "stopped", reason: "budget" },
+        }),
+      ],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Notifications/ }));
+
+    expect(
+      await screen.findByText(
+        "Your improvement of Refund desk stopped. The next complete step exceeds the remaining budget.",
+      ),
+    ).toBeVisible();
+  });
+
   it("says nothing is waiting, rather than drawing an empty list", async () => {
     renderBell("row", { notifications: [] });
 

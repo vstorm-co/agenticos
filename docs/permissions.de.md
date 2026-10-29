@@ -1,5 +1,5 @@
 ---
-source_sha: "2ef13903688f"
+source_sha: "2eca3843f70e"
 ---
 
 # Berechtigungen { #permissions }
@@ -98,8 +98,14 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`,
+`approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promotet eine Version auf eine
+[Umgebung, die ihre Eval-Suites bewachen](environments.md#guarding-a-promotion-with-evals),
+obwohl sie auf ihr nicht bestanden haben, und ändert, welche Suites eine
+bewachen. Owner und Admins haben es; überhaupt zu promoten bleibt
+`agents:publish` auf dem Agent.
 
 `api_keys:create` erlaubt einem Mitglied,
 [API-Schlüssel](api.md#organization-api-keys) für sich auszustellen;
@@ -394,12 +400,18 @@ sie auf nichts verengt werden sollte.
 bereits geladener Zeilen gibt es die Teilmenge zurück, auf der der Aufrufer eine
 Berechtigung ausüben darf, wendet dieselbe Regel `max(role scope, grant)` je
 Zeile an, liest aber jeden Grant in einem Nachschlagen statt einem je Zeile (und
-gar keinen, wenn die Rolle alles erreicht). Es ist das, was die
-Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`, die
-Untergrenze dafür, auf einer Karte "new trigger" anzubieten - sodass ein Viewer,
-dem run auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends
-sieht. Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder
-Abfrage zur leeren Menge auf.
+gar keinen, wenn die Rolle alles erreicht).
+
+`accessible_ids` ist das, was die
+Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`,
+die Untergrenze dafür, auf einer Karte "new trigger" anzubieten,
+`AgentRead.can_edit`, aus dem die Konsole liest, ob sie die Bearbeitung auf der
+Agent-Seite, das Testen eines Drafts und das Stoppen eines Eval-Runs anbietet,
+und `AgentRead.can_publish` für das Veröffentlichen - sodass ein Viewer, dem run
+auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends sieht.
+
+Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder Abfrage
+zur leeren Menge auf.
 
 Listen von Kontexten, Skills und Tresorschlüsseln liefern `can_edit` pro Ressource.
 Die Konsole verwendet diesen effektiven Zugriff zum Bearbeiten, Löschen, Teilen
@@ -465,6 +477,24 @@ die Ablehnungen.
     Berechtigung, die weiter reicht, als ihre Subjekte erwarten, ist nur dann
     vertretbar, wenn sie das herausfinden können. Eine engere Antwort wäre eine
     eigene Berechtigung, keine leisere Route.
+
+### Ein System-Agent ist eine Einstellung der Organisation { #system-agents }
+
+Ein [System-Agent](concepts.md#system-agents) - ein Bewerter, ein
+Fallgenerator, ein Lücken-Entwerfer oder -Klassifizierer, der
+Verbesserungsassistent - bewertet, entwirft oder schlägt vor für alle, die
+nutzen, was er bedient. Ihn zu ändern braucht darum `org:settings` zusätzlich zu
+`agents:edit` oder `agents:publish` auf der Zeile: sein Draft, ein YAML-Import,
+eine Veröffentlichung, eine Wiederherstellung, Archivieren oder Löschen, seine
+Umgebungen. Sonst erreichte ein Builder die mitgelieferten über ihre
+organisationsweite Sichtbarkeit. Lesen, Ausführen und Anlegen behalten ihre
+üblichen Berechtigungen; ein Bewerter, den ein Builder für ein Dataset anlegt,
+wird sofort veröffentlicht, und spätere Änderungen brauchen einen
+Administrator.
+
+Die Prüfung steckt in `AgentRegistryService.get`, also hält sie jeder
+Schreibweg ein, und `can_edit`/`can_publish` sind für einen Aufrufer ohne sie
+falsch.
 
 ## Delegation ist keine Privilegiengrenze { #delegation-is-not-a-privilege-boundary }
 

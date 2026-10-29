@@ -105,6 +105,22 @@ async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:
     return list(result.scalars().all())
 
 
+async def existing_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> set[UUID]:
+    """Which of these accounts still exist."""
+    if not user_ids:
+        return set()
+    result = await db.execute(select(User.id).where(User.id.in_(user_ids)))
+    return set(result.scalars())
+
+
+async def get_many(db: AsyncSession, user_ids: Sequence[UUID]) -> dict[UUID, User]:
+    """The users with these ids, keyed by id; an id with no user is left out."""
+    if not user_ids:
+        return {}
+    rows = await db.scalars(select(User).where(User.id.in_(set(user_ids))))
+    return {user.id: user for user in rows}
+
+
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
     """Get user by email."""
     result = await db.execute(select(User).where(User.email == email))

@@ -90,10 +90,10 @@ export function keepClearOf(element: Element, cover: Element | null): void {
  * scrolling; a second one here only fights it.
  */
 export function activateTab(trigger: HTMLElement): void {
-  // A popover's trigger opens on a click, not a press: the chat's settings, whose
-  // approval-mode and connection stops sit inside it, waited out their timeout
-  // behind a closed popover and the walk stood still between them.
-  if (trigger.getAttribute("aria-haspopup") === "dialog") {
+  // Only a Radix tab selects on a press. A popover's trigger, or a wizard's step
+  // button, opens on a click, and pressing one left the walk waiting out its
+  // timeout for a section that never opened.
+  if (trigger.getAttribute("role") !== "tab") {
     trigger.click();
     return;
   }

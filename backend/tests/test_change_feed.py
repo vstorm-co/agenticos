@@ -15,6 +15,7 @@ from app.api.public_api import PUBLIC
 from app.api.routes.v1.change_events import change_events
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.change_event import ChangeEvent
 from app.services import change_feed
 from app.services.change_feed import ChangeFeedMiddleware, ChangeOrigin, change_for
@@ -127,6 +128,55 @@ class TestWhatIsAChange:
         )
 
 
+class TestDatasets:
+    def test_every_write_to_a_dataset_is_a_change_to_it(self) -> None:
+        dataset_id, case_id = uuid.uuid4(), str(uuid.uuid4())
+        params = {"dataset_id": str(dataset_id)}
+
+        created = _change("POST", "/datasets", {}, f'{{"id": "{dataset_id}"}}'.encode())
+        writes = [
+            _change("POST", f"/datasets/{dataset_id}/cases", params),
+            _change(
+                "DELETE", f"/datasets/{dataset_id}/cases/{case_id}", {**params, "case_id": case_id}
+            ),
+            _change("PUT", f"/datasets/{dataset_id}/scoring", params),
+            _change("POST", f"/datasets/{dataset_id}/generations", params),
+            _change("POST", f"/datasets/{dataset_id}/proposals/accept", params),
+        ]
+        removed = _change("DELETE", f"/datasets/{dataset_id}", params)
+
+        assert created is not None and removed is not None
+        assert (created.resource, created.id, created.action) == ("dataset", dataset_id, "created")
+        for change in writes:
+            assert change is not None
+            assert (change.resource, change.id, change.action) == ("dataset", dataset_id, "updated")
+        assert (removed.id, removed.action) == (dataset_id, "deleted")
+
+    @pytest.mark.parametrize("read", ["generations/estimate", "cases/twins"])
+    def test_a_read_posted_under_a_dataset_changes_nothing(self, read: str) -> None:
+        dataset_id = str(uuid.uuid4())
+
+        assert _change("POST", f"/datasets/{dataset_id}/{read}", {"dataset_id": dataset_id}) is None
+
+    async def test_a_finished_generation_is_announced_as_its_dataset(self, redis: Any) -> None:
+        organization_id, dataset_id, actor = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+        await change_feed.publish_dataset(
+            organization_id=organization_id, dataset_id=dataset_id, actor_user_id=actor
+        )
+
+        channel, payload = redis.raw.publish.await_args.args
+        event = ChangeEvent.model_validate_json(payload)
+        assert channel == f"changes:{organization_id}"
+        assert (event.resource, event.id, event.action, event.surface) == (
+            "dataset",
+            dataset_id,
+            "updated",
+            "run",
+        )
+        assert (event.actor_user_id, event.actor_name) == (actor, None)
+
+
 class TestConsoleOnlyRoutes:
     def test_stopping_a_parked_run_announces_its_updated_state(self) -> None:
         run = uuid.uuid4()
@@ -147,6 +197,7 @@ class TestConsoleOnlyRoutes:
             ("/artifacts", "artifact"),
             ("/secrets", "secret"),
             ("/mcp-connections", "mcp_connection"),
+            ("/datasets", "dataset"),
         ],
     )
     def test_sharing_a_row_updates_that_row(self, prefix: str, resource: str) -> None:
@@ -208,6 +259,66 @@ class TestConsoleOnlyRoutes:
                 None,
                 "updated",
             )
+
+
+class TestKnowledgeGaps:
+    def test_a_topic_changed_in_the_console_names_the_topic(self) -> None:
+        topic = uuid.uuid4()
+
+        for verb in ("dismiss", "reopen", "draft", "dataset"):
+            changed = _change("POST", f"/knowledge-gaps/{topic}/{verb}", {"topic_id": str(topic)})
+            assert changed is not None
+            assert (changed.resource, changed.id, changed.action) == (
+                "knowledge_gap",
+                topic,
+                "updated",
+            )
+
+    def test_grouping_now_is_announced_by_the_pass_rather_than_the_request(self) -> None:
+        kb = str(uuid.uuid4())
+
+        assert (
+            _change(
+                "POST",
+                f"/knowledge-gaps/collections/{kb}/regroup",
+                {"knowledge_base_id": kb},
+            )
+            is None
+        )
+
+    async def test_a_pass_that_placed_questions_is_the_platform_s_own_change(
+        self, redis: Any
+    ) -> None:
+        organization = uuid.uuid4()
+
+        await change_feed.publish_knowledge_gaps_grouped(organization)
+
+        [call] = redis.raw.publish.await_args_list
+        event = ChangeEvent.model_validate_json(call.args[1])
+        assert call.args[0] == f"changes:{organization}"
+        assert (event.resource, event.id, event.surface) == ("knowledge_gap", None, "system")
+        assert (event.actor_user_id, event.actor_name) == (None, None)
+
+    @pytest.mark.parametrize(
+        ("role", "hears"),
+        [(OrgRoleName.OPERATOR, True), (OrgRoleName.MEMBER, False)],
+    )
+    async def test_only_a_reader_of_every_run_hears_about_gaps(
+        self, role: OrgRoleName, hears: bool
+    ) -> None:
+        organization = uuid.uuid4()
+        event = ChangeEvent(
+            organization_id=organization,
+            resource="knowledge_gap",
+            id=None,
+            action="updated",
+            surface="system",
+            actor_user_id=None,
+            actor_name=None,
+        )
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=organization, role=role.value)
+
+        assert await change_feed.visible(MagicMock(), ctx, event) is hears
 
 
 class TestRuns:
@@ -477,3 +588,30 @@ class TestTheTab:
         event = change_for(method="POST", path=f"{V1}/kb", path_params={}, origin=origin, body=b"")
 
         assert event is not None and event.origin_tab == "tab-1"
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "estimate",
+        "{run_id}/knowledge/estimate",
+        "{run_id}/continue/estimate",
+        "{run_id}/rounds/1/selection/estimate",
+        "{run_id}/rounds/1/attribution/estimate",
+    ],
+)
+def test_improvement_quotes_do_not_announce_a_write(suffix):
+    agent_id, run_id = str(uuid.uuid4()), str(uuid.uuid4())
+    path = f"/agents/{agent_id}/improvements/{suffix.format(run_id=run_id)}"
+    assert _change("POST", path, {"agent_id": agent_id, "run_id": run_id, "number": 1}) is None
+
+
+@pytest.mark.parametrize("action", ["continue", "discard"])
+def test_improvement_decisions_announce_the_agent_after_commit(action):
+    agent, run = uuid.uuid4(), uuid.uuid4()
+    event = _change(
+        "POST",
+        f"/agents/{agent}/improvements/{run}/{action}",
+        {"agent_id": str(agent), "run_id": str(run)},
+    )
+    assert event is not None and event.resource == "agent" and event.id == agent

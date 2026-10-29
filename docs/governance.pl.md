@@ -1,5 +1,5 @@
 ---
-source_sha: "512a23d1b175"
+source_sha: "55bd73acc7da"
 ---
 
 # Governance { #governance }
@@ -150,6 +150,17 @@ przed żądaniem faktycznie ogranicza. Dlatego limit jest pułapem na
 
 Wdrożenie, które potrzebuje ścisłego limitu, przepuszcza swoich agentów przez
 jedną kolejkę, zamiast równolegle.
+
+### Evale wydają z tych samych budżetów { #evals-spend-from-the-same-budgets }
+
+[Eval run](evals.md) składa się ze zwykłych runów, więc każdy przypadek jest
+sprawdzany względem limitów agenta i organizacji przed każdym żądaniem do
+modelu, a to, co wyda, liczy się do obu - nie ma osobnego budżetu na evale.
+Duży dataset może więc zużyć miesięczny budżet, którego potrzebuje ruch
+produkcyjny. Start runa pokazuje, ile każdy limit zachowa po wydaniu szacunku,
+i jest odrzucany, zanim cokolwiek się uruchomi, gdy szacunek przekracza to, co
+zostało w którymkolwiek z nich; zob.
+[Budżet, który zostaje](evals.md#the-budget-it-leaves).
 
 ### Run kosztuje więcej niż jego żądania do modelu { #a-run-costs-more-than-its-model-requests }
 
@@ -509,11 +520,11 @@ wydatki umierają razem z jego procesem.
 Przebiegi proaktywne są przypisywane do opublikowanego agenta startowego
 **AgenticOS** organizacji (slug `agenticos`). To stałe przypisanie platformy;
 nie wybiera modelu ani nie uruchamia instrukcji agenta startowego. Osobny model
-i limity ustawia się w **Organizacje → Członkowie → Proaktywność**. Activity
+i limity ustawia się w **Organizacje → Członkowie → Proaktywność**. Aktywność
 pokazuje ikonę i filtr **Proaktywność**, żądania do modelu i ich koszt oraz
 zapis wymiany z wynikami narzędzi i końcową odpowiedzią strukturalną. Nieudane
 sprawdzenia zachowują wymianę dostępną przed błędem. Odczyt wymaga `runs:view`,
-jak inne zapisy Activity, i nie tworzy rozmów w Chat. Nie można odzyskać wymian,
+jak inne zapisy w Aktywności, i nie tworzy rozmów w Chat. Nie można odzyskać wymian,
 których starsze przebiegi nie zapisały; zbyt duży zapis jest oznaczany jako skrócony.
 
 Pole modelu korzysta z tego samego wyboru dostawcy, modelu i klucza z sejfu co
@@ -584,7 +595,7 @@ agent*, wraz z pracą delegatów:
 | Pytanie | Odpowiedź |
 |---|---|
 | `GET /runs` | Runy, które ktoś uruchomił. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na Activity, bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Własna historia jednego agenta. O to pytają panel Recent runs w Builderze i `?agent=` na stronie **Aktywność** (Activity), bo wiersze delegata to jedyny zapis tego, co on sam zrobił |
 | `GET /runs?parent_run_id=<id>` | Co ten run zdelegował — zapytanie, dla którego istnieje `agent_runs_parent_run_id_idx`. Ma pierwszeństwo przed `include_delegations` |
 | `GET /runs/<id>` | Jeden run, zdelegowany albo nie. Tu ląduje link z transkryptu |
 | `GET /runs/<id>/transcript` | Tury tego runa, po kolei — to, co widok szczegółów runa rysuje jako kroki. Autoryzowane, nie posiadane (niżej) |
@@ -658,7 +669,7 @@ odpowiada na pytanie „dlaczego mój agent nie kończy”; dziś nic to nie zmi
 delegacja jest zapisywana do bazy już jako zakończona i dlatego nigdy nie
 parkuje.
 
-Ostatnie dwa to `?run=<id>` na stronie Activity: jeden run, delegacje pod nim,
+Ostatnie dwa to `?run=<id>` na stronie Aktywność: jeden run, delegacje pod nim,
 każda z plakietką id zadania, które niosły jej ramki `subagent_*`, oraz link w
 górę do runa, na który delegacja została zaksięgowana. Panel delegacji w czacie
 linkuje tam z `run_id`, które niesie jego ramka terminalna — i właśnie dlatego ta
@@ -804,7 +815,7 @@ jednego: `ORDER BY` składane z query stringa to powierzchnia do wstrzyknięcia.
 
 **Każdy z nich podróżuje w URL-u**, i to właśnie pozwala karcie na dashboardzie
 przekazać czytelnika do swoich własnych wierszy:
-`/runs?surface=mattermost&period=30d` otwiera Activity z już ustawionym filtrem i
+`/runs?surface=mattermost&period=30d` otwiera Aktywność z już ustawionym filtrem i
 z licznikiem zgodnym z kartą, która podlinkowała. Do #768 były stanem lokalnym,
 więc liczba p95 była jedyną liczbą na dashboardzie, która potrafiła dosięgnąć
 stojących za nią runów, a trzy karty nie niosły żadnego linku — nie było niczego
@@ -846,7 +857,7 @@ organizacji.
 To, jak długo trwa *wciąż działający* run, jest osobnym pytaniem i żadne z tych
 uporządkowań na nie nie odpowiada.
 
-Activity pokazuje ten czas trwania na trzy sposoby i wszystkie trzy prowadzą do
+Aktywność pokazuje ten czas trwania na trzy sposoby i wszystkie trzy prowadzą do
 tego samego zapytania:
 
 - Nagłówek kolumny **Took** jest kontrolką sortowania — tak jak nagłówek Started
@@ -890,7 +901,7 @@ własnych rozmów członka, ta sama reguła zakresu i to samo słownictwo okien 
 `GET /stats/usage` (zobacz [Uprawnienia](permissions.md)). Same liczniki —
 komentarze zostają za szczegółami runa, powyżej.
 
-Trzy liczby Activity nad zakładkami pozostają liczbami organizacji, łącznie z
+Trzy liczby Aktywności nad zakładkami pozostają liczbami organizacji, łącznie z
 licznikiem runów, nawet gdy tabela pod nimi jest zawężona do jednego agenta.
 Licznik per agent obok miesiąca organizacji byłby dwoma pytaniami pod jedną
 etykietą — a to licznik per agent jest tym, który włącza delegacje.
@@ -970,7 +981,7 @@ które route'y listujące odpowiadać nie muszą:
 - **Dane osobowe.** Każdy eksport wysyła dokładnie tę tożsamość, którą jego
   zakładka już pokazuje. Tabela runów pokazuje `user_id` i żadnego nazwiska, więc
   eksport runów wysyła samo id — CSV z tym, kto co uruchomił, z rozwiązanymi
-  nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Activity,
+  nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Aktywności,
   przybywająca jako plik do pobrania. Kolejka zatwierdzeń rozwiązuje już na
   ekranie adresy e-mail osoby wyzwalającej i decydującej, więc eksport
   zatwierdzeń je zachowuje.
@@ -1174,7 +1185,7 @@ Cztery właściwości, które warto znać:
   `APPROVAL_EXPIRY_HOURS`**, a stojący za nim run zostaje rozliczony, zamiast
   zostać zaparkowanym na zawsze. Status to `expired` z nullowym
   `decided_by_user_id`, i to właśnie odróżnia wygaśnięcie od odrzucenia w śladzie
-  odpowiedzialności. Strona Activity dalej pokazuje **wiek** najstarszego
+  odpowiedzialności. Strona Aktywność dalej pokazuje **wiek** najstarszego
   oczekiwania, bo kolejka mieszcząca się w swoim oknie wygasania to ta, na której
   ktoś jeszcze może zadziałać.
 - **`required` działa na dowolnej capability**, nie tylko na tych ze skutkami
@@ -1331,7 +1342,7 @@ Drugi stan, którego nic wewnątrz procesu nigdy nie rozstrzygnie.
 
 Wiersz runa jest commitowany jako `running`, zanim zostanie zawołany jego model
 ([#12][12-issue]), więc worker zabity w środku runa — OOM, wdrożenie, które nie
-drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Activity na
+drenuje — zostawia trwały wiersz, którego nie ma już co dokończyć: w Aktywności na
 zawsze i blokujący każdy harmonogram, dla którego triggera był podlinkowanym
 runem.
 
@@ -1453,6 +1464,10 @@ zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie.
 
 Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
+
+
+Run `eval` jest jednym z wielu raportowanych razem przez ewaluację; nie wysyła osobnego powiadomienia o zakończeniu ani błędzie.
+
 błąd runa - koniec rutyny nazwany jej imieniem i zaczynający się początkiem jej
 odpowiedzi, dla osoby, która ją ustawiła - prośbę o włączenie capability, dla
 właściciela agenta, propozycje, które [praca z własnej
@@ -1555,7 +1570,7 @@ już się nie rozwiązuje.
 ### Alert linkuje tam, gdzie jest decyzja { #an-alert-links-to-where-the-decision-is }
 
 **Mail o zatwierdzeniach otwiera kolejkę** — `/runs?tab=approvals`, zakładkę
-Approvals na Activity, która jest jedyną powierzchnią niosącą Approve i Reject.
+Approvals w Aktywności, która jest jedyną powierzchnią niosącą Approve i Reject.
 Kiedyś otwierał `/agents/{id}`, czyli Buildera: jedno zdanie prozy o wywołaniach
 narzędzi trafiających do kolejki i żadnej kolejki. Więc ten jeden e-mail, którego
 całym celem jest *ktoś musi zdecydować, teraz*, lądował o jedno wyszukiwanie od
@@ -1576,8 +1591,8 @@ raportuje, edytuje się właśnie tam.
 zaparkowanego wywołania obejmują tego, kto uruchomił run, a builder uruchamiający
 własnego agenta z czatu jest zwyczajnym inicjatorem — więc alert rutynowo
 docierał do kogoś, komu platforma by odmówiła. Dostawał **„waiting on your
-approval”** z przyciskiem **Review the request**, klikał go, a Activity nie
-rysowało żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
+approval”** z przyciskiem **Review the request**, klikał go, a Aktywność nie
+rysowała żadnej zakładki Approvals: odmowa przybywała jako nieobecna zakładka, a
 nie jako zdanie.
 
 Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
@@ -1662,6 +1677,74 @@ wyglądają wiarygodnie.
 Wysyłka nigdy nie blokuje i nigdy nie podnosi wyjątku do wołającego: run, który
 już się skończył, nie może przewrócić się ponownie dlatego, że SMTP był
 niedostępny.
+
+## Wsparcie AI { #ai-assistance }
+
+Jeden przełącznik, na zakładce **Budżet i zgody** strony organizacji, decyduje,
+czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
+który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego szkic
+treści, której brakuje przy [luce w
+wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz generator
+przypadków i asystenta tworzenia, które pojawią się po nich. Domyślnie jest
+wyłączony, zarówno w organizacji, która istniała przed przełącznikiem, jak i w
+nowej: to, czy modele oceniają i piszą szkice, jest decyzją organizacji, a
+włącza go ten, kto ma `org:settings`. Każda zmiana jest zapisywana w [dzienniku
+audytu](#audit) jako `organization.ai_assistance`, z autorem zmiany.
+
+Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
+od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.
+Ocenianie nadal wykonuje sprawdzenia oparte na regułach i dopasowanie wywołań
+narzędzi, zapisuje kryteria sędziego jako pominięte z podaniem przyczyny i
+zostawia przypadek, którego sędzia był wymagany, jako nieoceniony, a nie
+zaliczony. Werdykty ludzi pozostają dostępne.
+
+**Model oceniający**, obok przełącznika, to model, na którym oceniają nowi
+sędziowie. Sędzia słabszy od agenta, którego ocenia, źle odczytuje odpowiedzi,
+które agent podał dobrze, więc gdy żaden nie jest wybrany, nowy sędzia dostaje
+najtańszy z modeli czatu organizacji, którego pisanie kosztuje więcej niż model
+agenta - wersji roboczej albo opublikowanej, tej, która kosztuje więcej - a gdy
+takiego modelu nie ma albo brak cen do porównania, jak dotąd pierwszy inny model
+organizacji. Dotyczy to sędziów tworzonych od tej chwili, np. tego, którego
+dostaje pierwszy zestaw testowy agenta; istniejący sędzia zachowuje swój model,
+bo zapisana ocena znaczy to, co ocenił ten model. Każda zmiana jest zapisywana
+jako `organization.grading_model`.
+
+Te funkcje działają jako [sędziowie](concepts.md#system-agents). Każdy run jest
+zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem własnego
+miesięcznego budżetu sędziego i budżetu organizacji, jego koszt jest zapisywany,
+a on sam jest widoczny w Aktywności pod powierzchnią `eval`. Sędzia startuje z
+własnym budżetem - $5 miesięcznie - który można zmienić jak budżet każdego
+agenta.
+
+[Asystent tworzenia](authoring.md) jest agentem systemowym w ten sam sposób, z
+własnym budżetem $5. Na dashboardzie jego koszt jest podawany osobno od evali,
+jako wydany na ulepszenia. Tak samo koszt klasyfikatora i autora szkiców
+[luk w wiedzy](knowledge-gaps.md): uzupełniają to, czego brakuje bazie wiedzy, a
+nie mierzą agenta. Sędzia i generator przypadków zostają przy evalach.
+
+Sędzia nigdy nie jest wystawiany: nie da się podpiąć do niego kanału,
+embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego
+delegować, a run na jakiejkolwiek powierzchni poza `eval` jest odrzucany. Jego
+wydatki pochodzą więc tylko z funkcji opisanych wyżej.
+
+## Pominięcia promocji { #promotion-overrides }
+
+Środowisko [strzeżone przez suity ewaluacji](environments.md#guarding-a-promotion-with-evals)
+przyjmuje wersję dopiero, gdy przejdą na niej. Promocja z ich pominięciem to
+**pominięcie**: wymaga `promotions:override` - mają je owner i admin, a można je
+dać roli własnej - od osoby zalogowanej jako ona sama, nie od klucza API ani
+administratora, który się pod nią podszywa, oraz powodu o długości co najmniej
+dziesięciu znaków. Trafia do [audit logu](#audit) jako
+`agent.environment_promotion_overridden`, z powodem i wynikiem każdego
+strażnika, widać je na wersji w historii, a właściciel każdego strażnika, który
+nie przeszedł, dostaje wiadomość.
+
+Zmiana listy strażników środowiska, przesunięcie przypięcia strażnika albo
+osłabienie tego, co sprawdza strażnik, wymaga tego samego uprawnienia; każda z
+tych zmian, a także ostrzejszy próg, jest zapisywana jako
+`agent.environment_guards_changed`. Zmiana oceniania datasetu jest zapisywana
+jako `dataset.scoring_changed`, z nazwami zmienionych części zamiast ich
+treści, a utworzenie sędziego datasetu jako `dataset.judge_created`.
 
 ## Audyt { #audit }
 
@@ -1921,6 +2004,8 @@ Warto to powiedzieć, bo strona o governance sugeruje coś innego:
 - **Cisza coś znaczy.** Alert, który nie przyszedł, oznacza, że dana rzecz się
   nie wydarzyła, co jest prawdą tylko dlatego, że nic tutaj nie działa w trybie
   „w miarę możliwości”.
+- **Promocja z pominięciem evali to pominięcie** - z powodem, własnym
+  uprawnieniem i zapisem na wersji.
 
 ## Materiały { #reference }
 

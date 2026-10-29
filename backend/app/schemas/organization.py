@@ -159,6 +159,22 @@ class OrganizationUpdate(BaseSchema):
             "name."
         ),
     )
+    ai_assistance_enabled: bool | None = Field(
+        default=None,
+        description=(
+            "Whether models may assist evals and authoring here: the eval judge, the "
+            "case generator, the authoring assistant. Omit to leave it alone. Changing "
+            "it needs 'org:settings'."
+        ),
+    )
+    grading_model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The model new judges grade on, one of this organization's chat models. Send "
+            "null to clear it: a new judge then takes a model that costs more than the "
+            "agent it grades. Existing judges keep their model. Needs 'org:settings'."
+        ),
+    )
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
@@ -223,6 +239,18 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "calls. The chat reads it to decide whether to offer the control at "
             "all; who may then use it is `approvals:decide`."
         ),
+    )
+    ai_assistance_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether models may assist evals and authoring here. Off until an admin "
+            "turns it on; off, the services that would start such a run refuse it, "
+            "and deterministic checks and a person's verdicts stay available."
+        ),
+    )
+    grading_model_profile_id: UUID | None = Field(
+        default=None,
+        description="The model new judges grade on; null picks one per agent by price",
     )
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None

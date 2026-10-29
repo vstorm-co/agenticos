@@ -1,5 +1,7 @@
 "use client";
 
+import { clearCopies } from "@/lib/unsaved-copies";
+
 import { useAgentSelectionStore } from "./agent-selection-store";
 import { useBrowserPanelStore } from "./browser-panel-store";
 import { useChatStore } from "./chat-store";
@@ -9,6 +11,7 @@ import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
 import { resetVisualState } from "./visual-stream-store";
+import { useUnsavedChangesStore } from "./unsaved-changes-store";
 import { useWorkingStore } from "./working-store";
 
 /**
@@ -52,6 +55,9 @@ export function resetTenantState(): void {
   // Visuals' pictures and saved apps are keyed by the provider's call id, which
   // another tenant's thread may reuse.
   resetVisualState();
+  // Unsaved edits kept in this browser are the organization's content too.
+  clearCopies();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
 }
 
 /**

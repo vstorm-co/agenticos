@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf6eb0fde8e"
+source_sha: "1b2d02388f3b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -549,6 +549,23 @@ Es un intercambio deliberado. El endpoint `/test` y `last_status` son cómo te
 enteras, y el [rastro de auditoría](governance.md#audit) registra lo que se
 ejecutó de verdad.
 
+### En un entorno de prueba, y en un eval { #in-a-test-environment-and-in-an-eval }
+
+Un [entorno](environments.md#test-connections) con nombre puede responder a un
+binding de la organización con una conexión de prueba — un CRM sandbox en
+`staging`. El turno llega entonces al servidor de prueba con el nombre de la
+conexión de producción, así que el modelo ve las mismas herramientas; si la
+conexión de prueba ya no existe o está desactivada, el binding queda apagado en
+ese turno y nunca se llega a producción en su lugar.
+
+En un eval, cada llamada a una conexión de producción se retiene y se registra con
+sus argumentos en lugar de ejecutarse. La única excepción es una herramienta que
+el servidor marca con `readOnlyHint`, en una conexión que confía en esa marca. La
+marca es una afirmación del propio servidor, así que la confianza está
+desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
+conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
+queda en la auditoría con ese número.
+
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 
 La pestaña **MCP servers** de un agent lista el catálogo entero, no solo lo que
@@ -1055,6 +1072,20 @@ permiso que faltaba.
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+| `list_improvements`, `get_improvement` | acceso de lectura al agente; los temas de conocimiento de la sesión también necesitan `runs:view`, igual que listar todas las sesiones abiertas sin indicar un agente |
+| `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | acceso de edición al agente y `runs:view`; iniciar también `datasets:run`, publicar `agents:publish` |
+| `list_datasets` | `datasets:view` |
+| `get_eval_run` | `runs:view` |
+| `estimate_knowledge_draft`, `draft_knowledge_topic` | `runs:view` y acceso de edición a la base de conocimiento del tema |
+
+Las herramientas de Improve y de evals llaman a rutas que aún no forman parte
+de la API pública: responden al Architect de la aplicación y a un cliente MCP
+conectado con OAuth, y rechazan una clave de API de la organización como lo hace
+una ruta de la consola. Son las propias acciones del
+[asistente Improve](authoring.md#the-improve-wizard), así que se aplican sus
+comprobaciones, y el Architect usa las que cambian algo solo cuando se lo piden. Un cliente
+MCP también puede iniciar, aceptar, publicar y terminar sesiones; allí, la propia
+solicitud de aprobación del cliente ocupa el lugar de la tarjeta del Architect.
 
 La búsqueda con `list_projects` devuelve solo identificadores y nombres,
 omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un

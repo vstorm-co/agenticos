@@ -1,5 +1,5 @@
 ---
-source_sha: "093be48b0e0d"
+source_sha: "8596c1f8e04c"
 ---
 
 # Die Konsole { #the-console }
@@ -23,7 +23,7 @@ Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt fünfundvierzig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt dreiundfünfzig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -35,10 +35,24 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 |---|---|
-| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
+| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
+
+In **Ich** listet **Agents, die Aufmerksamkeit brauchen** die Agents, die Sie
+sehen dürfen, mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer
+durchgefallenen Eval-Suite im Zeitraum - nur Zahlen, nie das Gesagte - mit
+**Verbessern** bei denen, die Sie bearbeiten dürfen. Die Agent-Galerie markiert
+dieselben Agents der letzten dreißig Tage mit dem Abzeichen **Braucht
+Aufmerksamkeit**, das beim Überfahren sagt, warum. Antworten und Runs zählen
+nur für die Version, die der Agent jetzt in seiner Standardumgebung ausliefert:
+Das Veröffentlichen einer Korrektur löscht das Signal, bis die neue Version
+eigene sammelt. Beides erfordert `runs:view`.
+
+Darunter listet **Verbesserungen, die auf Sie warten** die
+[Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
+Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
@@ -284,6 +298,15 @@ anhalten und enden: Ein Run, den ein Zeitplan auslöst, erscheint auf einer
 offenen Activity-Seite und ändert dort seinen Status, ohne dass eine Anfrage von
 Ihnen dahintersteht.
 
+Ebenso Datasets: ein hinzugefügter oder entfernter Fall, eine Änderung an der
+Bewertung, ein Score oder eine Review-Entscheidung und Entwürfe, die der
+[Fallgenerator](datasets.md#generating-cases) im Hintergrund fertigstellt - sie
+erscheinen ohne Neuladen im Tab Generated eines offenen Datasets.
+
+Wissenslücken werden ebenso gemeldet: Ein Thema, das in einem Tab verworfen oder
+entworfen wurde, und die Fragen, die ein Gruppierungslauf alle 15 Minuten
+einordnet, erscheinen auf einem offenen Tab Wissenslücken ohne Neuladen.
+
 Die Ausnahme ist der Builder, weil er Ihren Entwurf beim Tippen speichert. Ändert
 sich der Agent, den Sie bearbeiten, anderswo, hört er auf zu speichern und holt
 die neue Version. Ohne ungespeicherte Änderungen übernimmt er sie einfach; mit
@@ -292,10 +315,11 @@ Ihre Wahl: **Neu laden** (deren Version) oder **Meine Änderungen behalten** (Ih
 über deren gespeichert).
 
 Sie erfahren nur, was Sie lesen dürfen: Eine Änderung an einem Agent, einem
-Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel oder
-einem MCP-Server, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
+Skill, einer Wissensbasis, einer Kontextdatei, einer Seite, einem Schlüssel,
+einem MCP-Server oder einem Dataset, die Sie nicht sehen, erreicht Ihre Konsole nie, und eine
 Löschung erreicht nur Rollen, die jede Zeile dieser Art sehen. Runs erreichen die
-Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Kanal-Bots die
+Rollen, die den Run-Verlauf lesen oder über Freigaben entscheiden, Wissenslücken
+die Rollen, die jeden Run lesen, Kanal-Bots die
 Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbindung ab, arbeitet die Konsole wie
 bisher und verbindet sich selbst wieder.
 
@@ -687,6 +711,26 @@ aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
 
+## Aktivität { #activity }
+
+**Aktivität** (Activity) zeigt Inhabern von `runs:view` jeden Run der
+Organisation: Unterhaltungen, die Agents der Organisation beim Beantworten von
+Eval-Fällen und die plattformeigenen Agents bei ihrer Arbeit. Wer einen Run und
+sein Protokoll lesen darf, hängt nicht von der Art des Runs ab.
+
+Der Run eines Plattform-Agents zeigt dessen Namen in der Spalte Agent und neben
+seiner Oberfläche eine Beschriftung: **Improve** für den Assistenten,
+**Bewerter** für den Bewerter, **Wissenslücken** für Klassifizierer und
+Entwurfsschreiber und **Testfragen** für den Fallgenerator. Ein Agent, der einen
+Eval-Fall beantwortet, trägt **Eval**. Neben der Beschriftung steht ein Link
+dorthin, wo diese Arbeit gelesen wird: die Improve-Sitzung, der Eval-Run, das
+Wissenslücken-Thema oder das Dataset.
+
+Der Filter **Herkunft** grenzt die Liste auf **Unterhaltungen**, **Improve und
+Evals** oder **System-Agents** ein. Er beginnt bei jeder Herkunft, damit ein
+Link aus einem Entwurf oder einer Sitzung zu ihrem Run auf einer Zeile landet,
+die die Liste zeigt.
+
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
 Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
@@ -704,6 +748,7 @@ verlassen haben.
 | **Knowledge** | Collections, Dokumente, Sync-Quellen, Ingestion-Einstellungen | [Dateiverarbeitung](file-processing.md) |
 | **Skills** | Geschriebene Abläufe, die ein Agent bei Bedarf lädt | [Skills](skills.md) |
 | **Context** | Dauerhaftes Wissen, das an viele Agents gebunden ist | [Context-Dateien](context.md) |
+| **Datasets** | Versionierte Testfälle, importiert, exportiert oder aus einer bewerteten Antwort übernommen | [Datasets](datasets.md) |
 | **Routines** | Zeitpläne und Ereignis-Trigger | [Trigger](triggers.md) |
 | **Runs** | Was lief, was es kostete, was es berührte, ob es fehlschlug | [Governance](governance.md#audit) |
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -722,6 +767,13 @@ erscheinen. Jeder Filter ist ein Menü der Labels auf den Agents, die Sie sehen;
 kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agents pflegen Sie auf seiner
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
+
+Der Tab **Historie** eines Agents enthält seine veröffentlichten Versionen und
+benannten Umgebungen und für alle, die seine Runs lesen dürfen, seinen
+**Verbesserungsverlauf**: jede Verbessern-Sitzung, was sie gemessen hat, was
+entschieden wurde und was sie gekostet hat. Eine abgeschlossene Sitzung öffnet
+ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
+[Verbesserungsverlauf](authoring.md#improvement-history).
 
 Die Organisationsdetails sind in Registerkarten gegliedert: **Mitglieder**, **Profil**,
 **Budget und Freigaben**, **Proaktivität**, **Sprache** und **AI Architect**.
@@ -767,7 +819,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **fünfundvierzig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **dreiundfünfzig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

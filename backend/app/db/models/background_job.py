@@ -88,7 +88,7 @@ class BackgroundJob(Base, TimestampMixin):
     """
 
     __table_args__ = (
-        CheckConstraint("pool IN ('agent', 'ingest', 'system')", name="pool"),
+        CheckConstraint("pool IN ('agent', 'eval', 'ingest', 'system')", name="pool"),
         CheckConstraint(
             "status IN ('queued', 'running', 'succeeded', 'dead', 'cancelled')", name="status"
         ),

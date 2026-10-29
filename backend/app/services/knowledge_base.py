@@ -1,6 +1,7 @@
 import logging
 import re
 import secrets
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -407,6 +408,12 @@ class KnowledgeBaseService:
                 this caller's reach.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
+        await self._check_system_agents(
+            ctx,
+            data.gap_drafter_agent_id,
+            data.gap_classifier_agent_id,
+            app_scoped=data.scope == "app",
+        )
         collection_name = data.collection_name or _derive_collection_name(data.name)
         await CollectionAccessService(self.db).claim(ctx, collection_name)
         shared = await self._shared_embedding(collection_name, data)
@@ -484,6 +491,8 @@ class KnowledgeBaseService:
             # collection asks; a personal one is its owner's and an app one everyone's.
             visibility=data.visibility.value if data.scope == KBScope.ORG.value else None,
             ingestion_config=config.model_dump(mode="json"),
+            gap_drafter_agent_id=data.gap_drafter_agent_id,
+            gap_classifier_agent_id=data.gap_classifier_agent_id,
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
             embedding_provider=provider.provider,
@@ -618,6 +627,12 @@ class KnowledgeBaseService:
         ctx: AuthContext,
     ) -> KnowledgeBase:
         kb = await self.get_for_write(kb_id, ctx=ctx)
+        await self._check_system_agents(
+            ctx,
+            data.gap_drafter_agent_id,
+            data.gap_classifier_agent_id,
+            app_scoped=kb.scope == "app",
+        )
         config = (
             None
             if data.ingestion_config is None
@@ -702,9 +717,15 @@ class KnowledgeBaseService:
                 )
             elif data.embedding_provider is not None:
                 await self._check_kept_secret(kb, provider=provider)
+        helpers: dict[Literal["gap_drafter_agent_id", "gap_classifier_agent_id"], UUID | None] = {}
+        if "gap_drafter_agent_id" in data.model_fields_set:
+            helpers["gap_drafter_agent_id"] = data.gap_drafter_agent_id
+        if "gap_classifier_agent_id" in data.model_fields_set:
+            helpers["gap_classifier_agent_id"] = data.gap_classifier_agent_id
         return await knowledge_base_repo.update(
             self.db,
             db_kb=kb,
+            system_agents=helpers,
             name=data.name,
             description=data.description,
             ingestion_config=None if config is None else config.model_dump(mode="json"),
@@ -714,6 +735,25 @@ class KnowledgeBaseService:
             embedding_base_url=wanted_url,
             set_embedding_base_url=url_named,
         )
+
+    async def _check_system_agents(
+        self, ctx: AuthContext, drafter: UUID | None, classifier: UUID | None, *, app_scoped: bool
+    ) -> None:
+        from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
+        from app.services.system_agent_runner import SystemAgentRunner
+
+        if app_scoped and (drafter is not None or classifier is not None):
+            raise refused_field(
+                "gap_drafter_agent_id" if drafter is not None else "gap_classifier_agent_id",
+                "A deployment-wide knowledge base uses each organization's default helpers; choose custom helpers on an organization knowledge base",
+            )
+        runner = SystemAgentRunner(self.db)
+        for key, selected in (
+            (KNOWLEDGE_GAP_DRAFTER.key, drafter),
+            (KNOWLEDGE_GAP_CLASSIFIER.key, classifier),
+        ):
+            if selected is not None:
+                await runner.require_runnable(ctx, key=key, agent_id=selected)
 
     async def _check_embedding_endpoint(
         self,

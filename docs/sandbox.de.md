@@ -1,5 +1,5 @@
 ---
-source_sha: "ca8f4c0c2629"
+source_sha: "a6d77f01cb57"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -119,6 +119,31 @@ in Ruhe, denn ihn neu zu erzeugen verwaist jeden Workspace, den der Service gera
 hält. Auch deshalb ist das eigene Dashboard des Services aus
 (`SANDBOXD_UI_ENABLED: 0`): diese Seite bittet einen Menschen, den Token in einen
 Browser einzufügen.
+
+## Der Workspace eines neuen Agents { #a-new-agents-workspace }
+
+Ein neuer Agent beginnt mit einem Workspace, den seine Organisation veröffentlichen
+kann. Der Container-Workspace aus der Startvorlage bleibt, wenn die Organisation
+eine Standard-Sandbox-Verbindung hat oder wenn dieses Deployment `sandboxd`
+betreibt und die Organisation einen Owner hat, unter dem sich eine registrieren
+lässt — die erste Veröffentlichung richtet diese Verbindung dann ein. Andernfalls
+beginnt der Agent auf dem gespeicherten Workspace `state`: Dateien ohne Shell, die
+nichts brauchen, sodass sich ein neuer Agent auch auf einem Deployment ohne
+Sandbox-Dienst veröffentlichen lässt.
+
+Der Capability-Katalog, mit dem der Builder beginnt, und eine Vorlageninstallation
+fragen das pro Organisation, und die Antwort wird eine Minute lang behalten. Ein
+`sandboxd`, der antworten sollte und es nicht tut, wird als
+`sandbox_service_not_answering` protokolliert, und der Agent beginnt auf `state`.
+Ein bereits gespeicherter Agent behält seinen Spec.
+
+Eine Veröffentlichung, die mangels Sandbox abgelehnt wird, bietet neben dem Grund
+eine Korrektur an. **Workspace auf Dateien umstellen** schreibt den Entwurf auf den
+Workspace `state` um, speichert ihn und prüft ihn erneut. **Nicht mehr teilen, was
+dieser Agent nicht teilen kann** tut dasselbe für eine Teilen-Liste der Delegation,
+die eine Capability nennt, die der Agent nicht mehr hat, und streicht daraus auch
+`subagents`, das ein Delegat nie erbt. Keine von beiden veröffentlicht: Das bleibt ein eigener Klick. Die Codes kommen in `details.fixes`
+der Ablehnung (siehe [Architektur](architecture.md#a-refusal-that-names-a-field)).
 
 ## Eine Session, und was sich eine teilt { #a-session-and-what-shares-one }
 
@@ -695,6 +720,9 @@ ihre Anzahl landet im Audit-Log.
   Sandbox ist sein Geschwister und kein Container darin.
 - Ein **Session-Schlüssel** faltet Scope, Organisation, Backend-Art und Host
   zusammen — was genau das ist, was entscheidet, wer sich einen Container teilt.
+- Ein **neuer Agent beginnt auf einem Workspace, den seine Organisation
+  veröffentlichen kann**: dem Container-Workspace, wo eine Verbindung besteht oder
+  sich einrichten lässt, sonst auf `state`.
 - **Eine Runtime wird ausgeliefert**, `workbench`, und dem Modell wird gesagt, was
   darin ist, komponiert aus demselben Katalog, der sie gebaut hat.
 - Der Nachweis dessen, was ein Agent getan hat, liegt in **der Tabelle dieser

@@ -1,7 +1,7 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -25,19 +25,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_run import (
     AgentRun,
     ApprovalDecidedVia,
     ApprovalStatus,
     RunOrder,
     RunRating,
+    RunSource,
     RunStatus,
     RunSurface,
     ToolApproval,
 )
-from app.db.models.conversation import Message
+from app.db.models.authoring import AuthoringRequest
+from app.db.models.case_generation import CaseGeneration
+from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
+from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.knowledge_gap import KnowledgeGapClassification, KnowledgeGapTopic
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
@@ -67,9 +72,11 @@ async def create_run(
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
+    improvement_run_id: UUID | None = None,
 ) -> AgentRun:
     run = AgentRun(
         key_scopes=key_scopes,
+        improvement_run_id=improvement_run_id,
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
@@ -148,6 +155,15 @@ async def finish_run(
     run.cache_missed_tokens += cache_missed_tokens
     if logfire_trace_id is not None:
         run.logfire_trace_id = logfire_trace_id
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def set_error(db: AsyncSession, *, run: AgentRun, error: str) -> AgentRun:
+    """Note why a run that ended is of no use to its caller, beside what it did."""
+    run.error = error
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -386,6 +402,8 @@ class RunFilters:
             together is the "show me the problems" query, and they are separate
             statuses on purpose.
         surface: Where the run came from.
+        exclude_surface: Where it did not come from - the eval traffic,
+            which outnumbers people by a hundred cases a run.
         user_id: Who it ran as, which is not always who asked - a widget's runs
             carry the widget owner's id, because the visitor is anonymous.
         started_from: Inclusive lower bound on `started_at`.
@@ -425,10 +443,13 @@ class RunFilters:
             it would not add up to the bill.
         is_test: Only test runs from the Builder's panel, or only real ones
             (#2074). Unset lists both.
+        source: Conversations, an agent answering evals, or a platform agent's
+            own work - see `RunSource`.
     """
 
     statuses: Sequence[str] | None = None
     surface: str | None = None
+    exclude_surface: str | None = None
     user_id: UUID | None = None
     conversation_id: UUID | None = None
     model_label: str | None = None
@@ -441,6 +462,7 @@ class RunFilters:
     modality: str | None = None
     one_row_per_call: bool = False
     is_test: bool | None = None
+    source: RunSource | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -453,6 +475,8 @@ class RunFilters:
             clauses.append(AgentRun.status.in_(list(self.statuses)))
         if self.surface is not None:
             clauses.append(AgentRun.surface == self.surface)
+        if self.exclude_surface is not None:
+            clauses.append(AgentRun.surface != self.exclude_surface)
         if self.user_id is not None:
             clauses.append(AgentRun.user_id == self.user_id)
         if self.conversation_id is not None:
@@ -481,6 +505,17 @@ class RunFilters:
             )
         if self.is_test is not None:
             clauses.append(AgentRun.is_test.is_(self.is_test))
+        if self.source is RunSource.CONVERSATION:
+            clauses.append(AgentRun.surface != RunSurface.EVAL.value)
+        elif self.source is not None:
+            platform = AgentRun.agent_id.in_(
+                select(Agent.id).where(Agent.kind != AgentKind.AGENT.value)
+            )
+            clauses.append(
+                platform
+                if self.source is RunSource.SYSTEM
+                else and_(AgentRun.surface == RunSurface.EVAL.value, ~platform)
+            )
         return clauses
 
 
@@ -658,6 +693,253 @@ async def down_rated_run_ids(
     return {run_id for (run_id,) in result.all()}
 
 
+@dataclass(frozen=True)
+class RunOrigin:
+    """Which platform agent a run was, and what it worked on, where a row says so.
+
+    Each id is the one place its work is read: the Improve session (or, for an
+    assistant request outside one, the agent it was about), the knowledge-gap
+    topic it drafted or the knowledge base whose answers it read, the dataset it
+    wrote cases for. The judge's eval run is not here - `case_links` has it.
+    """
+
+    kind: str
+    agent_name: str
+    agent_id: UUID | None = None
+    improvement_id: UUID | None = None
+    topic_id: UUID | None = None
+    knowledge_base_id: UUID | None = None
+    dataset_id: UUID | None = None
+
+
+async def run_origins(
+    db: AsyncSession, *, organization_id: UUID, run_ids: Sequence[UUID]
+) -> dict[UUID, RunOrigin]:
+    """The platform agents among these runs, each with what it worked on.
+
+    A run of one of the organization's own agents has no origin and is absent.
+    """
+    if not run_ids:
+        return {}
+    platform = (
+        await db.execute(
+            select(AgentRun.id, Agent.kind, Agent.name)
+            .join(Agent, Agent.id == AgentRun.agent_id)
+            .where(
+                AgentRun.id.in_(run_ids),
+                AgentRun.organization_id == organization_id,
+                Agent.kind != AgentKind.AGENT.value,
+            )
+        )
+    ).all()
+    found = {run_id: RunOrigin(kind=kind, agent_name=name) for run_id, kind, name in platform}
+    if not found:
+        return {}
+    ids = list(found)
+    requests = await db.execute(
+        select(
+            AuthoringRequest.run_ids, AuthoringRequest.agent_id, AuthoringRequest.improvement_run_id
+        ).where(
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.run_ids.overlap(ids),
+        )
+    )
+    for request_runs, agent_id, improvement_id in requests.all():
+        for run_id in set(request_runs) & found.keys():
+            found[run_id] = replace(found[run_id], agent_id=agent_id, improvement_id=improvement_id)
+    # `type_coerce` states what each `IN` guarantees and the nullable columns cannot.
+    run_id_of = PG_UUID(as_uuid=True)
+    topics = await db.execute(
+        select(
+            type_coerce(KnowledgeGapTopic.draft_run_id, run_id_of),
+            KnowledgeGapTopic.id,
+            KnowledgeGapTopic.knowledge_base_id,
+        ).where(
+            KnowledgeGapTopic.organization_id == organization_id,
+            KnowledgeGapTopic.draft_run_id.in_(ids),
+        )
+    )
+    for run_id, topic_id, knowledge_base_id in topics.all():
+        found[run_id] = replace(
+            found[run_id], topic_id=topic_id, knowledge_base_id=knowledge_base_id
+        )
+    classified = await db.execute(
+        select(
+            type_coerce(KnowledgeGapClassification.run_id, run_id_of),
+            KnowledgeGapClassification.knowledge_base_id,
+        )
+        .where(
+            KnowledgeGapClassification.organization_id == organization_id,
+            KnowledgeGapClassification.run_id.in_(ids),
+        )
+        .distinct()
+    )
+    for run_id, knowledge_base_id in classified.all():
+        found[run_id] = replace(found[run_id], knowledge_base_id=knowledge_base_id)
+    generations = await db.execute(
+        select(type_coerce(CaseGeneration.run_id, run_id_of), CaseGeneration.dataset_id).where(
+            CaseGeneration.organization_id == organization_id,
+            CaseGeneration.run_id.in_(ids),
+        )
+    )
+    for run_id, dataset_id in generations.all():
+        found[run_id] = replace(found[run_id], dataset_id=dataset_id)
+    return found
+
+
+@dataclass(frozen=True)
+class AskedQuestion:
+    """A question somebody put to an agent, and whether its answer was rated down."""
+
+    message_id: UUID
+    conversation_id: UUID
+    run_id: UUID
+    content: str
+    rated_down: bool
+    comment: str | None
+    askers: tuple[UUID, ...] = ()
+    """Whose question an erasure counts it as: who typed it, who started the run
+    (not a publisher standing in for a visitor), and who owns the thread when it
+    is not a project's, which its members continue."""
+
+
+async def questions_asked(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, limit: int
+) -> list[AskedQuestion]:
+    """The questions that started this agent's runs, rated-down answers first, then newest.
+
+    A user turn carries no `agent_id` - only the agent's answer does - so a
+    question is found through the run it started (`messages.run_id`). The tenant
+    is held twice, on the run and on the conversation, so neither column alone
+    decides whose text this returns. `comment` is the newest comment left with a
+    thumbs-down on that run's answers.
+
+    Production traffic only: an eval run, and any run that ran isolated (it left
+    intercepted tool calls), answered a test rather than a person, and a case
+    drafted from it would test the agent on its own earlier test.
+    """
+    rated_down = (
+        select(MessageRating.id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .where(Message.run_id == AgentRun.id, MessageRating.rating < 0)
+        .exists()
+    )
+    answer = aliased(Message)
+    comment = (
+        select(MessageRating.comment)
+        .join(answer, answer.id == MessageRating.message_id)
+        .where(
+            answer.run_id == AgentRun.id,
+            MessageRating.rating < 0,
+            MessageRating.comment.is_not(None),
+        )
+        .order_by(MessageRating.created_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(
+            Message.id,
+            Message.conversation_id,
+            AgentRun.id,
+            Message.content,
+            rated_down.label("rated_down"),
+            comment.label("comment"),
+            Message.author_user_id,
+            case((AgentRun.initiated_by_publisher_fallback.is_(False), AgentRun.user_id)),
+            case((Conversation.project_id.is_(None), Conversation.user_id)),
+        )
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.role == "user",
+            func.length(func.trim(Message.content)) > 0,
+            AgentRun.agent_id == agent_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.surface != RunSurface.EVAL.value,
+            ~select(InterceptedToolCall.id)
+            .where(InterceptedToolCall.run_id == AgentRun.id)
+            .exists(),
+            Conversation.organization_id == organization_id,
+        )
+        .order_by(rated_down.desc(), Message.created_at.desc(), Message.id)
+        .limit(limit)
+    )
+    return [
+        AskedQuestion(
+            message_id=message_id,
+            conversation_id=conversation_id,
+            run_id=run_id,
+            content=content,
+            rated_down=bool(down),
+            comment=note,
+            askers=tuple(sorted({person for person in people if person is not None})),
+        )
+        for message_id, conversation_id, run_id, content, down, note, *people in result.all()
+    ]
+
+
+@dataclass(frozen=True)
+class RatedAnswer:
+    """An agent's answer somebody rated, and how."""
+
+    message_id: UUID
+    conversation_id: UUID
+    rated_down: bool
+    """Rated down by anyone: one person's thumbs-down outweighs another's thumbs-up."""
+    conversation_owner: UUID | None
+
+
+async def rated_answers(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    since: datetime | None,
+    limit: int,
+    excluding: Collection[UUID] = (),
+) -> list[RatedAnswer]:
+    """This agent's rated answers, rated down first, then by the newest rating.
+
+    `since` keeps the answers rated at or after it; `excluding` leaves out answers
+    already taken, before the limit is applied. The traffic is what
+    :func:`questions_asked` reads - production only, the tenant held on both the
+    run and the conversation - for the reason it gives.
+    """
+    rated_down = func.bool_or(MessageRating.rating < 0)
+    where = [
+        Message.role == "assistant",
+        AgentRun.agent_id == agent_id,
+        AgentRun.organization_id == organization_id,
+        AgentRun.surface != RunSurface.EVAL.value,
+        ~select(InterceptedToolCall.id).where(InterceptedToolCall.run_id == AgentRun.id).exists(),
+        Conversation.organization_id == organization_id,
+    ]
+    if since is not None:
+        where.append(MessageRating.created_at >= since)
+    if excluding:
+        where.append(Message.id.not_in(list(excluding)))
+    result = await db.execute(
+        select(Message.id, Message.conversation_id, rated_down, Conversation.user_id)
+        .join(MessageRating, MessageRating.message_id == Message.id)
+        .join(AgentRun, AgentRun.id == Message.run_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(*where)
+        .group_by(Message.id, Message.conversation_id, Conversation.user_id)
+        .order_by(rated_down.desc(), func.max(MessageRating.created_at).desc(), Message.id)
+        .limit(limit)
+    )
+    return [
+        RatedAnswer(
+            message_id=message_id,
+            conversation_id=conversation_id,
+            rated_down=bool(down),
+            conversation_owner=owner,
+        )
+        for message_id, conversation_id, down, owner in result.all()
+    ]
+
+
 def _counts_for_a_department() -> list[ColumnElement[bool]]:
     """The runs a department's cap holds: its members' own, not a routine's.
 
@@ -774,6 +1056,90 @@ async def sum_cost_since(
         query = query.where(AgentRun.user_id.in_(members), *_counts_for_a_department())
     result = await db.scalar(query)
     return Decimal(result or 0)
+
+
+async def average_cost(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    model_label: str | None = None,
+    sample: int,
+) -> Decimal | None:
+    """What one of this agent's recent finished runs cost on average, or None with none.
+
+    Over its latest `sample` completed top-level runs, on one model when
+    `model_label` is given - the basis of an eval's estimate, which is asked
+    before anything runs and so can only lean on what already did.
+    """
+    recent = (
+        select(AgentRun.cost_usd)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.COMPLETED.value,
+            AgentRun.cost_usd.is_not(None),
+            *([AgentRun.model_label == model_label] if model_label is not None else []),
+        )
+        .order_by(AgentRun.started_at.desc())
+        .limit(sample)
+        .subquery()
+    )
+    average = await db.scalar(select(func.avg(recent.c.cost_usd)))
+    return Decimal(average) if average is not None else None
+
+
+async def recent_usage(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, sample: int
+) -> tuple[int, float, float]:
+    """How many of this agent's recent finished runs, and their average input and output tokens.
+
+    Over its latest `sample` completed top-level runs that served somebody - not
+    an eval's or a Builder test's - which is the traffic a change of model would
+    reprice.
+    """
+    recent = (
+        select(AgentRun.input_tokens, AgentRun.output_tokens)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.COMPLETED.value,
+            AgentRun.surface != RunSurface.EVAL.value,
+            AgentRun.is_test.is_(False),
+        )
+        .order_by(AgentRun.started_at.desc())
+        .limit(sample)
+        .subquery()
+    )
+    count, input_tokens, output_tokens = (
+        await db.execute(
+            select(func.count(), func.avg(recent.c.input_tokens), func.avg(recent.c.output_tokens))
+        )
+    ).one()
+    return int(count), float(input_tokens or 0), float(output_tokens or 0)
+
+
+async def cost_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> tuple[Decimal, bool]:
+    """What these runs cost together, and whether any price was missing.
+
+    A run retention has since deleted is a price missing too: the total is then
+    what is left of it, and says so.
+    """
+    if not run_ids:
+        return Decimal(0), False
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.coalesce(func.bool_or(AgentRun.cost_is_partial), False),
+            func.count(AgentRun.id),
+        ).where(AgentRun.id.in_(list(run_ids)), AgentRun.organization_id == organization_id)
+    )
+    total, partial, found = result.one()
+    return Decimal(total), bool(partial) or found < len(set(run_ids))
 
 
 async def spend_by_group(
@@ -1267,6 +1633,15 @@ class RunFilter:
     group_id: UUID | None = None
 
 
+_EVAL = AgentRun.surface == RunSurface.EVAL.value
+# The authoring assistant and the knowledge-gap drafter and classifier run on the eval
+# surface like every system agent, but they improve agents and their knowledge rather
+# than measure them, so the bill names them apart.
+_IMPROVING_KINDS = (AgentKind.IMPROVER.value, AgentKind.DRAFTER.value, AgentKind.CLASSIFIER.value)
+_AUTHORING = AgentRun.agent_id.in_(select(Agent.id).where(Agent.kind.in_(_IMPROVING_KINDS)))
+_MEASURING = and_(_EVAL, ~_AUTHORING)
+
+
 def _window_conditions(
     *,
     organization_id: UUID,
@@ -1274,20 +1649,15 @@ def _window_conditions(
     end: datetime,
     where: RunFilter | None,
     include_delegations: bool = False,
+    split_evals: bool = False,
 ) -> list[ColumnElement[bool]]:
-    """The window every dashboard aggregate shares, delegations out by default.
+    """The window every dashboard aggregate shares, delegations and evals out by default.
 
-    `include_delegations` is the switch :func:`sum_cost_since` established, and
-    the default is `False` for the reason that made it the default there: a
-    delegation's tokens are already inside its parent's row, so counting both
-    bills the same run twice. Beyond cost, a delegated row copies its parent's
-    `user_id` and `surface`, so including it would also inflate a person's run
-    count and invent arrivals on a channel nobody used twice.
-
-    The two aggregates that pass `True` are the two asking about **an agent**
-    rather than about the organization - see :func:`runs_by_agent` and
-    :func:`usage_by_version`, where a delegate's rows are the only record of
-    what the delegate itself did.
+    Eval traffic - an eval run answering a dataset's cases, and the judge
+    grading them - is measurement, not use: counted in, one eval of a hundred
+    cases outweighs a week of people. So every aggregate here reads production
+    alone. `split_evals` keeps the eval traffic in, for an aggregate that
+    separates the two itself in the same scan to report its cost beside the rest.
     """
     filters = where or RunFilter()
     conditions: list[ColumnElement[bool]] = [
@@ -1307,6 +1677,8 @@ def _window_conditions(
         )
     if not include_delegations:
         conditions.append(AgentRun.parent_run_id.is_(None))
+    if not split_evals:
+        conditions.append(~_EVAL)
     return conditions
 
 
@@ -1391,6 +1763,8 @@ class WindowAggregates:
     distinct_users: int
     p50_ms: float | None
     p95_ms: float | None
+    eval_cost_usd: Decimal
+    authoring_cost_usd: Decimal = Decimal(0)
     first_started_at: datetime | None = None
     """When the window's first run started - where its timeline begins."""
 
@@ -1412,28 +1786,46 @@ async def window_aggregates(
     `ended_at IS NOT NULL` of their own, because an unfinished run's duration is
     null and `percentile_cont` ignores a null the way the standalone function's
     explicit filter did - the same distribution, one query.
+
+    Every figure is production traffic; `eval_cost_usd` is the eval traffic's
+    cost from the same scan, so the bill can name it beside the rest, and
+    `authoring_cost_usd` the authoring assistant's, which runs on the same
+    surface but improves agents rather than measuring them.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
+        organization_id=organization_id, start=start, end=end, where=where, split_evals=True
     )
     duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
     result = await db.execute(
         select(
-            func.count(AgentRun.id),
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
-            func.count(func.distinct(AgentRun.user_id)),
-            func.percentile_cont(0.5).within_group(duration_ms),
-            func.percentile_cont(0.95).within_group(duration_ms),
-            func.min(AgentRun.started_at),
+            func.count(AgentRun.id).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
+            func.count(func.distinct(AgentRun.user_id)).filter(~_EVAL),
+            func.percentile_cont(0.5).within_group(duration_ms).filter(~_EVAL),
+            func.percentile_cont(0.95).within_group(duration_ms).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_MEASURING), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL, _AUTHORING), 0),
+            func.min(AgentRun.started_at).filter(~_EVAL),
         ).where(*conditions)
     )
-    total, cost, distinct_users, p50, p95, first_started_at = result.one()
+    (
+        total,
+        cost,
+        distinct_users,
+        p50,
+        p95,
+        eval_cost,
+        authoring_cost,
+        first_started_at,
+    ) = result.one()
     return WindowAggregates(
         total=int(total or 0),
         cost_usd=Decimal(cost or 0),
         distinct_users=int(distinct_users or 0),
         p50_ms=float(p50) if p50 is not None else None,
         p95_ms=float(p95) if p95 is not None else None,
+        eval_cost_usd=Decimal(eval_cost or 0),
+        authoring_cost_usd=Decimal(authoring_cost or 0),
         first_started_at=first_started_at,
     )
 
@@ -1445,8 +1837,9 @@ async def window_totals(
     start: datetime,
     end: datetime,
     where: RunFilter | None = None,
-) -> tuple[int, Decimal]:
-    """The count and cost of a window, in one SELECT and nothing more.
+) -> tuple[int, Decimal, Decimal, Decimal]:
+    """The count and cost of a window's production traffic, its eval traffic's
+    cost and the authoring assistant's, in one SELECT and nothing more.
 
     The previous window is a delta against the current one - it reports only how
     many runs and how much they cost - so it does not pay for
@@ -1454,15 +1847,23 @@ async def window_totals(
     which make PostgreSQL sort the window's durations for numbers nobody reads.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
+        organization_id=organization_id, start=start, end=end, where=where, split_evals=True
     )
     result = await db.execute(
-        select(func.count(AgentRun.id), func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            *conditions
-        )
+        select(
+            func.count(AgentRun.id).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_MEASURING), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL, _AUTHORING), 0),
+        ).where(*conditions)
     )
-    total, cost = result.one()
-    return int(total or 0), Decimal(cost or 0)
+    total, cost, eval_cost, authoring_cost = result.one()
+    return (
+        int(total or 0),
+        Decimal(cost or 0),
+        Decimal(eval_cost or 0),
+        Decimal(authoring_cost or 0),
+    )
 
 
 @dataclass(frozen=True)
@@ -1724,7 +2125,9 @@ async def usage_by_version(
     Counts delegations, for the reason `list_runs` gives when narrowed to one
     agent: these are that agent's own runs, and a specialist that only ever
     executes as somebody's delegate would otherwise have nothing to compare
-    across versions. `avg_cost_usd` is safe here because it averages one
+    across versions. Leaves eval runs out: an eval of a draft is attributed to
+    no version and would read as "version deleted", and an eval of a version
+    is a test of it, not the use of it this strip reports. `avg_cost_usd` is safe here because it averages one
     agent's rows rather than summing a parent together with its children -
     unless an agent delegates to itself, which nothing in the product does and
     which would show up as one version's average, not as a double bill.
@@ -2316,6 +2719,57 @@ async def decide_approval(
     await db.flush()
     await db.refresh(approval)
     return approval
+
+
+def served_runs(*, organization_id: UUID, since: datetime) -> list[ColumnElement[bool]]:
+    """The runs that served somebody since `since` - what improving an agent reads
+    as evidence, and what says an agent needs attention.
+
+    Never an eval run: the assistant is checked by evals, so the runs those
+    produce - the cases, their reruns, the judge and the assistant's own - stay
+    out of what it reads. Never a Builder test run, which is the author trying
+    things rather than a reader being served, and never a delegate's run, whose
+    prompt is its parent's wording rather than a person's.
+    """
+    return [
+        AgentRun.organization_id == organization_id,
+        AgentRun.surface != RunSurface.EVAL.value,
+        AgentRun.is_test.is_(False),
+        AgentRun.parent_run_id.is_(None),
+        AgentRun.started_at >= since,
+    ]
+
+
+def on_current_version() -> ColumnElement[bool]:
+    """A run of the version its agent's default environment serves now.
+
+    Publishing moves `current_version_id`, so what an earlier version did stops
+    counting against the agent the moment another version serves people.
+    """
+    return AgentRun.agent_version_id == (
+        select(Agent.current_version_id).where(Agent.id == AgentRun.agent_id).scalar_subquery()
+    )
+
+
+_FAILED = (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value, RunStatus.LOOP_STOPPED.value)
+
+
+async def failed_by_agent(
+    db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
+) -> dict[UUID, int]:
+    """How many of each agent's served runs started in the window failed, by agent -
+    only runs of the version it serves now."""
+    result = await db.execute(
+        select(AgentRun.agent_id, func.count())
+        .where(
+            *served_runs(organization_id=organization_id, since=start),
+            on_current_version(),
+            AgentRun.started_at < end,
+            AgentRun.status.in_(_FAILED),
+        )
+        .group_by(AgentRun.agent_id)
+    )
+    return {agent_id: int(count) for agent_id, count in result.all()}
 
 
 async def associate_auxiliary_conversation(

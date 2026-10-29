@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useAgents } from "@/hooks";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { dayLabel, startsADay } from "@/lib/day-separator";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import type { ChatMessage, TurnUsage } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
@@ -75,6 +76,20 @@ export function continuesTurn(messages: ChatMessage[], index: number): boolean {
     return message.runId === previous.runId;
   }
   return message.groupId !== undefined && message.groupId === previous.groupId;
+}
+
+/**
+ * The question an assistant message replied to, and whether anything came before it.
+ *
+ * Undefined for a user message, or an answer with no question above it.
+ */
+export function askedBefore(messages: ChatMessage[], index: number): AskedBefore | undefined {
+  if (messages[index]?.role !== "assistant") return undefined;
+  for (let at = index - 1; at >= 0; at--) {
+    const message = messages[at];
+    if (message?.role === "user") return { question: message.content, earlier: at > 0 };
+  }
+  return undefined;
 }
 
 /** Whether the turn ends here, so the time and the cost belong under this message. */
@@ -196,6 +211,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
             openLastStep={index === openStepsAt}
             pins={pins}
             agents={agents}
+            asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming

@@ -1,5 +1,5 @@
 ---
-source_sha: "2ef13903688f"
+source_sha: "2eca3843f70e"
 ---
 
 # Uprawnienia { #permissions }
@@ -94,8 +94,13 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`,
+`approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`promotions:override` promuje wersję na
+[środowisko strzeżone przez suity evali](environments.md#guarding-a-promotion-with-evals),
+choć te na niej nie przeszły, i zmienia, które suity go strzegą. Mają je owner i
+admin; sama promocja nadal wymaga `agents:publish` na agencie.
 
 `api_keys:create` pozwala członkowi wydawać [klucze
 API](api.md#organization-api-keys) dla siebie; `api_keys:manage` pokazuje i
@@ -366,15 +371,21 @@ filtrować”), a **pustą listę** dla kontekstu bez podmiotu. To przeciwieńst
 pomylenie ich poszerzyłoby listowanie do całej organizacji dokładnie w momencie, w
 którym powinno zostać zawężone do niczego.
 
-`accessible_ids` jest wsadowym odpowiednikiem `resolve_access`: dla wczytanej już
-strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
+`accessible_ids` jest wsadowym odpowiednikiem `resolve_access`: dla wczytanej
+już strony wierszy zwraca ten podzbiór, na którym wywołujący może skorzystać z
 uprawnienia, stosując tę samą regułę `max(role scope, grant)` na każdym wierszu,
 ale czytając wszystkie granty w jednym odczycie zamiast po jednym na wiersz (i
-wcale, kiedy rola sięga wszystkiego). To ono wypełnia flagi możliwości przy każdym
-wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new trigger”
-na karcie — więc Viewer z przyznanym runem na jednym agencie widzi tę kontrolkę
-tam i nigdzie indziej. Kontekst bez podmiotu oraz puste wejście rozwiązują się
-oba do pustego zbioru przed jakimkolwiek zapytaniem.
+wcale, kiedy rola sięga wszystkiego).
+
+To `accessible_ids` wypełnia flagi możliwości przy
+każdym wierszu listowania — `AgentRead.can_run`, podłogę dla zaoferowania „new
+trigger” na karcie, `AgentRead.can_edit`, z którego konsola czyta, czy
+zaoferować kontrolki edycji na stronie agenta, test draftu i zatrzymanie eval
+runa, oraz `AgentRead.can_publish` dla publikacji — więc Viewer z przyznanym
+runem na jednym agencie widzi tę kontrolkę tam i nigdzie indziej.
+
+Kontekst bez podmiotu oraz puste wejście rozwiązują się oba do pustego zbioru
+przed jakimkolwiek zapytaniem.
 
 Listy kontekstów, skilli i sekretów zwracają `can_edit` dla każdego zasobu.
 Konsola używa tego efektywnego dostępu do edycji, usuwania, udostępniania i rotacji
@@ -435,6 +446,22 @@ odmów.
     mówi o tym we własnym tekście, ponieważ uprawnienie szersze, niż spodziewają
     się jego podmioty, da się obronić tylko wtedy, gdy mogą się o tym dowiedzieć.
     Węższa odpowiedź byłaby osobnym uprawnieniem, a nie cichszym route'em.
+
+### Agent systemowy to ustawienie organizacji { #system-agents }
+
+[Agent systemowy](concepts.md#system-agents) - sędzia, generator przypadków,
+autor szkiców albo klasyfikator luk, asystent poprawiania - ocenia, szkicuje
+albo proponuje dla wszystkich, którzy korzystają z tego, czemu służy. Dlatego
+jego zmiana wymaga `org:settings` oprócz `agents:edit` albo `agents:publish` na
+wierszu: draft, import YAML, publikacja, przywrócenie wersji, archiwizacja,
+usunięcie, jego środowiska. Inaczej Builder sięgałby do agentów utworzonych
+przez platformę przez ich widoczność w całej organizacji. Odczyt, uruchamianie
+i tworzenie zostają przy zwykłych uprawnieniach; sędzia, którego Builder tworzy
+dla datasetu, jest od razu publikowany, a późniejsze zmiany wymagają
+administratora.
+
+Sprawdzenie jest w `AgentRegistryService.get`, więc pilnuje go każda ścieżka
+zapisu, a `can_edit`/`can_publish` są fałszywe dla kogoś bez tego uprawnienia.
 
 ## Delegacja nie jest granicą uprawnień { #delegation-is-not-a-privilege-boundary }
 

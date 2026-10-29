@@ -13,9 +13,10 @@ import type {
   AgentRunList,
   ApprovalList,
   CostSummary,
-  RunStatus,
   ResumedRun,
   RunManifest,
+  RunSource,
+  RunStatus,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -62,6 +63,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Conversations, an agent answering evals, or a platform agent's own work. */
+    source?: RunSource;
     /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
     modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
@@ -93,6 +96,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    source,
     modality,
     modelLabel,
     userId,
@@ -111,6 +115,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      source,
       modality,
       modelLabel,
       userId,
@@ -135,6 +140,7 @@ export function useRuns(
       if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (source) params.source = source;
       if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;

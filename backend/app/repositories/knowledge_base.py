@@ -1,6 +1,7 @@
 """Knowledge Base repository (PostgreSQL async)."""
 
 from collections.abc import Sequence
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -41,6 +42,21 @@ async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, Knowle
         return {}
     result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(ids)))
     return {kb.id: kb for kb in result.scalars()}
+
+
+async def get_in_organization(
+    db: AsyncSession, ids: Sequence[UUID], *, organization_id: UUID
+) -> list[KnowledgeBase]:
+    """The collections among `ids` that belong to this organization, in the order given."""
+    if not ids:
+        return []
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.id.in_(ids), KnowledgeBase.organization_id == organization_id
+        )
+    )
+    found = {kb.id: kb for kb in result.scalars()}
+    return [found[kb_id] for kb_id in ids if kb_id in found]
 
 
 async def get_accessible(
@@ -118,6 +134,8 @@ async def create(
     collection_name: str,
     scope: str,
     ingestion_config: dict[str, object],
+    gap_drafter_agent_id: UUID | None = None,
+    gap_classifier_agent_id: UUID | None = None,
     embedding_model: str,
     embedding_dim: int,
     embedding_provider: str,
@@ -149,6 +167,8 @@ async def create(
         organization_id=organization_id,
         is_default=is_default,
         ingestion_config=ingestion_config,
+        gap_drafter_agent_id=gap_drafter_agent_id,
+        gap_classifier_agent_id=gap_classifier_agent_id,
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
         embedding_provider=embedding_provider,
@@ -168,6 +188,8 @@ async def update(
     *,
     db_kb: KnowledgeBase,
     name: str | None = None,
+    system_agents: dict[Literal["gap_drafter_agent_id", "gap_classifier_agent_id"], UUID | None]
+    | None = None,
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
     embedding_provider: str | None = None,
@@ -182,6 +204,8 @@ async def update(
     alone": a collection is never left without the one its provider needs,
     because there is nothing deployment-wide to fall back to.
     """
+    for field, selected in (system_agents or {}).items():
+        setattr(db_kb, field, selected)
     if name is not None:
         db_kb.name = name
     if description is not None:

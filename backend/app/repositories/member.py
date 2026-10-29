@@ -523,3 +523,23 @@ async def update_role(
 async def delete(db: AsyncSession, member: OrganizationMember) -> None:
     await db.delete(member)
     await db.flush()
+
+
+async def get_names_for_users(
+    db: AsyncSession, *, organization_id: UUID, user_ids: list[UUID]
+) -> dict[UUID, str]:
+    """Resolve reviewer display names only while they remain members of this tenant."""
+    if not user_ids:
+        return {}
+    rows = await db.execute(
+        select(
+            OrganizationMember.user_id,
+            func.coalesce(func.nullif(func.trim(User.full_name), ""), User.email),
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id.in_(user_ids),
+        )
+    )
+    return dict(rows.all())

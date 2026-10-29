@@ -1,5 +1,5 @@
 ---
-source_sha: "aaecb17bca0b"
+source_sha: "2c6dbdb89849"
 ---
 
 # Skille { #skills }
@@ -165,7 +165,9 @@ inny agent, wewnątrz rozmowy, której nikt nie przegląda, a kolejny czytelnik 
 miałby jak odróżnić przemyślanego ulepszenia od zahalucynowanego.
 
 Dlatego zapis staje się **propozycją** i pojawia się nad listą na stronie Skills
-każdemu, kto ma `skills:edit`:
+temu, kto może edytować ten skill - jego właścicielowi albo komuś z grantem edycji
+na nim - a dla skilla, którego jeszcze nie ma, każdemu, kto może tworzyć skille.
+Nikt inny jej nie widzi:
 
 - **Apply** przepisuje skilla i podbija jego wersję, która dociera do każdego
   podpiętego agenta przy jego następnym runie.
@@ -195,6 +197,25 @@ ostrzeżeniem; oryginalne pliki pozostają bez zmian. Zapis propozycji używa
 savepointu, więc odrzucona propozycja nie wycofa tury ani nie zablokuje zapisania
 jej statusu i kosztu.
 
+
+Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
+którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply
+ją odrzuca, jeśli ktoś w międzyczasie zmienił skill, więc edycja zrobiona, gdy
+zmiana czekała, nie zostaje nadpisana. Porównaj obie wersje i popraw skill
+ręcznie albo poproś jeszcze raz.
+
+[Asystent tworzenia](authoring.md#skills) proponuje zmiany skilli w ten sam
+sposób, razem z uzasadnieniem i runami, na których się opiera, a Apply odrzuca
+je tak samo.
+
+Każda zmiana mówi, obok **Apply**, opublikowane wersje których agentów czytają
+skill, które suity evali ustawi w kolejce jej zastosowanie i którzy strażnicy
+sprawdzą ją dopiero przy następnej promocji, a pierwsze jest
+**Check with evals**. Zastosowanie powiadamia właścicieli tych agentów. Decyzja
+wskazuje wersję zmiany, którą przeczytałeś: zmiana przepisana od tego czasu -
+przez późniejszą turę albo nową prośbę - jest odrzucana z komunikatem „The
+proposal changed since you opened it”, a z dwóch decyzji podjętych naraz liczy
+się tylko jedna.
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
@@ -383,3 +404,13 @@ wywracać run. Agent jest mniej zdolny, nie zepsuty.
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
   życzenie — w odróżnieniu od dołączonej trójki, która przychodzi sama.
+
+### Propozycja nowego skilla { #proposing-a-new-skill }
+
+Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje w co najmniej trzech różnych odpowiedziach stanowiących materiał źródłowy. Każdy cytat musi występować w samej odpowiedzi; komentarze czytelników nie dowodzą powtarzającej się procedury. Karta pokazuje nazwę, opis, pełną treść, uzasadnienie i zweryfikowane cytaty. Ewaluacja przypina tymczasowy skill tylko do kandydata: nie tworzy rekordu skilla ani opublikowanej wersji.
+
+**Accept** tworzy prywatny skill i przypina go do draftu agenta w jednej transakcji. Wymaga `skills:edit` oraz edycji agenta. Bez uprawnienia tworzenia można czytać i sprawdzać propozycję, ale wyłączone Accept wyjaśnia powód. **Dismiss** niczego nie tworzy. **Undo** usuwa przypięcie i zachowuje niezależny skill; kolejna akceptacja wykorzystuje go ponownie tylko wtedy, gdy nazwa i treść nadal pasują. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Dodatkowy dostęp wymaga osobnych propozycji sprawdzanych przez politykę, z zatwierdzaniem narzędzi zapisujących.
+
+Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Pojawia się z pełną treścią na liście **pomysły czekają na Twoją decyzję**. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
+
+Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.

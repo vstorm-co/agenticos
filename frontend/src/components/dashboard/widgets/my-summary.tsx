@@ -26,12 +26,12 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function MySummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-summary");
+  const locale = useLocale();
   const { usage, isLoading, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
     { scope: "own" },
   );
 
-  const locale = useLocale();
   const labels = timelineOf(usage).map(bucketLabeller(usage, locale));
 
   return (
@@ -80,12 +80,12 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
             value={
               <AnimatedAmount
                 value={usage?.cost?.period_usd}
-                label={t("spentLabel", { amount: formatUsd(usage?.cost?.period_usd) })}
+                label={t("spentLabel", { amount: formatUsd(usage?.cost?.period_usd, locale) })}
               />
             }
             spark={timelineOf(usage).map((step) => Number(step.cost_usd))}
             sparkLabels={labels}
-            sparkFormat={formatUsd}
+            sparkFormat={(value) => formatUsd(value, locale)}
           />
         </div>
       )}

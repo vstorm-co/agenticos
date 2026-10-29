@@ -21,6 +21,7 @@ import { ErrorState } from "@/components/states";
 import {
   InviteLinkDialog,
   InviteMemberDialog,
+  OrgAiAssistance,
   OrgApprovalWaiver,
   OrgAssistant,
   OrgProactivity,
@@ -127,7 +128,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     {
       id: "governance",
       label: "tabGovernance",
-      visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide),
+      visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide) || canSettings,
     },
     {
       id: "proactivity",
@@ -654,6 +655,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         >
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
+          {org && <OrgAiAssistance org={org} />}
         </TabsContent>
         <TabsContent
           value="proactivity"

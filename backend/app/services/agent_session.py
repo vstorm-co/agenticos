@@ -585,6 +585,14 @@ class AgentSession:
         if "conversation_id" in data and data["conversation_id"] is None:
             self.current_conversation_id = None
         try:
+            async with get_db_context() as db:
+                await ChatAgentRunner(db).refuse_system_agent(
+                    user=self.user, organization_id=self.organization_id, agent_id=agent_id
+                )
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
+        try:
             prompt = await persist_user_turn(
                 self.user,
                 user_message,

@@ -57,6 +57,7 @@ vi.mock("@/hooks", async () => {
         name: "Support",
         status: "draft",
         has_avatar: false,
+        can_edit: true,
         draft_spec: {
           name: "Support",
           instructions: "Be helpful.",
@@ -90,6 +91,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: [] }),
     useAllAgentVersions: () => ({ versions: [] }),
+    useDraftBase: () => ({ base: undefined }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
@@ -120,6 +122,11 @@ vi.mock("@/hooks", async () => {
   };
 });
 
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useDraftEvalRuns: () => ({ runs: [] }),
+  useEvalArmSpec: () => ({ spec: undefined }),
+  useRunsADataset: () => false,
+}));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
@@ -136,6 +143,7 @@ vi.mock("@/stores", () => ({
 // lives; mounted here they only make the page slower and this spec's failures
 // harder to read.
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));

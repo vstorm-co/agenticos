@@ -17,7 +17,7 @@ from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.locks import LockScope, hold_subject_shared
-from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -104,6 +104,17 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def lock(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Agent | None:
+    """The agent locked until the transaction ends, its draft read afresh."""
+    result = await db.execute(
+        select(Agent)
+        .where(Agent.id == agent_id, Agent.organization_id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
     """A published agent its organization chose to serve over A2A, whatever the tenant.
 
@@ -133,6 +144,14 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def get_system(db: AsyncSession, *, organization_id: UUID, key: str) -> Agent | None:
+    """The organization's seeded agent registered under `key`, if it has one."""
+    result = await db.execute(
+        select(Agent).where(Agent.organization_id == organization_id, Agent.system_key == key)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_slugs(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     """Every agent slug in this organization.
 
@@ -152,13 +171,18 @@ def _visible_clauses(
     shared_ids: list[UUID],
     shared_with_me: bool,
     include_archived: bool,
+    kind: AgentKind,
 ) -> list[ColumnElement[bool]]:
     """The rows a member may list, before any discovery filter narrows them.
 
     Shared by `list_visible` and `list_visible_labels` so the filter's choices
-    can never be drawn from a wider set than the listing they filter.
+    can never be drawn from a wider set than the listing they filter. `kind`
+    keeps one kind of agent: the ones people use, or the judges.
     """
-    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    where: list[ColumnElement[bool]] = [
+        Agent.organization_id == organization_id,
+        Agent.kind == kind.value,
+    ]
     if not include_archived:
         where.append(Agent.status != AgentStatus.ARCHIVED.value)
     if shared_with_me:
@@ -192,6 +216,7 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    kind: AgentKind = AgentKind.AGENT,
     categories: Sequence[str] = (),
     tags: Sequence[str] = (),
     skip: int = 0,
@@ -224,6 +249,7 @@ async def list_visible(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
     )
     # Guard on the (already-normalized) list being non-empty: a blank param that
     # normalized to `[]` upstream must apply no predicate rather than match `{}`.
@@ -249,6 +275,7 @@ async def list_visible_labels(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    kind: AgentKind = AgentKind.AGENT,
 ) -> tuple[list[str], list[str]]:
     """Every distinct category and tag on the agents this member may list.
 
@@ -265,6 +292,7 @@ async def list_visible_labels(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        kind=kind,
     )
 
     async def distinct(column: InstrumentedAttribute[list[str]]) -> list[str]:
@@ -708,6 +736,36 @@ async def newest_version(
     return result.scalar_one_or_none()
 
 
+async def get_version_by_number(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version == number,
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def version_before(
+    db: AsyncSession, *, agent_id: UUID, number: int, organization_id: UUID
+) -> AgentVersion | None:
+    """The highest-numbered version below `number` - what a version is measured against."""
+    result = await db.execute(
+        select(AgentVersion)
+        .where(
+            AgentVersion.agent_id == agent_id,
+            AgentVersion.version < number,
+            AgentVersion.organization_id == organization_id,
+        )
+        .order_by(AgentVersion.version.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> int:
     """How many agents this organization holds, archived ones excluded.
 
@@ -858,3 +916,84 @@ async def binding_resources(
         )
     ).all()
     return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])
+
+
+async def system_agent_uses(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID
+) -> list[str]:
+    """What still runs, or is set to run, on this system agent - as a person reads it.
+
+    A dataset grading with it as its judge, a knowledge base drafting or sorting its
+    gaps with it, and any request, generation, session or eval it is busy with.
+    Empty when nothing would break without it.
+    """
+    from app.db.models.authoring import AuthoringRequest, AuthoringStatus
+    from app.db.models.case_generation import CaseGeneration, GenerationStatus
+    from app.db.models.dataset import Dataset
+    from app.db.models.eval_run import EvalRun, EvalRunStatus
+    from app.db.models.improvement import ACTIVE_STATUSES, ImprovementRun
+    from app.db.models.knowledge_base import KnowledgeBase
+
+    named = str(agent_id)
+    datasets = await db.scalars(
+        select(Dataset.name)
+        .where(
+            Dataset.organization_id == organization_id,
+            Dataset.scoring["judge"]["agent_id"].astext == named,
+        )
+        .order_by(Dataset.name)
+    )
+    bases = await db.scalars(
+        select(KnowledgeBase.name)
+        .where(
+            KnowledgeBase.organization_id == organization_id,
+            or_(
+                KnowledgeBase.gap_drafter_agent_id == agent_id,
+                KnowledgeBase.gap_classifier_agent_id == agent_id,
+            ),
+        )
+        .order_by(KnowledgeBase.name)
+    )
+    uses = [f"the dataset '{name}'" for name in datasets] + [
+        f"the knowledge base '{name}'" for name in bases
+    ]
+    busy = (
+        (
+            select(AuthoringRequest.id).where(
+                AuthoringRequest.organization_id == organization_id,
+                AuthoringRequest.improver_agent_id == agent_id,
+                AuthoringRequest.status.in_(
+                    [AuthoringStatus.QUEUED.value, AuthoringStatus.RUNNING.value]
+                ),
+            ),
+            "a running authoring request",
+        ),
+        (
+            select(CaseGeneration.id).where(
+                CaseGeneration.organization_id == organization_id,
+                CaseGeneration.generator_agent_id == agent_id,
+                CaseGeneration.status == GenerationStatus.RUNNING.value,
+            ),
+            "a running case generation",
+        ),
+        (
+            select(ImprovementRun.id).where(
+                ImprovementRun.organization_id == organization_id,
+                ImprovementRun.improver_agent_id == agent_id,
+                ImprovementRun.status.in_([status.value for status in ACTIVE_STATUSES]),
+            ),
+            "a running improvement session",
+        ),
+        (
+            select(EvalRun.id).where(
+                EvalRun.organization_id == organization_id,
+                EvalRun.scoring["judge"]["agent_id"].astext == named,
+                EvalRun.status.in_([EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value]),
+            ),
+            "a running eval",
+        ),
+    )
+    for statement, what in busy:
+        if await db.scalar(statement.limit(1)) is not None:
+            uses.append(what)
+    return uses

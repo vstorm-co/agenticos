@@ -39,6 +39,7 @@ from app.services.rag.models import (
     SearchResult,
     VectorDocumentId,
 )
+from app.services.rag.overlay import active_overlay
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,8 @@ def _document_is_unaddressed(doc: DocumentInfo) -> bool:
 
 
 class BaseVectorStore(ABC):
+    supports_knowledge_overlay = False
+
     @abstractmethod
     async def _ensure_collection(self, name: str) -> None:
         """Create the collection's backing objects if they do not already exist.
@@ -514,6 +517,21 @@ def _retrieval_conjuncts(query_filter: RetrievalQuery) -> tuple[list[str], dict[
     return conjuncts, params
 
 
+def embedder_for(collection_name: str, resolved: ResolvedEmbeddings) -> EmbeddingService:
+    """An embedder on one collection's model, provider and credential."""
+    return EmbeddingService(
+        settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
+        api_key=resolved.api_key,
+        expected_dim=resolved.dim,
+        # So a resolution that ended on an empty key says which key it tried, for
+        # which collection, instead of advising an operator to set a variable they
+        # may already have set.
+        key_origin=resolved.describe(collection_name),
+        base_url=resolved.base_url,
+        keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
+    )
+
+
 class PgVectorStore(BaseVectorStore):
     """PostgreSQL + pgvector implementation.
 
@@ -536,6 +554,8 @@ class PgVectorStore(BaseVectorStore):
     loop. Across jobs an engine is not shared, so its pool is bounded by the job
     that opened it.
     """
+
+    supports_knowledge_overlay = True
 
     def __init__(
         self,
@@ -605,23 +625,12 @@ class PgVectorStore(BaseVectorStore):
         resolved = await self._resolver(name, organization_id)
         if resolved is None:
             return self.embedder, self.dim
+        # A collection moved to another provider must not be answered by a client
+        # built for the old one, so the provider is part of the key.
         cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
         service = self._services.get(cache_key)
         if service is None:
-            service = EmbeddingService(
-                settings=RAGSettings(embeddings_config=EmbeddingsConfig(model=resolved.model)),
-                api_key=resolved.api_key,
-                expected_dim=resolved.dim,
-                # So a resolution that ended on an empty key says which key it
-                # tried, for which collection, instead of advising an operator
-                # to set a variable they may already have set.
-                key_origin=resolved.describe(name),
-                # The collection's provider. In the cache key beside the model and
-                # the key, because moving a collection to another provider must
-                # not be answered by a client already built for the old one.
-                base_url=resolved.base_url,
-                keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
-            )
+            service = embedder_for(name, resolved)
             self._services[cache_key] = service
         return service, resolved.dim
 
@@ -853,25 +862,82 @@ class PgVectorStore(BaseVectorStore):
         organizations does not embed on another tenant's key (#913).
         """
         table = self._table(collection_name)
-        if not await self._collection_exists(collection_name):
+        overlay = active_overlay()
+        documents = () if overlay is None else overlay.matching(collection_name, query_filter)
+        exists = await self._collection_exists(collection_name)
+        if not exists and not documents:
             return []
         embedder, dim = await self._for_collection(collection_name, query_filter.organization_id)
-        query_vector = await run_blocking_settled(embedder.embed_query, query)
+        overlay_params: dict[str, str] = {}
+        if documents:
+            if any(
+                (doc.embedding_model is not None and doc.embedding_model != embedder.provider.model)
+                or (doc.embedding_dim is not None and doc.embedding_dim != dim)
+                for doc in documents
+            ):
+                assert overlay is not None
+                overlay.failed = True
+                raise ValueError(
+                    "The embedding model changed since the knowledge check was confirmed"
+                )
+            vectors = await run_blocking_settled(
+                embedder.embed_queries, [query, *(doc.content for doc in documents)]
+            )
+            if len(vectors) != len(documents) + 1 or any(len(vector) != dim for vector in vectors):
+                assert overlay is not None
+                overlay.failed = True
+                raise ValueError("The knowledge overlay's embedding dimensions do not match")
+            query_vector = vectors[0]
+        else:
+            query_vector = await run_blocking_settled(embedder.embed_query, query)
 
         conjuncts, filter_params = _retrieval_conjuncts(query_filter)
         where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
         query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
-        params: dict[str, Any] = {"query_vec": str(query_vector), "limit": limit, **filter_params}
+        params: dict[str, Any] = {
+            "query_vec": str(query_vector),
+            "limit": limit,
+            **filter_params,
+        }
 
         distance = self._distance_expr(dim)
+        if documents:
+            physical_table = table
+            candidates = []
+            if exists:
+                candidates.append(
+                    f"(SELECT content, parent_doc_id, metadata, embedding, NULL::uuid AS overlay_token FROM {physical_table} {where_clause} ORDER BY {distance} <=> {query_expr} LIMIT :limit)"
+                )
+            for index, (doc, vector) in enumerate(zip(documents, vectors[1:], strict=True)):
+                candidates.append(
+                    f"SELECT :overlay_content_{index} AS content, NULL::varchar AS parent_doc_id, CAST(:overlay_metadata_{index} AS jsonb) AS metadata, CAST(:overlay_vector_{index} AS vector({dim})) AS embedding, CAST(:overlay_token_{index} AS uuid) AS overlay_token"
+                )
+                overlay_params.update(
+                    {
+                        f"overlay_content_{index}": doc.content,
+                        f"overlay_metadata_{index}": json.dumps(
+                            {
+                                "organization_id": str(doc.organization_id),
+                                "filename": doc.title,
+                                "source": "upload",
+                                "document_type": "md",
+                                "chunk_num": 0,
+                            }
+                        ),
+                        f"overlay_vector_{index}": str(vector),
+                        f"overlay_token_{index}": str(doc.token),
+                    }
+                )
+            table = "(" + " UNION ALL ".join(candidates) + ") AS overlay_candidates"
+            params.update(overlay_params)
         async with self.async_session() as session:
             await self._apply_search_tuning(session)
             result = await session.execute(
                 text(f"""
                     SELECT content, parent_doc_id, metadata,
-                           1 - ({distance} <=> {query_expr}) AS score
+                           1 - ({distance} <=> {query_expr}) AS score{", overlay_token" if documents else ""}
                     FROM {table}
                     {where_clause}
                     ORDER BY {distance} <=> {query_expr}
@@ -884,8 +950,10 @@ class PgVectorStore(BaseVectorStore):
             SearchResult(
                 content=row[0],
                 score=float(row[3]),
+                similarity=float(row[3]),
                 metadata=row[2] if isinstance(row[2], dict) else json.loads(row[2]),
                 parent_doc_id=row[1],
+                overlay_token=row[4] if documents else None,
             )
             for row in rows
         ]

@@ -156,6 +156,19 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # Off is enforced by the service that would start each model-backed run, not
+    # by the client; deterministic checks and people's verdicts stay available.
+    ai_assistance_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # What new judges grade on. Unset, a new judge takes a model that costs more
+    # than the agent's it grades, so the grader is not the weaker of the two.
+    grading_model_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("model_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # A pair from the speech-to-text catalog, both or neither, and the default an
     # agent or a channel bot inherits (#1797). Whether `/chat` dictation uses it
     # is each agent's switch; without one the browser transcribes.

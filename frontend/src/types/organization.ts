@@ -109,6 +109,18 @@ export interface Organization {
    */
   chat_may_waive_approvals: boolean;
   /**
+   * Whether models may assist evals and authoring here - the eval judge, the case
+   * generator, the authoring assistant. Off, the backend refuses those runs;
+   * deterministic checks and a person's verdicts stay available.
+   */
+  ai_assistance_enabled: boolean;
+  /**
+   * The model profile new judges grade on, one of the organization's chat models.
+   * Null picks one per agent: a model that costs more than the agent's it grades.
+   * Judges that already exist keep their model either way.
+   */
+  grading_model_profile_id?: string | null;
+  /**
    * A provider from the speech-to-text catalog: the default agents and channel
    * bots inherit when they transcribe with a provider.
    */

@@ -55,6 +55,9 @@ export const ROUTES = {
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
   CONTEXT: "/context",
+  DATASETS: "/datasets",
+  EVALS: "/evals",
+  DATASET_DETAIL: (id: string) => `/datasets/${id}`,
   PROJECTS: "/projects",
   PROJECT_DETAIL: (id: string) => `/projects/${id}`,
   /** A new chat in a project, starting with its default agent. */

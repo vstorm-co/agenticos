@@ -1,5 +1,5 @@
 ---
-source_sha: "5538880e71c7"
+source_sha: "5767ea2be981"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -216,3 +216,14 @@ Assertions lesen.
 
 [Das Backend →](architecture.md) · [Ein Feature hinzufügen →](adding_features.md) ·
 [Testen →](testing.md)
+
+
+## Tests in der Konsole { #evals-in-the-console }
+
+Tests verwenden `PageHeader`, `ListCard`, Dialoggrößen, Registerkarten und `WizardSteps` der Konsole. Datenänderungen aktualisieren registrierte Abfragen über `/ws/events`; menschliche Bewertungen aktualisieren auch Prüfungssuiten, Verbesserungssitzungen und Umgebungsschutz. Ein Lesefehler bietet einen erneuten Versuch statt einer leeren Erfolgsansicht. Schmale Ansichten behalten 16-px-Formularfelder und Platz für den Architekten.
+
+Datasets behalten eigene Freigaben und Ressourcenrechte. Sie werden von mehreren Agenten und Abteilungen verwendet; daher wird ihre Abteilung nicht aus einem testenden Agenten abgeleitet. Bewertungsagenten bleiben typisierte Agenten mit Freigaben und Gruppen des Agentenkatalogs. Die Zuordnung erfolgt im Test-Tab des Agenten und im Bewertungs-Tab des Datasets; eine zweite konkurrierende Beziehung zum Hinzufügen entsteht nicht.
+
+Der Architekt erhält in diesem Meilenstein keine neue Capability zum Schreiben von Datasets. Fragen werden durch eine ausdrücklich geschätzte, berechtigungsgeprüfte Aktion im Verbesserungsablauf erstellt; der Eckassistent kann diese kostenpflichtige Arbeit nicht still starten. Seine Schaltfläche bleibt neben den Testansichten erreichbar.
+
+`e2e/improvement.mobile.spec.ts` durchläuft echte API und Hintergrundworker. Geprüft werden Dataset-Fälle, Falleditor, Bewertung, Durchsicht, Testergebnis, Verbesserungsassistent und bestätigte Veröffentlichung mit Umgebungsschutz. Nur das externe Modell ist eine Testattrappe. GitHub Actions bewahrt Screenshots beider Farbschemata in Telefon- und Desktopbreite zur Sichtprüfung auf.

@@ -1,5 +1,5 @@
 ---
-source_sha: "957a4208f188"
+source_sha: "c75bda4ec41d"
 ---
 
 # Dodaj zadanie w tle { #add-a-background-task }
@@ -50,6 +50,7 @@ Pulę wybierz według tego, co zadanie zużywa:
 | Pula | Do czego | Jak się wykonuje |
 |---|---|---|
 | `agent` | Runy agentów i odpalenia triggerów: długie, czekają na modele | W pętli workera, `WORKER_AGENT_CONCURRENCY` naraz |
+| `eval` | Eval runy: godziny na datasecie, każdy trzyma swój slot przez cały czas | W pętli workera, `WORKER_EVAL_CONCURRENCY` naraz |
 | `ingest` | Parsowanie i embeddingi: dużo CPU i pamięci | Jedno zadanie na proces potomny, w limicie `WORKER_INGEST_MEMORY_MB` |
 | `system` | Sprzątanie, porządki, raporty: krótkie | W pętli workera, `WORKER_SYSTEM_CONCURRENCY` naraz |
 

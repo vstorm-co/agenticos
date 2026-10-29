@@ -96,15 +96,8 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the thirty togglable pairs the backend produces", () => {
+  it("offers every togglable pair the backend produces", () => {
     render(<NotificationsSettingsPage />);
-
-    // run_completed, run_failed, artifact_version_published, resource_shared,
-    // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
-    // ingestion_failed, announcement, suggestion, finding and capability_requested
-    // each offer both channels (13*2 = 26); budget_exceeded, approval_requested,
-    // usage_report and agent_usage_report offer only in-app (4*1 = 4). 26 + 4 =
-    // 30, plus the three legacy email switches above = 33 on the page total.
     expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
     expect(
@@ -126,6 +119,15 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "MCP server answering again - In-app" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "An eval suite failed - Email" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "A promotion went past its evals - Email" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "A change went live for your agent - Email" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Suggestions for you - Email" })).toBeInTheDocument();
     expect(
       screen.getByRole("switch", { name: "A capability asked for - In-app" }),
@@ -133,7 +135,7 @@ describe("the notifications settings page", () => {
     expect(
       screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("switch")).toHaveLength(33);
+    expect(screen.getAllByRole("switch")).toHaveLength(47);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {
@@ -257,5 +259,18 @@ describe("the notifications settings page", () => {
     ]) {
       expect(screen.queryByText(absent)).toBeNull();
     }
+  });
+  it("offers both channels for improvement completion and reviewed suite verdicts", async () => {
+    setPreference.mockResolvedValue(undefined);
+    render(<NotificationsSettingsPage />);
+    expect(
+      screen.getByRole("switch", { name: "Improvement session finished - Email" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Suite result re-evaluated - In-app" }),
+    );
+    await waitFor(() =>
+      expect(setPreference).toHaveBeenCalledWith("eval_suite_reevaluated", "in_app", false),
+    );
   });
 });

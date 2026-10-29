@@ -1,5 +1,5 @@
 ---
-source_sha: "512a23d1b175"
+source_sha: "55bd73acc7da"
 ---
 
 # Governance { #governance }
@@ -150,6 +150,17 @@ petición sí acota. Es la razón de que el tope sea un techo sobre el gasto
 
 Un deployment que necesite un tope estricto ejecuta sus agents por una sola cola en
 vez de en paralelo.
+
+### Los evals gastan de los mismos budgets { #evals-spend-from-the-same-budgets }
+
+Un [eval run](evals.md) está hecho de runs normales, así que cada caso se
+comprueba contra los límites del agent y de la organización antes de cada
+petición al modelo, y lo que gasta cuenta contra ambos: no hay un budget aparte
+para evals. Un dataset grande puede por tanto agotar el budget del mes que
+necesita el tráfico de producción. Iniciar un run muestra lo que conserva cada
+límite una vez gastada su estimación, y se rechaza antes de que nada se ejecute
+cuando la estimación supera lo que queda en cualquiera de los dos; consulta
+[El budget que deja](evals.md#the-budget-it-leaves).
 
 ### Un run cuesta más que sus peticiones al modelo { #a-run-costs-more-than-its-model-requests }
 
@@ -1442,6 +1453,10 @@ Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
 las aprobaciones y apagar su correo, o al revés.
 
+
+
+Un run `eval` es uno de los muchos que la evaluación comunica juntos; no envía una notificación individual de finalización o fallo.
+
 La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
 desatendido - el final de una rutina con su nombre y el comienzo de su
@@ -1650,6 +1665,77 @@ que ningún informe, porque los dos números parecen autoritativos.
 
 El envío nunca bloquea y nunca lanza hacia quien llama: un run que ya ha terminado no
 debe fallar otra vez porque SMTP estuviera caído.
+
+## Asistencia de IA { #ai-assistance }
+
+Un interruptor, en la pestaña **Budget and approvals** de la página de la organización,
+decide si los modelos asisten en las evals y la autoría de la organización: el
+juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), el
+redactor que escribe el contenido que le falta a una [laguna de
+conocimiento](knowledge-gaps.md#drafting-the-missing-content), y el generador de
+casos y el asistente de autoría que vienen después. Está desactivado por
+defecto, tanto en una organización que existía antes del interruptor como en una
+nueva: si los modelos califican y redactan es una decisión de la organización, y
+lo activa quien tenga `org:settings`. Cada cambio queda registrado en el
+[registro de auditoría](#audit) como `organization.ai_assistance`, con quién lo
+hizo.
+
+Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
+cual sea el cliente que lo pida: un control oculto no es la frontera. La
+puntuación sigue ejecutando sus comprobaciones basadas en reglas y la
+comparación de llamadas a herramientas, registra los criterios del juez como
+omitidos con el motivo, y deja sin puntuar, en lugar de aprobado, un caso cuyo
+juez era obligatorio. Los veredictos de las personas siguen disponibles.
+
+**Grading model**, junto al interruptor, es el modelo con el que califican los
+jueces nuevos. Un juez más débil que el agent que califica malinterpreta
+respuestas que el agent acertó, así que, sin ninguno elegido, un juez nuevo toma
+el más barato de los modelos de chat de la organización que cueste más al
+escribir que el del agent (el del borrador o el de la versión publicada, el que
+cueste más) y, sin tal modelo o sin precio que comparar, el primer otro modelo
+de la organización, como hasta ahora. Se aplica a los jueces creados desde
+entonces, como el que recibe el primer conjunto de prueba de un agent; un juez
+existente conserva su modelo, porque una calificación guardada significa lo que
+calificó ese modelo. Cada cambio queda registrado como
+`organization.grading_model`.
+
+Estas funciones se ejecutan como [jueces](concepts.md#system-agents). Cada run
+es un run normal: se comprueba contra el budget mensual propio del juez y el de
+la organización antes de cada llamada al modelo, su coste se registra y aparece
+en Activity bajo la superficie `eval`. Un juez empieza con un budget propio
+($5 al mes), que se puede cambiar como el de cualquier agent.
+
+El [asistente de autoría](authoring.md) es un agent de sistema de la misma
+manera, con su propio budget de $5. En el dashboard, lo que cuesta aparece
+aparte de los evals, como gastado en mejoras. Lo mismo ocurre con lo que cuestan
+el clasificador y el redactor de [lagunas de conocimiento](knowledge-gaps.md):
+completan lo que le falta a una base de conocimiento en lugar de medir un agent.
+El juez y el generador de casos siguen con los evals.
+
+Un juez nunca se expone: no se le puede conectar un canal, un
+embed, una página pública ni una programación, ningún agent puede delegar en
+él, y un run suyo en cualquier superficie que no sea `eval` se rechaza. Su gasto
+solo lo inician las funciones descritas arriba.
+
+## Excepciones de promoción { #promotion-overrides }
+
+Un entorno [guardado por suites de evals](environments.md#guarding-a-promotion-with-evals)
+acepta una versión solo cuando pasan en ella. Promocionar por encima de ellas es
+una **excepción**: necesita `promotions:override` - lo tienen owners y admins, y
+se puede dar a un rol propio - de una persona que ha iniciado sesión como ella
+misma, no de una clave de API ni de un administrador que la suplanta, y un
+motivo de al menos diez caracteres. Se registra en la
+[auditoría](#audit) como `agent.environment_promotion_overridden`, con el motivo
+y el resultado de cada guardiana, se muestra en la versión del historial y se
+envía al propietario de cada guardiana que no pasó.
+
+Cambiar qué suites guardan un entorno, mover la fijación de una guardiana o
+debilitar lo que comprueba una guardiana necesita el mismo permiso; cada uno de
+estos cambios, y un umbral más estricto, se registra como
+`agent.environment_guards_changed`. Un cambio en la puntuación de un dataset se
+registra como `dataset.scoring_changed`, con los nombres de las partes que
+cambiaron en lugar de su contenido, y la creación de su juez como
+`dataset.judge_created`.
 
 ## Auditoría { #audit }
 
@@ -1912,6 +1998,8 @@ Vale la pena decirlo, porque una página de governance da a entender lo contrari
   colega, y el de otro tenant se lee como ausente.
 - **El silencio significa algo.** Una alerta que no llegó significa que la cosa no
   ocurrió, lo cual solo es cierto porque aquí nada es de mejor esfuerzo.
+- **Una promoción por encima de sus evals es una excepción**, con un motivo, un
+  permiso propio y un registro en la versión.
 
 ## Referencias { #reference }
 

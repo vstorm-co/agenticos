@@ -1,5 +1,5 @@
 ---
-source_sha: "512a23d1b175"
+source_sha: "55bd73acc7da"
 ---
 
 # Governance { #governance }
@@ -158,6 +158,17 @@ der Anfrage sehr wohl begrenzt. Deshalb ist das Cap eine Obergrenze auf
 
 Ein Deployment, das ein striktes Cap braucht, lässt seine Agents durch eine
 einzige Queue laufen statt parallel.
+
+### Evals zahlen aus denselben Budgets { #evals-spend-from-the-same-budgets }
+
+Ein [Eval-Run](evals.md) besteht aus gewöhnlichen Runs. Jeder Fall wird daher
+vor jeder Modellanfrage gegen die Limits des Agents und der Organisation
+geprüft, und was er ausgibt, zählt gegen beide - ein eigenes Eval-Budget gibt
+es nicht. Ein großes Dataset kann deshalb das Monatsbudget aufbrauchen, das der
+Produktionsverkehr braucht. Der Start eines Runs zeigt, was jedes Limit nach
+der geschätzten Ausgabe behält, und wird abgelehnt, bevor etwas läuft, wenn die
+Schätzung höher ist als das, was einem der beiden bleibt; siehe
+[Das verbleibende Budget](evals.md#the-budget-it-leaves).
 
 ### Ein Run kostet mehr als seine Modellanfragen { #a-run-costs-more-than-its-model-requests }
 
@@ -549,10 +560,10 @@ Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
 Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
 festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
 Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
-Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
+Proaktivität**. Aktivität zeigt das Symbol und den Filter **Proaktiv**, die
 Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
 Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
-behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
+behalten den vor dem Fehler verfügbaren Austausch. Wie andere Einträge der Aktivität
 erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
 aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
 Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
@@ -629,7 +640,7 @@ zeigt, was *dieser Agent* getan hat, die Arbeit seiner Delegates eingeschlossen:
 | Frage | Antwort |
 |---|---|
 | `GET /runs` | Runs, die jemand gestartet hat. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in Activity, denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in **Aktivität** (Activity), denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
 | `GET /runs?parent_run_id=<id>` | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations` |
 | `GET /runs/<id>` | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet |
 | `GET /runs/<id>/transcript` | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten) |
@@ -704,7 +715,7 @@ steckengebliebener Parent, und diese Karte beantwortet „warum wird mein Agent
 nicht fertig"; heute ändert das nichts, denn eine Delegation wird bereits fertig
 in die Datenbank geschrieben und parkt daher nie.
 
-Die letzten beiden sind `?run=<id>` auf der Activity-Seite: ein Run, die
+Die letzten beiden sind `?run=<id>` auf der Seite **Aktivität** (Activity): ein Run, die
 Delegationen darunter jeweils mit der Task-Id abgezeichnet, die ihre
 `subagent_*`-Frames trugen, und ein Link hinauf zu dem Run, dem eine Delegation
 berechnet wurde. Ein Delegationspanel in einem Chat verlinkt mit der `run_id`
@@ -863,7 +874,7 @@ Angriffsfläche für Injection.
 
 **Jeder Einzelne davon reist in der URL**, und das ist es, was eine
 Dashboard-Karte an ihre eigenen Zeilen übergeben lässt:
-`/runs?surface=mattermost&period=30d` öffnet Activity mit der bereits gesetzten
+`/runs?surface=mattermost&period=30d` öffnet **Aktivität** (Activity) mit der bereits gesetzten
 Facette und einer Zählung, die zu der Karte passt, die verlinkt hat. Bis #768
 waren sie lokaler State, sodass die p95-Zahl die einzige Zahl auf dem Dashboard
 war, die die Runs dahinter erreichen konnte, und drei Karten überhaupt keinen
@@ -905,7 +916,7 @@ leichteste in der Organisation.
 Wie lange ein *noch laufender* Run schon läuft, ist eine andere Frage, und keine
 dieser Ordnungen beantwortet sie.
 
-Activity zeigt diese Dauer auf drei Wegen, und alle drei führen zu derselben
+**Aktivität** (Activity) zeigt diese Dauer auf drei Wegen, und alle drei führen zu derselben
 Abfrage:
 
 - Die Spaltenüberschrift **Took** ist ein Sortier-Bedienelement — wie die
@@ -955,7 +966,7 @@ Scope-Regel und dasselbe Fenster-Vokabular wie `GET /stats/usage` (siehe
 [Berechtigungen](permissions.md)). Nur Zählungen — die Kommentare bleiben hinter
 dem Run-Detail oben.
 
-Die drei Zahlen in Activity über den Tabs bleiben die der Organisation,
+Die drei Zahlen in **Aktivität** (Activity) über den Tabs bleiben die der Organisation,
 einschließlich der Run-Zählung, auch wenn die Tabelle darunter auf einen Agent
 eingeengt ist. Eine Zählung je Agent neben dem Monat der Organisation wären zwei
 Fragen unter einem Etikett — und die Zählung je Agent ist diejenige, die
@@ -1040,7 +1051,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
   Tab ohnehin zeigt. Die Run-Tabelle zeigt eine `user_id` und keinen Namen, also
   liefert der Run-Export allein die Id — eine CSV, wer was ausgeführt hat, mit
   aufgelösten Namen, ist die Tabelle je Person, die Entscheidung 3 des
-  Activity-Designs abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
+  Designs für **Aktivität** (Activity) abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
   die auslösenden und entscheidenden E-Mail-Adressen auf dem Bildschirm bereits
   auf, also behält der Freigabe-Export sie.
 - **Audit.** Jeder Export schreibt einen `audit_log`-Eintrag — ein privilegierter
@@ -1258,7 +1269,7 @@ Vier Eigenschaften, die man kennen sollte:
   `APPROVAL_EXPIRY_HOURS` überschreitet**, und der Run dahinter wird beendet statt
   für immer geparkt zu bleiben. Der Status ist `expired` mit einem
   `decided_by_user_id` von null, und das ist es, was in der Verantwortungsspur
-  einen Ablauf von einer Zurückweisung unterscheidet. Die Activity-Seite zeigt
+  einen Ablauf von einer Zurückweisung unterscheidet. Die Seite **Aktivität** (Activity) zeigt
   weiterhin das **Alter** der ältesten Wartezeit, denn eine Queue innerhalb ihres
   Ablauffensters ist die, auf der jemand noch handeln kann.
 - **`required` funktioniert auf jeder Capability**, nicht nur auf
@@ -1422,7 +1433,7 @@ Der andere Zustand, den nichts im Prozess je auflösen wird.
 Die Zeile eines Runs wird als `running` committet, bevor sein Modell aufgerufen
 wird ([#12][12-issue]), sodass ein Worker, der mitten im Run getötet wird — OOM,
 ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nichts
-mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
+mehr zu Ende bringt: für immer in **Aktivität** (Activity), und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
 Während sein Modell arbeitet, stempelt der Prozess, der einen Run ausführt, ihn
@@ -1554,6 +1565,10 @@ Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt.
 
 Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
+
+
+Ein `eval`-Run ist einer von vielen gemeinsam gemeldeten Runs einer Evaluation; er sendet keine einzelne Abschluss- oder Fehlermeldung.
+
 unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
 benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
 hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, Vorschläge,
@@ -1662,7 +1677,7 @@ Id sich nicht mehr auflöst.
 ### Ein Alert verlinkt dorthin, wo die Entscheidung ist { #an-alert-links-to-where-the-decision-is }
 
 **Freigabe-Post öffnet die Queue** — `/runs?tab=approvals`, den Approvals-Tab von
-Activity, die einzige Oberfläche, die Approve und Reject trägt. Früher öffnete sie
+**Aktivität** (Activity), die einzige Oberfläche, die Approve und Reject trägt. Früher öffnete sie
 `/agents/{id}`, den Builder: ein Satz Prosa darüber, dass Tool-Aufrufe eine Queue
 erreichen, und keine Queue. Also landete die eine E-Mail, deren ganzer Zweck
 *jemand muss jetzt entscheiden* ist, eine Suche von der Entscheidung entfernt,
@@ -1684,7 +1699,7 @@ Publikum für einen geparkten Aufruf schließt ein, wer den Run gestartet hat, u
 ein Builder, der seinen eigenen Agent aus dem Chat startet, ist der gewöhnliche
 Initiator — der Alert erreichte also regelmäßig jemanden, den die Plattform
 ablehnen würde. Sie bekamen **„waiting on your approval"** mit einer Schaltfläche
-**Review the request**, folgten ihr, und Activity zeichnete überhaupt keinen
+**Review the request**, folgten ihr, und **Aktivität** (Activity) zeichnete überhaupt keinen
 Approvals-Tab: Die Ablehnung kam als abwesender Tab an statt als Satz.
 
 Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitten:
@@ -1770,6 +1785,79 @@ beide Zahlen sehen maßgeblich aus.
 
 Das Senden blockiert nie und löst nie in den Aufrufer hinein aus: Ein Run, der
 bereits geendet hat, darf nicht noch einmal scheitern, weil SMTP ausgefallen war.
+
+## KI-Unterstützung { #ai-assistance }
+
+Ein Schalter auf dem Tab **Budget und Freigaben** der Organisationsseite
+entscheidet, ob Modelle die Evals und das Authoring der Organisation
+unterstützen: den Eval-Judge, der [Dataset-Scores](datasets.md#judge) bewertet,
+den Entwerfer, der den Inhalt schreibt, der einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und den
+Fall-Generator und den Authoring-Assistenten, die nach ihnen kommen. Er ist
+standardmäßig aus, für eine Organisation, die es vor dem Schalter gab, wie für
+eine neue: Ob Modelle bewerten und entwerfen, entscheidet die Organisation, und
+wer `org:settings` hat, schaltet ihn ein. Jede Änderung wird im
+[Audit-Trail](#audit) als `organization.ai_assistance` festgehalten, mit dem,
+der sie vorgenommen hat.
+
+Ist er aus, lehnt der Service, der einen solchen Run starten würde, ihn ab,
+gleich welcher Client fragt - ein ausgeblendetes Bedienelement ist nicht die
+Grenze. Das Scoring führt weiterhin seine regelbasierten Prüfungen und den
+Abgleich der Tool-Aufrufe aus, hält die Kriterien des Judge mit der Begründung
+als übersprungen fest und lässt einen Fall, dessen Judge erforderlich war,
+unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
+
+**Bewertungsmodell**, neben dem Schalter, ist das Modell, mit dem neue Bewerter
+bewerten. Ein Bewerter, der schwächer ist als der Agent, den er bewertet, liest
+Antworten falsch, die der Agent richtig hatte. Ist keines gewählt, nimmt ein
+neuer Bewerter daher das günstigste Chat-Modell der Organisation, das beim
+Schreiben mehr kostet als das des Agents - des Entwurfs oder der
+veröffentlichten Version, je nachdem, welches mehr kostet -, und ohne ein
+solches Modell oder ohne Preis zum Vergleich wie bisher das erste andere Modell
+der Organisation. Es gilt für Bewerter, die ab dann angelegt werden, etwa den des
+ersten Testsets eines Agents; ein bestehender Bewerter behält sein Modell, da
+eine gespeicherte Bewertung meint, was dieses Modell bewertet hat. Jede Änderung
+wird als `organization.grading_model` festgehalten.
+
+Diese Funktionen laufen als [Bewerter](concepts.md#system-agents). Jeder Run
+ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
+Monatsbudget des Bewerters und das der Organisation geprüft, seine Kosten werden
+aufgezeichnet, und er wird in **Aktivität** (Activity) unter der Oberfläche `eval` aufgeführt.
+Ein Bewerter startet mit einem eigenen Budget - 5 $ im Monat -, das sich wie das
+jedes Agents ändern lässt.
+
+Der [Authoring-Assistent](authoring.md) ist auf dieselbe Weise ein System-Agent,
+mit einem eigenen Budget von 5 $. Auf dem Dashboard wird, was er kostet, getrennt
+von den Evals ausgewiesen, als Ausgabe für Verbesserungen. Ebenso, was der
+Klassifizierer und der Entwerfer für [Wissenslücken](knowledge-gaps.md) kosten:
+Sie füllen, was einer Wissensbasis fehlt, statt einen Agent zu messen. Der Judge
+und der Fall-Generator bleiben bei den Evals.
+
+Ein Bewerter wird nie bereitgestellt: Kein Kanal, kein Embed, keine
+öffentliche Seite und kein Zeitplan lassen sich an ihn hängen, kein Agent kann
+an ihn delegieren, und ein Run auf einer anderen Oberfläche als `eval` wird
+abgelehnt. Seine Ausgaben entstehen daher nur durch die Funktionen oben.
+
+## Übergangene Promotionen { #promotion-overrides }
+
+Eine Umgebung, die von [Eval-Suites bewacht](environments.md#guarding-a-promotion-with-evals)
+wird, übernimmt eine Version erst, wenn sie auf ihr bestehen. An ihnen vorbei zu
+promoten ist ein **Übergehen**: Es braucht `promotions:override` - Owner und
+Admins haben es, und eine eigene Rolle kann es bekommen - von einer Person, die
+als sie selbst angemeldet ist, nicht von einem API-Schlüssel oder einem
+Administrator, der sie imitiert, und eine Begründung von mindestens zehn
+Zeichen. Es wird im [Audit-Trail](#audit) als
+`agent.environment_promotion_overridden` verzeichnet, mit der Begründung und
+dem Ergebnis jedes Wächters, an der Version in der Historie gezeigt und an den
+Eigentümer jedes nicht bestandenen Wächters geschickt.
+
+Zu ändern, welche Suites eine Umgebung bewachen, die Festlegung eines Wächters
+zu verschieben oder abzuschwächen, was ein Wächter prüft, braucht dieselbe
+Berechtigung; jede dieser Änderungen, und eine strengere Schwelle, wird als
+`agent.environment_guards_changed` verzeichnet. Eine Änderung an der Bewertung
+eines Datasets wird als `dataset.scoring_changed` verzeichnet, mit den Namen
+der geänderten Teile statt ihrem Inhalt, das Anlegen seines Judges als
+`dataset.judge_created`.
 
 ## Audit { #audit }
 
@@ -2051,6 +2139,8 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 - **Stille bedeutet etwas.** Ein Alert, der nicht ankam, heißt, dass die Sache
   nicht passiert ist, und das stimmt nur, weil hier nichts nach bestem Bemühen
   läuft.
+- **Eine Promotion an ihren Evals vorbei ist ein Übergehen**, mit Begründung,
+  eigener Berechtigung und einem Eintrag an der Version.
 
 ## Referenz { #reference }
 

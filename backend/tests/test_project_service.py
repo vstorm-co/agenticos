@@ -296,6 +296,9 @@ class TestCreatingAndChanging:
             patch.object(
                 module.project_repo, "ownerless_chat_ids", AsyncMock(return_value=[orphan])
             ),
+            patch.object(
+                module.personal_data_repo, "unlink_dataset_cases_from_conversation", AsyncMock()
+            ) as unlinked,
             patch.object(module.ConversationService, "forget_stored_files", AsyncMock()) as forgot,
             patch.object(module.project_repo, "detach_conversations", AsyncMock()) as detached,
             patch.object(module.resource_grant_repo, "delete_for_resource", AsyncMock()) as grants,
@@ -306,6 +309,7 @@ class TestCreatingAndChanging:
         service.workspaces.purge_project.assert_awaited_once()
         # The chats deleted with it take their files: nothing else would unlink them.
         assert forgot.await_args.args[1] == [orphan]
+        assert unlinked.await_args.args[1] == orphan
         detached.assert_awaited_once()
         assert grants.await_args.kwargs["resource_type"] == "project"
         deleted.assert_awaited_once()

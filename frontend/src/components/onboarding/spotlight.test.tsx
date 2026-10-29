@@ -62,6 +62,40 @@ describe("activateTab", () => {
   });
 });
 
+describe("activateTab on a tab the tour has lit", () => {
+  it("still presses a tab driver.js marked as opening its caption", () => {
+    render(
+      <Tabs defaultValue="cases">
+        <TabsList>
+          <TabsTrigger value="cases">Cases</TabsTrigger>
+          <TabsTrigger value="grading">Grading</TabsTrigger>
+        </TabsList>
+        <TabsContent value="cases">cases-panel</TabsContent>
+        <TabsContent value="grading">grading-panel</TabsContent>
+      </Tabs>,
+    );
+    const grading = screen.getByRole("tab", { name: "Grading" });
+    // What driver.js sets on the element it highlights.
+    grading.setAttribute("aria-haspopup", "dialog");
+
+    act(() => activateTab(grading));
+    expect(screen.getByText("grading-panel")).toBeInTheDocument();
+  });
+});
+
+describe("activateTab on a plain button", () => {
+  it("clicks a wizard's step, which listens for nothing else", () => {
+    const onClick = vi.fn();
+    render(
+      <button type="button" onClick={onClick}>
+        Result
+      </button>,
+    );
+    act(() => activateTab(screen.getByRole("button", { name: "Result" })));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("spotlightPath", () => {
   it("cuts a hole into a full-viewport rectangle", () => {
     const d = spotlightPath(1000, 800, 100, 100, 200, 50, 12);

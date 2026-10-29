@@ -11,8 +11,17 @@ import type { ChangeEvent, ChangeResource } from "@/types/change-events";
  * tab is the audience another tab is showing.
  */
 const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
-  // The Architect's bubble says whether there is an agent yet.
-  agent: (orgId) => [qk.agents.all(), qk.sharing.all(), qk.runs.assistantSignals(orgId)],
+  // An agent's environments live under it too: one moved by its eval suites
+  // passing is announced as a change to the agent. The Architect's bubble says
+  // whether there is an agent yet.
+  agent: (orgId) => [
+    qk.agents.all(),
+    qk.improvements.all(),
+    qk.authoring.all(),
+    qk.sharing.all(),
+    qk.environments.all(),
+    qk.runs.assistantSignals(orgId),
+  ],
   skill: () => [qk.skills.all(), qk.sharing.all()],
   context: () => [qk.context.all(), qk.sharing.all()],
   knowledge_base: () => [qk.kb.all(), qk.sharing.all()],
@@ -39,6 +48,22 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
   run: () => [qk.runs.all(), qk.conversations.list()],
+  // A suite's result names the eval run behind it, so the runs move with it.
+  eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
+  eval_run: () => [qk.evalRuns.all(), qk.datasets.all(), qk.improvements.all()],
+  // A dataset's cases, versions, grading, scores and drafts all live under it.
+  dataset: () => [
+    qk.datasets.all(),
+    qk.evalRuns.all(),
+    qk.evalSuites.all(),
+    qk.improvements.all(),
+    qk.environments.all(),
+    qk.sharing.all(),
+  ],
+  // A topic dismissed or drafted, or a grouping pass that placed new questions.
+  knowledge_gap: () => [qk.knowledgeGaps.all(), qk.improvements.all()],
+  // An improvement session moved on: its timeline, the proposal it wrote and the checks it ran.
+  improvement: () => [qk.improvements.all(), qk.authoring.all(), qk.evalRuns.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {

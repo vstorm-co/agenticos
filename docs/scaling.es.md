@@ -1,5 +1,5 @@
 ---
-source_sha: "4d597d189a74"
+source_sha: "25d309992393"
 ---
 
 # Escalar más allá de un host { #scale-beyond-one-host }
@@ -148,7 +148,7 @@ Por qué la cola son filas en Postgres, medida frente a otros nueve motores, se
 explica en [el benchmark de jobs en segundo plano](task-queue-benchmark.md).
 
 Separa los pools cuando el análisis de documentos compite con las ejecuciones
-de agentes. `WORKER_POOLS=agent,system` en un grupo de procesos y
+de agentes. `WORKER_POOLS=agent,eval,system` en un grupo de procesos y
 `WORKER_POOLS=ingest` en hosts con memoria de sobra evitan que una subida
 grande retrase una rutina. La sonda de salud y `agenticos cmd doctor` avisan de
 un pool que ningún worker vivo atiende. Los ajustes de

@@ -11,7 +11,7 @@ import { activateTab, pulse, waitForElement } from "@/components/onboarding/spot
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import { visibleTourSteps } from "@/lib/onboarding/tour";
+import { stepsForPage, visibleTourSteps } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import { Perm, type Permission } from "@/types/permissions";
 import type { DriveStep } from "driver.js";
@@ -113,6 +113,9 @@ function servePermissions(permissions: readonly string[]) {
         total: 1,
       });
     }
+    if (path.startsWith("/datasets?")) {
+      return Promise.resolve({ items: [{ id: "dataset-1", name: "Refunds" }], total: 1 });
+    }
     return Promise.resolve({
       organization_id: "org-1",
       role: "member",
@@ -137,7 +140,14 @@ function shownStep(): DriveStep {
 beforeEach(() => {
   vi.clearAllMocks();
   nav.pathname = "/dashboard";
-  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
+  useOnboardingStore.setState({
+    isOpen: false,
+    index: 0,
+    mode: "tour",
+    flowId: null,
+    offer: null,
+    systemAgentPage: false,
+  });
   useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: false });
 });
 
@@ -297,6 +307,24 @@ describe("OnboardingTour", () => {
     expect(useOnboardingStore.getState().offer).toBe("create-skill");
   });
 
+  it.each([
+    [false, "test-change"],
+    [true, null],
+  ])(
+    "on an agent's page where it is a system agent's: %s, ends a '?' walk offering %s",
+    async (systemAgentPage, offered) => {
+      // Nobody tests a change to a system agent against a dataset.
+      servePermissions(OWNER);
+      nav.pathname = "/agents/agent-1";
+      useOnboardingStore.setState({ isOpen: true, index: 99, mode: "page", systemAgentPage });
+      render(<OnboardingTour />, { wrapper });
+      await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+      act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+      expect(useOnboardingStore.getState().offer).toBe(offered);
+    },
+  );
+
   it("a '?' walk closed early makes no create offer", async () => {
     // Leaving is not finishing, so an early close asks nothing.
     servePermissions(OWNER);
@@ -323,6 +351,36 @@ describe("OnboardingTour", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["/agents/agent-1/improve/session-1", "Steps"],
+    ["/agents/agent-1/improve/new", "Improve"],
+    ["/agents/agent-1/evals/run-1", "The verdict"],
+  ])("walks the '?' on %s where it was opened, never to its page id", async (path, title) => {
+    servePermissions(OWNER);
+    nav.pathname = path;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    expect(shownStep().popover?.title).toBe(title);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("describes a session's stop where the reader is once they have left it", async () => {
+    servePermissions(OWNER);
+    nav.pathname = "/agents/agent-1/improve/session-1";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    const view = render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+    spotlight.highlight.mockClear();
+
+    nav.pathname = "/agents/agent-1";
+    view.rerender(<OnboardingTour />);
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+    expect(shownStep().element).toBeUndefined();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it("asks for the detail lists only when the walk has somewhere to open", async () => {
     // Three list queries stand behind the detail stops. The vault section has no
     // detail view, so a "?" there used to fetch agents, collections and
@@ -337,6 +395,7 @@ describe("OnboardingTour", () => {
     expect(asked).not.toContain("/agents");
     expect(asked).not.toContain("/kb");
     expect(asked).not.toContain("/orgs");
+    expect(asked.some((path) => path.startsWith("/datasets?"))).toBe(false);
   });
 
   it("asks for them on a walk that does step into a detail view", async () => {
@@ -400,6 +459,69 @@ describe("OnboardingTour's light", () => {
     expect(activateTab).not.toHaveBeenCalled();
   });
 
+  it("skips an absent optional stop at once on a page that has finished loading", async () => {
+    // Seven optional settings stops live on the other settings pages; each waited
+    // its turn, and the caption of the stop before them sat unchanged meanwhile.
+    const now = vi.spyOn(performance, "now").mockReturnValue(1_000);
+    const tabs = document.createElement("div");
+    tabs.dataset.tour = "settings-tabs";
+    serveElements(tabs);
+    servePermissions(OWNER);
+    nav.pathname = "/settings/profile";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(light.focus).toHaveBeenCalledWith(tabs));
+    expect(vi.mocked(waitForElement).mock.calls.at(-1)?.[2]).toBeUndefined();
+
+    now.mockReturnValue(9_000);
+    act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
+    await waitFor(() =>
+      expect(vi.mocked(waitForElement)).toHaveBeenCalledWith(
+        '[data-tour="settings-appearance"]',
+        expect.any(AbortSignal),
+        0,
+      ),
+    );
+    now.mockRestore();
+  });
+
+  it("leaves an open popover open rather than pressing its trigger shut", async () => {
+    const trigger = tab("chat-settings", "inactive");
+    trigger.setAttribute("data-state", "open");
+    const target = document.createElement("div");
+    target.dataset.tour = "chat-approval-mode";
+    serveElements(trigger, target);
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.CHAT;
+    const steps = stepsForPage(ROUTES.CHAT, () => true);
+    useOnboardingStore.setState({
+      isOpen: true,
+      index: steps.findIndex((step) => step.id === "chat-approval-mode"),
+      mode: "page",
+    });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
+    expect(activateTab).not.toHaveBeenCalled();
+  });
+
+  it("goes straight to the target when the wizard is already on its step", async () => {
+    const step = document.createElement("li");
+    step.setAttribute("aria-current", "step");
+    const button = step.appendChild(document.createElement("button"));
+    button.dataset.tour = "improvement-step-understand";
+    const target = document.createElement("div");
+    target.dataset.tour = "improvement-evidence";
+    serveElements(button, target);
+    servePermissions(OWNER);
+    nav.pathname = "/agents/agent-1/improve/session-1";
+    useOnboardingStore.setState({ isOpen: true, index: 1, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(light.focus).toHaveBeenCalledWith(target));
+    expect(activateTab).not.toHaveBeenCalled();
+  });
+
   it("presses a closed tab only once the light has arrived on it", async () => {
     const trigger = tab("agent-tab-build", "inactive");
     const target = document.createElement("div");
@@ -429,6 +551,38 @@ describe("OnboardingTour's light", () => {
     await waitFor(() => expect(activateTab).toHaveBeenCalledWith(trigger));
     expect(pulse).toHaveBeenCalledWith(trigger, expect.any(AbortSignal), expect.any(Number));
     await waitFor(() => expect(light.focus).toHaveBeenLastCalledWith(target));
+  });
+
+  it("keeps Back and Next live while a tab is pressed and its section never shows", async () => {
+    // The dataset's Grading stop sat for its whole wait with both buttons greyed.
+    const trigger = tab("agent-tab-build", "inactive");
+    serveElements(trigger);
+    openBuilderHelp();
+    useOnboardingStore.setState({ index: 1 });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(activateTab).toHaveBeenCalledWith(trigger));
+    await waitFor(() => expect(shownStep().element).toBeUndefined());
+    for (const [step] of spotlight.highlight.mock.calls as [DriveStep][]) {
+      expect(step.popover?.disableButtons).toBeUndefined();
+    }
+  });
+
+  it("steps once for a held arrow, not once for every repeat", async () => {
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.AGENTS;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(spotlight.highlight).toHaveBeenCalled());
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", repeat: true }));
+    });
+    expect(useOnboardingStore.getState().index).toBe(0);
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    });
+    expect(useOnboardingStore.getState().index).toBe(1);
   });
 
   it("presses the sidebar link that leads to another page, then goes there", async () => {

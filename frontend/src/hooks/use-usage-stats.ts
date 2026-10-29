@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import { qk } from "@/lib/query-keys";
-import type { RatingsSummary, UsageScope, UsageStats } from "@/types/stats";
+import type { AgentAttentionList, RatingsSummary, UsageScope, UsageStats } from "@/types/stats";
 
 /** An inclusive ISO date window, as GET /stats/usage takes it. */
 export interface UsagePeriod {
@@ -177,4 +177,22 @@ export function useRatingsSummary(
     ...DASHBOARD_FRESHNESS,
   });
   return { ratings: data ?? null, isLoading, error, refetch };
+}
+
+/**
+ * The agents the caller may see that need a look in a window: answers rated
+ * down, own runs failed, eval suites failing. Counts only, and `runs:view`
+ * like every organization-wide figure.
+ */
+export function useAgentAttention(period: UsagePeriod, { enabled = true } = {}) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: qk.stats.attention(period.from, period.to),
+    queryFn: () =>
+      apiClient.get<AgentAttentionList>("/stats/attention", {
+        params: { from: period.from, to: period.to },
+      }),
+    enabled,
+    ...DASHBOARD_FRESHNESS,
+  });
+  return { agents: data?.items ?? [], isLoading, error, refetch };
 }

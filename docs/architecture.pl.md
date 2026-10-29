@@ -1,5 +1,5 @@
 ---
-source_sha: "4cea402448d3"
+source_sha: "a05025c94a31"
 ---
 
 # Architektura { #architecture }
@@ -245,7 +245,7 @@ Rozmowa trzyma swój socket do pięćdziesięciu minut, więc commituje tam, gdz
   zostanie wywołany. Wiersze zatwierdzeń, heartbeat i sprzątanie rozmów
   głosowych potrzebują tych wierszy czytelnych z innych sesji; odmowa przed tym
   punktem wycofuje wszystko, więc odrzucona rozmowa nie zostawia niczego
-  w Activity.
+  w **Aktywności** (Activity).
 - Każda zapisana tura, każdy 15-sekundowy heartbeat i każdy zapis zatwierdzenia
   otwiera własną sesję `get_db_context()` i tam commituje, nigdy na wspólnej
   sesji runu — tura jest trwała w chwili, gdy zostanie wypowiedziana, a awaria
@@ -564,6 +564,13 @@ zepsute odwołania, przy których nie ma czego oznaczyć. Odpowiada więc
 `details.problems` — po wierszu na każdy, które Builder wypisuje — oraz
 `details.fields` dla tego podzbioru, który pole nazywa.
 
+Gdy część z nich da się usunąć jednym kliknięciem, odpowiada też `details.fixes`,
+listą kodów: `use_state_workspace` przenosi workspace na przechowywany backend
+`state`, który nie potrzebuje połączenia z sandboxem, a `stop_sharing_unbound`
+usuwa z `share_with_delegates` to, czego agent nie może udostępnić. Builder
+pokazuje przycisk dla każdego znanego kodu i pomija resztę. Poprawka zapisuje
+wersję roboczą i waliduje ją ponownie; nigdy nie publikuje.
+
 Konfiguracja capability to jedyna część speca renderowana jako generowany
 formularz, więc jej odmowy nazywają pole:
 `capabilities.knowledge.config.default_top_k`, z `specialists.researcher.`
@@ -816,7 +823,7 @@ Cztery konsekwencje, które warto znać:
 **Nie ma już sposobu, by przeczytać rozmowę w poprzek tenantów.** Wartownik, który
 kiedyś to zapisywał (`UNSCOPED`), miał dokładnie jednego wywołującego,
 `/admin/conversations/{id}`, i oba odeszły razem z przeglądarką rozmów
-obejmującą cały deployment — Activity odpowiada na „co się stało” kosztem,
+obejmującą cały deployment — Aktywność odpowiada na „co się stało” kosztem,
 modelem, trace'em i tym, co obok podano modelowi, a to jest pytanie, do którego
 tamten ekran był używany. To, co z niego zostało, to
 `GET /admin/conversations?user_id=`: wątki jednego wskazanego konta, wypisywane

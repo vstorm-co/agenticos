@@ -28,6 +28,7 @@ export type SharingResourceType =
   | "context"
   | "secret"
   | "artifact"
+  | "dataset"
   | "mcp_connection"
   | "project";
 

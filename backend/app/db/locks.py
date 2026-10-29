@@ -17,13 +17,14 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
-from enum import IntEnum
+from enum import IntEnum, unique
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
+@unique
 class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
@@ -78,6 +79,23 @@ class LockScope(IntEnum):
     #: takes this *shared*, so they never wait for each other; the delete takes it
     #: exclusive, so it waits for those in flight and they wait for it.
     MODEL_PROFILE_REFERENCES = 14
+    #: One case's place in its dataset's review queue: a send reads which score
+    #: waits, then queues or replaces it, and two at once must not both read none.
+    REVIEW_PER_CASE = 15
+    #: How many eval cases one organization runs at once: two workers counting
+    #: together would otherwise both start one past the limit.
+    EVAL_CASES_PER_ORGANIZATION = 16
+    #: One knowledge base's grouping pass: it reads the misses no topic holds
+    #: and then places them, so two passes at once would put a question in two
+    #: topics.
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 17
+    #: One knowledge base's check of its answers: two at once would pay twice for
+    #: the same answers. Session-scoped, since a check spans many runs.
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 18
+    #: How many case revisions one organization's datasets store. Each edit
+    #: locks its own dataset only, so two edits of two datasets would both read
+    #: the count under the ceiling and together go past it.
+    DATASET_REVISIONS_PER_ORGANIZATION = 19
 
 
 def _key(subject: UUID) -> int:
@@ -106,6 +124,21 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     await db.execute(
         select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
     )
+
+
+async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> bool:
+    """Take the lock for one subject if it is free, until this transaction ends.
+
+    :func:`hold_subject` for a caller already holding row locks the other side
+    waits on after taking this lock: waiting here could close that cycle. True
+    means this transaction holds it; False means another one does right now.
+    """
+    result = await db.execute(
+        select(
+            func.pg_try_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer))
+        )
+    )
+    return bool(result.scalar_one())
 
 
 async def hold_subject_shared(db: AsyncSession, scope: LockScope, subject: UUID) -> None:

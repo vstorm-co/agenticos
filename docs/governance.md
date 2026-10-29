@@ -141,6 +141,16 @@ simultaneous runs.
 A deployment that needs a strict cap runs its agents through one queue rather than
 in parallel.
 
+### Evals spend from the same budgets { #evals-spend-from-the-same-budgets }
+
+An [eval run](evals.md) is made of ordinary runs, so every case is checked
+against the agent's and the organization's caps before each model request, and
+what it spends counts against both - there is no separate eval budget. A large
+dataset can therefore use up the month's budget that production traffic needs.
+Starting a run shows what each cap keeps once it has spent its estimate, and is
+refused before anything runs when the estimate is more than either has left;
+see [The budget it leaves](evals.md#the-budget-it-leaves).
+
 ### A run costs more than its model requests
 
 A knowledge search embeds the question before it can search it, and that embedding
@@ -1352,6 +1362,8 @@ Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round.
 
+An `eval` run is one of many reported together by the eval; it sends no individual completion or failure notification.
+
 The same page also carries every other
 event the inbox delivers: a run finishing or failing unattended - a routine's
 finish named after the routine and opening with the start of its answer, told to
@@ -1547,6 +1559,70 @@ than no report, because both numbers look authoritative.
 
 Sending never blocks and never raises into the caller: a run that has already
 ended must not fail again because SMTP was down.
+
+## AI assistance { #ai-assistance }
+
+One switch, on the organization page's **Budget and approvals** tab, decides whether
+models assist the organization's evals and authoring: the eval judge that
+grades [dataset scores](datasets.md#judge), the drafter that writes the content
+a [knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing,
+and the case generator and authoring assistant that come after them. It is off
+by default, for an organization that existed before the switch as for a new one:
+whether models judge and draft is the organization's decision, and whoever holds
+`org:settings` turns it on. Each change is recorded in the [audit trail](#audit)
+as `organization.ai_assistance`, with who made it.
+
+When it is off, the service that would start such a run refuses it, whichever
+client asks - a hidden control is not the boundary. Scoring still runs its
+rule-based checks and tool-call matching, records the judge's criteria as
+skipped with the reason, and leaves a case whose judge was required unscored
+rather than passed. People's verdicts stay available.
+
+**Grading model**, beside the switch, is the model new judges grade on. A
+judge weaker than the agent it grades misreads answers the agent got right, so
+with none chosen, a new judge takes the cheapest of the organization's chat
+models that costs more to write with than the agent's - the draft's or the
+published version's, whichever costs more - and, with no such model or no
+price to compare, the organization's first other model, as before. It applies
+to judges created from then on, such as the one an agent's first test set
+gets; an existing judge keeps its model, since a stored grade means what that
+model graded. Each change is recorded as `organization.grading_model`.
+
+These features run as [judges](concepts.md#system-agents). Each run is an
+ordinary run: it is budget-checked against the judge's own monthly budget and
+the organization's before every model call, its cost is recorded, and it is
+listed in Activity under the `eval` surface. A judge starts with a budget of its
+own - $5 a month - which can be changed like any agent's.
+
+The [authoring assistant](authoring.md) is a system agent in the same way, with
+its own $5 budget. On the dashboard, what it costs is named apart from evals, as
+spent on improvements. So is what the [knowledge gap](knowledge-gaps.md)
+classifier and drafter cost: they fill what a knowledge base lacks rather than
+measure an agent. The judge and the case generator stay with evals.
+
+A judge is never exposed: no channel, embed, public page or schedule can be
+attached to it, no agent can delegate to it, and a run of it on any surface but
+`eval` is refused. Its spend therefore stays the platform's own, started only by
+the features above.
+
+## Promotion overrides { #promotion-overrides }
+
+An environment [guarded by eval suites](environments.md#guarding-a-promotion-with-evals)
+takes a version only once they pass on it. Promoting past them is an
+**override**: it needs `promotions:override` - held by owners and admins, and
+grantable to a custom role - from a person signed in as themselves, not an API
+key or an administrator impersonating them, and a reason of at least ten
+characters. It is recorded in the [audit trail](#audit) as
+`agent.environment_promotion_overridden`, with the reason and each guard's
+result, shown on the version in the history, and sent to the owner of each
+guard that had not passed.
+
+Changing which suites guard an environment, moving
+a guard's pin or weakening what a guarding suite checks needs the same
+permission; each, and a stricter threshold, is recorded as
+`agent.environment_guards_changed`. Changing a dataset's grading is recorded as
+`dataset.scoring_changed`, naming the parts that changed rather than their
+contents, and creating a dataset's judge as `dataset.judge_created`.
 
 ## Audit
 
@@ -1804,6 +1880,8 @@ Worth stating, because a governance page implies otherwise:
   and another tenant's reads as absent.
 - **Silence is meaningful.** An alert that did not arrive means the thing did not
   happen, which is only true because nothing is best-effort here.
+- **A promotion past its evals is an override**, with a reason, a permission of
+  its own and a record on the version.
 
 ## Reference
 

@@ -36,6 +36,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.isolation import RunIsolation
 from app.agents.manifest import RecordedRequest, RunRecorder
 from app.agents.spec import (
     AgentSpec,
@@ -53,9 +54,10 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.voice import VoiceOptions
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, SystemAgentRestrictedError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
+from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import RunStatus
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
@@ -167,7 +169,7 @@ def _agent_row(
     `name` is assigned rather than passed to the constructor, where `MagicMock`
     would take it as the mock's own name and leave the attribute unset.
     """
-    row = MagicMock(id=agent_id, slug=slug, status=status)
+    row = MagicMock(id=agent_id, slug=slug, status=status, system_key=None, kind="agent")
     row.name = slug
     return row
 
@@ -267,6 +269,8 @@ async def _prepare(
     workspace: object | None = None,
     agent_id: uuid.UUID | None = None,
     profiles: list[MagicMock] | None = None,
+    environment_connections: list[AgentEnvironmentConnection] | None = None,
+    isolation: RunIsolation | None = None,
     voice: VoiceRun | None = None,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
@@ -280,10 +284,15 @@ async def _prepare(
     invent specialists. One usable profile by default, because that is the state a
     run is always in: the delegating agent's own model resolved before any of this.
     A profile whose label is `unusable` is one whose key has gone.
+
+    `environment_connections` runs the agent in a named environment holding
+    those overrides; left out, it runs in none.
     """
     ctx = ctx or _ctx()
     service = AgentRunnerService(_db())
-    agent = MagicMock(id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(
+        id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
     run = MagicMock(
         id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
@@ -351,9 +360,20 @@ async def _prepare(
         ) as fetch_version,
         patch(f"{RUNNER}.agent_repo.get", new=AsyncMock(side_effect=get_agent)),
         patch(f"{RUNNER}.agent_run_repo.create_run", new=AsyncMock(return_value=run)),
+        patch(f"{RUNNER}.agent_environment_repo.get", new=AsyncMock(return_value=None)),
+        patch(
+            f"{RUNNER}.agent_environment_repo.list_connections",
+            new=AsyncMock(return_value=environment_connections or []),
+        ),
         patch(f"{RUNNER}.build_agent") as build,
     ):
-        prepared = await service.prepare(ctx, agent.id, voice=voice)
+        prepared = await service.prepare(
+            ctx,
+            agent.id,
+            environment_id=None if environment_connections is None else uuid.uuid4(),
+            isolation=isolation,
+            voice=voice,
+        )
 
     return _Prepared(prepared, build, fetch_version, list_profiles)
 
@@ -777,6 +797,19 @@ class TestAPublishedDelegate:
             "slug": "research-bot",
         }
 
+    async def test_a_delegate_that_became_a_judge_is_refused_at_run_time(self):
+        """A judge is never a delegate, even through a pin published before."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Eval judge"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        judge = _agent_row(delegate_id, slug="eval-judge")
+        judge.kind = "judge"
+
+        with pytest.raises(SystemAgentRestrictedError, match="a delegate"):
+            await _prepare(spec, versions={pinned.id: pinned}, agents={delegate_id: judge})
+
     async def test_a_pin_naming_another_agents_version_is_refused(self):
         """A version id is only meaningful through the agent that owns it - and
         the lookup is tenant-scoped, so the same refusal covers a pin that
@@ -815,6 +848,62 @@ class TestAPublishedDelegate:
             OrgMcpServerRef(connection_id=connection_id)
         ]
         assert built["extra_toolsets"] == ["linear-toolset"]
+
+    async def test_it_answers_with_the_environments_test_connections_too(self):
+        """Staging means the sandbox CRM at every level of the tree: a delegate
+        binding the production CRM must not be the way an eval reaches it."""
+        delegate_id = uuid.uuid4()
+        crm, sandbox, live_key, test_key = (uuid.uuid4() for _ in range(4))
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Linear Bot",
+                mcp_servers=[OrgMcpServerRef(connection_id=crm)],
+                capabilities=[
+                    {"id": "web_research", "config": {"provider": "tavily"}, "secret_id": live_key}
+                ],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        with patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            prepared = await _prepare(
+                spec,
+                versions={pinned.id: pinned},
+                environment_connections=[
+                    AgentEnvironmentConnection(
+                        kind="mcp", production_id=crm, test_connection_id=sandbox
+                    ),
+                    AgentEnvironmentConnection(
+                        kind="secret", production_id=live_key, test_secret_id=test_key
+                    ),
+                ],
+            )
+            built = prepared.built("linear-bot")
+
+        assert toolsets.await_args_list[-1].kwargs["test_connections"] == {crm: sandbox}
+        (binding,) = built["spec"].capabilities
+        assert binding.secret_id == test_key
+        assert built["test_bindings"] == frozenset({"web_research"})
+
+    async def test_an_isolated_runs_delegates_are_isolated_too(self):
+        """An eval holding the parent's writes and not its delegate's would send
+        the e-mail one level down."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Mailer"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        isolation = RunIsolation()
+
+        prepared = await _prepare(spec, versions={pinned.id: pinned}, isolation=isolation)
+
+        assert prepared.built("mailer")["isolation"] is isolation
 
     @pytest.mark.security
     async def test_a_delegates_platform_credential_is_the_runs_own_persons(self):
@@ -1939,7 +2028,11 @@ class TestResumingIntoADelegation:
             patch(f"{RUNNER}.agent_run_repo.mark_running", new=AsyncMock()),
             patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()),
             patch(f"{RUNNER}.agent_repo.get_version", new=AsyncMock(return_value=version)),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry,
+                "get",
+                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+            ),
             patch.object(service.models, "resolve", new=AsyncMock(return_value=MagicMock())),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),

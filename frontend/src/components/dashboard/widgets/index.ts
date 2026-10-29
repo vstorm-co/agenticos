@@ -20,6 +20,9 @@ import { ConversationsWidget } from "./conversations";
 import { BackgroundJobsWidget } from "./background-jobs";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
+import { KnowledgeGapsWidget } from "./knowledge-gaps";
+import { ImprovementsWaitingWidget } from "./improvements-waiting";
+import { NeedsAttentionWidget } from "./needs-attention";
 import { LatencyWidget } from "./latency";
 import { McpHealthWidget } from "./mcp-health";
 import { MembersWidget } from "./members";
@@ -41,6 +44,11 @@ import { SandboxPolicyWidget } from "./sandbox-policy";
 import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { SharedWithYouWidget } from "./shared-with-you";
 import { ArtifactsWidget } from "./artifacts";
+import { DatasetsWidget } from "./datasets";
+import { ReviewQueueWidget } from "./review-queue";
+import { EvalRunsWidget } from "./eval-runs";
+import { EvalSuitesWidget } from "./eval-suites";
+import { AuthoringSuggestionsWidget } from "./authoring-suggestions";
 import { VoiceMinutesWidget } from "./voice-minutes";
 import { ProjectsWidget } from "./projects";
 import { RecentVisualsWidget } from "./recent-visuals";
@@ -61,7 +69,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "activity-rhythm": ActivityRhythmWidget,
   channels: ChannelsWidget,
   routines: RoutinesWidget,
-  suggestions: SuggestionsWidget,
+  "authoring-suggestions": AuthoringSuggestionsWidget,
   knowledge: KnowledgeWidget,
   platform: PlatformWidget,
   health: HealthWidget,
@@ -95,6 +103,14 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "my-quality": MyQualityWidget,
   "shared-with-you": SharedWithYouWidget,
   artifacts: ArtifactsWidget,
+  datasets: DatasetsWidget,
+  "knowledge-gaps": KnowledgeGapsWidget,
+  "needs-attention": NeedsAttentionWidget,
+  "improvements-waiting": ImprovementsWaitingWidget,
+  "review-queue": ReviewQueueWidget,
+  "eval-runs": EvalRunsWidget,
+  "eval-suites": EvalSuitesWidget,
+  suggestions: SuggestionsWidget,
   "voice-minutes": VoiceMinutesWidget,
   projects: ProjectsWidget,
   "recent-visuals": RecentVisualsWidget,
