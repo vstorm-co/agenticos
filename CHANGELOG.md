@@ -188,6 +188,49 @@ environment without a person's decision.
   publishing a fix clears its badge until the new version earns its own. The
   greeting counts everything waiting on the reader, and spend on improvements
   is shown apart from evals.
+
+### Changed
+
+- The agent page's tabs are reordered, with an **Evals** tab that shows results
+  first.
+- A publish refusal offers the one-click fixes it names beside it.
+- Open eval, dataset, suite and improvement pages refresh from live change
+  events instead of polling.
+
+### Fixed
+
+- Price embedding models OpenRouter serves by their bare OpenAI names, so
+  knowledge searches through OpenRouter are no longer booked at $0.
+- Recommend a workspace the organization can publish when creating an agent,
+  and ask again when sandbox connections change.
+- Keep a tour's Back and Next live while a tab or popover opens, skip optional
+  stops missing from the page at once, and offer the page's help on the Improve
+  wizard and an eval run.
+- Show an agent page's controls from the reader's access to that agent,
+  including edit grants, and stop an agent page of another organization from
+  loading forever.
+
+### Security
+
+- Recognised secrets are redacted from dataset cases, eval answers, tool-call
+  evidence and errors before they are stored.
+- A dataset case copied from a conversation shows its text only to readers who
+  may read runs or that conversation; review answers and evidence need
+  `runs:view` and access to the agent.
+- Queued case generation and improvement work runs with the original API key
+  and rechecks its current scopes and membership before each paid step.
+- A system agent never reads anyone's memory, even from a version published
+  with memory before that was refused, and reads only the context files and
+  skills shared with the whole organization. Case generation removes the
+  personal data the detectors find from people's questions and comments before
+  the generator reads them.
+- A suite and a promotion override can be set up only by a person signed in as
+  themselves, not through an API key or impersonation.
+
+## [1.29.0] - 2026-10-29
+
+### Added
+
 - Automatic channel context and conversation guidance across Mattermost, Slack,
   Teams and Telegram: channel details, a bounded member snapshot, deployment
   identity and precise organization versus personal MCP connection instructions.
@@ -210,27 +253,12 @@ environment without a person's decision.
 
 ### Changed
 
-- The agent page's tabs are reordered, with an **Evals** tab that shows results
-  first.
-- A publish refusal offers the one-click fixes it names beside it.
-- Open eval, dataset, suite and improvement pages refresh from live change
-  events instead of polling.
 - All MCP calls in chat apps now require explicit approval, including reads
   through personal, organization and platform connections. Linking an account does not authorize publishing its private results
   into a conversation. This applies to resumed and delegated calls too.
 
 ### Fixed
 
-- Price embedding models OpenRouter serves by their bare OpenAI names, so
-  knowledge searches through OpenRouter are no longer booked at $0.
-- Recommend a workspace the organization can publish when creating an agent,
-  and ask again when sandbox connections change.
-- Keep a tour's Back and Next live while a tab or popover opens, skip optional
-  stops missing from the page at once, and offer the page's help on the Improve
-  wizard and an eval run.
-- Show an agent page's controls from the reader's access to that agent,
-  including edit grants, and stop an agent page of another organization from
-  loading forever.
 - Slack roster entries use native user references without profile fan-out;
   Telegram bot identity refreshes within five minutes after a username change.
   Capped Teams rosters report an unknown count rather than an exact 500.
@@ -250,23 +278,6 @@ environment without a person's decision.
 - Teams generated pictures fit its inline image dimensions and payload limit.
   Unsupported image formats and larger explicit files require personal-chat
   file consent instead of being reported as delivered inline.
-
-### Security
-
-- Recognised secrets are redacted from dataset cases, eval answers, tool-call
-  evidence and errors before they are stored.
-- A dataset case copied from a conversation shows its text only to readers who
-  may read runs or that conversation; review answers and evidence need
-  `runs:view` and access to the agent.
-- Queued case generation and improvement work runs with the original API key
-  and rechecks its current scopes and membership before each paid step.
-- A system agent never reads anyone's memory, even from a version published
-  with memory before that was refused, and reads only the context files and
-  skills shared with the whole organization. Case generation removes the
-  personal data the detectors find from people's questions and comments before
-  the generator reads them.
-- A suite and a promotion override can be set up only by a person signed in as
-  themselves, not through an API key or impersonation.
 
 ## [1.28.1] - 2026-10-28
 
