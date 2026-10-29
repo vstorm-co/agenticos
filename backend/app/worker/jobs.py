@@ -163,6 +163,13 @@ class Restamp(Payload):
     knowledge_base_id: UUID
 
 
+class BasePurge(Payload):
+    """A deleted knowledge base whose collection's table another base keeps (#2537)."""
+
+    collection: str
+    knowledge_base_id: UUID
+
+
 class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
@@ -180,6 +187,12 @@ class CleanupExternalState(Payload):
     whose rows went with the delete that queued this (#2310). Defaulted and left
     out of the dump when empty, as `prefixes` is. A previous-release worker
     refuses a job that carries them; a current one runs it."""
+    base_purges: list[BasePurge] = Field(
+        default_factory=list, exclude_if=lambda base_purges: not base_purges
+    )
+    """Deleted bases whose chunks go from a table that is kept, because another
+    base still holds its name (#2537). Defaulted and left out of the dump when
+    empty, as `prefixes` is."""
 
 
 @dataclass(frozen=True)

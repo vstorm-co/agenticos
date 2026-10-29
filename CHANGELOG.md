@@ -33,7 +33,10 @@ Two things are versioned separately from this file and worth knowing about:
   personal base outside any organization. A sync source writes into the
   organization's oldest base of its collection name, as before; pointing one at
   a collection now needs write access to that base, and adding one to another
-  base of the same name is refused (#2537).
+  base of the same name is refused. Deleting a base whose collection name another
+  base still holds - directly, by an organization purge or by an account deletion -
+  now also removes the chunks filed under it from the shared table, in the same
+  cleanup job that unlinks its files (#2537).
   **Upgrade action:** migration `0179_stamp_rag_rows_by_base` files existing
   chunks under their knowledge base from `rag_documents` and indexes the new key
   on every `rag_<collection>` table. It rewrites every tracked chunk once, all in

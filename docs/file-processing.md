@@ -849,6 +849,12 @@ by the upgrade, matches by its tenant as before - except for a personal base
 outside any organization, whose search and count take none of those
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Deleting a knowledge base whose collection name another base still holds keeps the
+shared table, and the cleanup job queued with the delete removes the chunks filed under
+the deleted base. An organization purge and an account deletion do the same for the
+bases they remove. Unfiled chunks stay, matched by their tenant
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
 An agent searches the knowledge bases it is bound to under their own scopes, not by
 resolving their names again. An agent bound to two bases that share a name
 searches only one of them, so bind one base per name.

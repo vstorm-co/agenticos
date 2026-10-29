@@ -1,5 +1,5 @@
 ---
-source_sha: "07c40d80a2b2"
+source_sha: "a8658d688185"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -957,6 +957,13 @@ keine Basis festhalten. Ein Chunk, der geschrieben wurde, bevor Chunks ihre Basi
 festhielten, und den das Upgrade nicht zugeordnet hat, passt wie bisher über seinen
 Tenant - außer für eine persönliche Basis außerhalb jeder Organisation, deren Suche
 und Zählung keinen davon nehmen ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Das Löschen einer Wissensbasis, deren Collection-Namen eine andere Basis noch hält,
+behält die gemeinsame Tabelle, und der mit dem Löschen eingereihte Aufräum-Job
+entfernt die Chunks, die der gelöschten Basis zugeordnet sind. Das Löschen einer
+Organisation und das Löschen eines Kontos tun dasselbe für die Basen, die sie
+entfernen. Nicht zugeordnete Chunks bleiben und passen über ihren Tenant
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
 Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben

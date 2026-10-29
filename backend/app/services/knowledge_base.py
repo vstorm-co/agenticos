@@ -41,6 +41,7 @@ from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
+from app.worker.jobs import BasePurge
 
 logger = logging.getLogger(__name__)
 
@@ -828,6 +829,8 @@ class KnowledgeBaseService:
         before dropping, because the name is not tenant-unique and a second org can
         reclaim it in the window between the commit and the drop (#913), and it
         builds its own vector engine - which is why this no longer takes a store.
+        When another base still holds the name, the table stays and the same job
+        deletes the chunks filed under this base instead (#2537).
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -854,7 +857,13 @@ class KnowledgeBaseService:
         storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
         await knowledge_base_repo.delete(self.db, kb.id)
         collections_to_drop: list[str] = []
-        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+        base_purges: list[BasePurge] = []
+        if await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            # Another base keeps the shared table, so the deleted base's chunks
+            # stay in it, filed under an id no scope reads. Removed by that id
+            # after the commit, in the same durable job (#2537).
+            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        else:
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it
             # and `_run_source_sync` would recreate the very table this drops
@@ -866,10 +875,12 @@ class KnowledgeBaseService:
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or collections_to_drop:
+        if storage_paths or collections_to_drop or base_purges:
             from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
+            await queue_external_state_cleanup(
+                self.db, storage_paths, collections_to_drop, base_purges=base_purges
+            )
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:

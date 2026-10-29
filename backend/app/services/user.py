@@ -57,6 +57,7 @@ from app.services.generated_media import GeneratedMediaService
 from app.services.organization import OrganizationService
 from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
+from app.worker.jobs import BasePurge
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -889,6 +890,7 @@ class UserService:
         """
         storage_paths: list[str] = []
         collections_to_drop: list[str] = []
+        base_purges: list[BasePurge] = []
         # Sorted by name so this loop and `OrganizationService.purge` - the two paths
         # that take several teardown locks in one transaction - acquire any shared name
         # (#913) in one order, and cannot invert into a teardown-vs-teardown deadlock
@@ -903,13 +905,19 @@ class UserService:
             await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
-            if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+            if await knowledge_base_repo.list_by_collection_name(self.db, collection):
+                # The table stays for the base still holding the name, so this
+                # base's chunks are deleted by its id instead (#2537).
+                base_purges.append(BasePurge(collection=collection, knowledge_base_id=kb.id))
+            else:
                 collections_to_drop.append(collection)
                 await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or collections_to_drop:
+        if storage_paths or collections_to_drop or base_purges:
             from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
+            await queue_external_state_cleanup(
+                self.db, storage_paths, collections_to_drop, base_purges=base_purges
+            )
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID

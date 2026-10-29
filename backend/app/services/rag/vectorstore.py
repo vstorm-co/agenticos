@@ -136,6 +136,19 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
+    async def delete_knowledge_base_chunks(
+        self, collection_name: str, knowledge_base_id: UUID
+    ) -> None:
+        """Remove every chunk filed under a deleted knowledge base.
+
+        For a base deleted while another base still holds its collection name, so
+        the shared table is kept (#913): the chunks filed under it are no longer
+        read by any scope, and nothing else would ever remove them (#2537). Only
+        filed chunks: an unfiled one cannot be attributed to this base and stays
+        matched by its tenant. A missing table is a no-op, so a retry is safe.
+        """
+
+    @abstractmethod
     async def restamp_documents_to_untagged(
         self, collection_name: str, tenant: UUID, knowledge_base_id: UUID
     ) -> None:
@@ -1032,6 +1045,23 @@ class PgVectorStore(BaseVectorStore):
             await session.execute(
                 text(f"DELETE FROM {table} WHERE parent_doc_id = :doc_id AND {org_clause}"),
                 {"doc_id": sanitized, **org_params},
+            )
+            await session.commit()
+
+    async def delete_knowledge_base_chunks(
+        self, collection_name: str, knowledge_base_id: UUID
+    ) -> None:
+        if not await self._collection_exists(collection_name):
+            return
+        table = self._table(collection_name)
+        # Keyed on the base alone, not its tenant: a base's id is unique, so a
+        # chunk filed under it is its own whatever tenant tag it carries. The
+        # btree `_kb_idx` serves the predicate. The only interpolated token is
+        # `table`, validated by `_table`.
+        async with self.async_session() as session:
+            await session.execute(
+                text(f"DELETE FROM {table} WHERE (metadata->>'knowledge_base_id') = :kb"),
+                {"kb": str(knowledge_base_id)},
             )
             await session.commit()
 

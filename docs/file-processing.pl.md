@@ -1,5 +1,5 @@
 ---
-source_sha: "07c40d80a2b2"
+source_sha: "a8658d688185"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -899,6 +899,12 @@ własne chunki, które nie zapisują bazy. Chunk zapisany, zanim chunki zaczęł
 zapisywać swoją bazę, i nieprzypisany przez aktualizację, pasuje jak dotąd po swoim
 tenancie — z wyjątkiem bazy osobistej poza jakąkolwiek organizacją, której
 wyszukiwanie i licznik nie biorą żadnego z nich ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Usunięcie bazy wiedzy, której nazwę kolekcji wciąż ma inna baza, zostawia wspólną
+tabelę, a zadanie porządkowe zakolejkowane razem z usunięciem usuwa chunki przypisane
+do usuniętej bazy. Usunięcie organizacji i usunięcie konta robią to samo dla baz,
+które usuwają. Nieprzypisane chunki zostają i pasują po swoim tenancie
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej

@@ -41,7 +41,7 @@ from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
-from app.worker.jobs import Restamp
+from app.worker.jobs import BasePurge, Restamp
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -762,9 +762,11 @@ class OrganizationService:
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
         storage_paths: list[str] = []
+        deleted_bases: list[BasePurge] = []
         for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             collections.append(kb.collection_name)
+            deleted_bases.append(BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
 
         # A personal base carrying this org's id is left standing by the `SET NULL`,
@@ -815,6 +817,14 @@ class OrganizationService:
             Restamp(collection=kb.collection_name, organization_id=org.id, knowledge_base_id=kb.id)
             for kb in restamp_orphans
         ]
+        # A base whose table another organization keeps leaves its chunks in it,
+        # filed under an id no scope reads; the job deletes them by that id (#2537).
+        # Only with a store wired, the same signal the drops follow.
+        base_purges = (
+            [purge for purge in deleted_bases if purge.collection not in to_drop]
+            if self._vector_store is not None
+            else []
+        )
         # The images, speech and video its agents generated go in the same job
         # (#2310): their rows cascade with the organization, so the job is the
         # only record of the bytes left. One prefix, which also takes the files
@@ -829,6 +839,7 @@ class OrganizationService:
             restamps,
             prefixes=[organization_directory(org.id)],
             organization_id=org.id,
+            base_purges=base_purges,
         )
         # Whatever the `media` capability offloaded out of any of this tenant's
         # compacted histories. Content-addressed objects record nothing about who
