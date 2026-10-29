@@ -14,8 +14,9 @@ import asyncio
 import contextlib
 import json
 import uuid
+from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
@@ -43,6 +44,14 @@ from app.repositories import (
 from app.services.file_storage import get_file_storage
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.organization import OrganizationService
+from app.services.rag.ingestion import IngestionService
+from app.services.rag.models import (
+    Document,
+    DocumentMetadata,
+    DocumentPage,
+    DocumentPageChunk,
+    IngestionStatus,
+)
 from app.services.rag.vectorstore import PgVectorStore
 from app.services.rag_document import RAGDocumentService
 from app.services.user import UserService
@@ -1152,3 +1161,125 @@ class TestADeletedBasesChunksOnAKeptTable:
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()
+
+
+def _store_embedding_in_3d(engine: AsyncEngine) -> PgVectorStore:
+    """A real store on the test database whose embedder answers with no provider."""
+    store = PgVectorStore(
+        settings=app_settings.rag,
+        embedding_service=MagicMock(),
+        resolver=MagicMock(),
+        engine=engine,
+    )
+    embedder = MagicMock(
+        embed_document=lambda document: [[0.1, 0.2, 0.3]] * len(document.chunked_pages)
+    )
+    store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
+    return store
+
+
+def _parsed(content: str) -> Document:
+    document = Document(
+        pages=[DocumentPage(page_num=1, content=content)],
+        metadata=DocumentMetadata(
+            filename=f"{content}.md", filesize=1, filetype="md", source_path=f"/{content}.md"
+        ),
+    )
+    document.chunked_pages = [
+        DocumentPageChunk(
+            chunk_content=content,
+            chunk_num=0,
+            page_num=1,
+            content=content,
+            parent_doc_id=document.id,
+        )
+    ]
+    return document
+
+
+async def _filed_under(s, table: str, kb_id: uuid.UUID) -> int:
+    return (
+        await s.execute(
+            text(f"SELECT count(*) FROM {table} WHERE (metadata->>'knowledge_base_id') = :kb"),  # noqa: S608
+            {"kb": str(kb_id)},
+        )
+    ).scalar_one()
+
+
+class TestAnIngestRacingItsBasesDelete:
+    """An ingest that passed its `still_wanted` gate before its base was deleted
+    beside a sibling that keeps the name (#2561). The delete reserves nothing, so
+    the gate cannot see it, and the cleanup job's purge (#2537) may already have
+    run when the chunks are written. The write checks the base under the row lock
+    the delete takes, in the transaction that inserts the chunks."""
+
+    async def test_a_base_deleted_after_the_parse_gets_no_chunks(self, engine: AsyncEngine) -> None:
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbrace{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+        await store.insert_document(collection, _parsed("kept"), kept.vector_scope)
+
+        async def deleted_between_the_parse_and_the_write() -> bool:
+            # The gate answers yes, and the delete commits and its cleanup job
+            # purges the base before the write starts: the window #2561 names.
+            async with factory() as s:
+                await KnowledgeBaseService(s).delete(doomed.id, ctx=ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+            return True
+
+        processor = MagicMock(process_file=AsyncMock(return_value=_parsed("doomed")))
+        ingester = IngestionService(processor, store, scope=doomed.vector_scope)
+
+        try:
+            result = await ingester.ingest_file(
+                Path("doomed.md"),
+                collection,
+                replace=False,
+                still_wanted=deleted_between_the_parse_and_the_write,
+            )
+
+            assert result.status is IngestionStatus.ERROR
+            async with factory() as s:
+                assert await _filed_under(s, table, doomed.id) == 0
+                assert await _filed_under(s, table, kept.id) == 1
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_a_delete_waits_for_a_write_in_flight(self, engine: AsyncEngine) -> None:
+        """The other order: a write that has checked its base holds it until its
+        chunks commit, so the delete - and the purge it queues - comes after them."""
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbrace{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.commit()
+
+        async with store.async_session() as writing:
+            await store._hold_base(writing, base.id)
+            async with factory() as deleting:
+                await deleting.execute(text("SET LOCAL lock_timeout = '200ms'"))
+                with pytest.raises(DBAPIError, match="lock timeout"):
+                    await knowledge_base_repo.lock(deleting, base.id)
+            await writing.rollback()

@@ -13,6 +13,7 @@ from uuid import UUID
 # a caller may drop it.
 import app.db.models  # noqa: F401
 from app.core.blocking import run_blocking_settled
+from app.core.exceptions import NotFoundError
 from app.db.base import Base
 from app.db.vector_tables import (
     RAG_SAFE_TO_DATE_FN,
@@ -44,6 +45,14 @@ from app.services.rag.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class KnowledgeBaseRemovedError(NotFoundError):
+    """The knowledge base a write was for is gone, so its chunks were not written.
+
+    Raised from inside the write's transaction, after the base's row was found
+    deleted under the lock its delete takes (#2561). Nothing was inserted.
+    """
 
 
 def _document_is_unaddressed(doc: DocumentInfo) -> bool:
@@ -856,6 +865,16 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
+            if scope.knowledge_base_id is not None and not await self._hold_base(
+                session, scope.knowledge_base_id
+            ):
+                raise KnowledgeBaseRemovedError(
+                    message="The knowledge base was deleted while this file was being indexed",
+                    details={
+                        "collection": collection_name,
+                        "knowledge_base_id": str(scope.knowledge_base_id),
+                    },
+                )
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
             ):
@@ -875,6 +894,32 @@ class PgVectorStore(BaseVectorStore):
                     ],
                 )
             await session.commit()
+
+    @staticmethod
+    async def _hold_base(session: AsyncSession, knowledge_base_id: UUID) -> bool:
+        """Whether the base exists, holding it until this transaction ends.
+
+        An ingest's `still_wanted` gate answers on its own session before the
+        write, and a base deleted beside a sibling that keeps the collection name
+        reserves nothing that gate reads. So the base could be deleted, and its
+        cleanup job purge its chunks by its id (#2537), between the gate and this
+        insert - which then filed chunks under a base no scope reads and nothing
+        removes again (#2561).
+
+        `FOR KEY SHARE` is the lock a `rag_documents` insert takes on the same
+        row for its foreign key, and the one `knowledge_base_repo.lock`'s
+        `FOR UPDATE` (and the `DELETE`) conflicts with (#1266). Taken in the
+        insert's transaction it serialises the two: a delete in flight makes this
+        wait and then find no row, and a write holding it makes the delete - and
+        the purge job it queues - wait for these chunks to commit. No teardown
+        advisory lock: the delete takes that before the row, so taking it after
+        the row here would invert the order into a deadlock.
+        """
+        result = await session.execute(
+            text("SELECT 1 FROM knowledge_bases WHERE id = :kb FOR KEY SHARE"),
+            {"kb": knowledge_base_id},
+        )
+        return result.first() is not None
 
     async def search(
         self,

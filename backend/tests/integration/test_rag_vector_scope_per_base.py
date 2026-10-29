@@ -70,6 +70,10 @@ def _store(engine: AsyncEngine) -> PgVectorStore:
         embed_query=MagicMock(return_value=[0.1, 0.2, 0.3]),
     )
     store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
+    # These bases are never persisted, so the write's existence check (#2561) has
+    # no row to find; it is covered against real rows in
+    # `test_deletion_reconciliation.py`.
+    store._hold_base = AsyncMock(return_value=True)  # type: ignore[method-assign]
     return store
 
 

@@ -854,6 +854,10 @@ shared table, and the cleanup job queued with the delete removes the chunks file
 the deleted base. An organization purge and an account deletion do the same for the
 bases they remove. Unfiled chunks stay, matched by their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+An upload or a sync still indexing a file for the base when it is deleted writes
+nothing: the write checks that the base exists under the row lock the delete takes,
+in the transaction that inserts the chunks, and the file fails at the index step
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by
 resolving their names again. An agent bound to two bases that share a name
