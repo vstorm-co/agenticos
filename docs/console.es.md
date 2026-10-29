@@ -1,5 +1,5 @@
 ---
-source_sha: "369a36674976"
+source_sha: "03397203ebc1"
 ---
 
 # La consola { #the-console }
@@ -22,11 +22,7 @@ Las introducciones de páginas y explicaciones de ajustes están en el icono de 
 
 En Agentes, Skills, Context y el historial, **Filtros** despliega opciones adicionales en cualquier tamaño de pantalla e indica cuántos filtros están activos.
 
-Las tarjetas de agentes mantienen visibles estado y acceso; identificador, etiquetas,
-canales y fecha de edición están en **Detalles**. Las tarjetas de Skills y Context
-muestran vista previa, descripción, agentes que los usan con retratos y **Añadir a un
-agente** sin desplegar nada. **Detalles** contiene audiencia, categorías, formatos y
-acciones secundarias.
+Las tarjetas de agentes muestran directamente estado, acceso y fecha de edición. Las tarjetas de Skills y Context mantienen visibles la vista previa, el resumen, **Used by** con retratos y **Add to an agent**. Categoría, audiencia y formato están en una fila compacta junto a la acción. No hay un desplegable Detalles. Para borrar un skill o archivo de contexto, abre su editor y el menú de tres puntos junto a **Share**; se sigue pidiendo confirmación y solo quien puede editar tiene acceso a esta acción.
 
 Los nombres, la navegación y los valores de formularios usan texto destacado; los
 metadatos siguen en segundo plano. Las acciones principales tienen un relleno neutro

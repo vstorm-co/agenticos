@@ -36,12 +36,6 @@ import { useLocale, useTranslations } from "next-intl";
 import { groupsLabel } from "@/components/sharing/audience-chip";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
-const CHANNEL_LABEL: Record<string, string> = {
-  slack: "Slack",
-  telegram: "Telegram",
-  mattermost: "Mattermost",
-};
-
 /**
  * Who can reach this agent, as one chip.
  *
@@ -160,48 +154,14 @@ export function AgentCard({
           </div>
 
           <div className="relative mt-auto flex items-start justify-between gap-2 border-t pt-3">
-            <details className="min-w-0 flex-1 text-xs">
-              <summary className="text-muted-foreground hover:text-foreground touch:min-h-11 cursor-pointer py-2">
-                {tc("details")}
-              </summary>
-              <div className="space-y-2 pt-2">
-                <p className="text-muted-foreground truncate font-mono">@{agent.slug}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(agent.channels ?? []).map((channel) => (
-                    <Badge
-                      key={channel}
-                      variant="outline"
-                      className="text-muted-foreground font-normal"
-                    >
-                      {CHANNEL_LABEL[channel] ?? channel}
-                    </Badge>
-                  ))}
-                  {(agent.categories ?? []).map((label) => (
-                    <Badge
-                      key={`c:${label}`}
-                      variant="outline"
-                      className="text-muted-foreground font-normal"
-                    >
-                      {label}
-                    </Badge>
-                  ))}
-                  {(agent.tags ?? []).map((label) => (
-                    <Badge
-                      key={`t:${label}`}
-                      variant="outline"
-                      className="text-muted-foreground font-normal"
-                    >
-                      {label}
-                    </Badge>
-                  ))}
-                </div>
-                <span className="text-muted-foreground pointer-events-none text-xs">
-                  {agent.updated_at
-                    ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
-                    : t("neverEdited")}
-                </span>
-              </div>
-            </details>
+            <span
+              className="text-muted-foreground pointer-events-none py-2 text-xs"
+              title={`@${agent.slug}`}
+            >
+              {agent.updated_at
+                ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
+                : t("neverEdited")}
+            </span>
 
             {canEdit && (
               <div className="flex items-center gap-1">

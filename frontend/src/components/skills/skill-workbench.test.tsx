@@ -387,3 +387,28 @@ describe("the skill's files", () => {
     expect(screen.queryByRole("button", { name: "Save file" })).toBeNull();
   });
 });
+
+it("offers deletion from the editor's resource menu", async () => {
+  const onDelete = vi.fn();
+  renderWorkbench({ onDelete });
+  await userEvent.click(screen.getByRole("button", { name: "More actions for refund-policy" }));
+  expect(onDelete).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("menuitem", { name: "Delete refund-policy" }));
+  expect(onDelete).toHaveBeenCalledOnce();
+});
+
+it("does not offer the resource menu to a reader", () => {
+  renderWorkbench({ canEdit: false, onDelete: vi.fn() });
+  expect(screen.queryByRole("button", { name: "More actions for refund-policy" })).toBeNull();
+});
+
+it("disables destructive actions while a save is pending", () => {
+  renderWorkbench({ isSaving: true, onDelete: vi.fn() });
+  expect(screen.getByRole("button", { name: "More actions for refund-policy" })).toBeDisabled();
+});
+
+it("blocks deleting a skill while one of its files is being added", () => {
+  skillHooks.addResource.isPending = true;
+  renderWorkbench({ onDelete: vi.fn() });
+  expect(screen.getByRole("button", { name: "More actions for refund-policy" })).toBeDisabled();
+});

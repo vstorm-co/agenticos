@@ -1,5 +1,5 @@
 ---
-source_sha: "369a36674976"
+source_sha: "03397203ebc1"
 ---
 
 # Die Konsole { #the-console }
@@ -22,11 +22,7 @@ Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informati
 
 Bei Agenten, Skills, Context und im Ausführungsverlauf öffnet **Filter** zusätzliche Optionen auf jeder Bildschirmgröße und zeigt die Anzahl aktiver Filter.
 
-Agentenkarten zeigen Status und Zugriff direkt; Handle, Tags, Kanäle und
-Änderungsdatum stehen unter **Details**. Skills- und Context-Karten zeigen
-Dokumentvorschau, Beschreibung, verwendende Agenten mit Porträts und **Zu einem
-Agenten hinzufügen**, ohne etwas aufzuklappen. **Details** enthält Freigaben,
-Kategorien, Formate und weitere Aktionen.
+Agentenkarten zeigen Status, Zugriff und Bearbeitungsdatum direkt. Skills- und Context-Karten behalten Dokumentvorschau, Zusammenfassung, **Used by** mit Agentenporträts und **Add to an agent** sichtbar. Kategorie, Zielgruppe und Dateiformat stehen in einer kompakten Zeile neben der Aktion. Es gibt keine aufklappbaren Details. Zum Löschen eines Skills oder einer Kontextdatei öffnet man den Editor und das Drei-Punkte-Menü neben **Share**; das Löschen erfordert weiterhin eine Bestätigung und Bearbeitungsrechte.
 
 Namen, Navigation und Formularwerte verwenden kräftigen Vordergrundtext; Metadaten
 bleiben nachgeordnet. Hauptaktionen haben eine kontrastreiche neutrale Fläche. Glass

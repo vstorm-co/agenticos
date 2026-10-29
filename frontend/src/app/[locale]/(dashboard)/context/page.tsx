@@ -318,13 +318,7 @@ export default function ContextPage() {
             <>
               <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {files.map((entry) => (
-                  <ContextCard
-                    key={entry.id}
-                    file={entry}
-                    canEdit={entry.can_edit === true}
-                    onOpen={() => setSelected(entry)}
-                    onDelete={() => setPendingDelete(entry)}
-                  />
+                  <ContextCard key={entry.id} file={entry} onOpen={() => setSelected(entry)} />
                 ))}
               </div>
               <Pager
@@ -381,6 +375,7 @@ export default function ContextPage() {
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}
+                onDelete={() => setPendingDelete(selected)}
               />
             )}
           </DialogContent>
@@ -426,6 +421,7 @@ export default function ContextPage() {
           loading={remove.isPending}
           onConfirm={async () => {
             await remove.mutateAsync(pendingDelete.id);
+            if (selected?.id === pendingDelete.id) setSelected(null);
             setPendingDelete(null);
           }}
         />

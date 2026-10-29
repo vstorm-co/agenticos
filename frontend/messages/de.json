@@ -2196,7 +2196,8 @@
     "filters": "Filter",
     "filesRoot": "Projektdateien",
     "moreInformation": "Weitere Informationen",
-    "details": "Details"
+    "details": "Details",
+    "resourceActions": "Weitere Aktionen für {name}"
   },
   "dashboard": {
     "actions": {

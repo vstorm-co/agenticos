@@ -5,6 +5,7 @@ import { AlertTriangle, BookOpen, FilePlus, Upload } from "lucide-react";
 
 import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
+import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
 import { FilePane, FileTree, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { CategoryInput } from "@/components/skills/category-input";
@@ -27,6 +28,7 @@ interface SkillWorkbenchProps {
   categorySuggestions?: string[];
   onSave: (edit: SkillEdit) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
 /**
@@ -53,6 +55,7 @@ export function SkillWorkbench({
   categorySuggestions = [],
   onSave,
   onCancel,
+  onDelete,
 }: SkillWorkbenchProps) {
   const t = useTranslations("skills");
   const { addResource, saveResource, removeResource, uploadResources } = useSkill(skill.id);
@@ -209,13 +212,27 @@ export function SkillWorkbench({
       )}
 
       <DialogFooter>
-        <ShareResourceButton
-          resourceType="skill"
-          resourceId={skill.id}
-          name={skill.name}
-          canManage={canEdit}
-          className="sm:mr-auto"
-        />
+        <div className="flex items-center gap-2 sm:mr-auto">
+          <ShareResourceButton
+            resourceType="skill"
+            resourceId={skill.id}
+            name={skill.name}
+            canManage={canEdit}
+          />
+          {canEdit && onDelete && (
+            <ResourceActions
+              name={skill.name}
+              onDelete={onDelete}
+              disabled={
+                isSaving ||
+                addResource.isPending ||
+                saveResource.isPending ||
+                removeResource.isPending ||
+                uploadResources.isPending
+              }
+            />
+          )}
+        </div>
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel2") : t("close")}
         </Button>

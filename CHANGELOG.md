@@ -325,6 +325,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Replace card Details sections with concise metadata and edit dates; move skill and context deletion into the editor menu beside Share.
+
 - Order conversation agents by latest use, with full-size overlapping avatars and hidden older participants in the collapsed chat rail.
 
 - **Breaking:** Remove the skill-level `enabled` switch and API field. Bound skills are available regardless of their former switch; remove unwanted bindings and publish affected agents before upgrading. Migration `0180_remove_skill_enabled` drops the retired state; downgrade restores all skills as enabled.

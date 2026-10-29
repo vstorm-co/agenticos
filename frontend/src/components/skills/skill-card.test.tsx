@@ -25,9 +25,8 @@ const SKILL: SkillSummary = {
 
 function renderCard(props: Partial<React.ComponentProps<typeof SkillCard>> = {}) {
   const onOpen = vi.fn();
-  const onDelete = vi.fn();
-  render(<SkillCard skill={SKILL} canEdit onOpen={onOpen} onDelete={onDelete} {...props} />);
-  return { onOpen, onDelete };
+  render(<SkillCard skill={SKILL} onOpen={onOpen} {...props} />);
+  return { onOpen };
 }
 
 describe("SkillCard", () => {
@@ -75,32 +74,19 @@ describe("SkillCard", () => {
   });
 
   it("opens the skill when its name is clicked", async () => {
-    const { onOpen, onDelete } = renderCard();
+    const { onOpen } = renderCard();
     await userEvent.click(screen.getByText("refund-policy"));
     expect(onOpen).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("keeps deleting separate from opening", async () => {
-    const { onOpen, onDelete } = renderCard();
-    await userEvent.click(screen.getByText("Details"));
-    await userEvent.click(screen.getByRole("button", { name: "Delete refund-policy" }));
-    expect(onDelete).toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it("offers a viewer no way to delete a skill they can still read", async () => {
-    const { onOpen, onDelete } = renderCard({ canEdit: false });
-    expect(screen.queryByRole("button", { name: "Delete refund-policy" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByText("refund-policy"));
-    expect(onOpen).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
+  it("keeps destructive actions out of the preview card", () => {
+    renderCard();
+    expect(screen.queryByRole("button", { name: "Delete refund-policy" })).toBeNull();
+    expect(screen.queryByText("Details")).toBeNull();
   });
 
   it("shows the body's opening on a page, with a sheet behind it per file", () => {
-    const { container } = render(
-      <SkillCard skill={SKILL} canEdit={false} onOpen={vi.fn()} onDelete={vi.fn()} />,
-    );
+    const { container } = render(<SkillCard skill={SKILL} onOpen={vi.fn()} />);
 
     expect(screen.getByText("Refunds")).toBeInTheDocument();
     expect(screen.getByText("Use the refund tool")).toBeInTheDocument();
@@ -112,9 +98,8 @@ describe("SkillCard", () => {
     const { container } = render(
       <SkillCard
         skill={{ ...SKILL, excerpt: "", file_count: 0 }}
-        canEdit={false}
+
         onOpen={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
 
@@ -123,24 +108,19 @@ describe("SkillCard", () => {
     expect(container.querySelectorAll(".peek-sheet")).toHaveLength(0);
   });
   it("offers to give the skill to an agent, even to a reader who cannot edit it", () => {
-    renderCard({ canEdit: false });
+    renderCard();
     expect(screen.getByText("add-to-agent skill skill-1")).toBeVisible();
   });
 });
 
-it("keeps the preview visible while metadata and actions stay behind Details", async () => {
-  const { onOpen } = renderCard();
-  const excerpt = screen.getByText("Refunds");
-  expect(excerpt).toBeVisible();
-  expect(excerpt.closest("details")).toBeNull();
-  const details = screen.getByText("Everyone").closest("details");
-  expect(details).not.toHaveAttribute("open");
-  await userEvent.click(screen.getByText("Details"));
-  expect(details).toHaveAttribute("open");
-  expect(onOpen).not.toHaveBeenCalled();
+it("keeps preview and audience metadata visible without an expansion step", () => {
+  renderCard();
+  expect(screen.getByText("Refunds")).toBeVisible();
+  expect(screen.getByText("Everyone")).toBeVisible();
+  expect(screen.queryByText("Details")).toBeNull();
 });
 
-it("shows agent usage immediately while supporting metadata stays folded", () => {
+it("shows agent usage immediately alongside concise metadata", () => {
   renderCard({
     skill: {
       ...SKILL,
@@ -153,7 +133,7 @@ it("shows agent usage immediately while supporting metadata stays folded", () =>
   const usage = screen.getByText("Used by Billing, Support");
   expect(usage).toBeVisible();
   expect(usage.closest("details")).toBeNull();
-  expect(screen.getByText("Details").closest("details")).not.toHaveAttribute("open");
+  expect(screen.queryByText("Details")).toBeNull();
 });
 
 it("shows an unused resource's next step without opening Details", () => {

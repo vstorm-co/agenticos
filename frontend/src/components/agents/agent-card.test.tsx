@@ -112,15 +112,6 @@ describe("AgentCard", () => {
     expect(screen.getByText("No description.")).toBeInTheDocument();
   });
 
-  it("names the surfaces an agent answers on, and passes an unknown one through", () => {
-    // A new platform must not vanish from the card between a backend release and
-    // a frontend one.
-    mount({ channels: ["slack", "discord"] });
-
-    expect(screen.getByText("Slack")).toBeInTheDocument();
-    expect(screen.getByText("discord")).toBeInTheDocument();
-  });
-
   it("says when an agent was last edited, and says so when it never was", () => {
     mount({ updated_at: null });
 
@@ -188,14 +179,6 @@ describe("AgentCard", () => {
     );
   });
 
-  it("shows the agent's categories and tags as chips", () => {
-    mount({ categories: ["sales"], tags: ["urgent", "beta"] });
-
-    expect(screen.getByText("sales")).toBeInTheDocument();
-    expect(screen.getByText("urgent")).toBeInTheDocument();
-    expect(screen.getByText("beta")).toBeInTheDocument();
-  });
-
   it("draws no metadata chips when a listing carries none", () => {
     // The fields are optional in the type; the card reads them as `?? []`.
     mount({});
@@ -256,14 +239,12 @@ describe("AgentCard", () => {
   });
 });
 
-it("keeps secondary metadata behind Details while access and actions stay available", async () => {
+it("shows the edit date directly while keeping access and actions available", () => {
   mount({ channels: ["slack"], categories: ["Sales"] });
-  expect(screen.getByText("Slack").closest("details")).not.toHaveAttribute("open");
+  expect(screen.queryByText("Details")).toBeNull();
+  expect(screen.getByText("never edited")).toBeVisible();
   expect(screen.getByText("Private")).toBeVisible();
   expect(screen.getByRole("button", { name: "More actions for Support" })).toBeVisible();
-  await userEvent.click(screen.getByText("Details"));
-  expect(screen.getByText("Slack")).toBeVisible();
-  expect(screen.getByText("Sales")).toBeVisible();
 });
 
 it("marks archived agents without washing out their portrait", () => {

@@ -298,3 +298,18 @@ to the governance tab. It does not change organization policy on selection.
 Validation: 310 focused frontend tests and 55 backend tests passed, including
 screen-only transport, preserved sandbox selection, per-run capability injection,
 paired-session ownership and existing author limits.
+
+
+## Visible card metadata and editor actions
+
+The final card layout replaces Details entirely. Skills and Context retain
+previews, descriptions, Used by portraits and Add to an agent; category, audience
+and format sit beside the action. Agent cards show their edit date directly.
+Skill and context deletion moves to a three-dot resource menu beside Share in
+the existing editor. Read-only editors have no delete menu; pending saves and
+skill file mutations disable it. The existing confirmation owns deletion and
+closes the editor only after successful removal. Failed deletion keeps it open.
+
+Verification: the initial five-file card/editor batch passed 96 tests; TypeScript
+passed. Tests cover preview/metadata visibility, usage, menu selection, read-only
+access and disabling deletion while saving. Computer Use remains disabled.

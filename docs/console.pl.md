@@ -1,5 +1,5 @@
 ---
-source_sha: "369a36674976"
+source_sha: "03397203ebc1"
 ---
 
 # Konsola { #the-console }
@@ -21,10 +21,7 @@ Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informac
 
 W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
 
-Karty agentów pozostawiają status i dostęp na wierzchu, a uchwyt, etykiety, kanały i
-datę edycji przenoszą do **Szczegółów**. Karty Skills i Context pokazują podgląd
-dokumentu, opis, używających agentów z avatarami i **Dodaj do agenta** bez
-rozwijania. **Szczegóły** zawierają odbiorców, kategorię, format i drugorzędne akcje.
+Karty agentów pokazują status, dostęp i datę edycji bez rozwijania. Karty Skills i Context zachowują podgląd dokumentu, opis, **Used by** z avatarami i **Dodaj do agenta**. Kategoria, odbiorcy i format pliku są w zwartym wierszu obok akcji. Nie ma rozwijanych Szczegółów. Aby usunąć skill lub plik contextu, otwórz edytor i menu z trzema kropkami obok **Share**; usunięcie nadal wymaga potwierdzenia i jest dostępne tylko dla edytora.
 
 Nazwy, nawigacja i wartości formularzy używają wyraźnego tekstu pierwszego planu;
 metadane pozostają drugorzędne. Główne akcje mają kontrastujące neutralne

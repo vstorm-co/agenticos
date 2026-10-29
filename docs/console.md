@@ -17,11 +17,7 @@ Page introductions and settings explanations are available from the information 
 
 In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
 
-Agent cards keep status and access visible while moving handles, tags, channels
-and edit dates into **Details**. Skills and Context cards show the document
-preview, summary, **Used by** with agent portraits and **Add to an agent** without
-opening anything. **Details** reveals sharing, categories, formats and secondary
-actions.
+Agent cards show status, access and the edit date directly. Skills and Context cards keep the document preview, summary, **Used by** with agent portraits and **Add to an agent** visible. Category, audience and file-format metadata sit in a compact row beside the action. There is no Details expansion. To delete a skill or context file, open its editor and use the three-dot menu beside **Share**; deletion still asks for confirmation and is available only to an editor.
 
 Names, navigation and form values use strong foreground text; metadata stays
 secondary. Primary actions use a contrasting neutral fill. Glass keeps the native
