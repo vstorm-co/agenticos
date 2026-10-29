@@ -367,6 +367,7 @@ class TestTheCleanup:
         engine.dispose.assert_awaited_once()
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 1}
 
+    @pytest.mark.security
     async def test_a_purge_taking_unfiled_chunks_names_their_tenant(self) -> None:
         """A cleared base's unfiled document rows went with it, so the purge also
         takes those documents' unfiled chunks - within the base's tenant, which

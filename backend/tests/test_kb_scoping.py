@@ -805,6 +805,7 @@ class TestKBAccessControl:
             ],
         )
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_same_tenant_base_on_the_name_keeps_the_unfiled_documents(
         self, mock_db, monkeypatch
@@ -824,6 +825,7 @@ class TestKBAccessControl:
             BasePurge(collection="docs", knowledge_base_id=kb.id, vector_document_ids=["doc-1"])
         ]
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_dropping_a_base_takes_its_tenants_unfiled_documents(self, mock_db, monkeypatch):
         """A dropped non-default base's unfiled rows go too when no base of its

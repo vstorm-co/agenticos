@@ -1256,6 +1256,7 @@ class TestADeletedBasesChunksOnAKeptTable:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()
 
+    @pytest.mark.security
     async def test_clearing_a_default_leaves_unfiled_documents_to_a_same_tenant_base(
         self, engine: AsyncEngine
     ) -> None:
