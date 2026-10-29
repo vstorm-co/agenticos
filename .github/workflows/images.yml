@@ -215,6 +215,8 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           platforms: linux/${{ matrix.arch }}
+          # Channel visuals need the CDP client even when no agent browses the web.
+          build-args: ${{ matrix.image == 'backend' && 'EXTRAS=--extra browser' || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true

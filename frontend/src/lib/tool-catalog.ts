@@ -337,6 +337,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "lookingForChannel",
     displayNameKey: "channelSearch",
   },
+  send_channel_file: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sendingChannelFile",
+    displayNameKey: "sendChannelFile",
+  },
   read_channel_history: {
     kind: "read",
     render: "generic",

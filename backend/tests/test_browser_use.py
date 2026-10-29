@@ -3174,3 +3174,13 @@ async def test_a_missing_final_loop_picture_still_completes_and_closes_the_strea
     assert result.outcome == "done"
     assert frames.frames[-1].kind == "browser_finished"
     assert page.done[-1] == "stream:off"
+
+
+@pytest.mark.parametrize("url", ["https://example.com", "http://example.org", "about:blank"])
+def test_regular_pages_are_not_load_error_pages(url):
+    _endpoint.check_navigation(url)
+
+
+def test_chromium_network_errors_do_not_claim_the_domain_was_refused():
+    with pytest.raises(_endpoint.EndpointError, match="could not load"):
+        _endpoint.check_navigation("chrome-error://chromewebdata/")

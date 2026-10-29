@@ -6,6 +6,7 @@ addressed to, the token it carries, and what a card or a file looks like.
 """
 
 import base64
+import io
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import httpx2
 import pytest
+from PIL import Image
 
 from app.core.pinned_http import PinnedAsyncClient
 from app.services.channels import teams
@@ -50,6 +52,12 @@ SERVICE = "https://smba.trafficmanager.net/emea/"
 PERSONAL = "a:1" + "x" * 140
 CHANNEL = "19:abc@thread.tacv2"
 TOKEN = TeamsCredentials(APP_ID, TENANT, "secret").encode()
+
+
+def _png(width=16, height=16):
+    buffer = io.BytesIO()
+    Image.new("RGB", (width, height), "white").save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 @asynccontextmanager
@@ -347,14 +355,16 @@ class TestAnswering:
         await adapter.send_message(
             TOKEN,
             OutgoingMessage(
-                platform_chat_id=conversation_key(PERSONAL), text=text, image_png=b"PNG"
+                platform_chat_id=conversation_key(PERSONAL), text=text, image_png=_png()
             ),
         )
 
         first, last = connector.posts()
         assert connector.body(first)["attachments"] == []
         (picture,) = connector.body(last)["attachments"]
-        assert picture["contentUrl"] == f"data:image/png;base64,{base64.b64encode(b'PNG').decode()}"
+        decoded = base64.b64decode(picture["contentUrl"].partition(",")[2])
+        with Image.open(io.BytesIO(decoded)) as image:
+            assert image.size == (16, 16)
         assert connector.body(first)["text"] + connector.body(last)["text"] == text
 
     async def test_a_picture_with_no_text_is_still_posted(
@@ -365,11 +375,11 @@ class TestAnswering:
             OutgoingMessage(
                 platform_chat_id=conversation_key(PERSONAL),
                 text="",
-                attachments=[OutgoingAttachment("chart.webp", b"W", "image/webp")],
+                attachments=[OutgoingAttachment("chart.png", _png(), "image/png")],
             ),
         )
         (post,) = connector.posts()
-        assert connector.body(post)["attachments"][0]["contentType"] == "image/webp"
+        assert connector.body(post)["attachments"][0]["contentType"] == "image/png"
 
     async def test_a_file_in_a_channel_is_named_not_dropped(
         self, adapter: TeamsAdapter, connector: _Connector
@@ -830,3 +840,52 @@ class TestTheParts:
             first = teams_adapter()
             assert teams_adapter() is first
         await first.aclose()
+
+
+@pytest.mark.parametrize(
+    "mime,content",
+    [
+        ("image/svg+xml", b"<svg/>"),
+        ("image/webp", b"W"),
+        ("image/png", b"x" * 1_000_001),
+        ("image/png", b"not a png"),
+    ],
+    ids=["svg", "webp", "over-size-limit", "invalid-png"],
+)
+def test_unsupported_inline_images_follow_the_file_consent_path(mime, content):
+    attachment = OutgoingAttachment("picture", content, mime)
+    images, files = TeamsAdapter._split_attachments(
+        OutgoingMessage(platform_chat_id="C", text="", attachments=[attachment])
+    )
+    assert images == [] and files == [attachment]
+
+
+def test_generated_teams_diagram_fits_physical_dimensions():
+    images, files = TeamsAdapter._split_attachments(
+        OutgoingMessage(platform_chat_id="C", text="", image_png=_png(2000, 2980))
+    )
+    assert files == []
+    content = base64.b64decode(images[0]["contentUrl"].partition(",")[2])
+    with Image.open(io.BytesIO(content)) as image:
+        assert max(image.size) <= 1024
+    assert len(content) <= teams.INLINE_IMAGE_MAX_BYTES
+
+
+def test_oversized_explicit_image_is_a_file_instead_of_a_broken_inline_picture():
+    attachment = OutgoingAttachment("diagram.png", _png(2000, 2000), "image/png")
+    images, files = TeamsAdapter._split_attachments(
+        OutgoingMessage(platform_chat_id="C", text="", attachments=[attachment])
+    )
+    assert images == [] and files == [attachment]
+
+
+@pytest.mark.parametrize("size,expected", [(499, 499), (500, None)])
+async def test_capped_teams_roster_is_not_reported_as_a_complete_count(size, expected):
+    adapter = TeamsAdapter()
+    ref = ConversationRef(CHANNEL, SERVICE, "channel", name="General")
+    with (
+        patch.object(adapter, "_ref", AsyncMock(return_value=ref)),
+        patch.object(adapter, "_members", AsyncMock(return_value=[None] * size)),
+    ):
+        details = await adapter.channel_details(TOKEN, "C", api_base_url=None)
+    assert details.member_count == expected

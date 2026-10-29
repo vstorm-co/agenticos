@@ -1,5 +1,5 @@
 ---
-source_sha: "0e01949aba7e"
+source_sha: "64123a5c5854"
 ---
 
 # Configuración { #configuration }
@@ -79,6 +79,12 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | El techo de gasto mensual con el que arranca una organización **nueva**, en USD, para que no esté a un agent desbocado de una factura sorpresa. Se aplica solo en la creación; las organizaciones existentes no se tocan y a cualquier organización se le puede quitar el tope después. Tiene que ser positivo; déjalo **vacío** para que las organizaciones empiecen sin tope (la postura anterior, de adhesión voluntaria) |
+
+Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
+
+La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Configure `browser_use.cdp_url` del agent como `http://browser:9222` y publique su borrador. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+
+El renderizador no publica puertos ni tiene acceso a Internet, sirve a la API y al worker y tiene un límite de 1 CPU y 1 GiB de RAM. Las imágenes publicadas del backend incluyen el extra `browser`; una imagen propia necesita `EXTRAS="--extra browser"`. Si falla la renderización, la respuesta del canal indica expresamente que no se pudo adjuntar la imagen. Cada renderizado permite como máximo 256 solicitudes y 32 respuestas pendientes; las teselas también comparten `RATE_LIMIT_MAP_TILES_PER_MINUTE` entre renderizadores.
 
 ### El tamaño de una petición, frente al tamaño de un archivo { #the-size-of-a-request-as-opposed-to-the-size-of-a-file }
 

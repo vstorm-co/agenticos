@@ -141,6 +141,8 @@ class TestDraw:
         assert "Drew 'Flow' as visual `call-1`" in result
         assert "Refer to it, do not repeat it." in result
         assert "kept with the conversation" in result
+        assert "delivery is not confirmed" in result
+        assert "shown where the person reads it" not in result
         assert tools.drawn == {"call-1"}
 
     @pytest.mark.parametrize(
