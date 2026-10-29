@@ -280,13 +280,15 @@ class AuthoringService:
         excluded_message_ids: Sequence[UUID] = (),
         improvement_run_id: UUID | None = None,
         evidence: EvidencePack | None = None,
+        train_case_ids: Sequence[UUID] | None = None,
     ) -> AuthoringEstimate:
         """What an Improve or Verify on this agent would read and cost.
 
         `excluded_message_ids` is an improvement session's, never a person's:
         the answers it found missing knowledge, which the improver does not read.
         `evidence` is a pack the caller has already read for this agent, priced
-        as it is.
+        as it is. `train_case_ids` are the learning questions of the session's
+        attempt being priced, when it has drawn its own.
         """
         self._require_runs_view(ctx)
         agent = await self._editable(ctx, agent_id)
@@ -310,7 +312,10 @@ class AuthoringService:
             )
         else:
             pack = await self.evidence.for_improvement(
-                ctx, improvement_run_id, excluded_message_ids=excluded_message_ids
+                ctx,
+                improvement_run_id,
+                excluded_message_ids=excluded_message_ids,
+                train_case_ids=train_case_ids,
             )
         return await self._estimate(ctx, improver, pack, None if pack.runs else "no_evidence")
 

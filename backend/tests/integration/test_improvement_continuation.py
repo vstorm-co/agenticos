@@ -392,3 +392,25 @@ async def test_a_session_says_before_try_again_that_it_has_nothing_left_to_learn
     unreadable = AsyncMock(side_effect=AuthorizationError(message="No access to the questions"))
     with patch.object(EvidenceService, "for_improvement", unreadable):
         assert (await service.read(ctx, agent.id, ready.id)).try_again_blocked is None
+
+
+async def test_another_attempt_is_priced_on_the_questions_it_then_learns_from(db):
+    """The estimate reads the next attempt's own draw, so it cannot pass while the attempt
+    finds nothing to learn from after it is confirmed."""
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    row.max_iterations = 3
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    priced = AsyncMock(wraps=service.authoring.estimate_agent)
+    with patch.object(service.authoring, "estimate_agent", priced):
+        quote, consent = await _consent(service, ctx, agent, ready)
+    assert quote.mode == "next_round"
+    started = await service.continue_run(ctx, agent.id, ready.id, consent)
+
+    following = await improvement_repo.get_iteration(
+        db, organization_id=ctx.organization_id, run_id=ready.id, number=started.iteration
+    )
+    assert following is not None and following.train_case_ids is not None
+    assert priced.await_args.kwargs["train_case_ids"] == following.train_case_ids

@@ -33,6 +33,15 @@ def holdout_count(cases: int, share: Decimal) -> int:
     return int((share * cases).to_integral_value(rounding=ROUND_HALF_UP))
 
 
+def split_seed(run_id: UUID, number: int) -> int:
+    """The seed an attempt's draw takes, fixed by its session and number.
+
+    Fixed rather than random so the estimate for an attempt reads the same
+    learning questions the attempt then reads, before anybody confirms it.
+    """
+    return int.from_bytes(hashlib.sha256(f"{run_id}:{number}".encode()).digest()[:4]) % (2**31 - 1)
+
+
 def drawn_holdout(
     case_ids: Sequence[UUID],
     *,

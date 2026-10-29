@@ -7,7 +7,6 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
-import secrets
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -146,6 +145,7 @@ from app.services.improvement_data import (
     drawn_holdout,
     holdout_count,
     input_hash,
+    split_seed,
 )
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
@@ -1379,6 +1379,7 @@ class ImprovementPipelineService:
         mode: Literal["next_step", "next_round", "resume", "retry"]
         number = current.number
         measurable: set[UUID] = set()
+        learning = current.train_case_ids
         if run.status == Status.WAITING:
             mode = "next_step"
         elif self._resumes(run):
@@ -1412,6 +1413,12 @@ class ImprovementPipelineService:
                         "are fixed when it starts: end it, add test questions and start a new one.",
                         details={"missing_holdout": MIN_HOLDOUT_CASES - held},
                     )
+                kept = set(
+                    drawn_holdout(
+                        cases, share=share, seed=split_seed(run.id, number), measurable=measurable
+                    )
+                )
+                learning = [case_id for case_id in cases if case_id not in kept]
         else:
             raise BadRequestError(
                 message="This step needs a new session or a review decision before it can continue"
@@ -1430,7 +1437,9 @@ class ImprovementPipelineService:
             raise BadRequestError(
                 message="An earlier attempt already checked exactly these changes; choose others"
             )
-        total, expected, step_affordable = await self._step_price(ctx, inputs, run, current, stage)
+        total, expected, step_affordable = await self._step_price(
+            ctx, inputs, run, current, stage, learning=learning
+        )
         spent = await improvement_repo.spent(self.db, run.id, organization_id=ctx.organization_id)
         org_left = await self.evals._org_left(ctx)
         fingerprint = hashlib.sha256(
@@ -1492,6 +1501,8 @@ class ImprovementPipelineService:
         run: ImprovementRun,
         iteration: ImprovementIteration,
         stage: Stage | None,
+        *,
+        learning: Sequence[UUID] | None = None,
     ) -> tuple[Decimal, Decimal, bool]:
         """The most the paid step a continuation starts may cost, what it most likely costs,
         and whether its own budgets allow it.
@@ -1510,6 +1521,7 @@ class ImprovementPipelineService:
                 ),
                 improvement_run_id=run.id,
                 excluded_message_ids=await self._knowledge_exclusions(ctx, run),
+                train_case_ids=learning,
             )
             if proposal.reason is not None:
                 raise BadRequestError(
@@ -2763,7 +2775,7 @@ class ImprovementPipelineService:
         """Give a new attempt its own draw of the questions it learns from and is measured on,
         and count how many of those its check can measure."""
         share, cases = await self._split_cases(run)
-        seed = secrets.randbelow(2**31 - 1)
+        seed = split_seed(run.id, iteration.number)
         holdout = drawn_holdout(cases, share=share, seed=seed, measurable=measurable)
         held = set(holdout)
         gradable = len(held & measurable)
