@@ -1249,11 +1249,19 @@ class ImprovementPipelineService:
         if isinstance(held, int) and held < MIN_HOLDOUT_CASES:
             return TryAgainBlocked(reason="missing_holdout", needed=MIN_HOLDOUT_CASES - held)
         try:
-            pack = await self.authoring.evidence.for_improvement(
-                ctx, run.id, excluded_message_ids=await self._knowledge_exclusions(ctx, run)
+            inputs = await self._current_inputs(ctx, run)
+            *_, learning = await self._next_draw(
+                ctx, inputs, run, max(item.number for item in rounds) + 1
             )
-        except AuthorizationError, NotFoundError:
-            # Without the session's questions the caller meets the refusal on the click.
+            pack = await self.authoring.evidence.for_improvement(
+                ctx,
+                run.id,
+                excluded_message_ids=await self._knowledge_exclusions(ctx, run),
+                train_case_ids=learning,
+            )
+        except AuthorizationError, ConcurrentChangeError, NotFoundError:
+            # Without the session's questions, or with a session gone stale, the caller
+            # meets the refusal on the click.
             return None
         return None if pack.runs else TryAgainBlocked(reason="nothing_to_learn")
 
@@ -1403,8 +1411,7 @@ class ImprovementPipelineService:
                 raise BadRequestError(message="The session reached its attempt limit")
             mode = "next_round"
             if deferred is None:
-                measurable = await self._measurable(ctx, inputs, run)
-                share, cases = await self._split_cases(run)
+                measurable, share, cases, learning = await self._next_draw(ctx, inputs, run, number)
                 held = min(holdout_count(len(cases), share), len(measurable & set(cases)))
                 if held < MIN_HOLDOUT_CASES:
                     raise BadRequestError(
@@ -1413,12 +1420,6 @@ class ImprovementPipelineService:
                         "are fixed when it starts: end it, add test questions and start a new one.",
                         details={"missing_holdout": MIN_HOLDOUT_CASES - held},
                     )
-                kept = set(
-                    drawn_holdout(
-                        cases, share=share, seed=split_seed(run.id, number), measurable=measurable
-                    )
-                )
-                learning = [case_id for case_id in cases if case_id not in kept]
         else:
             raise BadRequestError(
                 message="This step needs a new session or a review decision before it can continue"
@@ -2750,6 +2751,24 @@ class ImprovementPipelineService:
             if case.anonymised_at is None
         ]
         return dataset.improvement_holdout_share, cases
+
+    async def _next_draw(
+        self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun, number: int
+    ) -> tuple[set[UUID], Decimal, list[UUID], list[UUID]]:
+        """A new attempt's draw before it exists: the questions its check could measure,
+        the share kept aside, the pinned questions and those it would learn from.
+
+        The same seed `_draw_split` takes, so Try again's read, its estimate and the
+        attempt itself read one set of learning questions.
+        """
+        measurable = await self._measurable(ctx, inputs, run)
+        share, cases = await self._split_cases(run)
+        kept = set(
+            drawn_holdout(
+                cases, share=share, seed=split_seed(run.id, number), measurable=measurable
+            )
+        )
+        return measurable, share, cases, [case_id for case_id in cases if case_id not in kept]
 
     async def _measurable(self, ctx: AuthContext, inputs: Inputs, run: ImprovementRun) -> set[UUID]:
         """The pinned questions a new attempt's check could measure, whichever it keeps aside."""

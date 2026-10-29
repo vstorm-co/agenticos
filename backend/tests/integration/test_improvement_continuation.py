@@ -414,3 +414,22 @@ async def test_another_attempt_is_priced_on_the_questions_it_then_learns_from(db
     )
     assert following is not None and following.train_case_ids is not None
     assert priced.await_args.kwargs["train_case_ids"] == following.train_case_ids
+
+
+async def test_try_again_reads_and_prices_the_same_learning_questions(db):
+    """The read that says whether Try again would go on and the estimate behind the click
+    read the next attempt's own draw, never the dataset's fixed half."""
+    ctx, agent, ready = await _ready_proposal(db)
+    row = await db.get(ImprovementRun, ready.id)
+    assert row is not None
+    row.max_iterations = 3
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    read = AsyncMock(wraps=service.authoring.evidence.for_improvement)
+    with patch.object(service.authoring.evidence, "for_improvement", read):
+        await service.read(ctx, agent.id, ready.id)
+        on_read = read.await_args.kwargs["train_case_ids"]
+        await _consent(service, ctx, agent, ready)
+        on_estimate = read.await_args.kwargs["train_case_ids"]
+
+    assert on_read is not None and on_read == on_estimate
