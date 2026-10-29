@@ -192,3 +192,20 @@ def test_channel_mcp_approval_includes_organization_and_platform_connections():
     result = _with_channel_mcp_approval(spec, RunSurface.SLACK)
     assert [ref.approval for ref in result.mcp_servers] == ["all", "all"]
     assert [ref.approval for ref in spec.mcp_servers] == ["writes", "none"]
+
+
+@pytest.mark.parametrize(
+    "granted",
+    [["send_channel_file"], ["get_channel_info", "send_channel_file"], ["get_channel_info"], []],
+)
+def test_file_delivery_requires_approval_only_when_granted(granted):
+    from app.agents.capabilities.approval import approval_required_tools
+    from app.services.agent_runner import _with_channel_tools
+
+    spec = AgentSpec(name="A")
+    result = _with_channel_tools(spec, SimpleNamespace(tools=granted))
+    assert ("send_channel_file" in approval_required_tools(result)) is (
+        "send_channel_file" in granted
+    )
+    assert "get_channel_info" not in approval_required_tools(result)
+    assert spec.capabilities == []

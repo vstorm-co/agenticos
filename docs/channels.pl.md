@@ -1,5 +1,5 @@
 ---
-source_sha: "e4be208a93e1"
+source_sha: "aa20fd56e2b8"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2020,6 +2020,7 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
 
+- **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
 - **Wszystkie narzędzia MCP wymagają zatwierdzenia w komunikatorach, także odczyty oraz połączenia organizacyjne i platformowe.** Powiązanie konta wskazuje, czyje połączenie jest używane; nie daje automatycznej zgody na publikowanie prywatnych wyników w rozmowie. Reguła obejmuje też delegatów i wznowione wywołania.
 - **Agent wie, gdzie odpowiada i czyje konto jest dostępne.** Wskazówki runtime podają komunikator i konsolę wdrożenia, wyjaśniają zarządzany workspace oraz odróżniają organizacyjne połączenia MCP od usług osobistych. Te ostatnie wymagają zarówno powiązanej tożsamości nadawcy, jak i jego autoryzowanego połączenia z usługą. Łączenie zaczyna się od samego `link` w wiadomości prywatnej; prywatny URL połączenia nie trafia na kanał. Agent relacjonuje rzeczywiste wyniki narzędzi i wskazuje jeden konkretny następny krok, jeśli brakuje autoryzacji lub możliwości.
 - **Ponownie dostarczona wiadomość dostaje odpowiedź raz.** Każda platforma

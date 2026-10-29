@@ -34,7 +34,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Explicit `send_channel_file` actions on channel bot bindings. Grant the tool
   per binding to let users request a workspace file; creating or editing a file
   no longer posts it automatically. Existing bindings require enabling the new
-  action. The tool follows approval policy and reports platform failures.
+  action. The tool requires approval and reports platform failures.
 - A separate production `browser` profile with proxy-only public web access.
   Keep the isolated visual renderer for drawing; configure interactive browsing
   with `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`,

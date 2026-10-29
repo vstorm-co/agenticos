@@ -75,7 +75,9 @@ answers in a browser and on Mattermost, and only one of those is a channel.
 ## Explicit file delivery
 
 Creating or editing a workspace file does not post it to a channel. The operator
-must grant `send_channel_file` on the bot binding. The side-effecting action reads
+must grant `send_channel_file` on the bot binding. Its runtime binding always
+requires explicit approval before sending, even if no other tool is gated.
+The side-effecting action reads
 one named workspace file through a server-bound callback and submits it through
 the adapter immediately, so a later parked call cannot lose a queued attachment.
 Provider failures are returned as failures; Teams can require acceptance in a

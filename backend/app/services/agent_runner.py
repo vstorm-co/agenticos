@@ -2056,7 +2056,11 @@ def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> Agen
     granted = [] if exposure is None else list(exposure.tools or [])
     if not granted:
         return spec
-    binding = CapabilityBindingSpec(id=CHANNEL_TOOLS_CAPABILITY_ID, config={"tools": granted})
+    binding = CapabilityBindingSpec(
+        id=CHANNEL_TOOLS_CAPABILITY_ID,
+        config={"tools": granted},
+        tool_approval={"send_channel_file": "required"} if "send_channel_file" in granted else {},
+    )
     return spec.model_copy(update={"capabilities": [*spec.capabilities, binding]})
 
 
