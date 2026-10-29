@@ -35,7 +35,7 @@ from app.db.session import get_db_context
 from app.repositories import organization_repo
 from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
-from app.services.channels import get_adapter, inbound_webhook_url
+from app.services.channels import INBOUND_PATHS, get_adapter, inbound_webhook_url
 from app.services.channels.base import OutgoingMessage
 
 
@@ -131,7 +131,7 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--platform",
     required=True,
-    type=click.Choice(["telegram", "slack", "mattermost", "teams"]),
+    type=click.Choice(["telegram", "slack", "mattermost", "teams", "discord"]),
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")
@@ -233,6 +233,9 @@ def channel_webhook_register(bot_id: str, org_id: str | None) -> None:
                 return
             token = svc.get_decrypted_token(bot)
 
+        if bot.platform not in INBOUND_PATHS:
+            error(f"A {bot.platform} bot has no webhook to register.")
+            return
         adapter = get_adapter(bot.platform)
         webhook_url = inbound_webhook_url(bot.platform, bot.id)
 

@@ -21,7 +21,7 @@ from starlette.routing import Match
 from app.commands.channel import channel_add_bot
 from app.core.config import settings
 from app.main import app
-from app.services.channels import INBOUND_PATHS, inbound_webhook_url
+from app.services.channels import INBOUND_PATHS, STREAM_ONLY, inbound_webhook_url
 
 
 def _resolves(url: str) -> bool:
@@ -68,9 +68,12 @@ def test_every_platform_that_can_be_registered_has_an_address():
 
     Read off the CLI's own choices rather than restated here, so adding a
     platform in one place and not the other fails rather than passing quietly.
+    A platform reached only over its own connection (Discord's Gateway) is
+    declared as such instead.
     """
     choices = next(p for p in channel_add_bot.params if p.name == "platform").type.choices
-    assert set(INBOUND_PATHS) == set(choices)
+    assert set(INBOUND_PATHS) | STREAM_ONLY == set(choices)
+    assert not set(INBOUND_PATHS) & STREAM_ONLY
 
 
 def test_a_platform_with_no_receiver_is_refused_rather_than_invented():
@@ -78,6 +81,8 @@ def test_a_platform_with_no_receiver_is_refused_rather_than_invented():
     platform and fails silently from then on."""
     with pytest.raises(KeyError):
         inbound_webhook_url("discord", uuid.uuid4())
+    with pytest.raises(KeyError):
+        inbound_webhook_url("whatsapp", uuid.uuid4())
 
 
 def test_the_url_is_built_from_the_one_public_base():

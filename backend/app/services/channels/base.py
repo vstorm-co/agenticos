@@ -29,7 +29,7 @@ ROOM_HANDLES = frozenset({"channel", "all", "here", "everyone"})
 
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
-ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams"]
+ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams", "discord"]
 
 # Default access policy applied to new channel bots.  Imported by models and
 # repositories so the literal is defined in exactly one place.

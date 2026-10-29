@@ -67,7 +67,21 @@ You are answering in Microsoft Teams, which renders a subset of Markdown.
 - Keep paragraphs short. A chat pane is narrow, and a wall of text is skimmed.
 """
 
+_DISCORD = """
+You are answering in Discord, which renders Markdown.
+
+- Bold `**like this**`, italic `*like this*`, inline code and fenced code blocks.
+- Links: `[what it is](https://example.com)`.
+- Headings (`#`, `##`) and bulleted and numbered lists work. Tables do not - use a
+  short list instead.
+- Lead a link with an emoji when it is an action or a destination, e.g.
+  📄 [the invoice](https://example.com/invoice).
+- Keep answers short. A message holds 2,000 characters, and a longer answer is
+  split into several.
+"""
+
 HOUSE_STYLE: dict[str, str] = {
+    "discord": _DISCORD.strip(),
     "mattermost": _MATTERMOST.strip(),
     "slack": _SLACK.strip(),
     "telegram": _TELEGRAM.strip(),

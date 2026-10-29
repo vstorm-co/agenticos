@@ -101,14 +101,14 @@ class TestCreate:
         """A binding that can never route is worse than none: it looks correct."""
         service = _service()
         with patch("app.services.agent_exposure.channel_bot_repo") as bots:
-            bots.get_for_org = AsyncMock(return_value=_bot(platform="discord"))
+            bots.get_for_org = AsyncMock(return_value=_bot(platform="whatsapp"))
 
             with pytest.raises(BadRequestError) as refused:
                 await service.create(
                     _ctx(), uuid.uuid4(), ExposureCreate(channel_bot_id=uuid.uuid4())
                 )
 
-        assert refused.value.details == {"platform": "discord"}
+        assert refused.value.details == {"platform": "whatsapp"}
 
     async def test_the_surface_is_taken_from_the_bot_not_from_the_caller(self):
         """One source of truth for which platform a binding serves."""
@@ -347,7 +347,7 @@ class TestReading:
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
         ):
             bots.list_for_org = AsyncMock(
-                return_value=[_bot(platform="slack"), _bot(platform="discord")]
+                return_value=[_bot(platform="slack"), _bot(platform="whatsapp")]
             )
             exposures.bound_agent_by_bot = AsyncMock(return_value={})
 

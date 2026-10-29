@@ -35,6 +35,7 @@ from app.services.channels.directory import (
     BoundChannelDirectory,
     supported_tools,
 )
+from app.services.channels.discord import DiscordAdapter
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
@@ -385,6 +386,7 @@ class TestWhatEachPlatformCanActuallyAnswer:
             ("slack", SlackAdapter),
             ("telegram", TelegramAdapter),
             ("mattermost", MattermostAdapter),
+            ("discord", DiscordAdapter),
         ],
     )
     def test_the_offered_list_matches_what_the_adapter_implements(

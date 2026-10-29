@@ -1677,7 +1677,9 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
 
 
-_CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
+_CHANNEL_SURFACES = frozenset(
+    {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.DISCORD}
+)
 
 _INTERRUPTED = frozenset(
     {

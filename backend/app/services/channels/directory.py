@@ -52,6 +52,8 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # The Bot Connector answers a conversation's roster, and nothing that would
     # search a tenant's channels or read what was said before the bot was asked.
     "teams": ("get_channel_info", "list_channel_members"),
+    # Not yet: the Discord adapter answers no directory question (#2079).
+    "discord": (),
 }
 """What each platform can actually answer, as the Builder offers it.
 
