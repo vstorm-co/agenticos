@@ -65,6 +65,11 @@ Two things are versioned separately from this file and worth knowing about:
   the drop too, with their files and chunks, when they are the dropped base's
   organization's and no other base of that organization holds the name. Before,
   a cleared default base kept listing and serving them (#2560).
+- Deleting a knowledge base (`DELETE /api/v1/kb/{id}`) while another base still
+  holds its collection name deletes the unfiled document rows of its organization
+  too, with their files and chunks, unless another base of that organization holds
+  the name. Before, they stayed, and the organization's next base on the name
+  listed and served them again (#2560).
 
 ## [1.28.1] - 2026-10-28
 

@@ -863,8 +863,11 @@ only the chunks of the documents it deleted, so an upload made after the drop ke
 its own, and a chunk with no document row stays
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-When a knowledge base is deleted, unfiled chunks stay, matched by their tenant, and
-unfiled document rows stay listed under the bases of their tenant
+Deleting a knowledge base (`DELETE /kb/{id}`) while another base holds its name also
+deletes the unfiled document rows of its organization, with their files and chunks,
+unless another base of that organization holds the name and still lists them - the
+same rule as a collection drop ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Otherwise unfiled chunks stay, matched by
+their tenant, and unfiled document rows stay listed under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by

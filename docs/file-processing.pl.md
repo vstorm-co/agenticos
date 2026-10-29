@@ -1,5 +1,5 @@
 ---
-source_sha: "ba6d8293c042"
+source_sha: "fc4256f89c31"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -915,10 +915,12 @@ usuwa tylko chunki usuniętych dokumentów, więc upload wykonany po usunięciu 
 swoje, a chunk bez wiersza dokumentu zostaje
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Gdy baza wiedzy zostaje usunięta, nieprzypisane chunki zostają i pasują po swoim
-tenancie, a nieprzypisane wiersze dokumentów nadal są listowane w bazach swojego
-tenanta
-([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+Usunięcie bazy wiedzy (`DELETE /kb/{id}`), gdy inna baza ma tę samą nazwę, usuwa też
+nieprzypisane wiersze dokumentów jej organizacji, razem z ich plikami i chunkami,
+chyba że inna baza tej organizacji ma tę nazwę i nadal je listuje - ta sama zasada
+co przy usuwaniu kolekcji ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). W pozostałych przypadkach nieprzypisane chunki
+zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal są
+listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej

@@ -338,44 +338,7 @@ class KnowledgeBaseService:
         # The documents go before the KB row: `ON DELETE SET NULL` would unfile
         # them first, and a delete by the base's id would then find nothing.
         if others:
-            scope = CollectionScope.of(kb)
-            # The unfiled rows the base takes go with it, unless another base on
-            # the name takes them too - one of the same tenant - and still reads
-            # them. A kept default would otherwise go on listing them (#2560).
-            takes_unfiled = scope.takes_unfiled and not any(
-                other.vector_scope.takes_unfiled and other.vector_scope.tenant == scope.tenant
-                for other in others
-            )
-            unfiled = (
-                await rag_document_repo.delete_unfiled_with_vectors(self.db, scope)
-                if takes_unfiled
-                else rag_document_repo.DeletedDocuments(storage_paths=[], vector_document_ids=[])
-            )
-            if kb.is_default:
-                deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(
-                    self.db, kb.id
-                )
-                storage_paths = deleted.storage_paths + unfiled.storage_paths
-                named = deleted.vector_document_ids + unfiled.vector_document_ids
-            else:
-                storage_paths = (
-                    await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
-                    + unfiled.storage_paths
-                )
-                named = unfiled.vector_document_ids
-                base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
-            # Split, so a large purge spreads across entries and jobs rather than
-            # one payload and one array holding every document.
-            base_purges += [
-                BasePurge(
-                    collection=collection,
-                    knowledge_base_id=kb.id,
-                    vector_document_ids=named[i : i + _PURGE_IDS_PER_ENTRY],
-                    takes_unfiled=takes_unfiled,
-                    tenant=scope.tenant if takes_unfiled else None,
-                )
-                for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
-            ]
+            storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
         else:
             storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
             collections_to_drop = [collection]
@@ -389,6 +352,60 @@ class KnowledgeBaseService:
         await queue_external_state_cleanup(
             self.db, storage_paths, collections_to_drop, base_purges=base_purges
         )
+
+    async def _delete_documents_from_kept_table(
+        self, kb: KnowledgeBase, others: list[KnowledgeBase]
+    ) -> tuple[list[str], list[BasePurge]]:
+        """Delete a base's document rows from a table `others` still hold.
+
+        Returns the stored files to unlink and the purges of the base's chunks
+        from the kept table. Its own rows go by its id; a kept default's purge
+        names only the deleted documents' chunks, since it takes uploads again
+        under the same id. The unfiled rows the base takes - its tenant's - go
+        with it, unless another base of that tenant on the name takes them too
+        and still reads them: a kept default would otherwise go on listing them,
+        and a deleted base would hand them to its tenant's next base on the name
+        (#2560). Their chunks are purged by document id within the tenant.
+
+        Runs before the KB row is deleted: `ON DELETE SET NULL` would unfile the
+        base's rows first, and a delete by its id would then find nothing.
+        """
+        collection = kb.collection_name
+        scope = CollectionScope.of(kb)
+        takes_unfiled = scope.takes_unfiled and not any(
+            other.vector_scope.takes_unfiled and other.vector_scope.tenant == scope.tenant
+            for other in others
+        )
+        unfiled = (
+            await rag_document_repo.delete_unfiled_with_vectors(self.db, scope)
+            if takes_unfiled
+            else rag_document_repo.DeletedDocuments(storage_paths=[], vector_document_ids=[])
+        )
+        base_purges: list[BasePurge] = []
+        if kb.is_default:
+            deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
+            storage_paths = deleted.storage_paths + unfiled.storage_paths
+            named = deleted.vector_document_ids + unfiled.vector_document_ids
+        else:
+            storage_paths = (
+                await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+                + unfiled.storage_paths
+            )
+            named = unfiled.vector_document_ids
+            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        # Split, so a large purge spreads across entries and jobs rather than
+        # one payload and one array holding every document.
+        base_purges += [
+            BasePurge(
+                collection=collection,
+                knowledge_base_id=kb.id,
+                vector_document_ids=named[i : i + _PURGE_IDS_PER_ENTRY],
+                takes_unfiled=takes_unfiled,
+                tenant=scope.tenant if takes_unfiled else None,
+            )
+            for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
+        ]
+        return storage_paths, base_purges
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""
@@ -896,7 +913,11 @@ class KnowledgeBaseService:
         reclaim it in the window between the commit and the drop (#913), and it
         builds its own vector engine - which is why this no longer takes a store.
         When another base still holds the name, the table stays and the same job
-        deletes the chunks filed under this base instead (#2537).
+        deletes the chunks filed under this base instead (#2537). The unfiled rows
+        the base takes - its tenant's legacy uploads - go with it then, files and
+        chunks included, unless another base of the same tenant on the name still
+        takes them: left, they would come back with the tenant's next base on the
+        name (#2560). `delete_for_rag_collection` applies the same rule.
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -920,16 +941,21 @@ class KnowledgeBaseService:
         # or sync inserting a row cannot slip in between the enumeration and the
         # base delete and survive detached under `ON DELETE SET NULL` (#1266).
         await knowledge_base_repo.lock(self.db, kb.id)
-        storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
-        await knowledge_base_repo.delete(self.db, kb.id)
+        others = [
+            ref
+            for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
+            if ref.id != kb.id
+        ]
         collections_to_drop: list[str] = []
         base_purges: list[BasePurge] = []
-        if await knowledge_base_repo.list_by_collection_name(self.db, collection):
+        if others:
             # Another base keeps the shared table, so the deleted base's chunks
             # stay in it, filed under an id no scope reads. Removed by that id
-            # after the commit, in the same durable job (#2537).
-            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+            # after the commit, in the same durable job (#2537) - with the
+            # unfiled rows the base took, and their chunks (#2560).
+            storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
         else:
+            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
             # No base references the name any more, so any sync source still
             # pointing at it is dangling: `get_due_for_sync` would re-select it
             # and `_run_source_sync` would recreate the very table this drops
@@ -941,6 +967,7 @@ class KnowledgeBaseService:
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
+        await knowledge_base_repo.delete(self.db, kb.id)
         if storage_paths or collections_to_drop or base_purges:
             from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 

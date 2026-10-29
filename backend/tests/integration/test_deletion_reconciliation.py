@@ -1087,6 +1087,68 @@ class TestADeletedBasesChunksOnAKeptTable:
                 await s.commit()
 
     @pytest.mark.security
+    async def test_deleting_a_knowledge_base_removes_its_tenants_unfiled_documents(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`DELETE /kb/{id}` with another organization's base on the same name: the
+        delete removed only rows filed under the base, so the unfiled legacy rows
+        it took - its organization's - stayed with their files and chunks, and
+        came back with the organization's next base on the name (#2560). Now they
+        go with it, and the other organization's unfiled rows stay."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        ours_file = await storage.save("delete-unfiled", "ours.txt", b"ours")
+        theirs_file = await storage.save("delete-unfiled", "theirs.txt", b"theirs")
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            ours = _kb_document(collection, None, org.id, ours_file)
+            ours.vector_document_id = "ours-doc"
+            theirs = _kb_document(collection, None, other_org.id, theirs_file)
+            theirs.vector_document_id = "theirs-doc"
+            s.add_all([ours, theirs])
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "ours-0", "ours-doc", None, org.id)
+            await _document_chunk(s, table, "theirs-0", "theirs-doc", None, other_org.id)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            doomed_id, ours_id, theirs_id = doomed.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                await KnowledgeBaseService(s).delete(doomed_id, ctx=ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(RAGDocument, ours_id) is None
+                assert await s.get(RAGDocument, theirs_id) is not None
+                assert await _chunk_ids(s, table) == {"theirs-0"}
+            assert not await storage.exists(ours_file)
+            assert await storage.exists(theirs_file)
+        finally:
+            await storage.delete(ours_file)
+            await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
     async def test_dropping_a_collection_removes_its_bases_documents_and_chunks_only(
         self, engine: AsyncEngine
     ) -> None:

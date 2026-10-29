@@ -133,6 +133,14 @@ def _kb(
     return kb
 
 
+def _personal_kb_outside_an_org(owner_user_id: uuid.UUID):
+    """A personal base outside any organization, with the vector scope a real row
+    derives: it takes no unfiled rows, whose tenant `None` is the app scope's."""
+    kb = _kb("personal", owner_user_id=owner_user_id)
+    kb.vector_scope = VectorScope(tenant=None, knowledge_base_id=kb.id, takes_unfiled=False)
+    return kb
+
+
 def _readable_kb(collection_name: str) -> KnowledgeBase:
     """A real ORM row, because this one goes through the response schema.
 
@@ -437,7 +445,7 @@ class TestKBAccessControl:
         own session, so a rollback keeps them (#1293) and a worker restart
         mid-cleanup does not orphan them (#1349)."""
         user_id = uuid.uuid4()
-        kb = _kb("personal", owner_user_id=user_id)
+        kb = _personal_kb_outside_an_org(user_id)
         dispatch = _patch_dispatch(monkeypatch)
 
         with (
@@ -510,7 +518,7 @@ class TestKBAccessControl:
         """A collection another base still claims keeps its vector table and its
         sync sources - the teardown removes only what this base owned (#1266)."""
         user_id = uuid.uuid4()
-        kb = _kb("personal", owner_user_id=user_id)
+        kb = _personal_kb_outside_an_org(user_id)
         get_all = AsyncMock()
         update = AsyncMock()
         dispatch = _patch_dispatch(monkeypatch)
@@ -854,6 +862,66 @@ class TestKBAccessControl:
                     tenant=org_id,
                 ),
             ],
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_deleting_a_base_takes_its_tenants_unfiled_documents(self, mock_db, monkeypatch):
+        """`DELETE /kb/{id}` with another organization's base on the name kept the
+        table and deleted only the rows filed under the base, so its tenant's
+        unfiled rows stayed, with their files and chunks, for the tenant's next
+        base on the name (#2560). They go as a collection drop takes them."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(
+            monkeypatch, holders=[kb, _kb("org", organization_id=uuid.uuid4())]
+        )
+        monkeypatch.setattr(KnowledgeBaseService, "get_for_write", AsyncMock(return_value=kb))
+
+        await KnowledgeBaseService(mock_db).delete(kb.id, ctx=_ctx(organization_id=org_id))
+
+        repos["unfiled"].assert_awaited_once_with(mock_db, CollectionScope.of(kb))
+        repos["delete"].assert_awaited_once_with(mock_db, kb.id)
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/ours.txt", "rag/docs/legacy-ours.txt"],
+            [],
+            base_purges=[
+                BasePurge(collection="docs", knowledge_base_id=kb.id),
+                BasePurge(
+                    collection="docs",
+                    knowledge_base_id=kb.id,
+                    vector_document_ids=["legacy-1"],
+                    takes_unfiled=True,
+                    tenant=org_id,
+                ),
+            ],
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_deleting_a_base_leaves_unfiled_documents_to_a_same_tenant_base(
+        self, mock_db, monkeypatch
+    ):
+        """Another base of the same organization on the name still reads the
+        unfiled rows, so deleting this one leaves them to it."""
+        org_id = uuid.uuid4()
+        kb = _kb("org", organization_id=org_id)
+        kb.collection_name = "docs"
+        dispatch = _patch_dispatch(monkeypatch)
+        repos = self._drop_repos(monkeypatch, holders=[kb, _kb("org", organization_id=org_id)])
+        monkeypatch.setattr(KnowledgeBaseService, "get_for_write", AsyncMock(return_value=kb))
+
+        await KnowledgeBaseService(mock_db).delete(kb.id, ctx=_ctx(organization_id=org_id))
+
+        repos["unfiled"].assert_not_awaited()
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/ours.txt"],
+            [],
+            base_purges=[BasePurge(collection="docs", knowledge_base_id=kb.id)],
         )
 
     @pytest.mark.anyio

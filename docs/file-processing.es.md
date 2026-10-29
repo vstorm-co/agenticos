@@ -1,5 +1,5 @@
 ---
-source_sha: "ba6d8293c042"
+source_sha: "fc4256f89c31"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -933,10 +933,12 @@ documentos borrados, así que una subida hecha después conserva los suyos, y un
 fragmento sin fila de documento se queda
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Cuando se borra una base de conocimiento, los fragmentos sin asignar se quedan y
-coinciden por su tenant, y las filas de documentos sin asignar siguen listadas en las
-bases de su tenant
-([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+Borrar una base de conocimiento (`DELETE /kb/{id}`) mientras otra base tiene su
+nombre también borra las filas de documentos sin asignar de su organización, con sus
+archivos y fragmentos, salvo que otra base de esa organización tenga el nombre y aún
+las liste: la misma regla que al eliminar una colección ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). En los demás casos,
+los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
+documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el

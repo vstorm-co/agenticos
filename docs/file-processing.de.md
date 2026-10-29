@@ -1,5 +1,5 @@
 ---
-source_sha: "ba6d8293c042"
+source_sha: "fc4256f89c31"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -975,10 +975,12 @@ Standardbasis entfernt es nur die Chunks der gelöschten Dokumente, sodass ein U
 nach dem Löschen seine eigenen behält und ein Chunk ohne Dokumentzeile bleibt
 ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
 
-Wird eine Wissensbasis gelöscht, bleiben nicht zugeordnete Chunks und passen über
-ihren Tenant, und nicht zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants
-gelistet
-([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+Wird eine Wissensbasis gelöscht (`DELETE /kb/{id}`), während eine andere Basis ihren
+Namen hält, gehen auch die nicht zugeordneten Dokumentzeilen ihrer Organisation mit
+ihren Dateien und Chunks, außer eine andere Basis dieser Organisation hält den Namen
+und listet sie noch - dieselbe Regel wie beim Löschen einer Collection ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+Sonst bleiben nicht zugeordnete Chunks und passen über ihren Tenant, und nicht
+zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
 Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben
