@@ -11,7 +11,8 @@
  */
 
 import { activateTab } from "@/lib/activate-tab";
-import { stripLocale } from "@/lib/active-route";
+import { localePrefixOf } from "@/lib/locale-routing";
+import { defaultLocale } from "@/lib/locales";
 import { glideOrJump } from "@/lib/motion";
 import { TOUR_STEPS } from "@/lib/onboarding/tour";
 
@@ -48,13 +49,24 @@ function find(anchor: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
 }
 
+/** A path without its locale prefix, read in any case as the middleware reads it. */
+function withoutLocale(pathname: string): string {
+  const locale = localePrefixOf(pathname);
+  return locale ? pathname.slice(locale.length + 1) || "/" : pathname;
+}
+
 /**
- * Whether the browser is on `page` yet. The locale comes off both sides: the
- * router may have added one, and a link an agent copied may already carry one.
+ * Whether the browser is on `page` yet. The router may have added a locale, so
+ * a link naming none matches the page in any; a link naming one - an agent's
+ * copy of the address bar, or the same page in another language - is not
+ * reached until the browser is in that locale.
  */
 function arrivedAt(page: string): boolean {
   const pushed = new URL(page, window.location.origin).pathname;
-  return stripLocale(window.location.pathname) === stripLocale(pushed);
+  const here = window.location.pathname;
+  const named = localePrefixOf(pushed);
+  if (named !== null && named !== (localePrefixOf(here) ?? defaultLocale)) return false;
+  return withoutLocale(here) === withoutLocale(pushed);
 }
 
 /**

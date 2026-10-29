@@ -118,6 +118,45 @@ describe("pointAt", () => {
     expect(button).not.toHaveClass("assistant-highlight");
   });
 
+  it("reads a locale prefix in any case, as the middleware does", async () => {
+    // `/PL/agents` is redirected to `/pl/agents`; the page is the same page.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
+
+    await expect(pointAt("agents-new", "/PL/agents")).resolves.toBe(true);
+    // And a locale's home, which is the console's root.
+    window.history.replaceState(null, "", "/pl");
+    await expect(pointAt("agents-new", "/")).resolves.toBe(true);
+  });
+
+  it("waits for a locale the link names before pointing", async () => {
+    // From the Polish page to the German one: the same page in another locale,
+    // with the same control on it.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">Nowy</button>`;
+
+    const pointing = pointAt("agents-new", "/de/agents");
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(settled(pointing)).resolves.toBe("waiting");
+    expect(ringed("agents-new")).toBe(false);
+
+    window.history.pushState(null, "", "/de/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">Neu</button>`;
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("agents-new")).toBe(true);
+  });
+
+  it("takes the default locale's prefix to mean no prefix", async () => {
+    // `/en/agents` is served as `/agents`.
+    window.history.replaceState(null, "", "/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
+
+    await expect(pointAt("agents-new", "/en/agents")).resolves.toBe(true);
+  });
+
   it("switches the tab a control lives behind, and leaves focus where it was", async () => {
     window.history.replaceState(null, "", "/agents/x?tab=limits");
     render(
