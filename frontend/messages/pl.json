@@ -9017,7 +9017,9 @@
       "newWindow": "Nowe okno",
       "windowFailed": "Nie udało się otworzyć okna. Możesz otworzyć do ośmiu okien Quick Ask.",
       "tabLimit": "W jednym oknie możesz otworzyć do ośmiu zakładek.",
-      "earlierMessages": "Wczytaj wcześniejsze wiadomości"
+      "earlierMessages": "Wczytaj wcześniejsze wiadomości",
+      "startDictation": "Zacznij dyktowanie",
+      "stopDictation": "Zatrzymaj dyktowanie"
     },
     "notifications": {
       "approvalTitle": "{agent} chce uruchomić {tool}",

@@ -9232,7 +9232,9 @@
       "newWindow": "New window",
       "windowFailed": "Could not open another window. Up to eight Quick Ask windows can be open.",
       "tabLimit": "You can open up to eight tabs in one window.",
-      "earlierMessages": "Load earlier messages"
+      "earlierMessages": "Load earlier messages",
+      "startDictation": "Start dictation",
+      "stopDictation": "Stop dictation"
     },
     "notifications": {
       "approvalTitle": "{agent} wants to run {tool}",

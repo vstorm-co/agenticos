@@ -9021,7 +9021,9 @@
       "newWindow": "Neues Fenster",
       "windowFailed": "Weiteres Fenster konnte nicht geöffnet werden. Bis zu acht Quick-Ask-Fenster sind möglich.",
       "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
-      "earlierMessages": "Frühere Nachrichten laden"
+      "earlierMessages": "Frühere Nachrichten laden",
+      "startDictation": "Diktat starten",
+      "stopDictation": "Diktat stoppen"
     },
     "readiness": {
       "title": "App-Bereitschaft",

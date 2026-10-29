@@ -499,3 +499,5 @@ cannot be verified by an unsigned local build.
   shortcut.
 
 Quick Ask supports up to eight independent tabs in each window. The tab bar keeps drafts, attachments, selected agents and running answers separate. Recent conversations opens a searchable list and reuses an already open tab; saved chats restore messages and offer earlier history. Inactive tabs do not capture file drops, dictation shortcuts or focus. **New window** opens another panel, up to eight windows, with its own pin state. Extra windows stay open when focus changes; unpinning removes their always-on-top behavior. Closing an extra window destroys its view, while closing the shortcut panel hides it. Changing servers destroys extra panels and clears their activity entries.
+
+Quick Ask has a microphone button for click-to-start dictation as well as hold-to-talk, and the same live voice call controls as chat. Calls use the selected agent’s configured transport, show captions, approvals and questions, and save spoken turns in the conversation. Text sending and dictation wait while a call is active. Leaving the tab or changing its agent ends the call and releases the microphone.

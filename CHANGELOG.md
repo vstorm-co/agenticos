@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add direct dictation and live agent voice calls to Quick Ask, with shared captions, approvals and conversation history.
+
 - Give Quick Ask independent conversation tabs, searchable recent chats and multiple windows with per-window pinning.
 
 - Show installed-version GitHub release notes after login, once per account on a device.

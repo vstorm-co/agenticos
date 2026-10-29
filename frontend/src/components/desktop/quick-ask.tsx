@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
+import { QuickAskVoice } from "./quick-ask-voice";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { getErrorMessage } from "@/lib/api-error";
 import { AttachmentCard, PendingAttachmentCard } from "@/components/chat/attachment-card";
@@ -142,6 +143,7 @@ export function QuickAsk({
   const { isAuthenticated, isLoading } = useAuth();
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId);
   const [question, setQuestion] = useState("");
+  const [voiceActive, setVoiceActive] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [pinned, setPinned] = useState(false);
@@ -448,6 +450,7 @@ export function QuickAsk({
       signedOut ||
       !selectedAgentId ||
       isProcessing ||
+      voiceActive ||
       attaching ||
       uploadCount.current > 0 ||
       phase === "requesting" ||
@@ -589,7 +592,14 @@ export function QuickAsk({
     } else if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       const text = question.trim();
-      if ((!text && !files.length) || isProcessing || attaching || uploadCount.current > 0) return;
+      if (
+        (!text && !files.length) ||
+        isProcessing ||
+        voiceActive ||
+        attaching ||
+        uploadCount.current > 0
+      )
+        return;
       void ask(text);
     } else if (event.key.toLowerCase() === "n" && command) {
       event.preventDefault();
@@ -762,6 +772,22 @@ export function QuickAsk({
           ))}
         </div>
       )}
+      {!signedOut && (
+        <QuickAskVoice
+          agentId={selectedAgentId}
+          conversationId={conversationId}
+          active={active}
+          disabled={
+            isProcessing ||
+            attaching ||
+            pendingFiles.length > 0 ||
+            listening ||
+            phase === "transcribing"
+          }
+          onConversation={setConversationId}
+          onActiveChange={setVoiceActive}
+        />
+      )}
       <div className="focus-within:ring-ring/30 border-border bg-background/70 mx-3 mb-2 flex shrink-0 items-end gap-2 rounded-xl border px-3 py-2 focus-within:ring-2">
         <button
           type="button"
@@ -806,6 +832,26 @@ export function QuickAsk({
           aria-label={t("placeholder")}
           className="text-foreground placeholder:text-muted-foreground field-sizing-content max-h-28 min-h-8 min-w-0 flex-1 resize-none bg-transparent py-1 text-base leading-6 outline-none"
         />
+        <button
+          type="button"
+          aria-label={listening ? t("stopDictation") : t("startDictation")}
+          title={listening ? t("stopDictation") : t("startDictation")}
+          aria-pressed={listening}
+          disabled={signedOut || voiceActive || phase === "transcribing" || isProcessing}
+          onClick={() => {
+            if (listening) {
+              held.current = false;
+              stopDictation();
+            } else if (dictation.engine === "server") {
+              held.current = true;
+              setNoDictation(false);
+              void dictation.actions.start();
+            } else setNoDictation(true);
+          }}
+          className="text-muted-foreground hover:bg-muted hover:text-foreground shrink-0 rounded-lg p-2 disabled:opacity-40"
+        >
+          <Mic className={cn("size-4", listening && "text-destructive")} aria-hidden />
+        </button>
         {listening ? (
           <Mic
             className="text-destructive mb-2 size-4 shrink-0 animate-pulse"
@@ -828,6 +874,7 @@ export function QuickAsk({
             aria-label={tInput("send")}
             disabled={
               signedOut ||
+              voiceActive ||
               !selectedAgentId ||
               (!question.trim() && !files.length) ||
               pendingFiles.length > 0 ||

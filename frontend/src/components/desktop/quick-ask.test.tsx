@@ -64,6 +64,7 @@ const env = vi.hoisted(() => ({
   })),
   resize: null as null | ((entries: { contentRect: { height: number } }[]) => void),
 }));
+vi.mock("./quick-ask-voice", () => ({ QuickAskVoice: () => null }));
 vi.mock("sonner", () => ({ toast: { error: env.toastError } }));
 vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => "org" }));
 vi.mock("@/hooks/use-mentionables", () => ({
@@ -702,4 +703,14 @@ it("keeps background tabs from handling shortcuts or resizing the native window"
   act(() => env.listeners.get("desktop:quick-ask")?.());
   expect(env.dictation.actions.start).not.toHaveBeenCalled();
   expect(env.commands.resizeQuickAsk).not.toHaveBeenCalled();
+});
+
+it("starts and stops dictation directly from the microphone button", async () => {
+  const view = render(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: "Start dictation" }));
+  expect(env.dictation.actions.start).toHaveBeenCalledOnce();
+  env.dictation.state = { phase: "recording", transcript: null };
+  view.rerender(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: "Stop dictation" }));
+  expect(env.dictation.actions.stop).toHaveBeenCalled();
 });
