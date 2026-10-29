@@ -1,5 +1,5 @@
 ---
-source_sha: "bb0a26853f30"
+source_sha: "974491705f8e"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -378,11 +378,14 @@ jego id.
     - **Nie każdy może na nim publikować.** Publikacja, rollback do wersji lub
       promocja wersji agenta jest odrzucana dla kogoś, kto nie widzi logowania w
       vault, gdy działa na nim model, do którego docierają runy agenta: model
-      agenta, recenzenta, wbudowanego specjalisty albo włączonej capability lub
-      jeden z pierwszych trzech fallbacków któregokolwiek z nich. Mogą to zrobić osoba,
-      do której należy logowanie, właściciele (owner) i administratorzy (admin)
-      organizacji oraz każdy, komu je udostępniono. Wersja opublikowana na nim
-      wcześniej działa dalej.
+      agenta, recenzenta, wbudowanego specjalisty albo włączonej capability,
+      model [przypiętego delegata](reference/capabilities.md#delegation) i tego,
+      do czego ten delegat dociera dalej, lub jeden z pierwszych trzech
+      fallbacków któregokolwiek z nich. Mogą to zrobić osoba, do której należy
+      logowanie, właściciele (owner) i administratorzy (admin) organizacji oraz
+      każdy, komu je udostępniono. Klucz API nie może, niezależnie od tego, co
+      widzi jego wystawca, bo run pod kluczem nigdy nie wydaje logowania.
+      Wersja opublikowana na nim wcześniej działa dalej.
     - **Nie jest oferowane specjaliście, którego wymyśla model.** Przy
       [`allow_dynamic`](reference/capabilities.md#delegation) model runu może
       wybrać model specjalisty spośród profili organizacji. Profil na logowaniu

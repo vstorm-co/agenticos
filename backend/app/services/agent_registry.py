@@ -138,7 +138,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
-from app.services.model_profile import MAX_FALLBACK_DEPTH
+from app.services.model_profile import MAX_FALLBACK_DEPTH, sign_in_person
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -615,6 +615,9 @@ class _ModelRef:
     says: str
     """Who names it, in front of a refusal - empty for the agent's own model."""
     profile_id: UUID
+    pinned: bool = False
+    """Named inside a pinned delegate's frozen version, which this publisher cannot
+    edit - so the remedy is another pin, not another model."""
 
 
 def _binding_model_refs(bindings: Sequence[CapabilityBindingSpec]) -> list[_ModelRef]:
@@ -1794,8 +1797,15 @@ class AgentRegistryService:
         Keyed on the secret's kind, as the runtime is, not on the profile's
         provider; and on the first `MAX_FALLBACK_DEPTH` fallbacks, the ones a run
         can reach. Phrased without the secret's name: the publisher cannot see it.
+
+        The models of the delegates the spec pins are judged too
+        (`_pinned_model_refs`): a run resolves them for its own caller, so a pin
+        reaches a sign-in as surely as naming it does. And a context with no
+        person behind it - an API key, whatever its issuer may see - may point an
+        agent at no sign-in, because a run under it may spend none
+        (`sign_in_person`).
         """
-        refs = _model_refs(spec)
+        refs = [*_model_refs(spec), *await self._pinned_model_refs(ctx, spec)]
         if not refs:
             return _SpecProblems()
         org = ctx.organization_id
@@ -1815,40 +1825,107 @@ class AgentRegistryService:
             list({p.secret_id for p in profiles.values() if p.secret_id is not None}),
             organization_id=org,
         )
+        person = sign_in_person(ctx)
         out_of_reach = {
             secret.id
             for secret in secrets.values()
             if secret.kind == SecretKind.OPENAI_CODEX.value
-            and not await resolve_access(
-                self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            and (
+                person is None
+                or not await resolve_access(
+                    self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+                )
             )
         }
         problems = _SpecProblems()
         if not out_of_reach:
             return problems
+        who = "you" if person is not None else "an API key"
+        ask = ", or ask its owner to share the sign-in with you" if person is not None else ""
         for ref in refs:
             # A profile that is gone is `model_profile_problems`' to report.
             profile = profiles.get(ref.profile_id)
             if profile is None:
                 continue
             if profile.secret_id in out_of_reach:
+                instead = "pin another delegate or version" if ref.pinned else "pick another model"
                 problems.refuse(
                     ref.field,
                     f"{ref.says}Model '{profile.label}' runs on somebody's own ChatGPT "
-                    "sign-in, which you cannot use - pick another model, or ask its owner "
-                    "to share the sign-in with you",
+                    f"sign-in, which {who} cannot use - {instead}{ask}",
                 )
             for fallback_id in chains[profile.id]:
                 fallback = profiles.get(fallback_id)
                 if fallback is not None and fallback.secret_id in out_of_reach:
+                    instead = (
+                        "pin another delegate or version"
+                        if ref.pinned
+                        else "remove it from the fallbacks"
+                    )
                     problems.refuse(
                         ref.field,
                         f"{ref.says}Model '{profile.label}' falls back to "
                         f"'{fallback.label}', which runs on somebody's own ChatGPT sign-in "
-                        "you cannot use - remove it from the fallbacks, or ask its owner to "
-                        "share the sign-in with you",
+                        f"{who} cannot use - {instead}{ask}",
                     )
         return problems
+
+    async def _pinned_model_refs(self, ctx: AuthContext, spec: AgentSpec) -> list[_ModelRef]:
+        """The models a run of this spec reaches through the delegates it pins (#2546).
+
+        The runner resolves a pinned delegate's model for the run's own caller
+        (`AgentRunnerService._resolve_delegate`), so pinning a version on
+        somebody's sign-in reaches it for the owner's and the admins' runs as
+        surely as naming it does - including a version published before
+        publish judged sign-ins. Each pin is addressed by the input that names
+        it, `subagents.N.agent_version_id`, for whatever it reaches below.
+
+        Walked the way the runner walks the tree, from the frozen version each
+        pin names: a delegate's own model always; and while the depth left
+        allows it to delegate (`min(left - 1, its own max_depth - 1)`, as the
+        runner computes it), its inline specialists' models, the delegates it
+        pins in turn, and - when it may invent specialists - every model its own
+        spec names, which is what its catalog may offer (`models_a_run_reaches`).
+        A pin that does not resolve is the pin check's to report. Bounded by
+        `_MAX_DELEGATION_NODES` like the cycle walk, which refuses a tree past
+        that bound on its own.
+        """
+        config = _subagents_config(spec)
+        if config is None or not spec.subagents:
+            return []
+        stack: list[tuple[str, tuple[str, ...], _PinnedDelegate, int]] = []
+        for index, ref in enumerate(spec.subagents):
+            pinned = await self._resolve_pin(ctx, ref)
+            if pinned is not None:
+                field = f"subagents.{index}.agent_version_id"
+                stack.append((field, (pinned.spec.name,), pinned, config.max_depth - 1))
+        refs: list[_ModelRef] = []
+        seen: set[tuple[str, str, UUID]] = set()
+        visited: set[tuple[str, UUID, int]] = set()
+        while stack and len(visited) < _MAX_DELEGATION_NODES:
+            field, chain, pinned, left = stack.pop()
+            node = (field, pinned.version_id, left)
+            if node in visited:
+                continue
+            visited.add(node)
+            delegate = pinned.spec
+            reached: list[UUID | None] = [delegate.model_profile_id]
+            nested = _subagents_config(delegate)
+            if nested is not None and left > 0:
+                below = min(left - 1, nested.max_depth - 1)
+                reached.extend(specialist.model_profile_id for specialist in nested.inline)
+                if nested.allow_dynamic:
+                    reached.extend(models_a_run_reaches(delegate))
+                for ref in delegate.subagents:
+                    deeper = await self._resolve_pin(ctx, ref)
+                    if deeper is not None:
+                        stack.append((field, (*chain, deeper.spec.name), deeper, below))
+            says = f"Delegate '{' -> '.join(chain)}': "
+            for profile_id in reached:
+                if profile_id is not None and (field, says, profile_id) not in seen:
+                    seen.add((field, says, profile_id))
+                    refs.append(_ModelRef(field, says, profile_id, pinned=True))
+        return refs
 
     async def refuse_borrowed_sign_ins(self, ctx: AuthContext, version: AgentVersion) -> None:
         """Refuse to put a version in front of people on a sign-in the caller cannot use.

@@ -652,18 +652,7 @@ class ModelProfileService:
                 caller may not use.
         """
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
-        # Only somebody actually asking: a publisher standing in for a visitor,
-        # and a key's issuer standing behind whoever holds it, are an account to
-        # bill, not the person whose subscription it is. Persisted run contexts
-        # retain a key's scope ceiling even without its live credential object;
-        # losing that object must never turn a key holder into a signed-in person.
-        person = (
-            None
-            if ctx.subject_is_publisher_fallback
-            or ctx.api_key_id is not None
-            or ctx.key_scopes is not None
-            else ctx.user_id
-        )
+        person = sign_in_person(ctx)
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
                 message=(
@@ -814,3 +803,23 @@ async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bo
     if not isinstance(source, VaultCodexCredentials):
         return True
     return user_id is not None and await source.visible_to(user_id)
+
+
+def sign_in_person(ctx: AuthContext) -> UUID | None:
+    """The person whose ChatGPT sign-ins this context may reach, or None for nobody.
+
+    Only somebody actually asking: a publisher standing in for a visitor, and a
+    key's issuer standing behind whoever holds it, are an account to bill, not
+    the person whose subscription it is. Persisted run contexts retain a key's
+    scope ceiling even without its live credential object; losing that object
+    must never turn a key holder into a signed-in person. A run asks this
+    (`ModelProfileService.resolve`), and so does publish (#2546): a context that
+    may not spend a sign-in may not point an agent at one either.
+    """
+    if (
+        ctx.subject_is_publisher_fallback
+        or ctx.api_key_id is not None
+        or ctx.key_scopes is not None
+    ):
+        return None
+    return ctx.user_id

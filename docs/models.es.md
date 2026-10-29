@@ -1,5 +1,5 @@
 ---
-source_sha: "bb0a26853f30"
+source_sha: "974491705f8e"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -390,10 +390,14 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       promover una versión de un agente se rechaza para quien no puede ver el
       inicio de sesión en el vault cuando funciona sobre él un modelo al que
       llegan sus runs: el modelo del agente, el de un revisor, el de un
-      especialista inline o el de una capability activada, o uno de los tres
-      primeros fallbacks de cualquiera de ellos. Pueden hacerlo el dueño del inicio de sesión, los
-      owners y admins, y cualquiera con quien se haya compartido. Una versión
-      publicada antes sobre él sigue funcionando.
+      especialista inline o el de una capability activada, el modelo de un
+      [delegado que fija](reference/capabilities.md#delegation) y de lo que ese
+      delegado alcanza a su vez, o uno de los tres primeros fallbacks de
+      cualquiera de ellos. Pueden hacerlo el dueño del inicio de sesión, los
+      owners y admins, y cualquiera con quien se haya compartido. Una clave de
+      API no puede, vea lo que vea quien la emitió, porque un run con una clave
+      nunca gasta un inicio de sesión. Una versión publicada antes sobre él
+      sigue funcionando.
     - **No se ofrece a un especialista que invente el modelo.** Con
       [`allow_dynamic`](reference/capabilities.md#delegation) el modelo de un run
       puede elegir el modelo de un especialista entre los perfiles de la

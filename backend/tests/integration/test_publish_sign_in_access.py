@@ -8,12 +8,13 @@ secrets, organization-wide ones and those shared with them; an owner sees all.
 """
 
 import uuid
+from dataclasses import replace
 
 import pytest
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import SecretKind
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.credential import ModelProfile
@@ -248,3 +249,100 @@ class TestPromotion:
             acme.ctx(acme.ada), acme.agent.id, staging.id, EnvironmentUpdate(version_id=v2.id)
         )
         assert promoted.version_id == v2.id
+
+
+class TestPinnedDelegates:
+    """A run resolves a pinned delegate's model for its own caller, so pinning a
+    version on Ada's sign-in reaches it for the owner's runs as surely as naming
+    it would."""
+
+    async def _research_on_codex(self, acme: _Org):
+        """Ada's own delegate, published by her on her own sign-in."""
+        research = Agent(
+            id=uuid.uuid4(),
+            organization_id=acme.org.id,
+            owner_user_id=acme.ada.id,
+            visibility=Visibility.ORG.value,
+            slug=f"research-{uuid.uuid4().hex[:6]}",
+            name="Research",
+            draft_spec={"name": "Research", "model_profile_id": str(acme.codex.id)},
+            status=AgentStatus.DRAFT.value,
+        )
+        acme.db.add(research)
+        await acme.db.flush()
+        version = await AgentRegistryService(acme.db).publish(acme.ctx(acme.ada), research.id)
+        acme.agent.draft_spec = {
+            "name": "Helpdesk",
+            "model_profile_id": str(acme.gpt.id),
+            "capabilities": [{"id": "subagents"}],
+            "subagents": [{"agent_id": str(research.id), "agent_version_id": str(version.id)}],
+        }
+        await acme.db.flush()
+
+    async def test_a_builder_who_cannot_see_the_delegates_sign_in_is_refused(self, db) -> None:
+        acme = await _Org().build(db)
+        await self._research_on_codex(acme)
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(db).publish(acme.ctx(acme.bob), acme.agent.id)
+
+        assert _fields(refused.value) == ["subagents.0.agent_version_id"]
+        assert refused.value.details["problems"][0].startswith(
+            "Delegate 'Research': Model 'Ada's Codex'"
+        )
+        assert acme.agent.current_version_id is None
+
+    async def test_the_sign_ins_owner_pins_it(self, db) -> None:
+        acme = await _Org().build(db)
+        await self._research_on_codex(acme)
+
+        version = await AgentRegistryService(db).publish(acme.ctx(acme.ada), acme.agent.id)
+
+        assert version.spec["subagents"]
+
+
+class TestApiKeys:
+    """A run under a key spends no sign-in, so a key may point an agent at none -
+    even Ada's own key, carrying `secrets:view`, on Ada's own sign-in."""
+
+    def _adas_key(self, acme: _Org) -> AuthContext:
+        return replace(
+            acme.ctx(acme.ada),
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset(
+                {Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.AGENTS_PUBLISH, Perm.SECRETS_VIEW}
+            ),
+        )
+
+    async def test_publishing_with_a_key_on_its_issuers_sign_in_is_refused(self, db) -> None:
+        acme = await _Org().build(db)
+        await acme.draft_on(acme.codex)
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(db).publish(self._adas_key(acme), acme.agent.id)
+
+        assert _fields(refused.value) == ["model_profile_id"]
+        assert "which an API key cannot use" in refused.value.details["problems"][0]
+        assert acme.agent.current_version_id is None
+
+    async def test_promoting_with_a_key_onto_its_issuers_sign_in_is_refused(self, db) -> None:
+        acme = await _Org().build(db)
+        await acme.draft_on(acme.codex)
+        on_codex = await AgentRegistryService(db).publish(acme.ctx(acme.ada), acme.agent.id)
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentEnvironmentService(db).create(
+                self._adas_key(acme),
+                acme.agent.id,
+                EnvironmentCreate(name="staging", version_id=on_codex.id),
+            )
+
+        assert refused.value.details["version_id"] == on_codex.id
+
+    async def test_a_key_still_publishes_on_an_ordinary_key(self, db) -> None:
+        acme = await _Org().build(db)
+        await acme.draft_on(acme.gpt)
+
+        version = await AgentRegistryService(db).publish(self._adas_key(acme), acme.agent.id)
+
+        assert version.spec["model_profile_id"] == str(acme.gpt.id)

@@ -11,6 +11,7 @@ and grants deciding it against real rows are in
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,7 +19,7 @@ import pytest
 from app.agents.capabilities import load_builtins
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import SecretKind
 from app.services.agent_registry import AgentRegistryService
 
@@ -56,10 +57,17 @@ def _profile(label: str, *, secret: MagicMock | None, fallbacks: tuple = ()) -> 
 class _Vault:
     """The organization's profiles and secrets, and which secrets the caller may see."""
 
-    def __init__(self, *profiles: MagicMock, secrets: tuple = (), visible: tuple = ()) -> None:
+    def __init__(
+        self,
+        *profiles: MagicMock,
+        secrets: tuple = (),
+        visible: tuple = (),
+        versions: tuple = (),
+    ) -> None:
         self.profiles = {profile.id: profile for profile in profiles}
         self.secrets = {secret.id: secret for secret in secrets}
         self.visible = {secret.id for secret in visible}
+        self.versions = {version.id: version for version in versions}
         self.access = AsyncMock(side_effect=self._may_see)
 
     async def _profiles(self, _db, ids, **_kwargs):
@@ -71,22 +79,45 @@ class _Vault:
     async def _may_see(self, _db, _ctx, secret, *_args, **_kwargs) -> bool:
         return secret.id in self.visible
 
+    async def _version(self, _db, version_id, **_kwargs):
+        return self.versions.get(version_id)
+
     @contextmanager
     def patched(self) -> Iterator[None]:
         with (
             patch(f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids", new=self._profiles),
             patch(f"{REGISTRY_PATH}.organization_secret_repo.get_many", new=self._secrets),
             patch(f"{REGISTRY_PATH}.resolve_access", new=self.access),
+            patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=self._version),
         ):
             yield
 
-    async def problems(self, spec: AgentSpec):
+    async def problems(self, spec: AgentSpec, ctx: AuthContext | None = None):
         with self.patched():
-            return await AgentRegistryService(MagicMock())._sign_in_problems(_ctx(), spec)
+            return await AgentRegistryService(MagicMock())._sign_in_problems(ctx or _ctx(), spec)
 
 
 def _spec(**fields) -> AgentSpec:
     return AgentSpec.model_validate({"name": "Helpdesk", **fields})
+
+
+def _delegation(**config) -> dict:
+    return {"id": "subagents", "config": config}
+
+
+def _version(name: str, **fields) -> MagicMock:
+    """A published version of a delegate, frozen as its own publisher left it."""
+    version = MagicMock(id=uuid.uuid4(), agent_id=uuid.uuid4(), version=1)
+    version.spec = {"name": name, **fields}
+    return version
+
+
+def _pin(version: MagicMock) -> dict:
+    return {"agent_id": str(version.agent_id), "agent_version_id": str(version.id)}
+
+
+def _specialist(name: str, **fields) -> dict:
+    return {"name": name, "description": "Helps", "instructions": "Help.", **fields}
 
 
 class TestTheAgentsOwnModel:
@@ -320,3 +351,257 @@ class TestPromotion:
 
         with vault.patched():
             await AgentRegistryService(MagicMock()).refuse_borrowed_sign_ins(_ctx(), version)
+
+
+class TestPinnedDelegates:
+    """A run resolves a pinned delegate's model for its own caller, so a pin is
+    a choice of what a run spends as much as naming a model is."""
+
+    async def test_a_delegate_on_a_sign_in_the_publisher_cannot_see_is_refused_on_the_pin(self):
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        research = _version("Research", model_profile_id=str(codex.id))
+        vault = _Vault(codex, secrets=(sign_in,), versions=(research,))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation()], subagents=[_pin(research)])
+        )
+
+        message = (
+            "Delegate 'Research': Model 'Ada's Codex' runs on somebody's own ChatGPT "
+            "sign-in, which you cannot use - pin another delegate or version, or ask its "
+            "owner to share the sign-in with you"
+        )
+        assert problems.fields == [{"field": "subagents.0.agent_version_id", "message": message}]
+
+    async def test_a_delegate_falling_back_to_a_sign_in_is_refused(self):
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key, fallbacks=(codex,))
+        research = _version("Research", model_profile_id=str(gpt.id))
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), versions=(research,))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation()], subagents=[_pin(research)])
+        )
+
+        assert problems.messages == [
+            "Delegate 'Research': Model 'GPT' falls back to 'Ada's Codex', which runs on "
+            "somebody's own ChatGPT sign-in you cannot use - pin another delegate or "
+            "version, or ask its owner to share the sign-in with you"
+        ]
+
+    async def test_a_delegate_on_a_sign_in_the_publisher_can_see_is_allowed(self):
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        codex = _profile("My Codex", secret=sign_in)
+        research = _version("Research", model_profile_id=str(codex.id))
+        vault = _Vault(codex, secrets=(sign_in,), visible=(sign_in,), versions=(research,))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation()], subagents=[_pin(research)])
+        )
+
+        assert problems.messages == []
+
+    async def test_nested_delegates_are_followed_as_deep_as_the_run_goes(self):
+        """`max_depth=2` on the parent leaves the delegate one level: its own
+        specialists and pins run, and are named by the chain that reaches them."""
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key)
+        deep = _version("Deep", model_profile_id=str(codex.id))
+        research = _version(
+            "Research",
+            model_profile_id=str(gpt.id),
+            capabilities=[
+                _delegation(
+                    max_depth=3,
+                    inline=[_specialist("reader", model_profile_id=str(codex.id))],
+                )
+            ],
+            subagents=[_pin(deep)],
+        )
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), versions=(research, deep))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation(max_depth=2)], subagents=[_pin(research)])
+        )
+
+        assert [problem["field"] for problem in problems.fields] == [
+            "subagents.0.agent_version_id",
+            "subagents.0.agent_version_id",
+        ]
+        assert problems.messages[0].startswith("Delegate 'Research': Model 'Ada's Codex'")
+        assert problems.messages[1].startswith("Delegate 'Research -> Deep': Model 'Ada's Codex'")
+
+    async def test_what_lies_past_the_depth_bound_is_not_judged(self):
+        """At `max_depth=1` the delegate is built without delegation, so neither
+        its specialists, its pins nor a catalog of its own reach anything."""
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key)
+        deep = _version("Deep", model_profile_id=str(codex.id))
+        research = _version(
+            "Research",
+            model_profile_id=str(gpt.id),
+            reviewers=[{"name": "tone", "model_profile_id": str(codex.id)}],
+            capabilities=[
+                _delegation(
+                    allow_dynamic=True,
+                    inline=[_specialist("reader", model_profile_id=str(codex.id))],
+                )
+            ],
+            subagents=[_pin(deep)],
+        )
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), versions=(research, deep))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation()], subagents=[_pin(research)])
+        )
+
+        assert problems.messages == []
+
+    async def test_a_delegate_that_invents_specialists_offers_every_model_it_names(self):
+        """Its catalog may hand a dynamic specialist any model its own spec names
+        (`models_a_run_reaches`), a reviewer's included."""
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key)
+        research = _version(
+            "Research",
+            model_profile_id=str(gpt.id),
+            reviewers=[{"name": "tone", "model_profile_id": str(codex.id)}],
+            capabilities=[_delegation(allow_dynamic=True)],
+        )
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), versions=(research,))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation(max_depth=2)], subagents=[_pin(research)])
+        )
+
+        assert len(problems.messages) == 1
+        assert problems.messages[0].startswith("Delegate 'Research': Model 'Ada's Codex'")
+
+    async def test_a_pin_nothing_delegates_through_or_that_is_gone_asks_nothing(self):
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        research = _version("Research", model_profile_id=str(codex.id))
+        gone = _version("Gone")
+        vault = _Vault(codex, secrets=(sign_in,), versions=(research,))
+
+        switched_off = await vault.problems(
+            _spec(
+                capabilities=[{"id": "subagents", "enabled": False}],
+                subagents=[_pin(research)],
+            )
+        )
+        missing = await vault.problems(_spec(capabilities=[_delegation()], subagents=[_pin(gone)]))
+
+        assert switched_off.messages == []
+        assert missing.messages == []
+
+    async def test_a_delegate_reached_twice_is_judged_once_and_a_gone_one_skipped(self):
+        """A diamond - two of Research's delegates pin Deep - reaches Deep twice at
+        the same depth; it is walked once."""
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key)
+        deep = _version("Deep", model_profile_id=str(codex.id))
+        middles = [
+            _version(
+                name,
+                model_profile_id=str(gpt.id),
+                capabilities=[_delegation(max_depth=2)],
+                subagents=[_pin(deep)],
+            )
+            for name in ("Left", "Right")
+        ]
+        research = _version(
+            "Research",
+            model_profile_id=str(gpt.id),
+            capabilities=[_delegation(max_depth=3)],
+            subagents=[*(_pin(middle) for middle in middles), _pin(_version("Gone"))],
+        )
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), versions=(research, deep, *middles))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation(max_depth=3)], subagents=[_pin(research)])
+        )
+
+        assert len(problems.messages) == 1
+        assert "-> Deep': Model 'Ada's Codex'" in problems.messages[0]
+
+    async def test_a_delegation_loop_in_stored_versions_ends(self):
+        """Pinning cannot name a version published later, but stored data is not
+        bound by that; the depth left shrinks at every level, so the walk ends."""
+        key = _secret(SecretKind.API_KEY)
+        gpt = _profile("GPT", secret=key)
+        loop = _version("Loop", model_profile_id=str(gpt.id))
+        loop.spec["capabilities"] = [_delegation(max_depth=3)]
+        loop.spec["subagents"] = [_pin(loop)]
+        vault = _Vault(gpt, secrets=(key,), versions=(loop,))
+
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation(max_depth=3)], subagents=[_pin(loop)])
+        )
+
+        assert problems.messages == []
+
+
+class TestApiKeys:
+    """A run under an API key spends no sign-in (`ModelProfileService.resolve`),
+    so a key may not point an agent at one either - whatever its issuer sees."""
+
+    async def test_a_key_is_refused_a_sign_in_its_issuer_can_see(self):
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        vault = _Vault(codex, secrets=(sign_in,), visible=(sign_in,))
+        key = replace(
+            _ctx(),
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.AGENTS_PUBLISH, Perm.SECRETS_VIEW}),
+        )
+
+        problems = await vault.problems(_spec(model_profile_id=str(codex.id)), key)
+
+        assert problems.fields == [
+            {
+                "field": "model_profile_id",
+                "message": (
+                    "Model 'Ada's Codex' runs on somebody's own ChatGPT sign-in, which an "
+                    "API key cannot use - pick another model"
+                ),
+            }
+        ]
+        vault.access.assert_not_awaited()
+
+    async def test_a_persisted_key_context_is_still_a_key(self):
+        """A key's scope ceiling without its live id is still nobody's session."""
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key, fallbacks=(codex,))
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), visible=(sign_in,))
+        scoped = replace(_ctx(), key_scopes=frozenset({Perm.AGENTS_PUBLISH}))
+
+        problems = await vault.problems(_spec(model_profile_id=str(gpt.id)), scoped)
+
+        assert problems.messages == [
+            "Model 'GPT' falls back to 'Ada's Codex', which runs on somebody's own ChatGPT "
+            "sign-in an API key cannot use - remove it from the fallbacks"
+        ]
+
+    async def test_a_key_may_still_publish_on_an_ordinary_key(self):
+        key = _secret(SecretKind.API_KEY)
+        gpt = _profile("GPT", secret=key)
+        vault = _Vault(gpt, secrets=(key,))
+        scoped = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset())
+
+        problems = await vault.problems(_spec(model_profile_id=str(gpt.id)), scoped)
+
+        assert problems.messages == []

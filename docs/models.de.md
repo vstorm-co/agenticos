@@ -1,5 +1,5 @@
 ---
-source_sha: "bb0a26853f30"
+source_sha: "974491705f8e"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -408,9 +408,14 @@ ohne seine Id zu ändern.
       jemanden abgelehnt, der die Anmeldung im Vault nicht sehen kann, wenn ein
       Modell, das seine Runs erreichen, darauf läuft: das Modell des Agenten,
       eines Reviewers, eines Inline-Spezialisten oder einer eingeschalteten
-      Capability oder einer der ersten drei Fallbacks eines dieser Modelle. Der Inhaber der
-      Anmeldung, Owner und Admins sowie alle, mit denen sie geteilt wurde, dürfen
-      es. Eine früher darauf veröffentlichte Version läuft weiter.
+      Capability, das Modell eines
+      [angehefteten Delegaten](reference/capabilities.md#delegation) und dessen,
+      was dieser wiederum erreicht, oder einer der ersten drei Fallbacks eines
+      dieser Modelle. Der Inhaber der Anmeldung, Owner und Admins sowie alle,
+      mit denen sie geteilt wurde, dürfen es. Ein API-Schlüssel darf es nicht,
+      was auch immer sein Aussteller sehen kann, denn ein Run unter einem
+      Schlüssel verbraucht nie eine Anmeldung. Eine früher darauf
+      veröffentlichte Version läuft weiter.
     - **Sie wird keinem Spezialisten angeboten, den das Modell erfindet.** Unter
       [`allow_dynamic`](reference/capabilities.md#delegation) darf das Modell
       eines Runs das Modell eines Spezialisten aus den Profilen der Organisation

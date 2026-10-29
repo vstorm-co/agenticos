@@ -363,9 +363,12 @@ again without changing its id.
       promoting a version of an agent is refused for somebody who cannot see the
       sign-in in the vault when a model its runs reach is on one: the agent's
       model, a reviewer's, an inline specialist's or an enabled capability's,
-      or one of the first three fallbacks of any of them. The sign-in's owner, owners and
-      admins, and anybody it was shared with may. A version published on it
-      earlier keeps running.
+      the model of a [delegate it pins](reference/capabilities.md#delegation)
+      and of what that delegate reaches in turn, or one of the first three
+      fallbacks of any of them. The sign-in's owner, owners and admins, and
+      anybody it was shared with may. An API key may not, whatever its issuer
+      can see, because a run under a key never spends a sign-in. A version
+      published on it earlier keeps running.
     - **It is not offered to a specialist the model invents.** Under
       [`allow_dynamic`](reference/capabilities.md#delegation) a run's model may
       pick a specialist's model from the organization's profiles. A profile on a
