@@ -31,7 +31,6 @@ const COMMANDS: &[&str] = &[
     "set_shortcut",
     "resize_quick_ask",
     "hide_quick_ask",
-    "new_quick_ask_window",
     "quick_ask_pinned",
     "set_quick_ask_pinned",
     "set_quick_ask_picker_open",

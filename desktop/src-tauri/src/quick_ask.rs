@@ -289,24 +289,6 @@ pub fn hide_quick_ask(window: WebviewWindow) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn new_quick_ask_window(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    panel_state(&window)?;
-    if app.webview_windows().keys().filter(|label| is_panel(label)).count() >= 8 {
-        return Err("Quick Ask supports up to eight windows.".into());
-    }
-    let settings = crate::settings::current(&app);
-    let server = settings.server_url.as_ref().ok_or("Connect to a server first.")?;
-    let label = format!("quick-ask-{}", uuid::Uuid::new_v4());
-    crate::console::grant_quick_ask_window(&app, server, &label)?;
-    let next = prepare_named(&app, server, settings.appearance, &label).map_err(|e| e.to_string())?;
-    if let Err(error) = place(&app, &next).and_then(|_| present(&next)) {
-        let _ = next.destroy();
-        return Err(error);
-    }
-    Ok(())
-}
-
 /// Only this panel can change its focus policy.
 fn panel_state(window: &WebviewWindow) -> Result<Arc<PanelState>, String> {
     if !is_panel(window.label()) {

@@ -1,5 +1,5 @@
 ---
-source_sha: "0c159750e7a4"
+source_sha: "35d7af87f101"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -548,6 +548,6 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
 - **Y en su pantalla** - preguntando primero, enmarcados mientras actúan y
   detenidos con un atajo.
 
-Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. **Nueva ventana** abre otro panel, hasta ocho ventanas, con fijación independiente. Las ventanas adicionales permanecen abiertas al cambiar el foco; desfijarlas desactiva su posición sobre otras apps. Cerrar una ventana adicional destruye su vista; el panel del atajo solo se oculta. Cambiar de servidor elimina los paneles adicionales y su actividad.
+Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. Conversaciones recientes muestra avatares de agentes en una sección desplegable que ocupa solo el espacio necesario. Nuevo chat es la única acción para abrir una pestaña nueva. La barra lateral del navegador ofrece la descarga de escritorio; cerrar el aviso lo silencia durante 14 días para esa cuenta en ese navegador.
 
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.

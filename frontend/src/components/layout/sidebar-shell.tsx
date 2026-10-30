@@ -5,6 +5,7 @@
 
 import type { ReactNode } from "react";
 
+import { DesktopInstallPrompt } from "@/components/layout/desktop-install-prompt";
 import { ConsoleVersion } from "@/components/layout/console-version";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -30,6 +31,7 @@ export function SidebarShell({
         {children}
       </div>
 
+      {!collapsed && <DesktopInstallPrompt />}
       <div
         className={cn(
           "flex flex-col gap-1 border-t py-2",

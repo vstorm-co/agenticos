@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Simplify Quick Ask to one new-chat action and compact inline history; show sidebar files as full-width rows and offer a dismissible desktop download reminder in browser navigation.
+
 ### Security
 
 - Require explicit account confirmation before a scanned pairing link replaces a device session. Previewing the account neither redeems nor extends the code.
@@ -30,7 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Add direct dictation and live agent voice calls to Quick Ask, with shared captions, approvals and conversation history.
 
-- Give Quick Ask independent conversation tabs, searchable recent chats and multiple windows with per-window pinning.
+- Give Quick Ask independent conversation tabs, searchable recent chats with agent avatars and panel pinning.
 
 - Show installed-version GitHub release notes after login, once per account on a device.
 - Remember chat model, approval and local-tool preferences per account and organization; keep whole-computer consent per conversation.

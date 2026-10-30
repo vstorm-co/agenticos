@@ -1,5 +1,5 @@
 ---
-source_sha: "0c159750e7a4"
+source_sha: "35d7af87f101"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -527,6 +527,6 @@ nie potwierdzi ich niepodpisany lokalny build.
 - **I na jego ekranie** - najpierw pytają, są obramowane, gdy działają, i
   zatrzymywane jednym skrótem.
 
-Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje własny szkic, załączniki, wybranego agenta i trwającą odpowiedź. Ostatnie rozmowy otwiera przeszukiwaną listę i przełącza na istniejącą zakładkę, jeśli rozmowa jest już otwarta; zapisane rozmowy wczytują wiadomości i wcześniejszą historię. Nieaktywne zakładki nie przechwytują plików, skrótów dyktowania ani fokusu. **Nowe okno** otwiera osobny panel, do ośmiu okien, z własnym przypinaniem. Dodatkowe okna pozostają otwarte po zmianie fokusu; odpięcie wyłącza utrzymywanie nad innymi aplikacjami. Zamknięcie dodatkowego okna usuwa jego widok, a panel skrótu zostaje ukryty. Zmiana serwera usuwa dodatkowe panele i ich aktywność.
+Quick Ask obsługuje do ośmiu niezależnych zakładek w oknie. Każda zachowuje własny szkic, załączniki, wybranego agenta i trwającą odpowiedź. Ostatnie rozmowy otwiera przeszukiwaną listę i przełącza na istniejącą zakładkę, jeśli rozmowa jest już otwarta; zapisane rozmowy wczytują wiadomości i wcześniejszą historię. Nieaktywne zakładki nie przechwytują plików, skrótów dyktowania ani fokusu. Ostatnie rozmowy pokazują avatary agentów w rozwijanej sekcji. Zajmuje ona tylko potrzebne miejsce, bez rezerwowania pustej wysokości okna. Nowy czat jest jedyną akcją otwierającą nową zakładkę. Sidebar w przeglądarce proponuje pobranie desktopu; zamknięcie przypomnienia wycisza je na 14 dni dla tego konta w tej przeglądarce.
 
 Quick Ask ma przycisk mikrofonu do włączania dyktowania kliknięciem, obok istniejącego skrótu przytrzymywanego. Połączenia głosowe korzystają z tych samych kontrolek co chat: konfiguracji wybranego agenta, napisów, zatwierdzeń i pytań. Wypowiedziane tury zapisują się w rozmowie. Wysyłanie tekstu i dyktowanie czekają podczas połączenia. Przejście do innej zakładki lub zmiana agenta kończy połączenie i zwalnia mikrofon.

@@ -3527,7 +3527,13 @@
     },
     "sessionUnavailable": "Die Sitzung konnte nicht geprüft werden",
     "sessionUnavailableHint": "Der Server ist vorübergehend nicht erreichbar. Ihre gespeicherte Sitzung bleibt erhalten. Versuchen Sie es erneut, sobald die Verbindung wiederhergestellt ist.",
-    "retrySession": "Erneut versuchen"
+    "retrySession": "Erneut versuchen",
+    "desktopInstall": {
+      "title": "AgenticOS auf deinem Desktop",
+      "description": "Quick Ask, Sprache und lokale Werkzeuge per Tastenkürzel.",
+      "download": "Desktop-App herunterladen",
+      "dismiss": "In 14 Tagen erinnern"
+    }
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",
@@ -9025,14 +9031,11 @@
       "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut.",
       "tabs": "Unterhaltungen",
       "closeTab": "Tab schließen: {title}",
-      "newTab": "Neuer Tab",
       "history": "Letzte Unterhaltungen",
       "searchHistory": "Unterhaltungen suchen…",
       "loadingHistory": "Unterhaltungen werden geladen…",
       "retryHistory": "Unterhaltungen konnten nicht geladen werden. Erneut versuchen",
       "emptyHistory": "Keine Unterhaltungen gefunden",
-      "newWindow": "Neues Fenster",
-      "windowFailed": "Weiteres Fenster konnte nicht geöffnet werden. Bis zu acht Quick-Ask-Fenster sind möglich.",
       "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
       "earlierMessages": "Frühere Nachrichten laden",
       "startDictation": "Diktat starten",

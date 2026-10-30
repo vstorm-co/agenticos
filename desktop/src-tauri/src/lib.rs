@@ -1376,7 +1376,6 @@ pub fn run() {
             shortcuts::set_shortcut,
             quick_ask::resize_quick_ask,
             quick_ask::hide_quick_ask,
-            quick_ask::new_quick_ask_window,
             quick_ask::quick_ask_pinned,
             quick_ask::set_quick_ask_pinned,
             quick_ask::set_quick_ask_picker_open,

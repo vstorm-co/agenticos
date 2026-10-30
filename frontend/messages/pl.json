@@ -3528,7 +3528,13 @@
     },
     "sessionUnavailable": "Nie udało się sprawdzić sesji",
     "sessionUnavailableHint": "Serwer jest chwilowo niedostępny. Zapisana sesja została zachowana. Spróbuj ponownie po odzyskaniu połączenia.",
-    "retrySession": "Spróbuj ponownie"
+    "retrySession": "Spróbuj ponownie",
+    "desktopInstall": {
+      "title": "AgenticOS na Twoim komputerze",
+      "description": "Quick Ask, głos i lokalne narzędzia — pod jednym skrótem.",
+      "download": "Pobierz aplikację",
+      "dismiss": "Przypomnij za 14 dni"
+    }
   },
   "legal": {
     "acceptAll": "Zaakceptuj wszystkie",
@@ -9014,14 +9020,11 @@
       "pinFailed": "Nie udało się zmienić przypięcia Quick Ask. Spróbuj ponownie.",
       "tabs": "Rozmowy",
       "closeTab": "Zamknij zakładkę: {title}",
-      "newTab": "Nowa zakładka",
       "history": "Ostatnie rozmowy",
       "searchHistory": "Szukaj rozmów…",
       "loadingHistory": "Wczytywanie rozmów…",
       "retryHistory": "Nie udało się wczytać rozmów. Spróbuj ponownie",
       "emptyHistory": "Nie znaleziono rozmów",
-      "newWindow": "Nowe okno",
-      "windowFailed": "Nie udało się otworzyć okna. Możesz otworzyć do ośmiu okien Quick Ask.",
       "tabLimit": "W jednym oknie możesz otworzyć do ośmiu zakładek.",
       "earlierMessages": "Wczytaj wcześniejsze wiadomości",
       "startDictation": "Zacznij dyktowanie",

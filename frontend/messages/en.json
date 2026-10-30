@@ -3527,7 +3527,13 @@
     },
     "sessionUnavailable": "Your session could not be checked",
     "sessionUnavailableHint": "The server is temporarily unavailable. Your saved session has been kept. Try again when the connection returns.",
-    "retrySession": "Try again"
+    "retrySession": "Try again",
+    "desktopInstall": {
+      "title": "AgenticOS on your desktop",
+      "description": "Quick Ask, voice and your local tools, one shortcut away.",
+      "download": "Get the desktop app",
+      "dismiss": "Remind me in 14 days"
+    }
   },
   "legal": {
     "acceptAll": "Accept all",
@@ -9229,14 +9235,11 @@
       "pinFailed": "Could not change the Quick Ask pin. Try again.",
       "tabs": "Conversations",
       "closeTab": "Close tab: {title}",
-      "newTab": "New tab",
       "history": "Recent conversations",
       "searchHistory": "Search conversations…",
       "loadingHistory": "Loading conversations…",
       "retryHistory": "Could not load conversations. Try again",
       "emptyHistory": "No conversations found",
-      "newWindow": "New window",
-      "windowFailed": "Could not open another window. Up to eight Quick Ask windows can be open.",
       "tabLimit": "You can open up to eight tabs in one window.",
       "earlierMessages": "Load earlier messages",
       "startDictation": "Start dictation",

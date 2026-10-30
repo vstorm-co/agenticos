@@ -122,7 +122,6 @@ export function QuickAsk({
   initialConversationId = null,
   toolbar,
   historyControl,
-  minWindowHeight = 64,
   onNewConversation,
   newDisabled = false,
   onTabState,
@@ -131,7 +130,6 @@ export function QuickAsk({
   initialConversationId?: string | null;
   toolbar?: ReactNode;
   historyControl?: ReactNode;
-  minWindowHeight?: number;
   onNewConversation?: () => void;
   newDisabled?: boolean;
   onTabState?: (state: QuickAskTabState) => void;
@@ -519,13 +517,11 @@ export function QuickAsk({
     if (!node || !active) return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry)
-        run("could not size quick ask", () =>
-          resizeQuickAsk(Math.max(minWindowHeight, Math.ceil(entry.contentRect.height))),
-        );
+        run("could not size quick ask", () => resizeQuickAsk(Math.ceil(entry.contentRect.height)));
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [active, minWindowHeight]);
+  }, [active]);
 
   const openConversation = () => {
     if (!conversationId) return;

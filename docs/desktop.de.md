@@ -1,5 +1,5 @@
 ---
-source_sha: "0c159750e7a4"
+source_sha: "35d7af87f101"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -558,6 +558,6 @@ ein unsignierter lokaler Build kann sie nicht bestätigen.
 - **Und auf seinem Bildschirm** - erst gefragt, umrahmt während sie handeln und mit
   einem Kürzel gestoppt.
 
-Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält Entwurf, Anhänge, Agentenauswahl und laufende Antworten. Letzte Unterhaltungen öffnet eine durchsuchbare Liste und verwendet einen bereits offenen Tab erneut; gespeicherte Chats laden Nachrichten und frühere Beiträge. Inaktive Tabs übernehmen weder Dateiabgaben noch Diktiershortcuts oder Fokus. **Neues Fenster** öffnet ein weiteres Panel, bis zu acht Fenster, mit eigenem Anheften. Zusätzliche Fenster bleiben beim Fokuswechsel offen; Loslösen deaktiviert die Anzeige über anderen Apps. Schließen zerstört zusätzliche Ansichten, während das Shortcut-Panel ausgeblendet wird. Ein Serverwechsel entfernt zusätzliche Panels und ihre Aktivität.
+Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält Entwurf, Anhänge, Agentenauswahl und laufende Antworten. Letzte Unterhaltungen öffnet eine durchsuchbare Liste und verwendet einen bereits offenen Tab erneut; gespeicherte Chats laden Nachrichten und frühere Beiträge. Inaktive Tabs übernehmen weder Dateiabgaben noch Diktiershortcuts oder Fokus. Letzte Unterhaltungen zeigt Agenten-Avatare in einem ausklappbaren Abschnitt, der nur seinen tatsächlichen Platz belegt. Neuer Chat ist die einzige Aktion für einen frischen Tab. Die Browser-Seitenleiste bietet den Desktop-Download an; Schließen pausiert die Erinnerung für dieses Konto und diesen Browser für 14 Tage.
 
 Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrückthalten des Kurzbefehls. Sprachgespräche verwenden dieselben Steuerelemente wie der Chat, mit dem konfigurierten Transport des ausgewählten Agenten, Untertiteln, Freigaben und Fragen. Gesprochene Beiträge werden in der Unterhaltung gespeichert. Textversand und Diktat warten während eines Anrufs. Ein Tab- oder Agentenwechsel beendet den Anruf und gibt das Mikrofon frei.

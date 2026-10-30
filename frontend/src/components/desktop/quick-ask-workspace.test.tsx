@@ -1,18 +1,16 @@
 import { useEffect, useState } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { QuickAskWorkspace } from "./quick-ask-workspace";
 import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import type { QuickAsk } from "./quick-ask";
 const env = vi.hoisted(() => ({
-  window: vi.fn(async () => {}),
   tenant: "org",
   loading: false,
   failed: false,
 }));
 vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => env.tenant }));
-vi.mock("@/lib/desktop/commands", () => ({ newQuickAskWindow: env.window }));
 vi.mock("@/lib/desktop/shell", async () => ({
   ...(await vi.importActual<typeof import("@/lib/desktop/shell")>("@/lib/desktop/shell")),
   reportShellFailure: vi.fn(),
@@ -24,7 +22,15 @@ vi.mock("./quick-ask-history", () => ({
     isError: env.failed,
     refetch: vi.fn(),
     data: {
-      items: [{ id: "saved", title: "Saved conversation", agents: [{ id: "history-agent" }] }],
+      items: [
+        {
+          id: "saved",
+          title: "Saved conversation",
+          agents: [
+            { id: "history-agent", name: "Research agent", slug: "research", has_avatar: false },
+          ],
+        },
+      ],
     },
   }),
 }));
@@ -61,7 +67,6 @@ vi.mock("./quick-ask", () => ({
   },
 }));
 beforeEach(() => {
-  env.window.mockClear();
   env.tenant = "org";
   env.loading = false;
   env.failed = false;
@@ -76,7 +81,7 @@ it("preserves separate drafts, attachments and agent selections when switching t
   await user.type(screen.getByRole("textbox", { name: "Draft" }), "first draft");
   await user.click(screen.getByRole("button", { name: "Attach 0" }));
   await user.click(screen.getByRole("button", { name: "initial-agent" }));
-  await user.click(screen.getByRole("button", { name: "New tab" }));
+  await user.click(screen.getByRole("button", { name: "New conversation" }));
   expect(screen.getByRole("textbox", { name: "Draft" })).toHaveValue("");
   expect(screen.getByRole("button", { name: "Attach 0" })).toBeVisible();
   await user.type(screen.getByRole("textbox", { name: "Draft" }), "second draft");
@@ -86,24 +91,33 @@ it("preserves separate drafts, attachments and agent selections when switching t
   expect(screen.getByRole("button", { name: "changed-agent" })).toBeVisible();
   expect(useAgentSelectionStore.getState().selectedAgentId).toBe("initial-agent");
 });
-it("opens saved conversations once and can request a separate native window", async () => {
+it("opens saved conversations once without extra window or new-tab actions", async () => {
   const user = userEvent.setup();
   render(<QuickAskWorkspace />);
   await user.click(screen.getByRole("button", { name: "Recent conversations" }));
-  await user.click(screen.getByRole("button", { name: "Saved conversation" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Recent conversations" })).getByRole("button", {
+      name: /Saved conversation/,
+    }),
+  );
   expect(screen.getByText("saved")).toBeVisible();
+  expect(screen.getByRole("tab", { name: "Saved conversation" })).toBeVisible();
   expect(screen.getAllByRole("tab")).toHaveLength(2);
   await user.click(screen.getByRole("button", { name: "Recent conversations" }));
-  await user.click(screen.getByRole("button", { name: "Saved conversation" }));
+  await user.click(
+    within(screen.getByRole("region", { name: "Recent conversations" })).getByRole("button", {
+      name: /Saved conversation/,
+    }),
+  );
   expect(screen.getAllByRole("tab")).toHaveLength(2);
-  await user.click(screen.getByRole("button", { name: "New window" }));
-  expect(env.window).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "New window" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "New tab" })).toBeNull();
 });
 it("supports keyboard tab navigation and closing the final tab leaves a fresh draft", async () => {
   const user = userEvent.setup();
   render(<QuickAskWorkspace />);
   await user.type(screen.getByRole("textbox", { name: "Draft" }), "one");
-  await user.click(screen.getByRole("button", { name: "New tab" }));
+  await user.click(screen.getByRole("button", { name: "New conversation" }));
   screen.getAllByRole("tab")[1]?.focus();
   await user.keyboard("{ArrowLeft}");
   expect(screen.getByRole("tab", { name: "one" })).toHaveAttribute("aria-selected", "true");
@@ -138,4 +152,16 @@ it("shows loading and retry states in history", async () => {
   env.failed = true;
   view.rerender(<QuickAskWorkspace />);
   expect(screen.getByRole("button", { name: /Could not load conversations/ })).toBeVisible();
+});
+
+it("closes inline history with Escape without closing the current draft", async () => {
+  const user = userEvent.setup();
+  render(<QuickAskWorkspace />);
+  await user.type(screen.getByRole("textbox", { name: "Draft" }), "keep this draft");
+  await user.click(screen.getByRole("button", { name: "Recent conversations" }));
+  expect(screen.getByRole("region", { name: "Recent conversations" })).toBeVisible();
+  expect(screen.getByText("Research agent")).toBeVisible();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("region", { name: "Recent conversations" })).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Draft" })).toHaveValue("keep this draft");
 });

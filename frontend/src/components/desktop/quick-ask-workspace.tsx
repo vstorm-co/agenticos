@@ -1,22 +1,15 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { History, Plus, X, PanelsTopLeft, Loader2, MessageSquare } from "lucide-react";
+import { History, X, Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { QuickAsk, type QuickAskTabState } from "./quick-ask";
 import { RestoreQuickAsk, useQuickAskHistory } from "./quick-ask-history";
 import { ChatScope } from "@/stores/chat-scope";
 import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  SearchInput,
-  useDebounced,
-} from "@/components/ui";
-import { newQuickAskWindow } from "@/lib/desktop/commands";
-import { reportShellFailure } from "@/lib/desktop/shell";
+import { SearchInput, useDebounced } from "@/components/ui";
+import { ConversationAgents } from "@/components/agents/conversation-agents";
 import type { Conversation } from "@/types";
 
 interface Tab extends QuickAskTabState {
@@ -44,6 +37,17 @@ function Workspace() {
   const [active, setActive] = useState(tabs[0]!.key);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    if (!historyOpen) return;
+    const closeHistory = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setHistoryOpen(false);
+    };
+    window.addEventListener("keydown", closeHistory, true);
+    return () => window.removeEventListener("keydown", closeHistory, true);
+  }, [historyOpen]);
   const history = useQuickAskHistory(useDebounced(search, 250), historyOpen);
   const update = useCallback((key: string, state: QuickAskTabState) => {
     setTabs((tabs) =>
@@ -80,88 +84,83 @@ function Workspace() {
     }
   };
   const toolbar = (
-    <div className="border-border flex shrink-0 items-center gap-1 border-t px-2 py-1.5">
-      <div
-        role="tablist"
-        aria-label={t("tabs")}
-        className="flex min-w-0 flex-1 scrollbar-thin gap-1 overflow-x-auto"
-      >
-        {tabs.map((tab) => (
-          <div
-            key={tab.key}
-            data-active={active === tab.key}
-            className="group/tab bg-foreground/4 hover:bg-foreground/8 data-[active=true]:bg-foreground/10 flex shrink-0 items-center rounded-lg transition-colors motion-reduce:transition-none"
-          >
-            <button
-              type="button"
-              role="tab"
-              id={`tab-${tab.key}`}
-              aria-controls={`panel-${tab.key}`}
-              aria-selected={active === tab.key}
-              tabIndex={active === tab.key ? 0 : -1}
-              onClick={() => setActive(tab.key)}
-              onKeyDown={(event) => {
-                const index = tabs.findIndex((item) => item.key === tab.key);
-                const next =
-                  event.key === "ArrowRight"
-                    ? (index + 1) % tabs.length
-                    : event.key === "ArrowLeft"
-                      ? (index + tabs.length - 1) % tabs.length
-                      : event.key === "Home"
-                        ? 0
-                        : event.key === "End"
-                          ? tabs.length - 1
-                          : null;
-                if (next !== null) {
-                  event.preventDefault();
-                  setActive(tabs[next]!.key);
-                  document.getElementById(`tab-${tabs[next]!.key}`)?.focus();
-                }
-              }}
-              className="focus-visible:outline-ring flex max-w-40 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs aria-selected:font-medium"
+    <div className="border-border shrink-0 border-t">
+      <div className="flex items-center gap-1 px-2 py-1.5">
+        <div
+          role="tablist"
+          aria-label={t("tabs")}
+          className="flex min-w-0 flex-1 scrollbar-thin gap-1 overflow-x-auto"
+        >
+          {tabs.map((tab) => (
+            <div
+              key={tab.key}
+              data-active={active === tab.key}
+              className="group/tab bg-foreground/4 hover:bg-foreground/8 data-[active=true]:bg-foreground/10 flex shrink-0 items-center rounded-lg transition-colors motion-reduce:transition-none"
             >
-              {tab.processing ? (
-                <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
-              ) : (
-                <MessageSquare className="size-3 shrink-0" aria-hidden />
-              )}
-              <span className="truncate">{tab.title}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => close(tab.key)}
-              aria-label={t("closeTab", { title: tab.title })}
-              title={t("closeTab", { title: tab.title })}
-              className="text-muted-foreground hover:text-foreground hover:bg-foreground/10 focus-visible:outline-ring mr-1 rounded-md p-1 opacity-0 transition-opacity duration-150 group-hover/tab:opacity-100 group-has-[:focus-visible]/tab:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
-            >
-              <X className="size-3" aria-hidden />
-            </button>
-          </div>
-        ))}
+              <button
+                type="button"
+                role="tab"
+                id={`tab-${tab.key}`}
+                aria-controls={`panel-${tab.key}`}
+                aria-selected={active === tab.key}
+                tabIndex={active === tab.key ? 0 : -1}
+                onClick={() => setActive(tab.key)}
+                onKeyDown={(event) => {
+                  const index = tabs.findIndex((item) => item.key === tab.key);
+                  const next =
+                    event.key === "ArrowRight"
+                      ? (index + 1) % tabs.length
+                      : event.key === "ArrowLeft"
+                        ? (index + tabs.length - 1) % tabs.length
+                        : event.key === "Home"
+                          ? 0
+                          : event.key === "End"
+                            ? tabs.length - 1
+                            : null;
+                  if (next !== null) {
+                    event.preventDefault();
+                    setActive(tabs[next]!.key);
+                    document.getElementById(`tab-${tabs[next]!.key}`)?.focus();
+                  }
+                }}
+                className="focus-visible:outline-ring flex max-w-40 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs aria-selected:font-medium"
+              >
+                {tab.processing ? (
+                  <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
+                ) : (
+                  <MessageSquare className="size-3 shrink-0" aria-hidden />
+                )}
+                <span className="truncate">{tab.title}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => close(tab.key)}
+                aria-label={t("closeTab", { title: tab.title })}
+                title={t("closeTab", { title: tab.title })}
+                className="text-muted-foreground hover:text-foreground hover:bg-foreground/10 focus-visible:outline-ring mr-1 rounded-md p-1 opacity-0 transition-opacity duration-150 group-hover/tab:opacity-100 group-has-[:focus-visible]/tab:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-label={t("history")}
+          title={t("history")}
+          aria-expanded={historyOpen}
+          aria-controls="quick-ask-history"
+          onClick={() => setHistoryOpen((open) => !open)}
+          className="hover:bg-muted rounded-md p-2"
+        >
+          <History className="size-4" aria-hidden />
+        </button>
       </div>
-      <button
-        onClick={() => open()}
-        disabled={tabs.length >= LIMIT}
-        aria-label={t("newTab")}
-        title={t("newTab")}
-        className="hover:bg-muted rounded-md p-2 disabled:opacity-40"
-      >
-        <Plus className="size-4" aria-hidden />
-      </button>
-      <Popover open={historyOpen} onOpenChange={setHistoryOpen}>
-        <PopoverTrigger asChild>
-          <button
-            aria-label={t("history")}
-            title={t("history")}
-            className="hover:bg-muted rounded-md p-2"
-          >
-            <History className="size-4" aria-hidden />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          className="w-80 space-y-2 p-2"
-          onOpenAutoFocus={(event) => event.preventDefault()}
+      {historyOpen && (
+        <section
+          id="quick-ask-history"
+          aria-label={t("history")}
+          className="border-border space-y-2 border-t p-2"
         >
           <SearchInput
             value={search}
@@ -185,28 +184,28 @@ function Workspace() {
                 <button
                   key={conversation.id}
                   onClick={() => open(conversation)}
-                  className="hover:bg-muted w-full truncate rounded-md px-3 py-2 text-start text-sm"
+                  className="hover:bg-muted flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-start text-sm transition-colors"
                 >
-                  {conversation.title || t("newConversation")}
+                  <ConversationAgents
+                    agents={conversation.agents}
+                    size="md"
+                    showName={false}
+                    className="shrink-0"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {conversation.title || t("newConversation")}
+                    </span>
+                    <span className="text-muted-foreground block truncate text-xs">
+                      {conversation.agents?.map((agent) => agent.name).join(", ")}
+                    </span>
+                  </span>
                 </button>
               ))
             )}
           </div>
-        </PopoverContent>
-      </Popover>
-      <button
-        onClick={() => {
-          void newQuickAskWindow().catch((error: unknown) => {
-            reportShellFailure("opening another Quick Ask window", error);
-            toast.error(t("windowFailed"));
-          });
-        }}
-        aria-label={t("newWindow")}
-        title={t("newWindow")}
-        className="hover:bg-muted rounded-md p-2"
-      >
-        <PanelsTopLeft className="size-4" aria-hidden />
-      </button>
+        </section>
+      )}
     </div>
   );
   return (
@@ -224,7 +223,6 @@ function Workspace() {
               tab={tab}
               active={active === tab.key}
               toolbar={active === tab.key ? toolbar : undefined}
-              historyOpen={historyOpen}
               onNew={() => open()}
               newDisabled={tabs.length >= LIMIT}
               update={update}
@@ -240,7 +238,6 @@ function TabContent({
   active,
   toolbar,
   onNew,
-  historyOpen,
   newDisabled,
   update,
 }: {
@@ -248,7 +245,6 @@ function TabContent({
   active: boolean;
   toolbar: React.ReactNode;
   onNew: () => void;
-  historyOpen: boolean;
   newDisabled: boolean;
   update: (key: string, state: QuickAskTabState) => void;
 }) {
@@ -263,7 +259,6 @@ function TabContent({
         initialConversationId={tab.initialId}
         toolbar={toolbar}
         historyControl={tab.initialId ? <RestoreQuickAsk id={tab.initialId} /> : undefined}
-        minWindowHeight={historyOpen ? 560 : 64}
         onNewConversation={onNew}
         newDisabled={newDisabled}
         onTabState={onState}

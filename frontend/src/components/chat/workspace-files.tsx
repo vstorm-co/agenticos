@@ -243,14 +243,13 @@ export function WorkspaceFiles({
                 </p>
               )}
 
-              {/* Tiles rather than rows. The name is what somebody scans for and the icon
-          says what kind of thing it is before the name is read, which a 288-pixel
-          column of monospace paths did not. */}
+              {/* Full-width chips leave room for names in this narrow panel. */}
               {files.length > 0 && (
-                <ul className="rise-in grid grid-cols-2 gap-2">
+                <ul className="rise-in space-y-2">
                   {files.map((file) => (
                     <li key={file.path}>
                       <FileCard
+                        compact
                         name={file.path.split("/").filter(Boolean).pop() ?? file.path}
                         size={file.size}
                         preview={file.preview}
@@ -273,10 +272,11 @@ export function WorkspaceFiles({
               {unstored.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
-                  <ul className="grid grid-cols-2 gap-2">
+                  <ul className="space-y-2">
                     {unstored.map((file) => (
                       <li key={file.id}>
                         <FileCard
+                          compact
                           name={file.filename}
                           mimeType={file.mime_type}
                           // An attachment is behind the same authenticated address the

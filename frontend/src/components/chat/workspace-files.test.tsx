@@ -78,7 +78,7 @@ describe("the workspace panel", () => {
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
 
-  it("lists what the agent is keeping as tiles, with what each file weighs", async () => {
+  it("lists what the agent is keeping as compact rows, with what each file weighs", async () => {
     draw(
       <WorkspaceFiles
         buttonSlot={document.body}
@@ -97,7 +97,7 @@ describe("the workspace panel", () => {
     expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
-  it("draws each file's first lines on its tile, as All files does", async () => {
+  it("keeps excerpts out of the narrow listing while retaining the file action", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(
       workspace({
         items: [
@@ -123,7 +123,10 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Open report.csv" })).toBeVisible(),
+    );
+    expect(screen.queryByText("month,total")).toBeNull();
   });
 
   it("says whose files these are", async () => {
@@ -812,7 +815,7 @@ describe("the workspace panel", () => {
         />,
       );
       await openPanel();
-      await userEvent.click(screen.getByText("invoice.pdf"));
+      await userEvent.click(screen.getByRole("button", { name: "Open invoice.pdf" }));
 
       expect(useFilePreviewStore.getState().openId).toBe(attachment().id);
     });
