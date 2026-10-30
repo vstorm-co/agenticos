@@ -363,6 +363,7 @@ class TestTheCLISync:
 
         expected = str((tmp_path / "handbook.md").resolve())
         assert created.await_args.kwargs["source_path"] == expected
+        assert ingestion.ingest_file.await_args.kwargs["rag_document_id"] == created.return_value.id
         # And the stored document identifies itself the same way, so the row and
         # the vector agree on which file this is.
         assert ingestion.ingest_file.await_args.kwargs["source_path"] == expected

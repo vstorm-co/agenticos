@@ -776,12 +776,16 @@ async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> Del
     )
 
 
-async def stored_vector_ids_at_clear(db: AsyncSession, kb: KnowledgeBase) -> list[str]:
+async def stored_vector_ids_at_clear(
+    db: AsyncSession, kb: KnowledgeBase, *, takes_unfiled: bool = False
+) -> list[str]:
     """Snapshot all committed vector documents while the caller holds the base FOR UPDATE.
 
     A vector insert holds KEY SHARE on this base through its commit. Taking the
     snapshot under the conflicting clear lock therefore includes inserts whose
     tracking row has not recorded its vector id yet, while excluding later uploads.
+    `takes_unfiled` includes the tenant-only chunks this clear exclusively owns,
+    such as CLI writes into an app-scoped default.
     """
     validate_collection_name(kb.collection_name, metadata=Base.metadata)
     name = f"{VECTOR_TABLE_PREFIX}{kb.collection_name}"
@@ -790,12 +794,17 @@ async def stored_vector_ids_at_clear(db: AsyncSession, kb: KnowledgeBase) -> lis
     document_id = column("parent_doc_id", String)
     metadata = column("metadata", JSONB)
     runtime = table(name, document_id, metadata, schema="public")
-    result = await db.scalars(
-        select(document_id)
-        .select_from(runtime)
-        .where(metadata["knowledge_base_id"].astext == str(kb.id))
-        .distinct()
-    )
+    owned = metadata["knowledge_base_id"].astext == str(kb.id)
+    if takes_unfiled:
+        tenant = str(kb.vector_tenant) if kb.vector_tenant is not None else None
+        owned = or_(
+            owned,
+            and_(
+                metadata["knowledge_base_id"].astext.is_(None),
+                metadata["organization_id"].astext == tenant,
+            ),
+        )
+    result = await db.scalars(select(document_id).select_from(runtime).where(owned).distinct())
     return list(result.all())
 
 

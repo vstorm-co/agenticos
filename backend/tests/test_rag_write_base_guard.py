@@ -154,11 +154,15 @@ class TestTheWriteHoldsItsBase:
         base_exists["exists"] = False
         session = _Session()
 
-        with pytest.raises(KnowledgeBaseRemovedError) as raised:
-            await _store(session).insert_document(
+        store = _store(session)
+        with (
+            patch.object(store, "_ensure_collection", new_callable=AsyncMock) as ensure,
+            pytest.raises(KnowledgeBaseRemovedError) as raised,
+        ):
+            await store.insert_document(
                 "docs", _document(), VectorScope(tenant=None, knowledge_base_id=BASE)
             )
-
+        ensure.assert_not_awaited()
         assert raised.value.details == {"collection": "docs", "knowledge_base_id": str(BASE)}
         assert session.statements == [f"hold {BASE}"]
         assert session.commits == 0

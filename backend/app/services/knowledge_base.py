@@ -437,7 +437,9 @@ class KnowledgeBaseService:
         )
         base_purges: list[BasePurge] = []
         if kb.is_default:
-            stored = await rag_document_repo.stored_vector_ids_at_clear(self.db, kb)
+            stored = await rag_document_repo.stored_vector_ids_at_clear(
+                self.db, kb, takes_unfiled=takes_unfiled
+            )
             deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
             storage_paths = deleted.storage_paths + unfiled.storage_paths
             named = list(

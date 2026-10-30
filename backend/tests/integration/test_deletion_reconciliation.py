@@ -1043,7 +1043,13 @@ async def _document_chunk(
 ) -> None:
     """One chunk of a document in a table `parent_doc_id` keys: filed under a
     base, or unfiled (`kb_id=None`) and tagged with its tenant."""
-    meta = {"knowledge_base_id": str(kb_id)} if kb_id else {"organization_id": str(org_id)}
+    meta = (
+        {"knowledge_base_id": str(kb_id)}
+        if kb_id
+        else {"organization_id": str(org_id)}
+        if org_id
+        else {}
+    )
     await s.execute(
         text(f"INSERT INTO {table} VALUES (:id, :doc, CAST(:meta AS jsonb))"),  # noqa: S608
         {"id": chunk_id, "doc": parent_doc_id, "meta": json.dumps(meta)},
@@ -1312,8 +1318,9 @@ class TestADeletedBasesChunksOnAKeptTable:
 
     @pytest.mark.security
     @pytest.mark.security
+    @pytest.mark.parametrize("unfiled", [False, True], ids=["bound-worker", "unfiled-cli"])
     async def test_clearing_a_kept_default_purges_committed_chunks_before_settlement(
-        self, engine: AsyncEngine
+        self, engine: AsyncEngine, unfiled: bool
     ) -> None:
         """Chunks committed before tracking settlement still belong to the clear."""
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -1327,19 +1334,25 @@ class TestADeletedBasesChunksOnAKeptTable:
             other_org = await _org(s, other)
             default = _org_collection(org.id, collection)
             default.is_default = True
+            if unfiled:
+                default.scope = KBScope.APP.value
+                default.organization_id = None
             sibling = _org_collection(other_org.id, collection)
             s.add_all([default, sibling])
             await s.flush()
             old = _kb_document(collection, default.id, org.id, "drop-default/old.txt")
             old.vector_document_id = None
             old.status = "processing"
+            if unfiled:
+                old.knowledge_base_id = None
+                old.organization_id = None
             s.add(old)
             await s.execute(
                 text(
                     f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
                 )
             )
-            await _document_chunk(s, table, "old-0", "old-doc", default.id)
+            await _document_chunk(s, table, "old-0", "old-doc", None if unfiled else default.id)
             await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
             await s.commit()
             default_id, old_id = default.id, old.id
@@ -1768,3 +1781,44 @@ class TestAnIngestRacingItsBasesDelete:
             assert await knowledge_base_repo.hold_key_share(second, base.id)
             await second.rollback()
             await first.rollback()
+
+
+@pytest.mark.security
+async def test_a_last_base_deleted_after_the_gate_does_not_recreate_its_table(
+    engine: AsyncEngine,
+) -> None:
+    store = _store_embedding_in_3d(engine)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    collection = f"lastbase{uuid.uuid4().hex[:12]}"
+    async with factory() as session:
+        owner = _user()
+        session.add(owner)
+        await session.flush()
+        org = await _org(session, owner)
+        base = _org_collection(org.id, collection)
+        session.add(base)
+        await session.commit()
+        ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+    async def removed_after_gate() -> bool:
+        async with factory() as session:
+            await KnowledgeBaseService(session).delete(base.id, ctx=ctx)
+            await session.commit()
+            start_deferred(session)
+        await drain()
+        assert not await store._collection_exists(collection)
+        return True
+
+    processor = MagicMock(process_file=AsyncMock(return_value=_parsed("stale")))
+    ingester = IngestionService(processor, store, scope=base.vector_scope)
+    try:
+        await store.insert_document(collection, _parsed("before"), base.vector_scope)
+        result = await ingester.ingest_file(
+            Path("stale.md"), collection, replace=False, still_wanted=removed_after_gate
+        )
+        assert result.refused
+        assert not await store._collection_exists(collection)
+    finally:
+        async with factory() as session:
+            await session.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
+            await session.commit()

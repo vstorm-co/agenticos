@@ -865,7 +865,6 @@ class PgVectorStore(BaseVectorStore):
         while leaving the worker's memory exactly where it was.
         """
         table = self._table(collection_name)
-        await self._ensure_collection(collection_name)
         if not document.chunked_pages:
             raise ValueError("Document has no chunked pages.")
         # `scope` is the knowledge base's own, passed in by the ingester that
@@ -903,6 +902,9 @@ class PgVectorStore(BaseVectorStore):
                     message="The document was cleared while this file was being indexed",
                     details={"collection": collection_name},
                 )
+            # Both target locks remain held through creation and the chunk commit,
+            # so a completed teardown cannot be followed by an empty replacement.
+            await self._ensure_collection(collection_name)
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
             ):

@@ -43,8 +43,9 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Clearing a shared default knowledge base also removes chunks committed before
-  their tracking rows settle, and rejects stale writes after the clear without
-  affecting uploads started afterwards.
+  their tracking rows settle, including unfiled CLI ingestion. Stale writes
+  after the clear are rejected before table creation, without affecting uploads
+  started afterwards.
 
 - The Architect, the organization's assistant, is no longer published on a
   model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's

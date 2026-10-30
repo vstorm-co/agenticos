@@ -221,6 +221,7 @@ async def ingest_path_async(
             try:
                 result = await ingestion.ingest_file(
                     filepath=filepath,
+                    rag_document_id=rag_doc.id,
                     collection_name=collection,
                     replace=replace,
                     # So the stored document identifies itself the way this
