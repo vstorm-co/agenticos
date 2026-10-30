@@ -675,7 +675,7 @@ def _binding_model_refs(bindings: Sequence[CapabilityBindingSpec]) -> list[_Mode
     return refs
 
 
-def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
+def _model_refs(spec: AgentSpec, *, include_inline: bool = True) -> list[_ModelRef]:
     """Every model a run of this spec can be handed to, and the input that names it.
 
     Not `validate_spec`'s walk, on purpose: that one asks whether each named
@@ -686,7 +686,9 @@ def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
     and each inline specialist's own model, prefixed the way
     `_SpecProblems.within_specialist` prefixes a specialist's fields. A
     specialist's browse and follow-ups capabilities run on no model of their
-    own - the runner hands neither to a delegated run.
+    own - the runner hands neither to a delegated run. `include_inline=False`
+    lets the pinned walk judge ordinary models before applying its depth bound
+    separately to inline specialists.
     """
     refs: list[_ModelRef] = []
     if spec.model_profile_id is not None:
@@ -702,7 +704,7 @@ def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
             )
     refs.extend(_binding_model_refs(spec.capabilities))
     config = _subagents_config(spec)
-    for specialist in config.inline if config is not None else ():
+    for specialist in config.inline if include_inline and config is not None else ():
         if specialist.model_profile_id is not None:
             refs.append(
                 _ModelRef(
@@ -1952,7 +1954,8 @@ class AgentRegistryService:
         it, `subagents.N.agent_version_id`, for whatever it reaches below.
 
         Walked the way the runner walks the tree, from the frozen version each
-        pin names: a delegate's own model always; and while the depth left
+        pin names: a delegate's own model, reviewers and enabled capability models
+        always; and while the depth left
         allows it to delegate (`min(left - 1, its own max_depth - 1)`, as the
         runner computes it), its inline specialists' models, the delegates it
         pins in turn, and - when it may invent specialists - every model its own
@@ -1980,7 +1983,9 @@ class AgentRegistryService:
                 continue
             visited.add(node)
             delegate = pinned.spec
-            reached: list[UUID | None] = [delegate.model_profile_id]
+            reached: list[UUID | None] = [
+                ref.profile_id for ref in _model_refs(delegate, include_inline=False)
+            ]
             nested = _subagents_config(delegate)
             if nested is not None and left > 0:
                 below = min(left - 1, nested.max_depth - 1)

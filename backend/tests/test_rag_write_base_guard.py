@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.exceptions import NotFoundError
 from app.db.models.rag_document import DocumentStatus
 from app.db.vector_tables import VectorScope
-from app.repositories import knowledge_base_repo
+from app.repositories import knowledge_base_repo, rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
     Document,
@@ -111,6 +111,31 @@ async def test_the_hold_is_a_key_share_that_reports_the_base(found: bool) -> Non
 
 
 class TestTheWriteHoldsItsBase:
+    @pytest.mark.security
+    @pytest.mark.parametrize("present", [True, False])
+    async def test_a_tracked_write_checks_its_row_in_the_chunk_transaction(
+        self, base_exists: dict[str, bool], monkeypatch: pytest.MonkeyPatch, present: bool
+    ) -> None:
+        session = _Session()
+        document = _document()
+        row_id = uuid4()
+        document.metadata.rag_document_id = row_id
+        hold = AsyncMock(return_value=present)
+        monkeypatch.setattr(rag_document_repo, "hold_for_vector_write", hold)
+        if present:
+            await _store(session).insert_document(
+                "docs", document, VectorScope(tenant=None, knowledge_base_id=BASE)
+            )
+            assert session.commits == 1
+        else:
+            with pytest.raises(KnowledgeBaseRemovedError, match="cleared"):
+                await _store(session).insert_document(
+                    "docs", document, VectorScope(tenant=None, knowledge_base_id=BASE)
+                )
+            assert session.statements == [f"hold {BASE}"]
+            assert session.commits == 0
+        hold.assert_awaited_once_with(session, row_id, collection="docs", knowledge_base_id=BASE)
+
     async def test_the_base_is_held_in_the_inserts_own_transaction(
         self, base_exists: dict[str, bool]
     ) -> None:
@@ -330,3 +355,31 @@ class TestTheWorkerEndsARefusal:
             await rag_tasks.ingest_document(_job())
 
         worker["documents"].fail_ingestion.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("found", [True, False])
+async def test_the_tracking_row_hold_is_scoped_and_uses_key_share(found: bool) -> None:
+    row_id = uuid4()
+    result = MagicMock()
+    result.first.return_value = (row_id,) if found else None
+    db = MagicMock(execute=AsyncMock(return_value=result))
+    assert (
+        await rag_document_repo.hold_for_vector_write(
+            db, row_id, collection="docs", knowledge_base_id=BASE
+        )
+        is found
+    )
+    statement = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
+    assert str(statement).endswith("FOR KEY SHARE")
+    assert set(statement.params.values()) == {row_id, "docs", BASE}
+
+
+@pytest.mark.security
+async def test_a_clear_with_no_vector_table_has_no_unsettled_vectors() -> None:
+    from app.db.models.knowledge_base import KnowledgeBase
+
+    db = MagicMock(scalar=AsyncMock(return_value=None), scalars=AsyncMock())
+    kb = KnowledgeBase(id=BASE, collection_name="docs")
+    assert await rag_document_repo.stored_vector_ids_at_clear(db, kb) == []
+    db.scalars.assert_not_awaited()

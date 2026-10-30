@@ -42,6 +42,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Clearing a shared default knowledge base also removes chunks committed before
+  their tracking rows settle, and rejects stale writes after the clear without
+  affecting uploads started afterwards.
+
 - The Architect, the organization's assistant, is no longer published on a
   model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's
   subscription: on the Architect, runs by members who could not see it in the
@@ -149,6 +153,10 @@ Two things are versioned separately from this file and worth knowing about:
   others (#2560).
 
 ### Security
+
+- Publishing or promoting a parent checks pinned delegates' reviewer, browser
+  step and follow-up sign-ins, even at the delegation depth bound and without
+  dynamic specialists.
 
 - Publishing an agent on somebody else's ChatGPT sign-in is refused. Publish,
   rollback, the Builder's draft check and promoting a version to an environment

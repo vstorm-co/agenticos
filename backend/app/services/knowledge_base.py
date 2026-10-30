@@ -413,7 +413,8 @@ class KnowledgeBaseService:
 
         Returns the stored files to unlink and the purges of the base's chunks
         from the kept table. Its own rows go by its id; a kept default's purge
-        names only the deleted documents' chunks, since it takes uploads again
+        snapshots committed vector ids while holding the base lock, including
+        inserts not yet settled onto tracking rows, since it takes uploads again
         under the same id. The unfiled rows the base takes - its tenant's - go
         with it, unless another base of that tenant on the name takes them too
         and still reads them: a kept default would otherwise go on listing them,
@@ -436,9 +437,12 @@ class KnowledgeBaseService:
         )
         base_purges: list[BasePurge] = []
         if kb.is_default:
+            stored = await rag_document_repo.stored_vector_ids_at_clear(self.db, kb)
             deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
             storage_paths = deleted.storage_paths + unfiled.storage_paths
-            named = deleted.vector_document_ids + unfiled.vector_document_ids
+            named = list(
+                dict.fromkeys([*deleted.vector_document_ids, *stored, *unfiled.vector_document_ids])
+            )
         else:
             storage_paths = (
                 await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)

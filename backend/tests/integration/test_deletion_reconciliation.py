@@ -1311,6 +1311,60 @@ class TestADeletedBasesChunksOnAKeptTable:
                 await s.commit()
 
     @pytest.mark.security
+    @pytest.mark.security
+    async def test_clearing_a_kept_default_purges_committed_chunks_before_settlement(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Chunks committed before tracking settlement still belong to the clear."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            sibling = _org_collection(other_org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            old = _kb_document(collection, default.id, org.id, "drop-default/old.txt")
+            old.vector_document_id = None
+            old.status = "processing"
+            s.add(old)
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "old-0", "old-doc", default.id)
+            await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
+            await s.commit()
+            default_id, old_id = default.id, old.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                # An upload into the kept default, ingested before the job runs.
+                await _document_chunk(s, table, "new-0", "new-doc", default_id)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await s.get(RAGDocument, old_id) is None
+                assert await _chunk_ids(s, table) == {"new-0", "sibling-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
     async def test_clearing_a_kept_default_removes_its_tenants_unfiled_documents(
         self, engine: AsyncEngine
     ) -> None:
@@ -1597,6 +1651,68 @@ class TestAnIngestRacingItsBasesDelete:
             assert result.status is IngestionStatus.ERROR
             assert result.error_message == (
                 "The knowledge base was deleted while this file was being indexed"
+            )
+            # Refused, which the worker ends without a retry (RR3-c1a).
+            assert result.refused is True
+            async with factory() as s:
+                assert await _filed_under(s, table, doomed.id) == 0
+                assert await _filed_under(s, table, kept.id) == 1
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_a_default_cleared_after_the_gate_gets_no_stale_chunks(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbrace{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            doomed.is_default = True
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            tracking = _kb_document(collection, doomed.id, org.id, "")
+            tracking.status = "processing"
+            s.add(tracking)
+            await s.commit()
+
+        async def deleted_between_the_parse_and_the_write() -> bool:
+            # The gate answers yes, and the delete commits and its cleanup job
+            # purges the base before the write starts: the window #2561 names.
+            async with factory() as s:
+                current = await s.get(KnowledgeBase, doomed.id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(current)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+            return True
+
+        processor = MagicMock(process_file=AsyncMock(return_value=_parsed("doomed")))
+        ingester = IngestionService(processor, store, scope=doomed.vector_scope)
+
+        try:
+            await store.insert_document(collection, _parsed("kept"), kept.vector_scope)
+            result = await ingester.ingest_file(
+                Path("doomed.md"),
+                collection,
+                replace=False,
+                rag_document_id=tracking.id,
+                still_wanted=deleted_between_the_parse_and_the_write,
+            )
+
+            assert result.status is IngestionStatus.ERROR
+            assert result.error_message == (
+                "The document was cleared while this file was being indexed"
             )
             # Refused, which the worker ends without a retry (RR3-c1a).
             assert result.refused is True

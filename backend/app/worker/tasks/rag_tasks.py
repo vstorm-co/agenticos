@@ -427,6 +427,7 @@ async def _run_ingestion(
             with metered_by(ledger):
                 result = await ingester.ingest_file(
                     filepath=file_path,
+                    rag_document_id=UUID(rag_document_id),
                     collection_name=collection_name,
                     replace=replace,
                     source_path=source_path,
@@ -663,6 +664,7 @@ async def _run_sync(
                 with metered_by(ledger):
                     result = await ingester.ingest_file(
                         filepath=filepath,
+                        rag_document_id=UUID(row_id),
                         collection_name=collection_name,
                         replace=True,
                         still_wanted=lambda rid=row_id: _still_ingestable(rid, collection_name),
@@ -1480,6 +1482,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                         with metered_by(ledger):
                             result = await ingester.ingest_file(
                                 filepath=local_path,
+                                rag_document_id=UUID(row_id),
                                 collection_name=collection_name,
                                 still_wanted=lambda rid=row_id: _still_ingestable(
                                     rid, collection_name

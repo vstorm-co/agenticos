@@ -374,6 +374,38 @@ class TestPinnedDelegates:
         )
         assert problems.fields == [{"field": "subagents.0.agent_version_id", "message": message}]
 
+    @pytest.mark.parametrize("auxiliary", ["reviewer", "browser", "follow_ups"])
+    @pytest.mark.parametrize("max_depth", [1, 2])
+    async def test_a_pinned_delegates_auxiliary_sign_in_is_judged_without_dynamic_specialists(
+        self, auxiliary: str, max_depth: int
+    ) -> None:
+        sign_in = _secret(SecretKind.OPENAI_CODEX)
+        key = _secret(SecretKind.API_KEY)
+        codex = _profile("Ada's Codex", secret=sign_in)
+        gpt = _profile("GPT", secret=key)
+        pid = str(codex.id)
+        research = _version(
+            "Research",
+            model_profile_id=str(gpt.id),
+            reviewers=[{"name": "tone", "model_profile_id": pid}]
+            if auxiliary == "reviewer"
+            else [],
+            capabilities=(
+                [{"id": "browser_use", "config": {"step_model_profile_id": pid}}]
+                if auxiliary == "browser"
+                else [{"id": "follow_ups", "config": {"model_profile_id": pid}}]
+                if auxiliary == "follow_ups"
+                else []
+            ),
+        )
+        vault = _Vault(gpt, codex, secrets=(sign_in, key), versions=(research,))
+        problems = await vault.problems(
+            _spec(capabilities=[_delegation(max_depth=max_depth)], subagents=[_pin(research)])
+        )
+        assert len(problems.messages) == 1
+        assert problems.fields[0]["field"] == "subagents.0.agent_version_id"
+        assert problems.messages[0].startswith("Delegate 'Research': Model 'Ada's Codex'")
+
     async def test_a_delegate_falling_back_to_a_sign_in_is_refused(self):
         sign_in = _secret(SecretKind.OPENAI_CODEX)
         key = _secret(SecretKind.API_KEY)
@@ -447,7 +479,6 @@ class TestPinnedDelegates:
         research = _version(
             "Research",
             model_profile_id=str(gpt.id),
-            reviewers=[{"name": "tone", "model_profile_id": str(codex.id)}],
             capabilities=[
                 _delegation(
                     allow_dynamic=True,

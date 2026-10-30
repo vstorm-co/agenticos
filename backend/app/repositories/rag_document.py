@@ -8,18 +8,34 @@ from dataclasses import dataclass
 from typing import Any, Self, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_, union_all
+from sqlalchemy import (
+    ColumnElement,
+    String,
+    and_,
+    column,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    table,
+    tuple_,
+    union_all,
+)
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.base import Base
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
+from app.db.vector_tables import VECTOR_TABLE_PREFIX, validate_collection_name
 
 
 @dataclass(frozen=True)
@@ -758,3 +774,47 @@ async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> Del
         storage_paths=[path for path, _ in rows if path],
         vector_document_ids=[doc_id for _, doc_id in rows if doc_id],
     )
+
+
+async def stored_vector_ids_at_clear(db: AsyncSession, kb: KnowledgeBase) -> list[str]:
+    """Snapshot all committed vector documents while the caller holds the base FOR UPDATE.
+
+    A vector insert holds KEY SHARE on this base through its commit. Taking the
+    snapshot under the conflicting clear lock therefore includes inserts whose
+    tracking row has not recorded its vector id yet, while excluding later uploads.
+    """
+    validate_collection_name(kb.collection_name, metadata=Base.metadata)
+    name = f"{VECTOR_TABLE_PREFIX}{kb.collection_name}"
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
+        return []
+    document_id = column("parent_doc_id", String)
+    metadata = column("metadata", JSONB)
+    runtime = table(name, document_id, metadata, schema="public")
+    result = await db.scalars(
+        select(document_id)
+        .select_from(runtime)
+        .where(metadata["knowledge_base_id"].astext == str(kb.id))
+        .distinct()
+    )
+    return list(result.all())
+
+
+async def hold_for_vector_write(
+    db: AsyncSession, document_id: UUID, *, collection: str, knowledge_base_id: UUID | None
+) -> bool:
+    """Hold the tracking row through the chunk commit, or refuse a cleared document.
+
+    The base lock alone cannot reject a stale insert after a default was cleared:
+    its base survives. The tracking row does not, and its KEY SHARE conflicts
+    with the clear's delete. Acquire after the base lock, matching teardown order.
+    """
+    result = await db.execute(
+        select(RAGDocument.id)
+        .where(
+            RAGDocument.id == document_id,
+            RAGDocument.collection_name == collection,
+            RAGDocument.knowledge_base_id == knowledge_base_id,
+        )
+        .with_for_update(read=True, key_share=True)
+    )
+    return result.first() is not None

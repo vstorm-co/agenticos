@@ -32,7 +32,7 @@ from app.db.vector_tables import (
     is_runtime_vector_table,
     validate_collection_name,
 )
-from app.repositories import knowledge_base_repo
+from app.repositories import knowledge_base_repo, rag_document_repo
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.filters import AppScope, RetrievalQuery, RetrievalScope, TenantScope
 from app.services.rag.models import (
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseRemovedError(NotFoundError):
-    """The knowledge base a chunk write was for is gone; nothing was inserted (#2561)."""
+    """The knowledge base or tracked document is gone; no chunks were inserted."""
 
 
 def _document_is_unaddressed(doc: DocumentInfo) -> bool:
@@ -889,6 +889,19 @@ class PgVectorStore(BaseVectorStore):
                         "collection": collection_name,
                         "knowledge_base_id": str(scope.knowledge_base_id),
                     },
+                )
+            if (
+                document.metadata.rag_document_id is not None
+                and not await rag_document_repo.hold_for_vector_write(
+                    session,
+                    document.metadata.rag_document_id,
+                    collection=collection_name,
+                    knowledge_base_id=scope.knowledge_base_id,
+                )
+            ):
+                raise KnowledgeBaseRemovedError(
+                    message="The document was cleared while this file was being indexed",
+                    details={"collection": collection_name},
                 )
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False

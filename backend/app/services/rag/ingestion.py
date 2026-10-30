@@ -2,6 +2,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import UUID
 
 from app.core.exceptions import AppException
 from app.db.vector_tables import VectorScope
@@ -131,6 +132,7 @@ class IngestionService:
         source_path: str = "",
         *,
         still_wanted: Callable[[], Awaitable[bool]] | None = None,
+        rag_document_id: UUID | None = None,
         source: str | None = None,
         organizational_unit: str | None = None,
         doc_date: str | None = None,
@@ -142,6 +144,10 @@ class IngestionService:
         caller cannot work out afterwards, and the difference between a file
         this collection's parser does not read and an embedding credential the
         provider refused.
+
+        `rag_document_id` is the trusted tracking-row id supplied by a worker.
+        The vector store holds it through the chunk commit, refusing a write
+        whose document was cleared after the earlier gate.
 
         `still_wanted` is checked after the parse and before the write: parsing a
         large file is slow, and if the collection is dropped while it runs, the
@@ -169,6 +175,7 @@ class IngestionService:
         """
         try:
             document: Document = await self.processor.process_file(filepath)
+            document.metadata.rag_document_id = rag_document_id
         except Exception as exc:
             logger.exception("Parsing failed for %s", filepath.name)
             return self._failed(exc, stage=IngestionStage.PARSE, filename=filepath.name)
@@ -240,7 +247,9 @@ class IngestionService:
                 )
             except KnowledgeBaseRemovedError as exc:
                 # Lost the race with the base's delete (#2561): expected, no traceback.
-                logger.info("Skipping index for %s: its knowledge base is gone", filepath.name)
+                logger.info(
+                    "Skipping index for %s: its knowledge base or document is gone", filepath.name
+                )
                 return self._failed(
                     exc, stage=IngestionStage.INDEX, filename=filepath.name, refused=True
                 )

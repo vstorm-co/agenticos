@@ -614,6 +614,9 @@ class TestKBAccessControl:
                 storage_paths=["rag/docs/legacy-ours.txt"], vector_document_ids=["legacy-1"]
             )
         )
+        monkeypatch.setattr(
+            rag_document_repo, "stored_vector_ids_at_clear", AsyncMock(return_value=[])
+        )
         monkeypatch.setattr(rag_document_repo, "delete_by_collection", repos["by_name"])
         monkeypatch.setattr(rag_document_repo, "delete_unfiled_with_vectors", repos["unfiled"])
         monkeypatch.setattr(rag_document_repo, "delete_by_knowledge_base", repos["by_base"])
