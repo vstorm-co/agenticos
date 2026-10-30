@@ -27,6 +27,7 @@ register(
         effect_kind="read",
         retry_guarantee="idempotent",
         handler=handle,
+        spends_budget=True,
         routes=routes,
         exclusive_branches=True,
         resource_check=check_key,

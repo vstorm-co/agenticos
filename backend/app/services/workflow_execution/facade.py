@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import current_impersonator
+from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -61,6 +61,7 @@ from app.schemas.workflow_run import (
     WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
+    WorkflowStepResolve,
     WorkflowStepTest,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
@@ -76,6 +77,7 @@ from app.services.workflow_execution import (
 )
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
+    WorkflowBudgetHeldError,
     WorkflowGraphUnresolvableError,
     WorkflowInlineStorageLimitError,
     WorkflowNotRunnableError,
@@ -84,8 +86,11 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
     WorkflowRunNotRetryableError,
+    WorkflowStepNotFoundError,
+    WorkflowStepNotResolvableError,
     WorkflowTriggerMismatchError,
 )
+from app.services.workflow_execution.run_status import refresh_run_status
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
@@ -429,7 +434,21 @@ class WorkflowExecutionService:
             raise WorkflowNotRunnableError(workflow_id=workflow.id)
         if WorkflowRunStatus(parent.status).is_terminal:
             raise WorkflowRunAlreadyTerminalError(run_id=parent.id, status=parent.status)
-        available = budget.remaining(parent)
+        available = await budget.unreserved(self.db, parent)
+        if available is not None:
+            # The calling step's own hold moves onto the called run, so it counts as free
+            # to it; a sibling that began in between sees both until the step settles.
+            calling = await workflow_run_repo.get_latest_attempt(
+                self.db, node_run_id=parent_node_run_id
+            )
+            if (
+                calling is not None
+                and calling.status == NodeAttemptStatus.IN_FLIGHT.value
+                and calling.reserved_usd is not None
+            ):
+                available += calling.reserved_usd
+            if available <= 0:
+                raise WorkflowBudgetHeldError(run_id=parent.id)
         child_budget = version.budget_limit
         if available is not None:
             child_budget = available if child_budget is None else min(available, child_budget)
@@ -656,6 +675,102 @@ class WorkflowExecutionService:
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_CANCELLED)
         await delivery.deliver_result(self.db, run=run)
+        return _read(run)
+
+    async def resolve_step(
+        self, ctx: AuthContext, run_id: UUID, node_run_id: UUID, body: WorkflowStepResolve
+    ) -> WorkflowRunRead:
+        """Decide what becomes of a step that needs attention, on the run it is in.
+
+        Who may: as for `cancel` - the person who started the run, or an editor of its
+        workflow - and for a test run, only an editor. Only this step is touched:
+        sibling steps, approvals, timers and called runs go on as they were.
+
+        The choices (`WorkflowStepResolve`): `run_again` queues the step for a new try;
+        `use_error_route` treats it as failed and takes its error route; `fail_run`
+        ends the run with the step marked failed; `use_late_result` takes the result
+        the step reported after its try was given up on. The decision is recorded in
+        the audit log with the step, the try and the choice - never the step's data.
+
+        Raises:
+            WorkflowRunNotFoundError: No such run, or this caller may not see it.
+            WorkflowStepNotFoundError: No such step in this run.
+            AuthorizationError: The caller may see the run but not resolve its steps.
+            WorkflowRunAlreadyTerminalError: The run already ended.
+            WorkflowStepNotResolvableError: The step does not need attention (a second
+                click finds it already queued), has no error route, or has no late
+                result.
+        """
+        # Authorized on an unlocked, scoped read, as `cancel` does, before any lock.
+        run = await workflow_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        workflow = (
+            await self._reachable(ctx, run.workflow_id, Perm.WORKFLOWS_VIEW)
+            if run is not None
+            else None
+        )
+        if (
+            run is None
+            or workflow is None
+            or (ctx.api_key_id is not None and not run.public_origin)
+        ):
+            raise WorkflowRunNotFoundError(run_id=run_id)
+        if not await self._may_cancel(ctx, run, workflow) or (
+            WorkflowRunMode(run.mode) is WorkflowRunMode.TEST
+            and not await resolve_access(
+                self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
+            )
+        ):
+            raise AuthorizationError(
+                message="Only the person who started this run, or an editor of its "
+                "workflow, may resolve its steps",
+                details={"run_id": run.id},
+            )
+        step = await workflow_run_repo.get_node_run_by_id(self.db, node_run_id)
+        if step is None or step.workflow_run_id != run.id:
+            raise WorkflowStepNotFoundError(node_run_id=node_run_id)
+
+        # The order every settle takes: the organization locks, the run, then the step.
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
+        run = await workflow_run_repo.get_run_for_update(
+            self.db, run_id, organization_id=ctx.organization_id
+        )
+        if run is None:
+            raise WorkflowRunNotFoundError(run_id=run_id)
+        if WorkflowRunStatus(run.status).is_terminal:
+            raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
+        # Read again under the lock: a second click finds the step already queued.
+        node_run = await workflow_run_repo.get_node_run_by_id_for_update(self.db, node_run_id)
+        if node_run is None or node_run.status != NodeRunStatus.NEEDS_ATTENTION.value:
+            raise WorkflowStepNotResolvableError(
+                run_id=run.id, node_run_id=node_run_id, reason="not_needing_attention"
+            )
+
+        latest = await workflow_run_repo.get_latest_attempt(self.db, node_run_id=node_run.id)
+        await dispatcher.resolve_needs_attention(
+            self.db,
+            run=run,
+            node_run=node_run,
+            latest=latest,
+            choice=body.choice,
+            now=datetime.now(UTC),
+        )
+        run = await refresh_run_status(self.db, run=run)
+        # Last, after every row lock: the audit chain's own lock is taken after them.
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=run.organization_id,
+            action="workflow_run.step_resolved",
+            target_type="workflow_run",
+            target_id=str(run.id),
+            details={
+                "node_run_id": str(node_run.id),
+                "node_instance_id": str(node_run.node_instance_id),
+                "attempt_no": latest.attempt_no if latest else 0,
+                "choice": body.choice,
+            },
+        )
         return _read(run)
 
     async def get(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
@@ -1094,6 +1209,23 @@ def node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunR
         if attempt.status == NodeAttemptStatus.COMPLETED.value and attempt.result is not None
     ]
     output = completed[-1].get("output") if completed else None
+    # A late result is on offer only while the step still waits for a person; once it was
+    # used, the dispatcher's own completed record follows the try it came from.
+    late = (
+        tries[-1].late_result
+        if tries and row.status == NodeRunStatus.NEEDS_ATTENTION.value
+        else None
+    )
+    late_output = late.get("output") if late is not None else None
+    last = tries[-1] if tries else None
+    last_status = NodeAttemptStatus(last.status) if last is not None else None
+    if last is not None and any(
+        attempt.retry_guarantee is None
+        and attempt.attempt_no > last.attempt_no
+        and attempt.status == NodeAttemptStatus.COMPLETED.value
+        for attempt in attempts
+    ):
+        last_status = NodeAttemptStatus.COMPLETED
     return WorkflowNodeRunRead(
         id=row.id,
         node_instance_id=row.node_instance_id,
@@ -1104,6 +1236,8 @@ def node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunR
         cost=float(sum((attempt.cost for attempt in attempts), Decimal(0))),
         error=latest_error,
         output=output if isinstance(output, dict) else None,
+        last_attempt_status=last_status,
+        late_output=late_output if isinstance(late_output, dict) else None,
         started_at=row.started_at,
         ended_at=row.ended_at,
     )

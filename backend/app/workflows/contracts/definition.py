@@ -122,6 +122,11 @@ class NodeDefinition:
     loop_body_only: bool = False
     """Whether the node exists only inside a `control.foreach` body - `loop.item`
     and `loop.yield`, which mean nothing outside an iteration."""
+    spends_budget: bool = False
+    """Whether an attempt may spend money out of the run's budget - a model call, a
+    knowledge search, an agent, a called workflow. Such an attempt is handed the most it
+    may spend when it begins, and waits when parallel steps already hold all that is
+    left; see `app.services.workflow_execution.budget`."""
     exclusive_branches: bool = False
     """Whether `routes` always answers with exactly one output port, so a
     `logic.merge` may rejoin the node's branches - `logic.if`, a decision, a

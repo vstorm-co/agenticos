@@ -519,6 +519,14 @@ class NodeAttempt(Base, TimestampMixin):
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     cost: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # What the attempt was handed to spend; counted against the run's budget only
+    # while it is `in_flight`, so settling or resolving it releases it with no write.
+    reserved_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    # A result reported after the attempt was resolved `uncertain`, kept for a person
+    # to use; never changes the attempt's verdict.
+    late_result: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     started_at: Mapped[datetime] = mapped_column(SADateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
 
@@ -534,6 +542,9 @@ class NodeAttempt(Base, TimestampMixin):
             name="ck_node_attempt_status",
         ),
         CheckConstraint("cost >= 0", name="ck_node_attempt_cost"),
+        CheckConstraint(
+            "reserved_usd IS NULL OR reserved_usd >= 0", name="ck_node_attempt_reserved"
+        ),
         # The reconciler's orphan scan and `take_stale_claims_for_resubmission`
         # both ask "is
         # anything in flight for this node run" on every tick.

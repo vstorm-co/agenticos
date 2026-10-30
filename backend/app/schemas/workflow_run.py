@@ -2,13 +2,14 @@
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator, model_validator
 
 from app.core.config import settings
 from app.db.models.workflow_run import (
+    NodeAttemptStatus,
     NodeRunStatus,
     WorkflowRunMode,
     WorkflowRunStatus,
@@ -19,6 +20,23 @@ from app.workflows.graph.model import pinned_output_fits
 
 MAX_RUN_DEADLINE_SECONDS = 30 * 24 * 3600
 """The longest deadline a run may be started with: thirty days."""
+
+
+StepChoice = Literal["run_again", "use_error_route", "fail_run", "use_late_result"]
+
+
+class WorkflowStepResolve(BaseSchema):
+    """What to do with a step that needs attention, on the run it is in.
+
+    `run_again` dispatches the step once more, as a new try. `use_error_route` treats the
+    step as failed and takes its `error` port (or, inside a loop, the loop's item-error
+    policy); a step that does neither is refused. `fail_run` treats the step as failed
+    and ends the run, whatever the graph routes. `use_late_result` takes the result the
+    step reported after its try was given up on, as the step's output; refused when none
+    arrived.
+    """
+
+    choice: StepChoice
 
 
 class WorkflowStepTest(BaseSchema):
@@ -161,6 +179,16 @@ class WorkflowNodeRunRead(BaseSchema):
         default=None,
         description="What the step's last completed try produced - its typed output, as a "
         "later step reads it. Null until one completes",
+    )
+    last_attempt_status: NodeAttemptStatus | None = Field(
+        default=None,
+        description="How the step's latest try ended: `uncertain` is a try nobody could "
+        "confirm. Null before any try",
+    )
+    late_output: dict[str, Any] | None = Field(
+        default=None,
+        description="The output the step reported after its try was given up on, which a "
+        "person may use instead of running it again. Null when none arrived",
     )
     started_at: datetime | None
     ended_at: datetime | None

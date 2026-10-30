@@ -30,6 +30,7 @@ from app.services.access import WORKFLOW, resolve_access
 from app.services.workflow_execution import context
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
+    WorkflowBudgetHeldError,
     WorkflowBudgetReachedError,
     WorkflowInlineStorageLimitError,
     WorkflowNotRunnableError,
@@ -152,7 +153,7 @@ def _unavailable() -> Failed:
 
 async def _call(
     db: AsyncSession, config: WorkflowRunConfig, run_input: dict[str, Any]
-) -> WorkflowRun | Failed:
+) -> WorkflowRun | Failed | Waiting:
     current = context.current()
     caller = await workflow_run_repo.get_run(
         db, current.workflow_run_id, organization_id=current.organization_id
@@ -270,7 +271,7 @@ async def _admit(
     visited: str,
     *,
     retry_of_run_id: UUID | None = None,
-) -> WorkflowRun | Failed:
+) -> WorkflowRun | Failed | Waiting:
     # The execution service imports the node packages through the registry.
     from app.services.workflow_execution.facade import (
         Causation,
@@ -309,6 +310,10 @@ async def _admit(
         if existing is None:
             raise
         return existing
+    except WorkflowBudgetHeldError:
+        # Parallel steps hold what is left of the caller's budget; ask again once they
+        # settle, on the same backoff a retry waits on.
+        return Waiting(reason="retry_backoff", resume_token=str(current.node_run_id))
     except WorkflowInlineStorageLimitError as refusal:
         return Failed(
             error=WorkflowError(
@@ -349,7 +354,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         called = await workflow_run_repo.get_run_called_by(db, node_run_id=current.node_run_id)
         if called is None:
             started = await _call(db, config, run_input)
-            if isinstance(started, Failed):
+            if isinstance(started, Failed | Waiting):
                 return started
             called = started
         # A parked step must recheck access before handing on a result; the

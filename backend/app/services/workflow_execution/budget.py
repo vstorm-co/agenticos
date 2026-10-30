@@ -5,18 +5,29 @@ descendants. Per-run caps and API totals include both, while organization-wide
 aggregations sum own fees once. Model nodes pass the remaining funds to their
 request guards. Reported fees are booked even when an attempt fails or arrives
 late; an unknown price marks the recorded cost as a lower bound.
+
+Parallel steps share one cap through reservations: an attempt of a step that
+spends money is handed what `unreserved` leaves when it begins, never more than its
+own cap, and holds it while it is in flight. Holds are derived from in-flight
+attempts and live called runs, not kept as a counter, so nothing has to be
+released and a crash cannot leak one. The flip side is accepted: when an attempt's
+lease expires its hold ends while its handler may still be spending, so the total can
+overshoot the cap by up to that hold - and the overshoot is booked, so it heals.
 """
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Protocol, runtime_checkable
 from uuid import UUID
 
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.db.models.workflow_run import WorkflowRun
 from app.db.session import get_worker_db_context
 from app.repositories import organization_repo
+from app.repositories import workflow_run as workflow_run_repo
 from app.services.spend import organization_monthly_spend
 
 
@@ -47,6 +58,38 @@ def node_limit(remaining: Decimal | None, configured: float | None) -> Decimal |
     if remaining is None:
         return own
     return remaining if own is None else min(remaining, own)
+
+
+async def unreserved(db: AsyncSession, run: WorkflowRun) -> Decimal | None:
+    """What this run's cap leaves once spend and every other hold are taken off.
+
+    `None` without a cap. The holds are the reservations of the run's in-flight
+    attempts and the unspent caps of the runs its steps called, which are still live.
+    Read under the run's lock, so two parallel steps cannot both be handed the same
+    funds.
+    """
+    if run.budget_limit is None:
+        return None
+    held = await workflow_run_repo.sum_in_flight_reservations(db, workflow_run_id=run.id)
+    held += await workflow_run_repo.sum_live_child_reservations(db, workflow_run_id=run.id)
+    return max(Decimal(0), run.budget_limit - total_cost(run) - held)
+
+
+def reservation(free: Decimal, own_cap: Decimal | None) -> Decimal:
+    """What one attempt reserves: all that is free, or its own cap when that is less."""
+    return free if own_cap is None else min(free, own_cap)
+
+
+@runtime_checkable
+class _CostCapped(Protocol):
+    max_cost_usd: float | None
+
+
+def own_cap(config: BaseModel | None) -> Decimal | None:
+    """The step's own `max_cost_usd`, if its config has one and it is set."""
+    if isinstance(config, _CostCapped) and config.max_cost_usd is not None:
+        return Decimal(str(config.max_cost_usd))
+    return None
 
 
 def past_deadline(run: WorkflowRun, *, at: datetime) -> bool:

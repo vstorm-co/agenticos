@@ -21,7 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import WorkflowStatus
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus
@@ -352,6 +352,152 @@ class TestCancelRoute:
                 response = await http.post(_url(f"/{run.id}/cancel"))
         assert response.status_code == 409
         assert response.json()["error"]["code"] == "WORKFLOW_RUN_TERMINAL"
+
+
+class TestResolveStepRoute:
+    """`POST /workflow-runs/{id}/steps/{node_run_id}/rerun`: who may, and what is refused."""
+
+    def _step(self, run, *, status: str = "needs_attention", run_id: uuid.UUID | None = None):
+        return MagicMock(
+            id=uuid.uuid4(),
+            workflow_run_id=run_id or run.id,
+            organization_id=_ORGANIZATION_ID,
+            node_instance_id=uuid.uuid4(),
+            status=status,
+        )
+
+    def _patches(self, run, step, *, workflow=True, access=True, locked=None):
+        found = _workflow(id=run.workflow_id) if workflow else None
+        return [
+            patch(f"{FACADE_PATH}.hold_subject", new=AsyncMock()),
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
+                new=AsyncMock(return_value=run if locked is None else locked),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_node_run_by_id",
+                new=AsyncMock(return_value=step),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_node_run_by_id_for_update",
+                new=AsyncMock(return_value=step),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_latest_attempt",
+                new=AsyncMock(return_value=MagicMock(attempt_no=1)),
+            ),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=found)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=access)),
+            patch(f"{FACADE_PATH}.refresh_run_status", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.record_audit", new=AsyncMock()),
+        ]
+
+    async def _post(self, owner_client, run, step, patches, body=None):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            async with owner_client() as http:
+                return await http.post(
+                    _url(f"/{run.id}/steps/{step.id}/rerun"),
+                    json=body if body is not None else {"choice": "run_again"},
+                )
+
+    async def test_a_step_of_another_organizations_run_is_not_found(self, owner_client):
+        run = _run_row()
+        step = self._step(run)
+        patches = self._patches(run, step)
+        patches[1] = patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=None)
+        )
+        response = await self._post(owner_client, run, step, patches)
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "WORKFLOW_RUN_NOT_FOUND"
+
+    async def test_a_step_of_another_run_is_not_found(self, owner_client):
+        run = _run_row()
+        step = self._step(run, run_id=uuid.uuid4())
+        response = await self._post(owner_client, run, step, self._patches(run, step))
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "WORKFLOW_STEP_NOT_FOUND"
+
+    async def test_a_key_cannot_resolve_a_step_of_a_run_it_cannot_read(self, owner_client):
+        run = _run_row(public_origin=False)
+        step = self._step(run)
+        app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            role=OrgRoleName.OWNER,
+            api_key_id=uuid.uuid4(),
+        )
+        response = await self._post(owner_client, run, step, self._patches(run, step))
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "WORKFLOW_RUN_NOT_FOUND"
+
+    async def test_a_member_who_did_not_start_the_run_is_refused(self, owner_client):
+        run = _run_row()
+        step = self._step(run)
+        patches = [
+            *self._patches(run, step),
+            patch.object(WorkflowExecutionService, "_may_cancel", AsyncMock(return_value=False)),
+        ]
+        response = await self._post(owner_client, run, step, patches)
+        assert response.status_code == 403
+
+    async def test_a_test_run_needs_edit_to_resolve_a_step(self, owner_client):
+        run = _run_row(mode=WorkflowRunMode.TEST.value)
+        step = self._step(run)
+
+        async def not_edit(_db, _ctx, _workflow, perm, **_kwargs):
+            return perm is not Perm.WORKFLOWS_EDIT
+
+        patches = [
+            *self._patches(run, step),
+            patch(f"{FACADE_PATH}.resolve_access", new=not_edit),
+            patch.object(WorkflowExecutionService, "_may_cancel", AsyncMock(return_value=True)),
+        ]
+        response = await self._post(owner_client, run, step, patches)
+        assert response.status_code == 403
+
+    async def test_a_step_of_an_ended_run_is_a_409(self, owner_client):
+        run = _run_row(status=WorkflowRunStatus.FAILED.value)
+        step = self._step(run)
+        response = await self._post(owner_client, run, step, self._patches(run, step))
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "WORKFLOW_RUN_TERMINAL"
+
+    async def test_a_step_not_needing_attention_is_a_409(self, owner_client):
+        run = _run_row()
+        step = self._step(run, status="running")
+        response = await self._post(owner_client, run, step, self._patches(run, step))
+        assert response.status_code == 409
+        body = response.json()["error"]
+        assert body["code"] == "WORKFLOW_STEP_NOT_RESOLVABLE"
+        assert body["details"]["reason"] == "not_needing_attention"
+
+    async def test_an_unknown_choice_is_a_422(self, owner_client):
+        run = _run_row()
+        step = self._step(run)
+        response = await self._post(
+            owner_client, run, step, self._patches(run, step), body={"choice": "ignore_it"}
+        )
+        assert response.status_code == 422
+
+    async def test_running_a_step_again_answers_the_run(self, owner_client):
+        run = _run_row(status=WorkflowRunStatus.NEEDS_ATTENTION.value)
+        step = self._step(run)
+        patches = [
+            *self._patches(run, step),
+            patch(
+                f"{FACADE_PATH}.dispatcher.resolve_needs_attention",
+                new=AsyncMock(return_value=[]),
+            ),
+        ]
+        response = await self._post(owner_client, run, step, patches)
+        assert response.status_code == 200
+        assert response.json()["id"] == str(run.id)
 
 
 class TestNodesRoute:

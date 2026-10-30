@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
+from pydantic import JsonValue
 from sqlalchemy import (
     ColumnElement,
     Interval,
@@ -986,6 +987,7 @@ async def create_attempt(
     idempotency_key: str,
     retry_guarantee: str | None,
     started_at: datetime,
+    reserved_usd: Decimal | None = None,
 ) -> NodeAttempt:
     attempt = NodeAttempt(
         organization_id=organization_id,
@@ -993,6 +995,7 @@ async def create_attempt(
         attempt_no=attempt_no,
         idempotency_key=idempotency_key,
         retry_guarantee=retry_guarantee,
+        reserved_usd=reserved_usd,
         status=NodeAttemptStatus.IN_FLIGHT.value,
         started_at=started_at,
     )
@@ -1097,6 +1100,65 @@ async def settle_attempt(
     attempt.cost = cost
     attempt.cost_is_partial = cost_is_partial
     attempt.ended_at = ended_at
+    db.add(attempt)
+    await db.flush()
+    await db.refresh(attempt)
+    return attempt
+
+
+async def sum_in_flight_reservations(db: AsyncSession, *, workflow_run_id: UUID) -> Decimal:
+    """What the run's attempts still in flight hold of its budget.
+
+    Derived, never stored as a counter: an attempt that settles, parks or is resolved
+    as uncertain is no longer `in_flight`, so its hold ends without a write.
+    """
+    total = await db.scalar(
+        select(func.coalesce(func.sum(NodeAttempt.reserved_usd), 0))
+        .select_from(NodeAttempt)
+        .join(NodeRun, NodeRun.id == NodeAttempt.node_run_id)
+        .where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeAttempt.status == NodeAttemptStatus.IN_FLIGHT.value,
+        )
+    )
+    return Decimal(total or 0)
+
+
+async def sum_live_child_reservations(db: AsyncSession, *, workflow_run_id: UUID) -> Decimal:
+    """What the runs this run's steps called still have to spend, while they live.
+
+    Each live called run holds the part of its own cap it has not spent. What it has
+    spent is already in this run's `child_cost`, so only the unspent part is counted.
+    """
+    terminal = [status.value for status in WorkflowRunStatus if status.is_terminal]
+    unspent = func.greatest(
+        0,
+        WorkflowRun.budget_limit
+        - WorkflowRun.spent_cost
+        - func.coalesce(WorkflowRun.child_cost, 0),
+    )
+    total = await db.scalar(
+        select(func.coalesce(func.sum(unspent), 0))
+        .select_from(WorkflowRun)
+        .join(NodeRun, NodeRun.id == WorkflowRun.parent_node_run_id)
+        .where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            WorkflowRun.budget_limit.is_not(None),
+            WorkflowRun.status.not_in(terminal),
+        )
+    )
+    return Decimal(total or 0)
+
+
+async def store_late_result(
+    db: AsyncSession, *, attempt: NodeAttempt, late_result: dict[str, JsonValue]
+) -> NodeAttempt:
+    """Keep the result an attempt reported after it was resolved `uncertain`.
+
+    The attempt's verdict, result and cost are untouched; this is the one other write
+    a terminal attempt takes, and it is written once.
+    """
+    attempt.late_result = late_result
     db.add(attempt)
     await db.flush()
     await db.refresh(attempt)
@@ -1516,6 +1578,25 @@ async def cancel_live_outbox_for_node_runs(
         .returning(DispatchOutbox.id)
     )
     return result.scalars().all()
+
+
+async def first_event_since(
+    db: AsyncSession, *, node_run_id: UUID, kind: str, after_kind: str
+) -> datetime | None:
+    """When the step's current run of `kind` events began: the earliest one written after
+    the step's latest `after_kind` event. `None` when there is none."""
+    latest_after = (
+        select(func.coalesce(func.max(WorkflowEvent.seq), 0))
+        .where(WorkflowEvent.node_run_id == node_run_id, WorkflowEvent.kind == after_kind)
+        .scalar_subquery()
+    )
+    return await db.scalar(
+        select(func.min(WorkflowEvent.created_at)).where(
+            WorkflowEvent.node_run_id == node_run_id,
+            WorkflowEvent.kind == kind,
+            WorkflowEvent.seq > latest_after,
+        )
+    )
 
 
 async def append_event(

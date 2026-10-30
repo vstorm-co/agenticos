@@ -32,6 +32,7 @@ register(
         effect_kind="read",
         retry_guarantee="idempotent",
         handler=handle,
+        spends_budget=True,
         routes=routes,
         exclusive_branches=True,
         ports_for=ports_for,

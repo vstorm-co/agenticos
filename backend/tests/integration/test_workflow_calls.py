@@ -939,3 +939,189 @@ async def test_a_deleted_childs_wait_history_cannot_be_lost_by_retrying_the_call
                 await db.scalars(select(WorkflowRun).where(WorkflowRun.workflow_id == callee.id))
             ).all()
         )
+
+
+async def _two_parallel_calls(
+    engine: AsyncEngine, *, callee_cap: str | None
+) -> tuple[SeededRun, NodeInstance, NodeInstance, NodeInstance]:
+    from decimal import Decimal
+
+    from sqlalchemy import update
+
+    from app.repositories import workflow as workflow_repo
+
+    _ctx, callee, member = await _published_callee(engine, _callee())
+    if callee_cap is not None:
+        async with async_sessionmaker(engine)() as db:
+            await db.execute(
+                update(WorkflowVersion)
+                .where(WorkflowVersion.workflow_id == callee.id)
+                .values(budget_limit=Decimal(callee_cap))
+            )
+            await db.commit()
+    entry = _node("core.input")
+    first = _node("workflow.run", {"workflow_id": str(callee.id), "wait": True})
+    second = _node("workflow.run", {"workflow_id": str(callee.id), "wait": True})
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, first, second),
+        edges=(_edge(entry, first), _edge(entry, second)),
+        bindings=tuple(
+            Binding(
+                target_node_id=step.id,
+                target_field="input",
+                source=LiteralValue(value={"name": "Ada"}),
+            )
+            for step in (first, second)
+        ),
+    )
+    caller = await seed_run(engine, graph, member=member)
+    async with caller.factory() as db:
+        version = await workflow_repo.create_version(
+            db,
+            workflow_id=caller.run.workflow_id,
+            organization_id=caller.org.id,
+            version=1,
+            graph=graph.model_dump(mode="json"),
+            note=None,
+            published_by_user_id=caller.principal.id,
+            budget_limit=None,
+        )
+        await workflow_run_repo.update_run(
+            db,
+            run=caller.run,
+            update_data={
+                "mode": "real",
+                "workflow_version_id": version.id,
+                "draft_graph_snapshot": None,
+                "budget_limit": Decimal("1"),
+            },
+        )
+        await db.commit()
+    return caller, entry, first, second
+
+
+async def _row_id(seeded: SeededRun, step: NodeInstance) -> uuid.UUID:
+    async with seeded.factory() as db:
+        found = await workflow_run_repo.get_node_run_by_identity(
+            db, workflow_run_id=seeded.run.id, node_instance_id=step.id, scope_path=[]
+        )
+        assert found is not None
+        return found.id
+
+
+async def _due_now(seeded: SeededRun, step: NodeInstance) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import update
+
+    row = await _row_id(seeded, step)
+    async with seeded.factory() as db:
+        await db.execute(
+            update(DispatchOutbox)
+            .where(DispatchOutbox.node_run_id == row, DispatchOutbox.status == "pending")
+            .values(available_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await db.commit()
+
+
+async def _attempts_of(seeded: SeededRun, step: NodeInstance) -> int:
+    from sqlalchemy import func
+
+    from app.db.models.workflow_run import NodeAttempt
+
+    row = await _row_id(seeded, step)
+    async with seeded.factory() as db:
+        return int(
+            await db.scalar(
+                select(func.count()).select_from(NodeAttempt).where(NodeAttempt.node_run_id == row)
+            )
+            or 0
+        )
+
+
+@pytest.mark.security
+async def test_two_parallel_calls_split_the_callers_budget_instead_of_each_taking_it_all(
+    engine: AsyncEngine,
+) -> None:
+    from decimal import Decimal
+
+    from app.services.workflow_execution import dispatcher
+    from tests.integration.workflow_run_support import settle, start_attempt, tick
+
+    caller, entry, first, second = await _two_parallel_calls(engine, callee_cap="0.6")
+    await tick(caller, await _row_id(caller, entry))
+
+    # Both legs are ready; the first begins and reserves, so the second cannot also begin
+    # on the same funds - it waits.
+    begun = await start_attempt(caller, await _row_id(caller, first))
+    await tick(caller, await _row_id(caller, second))
+    assert await _attempts_of(caller, second) == 0
+
+    await settle(caller, begun, await dispatcher.call_handler(begun))
+    await _due_now(caller, second)
+    await tick(caller, await _row_id(caller, second))
+
+    budgets = [(await _called_run(caller, step)).run.budget_limit for step in (first, second)]
+    assert budgets == [Decimal("0.6"), Decimal("0.4")]
+
+
+async def test_two_uncapped_calls_run_one_after_the_other_and_the_second_does_not_fail(
+    engine: AsyncEngine,
+) -> None:
+    from decimal import Decimal
+
+    from app.services.workflow_execution import dispatcher
+    from tests.integration.workflow_run_support import settle, start_attempt, tick
+
+    caller, entry, first, second = await _two_parallel_calls(engine, callee_cap=None)
+    await tick(caller, await _row_id(caller, entry))
+    begun = await start_attempt(caller, await _row_id(caller, first))
+    await tick(caller, await _row_id(caller, second))
+    await settle(caller, begun, await dispatcher.call_handler(begun))
+    first_child = await _called_run(caller, first)
+    assert first_child.run.budget_limit == Decimal("1")
+
+    # The first child holds the whole budget until it ends: the second still waits.
+    await _due_now(caller, second)
+    await tick(caller, await _row_id(caller, second))
+    assert await _attempts_of(caller, second) == 0
+
+    assert (await drive(first_child)).status == "succeeded"
+    await _due_now(caller, second)
+    await drive(caller)
+    second_child = await _called_run(caller, second)
+    assert second_child.run.budget_limit == Decimal("1")
+    assert (await drive(second_child)).status == "succeeded"
+    # The first call collects its answer though the second child now holds the budget.
+    assert (await drive(caller)).status == "succeeded"
+
+
+async def test_a_call_with_nothing_free_waits_instead_of_admitting_a_run_with_no_budget(
+    engine: AsyncEngine,
+) -> None:
+    from decimal import Decimal
+
+    from tests.integration.workflow_run_support import tick
+
+    caller, entry, first, _second = await _two_parallel_calls(engine, callee_cap=None)
+    await tick(caller, await _row_id(caller, entry))
+
+    from app.services.workflow_execution import budget
+
+    real = budget.unreserved
+    asked: list[int] = []
+
+    async def held_once_admitted(db, run):
+        # The begin check sees the funds; by the time the call is admitted a sibling holds them (the step's own hold of 1 is added back).
+        asked.append(1)
+        return await real(db, run) if len(asked) == 1 else Decimal(-1)
+
+    with patch.object(budget, "unreserved", new=held_once_admitted):
+        await tick(caller, await _row_id(caller, first))
+
+    assert (await node_statuses(caller))[first.id] == NodeRunStatus.WAITING.value
+    async with caller.factory() as db:
+        row = await workflow_run_repo.get_node_run_by_id(db, await _row_id(caller, first))
+        assert row is not None and row.waiting_reason == "retry_backoff"
+        assert await workflow_run_repo.get_run_called_by(db, node_run_id=row.id) is None

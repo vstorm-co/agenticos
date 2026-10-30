@@ -78,6 +78,7 @@ from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.workflow_run import StepChoice
 from app.services.access import WORKFLOW, resolve_access
 from app.services.api_key import ApiKeyService
 from app.services.workflow_execution import (
@@ -100,6 +101,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowFileQuotaError,
     WorkflowGraphUnresolvableError,
     WorkflowParentStoppedError,
+    WorkflowStepNotResolvableError,
 )
 from app.services.workflow_execution.run_status import refresh_run_status
 from app.workflows import _registry
@@ -764,6 +766,46 @@ async def _resolve_call(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun
     )
 
 
+STEP_MARKED_FAILED = "STEP_MARKED_FAILED"
+"""The error code of a step a person treated as failed."""
+
+
+async def _wait_for_budget(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    outbox: DispatchOutbox,
+    now: datetime,
+) -> None:
+    """Hold a spender back until the steps holding the run's budget have settled.
+
+    The claim is closed and the step's dispatch is queued again; the step stays as it
+    was, so the run's status is unchanged. A step parked on a person can hold its share
+    for days, so the wait backs off with how long it has lasted - never more than the
+    retry schedule's ceiling - and only the first wait of a streak is logged.
+    """
+    began = await workflow_run_repo.first_event_since(
+        db,
+        node_run_id=node_run.id,
+        kind=events.EventKind.NODE_BUDGET_WAIT,
+        after_kind=events.EventKind.NODE_DISPATCHED,
+    )
+    if began is None:
+        await events.append(
+            db, run=run, kind=events.EventKind.NODE_BUDGET_WAIT, node_run_id=node_run.id
+        )
+    waited = 0.0 if began is None else (now - began).total_seconds()
+    delay = min(
+        max(settings.WORKFLOW_RETRY_BACKOFF_BASE_SECONDS, waited),
+        settings.WORKFLOW_RETRY_BACKOFF_MAX_SECONDS,
+    )
+    await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
+    await dispatch_queue.queue_dispatch(
+        db, run=run, node_run_id=node_run.id, available_at=now + timedelta(seconds=delay)
+    )
+
+
 async def begin_attempt(
     db: AsyncSession,
     *,
@@ -922,6 +964,22 @@ async def begin_attempt(
     node = call.node
     definition = call.definition
 
+    reserved: Decimal | None = None
+    handed = budget.remaining(run)
+    # A step woken because the run it called ended only collects the answer: the called
+    # run did the spending, and holding it back for a sibling's share could not help.
+    collecting = node_run.waiting_reason == WaitingReason.EXTERNAL_EVENT.value
+    if definition.spends_budget and run.budget_limit is not None and not collecting:
+        free = await budget.unreserved(db, run)
+        if not free:
+            # The cap is not spent (`over_budget` above) but parallel steps hold all
+            # that is left. Try again once one of them settles; nothing is handed out.
+            await _wait_for_budget(db, run=run, node_run=node_run, outbox=outbox, now=now)
+            return None
+        # A step that calls a workflow reserves like any spender; the hold moves to the
+        # called run's own row when it is admitted (`admit_call`).
+        reserved = handed = budget.reservation(free, budget.own_cap(call.config))
+
     attempt_no = (latest.attempt_no if latest else 0) + 1
     key = idempotency_key(
         organization_id=run.organization_id,
@@ -947,6 +1005,7 @@ async def begin_attempt(
         idempotency_key=key,
         retry_guarantee=guarantee,
         started_at=now,
+        reserved_usd=reserved,
     )
     await workflow_run_repo.update_node_run(
         db,
@@ -979,7 +1038,7 @@ async def begin_attempt(
         run_input=run.input,
         triggered_by=run.triggered_by,
         timezone=run.timezone,
-        budget_remaining=budget.remaining(run),
+        budget_remaining=handed,
         arrived_output=call.arrived_output,
         arrived_branches=call.arrived_branches,
         idempotency_key=key,
@@ -1599,6 +1658,7 @@ async def _settle_loaded(
             extra={"attempt_id": str(attempt.id), "attempt_status": attempt.status},
         )
         await _book_attempt_cost(db, attempt=attempt, outcome=cost_outcome)
+        await _keep_late_result(db, run=run, node_run=node_run, attempt=attempt, outcome=outcome)
         return []
 
     outcome, serialized_result = _persistable_outcome(outcome)
@@ -1710,6 +1770,221 @@ async def _settle_loaded(
     else:  # pragma: no cover - NodeResult is a closed discriminated union
         raise TypeError(f"Unknown NodeResult variant: {result!r}")
     return []
+
+
+async def _keep_late_result(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    attempt: NodeAttempt,
+    outcome: HandlerOutcome,
+) -> None:
+    """Keep the result of an attempt that was given up on, for a person to use.
+
+    Only a completed result of a try the reconciler resolved `uncertain`, on a step still
+    waiting for a person: that is the one result someone can still choose to take. It is
+    checked and bounded like any stored result, and one that is invalid or too large for
+    the allowance is dropped with a log line - it never fails the run. The attempt's
+    verdict stands; the result is stored beside it, once: a duplicate delivery keeps
+    the first and books nothing again.
+    """
+    if (
+        attempt.late_result is not None
+        or attempt.status != NodeAttemptStatus.UNCERTAIN.value
+        or node_run.status != NodeRunStatus.NEEDS_ATTENTION.value
+        or not isinstance(outcome.result, Completed)
+    ):
+        return
+    persistable, serialized = _persistable_outcome(outcome)
+    if not isinstance(persistable.result, Completed):
+        logger.warning("workflow_late_result_dropped", extra={"attempt_id": str(attempt.id)})
+        return
+    refusal = await _reserve_inline_result(db, run, json_byte_size(serialized, limit=(1 << 63) - 1))
+    if refusal is not None:
+        logger.warning("workflow_late_result_dropped", extra={"attempt_id": str(attempt.id)})
+        return
+    await workflow_run_repo.store_late_result(db, attempt=attempt, late_result=serialized)
+
+
+async def resolve_needs_attention(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    latest: NodeAttempt | None,
+    choice: StepChoice,
+    now: datetime,
+) -> list[tuple[UUID, UUID]]:
+    """Resolve a step waiting for a person, on the run it is in.
+
+    The caller holds the run's and the step's locks, and has checked that the step
+    needs attention and that the run is live; `latest` is the step's latest try, if any. Nothing else of the run is touched -
+    siblings, approvals, timers and called runs go on as they were.
+
+    - `run_again`: the step is queued for a new try.
+    - `use_error_route`: the step fails the way its policy routes a failure - by its
+      `error` port, or into its loop's item-error policy.
+    - `fail_run`: the step fails and ends the run, however the graph is wired, so an
+      error workflow starts.
+    - `use_late_result`: the result the step reported after its try was given up on is
+      recorded as the output of a try of the dispatcher's own, and the run goes on from
+      it.
+
+    Returns the `(workflow_run_id, node_run_id)` of every step this made ready; their
+    dispatch rows and jobs are already written in this transaction.
+
+    Raises:
+        WorkflowStepNotResolvableError: A concurrent write already queued the step
+            (`not_needing_attention`), it has no error route (`no_error_route`) or no
+            late result arrived (`no_late_result`).
+    """
+    # Read before any savepoint: a rolled-back one expires what the session holds.
+    run_id, node_run_id = run.id, node_run.id
+
+    def refuse(
+        reason: Literal["not_needing_attention", "no_error_route", "no_late_result"],
+    ) -> WorkflowStepNotResolvableError:
+        return WorkflowStepNotResolvableError(run_id=run_id, node_run_id=node_run_id, reason=reason)
+
+    # A refusal below rolls the request back, event included.
+    await events.append(
+        db,
+        run=run,
+        kind=events.EventKind.NODE_RESOLVED,
+        node_run_id=node_run.id,
+        payload={"choice": choice, "attempt_no": latest.attempt_no if latest else 0},
+    )
+
+    if choice == "run_again":
+        try:
+            async with db.begin_nested():
+                await workflow_run_repo.update_node_run(
+                    db,
+                    node_run=node_run,
+                    update_data={
+                        "status": NodeRunStatus.PENDING.value,
+                        "waiting_reason": None,
+                        "waiting_agent_run_id": None,
+                    },
+                )
+                await dispatch_queue.queue_dispatch(db, run=run, node_run_id=node_run_id)
+        except IntegrityError as exc:
+            raise refuse("not_needing_attention") from exc
+        return [(run_id, node_run_id)]
+
+    if choice == "use_late_result":
+        if latest is None or latest.late_result is None:
+            raise refuse("no_late_result")
+        return await _use_late_result(
+            db,
+            run=run,
+            node_run=node_run,
+            after_attempt_no=latest.attempt_no,
+            late=latest.late_result,
+            now=now,
+        )
+
+    graph = await _graph_or_none(db, run)
+    node = graph.node_by_id.get(node_run.node_instance_id) if graph is not None else None
+    routed = choice == "use_error_route"
+    if routed and (node is None or not (node.routes_errors or _loop_of(node_run.scope_path))):
+        raise refuse("no_error_route")
+    error = WorkflowError(
+        code=STEP_MARKED_FAILED,
+        message="A person treated this step as failed",
+        bypassable=routed,
+    )
+    if routed and node is not None:
+        # A failure that is routed is read back from the step's latest try - by the error
+        # handler it leaves to, or the loop collecting it - so the dispatcher records one,
+        # as `_use_late_result` does, rather than leaving the uncertain try with no error.
+        marker = await workflow_run_repo.create_attempt(
+            db,
+            organization_id=run.organization_id,
+            node_run_id=node_run.id,
+            attempt_no=(latest.attempt_no if latest else 0) + 1,
+            idempotency_key=idempotency_key(
+                organization_id=run.organization_id,
+                workflow_run_id=run.id,
+                node_instance_id=node.id,
+                scope_path=node_run.scope_path,
+            ),
+            retry_guarantee=None,
+            started_at=now,
+        )
+        await workflow_run_repo.settle_attempt(
+            db,
+            attempt=marker,
+            status=NodeAttemptStatus.FAILED.value,
+            result=Failed(error=error).model_dump(mode="json"),
+            cost=Decimal(0),
+            cost_is_partial=False,
+            ended_at=now,
+        )
+    return await _fail_for_good(db, run=run, graph=graph, node_run=node_run, error=error, now=now)
+
+
+async def _use_late_result(
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    after_attempt_no: int,
+    late: dict[str, Any],
+    now: datetime,
+) -> list[tuple[UUID, UUID]]:
+    """Take the result a step reported late as the step's own, and go on from it.
+
+    The inline allowance is not charged again: `_keep_late_result` reserved these
+    bytes when it stored the result, and a normal settle counts a result once for the
+    attempt row and the output it also writes. Counting here too would charge a person
+    for choosing a result the run had already been charged for, and could refuse the
+    choice after the fact. The copy left on the resolved attempt is the single extra.
+    """
+    graph = await resolve_graph(db, run)
+    node = graph.node_by_id[node_run.node_instance_id]
+    if node.definition_id in _REPORTS:
+        # A step that answers the run re-states its answer when it runs; its late result
+        # has no handler here to do that, so it is never offered.
+        raise WorkflowStepNotResolvableError(
+            run_id=run.id, node_run_id=node_run.id, reason="no_late_result"
+        )
+    definition = _registry.get(node.definition_id, node.definition_version)
+    # The dispatcher's own record of a try, like a loop's collected results: no handler
+    # ran, so it has no retry guarantee and shows as no try of the step.
+    own = await workflow_run_repo.create_attempt(
+        db,
+        organization_id=run.organization_id,
+        node_run_id=node_run.id,
+        attempt_no=after_attempt_no + 1,
+        idempotency_key=idempotency_key(
+            organization_id=run.organization_id,
+            workflow_run_id=run.id,
+            node_instance_id=node.id,
+            scope_path=node_run.scope_path,
+        ),
+        retry_guarantee=None,
+        started_at=now,
+    )
+    await workflow_run_repo.settle_attempt(
+        db,
+        attempt=own,
+        status=NodeAttemptStatus.COMPLETED.value,
+        result=late,
+        cost=Decimal(0),
+        cost_is_partial=False,
+        ended_at=now,
+    )
+    return await _settle_completed(
+        db,
+        run=run,
+        node_run=node_run,
+        definition=definition,
+        result=Completed[KnownOutput](output=KnownOutput(late["output"])),
+        stands_in=None,
+        now=now,
+    )
 
 
 async def _book_cost(db: AsyncSession, *, run: WorkflowRun, outcome: HandlerOutcome) -> WorkflowRun:

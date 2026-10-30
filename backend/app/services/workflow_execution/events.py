@@ -37,6 +37,8 @@ class EventKind:
     NODE_WAITING = "node_waiting"
     NODE_UNCERTAIN = "node_uncertain"
     NODE_RETRYING = "node_retrying"
+    NODE_RESOLVED = "node_resolved"
+    NODE_BUDGET_WAIT = "node_budget_wait"
     NODE_SKIPPED = "node_skipped"
     LOOP_STARTED = "loop_started"
     ITERATION_STARTED = "iteration_started"

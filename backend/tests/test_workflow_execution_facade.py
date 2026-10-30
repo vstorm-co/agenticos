@@ -28,14 +28,18 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
+from app.schemas.workflow_run import WorkflowStepResolve
 from app.services.workflow_execution.exceptions import (
     WorkflowAdmissionQuotaError,
     WorkflowArchivedError,
+    WorkflowBudgetHeldError,
     WorkflowNotRunnableError,
     WorkflowRunAlreadyTerminalError,
     WorkflowRunInputInvalidError,
     WorkflowRunInputTooLargeError,
     WorkflowRunNotFoundError,
+    WorkflowStepNotFoundError,
+    WorkflowStepNotResolvableError,
     WorkflowTriggerMismatchError,
 )
 from app.services.workflow_execution.facade import (
@@ -607,6 +611,139 @@ class TestCancel:
             await service.cancel(_ctx(), run.id)
 
 
+class TestResolveStep:
+    def _step(self, run, **overrides):
+        step = MagicMock(
+            id=uuid.uuid4(),
+            workflow_run_id=run.id,
+            organization_id=_ORGANIZATION_ID,
+            node_instance_id=uuid.uuid4(),
+            status="needs_attention",
+        )
+        for field, value in overrides.items():
+            setattr(step, field, value)
+        return step
+
+    def _patched(self, run, step, *, locked_step="same", dispatched=None):
+        workflow = _workflow(id=run.workflow_id)
+        locked = step if locked_step == "same" else locked_step
+        return [
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_node_run_by_id",
+                new=AsyncMock(return_value=step),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_node_run_by_id_for_update",
+                new=AsyncMock(return_value=locked),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.get_latest_attempt",
+                new=AsyncMock(return_value=MagicMock(attempt_no=3)),
+            ),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(
+                f"{FACADE_PATH}.dispatcher.resolve_needs_attention",
+                new=dispatched if dispatched is not None else AsyncMock(return_value=[]),
+            ),
+            patch(f"{FACADE_PATH}.refresh_run_status", new=AsyncMock(return_value=run)),
+        ]
+
+    async def _call(self, run, step, patches, *, ctx=None, choice="run_again"):
+        from contextlib import ExitStack
+
+        service = WorkflowExecutionService(MagicMock())
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            return await service.resolve_step(
+                ctx or _ctx(), run.id, step.id, WorkflowStepResolve(choice=choice)
+            )
+
+    async def test_a_step_that_vanished_between_the_read_and_the_lock_is_not_resolvable(self):
+        run = _run_row()
+        step = self._step(run)
+        with pytest.raises(WorkflowStepNotResolvableError) as refused:
+            await self._call(run, step, self._patched(run, step, locked_step=None))
+        assert refused.value.details["reason"] == "not_needing_attention"
+
+    async def test_a_run_gone_between_the_read_and_the_lock_is_not_found(self):
+        run = _run_row()
+        step = self._step(run)
+        patches = self._patched(run, step)
+        patches[1] = patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_run_for_update",
+            new=AsyncMock(return_value=None),
+        )
+        with pytest.raises(WorkflowRunNotFoundError):
+            await self._call(run, step, patches)
+
+    @pytest.mark.security
+    async def test_an_unknown_step_locks_nothing(self):
+        run = _run_row()
+        patches = self._patched(run, None)
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            lock = stack.enter_context(
+                patch(f"{FACADE_PATH}.workflow_run_repo.get_run_for_update", new=AsyncMock())
+            )
+            with pytest.raises(WorkflowStepNotFoundError):
+                await WorkflowExecutionService(MagicMock()).resolve_step(
+                    _ctx(), run.id, uuid.uuid4(), WorkflowStepResolve(choice="fail_run")
+                )
+        lock.assert_not_called()
+
+    async def test_resolving_a_step_resolves_it_re_reads_the_status_and_audits_it(self):
+        run = _run_row(status=WorkflowRunStatus.NEEDS_ATTENTION.value)
+        step = self._step(run)
+        dispatched = AsyncMock(return_value=[])
+        ctx = _ctx()
+        with patch(f"{FACADE_PATH}.record_audit", new=AsyncMock()) as audited:
+            result = await self._call(
+                run,
+                step,
+                self._patched(run, step, dispatched=dispatched),
+                ctx=ctx,
+                choice="fail_run",
+            )
+
+        assert result.id == run.id
+        assert dispatched.await_args.kwargs["choice"] == "fail_run"
+        assert dispatched.await_args.kwargs["node_run"] is step
+        audited.assert_awaited_once()
+        kwargs = audited.await_args.kwargs
+        assert kwargs["action"] == "workflow_run.step_resolved"
+        assert kwargs["target_type"] == "workflow_run"
+        assert kwargs["target_id"] == str(run.id)
+        assert kwargs["actor_user_id"] == ctx.subject_id
+        assert kwargs["details"] == {
+            "node_run_id": str(step.id),
+            "node_instance_id": str(step.node_instance_id),
+            "attempt_no": 3,
+            "choice": "fail_run",
+        }
+
+    async def test_a_step_with_no_recorded_try_is_audited_as_attempt_zero(self):
+        run = _run_row()
+        step = self._step(run)
+        patches = self._patched(run, step)
+        patches[4] = patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_latest_attempt",
+            new=AsyncMock(return_value=None),
+        )
+        with patch(f"{FACADE_PATH}.record_audit", new=AsyncMock()) as audited:
+            await self._call(run, step, patches)
+        assert audited.await_args.kwargs["details"]["attempt_no"] == 0
+
+
 class TestGet:
     @pytest.mark.security
     async def test_a_run_in_another_organizations_workflow_is_not_found(self):
@@ -989,6 +1126,33 @@ class TestNodeRunRead:
         )
         assert node_run_read(row, [parked, woken]).attempts == 1
 
+    def test_a_step_needing_attention_shows_its_last_tries_status_and_a_late_output(self):
+        row = NodeRun(
+            id=uuid.uuid4(),
+            node_instance_id=uuid.uuid4(),
+            scope_path=[],
+            status="needs_attention",
+            waiting_reason=None,
+        )
+        uncertain = NodeAttempt(
+            node_run_id=row.id,
+            attempt_no=1,
+            status="uncertain",
+            retry_guarantee="none",
+            result={"status": "uncertain", "detail": "unsure"},
+            late_result={"status": "completed", "output": {"sent": True}},
+            cost=Decimal(0),
+        )
+
+        read = node_run_read(row, [uncertain])
+
+        assert read.last_attempt_status == "uncertain"
+        assert read.late_output == {"sent": True}
+        assert node_run_read(row, []).last_attempt_status is None
+        assert node_run_read(row, []).late_output is None
+        uncertain.late_result = None
+        assert node_run_read(row, [uncertain]).late_output is None
+
 
 @pytest.mark.security
 @pytest.mark.parametrize("parent_state", ["missing", "step_missing", "foreign", "cancelled"])
@@ -1015,6 +1179,45 @@ async def test_call_admission_refuses_a_parent_that_disappeared_or_stopped(paren
         ),
         patch.object(service, "_admit", new=AsyncMock()) as admit,
         pytest.raises(error),
+    ):
+        await service.admit_call(
+            _ctx(),
+            _workflow(),
+            _version(),
+            run_input={},
+            parent_node_run_id=uuid.uuid4(),
+            causation=Causation(
+                root_run_id=uuid.uuid4(),
+                causation_run_id=parent.id,
+                visited_trigger_ids=[],
+                depth=1,
+            ),
+        )
+    admit.assert_not_awaited()
+
+
+@pytest.mark.parametrize("hold", [None, Decimal("0")])
+async def test_call_admission_with_nothing_free_waits_instead_of_admitting_without_budget(hold):
+    """No try of the calling step to move a hold from (or one holding nothing): refused."""
+    service = WorkflowExecutionService(MagicMock())
+    parent = _run_row(budget_limit=Decimal("1"))
+    attempt = None if hold is None else MagicMock(status="in_flight", reserved_usd=hold)
+    with (
+        patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_node_run_by_id",
+            new=AsyncMock(return_value=MagicMock(workflow_run_id=parent.id)),
+        ),
+        patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_run_by_id_for_update",
+            new=AsyncMock(return_value=parent),
+        ),
+        patch(f"{FACADE_PATH}.budget.unreserved", new=AsyncMock(return_value=Decimal("0"))),
+        patch(
+            f"{FACADE_PATH}.workflow_run_repo.get_latest_attempt",
+            new=AsyncMock(return_value=attempt),
+        ),
+        patch.object(service, "_admit", new=AsyncMock()) as admit,
+        pytest.raises(WorkflowBudgetHeldError),
     ):
         await service.admit_call(
             _ctx(),

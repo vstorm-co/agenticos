@@ -30,6 +30,7 @@ register(
         effect_kind="write",
         retry_guarantee="idempotent",
         handler=handle,
+        spends_budget=True,
         resource_check=check_resources,
     )
 )

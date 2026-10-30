@@ -1,6 +1,7 @@
 """Domain exceptions for workflow execution."""
 
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from app.core.exceptions import AppException
@@ -149,6 +150,53 @@ class WorkflowRunAlreadyTerminalError(AppException):
 
     def __init__(self, *, run_id: UUID, status: str) -> None:
         super().__init__(details={"run_id": run_id, "status": status})
+
+
+class WorkflowStepNotFoundError(AppException):
+    """No step with this id in this run (404)."""
+
+    message = "Workflow step not found"
+    code = "WORKFLOW_STEP_NOT_FOUND"
+    status_code = 404
+
+    def __init__(self, *, node_run_id: UUID) -> None:
+        super().__init__(details={"node_run_id": node_run_id})
+
+
+class WorkflowStepNotResolvableError(AppException):
+    """The step cannot be resolved that way now (409).
+
+    `reason` says why: the step is not (or no longer) waiting for a person, it has no
+    `error` route to take, or no late result arrived to use.
+    """
+
+    message = "This step cannot be resolved that way"
+    code = "WORKFLOW_STEP_NOT_RESOLVABLE"
+    status_code = 409
+
+    def __init__(
+        self,
+        *,
+        run_id: UUID,
+        node_run_id: UUID,
+        reason: Literal["not_needing_attention", "no_error_route", "no_late_result"],
+    ) -> None:
+        super().__init__(details={"run_id": run_id, "node_run_id": node_run_id, "reason": reason})
+
+
+class WorkflowBudgetHeldError(AppException):
+    """Every part of the caller's budget that is left is held by steps still running (409).
+
+    Not a refusal that lasts: the holds end when those steps settle, so the calling step
+    waits and asks again rather than admitting a called run with nothing to spend.
+    """
+
+    message = "The rest of this run's budget is held by steps still running"
+    code = "WORKFLOW_BUDGET_HELD"
+    status_code = 409
+
+    def __init__(self, *, run_id: UUID) -> None:
+        super().__init__(details={"run_id": run_id})
 
 
 class WorkflowDispatchRefusedError(AppException):

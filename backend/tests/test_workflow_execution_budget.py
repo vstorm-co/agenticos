@@ -2,9 +2,10 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 
 from app.services.workflow_execution import budget
 
@@ -159,3 +160,66 @@ async def test_direct_provider_limits_handle_a_missing_organization_without_maki
 
     monkeypatch.setattr(budget.organization_repo, "get_by_id", AsyncMock(return_value=None))
     assert await budget.provider_limits(MagicMock(), organization_id=uuid4(), remaining=None) == []
+
+
+@pytest.mark.parametrize(
+    ("free", "cap", "expected"),
+    [
+        (Decimal("1.00"), Decimal("0.25"), Decimal("0.25")),
+        (Decimal("0.10"), Decimal("0.25"), Decimal("0.10")),
+        (Decimal("0.60"), None, Decimal("0.60")),
+    ],
+)
+def test_reservation_is_the_smaller_of_free_and_the_steps_own_cap(free, cap, expected):
+    assert budget.reservation(free, cap) == expected
+
+
+def test_own_cap_reads_max_cost_usd_and_nothing_else():
+    class Capped(BaseModel):
+        max_cost_usd: float | None = None
+
+    class Other(BaseModel):
+        max_tokens: float = 5
+
+    assert budget.own_cap(Capped(max_cost_usd=0.25)) == Decimal("0.25")
+    assert budget.own_cap(Capped()) is None
+    assert budget.own_cap(Other()) is None
+    assert budget.own_cap(None) is None
+
+
+@pytest.mark.anyio
+class TestUnreserved:
+    async def test_a_run_without_a_cap_has_nothing_to_reserve_against(self):
+        assert await budget.unreserved(MagicMock(), _run(budget_limit=None)) is None
+
+    async def test_what_is_held_by_attempts_and_children_is_not_free(self):
+        run = _run(budget_limit=Decimal("1"), spent_cost=Decimal("0.2"), child_cost=Decimal("0.1"))
+        with (
+            patch.object(
+                budget.workflow_run_repo,
+                "sum_in_flight_reservations",
+                AsyncMock(return_value=Decimal("0.3")),
+            ),
+            patch.object(
+                budget.workflow_run_repo,
+                "sum_live_child_reservations",
+                AsyncMock(return_value=Decimal("0.2")),
+            ),
+        ):
+            assert await budget.unreserved(MagicMock(), run) == Decimal("0.2")
+
+    async def test_more_held_than_the_cap_leaves_nothing_never_less(self):
+        run = _run(budget_limit=Decimal("1"))
+        with (
+            patch.object(
+                budget.workflow_run_repo,
+                "sum_in_flight_reservations",
+                AsyncMock(return_value=Decimal("2")),
+            ),
+            patch.object(
+                budget.workflow_run_repo,
+                "sum_live_child_reservations",
+                AsyncMock(return_value=Decimal("0")),
+            ),
+        ):
+            assert await budget.unreserved(MagicMock(), run) == Decimal("0")

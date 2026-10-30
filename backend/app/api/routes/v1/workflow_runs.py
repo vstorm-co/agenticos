@@ -51,6 +51,7 @@ from app.schemas.workflow_run import (
     WorkflowRunList,
     WorkflowRunRead,
     WorkflowRunStart,
+    WorkflowStepResolve,
 )
 from app.services.workflow_execution.resume import read_workflow_body, require_resume_token
 
@@ -152,8 +153,37 @@ async def retry_workflow_run(run_id: UUID, service: WorkflowExecutionSvc, ctx: A
     stopped: each step that succeeded there hands on its output instead of running
     again. A run that did not end that way answers 409 `WORKFLOW_RUN_NOT_RETRYABLE`.
 
+    A run that is still live with a step that needs attention is not retried: resolve
+    the step in place with `POST /workflow-runs/{id}/steps/{node_run_id}/rerun`.
+
     Rate-limited like starting a run."""
     return await service.retry(ctx, run_id)
+
+
+@router.post("/{run_id}/steps/{node_run_id}/rerun", response_model=WorkflowRunRead)
+async def resolve_workflow_run_step(
+    run_id: UUID,
+    node_run_id: UUID,
+    body: WorkflowStepResolve,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+) -> Any:
+    """Decide what becomes of a step that needs attention, on the run it is in.
+
+    Who may: as for cancelling - the person who started the run, or an editor of its
+    workflow - and for a test run, only an editor. An API key reaches only runs of public
+    origin; any other run answers 404.
+
+    `choice` is one of `run_again` (queue the step for a new try), `use_error_route`
+    (treat it as failed and take its error route, or its loop's item-error policy),
+    `fail_run` (end the run with the step marked failed) or `use_late_result` (take the
+    result it reported after its try was given up on). Only this step is touched.
+
+    Answers 409 `WORKFLOW_RUN_TERMINAL` for a run that ended and 409
+    `WORKFLOW_STEP_NOT_RESOLVABLE` when the step does not need attention (a second
+    click), has no error route, or has no late result; 404 `WORKFLOW_STEP_NOT_FOUND`
+    for a step of another run."""
+    return await service.resolve_step(ctx, run_id, node_run_id, body)
 
 
 @router.get("/{run_id}/graph", response_model=WorkflowRunGraph)
