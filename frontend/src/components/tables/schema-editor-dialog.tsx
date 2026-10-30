@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { ColumnTypeIcon } from "./column-type-icon";
 import { FormulaField } from "./formula-field";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { SchemaDependents } from "./schema-dependents";
 import { COLUMN_CONVERSIONS, COLUMN_TYPES, COMPUTED_TYPES, REFERENCE_TYPES } from "@/types/tables";
@@ -228,12 +228,13 @@ export function SchemaEditorDialog({
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        <div className={`${DIALOG_BODY} space-y-4`}>
           {rows.map((row, index) =>
             row.archived ? null : (
               <div key={row.key} className="border-border space-y-2 rounded-lg border p-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3">
                   <Input
+                    className="min-w-0 basis-full sm:flex-1 sm:basis-40"
                     value={row.label}
                     placeholder={t("labelPlaceholder")}
                     onChange={(event) => updateRow(row.key, { label: event.target.value })}
@@ -244,7 +245,10 @@ export function SchemaEditorDialog({
                     value={row.type}
                     onValueChange={(value) => updateRow(row.key, { type: value as ColumnTypeName })}
                   >
-                    <SelectTrigger className="w-44" aria-label={t("columnType")}>
+                    <SelectTrigger
+                      className="w-40 min-w-0 flex-1 sm:flex-none"
+                      aria-label={t("columnType")}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

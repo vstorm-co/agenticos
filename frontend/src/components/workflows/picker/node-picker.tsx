@@ -2,7 +2,6 @@
 
 import { Command } from "cmdk";
 import { ArrowLeft, ChevronRight, Plus, Search } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
@@ -11,7 +10,7 @@ import { NodeTile } from "@/components/workflows/node-tile";
 import { sectionSwatchClass } from "@/components/workflows/node-visuals";
 import { writeNodeDragData } from "@/components/workflows/palette/drag";
 import { useAppConnections } from "@/components/workflows/use-app-connections";
-import { ROUTES } from "@/lib/constants";
+import { WorkflowConnectionsDialog } from "@/components/workflows/pickers/workflow-connections-dialog";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 import { cn } from "@/lib/utils";
@@ -313,15 +312,20 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
 /** The way to get an app's actions when no connection provides them: opens that catalog entry. */
 function ConnectRow({ group, catalogKey }: { group: PickerGroup; catalogKey: string }) {
   const t = useTranslations("workflows");
-  const router = useRouter();
+  const [connecting, setConnecting] = useState(false);
   return (
-    <Command.Item
-      value={`connect:${catalogKey}`}
-      onSelect={() => router.push(`${ROUTES.MCP_SERVERS}?server=${encodeURIComponent(catalogKey)}`)}
-      className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs"
-    >
-      <Plus aria-hidden="true" className="size-4 shrink-0" />
-      {t("appConnect", { server: t(`appServer.${group.category}`) })}
-    </Command.Item>
+    <>
+      <Command.Item
+        value={`connect:${catalogKey}`}
+        onSelect={() => setConnecting(true)}
+        className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs"
+      >
+        <Plus aria-hidden="true" className="size-4 shrink-0" />
+        {t("appConnect", { server: t(`appServer.${group.category}`) })}
+      </Command.Item>
+      {connecting && (
+        <WorkflowConnectionsDialog open catalogKey={catalogKey} onOpenChange={setConnecting} />
+      )}
+    </>
   );
 }

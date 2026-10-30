@@ -1,5 +1,5 @@
 ---
-source_sha: "1b4f77856ac0"
+source_sha: "37976366b410"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -347,7 +347,7 @@ ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela j
 wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty (`update_existing` w
 partii), a import podaje, ile dodał i ile zaktualizował.
 
-**New table** zaczyna się od kolumny **Name**. Zamiast tego może zacząć się od pliku:
+**New table** zaczyna się od kolumny **Name**. Najpierw podaj nazwę tabeli i jej kolumny; opis oraz widoczność są pod **More options**, z domyślną widocznością prywatną. Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
 wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data, data i godzina
 w ISO, adres e-mail albo link - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo

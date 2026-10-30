@@ -8,6 +8,12 @@ import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 import { McpConnectionPicker, McpToolField, useMcpToolSchema } from "./mcp-tool-picker";
 
+vi.mock("./workflow-connections-dialog", () => ({
+  WorkflowConnectionsDialog: ({ onOpenChange }: { onOpenChange: (open: boolean) => void }) => (
+    <button onClick={() => onOpenChange(false)}>Account setup</button>
+  ),
+}));
+
 const state = vi.hoisted(() => ({
   canManage: true,
   canEdit: true,
@@ -156,15 +162,15 @@ describe("McpToolField", () => {
     expect(screen.getByText("Pick a server")).toBeVisible();
   });
 
-  it("names a server that is gone, and points to connecting one when there are none", () => {
+  it("opens account setup without leaving the step when no server is connected", async () => {
     state.connections = [];
     renderField({ toolError: "unused" });
 
     expect(screen.getByText(/The server this step names is gone/)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Connect one" })).toHaveAttribute(
-      "href",
-      "/mcp-servers",
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
+    expect(screen.getByRole("button", { name: "Account setup" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Account setup" }));
+    expect(screen.queryByRole("button", { name: "Account setup" })).toBeNull();
   });
 
   it("shows the tool's problem under the tool", () => {
@@ -198,7 +204,7 @@ describe("McpToolField", () => {
     state.connections = [];
     renderField({ connectionId: null });
 
-    expect(screen.queryByRole("link", { name: "Connect one" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Connect account" })).toBeNull();
   });
 
   it("tells an editor who cannot test a server to ask a manager", () => {

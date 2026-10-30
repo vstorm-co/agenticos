@@ -80,6 +80,15 @@ describe("SecretPicker", () => {
     expect(screen.queryByRole("option", { name: /AWS/ })).toBeNull();
   });
 
+  it("adds an API key directly from the selector without storing the action as a reference", async () => {
+    const onChange = mount(null, { kind: "api_key" });
+    await userEvent.click(screen.getByRole("combobox", { name: "Secret" }));
+    await userEvent.click(screen.getByRole("option", { name: "Add API key" }));
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "store api_key" }));
+    await vi.waitFor(() => expect(onChange).toHaveBeenCalledWith("s-new"));
+  });
+
   it("keeps a referenced secret visible when it names none the caller can see", () => {
     mount("gone");
 

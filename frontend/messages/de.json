@@ -4764,7 +4764,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Wer sie sieht",
-        "body": "Privat behält sie für Sie; Team und Organisation öffnen sie für mehr Personen. Sie können sie später auch mit einzelnen Personen teilen. Wählen Sie dann Weiter."
+        "body": "Öffne Weitere Optionen, um die Sichtbarkeit zu ändern. Privat beschränkt die Tabelle auf dich; Team und Organisation öffnen sie für mehr Personen. Du kannst sie später mit einzelnen Personen teilen. Wähle dann Weiter."
       },
       "flow-table-field-create": {
         "title": "Erstellen Sie sie",
@@ -8535,7 +8535,6 @@
     "pickerMcpServerLabel": "MCP-Server",
     "pickerMcpServerPlaceholder": "Server wählen",
     "pickerMcpEmpty": "Die Organisation hat noch keinen MCP-Server.",
-    "pickerMcpAdd": "Einen verbinden",
     "pickerMcpOrphaned": "Der Server dieses Schritts existiert nicht mehr. Wählen Sie einen anderen.",
     "pickerMcpNeedsPermission": "Sie dürfen diesen Workflow nicht bearbeiten und können daher keinen MCP-Server wählen.",
     "pickerMcpToolLabel": "Tool",
@@ -8993,7 +8992,13 @@
       "google_workspace": "Google Workspace (selbst gehostet)",
       "microsoft_365": "Microsoft 365 (selbst gehostet)"
     },
-    "appNeedsPermission": "{app}-Aktionen werden nicht angezeigt, weil Sie diesen Workflow nicht bearbeiten dürfen."
+    "appNeedsPermission": "{app}-Aktionen werden nicht angezeigt, weil Sie diesen Workflow nicht bearbeiten dürfen.",
+    "stepSetupRemaining": "{count, plural, one {# Angabe fehlt noch} other {# Angaben fehlen noch}}",
+    "stepReviewNeeded": "Vor dem Test prüfen: {count}",
+    "toolbarSetup": "Einrichtung abschließen · {count}",
+    "pickerConnectAccount": "Konto verbinden",
+    "pickerConnectAccountHint": "Verbinde ein Organisationskonto für diesen Workflow. Wähle es anschließend im Kontofeld des Schritts aus.",
+    "pickerApiKeyNew": "API-Schlüssel hinzufügen"
   },
   "artifacts": {
     "title": "Apps",
@@ -9371,7 +9376,8 @@
       "csvTooWide": "Eine Tabelle fasst höchstens {max} Spalten.",
       "csvColumn": "Spalte {n}",
       "firstColumn": "Name",
-      "columnsHeading": "Spalten"
+      "columnsHeading": "Spalten",
+      "moreOptions": "Weitere Optionen"
     },
     "schema": {
       "title": "Spalten",

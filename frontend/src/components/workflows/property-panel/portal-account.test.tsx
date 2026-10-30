@@ -3,21 +3,41 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
+import { Perm } from "@/types/permissions";
 import { portalConnectUrl } from "@/lib/portal-connect";
 
 import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
 
 const state = vi.hoisted(() => ({
   canManage: true,
+  canStore: true,
   isLoading: false,
   items: [] as unknown[],
   save: vi.fn(),
+  create: vi.fn(),
+  invalidate: vi.fn(),
 }));
 
 vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can: () => state.canManage }),
+  useSecrets: () => ({ kinds: [], create: { mutateAsync: state.create, isPending: false } }),
+  usePermissions: () => ({
+    can: (permission: string) =>
+      permission === Perm.secretsEdit ? state.canStore : state.canManage,
+  }),
   usePortals: () => ({ items: state.items, isLoading: state.isLoading }),
   usePortalPollInterval: () => ({ mutateAsync: state.save, isPending: false }),
+}));
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: state.invalidate }),
+}));
+vi.mock("@/components/vault/secret-dialog", () => ({
+  AddSecretDialog: ({
+    purposeId,
+    onSubmit,
+  }: {
+    purposeId: string;
+    onSubmit: (data: object) => Promise<unknown>;
+  }) => <button onClick={() => void onSubmit({ name: "Google" })}>Store {purposeId}</button>,
 }));
 vi.mock("@/lib/portal-connect", () => ({ portalConnectUrl: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -35,6 +55,7 @@ const outlook = (action: string) => ({
 const assign = vi.fn();
 beforeEach(() => {
   state.canManage = true;
+  state.canStore = true;
   state.isLoading = false;
   state.items = [];
   state.save = vi.fn().mockResolvedValue({});
@@ -200,6 +221,43 @@ describe("PortalAccount", () => {
     render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
     expect(screen.getByText(/Gmail OAuth app credentials/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Open the vault" })).toHaveAttribute("href", "/vault");
+  });
+
+  it("stores the missing OAuth app from the step and refreshes its connection prerequisites", async () => {
+    state.items = [
+      {
+        ...gmail("connect", "oauth_app_secret"),
+        portal: {
+          key: "google",
+          name: "Gmail",
+          connect_blocked_by: "oauth_app_secret",
+          oauth_app_kind: "google_oauth_app",
+        },
+      },
+    ];
+    state.create.mockResolvedValue({ id: "secret-id" });
+    render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
+    await userEvent.click(screen.getByRole("button", { name: "Add credentials" }));
+    await userEvent.click(screen.getByRole("button", { name: "Store google_oauth_app" }));
+    expect(state.create).toHaveBeenCalledWith({ name: "Google", visibility: "org" });
+    await vi.waitFor(() => expect(state.invalidate).toHaveBeenCalled());
+  });
+
+  it("does not offer to store OAuth credentials without secret edit permission", () => {
+    state.canStore = false;
+    state.items = [
+      {
+        ...gmail("connect", "oauth_app_secret"),
+        portal: {
+          key: "google",
+          name: "Gmail",
+          connect_blocked_by: "oauth_app_secret",
+          oauth_app_kind: "google_oauth_app",
+        },
+      },
+    ];
+    render(<PortalAccount account={ACCOUNT_TRIGGERS["trigger.gmail"]!} />);
+    expect(screen.queryByRole("button", { name: "Add credentials" })).toBeNull();
   });
 
   it("offers nothing to connect to a member who may not manage connections", () => {

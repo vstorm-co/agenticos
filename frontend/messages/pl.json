@@ -6188,7 +6188,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Kto ją widzi",
-        "body": "Prywatna zostaje tylko dla Ciebie; Zespół i Organizacja otwierają ją szerzej. Możesz ją też później udostępnić konkretnym osobom. Potem wybierz Dalej."
+        "body": "Otwórz Więcej opcji, aby zmienić widoczność. Prywatna tabela jest tylko dla Ciebie; Zespół i Organizacja udostępniają ją szerzej. Później możesz udostępnić ją konkretnym osobom. Następnie wybierz Dalej."
       },
       "flow-table-field-create": {
         "title": "Utwórz ją",
@@ -9338,7 +9338,6 @@
     "pickerMcpServerLabel": "Serwer MCP",
     "pickerMcpServerPlaceholder": "Wybierz serwer",
     "pickerMcpEmpty": "Organizacja nie ma jeszcze serwera MCP.",
-    "pickerMcpAdd": "Podłącz serwer",
     "pickerMcpOrphaned": "Serwera wskazanego w tym kroku już nie ma. Wybierz inny.",
     "pickerMcpNeedsPermission": "Nie możesz edytować tego workflow, więc nie możesz wybrać serwera MCP.",
     "pickerMcpToolLabel": "Narzędzie",
@@ -9796,7 +9795,13 @@
       "google_workspace": "Google Workspace (własny serwer)",
       "microsoft_365": "Microsoft 365 (własny serwer)"
     },
-    "appNeedsPermission": "Akcje {app} nie są pokazane, bo nie możesz edytować tego workflow."
+    "appNeedsPermission": "Akcje {app} nie są pokazane, bo nie możesz edytować tego workflow.",
+    "stepSetupRemaining": "{count, plural, one {# rzecz do uzupełnienia} few {# rzeczy do uzupełnienia} other {# rzeczy do uzupełnienia}}",
+    "stepReviewNeeded": "Sprawdź przed testem: {count}",
+    "toolbarSetup": "Dokończ konfigurację · {count}",
+    "pickerConnectAccount": "Połącz konto",
+    "pickerConnectAccountHint": "Połącz konto organizacji, aby użyć go w tym workflowie. Po zakończeniu wybierz je w polu konta kroku.",
+    "pickerApiKeyNew": "Dodaj klucz API"
   },
   "artifacts": {
     "title": "Aplikacje",
@@ -10174,7 +10179,8 @@
       "csvTooWide": "Tabela mieści najwyżej {max} kolumn.",
       "csvColumn": "Kolumna {n}",
       "firstColumn": "Nazwa",
-      "columnsHeading": "Kolumny"
+      "columnsHeading": "Kolumny",
+      "moreOptions": "Więcej opcji"
     },
     "schema": {
       "title": "Kolumny",

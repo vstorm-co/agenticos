@@ -12,6 +12,15 @@ import { NodePicker } from "./node-picker";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("@/components/workflows/pickers/workflow-connections-dialog", () => ({
+  WorkflowConnectionsDialog: ({
+    catalogKey,
+    onOpenChange,
+  }: {
+    catalogKey?: string;
+    onOpenChange: (open: boolean) => void;
+  }) => <button onClick={() => onOpenChange(false)}>Connect {catalogKey}</button>,
+}));
 
 const apps = vi.hoisted(() => ({
   connections: null as UsableMcpConnectionRecord[] | null,
@@ -263,7 +272,8 @@ describe("NodePicker app groups", () => {
     await userEvent.click(
       screen.getByRole("option", { name: "Connect Google Workspace to add its actions" }),
     );
-    expect(router.push).toHaveBeenCalledWith("/mcp-servers?server=google-workspace");
+    expect(router.push).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Connect google-workspace" }));
     await userEvent.click(screen.getByRole("option", { name: "All steps" }));
     await openGmail();
     await userEvent.click(

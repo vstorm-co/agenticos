@@ -90,7 +90,7 @@ is set up to do - a condition, a URL, the number of mapped fields - after the
 agent, model or table it works with. A step with more than one way
 out lists its ports by name: **true** and **false**, **Each item** and **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
-publish carries a red mark: hovering it lists the first problems, and clicking it
+publish carries a setup mark (red after testing or publishing): hovering lists the first items, and clicking it
 opens the step.
 
 A trackpad or a mouse wheel moves the canvas, and a
@@ -241,11 +241,9 @@ published version, a run and a comparison show the saved size without handles.
 What each node does, what it is configured with and what its failures mean is in
 the [node reference](reference/workflow-nodes.md).
 
-A click selects a step; a double click opens it in a dialog over the canvas (where
-nothing can be selected - a published version, **View only** - one click does): its
-name and what it does at the top, and under them, in plain words, every problem that
-stops a publish - **Not connected yet**, for a step nothing leads to, and a field's
-problem after the field's name, which takes you to the field.
+A click selects a step; a double click opens it over the canvas. In a published version or **View only**, one click opens it. The header names the step and folds unfinished setup into one expandable summary. Open it to see what is missing; choosing a field takes you to its input. After a test or publish attempt, the summary opens with validation details.
+
+**Connect account** in a step or the app picker opens the existing account setup above the workflow. Connect an organization account, finish setup and select it in the step. A secret selector offers **Add API key** or **New secret**, selects the stored secret automatically and keeps only its id in the draft. A trigger missing OAuth app credentials offers **Add credentials** in place; the same vault form stores them for the organization.
 
 **Parameters** is what the step works
 on and is set to do, in one list, with the list a step works on first: Filter's
@@ -561,8 +559,7 @@ therefore slows other runs on that worker; keep it as wide as the work needs.
 
 ## Validation feedback { #validation-feedback }
 
-The editor checks the graph as you edit and shows what is wrong where it is
-wrong. Every step with a problem carries a red mark on the canvas and says it under its name when opened, and a field with a problem shows its message inline. The status at the canvas's top right reads **No problems**, or counts the problems and lists them, each under the name of its step and field; choosing one opens that step's settings.
+The editor checks the graph as you edit. Before testing, incomplete steps carry a neutral setup indicator and the canvas says **Finish setup**. Open the indicator to see the checklist and jump to a step. Testing or publishing reveals errors, and leaving an empty required field shows its message inline. Publishing remains blocked until every validation problem is resolved.
 
 A step's settings stay short. What the step needs, and whatever you already set, show
 at once; optional settings still at their defaults wait behind a button that counts

@@ -1,5 +1,5 @@
 ---
-source_sha: "49a56d73ddfd"
+source_sha: "d8dd2e5f7ec0"
 ---
 
 # Workflows { #workflows }
@@ -105,7 +105,7 @@ Felder - danach der Agent, das Modell oder die Tabelle, mit denen er arbeitet. E
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
 **false**, **Each item** und **Done** und einen roten **Error**-Port an einem
 Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
-trägt eine rote Markierung: Fahren Sie darüber, listet sie die ersten Probleme auf, und
+trägt eine Einrichtungsmarkierung (rot nach einem Test- oder Veröffentlichungsversuch): Darüberfahren listet die ersten Angaben auf, und
 ein Klick darauf öffnet den Schritt.
 
 Ein Trackpad oder ein Mausrad bewegt die Zeichenfläche,
@@ -272,12 +272,9 @@ Version, ein Run und ein Vergleich zeigen die gespeicherte Größe ohne Anfasser
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
 in der [Knotenreferenz](reference/workflow-nodes.md).
 
-Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn in einem Dialog über der
-Zeichenfläche (wo sich nichts auswählen lässt - in einer veröffentlichten Version oder
-im Modus **View only** -, genügt ein Klick): oben sein Name und was er tut, darunter in
-einfachen Worten jedes Problem, das eine Veröffentlichung verhindert - **Not connected
-yet** für einen Schritt, zu dem nichts führt, und das Problem eines Felds hinter
-dessen Namen, der Sie zu dem Feld bringt.
+Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn über der Zeichenfläche. In einer veröffentlichten Version oder **View only** genügt ein Klick. Der Kopf zeigt den Namen und eine aufklappbare Zusammenfassung der fehlenden Einrichtung. Klappen Sie sie auf, um die Angaben zu prüfen; ein Feldname führt direkt zur Eingabe. Nach einem Test- oder Veröffentlichungsversuch öffnen sich die Validierungsdetails automatisch.
+
+**Connect account** im Schritt oder in der App-Auswahl öffnet die vorhandene Kontoeinrichtung über dem Workflow. Verbinden Sie ein Organisationskonto, schließen Sie die Einrichtung ab und wählen Sie es im Schritt. Die Geheimnisauswahl bietet **Add API key** oder **New secret**, wählt das gespeicherte Geheimnis automatisch aus und speichert im Entwurf nur dessen id. Ein Trigger ohne OAuth-App-Zugangsdaten bietet direkt **Add credentials**; dasselbe Vault-Formular speichert sie für die Organisation.
 
 **Parameters** ist, womit der Schritt arbeitet und was er tun soll, in einer
 Liste, die Liste, mit der ein Schritt arbeitet, zuerst: **Items** von Filter vor seiner
@@ -633,8 +630,7 @@ so breit, wie die Arbeit es verlangt.
 
 ## Validierungs-Rückmeldung { #validation-feedback }
 
-Der Editor prüft den Graphen, während Sie bearbeiten, und zeigt, was falsch ist, wo
-es falsch ist. Jeder Schritt mit einem Problem trägt eine rote Markierung auf der Zeichenfläche und nennt es geöffnet unter seinem Namen, und ein Feld mit einem Problem zeigt seine Meldung inline. Der Status oben rechts auf der Zeichenfläche sagt **No problems** oder zählt die Probleme und listet sie, jedes unter dem Namen seines Schritts und Felds; eines zu wählen, öffnet die Einstellungen dieses Schritts.
+Der Editor prüft den Graphen während der Bearbeitung. Vor dem Test tragen unvollständige Schritte eine neutrale Einrichtungsmarkierung; die Zeichenfläche zeigt **Finish setup**. Öffnen Sie die Checkliste, um zu einem Schritt zu springen. Testen oder Veröffentlichen zeigt Fehler an; beim Verlassen eines leeren Pflichtfelds erscheint dessen Meldung inline. Die Veröffentlichung bleibt gesperrt, bis alle Validierungsprobleme behoben sind.
 
 Die Einstellungen eines Schritts bleiben kurz. Was der Schritt braucht und was Sie
 bereits gesetzt haben, steht sofort da; optionale Einstellungen mit ihren Standardwerten

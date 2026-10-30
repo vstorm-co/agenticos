@@ -73,11 +73,23 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
   return (
     <div className="space-y-2">
       <Label>{caption}</Label>
-      <Select value={value ?? ""} onValueChange={onChange} disabled={disabled}>
+      <Select
+        value={value ?? ""}
+        onValueChange={(next) => (next === "__create__" ? setAdding(true) : onChange(next))}
+        disabled={disabled}
+      >
         <SelectTrigger aria-label={caption}>
           <SelectValue placeholder={t("pickerSecretPlaceholder")} />
         </SelectTrigger>
         <SelectContent>
+          {addable && (
+            <SelectItem value="__create__">
+              <span className="flex items-center gap-2">
+                <Plus className="size-3.5" aria-hidden />
+                {t(kind === "api_key" ? "pickerApiKeyNew" : "pickerSecretNew")}
+              </span>
+            </SelectItem>
+          )}
           {offered.map((secret) => (
             <SelectItem key={secret.id} value={secret.id}>
               <span className="flex items-center gap-2">
@@ -111,7 +123,7 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
             onClick={() => setAdding(true)}
           >
             <Plus className="h-3.5 w-3.5" />
-            {t("pickerSecretNew")}
+            {t(kind === "api_key" ? "pickerApiKeyNew" : "pickerSecretNew")}
           </Button>
         )}
         <Link
@@ -128,6 +140,7 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
         <AddSecretDialog
           open={adding}
           onOpenChange={setAdding}
+          initial={{ name: caption }}
           kinds={kinds}
           kind={shape?.kind}
           isPending={create.isPending}

@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui";
 
 /** How many problems the quick view spells out before it only counts the rest. */
@@ -15,10 +16,13 @@ const SHOWN = 3;
 export function ProblemBadge({
   problems,
   onOpen,
+  revealed = false,
 }: {
   /** The step's problems, each already a sentence naming its field. */
   problems: readonly string[];
   onOpen: () => void;
+  /** A failed test or publish makes incomplete setup a visible error. */
+  revealed?: boolean;
 }) {
   const t = useTranslations("workflows");
   const more = problems.length - SHOWN;
@@ -29,15 +33,24 @@ export function ProblemBadge({
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label={t("panelWarningCount", { count: problems.length })}
+            aria-label={t(revealed ? "panelWarningCount" : "toolbarSetup", {
+              count: problems.length,
+            })}
             onClick={(event) => {
               // The step opens; xyflow does not also take the click as a selection.
               event.stopPropagation();
               onOpen();
             }}
-            className="text-destructive focus-visible:ring-ring rounded outline-none focus-visible:ring-2"
+            className={cn(
+              "focus-visible:ring-ring rounded outline-none focus-visible:ring-2",
+              revealed ? "text-destructive" : "text-muted-foreground",
+            )}
           >
-            <AlertTriangle aria-hidden="true" className="size-3.5" />
+            {revealed ? (
+              <AlertTriangle aria-hidden="true" className="size-3.5" />
+            ) : (
+              <CircleDashed aria-hidden="true" className="size-3.5" />
+            )}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs space-y-1.5 py-2">

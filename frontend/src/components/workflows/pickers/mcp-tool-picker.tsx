@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -19,7 +18,7 @@ import {
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { useMcpCatalog, usePermissions, useUsableMcpConnections } from "@/hooks";
-import { ROUTES } from "@/lib/constants";
+import { WorkflowConnectionsDialog } from "./workflow-connections-dialog";
 import { connectionLabel, offeredTools } from "@/lib/mcp-servers";
 import {
   testOrgMcpConnection,
@@ -66,6 +65,7 @@ function ConnectionSelect({
   isLoading?: boolean;
 }) {
   const t = useTranslations("workflows");
+  const [connecting, setConnecting] = useState(false);
   const { can } = usePermissions();
   const listed = useUsableMcpConnections();
   const { servers: catalog } = useMcpCatalog();
@@ -102,14 +102,22 @@ function ConnectionSelect({
         </SelectContent>
       </Select>
       {all.length === 0 && !loading && (
-        <p className="text-muted-foreground text-xs">
-          {t("pickerMcpEmpty")}{" "}
-          {can(Perm.mcpManage) && (
-            <Link href={ROUTES.MCP_SERVERS} className="underline underline-offset-2">
-              {t("pickerMcpAdd")}
-            </Link>
-          )}
-        </p>
+        <p className="text-muted-foreground text-xs">{t("pickerMcpEmpty")}</p>
+      )}
+      {can(Perm.mcpManage) && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setConnecting(true)}
+          >
+            <Plus className="size-3.5" aria-hidden />
+            {t("pickerConnectAccount")}
+          </Button>
+          {connecting && <WorkflowConnectionsDialog open onOpenChange={setConnecting} />}
+        </>
       )}
       {orphaned && <p className="text-foreground/70 text-xs">{t("pickerMcpOrphaned")}</p>}
       {error !== undefined && <p className="text-destructive text-xs">{error}</p>}

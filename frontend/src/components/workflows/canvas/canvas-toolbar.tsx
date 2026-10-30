@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ListChecks,
   Keyboard,
   LayoutGrid,
   Map as MapIcon,
@@ -64,6 +65,7 @@ export function CanvasToolbar({
   onTidy,
 }: CanvasToolbarProps) {
   const t = useTranslations("workflows");
+  const problemsRevealed = useWorkflowEditorStore((state) => state.problemsRevealed);
   const graph = useWorkflowEditorStore((state) => state.graph);
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
   const selection = useWorkflowEditorStore((state) => state.selection);
@@ -168,10 +170,19 @@ export function CanvasToolbar({
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    className="bg-background/90 border-border text-destructive hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur"
+                    className={cn(
+                      "bg-background/90 border-border hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur",
+                      problemsRevealed ? "text-destructive" : "text-muted-foreground",
+                    )}
                   >
-                    <AlertTriangle aria-hidden="true" className="size-3.5" />
-                    {t("panelProblemsCount", { count: problems.length })}
+                    {problemsRevealed ? (
+                      <AlertTriangle aria-hidden="true" className="size-3.5" />
+                    ) : (
+                      <ListChecks aria-hidden="true" className="size-3.5" />
+                    )}
+                    {t(problemsRevealed ? "panelProblemsCount" : "toolbarSetup", {
+                      count: problems.length,
+                    })}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="end" sideOffset={8} className="w-96 p-3">

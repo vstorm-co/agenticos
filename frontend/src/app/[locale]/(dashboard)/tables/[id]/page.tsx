@@ -418,14 +418,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               <TabsList
                 data-tour="table-view-tabs"
                 aria-labelledby="table-format-label"
-                className="bg-muted h-8 gap-0 rounded-lg border-0 p-0.5"
+                className="gap-2"
               >
                 {VIEW_TABS.map(({ kind, icon: Icon }) => (
-                  <TabsTrigger
-                    key={kind}
-                    value={kind}
-                    className="data-[state=active]:bg-background mb-0 h-full gap-1.5 rounded-md border-0 px-2.5 pb-0 text-xs data-[state=active]:shadow-sm"
-                  >
+                  <TabsTrigger key={kind} value={kind} className="gap-1.5 text-xs">
                     <Icon aria-hidden="true" className="size-3.5" />
                     {t(`tabs.${kind}`)}
                   </TabsTrigger>

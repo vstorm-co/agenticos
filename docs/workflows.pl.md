@@ -1,5 +1,5 @@
 ---
-source_sha: "49a56d73ddfd"
+source_sha: "d8dd2e5f7ec0"
 ---
 
 # Workflows { #workflows }
@@ -96,8 +96,8 @@ Każdy węzeł to karta z ikoną kroku, jego nazwą i jedną linią pod nią: co
 robić - warunek, URL, liczba zmapowanych pól - po agencie, modelu albo tabeli,
 z którymi pracuje. Krok z więcej niż jednym wyjściem wymienia porty z
 nazwy: **true** i **false**, **Each item** i **Done** oraz czerwony port **Error** w
-kroku, który obsługuje swoje błędy. Krok, który blokuje publikację, ma czerwony
-znacznik: po najechaniu na niego widać pierwsze problemy, a kliknięcie otwiera krok.
+kroku, który obsługuje swoje błędy. Krok, który blokuje publikację, ma znacznik
+konfiguracji (czerwony po próbie testu lub publikacji): po najechaniu na niego widać pierwsze problemy, a kliknięcie otwiera krok.
 
 Gładzik albo kółko myszy przesuwa kanwę, a gest szczypania - albo Ctrl lub
 Cmd z kółkiem - ją przybliża; jej przyciski są w rogu.
@@ -249,12 +249,9 @@ i porównanie pokazują zapisany rozmiar bez uchwytów.
 Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
 [referencja węzłów](reference/workflow-nodes.md).
 
-Kliknięcie zaznacza krok, a dwuklik otwiera go w oknie nad kanwą (tam, gdzie nic nie
-da się zaznaczyć - w opublikowanej wersji i w trybie **View only** - wystarczy
-jedno kliknięcie): u góry jego nazwa i to, co robi, a pod nimi, zwykłymi słowami,
-każdy problem blokujący publikację - **Not connected yet** dla kroku, do którego
-nic nie prowadzi, oraz problem pola poprzedzony nazwą tego pola, który przenosi do
-niego.
+Kliknięcie zaznacza krok, a dwuklik otwiera go nad kanwą. W opublikowanej wersji lub w trybie **View only** wystarczy jedno kliknięcie. Nagłówek pokazuje nazwę kroku i jedno rozwijane podsumowanie brakującej konfiguracji. Rozwiń je, aby zobaczyć braki; wybranie pola przenosi do jego inputu. Po próbie testu lub publikacji szczegóły walidacji rozwijają się automatycznie.
+
+**Connect account** w kroku lub wyborze aplikacji otwiera istniejącą konfigurację kont nad workflowem. Połącz konto organizacji, zakończ konfigurację i wybierz je w kroku. Selektor sekretu oferuje **Add API key** lub **New secret**, automatycznie wybiera zapisany sekret i przechowuje w drafcie tylko jego id. Trigger bez danych aplikacji OAuth oferuje **Add credentials** na miejscu; ten sam formularz sejfu zapisuje je dla organizacji.
 
 **Parameters** to to, na czym krok pracuje i co ma
 zrobić, w jednej liście, z listą, na której krok pracuje, na początku: **Items** w
@@ -580,7 +577,7 @@ praca.
 
 ## Informacja zwrotna walidacji { #validation-feedback }
 
-Edytor sprawdza graf w trakcie edycji i pokazuje, co jest nie tak i gdzie. Każdy krok z problemem ma czerwony znacznik na kanwie i mówi o nim pod swoją nazwą po otwarciu, a pole z problemem pokazuje swój komunikat inline. Status w prawym górnym rogu kanwy mówi **No problems** albo liczy problemy i je wymienia, każdy pod nazwą swojego kroku i pola; wybranie jednego otwiera ustawienia tego kroku.
+Edytor sprawdza graf podczas edycji. Przed testowaniem niekompletne kroki mają neutralny znacznik konfiguracji, a kanwa pokazuje **Finish setup**. Rozwiń znacznik, aby zobaczyć listę i przejść do kroku. Testowanie lub publikacja ujawnia błędy, a opuszczenie pustego wymaganego pola pokazuje komunikat przy nim. Publikacja pozostaje zablokowana do usunięcia wszystkich problemów walidacji.
 
 Ustawienia kroku pozostają krótkie. To, czego krok potrzebuje, i to, co już ustawiłeś,
 widać od razu; opcjonalne ustawienia wciąż z wartościami domyślnymi czekają za

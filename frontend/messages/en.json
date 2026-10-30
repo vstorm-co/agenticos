@@ -4886,7 +4886,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Who can see it",
-        "body": "Private keeps it to you; Team and Organization open it to more people. You can also share it with individual people later. Then choose Next."
+        "body": "Open More options to change visibility. Private keeps the table to you; Team and Organization open it to more people. You can share it with individual people later. Then choose Next."
       },
       "flow-table-field-create": {
         "title": "Create it",
@@ -8656,7 +8656,6 @@
     "pickerMcpServerLabel": "MCP server",
     "pickerMcpServerPlaceholder": "Choose a server",
     "pickerMcpEmpty": "The organization has no MCP server yet.",
-    "pickerMcpAdd": "Connect one",
     "pickerMcpOrphaned": "The server this step names is gone. Pick another.",
     "pickerMcpNeedsPermission": "You can't edit this workflow, so you can't choose an MCP server.",
     "pickerMcpToolLabel": "Tool",
@@ -9114,7 +9113,13 @@
       "google_workspace": "Google Workspace (self-hosted)",
       "microsoft_365": "Microsoft 365 (self-hosted)"
     },
-    "appNeedsPermission": "{app} actions are not shown because you can't edit this workflow."
+    "appNeedsPermission": "{app} actions are not shown because you can't edit this workflow.",
+    "stepSetupRemaining": "{count, plural, one {# item to finish setup} other {# items to finish setup}}",
+    "stepReviewNeeded": "{count, plural, one {Review # item before testing} other {Review # items before testing}}",
+    "toolbarSetup": "Finish setup · {count}",
+    "pickerConnectAccount": "Connect account",
+    "pickerConnectAccountHint": "Connect an organization account to use it in this workflow. When you finish, choose it in the step’s account field.",
+    "pickerApiKeyNew": "Add API key"
   },
   "artifacts": {
     "title": "Apps",
@@ -9492,7 +9497,8 @@
       "csvTooWide": "A table holds at most {max} columns.",
       "csvColumn": "Column {n}",
       "firstColumn": "Name",
-      "columnsHeading": "Columns"
+      "columnsHeading": "Columns",
+      "moreOptions": "More options"
     },
     "schema": {
       "title": "Columns",

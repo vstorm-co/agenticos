@@ -102,7 +102,7 @@ describe("the canvas toolbar", () => {
 
     // The toolbar's list, not a step's own marker: the one that opens a list.
     const pill = screen
-      .getAllByRole("button", { name: /problem/ })
+      .getAllByRole("button", { name: /Finish setup/ })
       .find((button) => button.getAttribute("aria-haspopup") === "dialog");
     await userEvent.click(pill as HTMLElement);
     const [first] = await screen.findAllByRole("button", { name: /gone.step/ });

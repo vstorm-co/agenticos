@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Plug } from "lucide-react";
+import { CheckCircle2, KeyRound, Plug } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
+import { AddSecretDialog } from "@/components/vault/secret-dialog";
+import { qk } from "@/lib/query-keys";
 import { toast } from "sonner";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
@@ -10,7 +13,7 @@ import Link from "next/link";
 
 import { MailboxInterval } from "@/components/triggers/mailbox-interval";
 import { Button, Skeleton } from "@/components/ui";
-import { usePermissions, usePortals } from "@/hooks";
+import { usePermissions, usePortals, useSecrets } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { portalConnectUrl } from "@/lib/portal-connect";
@@ -45,6 +48,7 @@ export function PortalAccount({ account }: { account: TriggerAccount }) {
   const { can } = usePermissions();
   const { items, isLoading } = usePortals();
   const [busy, setBusy] = useState(false);
+  const [addingCredentials, setAddingCredentials] = useState(false);
   const item = items.find((one) => one.portal.key === account.portal);
 
   if (isLoading) return <Skeleton className="h-14 w-full" />;
@@ -64,7 +68,7 @@ export function PortalAccount({ account }: { account: TriggerAccount }) {
   };
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border p-3">
+    <div className="flex flex-wrap items-start gap-3 rounded-lg border p-4">
       <BrandIcon name={account.brand} className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="flex items-center gap-1.5 text-sm font-medium">
@@ -84,6 +88,29 @@ export function PortalAccount({ account }: { account: TriggerAccount }) {
             )}
           </p>
         )}
+        {!ready &&
+          blockedBy === "oauth_app_secret" &&
+          item.portal.oauth_app_kind != null &&
+          can(Perm.mcpManage) &&
+          can(Perm.secretsEdit) && (
+            <div className="pt-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setAddingCredentials(true)}
+              >
+                <KeyRound className="size-3.5" aria-hidden />
+                {tPortals("addCredentials")}
+              </Button>
+              {addingCredentials && (
+                <PortalCredentials
+                  purposeId={item.portal.oauth_app_kind}
+                  onOpenChange={setAddingCredentials}
+                />
+              )}
+            </div>
+          )}
         {ready && account.brand !== "github" && (
           <div className="pt-1">
             <MailboxInterval portal={item.portal} canManage={can(Perm.mcpManage)} />
@@ -97,5 +124,30 @@ export function PortalAccount({ account }: { account: TriggerAccount }) {
         </Button>
       )}
     </div>
+  );
+}
+
+function PortalCredentials({
+  purposeId,
+  onOpenChange,
+}: {
+  purposeId: string;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { kinds, create } = useSecrets();
+  const client = useQueryClient();
+  return (
+    <AddSecretDialog
+      open
+      onOpenChange={onOpenChange}
+      kinds={kinds}
+      purposeId={purposeId}
+      isPending={create.isPending}
+      onSubmit={async (data) => {
+        const stored = await create.mutateAsync({ ...data, visibility: "org" });
+        await client.invalidateQueries({ queryKey: qk.portals.catalog() });
+        return stored;
+      }}
+    />
   );
 }

@@ -310,11 +310,12 @@ describe("a step's missing values", () => {
   const NOT_TYPED = "Required: type a value, or take one from an earlier step.";
   const NOT_SET = "Required: the step cannot run without it.";
 
-  it("names a missing value in its header at once, and under its field once a run is tried", () => {
+  it("keeps setup details quiet until requested, then reveals field errors after testing", async () => {
     seed(node("a", "test.needs"));
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[NEEDS]} />);
-    // The header agrees with the card's count from the start.
+    expect(screen.queryByRole("button", { name: `Value: ${NOT_TYPED}` })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /item to finish setup/ }));
     expect(screen.getByRole("button", { name: `Value: ${NOT_TYPED}` })).toBeInTheDocument();
     expect(screen.queryByText(NOT_TYPED)).toBeNull();
 
@@ -361,6 +362,7 @@ describe("a step's missing values", () => {
     render(<NodeEditorDialog catalog={[NOTED]} />);
     expect(screen.queryByText(NOT_SET)).toBeNull();
 
+    await userEvent.click(screen.getByRole("button", { name: /items to finish setup/ }));
     await userEvent.click(screen.getByRole("button", { name: `Subject: ${NOT_SET}` }));
 
     expect(screen.getByText(NOT_SET)).toBeInTheDocument();
@@ -377,6 +379,7 @@ describe("a step's missing values", () => {
       render(<NodeEditorDialog catalog={[NOTED]} />);
       await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
 
+      await userEvent.click(screen.getByRole("button", { name: /items to finish setup/ }));
       await userEvent.click(screen.getByRole("button", { name: `Value: ${NOT_TYPED}` }));
 
       expect(screen.getByRole("tab", { name: "Parameters" })).toHaveAttribute(
@@ -406,6 +409,7 @@ describe("a step's missing values", () => {
     store.getState().editNode("a");
     render(<NodeEditorDialog catalog={[CHOSEN]} />);
 
+    await userEvent.click(screen.getByRole("button", { name: /item to finish setup/ }));
     await userEvent.click(screen.getByRole("button", { name: `Mode: ${NOT_SET}` }));
 
     const field = document.querySelector("[data-field='mode']") as HTMLElement;

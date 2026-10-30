@@ -1,5 +1,5 @@
 ---
-source_sha: "1b4f77856ac0"
+source_sha: "37976366b410"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -350,7 +350,7 @@ para poner la tabla al día: una fila cuyo id externo ya tiene la tabla cambia l
 que nombra de ese registro, en lugar de rechazarse como ocupada (`update_existing` en el
 lote), y la importación cuenta lo que añadió y lo que actualizó.
 
-**New table** empieza con una columna **Name**. En su lugar puede empezar desde un
+**New table** empieza con una columna **Name**. Primero indica el nombre y las columnas; la descripción y la visibilidad están en **More options**, con visibilidad privada por defecto. En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
 en que se leen todos sus valores - entero, número, sí/no, fecha, fecha y hora ISO, una dirección de correo o un enlace -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000

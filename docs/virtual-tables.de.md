@@ -1,5 +1,5 @@
 ---
-source_sha: "1b4f77856ac0"
+source_sha: "37976366b410"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -374,7 +374,7 @@ hat, ändert die genannten Zellen dieses Datensatzes, statt als vergeben abgeleh
 werden (`update_existing` im Batch), und der Import zählt, was er hinzugefügt und was er
 aktualisiert hat.
 
-**New table** beginnt mit einer Spalte **Name**. Stattdessen kann sie mit einer Datei
+**New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
 Uhrzeit in ISO, eine E-Mail-Adresse oder ein Link - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch

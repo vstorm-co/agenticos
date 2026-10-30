@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { qk } from "@/lib/query-keys";
 import { batchRefusal, createRecords } from "@/lib/tables-api";
 import type { CellValue, ColumnDef, RecordCreate } from "@/types/tables";
@@ -190,127 +190,135 @@ export function ImportCsvDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={`${DIALOG_SCROLL} sm:max-w-2xl`}>
+      <DialogContent className={`${DIALOG_COLUMN} ${DIALOG_FORM}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
-        {step.name === "pick" && (
-          <div className="space-y-2">
-            <label className="border-border hover:bg-accent/40 flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center text-sm">
-              <Upload aria-hidden="true" className="text-muted-foreground size-5" />
-              <span>{t("choose")}</span>
-              <span className="text-muted-foreground text-xs">{t("chooseHint")}</span>
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="sr-only"
-                aria-label={t("choose")}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void pick(file);
-                }}
-              />
-            </label>
-            {step.error !== null && <p className="text-destructive text-sm">{step.error}</p>}
-          </div>
-        )}
-
-        {step.name === "map" && (
-          <div className="space-y-3">
-            <p className="text-muted-foreground text-sm">
-              {t("found", { file: step.fileName, count: step.rows.length })}
-            </p>
-            <div className="border-border divide-border divide-y rounded-lg border">
-              {step.headers.map((header, at) => (
-                <div key={at} className="flex items-center gap-3 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{header || t("unnamed")}</p>
-                    <p className="text-muted-foreground truncate text-xs">
-                      {step.rows
-                        .slice(0, 3)
-                        .map((row) => row[at] ?? "")
-                        .join(" · ")}
-                    </p>
-                  </div>
-                  <Select
-                    value={mapping[at] ?? SKIP}
-                    onValueChange={(next) =>
-                      setMapping(mapping.map((target, index) => (index === at ? next : target)))
-                    }
-                  >
-                    <SelectTrigger className="w-48" aria-label={t("mapTo", { header })}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SKIP}>{t("skip")}</SelectItem>
-                      <SelectItem value={EXTERNAL_ID}>{t("externalId")}</SelectItem>
-                      {columns.map((column) => (
-                        <SelectItem key={column.id} value={column.id}>
-                          {column.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+        <div className={`${DIALOG_BODY} space-y-4`}>
+          {step.name === "pick" && (
+            <div className="space-y-2">
+              <label className="border-border hover:bg-accent/40 flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center text-sm">
+                <Upload aria-hidden="true" className="text-muted-foreground size-5" />
+                <span>{t("choose")}</span>
+                <span className="text-muted-foreground text-xs">{t("chooseHint")}</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="sr-only"
+                  aria-label={t("choose")}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void pick(file);
+                  }}
+                />
+              </label>
+              {step.error !== null && <p className="text-destructive text-sm">{step.error}</p>}
             </div>
-          </div>
-        )}
+          )}
 
-        {step.name === "map" && byExternalId && (
-          <label className="flex items-start gap-2 text-sm">
-            <Checkbox
-              checked={updateExisting}
-              onCheckedChange={(on) => setUpdateExisting(on === true)}
-              className="mt-0.5"
-            />
-            <span>
-              {t("updateExisting")}
-              <span className="text-muted-foreground block text-xs">{t("updateExistingHint")}</span>
-            </span>
-          </label>
-        )}
-
-        {step.name === "importing" && (
-          <div className="space-y-2 py-4">
-            <Progress value={step.total === 0 ? 100 : (step.done / step.total) * 100} />
-            <p className="text-muted-foreground text-center text-sm tabular-nums">
-              {t("progress", { done: step.done, total: step.total })}
-            </p>
-          </div>
-        )}
-
-        {step.name === "done" && (
-          <div className="space-y-3">
-            <p className="text-sm">{t("created", { count: step.created })}</p>
-            {step.updated > 0 && <p className="text-sm">{t("updated", { count: step.updated })}</p>}
-            {step.failures.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-destructive text-sm">
-                  {t("failed", { count: step.failures.length })}
-                </p>
-                <ul className="border-border max-h-60 space-y-1 overflow-y-auto rounded-lg border p-2 text-xs">
-                  {step.failures.slice(0, SHOWN_FAILURES).map((failure) => (
-                    <li key={failure.line}>
-                      <span className="text-muted-foreground tabular-nums">
-                        {t("line", { line: failure.line })}
-                      </span>{" "}
-                      {failure.reason}
-                    </li>
-                  ))}
-                </ul>
-                {step.failures.length > SHOWN_FAILURES && (
-                  <p className="text-muted-foreground text-xs">
-                    {t("more", { count: step.failures.length - SHOWN_FAILURES })}
-                  </p>
-                )}
+          {step.name === "map" && (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                {t("found", { file: step.fileName, count: step.rows.length })}
+              </p>
+              <div className="border-border divide-border divide-y rounded-lg border">
+                {step.headers.map((header, at) => (
+                  <div
+                    key={at}
+                    className="flex flex-col items-stretch gap-2 px-3 py-3 sm:flex-row sm:items-center sm:gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{header || t("unnamed")}</p>
+                      <p className="text-muted-foreground truncate text-xs">
+                        {step.rows
+                          .slice(0, 3)
+                          .map((row) => row[at] ?? "")
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <Select
+                      value={mapping[at] ?? SKIP}
+                      onValueChange={(next) =>
+                        setMapping(mapping.map((target, index) => (index === at ? next : target)))
+                      }
+                    >
+                      <SelectTrigger className="w-full sm:w-48" aria-label={t("mapTo", { header })}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SKIP}>{t("skip")}</SelectItem>
+                        <SelectItem value={EXTERNAL_ID}>{t("externalId")}</SelectItem>
+                        {columns.map((column) => (
+                          <SelectItem key={column.id} value={column.id}>
+                            {column.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
+          {step.name === "map" && byExternalId && (
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                checked={updateExisting}
+                onCheckedChange={(on) => setUpdateExisting(on === true)}
+                className="mt-0.5"
+              />
+              <span>
+                {t("updateExisting")}
+                <span className="text-muted-foreground block text-xs">
+                  {t("updateExistingHint")}
+                </span>
+              </span>
+            </label>
+          )}
+
+          {step.name === "importing" && (
+            <div className="space-y-2 py-4">
+              <Progress value={step.total === 0 ? 100 : (step.done / step.total) * 100} />
+              <p className="text-muted-foreground text-center text-sm tabular-nums">
+                {t("progress", { done: step.done, total: step.total })}
+              </p>
+            </div>
+          )}
+
+          {step.name === "done" && (
+            <div className="space-y-3">
+              <p className="text-sm">{t("created", { count: step.created })}</p>
+              {step.updated > 0 && (
+                <p className="text-sm">{t("updated", { count: step.updated })}</p>
+              )}
+              {step.failures.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-destructive text-sm">
+                    {t("failed", { count: step.failures.length })}
+                  </p>
+                  <ul className="border-border max-h-60 space-y-1 overflow-y-auto rounded-lg border p-2 text-xs">
+                    {step.failures.slice(0, SHOWN_FAILURES).map((failure) => (
+                      <li key={failure.line}>
+                        <span className="text-muted-foreground tabular-nums">
+                          {t("line", { line: failure.line })}
+                        </span>{" "}
+                        {failure.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  {step.failures.length > SHOWN_FAILURES && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("more", { count: step.failures.length - SHOWN_FAILURES })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <DialogFooter>
           {step.name === "map" && (
             <>

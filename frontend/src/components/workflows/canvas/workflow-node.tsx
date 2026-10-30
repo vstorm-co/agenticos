@@ -316,6 +316,7 @@ function WorkflowCard({
     problemTexts,
     changes,
   } = useCanvasInteraction();
+  const problemsRevealed = useWorkflowEditorStore((state) => state.problemsRevealed);
   const enterScope = useWorkflowEditorStore((state) => state.enterScope);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const graph = useWorkflowEditorStore((state) => state.graph);
@@ -648,7 +649,11 @@ function WorkflowCard({
                 </span>
               )}
               {problems.length > 0 && (
-                <ProblemBadge problems={problems} onOpen={() => editNode(instance.id)} />
+                <ProblemBadge
+                  revealed={problemsRevealed}
+                  problems={problems}
+                  onOpen={() => editNode(instance.id)}
+                />
               )}
               {!labelledOutputs &&
                 outputs.map((port) => <span key={port.id}>{connectButton(port)}</span>)}

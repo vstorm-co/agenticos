@@ -19,6 +19,48 @@ describe("CreateTableDialog", () => {
     expect(screen.getByRole("button", { name: /create table/i })).toBeDisabled();
   });
 
+  it("creates a private table with optional details folded, keeping its walkthrough reachable", async () => {
+    const onCreate = vi.fn();
+    render(
+      <CreateTableDialog
+        open
+        onOpenChange={vi.fn()}
+        onCreate={onCreate}
+        isCreating={false}
+        error={null}
+      />,
+    );
+    expect(screen.queryByLabelText("Description")).toBeNull();
+    expect(screen.queryByLabelText("Visibility")).toBeNull();
+    const guide = document.querySelector('[data-tour="table-dialog-visibility"]');
+    expect(guide).toContainElement(screen.getByRole("button", { name: "More options" }));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Leads" } });
+    await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Leads", visibility: "private", description: null }),
+      null,
+    );
+  });
+
+  it("clears a cancelled form before the next table", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <CreateTableDialog
+        open
+        onOpenChange={onOpenChange}
+        onCreate={vi.fn()}
+        isCreating={false}
+        error={null}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Cancelled draft" } });
+    await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
+  });
+
   it("submits the trimmed name, description and visibility, with the Name column it starts with", async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
@@ -33,6 +75,7 @@ describe("CreateTableDialog", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "  Orders  " } });
+    await user.click(screen.getByRole("button", { name: "More options" }));
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "  " } });
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
@@ -61,6 +104,7 @@ describe("CreateTableDialog", () => {
     );
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Orders" } });
 
+    await user.click(screen.getByRole("button", { name: "More options" }));
     await user.click(screen.getByRole("combobox", { name: "Visibility" }));
     await user.click(screen.getByRole("option", { name: "Organization" }));
     await user.click(screen.getByRole("button", { name: /create table/i }));

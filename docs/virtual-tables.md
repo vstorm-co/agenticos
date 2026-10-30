@@ -330,7 +330,7 @@ bring the table up to date: a row whose external id the table holds changes that
 record's cells it names, rather than being refused as taken (`update_existing` on the
 batch), and the import counts what it added and what it updated.
 
-**New table** starts with a **Name** column. It can start from a file instead: **Start
+**New table** starts with a **Name** column. Name the table and add its columns first; description and visibility are under **More options**, with private visibility as the default. It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
 integer, number, yes/no, date, an ISO date and time, an email address or a link - and otherwise text, or long

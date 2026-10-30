@@ -1,5 +1,5 @@
 ---
-source_sha: "49a56d73ddfd"
+source_sha: "d8dd2e5f7ec0"
 ---
 
 # Workflows { #workflows }
@@ -103,7 +103,7 @@ está configurado para hacer - una condición, una URL, el número de campos map
 y, antes, el agente, el modelo o la tabla con los que trabaja. Un paso con más de una
 salida nombra sus puertos: **true** y **false**, **Each item** y **Done**, y un
 puerto **Error** rojo en un paso que gestiona sus errores. Un paso que bloquea la
-publicación lleva una marca roja: al pasar el ratón por encima lista los primeros
+publicación lleva una marca de configuración (roja tras intentar probar o publicar): al pasar el ratón por encima lista los primeros
 problemas, y un clic abre el paso.
 
 Un trackpad o la rueda del ratón mueve el lienzo, y
@@ -261,11 +261,9 @@ comparación muestran el tamaño guardado sin controles.
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
 [referencia de nodos](reference/workflow-nodes.md).
 
-Un clic selecciona un paso y un doble clic lo abre en un diálogo sobre el lienzo (donde
-no se puede seleccionar nada - una versión publicada, **View only** - basta un clic):
-arriba su nombre y lo que hace, y debajo, con palabras sencillas, cada problema que
-impide publicar - **Not connected yet** para un paso al que nada lleva, y el problema
-de un campo tras el nombre del campo, que te lleva hasta él.
+Un clic selecciona un paso y un doble clic lo abre sobre el lienzo. En una versión publicada o **View only** basta un clic. La cabecera muestra el nombre y un resumen desplegable de la configuración pendiente. Ábrelo para ver qué falta; elegir un campo lleva a su entrada. Después de intentar probar o publicar, los detalles de validación se abren automáticamente.
+
+**Connect account** en un paso o en el selector de apps abre la configuración de cuentas existente sobre el workflow. Conecta una cuenta de organización, termina la configuración y selecciónala en el paso. El selector de secretos ofrece **Add API key** o **New secret**, selecciona automáticamente el secreto guardado y conserva solo su id en el draft. Un trigger sin credenciales de app OAuth ofrece **Add credentials** en el mismo lugar; el mismo formulario del almacén las guarda para la organización.
 
 **Parameters** es aquello con lo
 que trabaja el paso y lo que debe hacer, en una sola lista, con la lista sobre la que
@@ -597,7 +595,7 @@ trabajo.
 
 ## Retroalimentación de validación { #validation-feedback }
 
-El editor comprueba el grafo mientras editas y muestra qué está mal donde está mal. Cada paso con un problema lleva una marca roja en el lienzo y lo dice bajo su nombre al abrirlo, y un campo con un problema muestra su mensaje inline. El estado arriba a la derecha del lienzo dice **No problems** o cuenta los problemas y los lista, cada uno bajo el nombre de su paso y su campo; elegir uno abre los ajustes de ese paso.
+El editor comprueba el grafo mientras editas. Antes de probar, los pasos incompletos llevan un indicador neutro y el lienzo muestra **Finish setup**. Abre la lista para saltar a un paso. Probar o publicar revela los errores; salir de un campo obligatorio vacío muestra su mensaje inline. La publicación sigue bloqueada hasta resolver todos los problemas de validación.
 
 Los ajustes de un paso se mantienen cortos. Lo que el paso necesita, y lo que ya
 estableciste, se ve de inmediato; los ajustes opcionales aún en sus valores

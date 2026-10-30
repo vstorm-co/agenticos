@@ -14,7 +14,7 @@ import {
   Label,
 } from "@/components/ui";
 import { useRecordMutation } from "@/hooks/use-record-mutation";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { COMPUTED_TYPES, type CellValue, type ColumnDef } from "@/types/tables";
 
 import { RecordCellEditor } from "./record-cell-editor";
@@ -110,12 +110,12 @@ export function NewRecordDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={`${DIALOG_SCROLL} ${DIALOG_FORM}`}>
+      <DialogContent className={`${DIALOG_COLUMN} ${DIALOG_FORM}`}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className={`${DIALOG_BODY} space-y-5`}>
           {live.map((column) => {
             const needed = isRequired(column);
             return (

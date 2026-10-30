@@ -935,6 +935,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Calmer workflow setup and roomier table forms.** Incomplete steps show one
+  expandable setup checklist; error styling appears after a test or publish,
+  while field messages still appear after leaving an empty required field.
+  Workflow parameters have more space and come first on small screens. Accounts,
+  API keys and missing trigger OAuth credentials can be added above the workflow,
+  using the existing account and vault forms. New tables lead with name and
+  columns, with description and visibility under More options. Table creation,
+  schema editing, records and CSV mapping keep their actions visible while their
+  fields scroll, with room for focus rings and stacked controls on narrow screens.
+  Table, Kanban and List use the console’s shared tabs without clipped labels.
+
 - Align the Workflows and Tables catalogs with the console's shared grid layout,
   neutral surfaces and responsive controls. Keep public page data settings reachable
   from the organization's Budget and approvals tab, including for members whose

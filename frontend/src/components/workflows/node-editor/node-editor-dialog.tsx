@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
+  MoreOptions,
   Tabs,
   TabsContent,
   TabsList,
@@ -39,6 +40,7 @@ import {
 } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
 import { validateGraph } from "@/components/workflows/validation";
+import { DIALOG_CANVAS, DIALOG_COLUMN, DIALOG_FILL, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
@@ -210,11 +212,11 @@ export function NodeEditorDialog({
         // their edges: the wheel does nothing while a browser carries a drag.
         onDragOver={(event) => carriesField(event) && scrollNearEdge(event)}
         className={cn(
-          "flex max-h-[88vh] flex-col gap-0 p-0",
-          withData ? "h-[88vh] max-w-[min(94vw,1320px)] sm:max-w-[min(94vw,1320px)]" : "max-w-2xl",
+          "gap-0 p-0 sm:p-0",
+          withData ? [DIALOG_CANVAS, DIALOG_FILL] : [DIALOG_FORM, DIALOG_COLUMN],
         )}
       >
-        <header className="border-border flex items-start gap-3 border-b px-6 pt-6 pr-14 pb-4">
+        <header className="border-border flex items-start gap-3 border-b px-5 pt-5 pr-14 pb-4 sm:px-6 sm:pr-14">
           {pin?.kind === "agent" ? (
             <AgentTile agentId={pin.id} fallback={tile} className="size-10" />
           ) : pin?.kind === "inline_agent" ? (
@@ -247,39 +249,62 @@ export function NodeEditorDialog({
                   : definition.description}
             </DialogDescription>
             {definition?.id === "mcp.call" && <McpCallNote config={node.config} />}
-            {/* Every problem the canvas counts for this step, so the two agree; the
-                field's own message under it stays quiet until it was left. */}
-            {nodeProblems.map((problem, index) => {
-              const text = problemText(problem, definition, t);
-              const field = problem.field;
-              return field === null ? (
-                <p key={index} className="text-destructive flex items-center gap-1.5 text-xs">
-                  <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
-                  {text}
-                </p>
-              ) : (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => showField(field)}
-                  className="text-destructive flex items-center gap-1.5 text-left text-xs hover:underline"
+            {nodeProblems.length > 0 && (
+              <div className="pt-2">
+                <MoreOptions
+                  key={String(store.problemsRevealed)}
+                  label={t(store.problemsRevealed ? "stepReviewNeeded" : "stepSetupRemaining", {
+                    count: nodeProblems.length,
+                  })}
+                  defaultOpen={store.problemsRevealed || readOnly}
                 >
-                  <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
-                  {text}
-                </button>
-              );
-            })}
+                  <div className="max-h-28 space-y-2 overflow-y-auto p-1">
+                    {nodeProblems.map((problem, index) => {
+                      const text = problemText(problem, definition, t);
+                      const field = problem.field;
+                      return field === null ? (
+                        <p
+                          key={index}
+                          className={cn(
+                            "flex items-start gap-2 text-xs",
+                            store.problemsRevealed ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
+                          {text}
+                        </p>
+                      ) : (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => showField(field)}
+                          className={cn(
+                            "flex items-start gap-2 text-left text-xs hover:underline",
+                            store.problemsRevealed ? "text-destructive" : "text-muted-foreground",
+                          )}
+                        >
+                          <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
+                          {text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </MoreOptions>
+              </div>
+            )}
           </div>
         </header>
         <div
           className={cn(
-            "min-h-0 flex-1",
+            "min-h-0 flex-1 overscroll-contain",
             // The dialog only caps its height here, so `h-full` below it resolves to
             // nothing: the body itself is what scrolls, or a long form runs out of it.
             !withData && "overflow-y-auto",
             withData &&
               "grid grid-cols-1 overflow-y-auto lg:overflow-hidden [&>*]:px-6 [&>*]:py-5 lg:[&>*]:overflow-y-auto",
-            withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1fr)]",
+            withInput &&
+              !runData &&
+              "lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)_minmax(0,0.85fr)]",
             withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]",
             // A run's step is read for its data: Input and Output side by side,
             // the settings it ran with folded underneath.
@@ -288,7 +313,7 @@ export function NodeEditorDialog({
           )}
         >
           {withInput && (
-            <div className="bg-muted/30 border-border lg:border-r">
+            <div className="bg-muted/30 border-border min-w-0 lg:border-r">
               <InputPane
                 graph={graph}
                 catalog={catalog}
@@ -300,7 +325,7 @@ export function NodeEditorDialog({
           )}
           <div
             className={cn(
-              "space-y-5",
+              "order-first min-w-0 space-y-5 lg:order-none",
               !withData && "px-6 py-5",
               runData && "border-border lg:order-last lg:col-span-2 lg:border-t",
             )}
@@ -345,7 +370,7 @@ export function NodeEditorDialog({
               ))}
           </div>
           {withData && (
-            <div className="bg-muted/30 border-border lg:border-l">
+            <div className="bg-muted/30 border-border min-w-0 lg:border-l">
               <OutputPane
                 readOnly={runData}
                 workflowId={workflowId}

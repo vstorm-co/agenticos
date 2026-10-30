@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Input,
   Label,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -22,7 +23,7 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableVisibility } from "@/types/tables";
@@ -191,11 +192,12 @@ export function CreateTableDialog({
           <DialogTitle>{t("title")}</DialogTitle>
         </DialogHeader>
         {/* Grows a row per column, so it scrolls and the footer's Create stays on screen. */}
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <div className={`${DIALOG_BODY} space-y-5`}>
           <div className="space-y-1.5" data-tour="table-dialog-name">
             <Label htmlFor="table-name">{t("nameLabel")}</Label>
             <Input
               id="table-name"
+              maxLength={MAX_LABEL}
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={t("namePlaceholder")}
@@ -204,32 +206,7 @@ export function CreateTableDialog({
             {nameProblem && <p className="text-destructive text-xs">{nameProblem}</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="table-description">{t("descriptionLabel")}</Label>
-            <Textarea
-              id="table-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder={t("descriptionPlaceholder")}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="table-visibility">{t("visibilityLabel")}</Label>
-            <Select
-              value={visibility}
-              onValueChange={(next) => setVisibility(next as TableVisibility)}
-            >
-              <SelectTrigger id="table-visibility" data-tour="table-dialog-visibility">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">{t("visibility.private")}</SelectItem>
-                <SelectItem value="team">{t("visibility.team")}</SelectItem>
-                <SelectItem value="org">{t("visibility.org")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="border-border hover:bg-accent/40 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm">
+            <label className="border-border hover:bg-accent/40 focus-within:ring-ring flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-sm focus-within:ring-2">
               <FileUp aria-hidden="true" className="text-muted-foreground size-4" />
               <span className="min-w-0 flex-1 truncate">
                 {csv === null
@@ -255,8 +232,13 @@ export function CreateTableDialog({
           <div className="space-y-2" data-tour="table-dialog-columns">
             <p className="text-sm font-medium">{t("columnsHeading")}</p>
             {columns.map((column) => (
-              <div key={column.key} className="flex items-center gap-2">
+              <div
+                key={column.key}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
+              >
                 <Input
+                  className="col-span-2 min-w-0 sm:col-span-1"
+                  maxLength={MAX_LABEL}
                   value={column.label}
                   placeholder={t("columnPlaceholder")}
                   aria-label={t("columnLabel")}
@@ -278,7 +260,7 @@ export function CreateTableDialog({
                     )
                   }
                 >
-                  <SelectTrigger className="w-40" aria-label={t("columnType")}>
+                  <SelectTrigger className="w-full" aria-label={t("columnType")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -295,7 +277,7 @@ export function CreateTableDialog({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   aria-label={t("removeColumn")}
                   onClick={() =>
                     setColumns((current) => current.filter((c) => c.key !== column.key))
@@ -319,10 +301,46 @@ export function CreateTableDialog({
               <Plus className="h-3.5 w-3.5" /> {t("addColumn")}
             </Button>
           </div>
+          <div data-tour="table-dialog-visibility">
+            <MoreOptions label={t("moreOptions")}>
+              <div className="space-y-1.5">
+                <Label htmlFor="table-description">{t("descriptionLabel")}</Label>
+                <Textarea
+                  id="table-description"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder={t("descriptionPlaceholder")}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="table-visibility">{t("visibilityLabel")}</Label>
+                <Select
+                  value={visibility}
+                  onValueChange={(next) => setVisibility(next as TableVisibility)}
+                >
+                  <SelectTrigger id="table-visibility">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">{t("visibility.private")}</SelectItem>
+                    <SelectItem value="team">{t("visibility.team")}</SelectItem>
+                    <SelectItem value="org">{t("visibility.org")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </MoreOptions>
+          </div>
         </div>
         {failure.toast !== null && <p className="text-destructive text-sm">{failure.toast}</p>}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              reset();
+              onOpenChange(false);
+            }}
+          >
             {t("cancel")}
           </Button>
           <Button
