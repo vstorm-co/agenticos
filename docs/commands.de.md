@@ -1,5 +1,5 @@
 ---
-source_sha: "7204fdd1cd6c"
+source_sha: "5ceebb576717"
 ---
 
 # Befehle { #commands }
@@ -695,3 +695,5 @@ Ohne `--org` werden alle Organisationen verarbeitet. Der Bericht unterscheidet `
 Geänderte Anweisungen werden als neue Agentenversion veröffentlicht. Veröffentlichungsverlauf, Modell, Budget, Fähigkeiten, Skills und Assistenteneinstellungen bleiben erhalten. Weichen andere Entwurfsfelder von der veröffentlichten Version ab, ist die gesamte Aktualisierung bis zur Veröffentlichung oder Verwerfung dieser Änderungen blockiert; auch die Ersetzungsoption umgeht diese Prüfung nicht. Ein noch nie veröffentlichter Assistent erhält aktualisierte Entwurfsanweisungen und benötigt weiterhin ein Modell und eine Veröffentlichung im Builder. Fehlende und archivierte Assistenten werden übersprungen. Ein fehlender oder abgetrennter Leitfaden wird gemeldet, ohne Skill-Bindungen zu ändern.
 
 Der Leitfaden ist ein geteilter Skill: Aktualisierte Inhalte und Ressourcen erhöhen seine Version und erreichen alle Agenten, die diese Kopie verwenden. Eigene Änderungen sind wie Anweisungen geschützt. Kopien unbekannter Herkunft bleiben `untracked`; das Upgrade erkennt nur exakt zuvor von AgenticOS ausgelieferte Anweisungen. Ein Deployment-Upgrade überschreibt den installierten Architect nicht automatisch: Übernimm die neue Vorlage mit diesem Befehl.
+
+Ein Sammellauf meldet Organisationen ohne Eigentümer als übersprungen und verarbeitet die übrigen weiter. Ein gezielter Lauf mit `--org` schlägt ausdrücklich fehl, wenn diese Organisation keinen Eigentümer hat.

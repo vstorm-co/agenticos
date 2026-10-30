@@ -48,6 +48,9 @@ async def _run(org_id: UUID | None, *, dry_run: bool, replace_edited: bool) -> N
             service = AssistantService(db)
             owner_id = await member_repo.first_owner_id(db, organization_id=target_id)
             if owner_id is None:
+                if org_id is None:
+                    click.echo(f"{name} ({target_id}): skipped (organization has no owner)")
+                    continue
                 raise NotFoundError(
                     message="Organization has no owner", details={"organization_id": str(target_id)}
                 )

@@ -1,5 +1,5 @@
 ---
-source_sha: "7204fdd1cd6c"
+source_sha: "5ceebb576717"
 ---
 
 # Comandos { #commands }
@@ -693,3 +693,5 @@ Sin `--org`, se procesan todas las organizaciones. El informe distingue `current
 Los cambios de instrucciones crean y publican una nueva versión del agente, conservando el historial, modelo, presupuesto, capacidades, skills y ajustes del asistente. Si otros campos del borrador difieren de la versión publicada, toda la actualización queda bloqueada hasta publicar o descartar esos cambios; la opción de sustitución no evita esta comprobación. Un asistente nunca publicado recibe instrucciones actualizadas en su borrador y aún necesita un modelo y publicación en el Builder. Se omiten asistentes ausentes o archivados. Una guía ausente o desvinculada se informa sin cambiar los vínculos de skills.
 
 La guía es un skill compartido: actualizar su contenido y recursos incrementa su versión y afecta a todos los agentes que usan esa copia. Sus modificaciones tienen la misma protección que las instrucciones. Las copias de origen desconocido siguen como `untracked`; la migración reconoce solo instrucciones exactas distribuidas anteriormente por AgenticOS. Una actualización del despliegue no sobrescribe automáticamente Architect: ejecuta este comando para adoptar la nueva plantilla.
+
+Las ejecuciones globales informan de las organizaciones sin propietario como omitidas y continúan con las demás. Una ejecución con `--org` falla explícitamente si la organización indicada no tiene propietario.

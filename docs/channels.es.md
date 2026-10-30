@@ -1,5 +1,5 @@
 ---
-source_sha: "e092a27ddd9d"
+source_sha: "2bf146634563"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2723,3 +2723,5 @@ Una publicación que solo contiene la mención del bot o espacios se ignora desp
 ## Instrucciones predeterminadas actuales de los canales {#current-channel-defaults}
 
 El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. El prompt del vínculo guarda solo añadidos propios. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.
+
+Al revertir la migración, se restauran las pautas de canal guardadas de la versión anterior y se conservan los añadidos propios, incluso en vínculos creados tras actualizar. Las demás superficies permanecen intactas.

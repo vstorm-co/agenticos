@@ -30,6 +30,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Rolling back the channel prompt migration restores the preceding release's
+  defaults while retaining custom additions, including bindings created after
+  upgrade.
+- Bulk `refresh-assistant` runs skip organizations without an owner and continue
+  refreshing the remaining organizations. A targeted run still fails explicitly.
+
+
 - Explicit `@slug` channel invocations retain saved conversation history, just
   like default bot replies, so follow-up requests keep earlier results and App
   references after the initial thread backfill.

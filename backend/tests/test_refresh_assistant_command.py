@@ -56,15 +56,51 @@ async def test_unknown_organization_fails_explicitly():
         await _run(uuid4(), dry_run=False, replace_edited=False)
 
 
-async def test_missing_owner_fails_explicitly():
-    org = SimpleNamespace(id=uuid4(), name="Acme")
+async def test_missing_owner_fails_explicitly_for_targeted_refresh() -> None:
+    org = SimpleNamespace(id=uuid4(), name="Ownerless")
     with (
         patch(f"{PATH}.get_db_context", session),
-        patch(f"{PATH}.organization_repo.list_all", AsyncMock(return_value=[org])),
+        patch(f"{PATH}.organization_repo.get_by_id", AsyncMock(return_value=org)),
         patch(f"{PATH}.member_repo.first_owner_id", AsyncMock(return_value=None)),
         pytest.raises(NotFoundError, match="no owner"),
     ):
-        await _run(None, dry_run=False, replace_edited=False)
+        await _run(org.id, dry_run=False, replace_edited=False)
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+async def test_bulk_refresh_skips_ownerless_organizations_and_continues(
+    dry_run: bool, capsys: pytest.CaptureFixture[str]
+) -> None:
+    before = SimpleNamespace(id=uuid4(), name="Before")
+    ownerless = SimpleNamespace(id=uuid4(), name="Ownerless")
+    after = SimpleNamespace(id=uuid4(), name="After")
+    first_owner, last_owner = uuid4(), uuid4()
+    with (
+        patch(f"{PATH}.get_db_context", session),
+        patch(
+            f"{PATH}.organization_repo.list_all", AsyncMock(return_value=[before, ownerless, after])
+        ),
+        patch(
+            f"{PATH}.member_repo.first_owner_id",
+            AsyncMock(side_effect=[first_owner, None, last_owner]),
+        ),
+        patch(
+            f"{PATH}.AssistantService.refresh", AsyncMock(return_value=AssistantRefresh())
+        ) as refresh,
+    ):
+        await _run(None, dry_run=dry_run, replace_edited=True)
+    assert [call.args[0].organization_id for call in refresh.await_args_list] == [
+        before.id,
+        after.id,
+    ]
+    assert [call.args[0].user_id for call in refresh.await_args_list] == [first_owner, last_owner]
+    assert all(
+        call.kwargs == {"dry_run": dry_run, "replace_edited": True}
+        for call in refresh.await_args_list
+    )
+    output = capsys.readouterr().out
+    assert f"Ownerless ({ownerless.id}): skipped (organization has no owner)" in output
+    assert f"After ({after.id})" in output
 
 
 async def test_empty_deployment_has_nothing_to_refresh():

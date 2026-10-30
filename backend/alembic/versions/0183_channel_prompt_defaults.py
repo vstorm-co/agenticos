@@ -66,6 +66,16 @@ DEFAULTS = {
 }
 
 
+# The immediately preceding release stored these defaults on each binding.
+# Keep the rollback snapshot frozen alongside the upgrade's historical values.
+PARENT_DEFAULTS = {
+    "slack": STYLE_0 + "\n\n" + CONTEXT_0 + "\n\n" + GUIDANCE_2,
+    "mattermost": STYLE_1 + "\n\n" + CONTEXT_0 + "\n\n" + GUIDANCE_2,
+    "teams": STYLE_2 + "\n\n" + CONTEXT_0 + "\n\n" + GUIDANCE_2,
+    "telegram": STYLE_3 + "\n\n" + CONTEXT_0 + "\n\n" + GUIDANCE_2,
+}
+
+
 def custom_prompt(surface: str, prompt: str) -> str | None:
     for default in DEFAULTS.get(surface, ()):
         if default in prompt:
@@ -87,6 +97,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Custom additions remain intact. Restoring an old snapshot would overwrite
-    # edits made after upgrade and cannot recover where that snapshot was placed.
-    pass
+    connection = op.get_bind()
+    # Include bindings created after upgrade: their defaults were never stored.
+    for row in connection.execute(sa.text("SELECT id, surface, prompt FROM agent_exposures")):
+        default = PARENT_DEFAULTS.get(row.surface)
+        prompt = row.prompt or ""
+        if default is None or default in prompt:
+            continue
+        restored = f"{default}\n\n{prompt}" if prompt else default
+        connection.execute(
+            sa.text("UPDATE agent_exposures SET prompt = :prompt WHERE id = :id"),
+            {"prompt": restored, "id": row.id},
+        )

@@ -24,7 +24,9 @@ def migration(name):
     return module
 
 
-def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(database_url):
+def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(
+    database_url: str,
+) -> None:
     stamp = migration("0182_assistant_template_stamp")
     prompts = migration("0183_channel_prompt_defaults")
     engine = create_engine(database_url.replace("+asyncpg", "+psycopg2"))
@@ -128,11 +130,58 @@ def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(data
                     connection.execute(text("SELECT id, prompt FROM agent_exposures")).all()
                 )
                 assert actual == dict(samples)
+                # Include bindings created after upgrade, and edits made while
+                # defaults were supplied by the newer runner.
+                added = {}
+                for surface in prompts.DEFAULTS:
+                    for value in (
+                        None,
+                        "",
+                        "  Custom additions after upgrade.\n",
+                        prompts.DEFAULTS[surface][2] + "\n\nAlready restored.",
+                    ):
+                        item = uuid4()
+                        connection.execute(
+                            text("INSERT INTO agent_exposures VALUES (:id, :surface, :prompt)"),
+                            {"id": item, "surface": surface, "prompt": value},
+                        )
+                        added[item] = (surface, value)
+                surfaces = dict(
+                    connection.execute(text("SELECT id, surface FROM agent_exposures")).all()
+                )
+                before_rollback = {
+                    **actual,
+                    **{key: value for key, (surface, value) in added.items()},
+                }
+                prompts.downgrade()
+                restored = dict(
+                    connection.execute(text("SELECT id, prompt FROM agent_exposures")).all()
+                )
+                for item, previous in before_rollback.items():
+                    surface = surfaces[item]
+                    if surface not in prompts.DEFAULTS:
+                        assert restored[item] == previous
+                        continue
+                    parent = prompts.DEFAULTS[surface][2]
+                    assert parent in restored[item]
+                    assert restored[item].count(parent) == 1
+                    if previous:
+                        assert previous in restored[item]
+                    else:
+                        assert restored[item] == parent
+                # Repeated rollback does not duplicate the restored defaults.
                 prompts.downgrade()
                 assert (
                     dict(connection.execute(text("SELECT id, prompt FROM agent_exposures")).all())
-                    == actual
+                    == restored
                 )
+                prompts.upgrade()
+                assert dict(
+                    connection.execute(text("SELECT id, prompt FROM agent_exposures")).all()
+                ) == {
+                    item: (prompts.custom_prompt(surfaces[item], value) if value else None)
+                    for item, value in restored.items()
+                }
                 stamp.downgrade()
                 columns = tuple(
                     connection.execute(text("SELECT * FROM organization_assistants")).keys()
