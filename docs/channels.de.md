@@ -1,5 +1,5 @@
 ---
-source_sha: "aa20fd56e2b8"
+source_sha: "968f30d76fa2"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2789,6 +2789,10 @@ Vier Tools ändern das, und jedes wird **pro Bindung** gewährt, unter
 | `send_channel_file` | Angeforderte Workspace-Datei senden | ✅ | ✅ | ✅ | ✅ |
 
 Verbinden Sie das Konto mit einer direkten Nachricht an den Bot: nur `link` ohne Schrägstrich. Öffnen Sie den privaten Verbindungslink nach der Anmeldung bei AgenticOS und kehren Sie zum Channel zurück. Benötigen frühere Thread-Dateien eine Kontoverbindung, erklärt der Bot dies ohne Download und versucht es nach der Verbindung erneut. Channel-Bilder verwenden die doppelte CSS-Auflösung; sehr breite horizontale Mermaid-Flussdiagramme erhalten nur für das PNG eine vertikale Anordnung.
+
+Über `generate_image` angeforderte Bilder werden auf allen vier Chatplattformen an Antworten angehängt, zusätzlich zu Diagrammen. Gespeicherte Bilder werden innerhalb der Organisation des Laufs gelesen, auf 8 MiB und 16 Megapixel begrenzt und in PNG konvertiert; fehlende, ungültige oder zu große Bilder führen zu einem Zustellhinweis. Teams passt Inline-Bilder zusätzlich an seine eigenen Grenzen an. Eine gewöhnliche Workspace-Datei wird durch ihre Erstellung weiterhin nicht gesendet: Dafür ist `send_channel_file` erforderlich. Der Thread-Kontext behält die ursprünglichen Zeitstempel bei; relative Zeitangaben beziehen sich darauf und nicht auf den Zeitpunkt, an dem der Agent dem Thread beitritt.
+
+Angehängt werden nur Dateien, die von den eigenen Tools des Laufs als erzeugt erfasst wurden. Ein Toolname oder Ergebnistext berechtigt nicht zum Zugriff auf Medien anderer Gespräche. Das Ablehnen der Bilderzeugung löst keinen Hinweis auf ein fehlendes Bild aus. Bestehende Threads aktualisieren den Text einmal, ohne frühere Anhänge erneut herunterzuladen.
 
 Pro Bindung statt pro Agent, denn eine Organisation kann einen Agent an zwei
 Mattermost-Server und drei Slack-Workspaces binden — und *„darf er lesen, was in

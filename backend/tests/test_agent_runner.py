@@ -2295,15 +2295,20 @@ class TestRunAccounting:
     async def test_a_successful_run_returns_its_answer(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
+        prepared.built.deps.generated_files = {"first-party-photo.png"}
+        generated_files: set[str] = set()
         prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="the answer"))
 
         with (
             patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
         ):
-            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+            output, _ = await service.execute(
+                _ctx(), uuid.uuid4(), "hello", generated_files=generated_files
+            )
 
         assert output == "the answer"
+        assert generated_files == {"first-party-photo.png"}
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
 
     @pytest.mark.anyio
