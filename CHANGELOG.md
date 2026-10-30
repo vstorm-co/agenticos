@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Chain the desktop/mobile migrations after the latest channel-history migration so fresh installs and upgrades resolve a single Alembic head.
+
 - Keep mobile CI builds active while requiring explicit opt-in for mobile release publishing; document self-build and self-installation until public distribution is available.
 
 - Remember native browser consent across tabs in the same conversation and domain policy until the person closes its last tab or disconnects the device.
