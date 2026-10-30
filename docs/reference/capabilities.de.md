@@ -1,5 +1,5 @@
 ---
-source_sha: "a4eb76e940aa"
+source_sha: "c009f12941c5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1868,7 +1868,18 @@ durch diese Plattform zurückleitet.
     früher ab, in `DelegatingToolset._refuse_dynamic`.
 
 Das Modell darf nur ein Modell benennen, für das die Organisation ein Profil hat,
-und die Ablehnung nennt die Liste. Es darf keine Capabilities anhängen: Einem
+und die Ablehnung nennt die Liste.
+
+Ein Profil auf der
+[ChatGPT-Anmeldung](../models.md#running-on-a-chatgpt-subscription) einer Person,
+oder eines, dessen erste drei Fallbacks eine erreichen, steht nur dann auf der Liste,
+wenn der Spec des Agents genau dieses Profil nennt - sein eigenes Modell, das eines
+Reviewers, eines Inline-Spezialisten oder einer eingeschalteten Capability -, denn
+eine Anmeldung ist das Abonnement einer Person. Ein Profil, das die Person, die den
+Agenten ausführt, nicht verwenden darf, wird ausgelassen, statt den Run scheitern zu
+lassen.
+
+Das Modell darf keine Capabilities anhängen: Einem
 Modell zu erlauben, seinem eigenen Kind eine Capability zu gewähren, ist das
 Versagen des nicht gewährten Scopes mit einem neuen Hut. Er bekommt kein Wissen,
 keine eigenen Delegierten, und nichts wird über Runs hinweg gespeichert — einen

@@ -142,6 +142,7 @@ from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     choosable_for_others,
     is_sign_in,
+    sign_in_person,
     usable_for_agents,
 )
 from app.services.notifications import NotificationService
@@ -341,10 +342,7 @@ def _variable_problems(spec: AgentSpec) -> _SpecProblems:
     `{{custmer_name}}` reaching a customer is the typo nobody sees until then.
     """
     problems = _SpecProblems()
-
-    def refuse(field_name: str, message: str) -> None:
-        problems.messages.append(message)
-        problems.fields.append({"field": field_name, "message": message})
+    refuse = problems.refuse
 
     for name in prompt_variables.unknown_variables(spec):
         refuse("instructions", f"The instructions use {{{{{name}}}}}, which is not a variable")
@@ -462,6 +460,11 @@ class _SpecProblems:
     def add(self, messages: Sequence[str]) -> None:
         """Problems with nothing to mark - a broken reference."""
         self.messages.extend(messages)
+
+    def refuse(self, field_name: str, message: str) -> None:
+        """A problem with an input to mark: the line, and the same line on the field."""
+        self.messages.append(message)
+        self.fields.append({"field": field_name, "message": message})
 
     def merge(self, other: _SpecProblems) -> None:
         self.messages.extend(other.messages)
@@ -620,6 +623,105 @@ def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
         return SubagentsConfig.model_validate(binding.config)
     except ValidationError:
         return None
+
+
+@dataclass(frozen=True)
+class _ModelRef:
+    """One place a spec names a model it runs on, as a form addresses it."""
+
+    field: str
+    """The input's path - `model_profile_id`, `reviewers.0.model_profile_id`."""
+    says: str
+    """Who names it, in front of a refusal - empty for the agent's own model."""
+    profile_id: UUID
+    pinned: bool = False
+    """Named inside a pinned delegate's frozen version, which this publisher cannot
+    edit - so the remedy is another pin, not another model."""
+
+
+def _binding_model_refs(bindings: Sequence[CapabilityBindingSpec]) -> list[_ModelRef]:
+    """The models enabled capabilities run their own calls on: a browse's steps, follow-ups.
+
+    Only an enabled binding: the runner resolves neither model for one that is
+    switched off (`_browser_step_profile`, `follow_ups.model_profile`), and the
+    sign-in check refuses only what a run can spend. The field is the config's,
+    addressed the way `_config_problems` addresses one, so the capability's form
+    marks it.
+    """
+    refs: list[_ModelRef] = []
+    for binding in bindings:
+        if not binding.enabled:
+            continue
+        try:
+            config = get_capability(binding.id).validate_config(binding.config)
+        except BadRequestError:
+            # Reported by `_binding_problems`; a config that does not parse
+            # names no model anybody could run.
+            continue
+        if isinstance(config, WebBrowserConfig):
+            name, profile_id = "step_model_profile_id", config.step_model_profile_id
+        elif isinstance(config, FollowUpsConfig):
+            name, profile_id = "model_profile_id", config.model_profile_id
+        else:
+            continue
+        if profile_id is not None:
+            refs.append(
+                _ModelRef(
+                    f"capabilities.{binding.id}.config.{name}",
+                    f"Capability '{binding.id}': ",
+                    profile_id,
+                )
+            )
+    return refs
+
+
+def _model_refs(spec: AgentSpec) -> list[_ModelRef]:
+    """Every model a run of this spec can be handed to, and the input that names it.
+
+    Not `validate_spec`'s walk, on purpose: that one asks whether each named
+    profile *exists* and can run, wherever it is named; this one asks only about
+    the models a run reaches, because it is held to the runtime's spend rule -
+    and it also runs on its own when a version is promoted. So: the agent's
+    model, each reviewer's, the models its enabled capabilities run steps on,
+    and each inline specialist's own model, prefixed the way
+    `_SpecProblems.within_specialist` prefixes a specialist's fields. A
+    specialist's browse and follow-ups capabilities run on no model of their
+    own - the runner hands neither to a delegated run.
+    """
+    refs: list[_ModelRef] = []
+    if spec.model_profile_id is not None:
+        refs.append(_ModelRef("model_profile_id", "", spec.model_profile_id))
+    for index, reviewer in enumerate(spec.reviewers):
+        if reviewer.model_profile_id is not None:
+            refs.append(
+                _ModelRef(
+                    f"reviewers.{index}.model_profile_id",
+                    f"Reviewer '{reviewer.name}': ",
+                    reviewer.model_profile_id,
+                )
+            )
+    refs.extend(_binding_model_refs(spec.capabilities))
+    config = _subagents_config(spec)
+    for specialist in config.inline if config is not None else ():
+        if specialist.model_profile_id is not None:
+            refs.append(
+                _ModelRef(
+                    f"specialists.{specialist.name}.model_profile_id",
+                    f"Specialist '{specialist.name}': ",
+                    specialist.model_profile_id,
+                )
+            )
+    return refs
+
+
+def models_a_run_reaches(spec: AgentSpec) -> frozenset[UUID]:
+    """The profiles this spec names for a run to reach - those `_model_refs` walks.
+
+    The models publish held the publisher to (#2546), so the ones its author
+    chose. A dynamic specialist may run on a ChatGPT sign-in only when it is one
+    of these (`AgentRunnerService._model_catalog`).
+    """
+    return frozenset(ref.profile_id for ref in _model_refs(spec))
 
 
 def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
@@ -1627,6 +1729,7 @@ class AgentRegistryService:
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.add(_coding_agent_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
+        problems.merge(await self._sign_in_problems(ctx, spec))
 
         if problems.messages:
             # `fields` only when there is one: an empty list is a claim that
@@ -1750,6 +1853,172 @@ class AgentRegistryService:
                     "no key - give it a key or remove it from the fallbacks"
                 )
         return problems
+
+    async def _sign_in_problems(self, ctx: AuthContext, spec: AgentSpec) -> _SpecProblems:
+        """Models the spec runs on through a ChatGPT sign-in the publisher may not use (#2546).
+
+        A sign-in is one person's subscription, and a run reaches it only for
+        somebody who may see it in the vault (`ModelProfileService.resolve`). That
+        guard decides who *spends* it; this one decides who may *point an agent
+        at it*, with the same predicate - `secrets:view` on the secret, by role
+        scope or by grant - so a builder cannot publish on a colleague's private
+        sign-in for its owner and the admins to spend. The sign-in's owner, an
+        admin, or somebody it was shared with may.
+
+        Keyed on the secret's kind, as the runtime is, not on the profile's
+        provider; and on the first `MAX_FALLBACK_DEPTH` fallbacks, the ones a run
+        can reach. Phrased without the secret's name: the publisher cannot see it.
+
+        The models of the delegates the spec pins are judged too
+        (`_pinned_model_refs`): a run resolves them for its own caller, so a pin
+        reaches a sign-in as surely as naming it does. And a context with no
+        person behind it - an API key, whatever its issuer may see - may point an
+        agent at no sign-in, because a run under it may spend none
+        (`sign_in_person`).
+        """
+        refs = [*_model_refs(spec), *await self._pinned_model_refs(ctx, spec)]
+        if not refs:
+            return _SpecProblems()
+        org = ctx.organization_id
+        profiles = await credential_repo.get_profiles_by_ids(
+            self.db, list({ref.profile_id for ref in refs}), organization_id=org
+        )
+        chains = {
+            profile.id: [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
+            for profile in profiles.values()
+        }
+        missing = {pid for chain in chains.values() for pid in chain} - profiles.keys()
+        profiles.update(
+            await credential_repo.get_profiles_by_ids(self.db, list(missing), organization_id=org)
+        )
+        secrets = await organization_secret_repo.get_many(
+            self.db,
+            list({p.secret_id for p in profiles.values() if p.secret_id is not None}),
+            organization_id=org,
+        )
+        person = sign_in_person(ctx)
+        out_of_reach = {
+            secret.id
+            for secret in secrets.values()
+            if secret.kind == SecretKind.OPENAI_CODEX.value
+            and (
+                person is None
+                or not await resolve_access(
+                    self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+                )
+            )
+        }
+        problems = _SpecProblems()
+        if not out_of_reach:
+            return problems
+        who = "you" if person is not None else "an API key"
+        ask = ", or ask its owner to share the sign-in with you" if person is not None else ""
+        for ref in refs:
+            # A profile that is gone is `model_profile_problems`' to report.
+            profile = profiles.get(ref.profile_id)
+            if profile is None:
+                continue
+            if profile.secret_id in out_of_reach:
+                instead = "pin another delegate or version" if ref.pinned else "pick another model"
+                problems.refuse(
+                    ref.field,
+                    f"{ref.says}Model '{profile.label}' runs on somebody's own ChatGPT "
+                    f"sign-in, which {who} cannot use - {instead}{ask}",
+                )
+            for fallback_id in chains[profile.id]:
+                fallback = profiles.get(fallback_id)
+                if fallback is not None and fallback.secret_id in out_of_reach:
+                    instead = (
+                        "pin another delegate or version"
+                        if ref.pinned
+                        else "remove it from the fallbacks"
+                    )
+                    problems.refuse(
+                        ref.field,
+                        f"{ref.says}Model '{profile.label}' falls back to "
+                        f"'{fallback.label}', which runs on somebody's own ChatGPT sign-in "
+                        f"{who} cannot use - {instead}{ask}",
+                    )
+        return problems
+
+    async def _pinned_model_refs(self, ctx: AuthContext, spec: AgentSpec) -> list[_ModelRef]:
+        """The models a run of this spec reaches through the delegates it pins (#2546).
+
+        The runner resolves a pinned delegate's model for the run's own caller
+        (`AgentRunnerService._resolve_delegate`), so pinning a version on
+        somebody's sign-in reaches it for the owner's and the admins' runs as
+        surely as naming it does - including a version published before
+        publish judged sign-ins. Each pin is addressed by the input that names
+        it, `subagents.N.agent_version_id`, for whatever it reaches below.
+
+        Walked the way the runner walks the tree, from the frozen version each
+        pin names: a delegate's own model always; and while the depth left
+        allows it to delegate (`min(left - 1, its own max_depth - 1)`, as the
+        runner computes it), its inline specialists' models, the delegates it
+        pins in turn, and - when it may invent specialists - every model its own
+        spec names, which is what its catalog may offer (`models_a_run_reaches`).
+        A pin that does not resolve is the pin check's to report. Bounded by
+        `_MAX_DELEGATION_NODES` like the cycle walk, which refuses a tree past
+        that bound on its own.
+        """
+        config = _subagents_config(spec)
+        if config is None or not spec.subagents:
+            return []
+        stack: list[tuple[str, tuple[str, ...], _PinnedDelegate, int]] = []
+        for index, ref in enumerate(spec.subagents):
+            pinned = await self._resolve_pin(ctx, ref)
+            if pinned is not None:
+                field = f"subagents.{index}.agent_version_id"
+                stack.append((field, (pinned.spec.name,), pinned, config.max_depth - 1))
+        refs: list[_ModelRef] = []
+        seen: set[tuple[str, str, UUID]] = set()
+        visited: set[tuple[str, UUID, int]] = set()
+        while stack and len(visited) < _MAX_DELEGATION_NODES:
+            field, chain, pinned, left = stack.pop()
+            node = (field, pinned.version_id, left)
+            if node in visited:
+                continue
+            visited.add(node)
+            delegate = pinned.spec
+            reached: list[UUID | None] = [delegate.model_profile_id]
+            nested = _subagents_config(delegate)
+            if nested is not None and left > 0:
+                below = min(left - 1, nested.max_depth - 1)
+                reached.extend(specialist.model_profile_id for specialist in nested.inline)
+                if nested.allow_dynamic:
+                    reached.extend(models_a_run_reaches(delegate))
+                for ref in delegate.subagents:
+                    deeper = await self._resolve_pin(ctx, ref)
+                    if deeper is not None:
+                        stack.append((field, (*chain, deeper.spec.name), deeper, below))
+            says = f"Delegate '{' -> '.join(chain)}': "
+            for profile_id in reached:
+                if profile_id is not None and (field, says, profile_id) not in seen:
+                    seen.add((field, says, profile_id))
+                    refs.append(_ModelRef(field, says, profile_id, pinned=True))
+        return refs
+
+    async def refuse_borrowed_sign_ins(self, ctx: AuthContext, version: AgentVersion) -> None:
+        """Refuse to put a version in front of people on a sign-in the caller cannot use.
+
+        Promotion's half of `_sign_in_problems`: moving an environment onto a
+        version is choosing what its runs spend, so it is judged by the promoter's
+        access exactly as publishing the version was judged by the publisher's.
+        Only this check - a promotion is not a publish, and other references that
+        drifted since are the runtime's to refuse.
+
+        Raises:
+            BadRequestError: With a `problems` list, one per model on such a sign-in.
+        """
+        problems = await self._sign_in_problems(ctx, AgentSpec.model_validate(version.spec))
+        if problems.messages:
+            raise BadRequestError(
+                message=(
+                    f"Version {version.version} runs on somebody's own ChatGPT sign-in, "
+                    "which you cannot use"
+                ),
+                details={"problems": problems.messages, "version_id": version.id},
+            )
 
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]

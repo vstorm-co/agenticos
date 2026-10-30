@@ -1,5 +1,5 @@
 ---
-source_sha: "5132f2298d1b"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -462,6 +462,25 @@ ohne seine Id zu ändern.
       und für Arbeit im Hintergrund, etwa das Beschreiben der Bilder eines
       Dokuments, wird das Modell abgelehnt, und ein Fallback darauf wird
       übersprungen.
+    - **Nicht jeder darf darauf veröffentlichen.** Das Veröffentlichen, das
+      Zurückrollen auf oder das Promoten einer Version eines Agenten wird für
+      jemanden abgelehnt, der die Anmeldung im Vault nicht sehen kann, wenn ein
+      Modell, das seine Runs erreichen, darauf läuft: das Modell des Agenten,
+      eines Reviewers, eines Inline-Spezialisten oder einer eingeschalteten
+      Capability, das Modell eines
+      [angehefteten Delegaten](reference/capabilities.md#delegation) und dessen,
+      was dieser wiederum erreicht, oder einer der ersten drei Fallbacks eines
+      dieser Modelle. Der Inhaber der Anmeldung, Owner und Admins sowie alle,
+      mit denen sie geteilt wurde, dürfen es. Ein API-Schlüssel darf es nicht,
+      was auch immer sein Aussteller sehen kann, denn ein Run unter einem
+      Schlüssel verbraucht nie eine Anmeldung. Eine früher darauf
+      veröffentlichte Version läuft weiter.
+    - **Sie wird keinem Spezialisten angeboten, den das Modell erfindet.** Unter
+      [`allow_dynamic`](reference/capabilities.md#delegation) darf das Modell
+      eines Runs das Modell eines Spezialisten aus den Profilen der Organisation
+      wählen. Ein Profil auf einer Anmeldung, oder eines, dessen erste drei
+      Fallbacks eine erreichen, steht nur dann auf dieser Liste, wenn der Spec
+      des Agents genau dieses Profil als eines der oben genannten Modelle nennt.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
       OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
       [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet

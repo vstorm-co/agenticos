@@ -86,6 +86,23 @@ def _no_agent_is_the_assistant(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_model_runs_on_a_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No profile here runs on a ChatGPT sign-in; `test_publish_sign_ins` has those.
+
+    Stubbed at the repository boundary, so the real check runs - and finds nothing
+    to refuse - on every publish, rollback and draft check below.
+    """
+    monkeypatch.setattr(
+        "app.services.agent_registry.credential_repo.get_profiles_by_ids",
+        AsyncMock(return_value={}),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_secret_repo.get_many",
+        AsyncMock(return_value={}),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
 
@@ -1959,7 +1976,8 @@ class TestValidateSpec:
                 _ctx(), _spec(model_profile_id=uuid.uuid4())
             )
 
-        fetched = counted.await_args.args[1]
+        # The profile check's fetch; the sign-in check reads the same chain after it.
+        fetched = counted.await_args_list[0].args[1]
         assert fetched == [custom.id, custom.id, custom.id]
 
     @pytest.mark.anyio

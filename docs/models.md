@@ -412,6 +412,21 @@ again without changing its id.
       page or an embed, a caller with an API key - and for background work such as
       describing a document's images, the model is refused, and a fallback on it is
       skipped.
+    - **It is not anybody's to publish on.** Publishing, rolling back to or
+      promoting a version of an agent is refused for somebody who cannot see the
+      sign-in in the vault when a model its runs reach is on one: the agent's
+      model, a reviewer's, an inline specialist's or an enabled capability's,
+      the model of a [delegate it pins](reference/capabilities.md#delegation)
+      and of what that delegate reaches in turn, or one of the first three
+      fallbacks of any of them. The sign-in's owner, owners and admins, and
+      anybody it was shared with may. An API key may not, whatever its issuer
+      can see, because a run under a key never spends a sign-in. A version
+      published on it earlier keeps running.
+    - **It is not offered to a specialist the model invents.** Under
+      [`allow_dynamic`](reference/capabilities.md#delegation) a run's model may
+      pick a specialist's model from the organization's profiles. A profile on a
+      sign-in, or one whose first three fallbacks reach one, is on that list only
+      when the agent's spec names that exact profile as one of the models above.
     - **The spend shown is not your bill.** A run is priced at the OpenAI API
       rates for the same model, which is what a [budget](governance.md#budgets)
       can reason about. The subscription itself is billed by OpenAI at a flat rate.

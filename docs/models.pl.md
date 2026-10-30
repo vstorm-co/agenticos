@@ -1,5 +1,5 @@
 ---
-source_sha: "5132f2298d1b"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -428,6 +428,23 @@ jego id.
       stronę lub embed, wywołującego z kluczem API - i dla pracy w tle, jak
       opisywanie obrazów z dokumentu, model jest odrzucany, a fallback na nim
       pomijany.
+    - **Nie każdy może na nim publikować.** Publikacja, rollback do wersji lub
+      promocja wersji agenta jest odrzucana dla kogoś, kto nie widzi logowania w
+      vault, gdy działa na nim model, do którego docierają runy agenta: model
+      agenta, recenzenta, wbudowanego specjalisty albo włączonej capability,
+      model [przypiętego delegata](reference/capabilities.md#delegation) i tego,
+      do czego ten delegat dociera dalej, lub jeden z pierwszych trzech
+      fallbacków któregokolwiek z nich. Mogą to zrobić osoba, do której należy
+      logowanie, właściciele (owner) i administratorzy (admin) organizacji oraz
+      każdy, komu je udostępniono. Klucz API nie może, niezależnie od tego, co
+      widzi jego wystawca, bo run pod kluczem nigdy nie wydaje logowania.
+      Wersja opublikowana na nim wcześniej działa dalej.
+    - **Nie jest oferowane specjaliście, którego wymyśla model.** Przy
+      [`allow_dynamic`](reference/capabilities.md#delegation) model runu może
+      wybrać model specjalisty spośród profili organizacji. Profil na logowaniu
+      albo taki, którego pierwsze trzy fallbacki do niego docierają, jest na tej
+      liście tylko wtedy, gdy spec agenta nazywa dokładnie ten profil jako jeden
+      z modeli wymienionych wyżej.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według

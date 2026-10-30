@@ -1,5 +1,5 @@
 ---
-source_sha: "5132f2298d1b"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -439,6 +439,24 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       una página pública o un embed, quien llama con una clave API - y para el
       trabajo en segundo plano como describir las imágenes de un documento, el
       modelo se rechaza y un fallback sobre él se omite.
+    - **No cualquiera puede publicar sobre él.** Publicar, hacer rollback a o
+      promover una versión de un agente se rechaza para quien no puede ver el
+      inicio de sesión en el vault cuando funciona sobre él un modelo al que
+      llegan sus runs: el modelo del agente, el de un revisor, el de un
+      especialista inline o el de una capability activada, el modelo de un
+      [delegado que fija](reference/capabilities.md#delegation) y de lo que ese
+      delegado alcanza a su vez, o uno de los tres primeros fallbacks de
+      cualquiera de ellos. Pueden hacerlo el dueño del inicio de sesión, los
+      owners y admins, y cualquiera con quien se haya compartido. Una clave de
+      API no puede, vea lo que vea quien la emitió, porque un run con una clave
+      nunca gasta un inicio de sesión. Una versión publicada antes sobre él
+      sigue funcionando.
+    - **No se ofrece a un especialista que invente el modelo.** Con
+      [`allow_dynamic`](reference/capabilities.md#delegation) el modelo de un run
+      puede elegir el modelo de un especialista entre los perfiles de la
+      organización. Un perfil sobre un inicio de sesión, o uno cuyos tres
+      primeros fallbacks llegan a uno, solo está en esa lista cuando el spec del
+      agent nombra exactamente ese perfil como uno de los modelos de arriba.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
       la API de OpenAI para el mismo modelo, que es lo que un
       [budget](governance.md#budgets) puede razonar. La suscripción en sí la

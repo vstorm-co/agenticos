@@ -1,5 +1,5 @@
 ---
-source_sha: "a4eb76e940aa"
+source_sha: "c009f12941c5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1789,7 +1789,17 @@ clave. La factory es lo que la encamina de vuelta por esta plataforma.
     `DelegatingToolset._refuse_dynamic`.
 
 El modelo solo puede nombrar un modelo del que la organización tenga un perfil, y el
-rechazo nombra la lista. No puede adjuntar capabilities: dejar que un modelo conceda
+rechazo nombra la lista.
+
+Un perfil sobre el
+[inicio de sesión de ChatGPT](../models.md#running-on-a-chatgpt-subscription) de
+alguien, o uno cuyos tres primeros fallbacks llegan a uno, solo está en la lista
+cuando el spec del agent nombra exactamente ese perfil - su propio modelo, el de un revisor, el de un
+especialista inline o el de una capability activada -, porque un inicio de sesión es
+la suscripción de una persona. Un perfil que quien ejecuta el agente no puede usar
+se omite en vez de hacer fallar el run.
+
+El modelo no puede adjuntar capabilities: dejar que un modelo conceda
 una capability a su propio hijo es el fallo del scope no concedido con sombrero
 nuevo. No recibe conocimiento, ni delegados propios, y no se persiste nada entre
 runs: conservar un especialista significa publicar un agent, que es la acción de una

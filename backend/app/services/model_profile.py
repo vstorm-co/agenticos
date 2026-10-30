@@ -167,13 +167,23 @@ def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelPro
     agent's only model (#2483) and the organization assistant's publish. An
     author may still pick such a model deliberately and publish it themselves.
     """
-    return (
-        usable_for_agents(profile)
-        and not is_sign_in(profile)
-        and not any(
-            (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
-            for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
-        )
+    return usable_for_agents(profile) and not reaches_a_sign_in(profile, profiles)
+
+
+def reaches_a_sign_in(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether a run on this profile can spend a ChatGPT sign-in (#2545).
+
+    The profile itself, or one of the first `MAX_FALLBACK_DEPTH` fallbacks - all
+    a run tries (`ModelProfileService.resolve`). `profiles` is the organization's
+    own, by id, so an id from elsewhere or one since deleted is not a fallback:
+    the run skips both. Anything choosing a model on somebody's behalf refuses
+    such a profile, because the run of anybody who may see the sign-in - its
+    owner, whoever it is shared with, the organization's owners and admins -
+    spends that one person's subscription.
+    """
+    return is_sign_in(profile) or any(
+        (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
+        for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
     )
 
 
@@ -662,18 +672,7 @@ class ModelProfileService:
                 caller may not use.
         """
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
-        # Only somebody actually asking: a publisher standing in for a visitor,
-        # and a key's issuer standing behind whoever holds it, are an account to
-        # bill, not the person whose subscription it is. Persisted run contexts
-        # retain a key's scope ceiling even without its live credential object;
-        # losing that object must never turn a key holder into a signed-in person.
-        person = (
-            None
-            if ctx.subject_is_publisher_fallback
-            or ctx.api_key_id is not None
-            or ctx.key_scopes is not None
-            else ctx.user_id
-        )
+        person = sign_in_person(ctx)
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
                 message=(
@@ -824,3 +823,23 @@ async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bo
     if not isinstance(source, VaultCodexCredentials):
         return True
     return user_id is not None and await source.visible_to(user_id)
+
+
+def sign_in_person(ctx: AuthContext) -> UUID | None:
+    """The person whose ChatGPT sign-ins this context may reach, or None for nobody.
+
+    Only somebody actually asking: a publisher standing in for a visitor, and a
+    key's issuer standing behind whoever holds it, are an account to bill, not
+    the person whose subscription it is. Persisted run contexts retain a key's
+    scope ceiling even without its live credential object; losing that object
+    must never turn a key holder into a signed-in person. A run asks this
+    (`ModelProfileService.resolve`), and so does publish (#2546): a context that
+    may not spend a sign-in may not point an agent at one either.
+    """
+    if (
+        ctx.subject_is_publisher_fallback
+        or ctx.api_key_id is not None
+        or ctx.key_scopes is not None
+    ):
+        return None
+    return ctx.user_id
