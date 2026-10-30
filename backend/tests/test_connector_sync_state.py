@@ -235,7 +235,7 @@ async def _sync(
 
     @asynccontextmanager
     async def _db() -> AsyncIterator[MagicMock]:
-        yield MagicMock()
+        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
     @asynccontextmanager
     async def _lock(_source_id: str) -> AsyncIterator[bool]:

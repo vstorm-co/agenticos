@@ -50,6 +50,7 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services import rate_limit
+from app.services.collection_access import CollectionAccessService
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
@@ -896,14 +897,15 @@ class UserService:
         # (#913) in one order, and cannot invert into a teardown-vs-teardown deadlock
         # (#1387).
         personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
-        for kb in sorted(personal, key=lambda k: k.collection_name):
-            collection = kb.collection_name
-            # Hold the name before deleting the row: it serializes the reference check
-            # and reservation against a concurrent claim (#1362), and taking the
-            # teardown lock before any row lock keeps one order across every path, so a
-            # concurrent purge cannot invert into a deadlock (#1387).
+        ordered = sorted(personal, key=lambda kb: kb.collection_name)
+        # Acquire every name before source rows: an edit assigning a source to
+        # the next name may already hold that name while waiting for its row.
+        for collection in dict.fromkeys(kb.collection_name for kb in ordered):
             await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        for kb in ordered:
+            collection = kb.collection_name
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
+            await CollectionAccessService(self.db).detach_sources_targeting(kb)
             await knowledge_base_repo.delete(self.db, kb.id)
             if await knowledge_base_repo.list_by_collection_name(self.db, collection):
                 # The table stays for the base still holding the name, so this

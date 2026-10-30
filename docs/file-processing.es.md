@@ -1,5 +1,5 @@
 ---
-source_sha: "9ddf1315e0a4"
+source_sha: "82eda889e960"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -7,6 +7,12 @@ source_sha: "9ddf1315e0a4"
 Este documento cubre cómo se tratan los archivos en dos contextos: las subidas
 de archivos en el chat, que pertenecen a la persona que las hizo, y la ingesta
 de documentos RAG, que pertenece a una colección y depende de
+Al eliminar una base se desvinculan y desactivan las fuentes de sincronización cuyo destino
+era esa base. Conservan la configuración del conector, pero requieren una reasignación
+explícita antes de sincronizar de nuevo; otra base del mismo nombre no las hereda. Vaciar
+una base predeterminada conserva sus fuentes porque la fila de destino permanece. La
+ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
+
 [quién puede llegar a ella](#who-may-reach-a-collection).
 
 ## Subidas de archivos en el chat { #chat-file-uploads }
@@ -151,7 +157,8 @@ archivo, y que diga que no se pudo reponer si sigue sin estar.
 
 Solo se reponen los archivos de la propia persona, solo de los turnos interrumpidos
 de ese agente, como mucho los 50 más recientes, y solo hasta que ese agente complete
-para la misma persona un turno que empezó después de que terminara el interrumpido.
+para la misma persona un turno que empezó después de que terminara el interrumpido y comprobó
+realmente los archivos anteriores. Un turno completado sin workspace deja abierto este plazo.
 Un turno ejecutado con una clave de API, para un visitante del widget o liberado de
 una aprobación por otra persona no cierra ese plazo. Un archivo eliminado después
 sigue eliminado.

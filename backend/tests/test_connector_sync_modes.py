@@ -138,7 +138,7 @@ async def _syncing(
 
     @asynccontextmanager
     async def _db() -> Any:
-        yield MagicMock()
+        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
     with (
         patch.object(rag_tasks, "VectorStore", return_value=store),
@@ -632,7 +632,7 @@ class TestAListingTheStoreCannotAnswer:
 
         @asynccontextmanager
         async def _db() -> Any:
-            yield MagicMock()
+            yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
         with (
             patch.object(rag_tasks, "VectorStore", return_value=store_error),
@@ -694,7 +694,7 @@ class TestTheLocalDirectorySync:
 
         @asynccontextmanager
         async def _db() -> Any:
-            yield MagicMock()
+            yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
         with (
             patch.object(rag_tasks, "VectorStore", return_value=store),
@@ -891,7 +891,7 @@ class TestASyncLogPassedInIsNotLeftRunning:
 
         @asynccontextmanager
         async def _db() -> Any:
-            yield MagicMock()
+            yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_db),

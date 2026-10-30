@@ -42,6 +42,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Deleting a knowledge base detaches its selected sync sources instead of silently
+  moving them into a same-named base. Queued syncs recheck their assignment;
+  CLI ingestion refuses names reserved for a pending collection drop.
+- Interrupted attachments remain eligible after a completed turn without a
+  workspace. Only a turn that actually checked prior attachments closes their
+  restoration window.
+
 - Clearing a shared default knowledge base also removes chunks committed before
   their tracking rows settle, including unfiled CLI ingestion. Stale writes
   after the clear are rejected before table creation, without affecting uploads

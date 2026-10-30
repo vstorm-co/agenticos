@@ -3484,6 +3484,7 @@ class AgentRunnerService:
                     # (#2481): its turn may have stopped before the edge ran.
                     screen=input_screen_for(spec),
                 )
+                await agent_run_repo.record_attachment_lookup(self.db, run)
             if earlier is not None:
                 spec = _with_earlier_attachments_briefing(spec)
             if isinstance(workspace.workspace, RecordingWorkspace):

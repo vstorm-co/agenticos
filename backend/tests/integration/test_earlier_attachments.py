@@ -136,6 +136,7 @@ class _Thread:
             key_scopes=key_scopes,
             initiated_by_publisher_fallback=publisher_fallback,
         )
+        run.earlier_attachments_checked = True
         self.db.add(run)
         await self.db.flush()
         message = Message(
@@ -324,6 +325,18 @@ class TestWhatATurnMayPutBack:
             )
             is None
         )
+
+    @pytest.mark.security
+    async def test_a_completed_turn_without_a_workspace_does_not_close_the_window(
+        self, db, world
+    ) -> None:
+        failed = await world.thread.turn(world.person, world.agent, RunStatus.FAILED)
+        await _attached(db, world.person, failed)
+        done = await world.thread.turn(world.person, world.agent, RunStatus.COMPLETED)
+        closing = await db.get(AgentRun, done.run_id)
+        closing.earlier_attachments_checked = False
+        await db.flush()
+        assert await _left(db, world.thread, world.person, world.agent) == ["report.csv"]
 
     async def test_a_completed_turn_that_looked_for_the_files_closes_the_window(
         self, db, world

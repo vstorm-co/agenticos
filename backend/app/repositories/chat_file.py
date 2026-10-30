@@ -223,6 +223,7 @@ def _left_by_interrupted_turns[*Ts](
             closing.agent_id == agent_id,
             closing.user_id == user_id,
             closing.status == RunStatus.COMPLETED.value,
+            closing.earlier_attachments_checked.is_(True),
             closing.created_at > func.coalesce(AgentRun.ended_at, AgentRun.created_at),
             # A key's run records the key's scopes as an array; a session's
             # records none, as SQL or as JSON null.

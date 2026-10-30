@@ -318,6 +318,7 @@ class TestTheCLISync:
         created = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
         documents = MagicMock(
             create_document=created,
+            hold_ingestion_name=AsyncMock(),
             complete_ingestion=AsyncMock(),
             fail_ingestion=AsyncMock(),
         )

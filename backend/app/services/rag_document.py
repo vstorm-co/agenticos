@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.vector_tables import VectorScope
@@ -160,6 +161,19 @@ class RAGDocumentService:
                 details={"doc_id": doc_id},
             )
         return doc
+
+    async def hold_ingestion_name(self, collection_name: str) -> None:
+        """Hold a CLI destination through its tracking-row insert, refusing queued drops.
+
+        The teardown uses this lock before reserving a name and deleting its rows.
+        A CLI insert therefore either precedes that delete or observes its tombstone.
+        """
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
+        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+            raise BadRequestError(
+                message="Collection is being deleted. Try again shortly.",
+                details={"collection": collection_name},
+            )
 
     async def create_document(
         self,

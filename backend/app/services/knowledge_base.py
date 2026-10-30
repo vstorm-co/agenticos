@@ -21,7 +21,6 @@ from app.repositories import (
     rag_document_repo,
     resource_grant_repo,
 )
-from app.repositories import sync_source as sync_source_repo
 from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
@@ -344,6 +343,7 @@ class KnowledgeBaseService:
             collections_to_drop = [collection]
             await collection_teardown_repo.reserve(self.db, collection)
         if not kb.is_default:
+            await CollectionAccessService(self.db).detach_sources_targeting(kb)
             await knowledge_base_repo.delete(self.db, kb.id)
         # Always a job: a kept table has the base's chunks to purge, and an
         # unreferenced one is dropped.
@@ -1015,17 +1015,11 @@ class KnowledgeBaseService:
             storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
         else:
             storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
-            # No base references the name any more, so any sync source still
-            # pointing at it is dangling: `get_due_for_sync` would re-select it
-            # and `_run_source_sync` would recreate the very table this drops
-            # (#1266). Deactivate rather than delete - the source keeps its
-            # connector and vault credential, but stops being scheduled.
-            for source in await sync_source_repo.get_all(self.db, collection_name=collection):
-                await sync_source_repo.update(self.db, source.id, is_active=False)
             collections_to_drop = [collection]
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
+        await CollectionAccessService(self.db).detach_sources_targeting(kb)
         await knowledge_base_repo.delete(self.db, kb.id)
         if storage_paths or collections_to_drop or base_purges:
             from app.worker.tasks.teardown_tasks import queue_external_state_cleanup

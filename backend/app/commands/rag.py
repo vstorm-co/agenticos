@@ -203,20 +203,27 @@ async def ingest_path_async(
                         skipped_count += 1
                         continue
 
-            async with get_db_context() as db:
-                rag_doc = await RAGDocumentService(db).create_document(
-                    collection_name=collection,
-                    filename=filepath.name,
-                    filesize=filepath.stat().st_size,
-                    filetype=filepath.suffix.lstrip(".").lower(),
-                    # The address this command already looks documents up by, a
-                    # few lines above. Omitted, the row got `NULL` and a repeated
-                    # failure here kept inflating the collection's count - the
-                    # defect #996 fixed for the two worker flows and not for this
-                    # one.
-                    source_path=source_path,
-                )
-                doc_id = str(rag_doc.id)
+            try:
+                async with get_db_context() as db:
+                    documents = RAGDocumentService(db)
+                    await documents.hold_ingestion_name(collection)
+                    rag_doc = await documents.create_document(
+                        collection_name=collection,
+                        filename=filepath.name,
+                        filesize=filepath.stat().st_size,
+                        filetype=filepath.suffix.lstrip(".").lower(),
+                        # The address this command already looks documents up by, a
+                        # few lines above. Omitted, the row got `NULL` and a repeated
+                        # failure here kept inflating the collection's count - the
+                        # defect #996 fixed for the two worker flows and not for this
+                        # one.
+                        source_path=source_path,
+                    )
+                    doc_id = str(rag_doc.id)
+            except AppException as exc:
+                error_count += 1
+                tqdm.write(f"  ✗ {filepath.name}: {exc.message}")
+                continue
 
             try:
                 result = await ingestion.ingest_file(

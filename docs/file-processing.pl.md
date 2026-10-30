@@ -1,5 +1,5 @@
 ---
-source_sha: "9ddf1315e0a4"
+source_sha: "82eda889e960"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -7,6 +7,12 @@ source_sha: "9ddf1315e0a4"
 Ten dokument opisuje, jak traktowane są pliki w dwóch kontekstach: uploady
 plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
+Usunięcie bazy odłącza i dezaktywuje źródła synchronizacji, których celem była ta baza.
+Zachowują konfigurację konektora, ale przed kolejną synchronizacją wymagają jawnego
+przypisania; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy
+zachowuje jej źródła, bo wiersz celu pozostaje. Ingest z CLI odrzuca nazwę zarezerwowaną
+przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
+
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
 
 ## Uploady plików w czacie { #chat-file-uploads }
@@ -148,7 +154,8 @@ brakuje, a jeśli pliku nadal nie ma — by powiedział, że nie dało się go p
 
 Wracają tylko własne pliki tej osoby, tylko z przerwanych tur tego agenta, najwyżej
 50 najnowszych, i tylko do chwili, gdy ten agent ukończy dla tej samej osoby turę,
-która zaczęła się po zakończeniu przerwanej. Tura uruchomiona kluczem API, dla
+która zaczęła się po zakończeniu przerwanej i faktycznie sprawdziła wcześniejsze załączniki.
+Ukończona tura bez workspace’u nie zamyka tego okresu. Tura uruchomiona kluczem API, dla
 gościa widgetu albo zwolniona z akceptacji przez kogoś innego tego okresu nie
 kończy. Plik usunięty później zostaje usunięty.
 

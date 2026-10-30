@@ -157,7 +157,7 @@ class TestWhatTheWorkerStampsOnAnUploadsChunks:
 
         @asynccontextmanager
         async def _worker_db() -> AsyncIterator[MagicMock]:
-            yield MagicMock()
+            yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
         @asynccontextmanager
         async def _pipeline(**_kwargs: object) -> AsyncIterator[MagicMock]:
@@ -235,7 +235,7 @@ async def _connector_sync(
 
     @asynccontextmanager
     async def _worker_db() -> AsyncIterator[MagicMock]:
-        yield MagicMock()
+        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
     with (
         patch.object(rag_tasks, "VectorStore", return_value=store),

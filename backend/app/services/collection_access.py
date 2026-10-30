@@ -375,6 +375,23 @@ class CollectionAccessService:
             )
         return source
 
+    async def detach_sources_targeting(self, kb: KnowledgeBase) -> None:
+        """Detach sources before deleting their resolved target, under the name lock.
+
+        Keeping only the name would silently grant the source a different base
+        after deletion. Preserve its configuration for an explicit reassignment.
+        """
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name)
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+        sources = await sync_source_repo.get_all(
+            self.db, collection_name=kb.collection_name, for_update=True
+        )
+        for source in sources:
+            if _feeds(source, kb, candidates) or len(candidates) == 1:
+                await sync_source_repo.update(
+                    self.db, source.id, collection_name=None, is_active=False
+                )
+
     async def source_target(self, ctx: AuthContext, name: str) -> KnowledgeBase:
         """The base a sync source naming this collection writes into, if writable, or 404.
 
@@ -385,6 +402,7 @@ class CollectionAccessService:
         name instead let a member who owns a newer same-named personal base point
         a source at the organization's base they cannot edit (#2537).
         """
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, name)
         target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
         if target is None or not await writable_kb(self.db, ctx, target):
@@ -403,6 +421,7 @@ class CollectionAccessService:
         Raises:
             BadRequestError: The sync would write into a different base.
         """
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, kb.collection_name)
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
         target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
         if target is None or target.id != kb.id:

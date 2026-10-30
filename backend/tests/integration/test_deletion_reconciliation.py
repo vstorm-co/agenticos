@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, OperationalError
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
@@ -1822,3 +1822,245 @@ async def test_a_last_base_deleted_after_the_gate_does_not_recreate_its_table(
         async with factory() as session:
             await session.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
             await session.commit()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reserved", [False, True])
+async def test_cli_ingestion_refuses_a_reserved_collection_name(
+    engine: AsyncEngine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reserved: bool
+) -> None:
+    from collections.abc import AsyncIterator
+
+    from app.commands import rag as rag_command
+    from app.repositories import collection_teardown_repo
+    from app.services.rag.models import IngestionResult
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    collection = f"reserved{uuid.uuid4().hex[:12]}"
+    (tmp_path / "notes.md").write_text("body")
+    async with factory() as db:
+        if reserved:
+            await collection_teardown_repo.reserve(db, collection)
+        await db.commit()
+
+    @contextlib.asynccontextmanager
+    async def session() -> AsyncIterator[AsyncSession]:
+        async with factory() as db:
+            yield db
+            await db.commit()
+
+    logs = MagicMock(
+        create_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        complete_sync=AsyncMock(),
+    )
+    monkeypatch.setattr(rag_command, "get_db_context", session)
+    monkeypatch.setattr(rag_command, "RAGSyncService", lambda _db: logs)
+    ingestion = MagicMock(
+        ingest_file=AsyncMock(
+            return_value=IngestionResult(
+                status=IngestionStatus.DONE, document_id="new-vector", chunk_count=1
+            )
+        )
+    )
+    await rag_command.ingest_path_async(
+        str(tmp_path), collection, True, MagicMock(), MagicMock(), ingestion
+    )
+    assert ingestion.ingest_file.await_count == (0 if reserved else 1)
+    async with factory() as db:
+        docs = list(
+            await db.scalars(select(RAGDocument).where(RAGDocument.collection_name == collection))
+        )
+        assert len(docs) == (0 if reserved else 1)
+        if docs:
+            assert docs[0].vector_document_id == "new-vector"
+        await collection_teardown_repo.release(db, collection)
+        await db.commit()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("operation", ["delete", "rag_drop", "keep_default", "delete_other"])
+async def test_removing_a_source_target_never_reassigns_it_by_name(
+    db: AsyncSession, operation: str
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.sync_source import SyncSource
+
+    owner, other_owner = _user(), _user()
+    db.add_all([owner, other_owner])
+    await db.flush()
+    org = await _org(db, owner)
+    other_org = await _org(db, other_owner)
+    name = f"target{uuid.uuid4().hex[:12]}"
+    selected = _org_collection(org.id, name)
+    selected.created_at = datetime.now(UTC) - timedelta(days=1)
+    same_org_fallback = _org_collection(org.id, name)
+    other_base = _org_collection(other_org.id, name)
+    selected.is_default = operation == "keep_default"
+    db.add_all([selected, same_org_fallback, other_base])
+    source = SyncSource(
+        organization_id=org.id,
+        name="Private connector",
+        connector_type="web",
+        collection_name=name,
+        config={},
+        is_active=True,
+    )
+    other_source = SyncSource(
+        organization_id=other_org.id,
+        name="Other connector",
+        connector_type="web",
+        collection_name=name,
+        config={},
+        is_active=True,
+    )
+    db.add_all([source, other_source])
+    await db.flush()
+    service = KnowledgeBaseService(db)
+    if operation in {"delete", "delete_other"}:
+        ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+        await service.delete(
+            same_org_fallback.id if operation == "delete_other" else selected.id, ctx=ctx
+        )
+    else:
+        await service.delete_for_rag_collection(selected)
+    await db.refresh(source)
+    await db.refresh(other_source)
+    if operation in {"keep_default", "delete_other"}:
+        assert source.collection_name == name and source.is_active
+    else:
+        assert source.collection_name is None and not source.is_active
+    assert other_source.collection_name == name and other_source.is_active
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reassign", [False, True])
+async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, reassign: bool
+) -> None:
+    from collections.abc import AsyncIterator
+
+    from app.db.models.sync_source import SyncSource
+    from app.worker.tasks import rag_tasks
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    name = f"queued{uuid.uuid4().hex[:12]}"
+    async with factory() as db:
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        org = await _org(db, owner)
+        selected, fallback = _org_collection(org.id, name), _org_collection(org.id, name)
+        db.add_all([selected, fallback])
+        await db.flush()
+        source = SyncSource(
+            organization_id=org.id,
+            name="Queued connector",
+            connector_type="web",
+            collection_name=name,
+            config={},
+            is_active=True,
+        )
+        db.add(source)
+        await db.commit()
+        selected_id, source_id = selected.id, str(source.id)
+
+    @contextlib.asynccontextmanager
+    async def worker_db() -> AsyncIterator[AsyncSession]:
+        async with factory() as db:
+            yield db
+            await db.commit()
+
+    async def delete_before_lock(db: AsyncSession, scope: LockScope, collection: str) -> None:
+        async with factory() as deleting:
+            kb = await deleting.get(KnowledgeBase, selected_id)
+            assert kb is not None
+            await KnowledgeBaseService(deleting).delete_for_rag_collection(kb)
+            if reassign:
+                moved = await deleting.get(SyncSource, uuid.UUID(source_id))
+                assert moved is not None
+                moved.collection_name = "different_collection"
+            await deleting.commit()
+            discard_deferred(deleting)
+        await hold_name(db, scope, collection)
+
+    resolve = AsyncMock()
+    monkeypatch.setattr(rag_tasks, "get_worker_db_context", worker_db)
+    monkeypatch.setattr(rag_tasks, "hold_name", delete_before_lock)
+    monkeypatch.setattr(rag_tasks, "_knowledge_base_for", resolve)
+    monkeypatch.setattr(rag_tasks, "_notify_sync_start_failure", AsyncMock())
+    answer = await rag_tasks._sync_source(source_id, None)
+    assert answer == {
+        "status": "error",
+        "message": (
+            "Source collection changed before this sync started. Run it again."
+            if reassign
+            else "Source has no assigned collection."
+        ),
+    }
+    resolve.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_personal_purge_locks_all_names_before_detaching_sources(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.sync_source import SyncSource
+    from app.services import user as user_service
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    prefix = f"order{uuid.uuid4().hex[:12]}"
+    async with factory() as db:
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        org = await _org(db, owner)
+        first = _personal_kb(org.id, owner.id, prefix + "a")
+        second = _personal_kb(org.id, owner.id, prefix + "b")
+        source = SyncSource(
+            organization_id=org.id,
+            name="Moving source",
+            connector_type="web",
+            collection_name=first.collection_name,
+            config={},
+            is_active=True,
+        )
+        db.add_all([first, second, source])
+        await db.commit()
+        owner_id, source_id = owner.id, source.id
+
+    waiting_for_second = asyncio.Event()
+
+    async def observed_hold(db: AsyncSession, scope: LockScope, name: str) -> None:
+        if name == second.collection_name:
+            waiting_for_second.set()
+        await hold_name(db, scope, name)
+
+    monkeypatch.setattr(user_service, "hold_name", observed_hold)
+
+    async def purge() -> None:
+        async with factory() as db:
+            await UserService(db)._purge_personal_collections(owner_id)
+            await db.commit()
+            discard_deferred(db)
+
+    async with factory() as editing:
+        await hold_name(editing, LockScope.COLLECTION_TEARDOWN, second.collection_name)
+        task = asyncio.create_task(purge())
+        try:
+            await asyncio.wait_for(waiting_for_second.wait(), timeout=5)
+            # A source edit holds the new name before updating the existing row.
+            # Purge must not hold that row while waiting for this name.
+            await asyncio.wait_for(
+                editing.execute(
+                    select(SyncSource).where(SyncSource.id == source_id).with_for_update()
+                ),
+                timeout=2,
+            )
+            await editing.commit()
+            await asyncio.wait_for(task, timeout=5)
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task

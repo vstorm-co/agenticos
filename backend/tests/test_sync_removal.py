@@ -121,7 +121,7 @@ async def _syncing(
 
     @asynccontextmanager
     async def _db() -> Any:
-        yield MagicMock()
+        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
     with (
         patch.object(rag_tasks, "VectorStore", return_value=store),
@@ -382,4 +382,4 @@ class TestOneRunOfASourceAtATime:
 
 @asynccontextmanager
 async def _no_db() -> Any:
-    yield MagicMock()
+    yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())

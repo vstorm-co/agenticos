@@ -2101,6 +2101,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             await workspace.workspace.exists("anything")
 
         if find.await_count:
+            assert prepared.run.earlier_attachments_checked is True
             kwargs = dict(find.await_args.kwargs)
             screen = kwargs.pop("screen")
             # Without a guardrail, nothing is screened.

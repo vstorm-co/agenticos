@@ -21,6 +21,12 @@ from app.worker.jobs import BasePurge
 
 
 @pytest.fixture(autouse=True)
+def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No connectors unless a teardown test explicitly supplies one."""
+    monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
+
+
+@pytest.fixture(autouse=True)
 def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     """No agent binds anything here; `test_resource_usage` covers the query."""
 
@@ -498,7 +504,7 @@ class TestKBAccessControl:
             ),
             patch(
                 "app.repositories.knowledge_base_repo.list_by_collection_name",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(return_value=[kb]),
             ),
             patch("app.repositories.sync_source.get_all", new=get_all),
             patch("app.repositories.sync_source.update", new=update),
@@ -507,8 +513,10 @@ class TestKBAccessControl:
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
         lock.assert_awaited_once_with(mock_db, kb.id)
-        get_all.assert_awaited_once_with(mock_db, collection_name=kb.collection_name)
-        update.assert_awaited_once_with(mock_db, source.id, is_active=False)
+        get_all.assert_awaited_once_with(
+            mock_db, collection_name=kb.collection_name, for_update=True
+        )
+        update.assert_awaited_once_with(mock_db, source.id, collection_name=None, is_active=False)
         dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
     @pytest.mark.anyio
@@ -519,7 +527,7 @@ class TestKBAccessControl:
         sync sources - the teardown removes only what this base owned (#1266)."""
         user_id = uuid.uuid4()
         kb = _personal_kb_outside_an_org(user_id)
-        get_all = AsyncMock()
+        get_all = AsyncMock(return_value=[])
         update = AsyncMock()
         dispatch = _patch_dispatch(monkeypatch)
 
@@ -549,7 +557,9 @@ class TestKBAccessControl:
             [],
             base_purges=[BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id)],
         )
-        get_all.assert_not_awaited()
+        get_all.assert_awaited_once_with(
+            mock_db, collection_name=kb.collection_name, for_update=True
+        )
         update.assert_not_awaited()
 
     @pytest.mark.anyio

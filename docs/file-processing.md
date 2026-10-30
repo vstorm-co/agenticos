@@ -138,7 +138,8 @@ to say a file could not be put back if it is still not there.
 
 Only the person's own files are put back, only from that agent's interrupted turns,
 the newest 50 at most, and only until that agent completes a turn for the same
-person that started after the interrupted one ended. A turn run with an API key, for
+person that started after the interrupted one ended and actually checked prior attachments.
+A completed turn without a workspace leaves this window open. A turn run with an API key, for
 a widget visitor or released from an approval by somebody else does not end that
 period. A file removed after that stays removed.
 
@@ -808,6 +809,12 @@ the old name before this landed still exists and is still deletable, but nothing
 can be ingested into it — delete it and create one under another name. Nothing is
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
+
+Deleting a base detaches and deactivates the sync sources whose resolved target was that base.
+They keep their connector configuration, but require an explicit reassignment before syncing
+again; another base with the same name does not inherit them. Clearing a default base keeps
+its sources because its target row remains. CLI ingestion refuses a name reserved for a
+queued drop until cleanup releases it.
 
 ### Who may reach a collection
 

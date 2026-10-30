@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
-from app.db.locks import LockScope, try_hold_subject_on_connection
+from app.db.locks import LockScope, hold_name, try_hold_subject_on_connection
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.sync_source import SyncSource
@@ -1218,6 +1218,12 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         source_svc = SyncSourceService(db)
 
         source = await source_svc.get_source(source_id)
+        assigned_collection = source.collection_name
+        if assigned_collection is not None:
+            # Deletion detaches sources under this lock. Refresh after waiting
+            # so a queued run cannot resolve the old name into a different base.
+            await hold_name(db, LockScope.COLLECTION_TEARDOWN, assigned_collection)
+            await db.refresh(source)
         attempt_started_at = datetime.now(UTC)
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
@@ -1237,13 +1243,17 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             return {"status": "error", "message": message}
 
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
-        if source.collection_name is None:
+        if source.collection_name is None or source.collection_name != assigned_collection:
             # Both callers guarantee this before dispatching: `trigger_sync`
             # refuses a source with no collection, and the scheduler's own
             # query only selects sources that have one. Guarded again here
             # because a source can be edited between `trigger_sync`'s check and
             # this job actually running, the same stuck-log risk as above applies.
-            message = "Source has no assigned collection."
+            message = (
+                "Source has no assigned collection."
+                if source.collection_name is None
+                else "Source collection changed before this sync started. Run it again."
+            )
             await _notify_sync_start_failure(
                 db,
                 source=source,

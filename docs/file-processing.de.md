@@ -1,5 +1,5 @@
 ---
-source_sha: "9ddf1315e0a4"
+source_sha: "82eda889e960"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -7,6 +7,12 @@ source_sha: "9ddf1315e0a4"
 Dieses Dokument beschreibt, wie Dateien in zwei Zusammenhängen behandelt werden:
 Datei-Uploads im Chat, die der Person gehören, die sie gemacht hat, und die
 Ingestion von RAG-Dokumenten, die zu einer Collection gehört und daran gebunden
+Beim Löschen einer Basis werden die Sync-Quellen getrennt und deaktiviert, deren Ziel diese
+Basis war. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync ist eine
+ausdrückliche Neuzuordnung nötig. Eine gleichnamige Basis übernimmt sie nicht. Beim Leeren
+der Standardbasis bleiben die Quellen erhalten, weil die Zielzeile bestehen bleibt.
+Der CLI-Import verweigert Namen, die bis zur Bereinigung für einen ausstehenden Drop reserviert sind.
+
 ist, [wer sie erreichen darf](#who-may-reach-a-collection).
 
 ## Datei-Uploads im Chat { #chat-file-uploads }
@@ -156,7 +162,8 @@ nicht zurückgelegt werden konnte, wenn sie dann noch fehlt.
 
 Zurückgelegt werden nur die eigenen Dateien der Person, nur aus abgebrochenen Zügen
 dieses Agenten, höchstens die 50 neuesten, und nur, bis dieser Agent für dieselbe
-Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann. Ein Zug mit
+Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann und frühere Anhänge
+tatsächlich geprüft hat. Ein abgeschlossener Zug ohne Workspace lässt dieses Zeitfenster offen. Ein Zug mit
 einem API-Schlüssel, für einen Widget-Besucher oder von jemand anderem aus einer
 Freigabe entlassen beendet diesen Zeitraum nicht. Eine danach entfernte Datei bleibt
 entfernt.
