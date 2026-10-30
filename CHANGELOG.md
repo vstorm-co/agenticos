@@ -42,10 +42,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Upgrade the sandbox client and `sandboxd` image together to 0.2.39. Runtime
-  images using `run_as_uid` now build on Debian and Ubuntu Python installations
-  without `ensurepip`; the library's built-in Node runtimes use Node 24 and
-  build with current npm packages.
 
 - Architect highlighting follows locale-cookie redirects and skips controls
   hidden by a responsive stylesheet.
@@ -206,6 +202,15 @@ Two things are versioned separately from this file and worth knowing about:
   were one of its own pages. Such a link is now an ordinary link and stays on
   the console. Answers can be shaped by content the agent reads, so this was a
   phishing route.
+
+## [1.29.2] - 2026-10-30
+
+### Fixed
+
+- Upgrade the sandbox client and `sandboxd` image together to 0.2.39. Runtime
+  images using `run_as_uid` now build on Debian and Ubuntu Python installations
+  without `ensurepip`; the library's built-in Node runtimes use Node 24 and
+  build with current npm packages.
 
 ## [1.29.1] - 2026-10-30
 
