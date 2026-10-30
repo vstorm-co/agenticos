@@ -31,7 +31,7 @@ rename.
 | In the console | What it is | In the API and spec |
 |---|---|---|
 | Chat | The web conversation with an agent | `conversation` |
-| Channel | Slack, Telegram or Mattermost, where people reach an agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost or Discord, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
