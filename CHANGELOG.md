@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Pin signed app release builds to the verified commit SHA instead of re-resolving a mutable release tag.
+
 - Chain the desktop/mobile migrations after the latest channel-history migration so fresh installs and upgrades resolve a single Alembic head.
 
 - Keep mobile CI builds active while requiring explicit opt-in for mobile release publishing; document self-build and self-installation until public distribution is available.

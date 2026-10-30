@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       tag: ${{ steps.release.outputs.tag }}
+      commit: ${{ steps.release.outputs.commit }}
       id: ${{ steps.release.outputs.id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,10 +31,12 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$TAG" =~ ^v1\.[0-9]+\.[0-9]+$ ]]
-          git merge-base --is-ancestor "$TAG^{commit}" origin/main
+          COMMIT=$(git rev-parse --verify "$TAG^{commit}")
+          git merge-base --is-ancestor "$COMMIT" origin/main
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$RUNNER_TEMP/release.json"
           jq -e '.draft == false and .prerelease == false' "$RUNNER_TEMP/release.json"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
           echo "id=$(jq -r .id "$RUNNER_TEMP/release.json")" >> "$GITHUB_OUTPUT"
   desktop:
     needs: resolve
@@ -51,7 +54,7 @@ jobs:
     permissions: {contents: write}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {ref: "${{ needs.resolve.outputs.tag }}", persist-credentials: false}
+        with: {ref: "${{ needs.resolve.outputs.commit }}", persist-credentials: false}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Linux libraries
         if: runner.os == 'Linux'
@@ -121,7 +124,7 @@ jobs:
     permissions: {contents: write}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {ref: "${{ needs.resolve.outputs.tag }}", persist-credentials: false}
+        with: {ref: "${{ needs.resolve.outputs.commit }}", persist-credentials: false}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Android signing and toolchain
         env:
@@ -166,7 +169,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {ref: "${{ needs.resolve.outputs.tag }}", persist-credentials: false}
+        with: {ref: "${{ needs.resolve.outputs.commit }}", persist-credentials: false}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Prepare distribution identity and provisioning
         env:
@@ -252,7 +255,7 @@ jobs:
     permissions: {contents: write}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {ref: "${{ needs.resolve.outputs.tag }}", persist-credentials: false}
+        with: {ref: "${{ needs.resolve.outputs.commit }}", persist-credentials: false}
       - name: Attach the cask for both Mac architectures
         env:
           GH_TOKEN: ${{ github.token }}

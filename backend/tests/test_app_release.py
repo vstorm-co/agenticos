@@ -2,7 +2,10 @@
 
 import importlib.util
 import json
+import os
 import plistlib
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -97,3 +100,66 @@ def test_mobile_publication_is_opt_in_without_disabling_ci_builds() -> None:
             assert "tauri android build --debug" in commands
         else:
             assert "--target aarch64-sim --no-sign" in commands
+
+
+def test_release_jobs_build_the_verified_commit_even_if_the_tag_moves(tmp_path: Path) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    resolver = next(
+        step for step in workflow["jobs"]["resolve"]["steps"] if step.get("id") == "release"
+    )
+
+    git_bin = shutil.which("git")
+    bash_bin = shutil.which("bash")
+    assert git_bin is not None and bash_bin is not None
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            [git_bin, *args], cwd=tmp_path, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    git("init", "-b", "main")
+    git("config", "user.email", "release@example.test")
+    git("config", "user.name", "Release test")
+    git("commit", "--allow-empty", "-m", "verified release")
+    verified = git("rev-parse", "HEAD")
+    git("update-ref", "refs/remotes/origin/main", verified)
+    git("tag", "v1.8.3")
+    git("checkout", "-b", "unverified")
+    git("commit", "--allow-empty", "-m", "unverified replacement")
+    replacement = git("rev-parse", "HEAD")
+    git("checkout", "main")
+    cli = tmp_path / "bin"
+    cli.mkdir()
+    gh = cli / "gh"
+    gh.write_text(
+        '#!/bin/sh\ngit update-ref refs/tags/v1.8.3 "$REPLACEMENT_SHA"\n'
+        + 'printf \'%s\' \'{"id":123,"draft":false,"prerelease":false}\'\n'
+    )
+    gh.chmod(0o755)
+    output = tmp_path / "output"
+    subprocess.run(
+        [bash_bin, "-c", resolver["run"]],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PATH": f"{cli}{os.pathsep}{os.environ['PATH']}",
+            "TAG": "v1.8.3",
+            "GITHUB_REPOSITORY": "example/app",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(output),
+            "REPLACEMENT_SHA": replacement,
+        },
+    )
+    assert git("rev-parse", "v1.8.3") == replacement
+    assert f"commit={verified}" in output.read_text().splitlines()
+    assert workflow["jobs"]["resolve"]["outputs"]["commit"] == "${{ steps.release.outputs.commit }}"
+    for name in ("desktop", "android", "ios"):
+        checkout = next(
+            step
+            for step in workflow["jobs"][name]["steps"]
+            if step.get("uses", "").startswith("actions/checkout@")
+        )
+        assert checkout["with"]["ref"] == "${{ needs.resolve.outputs.commit }}"
