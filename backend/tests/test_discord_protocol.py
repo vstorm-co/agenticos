@@ -68,6 +68,7 @@ class TestCommands:
         names = [command["name"] for command in registered]
         assert names[0] == ASK
         assert registered[0]["options"][0]["required"] is True
+        assert registered[0]["options"][0]["max_length"] == MESSAGE_LIMIT
         assert names[-1] == ASK_ABOUT
         assert registered[-1]["type"] == 3
         assert set(names[1:-1]) == {name for name, _ in CHANNEL_COMMANDS} - {"start"}

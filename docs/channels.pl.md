@@ -1,5 +1,5 @@
 ---
-source_sha: "78d348192770"
+source_sha: "178ebb248edf"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1535,12 +1535,12 @@ Discord potrafi chwilę zwlekać, zanim pokaże nowe komendy na każdym serwerze
 | Wiadomość prywatna | Na każdą wiadomość. Wiadomość prywatna to jedna rozmowa, a `/new` zaczyna ją od nowa |
 | Kanał serwera | Gdy zostanie @wspomniany albo wiadomość na niego odpowiada. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
 | Wątek otwarty przez bota | Na każdą wiadomość w nim |
-| `/ask` | Wszędzie: pytanie zostaje opublikowane, a odpowiedź trafia do wątku pod nim |
+| `/ask` | Wszędzie: pytanie, do 2000 znaków, zostaje opublikowane, a odpowiedź trafia do wątku pod nim |
 | *Apps → Ask the agent* | Na każdej wiadomości: agent jest pytany o tę wiadomość, w wątku na niej |
 
 `/agents`, `/link` i pozostałe komendy odpowiadają prywatnie, tylko temu, kto je
 wywołał. Na kanale, gdzie bot nie może otwierać wątków, odpowiedź jest zamiast tego
-odpowiedzią na pytanie.
+odpowiedzią na pytanie, a odpowiedź na nią kontynuuje tę samą rozmowę.
 
 **Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją w
 miarę, jak odpowiedź spływa, przechodząc po 2000 znakach do kolejnych wiadomości.

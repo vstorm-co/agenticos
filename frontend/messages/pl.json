@@ -4816,7 +4816,7 @@
       "botTokenHintMattermost": "Token dostępu konta bota",
       "botTokenHintSlack": "Token OAuth użytkownika-bota (xoxb-...) z Twojej aplikacji Slack",
       "botTokenHintTeams": "Sekret klienta rejestracji aplikacji Azure Bot (Certyfikaty i wpisy tajne w Entra).",
-      "botTokenHintDiscord": "Token z sekcji Bot w Discord Developer Portal. Włącz tam Message Content Intent i zaproś bota z zakresami bot oraz applications.commands.",
+      "botTokenHintDiscord": "Token z sekcji Bot w Discord Developer Portal. Włącz tam Message Content Intent, wyłącz Public Bot i zaproś bota z zakresami bot oraz applications.commands.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "W zasobie Azure Bot, w sekcji Konfiguracja. Utwórz bota jako jednodzierżawowego.",
       "teamsTenantId": "Identyfikator dzierżawy",

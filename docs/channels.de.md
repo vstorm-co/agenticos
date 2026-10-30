@@ -1,5 +1,5 @@
 ---
-source_sha: "78d348192770"
+source_sha: "178ebb248edf"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1649,12 +1649,13 @@ erscheinen.
 | Eine Direktnachricht | Auf jede Nachricht. Die Direktnachricht ist eine Unterhaltung, und `/new` beginnt sie neu |
 | Ein Serverkanal | Wenn er @erwähnt wird oder eine Nachricht auf ihn antwortet. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
 | Ein Thread, den der Bot geöffnet hat | Auf jede Nachricht darin |
-| `/ask` | Überall: die Frage wird gepostet und die Antwort im Thread darunter gegeben |
+| `/ask` | Überall: die Frage, bis zu 2.000 Zeichen, wird gepostet und die Antwort im Thread darunter gegeben |
 | *Apps → Ask the agent* | Auf jeder Nachricht: der Agent wird zu dieser Nachricht gefragt, in einem Thread darauf |
 
 `/agents`, `/link` und die anderen Befehle antworten privat, nur dem, der sie
 ausgeführt hat. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
-Antwort stattdessen eine Antwort auf die Frage.
+Antwort stattdessen eine Antwort auf die Frage, und wer darauf antwortet, setzt
+dieses Gespräch fort.
 
 **Die Antwort wird an Ort und Stelle geschrieben.** Der Bot postet eine Nachricht
 und bearbeitet sie, während die Antwort einströmt, und läuft nach 2.000 Zeichen in

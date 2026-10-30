@@ -1490,12 +1490,12 @@ Discord can take a while to show new commands in every server.
 | A direct message | Every message. The direct message is one conversation, and `/new` starts it over |
 | A server channel | When it is @mentioned or a message replies to it. The answer opens a thread on the question, and the thread is the conversation |
 | A thread the bot opened | Every message in it |
-| `/ask` | Anywhere: the question is posted and the answer is threaded under it |
+| `/ask` | Anywhere: the question, up to 2,000 characters, is posted and the answer is threaded under it |
 | *Apps → Ask the agent* | On any message: the agent is asked about that message, in a thread on it |
 
 `/agents`, `/link` and the other commands answer privately, to whoever ran them.
 In a channel where the bot may not open threads, the answer is a reply to the
-question instead.
+question instead, and replying to the answer continues that conversation.
 
 **The answer is written in place.** The bot posts one message and edits it as the
 answer streams, running past 2,000 characters into further messages. Only text the

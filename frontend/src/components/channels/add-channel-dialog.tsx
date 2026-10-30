@@ -7,6 +7,7 @@ import {
   AnswerStyleFields,
   DEFAULT_ANSWER_STYLE,
   REACTION_PATTERN,
+  reactsOn,
 } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
@@ -185,6 +186,8 @@ export function AddChannelDialog({
     setAppToken("");
     setTeamsAppId("");
     setTeamsTenantId("");
+    // Hidden where the bot cannot react, and a hidden choice would still be sent.
+    if (!reactsOn(next)) setAnswerStyle((style) => ({ ...style, ack_reaction: null }));
     setErrors({});
   }
 

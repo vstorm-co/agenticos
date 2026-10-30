@@ -145,6 +145,26 @@ class TestReading:
         assert incoming is not None
         assert incoming.addressed is True
 
+    @pytest.mark.parametrize(
+        ("replied", "root"),
+        [
+            (
+                {"id": "answer", "author": {"id": OWN}, "message_reference": {"message_id": "q"}},
+                "q",
+            ),
+            ({"id": "posted", "author": {"id": OWN}}, "posted"),
+            ({"id": "other", "author": {"id": "someone"}}, MESSAGE),
+        ],
+    )
+    def test_a_reply_to_the_bot_continues_the_question_it_answered(
+        self, adapter: DiscordAdapter, replied: dict[str, Any], root: str
+    ):
+        incoming = adapter.parse_incoming(
+            _message(content="and for EU?", type=19, referenced_message=replied), BOT
+        )
+        assert incoming is not None
+        assert incoming.platform_chat_id == f"{CHANNEL}:{root}"
+
     @pytest.mark.parametrize("pinged", [True, False])
     def test_an_everyone_ping_is_a_broadcast_only_when_discord_sent_it(
         self, adapter: DiscordAdapter, pinged: bool
@@ -814,7 +834,7 @@ def state() -> Iterator[AsyncMock]:
 
 class TestGateway:
     async def test_a_session_identifies_registers_its_commands_and_reports_up(
-        self, adapter: DiscordAdapter, api: _Discord, state: AsyncMock
+        self, adapter: DiscordAdapter, api: _Discord, state: AsyncMock, spawned: list[Any]
     ):
         adapter._own_ids.clear()
         api.answer("GET", "/gateway/bot", httpx.Response(200, json={"url": "wss://gw.example"}))
@@ -836,6 +856,8 @@ class TestGateway:
         assert socket.url == "wss://gw.example/?v=10&encoding=json"
         assert socket.sent[0]["op"] == 2
         assert adapter._own_ids[BOT] == OWN
+        [registering] = spawned
+        await registering
         assert [p for m, p, _ in api.calls if m == "PUT"] == [f"/applications/{APP}/commands"]
         state.assert_awaited()
         session = adapter._sessions[BOT]
@@ -974,30 +996,68 @@ class TestGateway:
             await adapter._on_dispatch(
                 "MESSAGE_CREATE", _message(channel_id="new", id="m9"), BOT, "tok", session
             )
+            await spawned.pop()
         assert [p for m, p, _ in api.calls if m == "GET"] == ["/channels/new"]
         assert [incoming.platform_chat_id for incoming in spawned] == [f"{CHANNEL}:new"] * 2
 
         await adapter._on_dispatch(
             "MESSAGE_CREATE", _message(author={"bot": True}), BOT, "tok", session
         )
+        await spawned.pop()
         await adapter._on_dispatch("INTERACTION_CREATE", {"type": 4}, BOT, "tok", session)
+        await spawned.pop()
         assert len(spawned) == 2
 
-    async def test_commands_are_registered_once_and_a_refusal_is_retried(
+    async def test_the_receive_loop_never_waits_on_discord(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
+    ):
+        session = _Session()
+        await adapter._on_dispatch(
+            "MESSAGE_CREATE", _message(channel_id="unknown"), BOT, "tok", session
+        )
+        await adapter._on_dispatch(
+            "INTERACTION_CREATE",
+            {"type": 3, "id": "i", "token": "t", "data": {"custom_id": "aos:p:0"}},
+            BOT,
+            "tok",
+            session,
+        )
+        assert api.calls == []
+        assert len(spawned) == 2
+        for handler in spawned:
+            handler.close()
+
+    async def test_commands_are_registered_once_and_a_failure_is_retried(
         self, adapter: DiscordAdapter, api: _Discord
     ):
         api.answer(
             "PUT",
             f"/applications/{APP}/commands",
-            httpx.Response(403),
+            httpx.Response(500),
             httpx.Response(200, json=[]),
         )
-        for _ in range(3):
-            await adapter._register_commands(BOT, "tok")
+        waits = AsyncMock()
+        with patch.object(discord.asyncio, "sleep", waits):
+            for _ in range(2):
+                await adapter._register_commands(BOT, "tok")
         assert len([m for m, _, _ in api.calls if m == "PUT"]) == 2
+        assert [call.args[0] for call in waits.await_args_list] == [0.0, 5.0, 0.0]
         adapter._app_ids.clear()
         await adapter._register_commands("other", "tok")
         assert len(api.calls) == 2
+
+    async def test_registration_gives_up_after_its_last_attempt(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("PUT", f"/applications/{APP}/commands", httpx.Response(503))
+        unreachable = AsyncMock(side_effect=httpx.ConnectError("down"))
+        with patch.object(discord.asyncio, "sleep", AsyncMock()):
+            await adapter._register_commands(BOT, "tok")
+            with patch.object(adapter, "_call", unreachable):
+                await adapter._register_commands(BOT, "tok")
+        assert len(api.calls) == 1 + len(discord._REGISTER_BACKOFF)
+        assert unreachable.await_count == 1 + len(discord._REGISTER_BACKOFF)
+        assert APP not in adapter._registered
 
     async def test_a_bot_given_another_application_s_token_registers_its_commands_there(
         self, adapter: DiscordAdapter, api: _Discord

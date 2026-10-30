@@ -4928,7 +4928,7 @@
       "botTokenHintMattermost": "Das Access-Token des Bot-Kontos",
       "botTokenHintSlack": "Das OAuth-Token des Bot-Benutzers (xoxb-…) aus Ihrer Slack-App",
       "botTokenHintTeams": "Der geheime Clientschlüssel der App-Registrierung des Azure Bots (Zertifikate & Geheimnisse in Entra).",
-      "botTokenHintDiscord": "Das Token unter Bot im Discord Developer Portal. Aktivieren Sie dort Message Content Intent und laden Sie den Bot mit den Scopes bot und applications.commands ein.",
+      "botTokenHintDiscord": "Das Token unter Bot im Discord Developer Portal. Aktivieren Sie dort Message Content Intent, deaktivieren Sie Public Bot und laden Sie den Bot mit den Scopes bot und applications.commands ein.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "In der Azure-Bot-Ressource unter Konfiguration. Legen Sie den Bot als Single-Tenant an.",
       "teamsTenantId": "Mandanten-ID",

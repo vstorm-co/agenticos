@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AddChannelDialog } from "./add-channel-dialog";
@@ -44,5 +45,29 @@ describe("registering a Discord bot (#2079)", () => {
     expect(sent).toMatchObject({ platform: "discord", token: "discord-bot-token" });
     expect(sent).not.toHaveProperty("webhook_mode");
     expect(sent).not.toHaveProperty("webhook_secret");
+  });
+
+  it("drops a reaction chosen for another platform, since Discord shows none", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AddChannelDialog
+        open
+        onOpenChange={vi.fn()}
+        onSubmit={onSubmit}
+        isPending={false}
+        initialPlatform="telegram"
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "React to a question with" }));
+    await userEvent.click(await screen.findByRole("option", { name: /eyes/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Discord" }));
+    type("Name", "Support");
+    type("Bot token", "discord-bot-token");
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0]?.[0]).toMatchObject({ platform: "discord", ack_reaction: null });
   });
 });

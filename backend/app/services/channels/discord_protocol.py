@@ -128,7 +128,14 @@ def commands() -> list[dict[str, Any]]:
             "type": 1,
             "description": "Ask the agent a question",
             "options": [
-                {"type": 3, "name": "question", "description": "What to ask", "required": True}
+                {
+                    "type": 3,
+                    "name": "question",
+                    "description": "What to ask",
+                    "required": True,
+                    # It is posted as the thread's first message, which holds no more.
+                    "max_length": MESSAGE_LIMIT,
+                }
             ],
             "integration_types": _GUILD_INSTALL,
         },

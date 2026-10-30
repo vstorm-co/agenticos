@@ -103,6 +103,8 @@ _CDN_HOSTS = frozenset({"cdn.discordapp.com", "media.discordapp.net"})
 _ROUTED_COMMANDS = frozenset(name for name, _ in CHANNEL_COMMANDS)
 _MESSAGE_TYPES = frozenset({0, 19})
 """A message somebody typed (0) or a reply (19); joins, pins and the rest are not."""
+_REGISTER_BACKOFF = (5.0, 30.0, 120.0, 600.0)
+"""Seconds between attempts to register the commands after the first fails."""
 
 
 @dataclass(frozen=True)
@@ -686,7 +688,7 @@ class DiscordAdapter(ChannelAdapter):
             self._own_ids[bot_id] = str((data.get("user") or {}).get("id") or "")
             self._app_ids[bot_id] = str((data.get("application") or {}).get("id") or "")
             await connection_state.record_up(bot_id)
-            await self._register_commands(bot_id, bot_token)
+            spawn(self._register_commands(bot_id, bot_token), name=f"discord-commands:{bot_id}")
         elif event == "RESUMED":
             await connection_state.record_up(bot_id)
         elif event == "GUILD_CREATE":
@@ -697,14 +699,21 @@ class DiscordAdapter(ChannelAdapter):
         elif event == "THREAD_LIST_SYNC":
             for channel in data.get("threads") or []:
                 self._channels.put(str(channel["id"]), _channel_of(channel))
+        # A message or an interaction may call Discord before it is routed, and
+        # the next frame is not read until this returns: off the receive loop,
+        # so one slow call cannot hold a later interaction past the three
+        # seconds Discord gives to answer it.
         elif event == "MESSAGE_CREATE":
-            if data.get("guild_id"):
-                await self._learn_channel(bot_token, str(data.get("channel_id")))
-            incoming = self.parse_incoming(data, bot_id)
-            if incoming is not None:
-                spawn(process_channel_event(incoming), name=f"discord-message:{bot_id}")
+            spawn(self._on_message(data, bot_id, bot_token), name=f"discord-message:{bot_id}")
         elif event == "INTERACTION_CREATE":
-            await self._on_interaction(data, bot_id)
+            spawn(self._on_interaction(data, bot_id), name=f"discord-interaction:{bot_id}")
+
+    async def _on_message(self, data: dict[str, Any], bot_id: str, bot_token: str) -> None:
+        if data.get("guild_id"):
+            await self._learn_channel(bot_token, str(data.get("channel_id")))
+        incoming = self.parse_incoming(data, bot_id)
+        if incoming is not None:
+            spawn(process_channel_event(incoming), name=f"discord-routed:{bot_id}")
 
     async def _learn_channel(self, bot_token: str, channel_id: str) -> None:
         """Look a channel up the first time a message names it, to know whether it is a thread."""
@@ -721,16 +730,28 @@ class DiscordAdapter(ChannelAdapter):
         Global commands take a while to show in every server; that is Discord's.
         Remembered per application rather than per bot, because a row whose
         token is replaced may now be a different application with none.
+
+        A failed attempt is retried on :data:`_REGISTER_BACKOFF`: a dropped
+        connection resumes rather than sending READY again, so waiting for the
+        next READY could leave the bot without its commands for days.
         """
         app_id = self._app_ids.get(bot_id)
-        if not app_id or app_id in self._registered:
+        if not app_id:
             return
-        response = await self._call(
-            "PUT", f"/applications/{app_id}/commands", bot_token, body=commands()
-        )
-        if response.is_success:
-            self._registered.add(app_id)
-        else:
+        for delay in (0.0, *_REGISTER_BACKOFF):
+            await asyncio.sleep(delay)
+            if app_id in self._registered:
+                return
+            try:
+                response = await self._call(
+                    "PUT", f"/applications/{app_id}/commands", bot_token, body=commands()
+                )
+            except httpx.HTTPError:
+                logger.warning("discord_commands_not_registered", exc_info=True)
+                continue
+            if response.is_success:
+                self._registered.add(app_id)
+                return
             logger.warning(
                 "discord_commands_not_registered", extra={"status": response.status_code}
             )
@@ -773,7 +794,9 @@ class DiscordAdapter(ChannelAdapter):
         channel_id = str(raw_payload.get("channel_id") or "")
         guild = bool(raw_payload.get("guild_id"))
         text = raw_payload.get("content") or ""
-        key = self._chat_key(channel_id, guild=guild, message_id=raw_payload.get("id"))
+        key = self._chat_key(
+            channel_id, guild=guild, message_id=_conversation_root(raw_payload, own)
+        )
         addressed: bool | None = True
         if guild:
             if own is None:
@@ -913,7 +936,7 @@ class DiscordAdapter(ChannelAdapter):
                 None,
                 body={
                     "type": 4,
-                    "data": {"content": question[:MESSAGE_LIMIT], "allowed_mentions": NO_MENTIONS},
+                    "data": {"content": question, "allowed_mentions": NO_MENTIONS},
                 },
             )
             response.raise_for_status()
@@ -1011,6 +1034,21 @@ def _attachments(message: dict[str, Any]) -> list[IncomingAttachment]:
         for item in message.get("attachments") or []
         if item.get("url")
     ]
+
+
+def _conversation_root(message: dict[str, Any], own: str | None) -> str | None:
+    """The message a server conversation outside a thread is keyed on: this one, mostly.
+
+    A reply to the bot continues the conversation it replied into. Where the bot
+    may not open threads, each answer is a reply to the question, so keying the
+    follow-up on itself would start every turn afresh. The bot's message names
+    the question it answered; one that answered nothing - the question `/ask`
+    posts - is the question.
+    """
+    replied = message.get("referenced_message") or {}
+    if own and (replied.get("author") or {}).get("id") == own:
+        return (replied.get("message_reference") or {}).get("message_id") or replied.get("id")
+    return message.get("id")
 
 
 def _error_code(response: httpx.Response) -> int | None:

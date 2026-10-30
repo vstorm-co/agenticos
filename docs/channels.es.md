@@ -1,5 +1,5 @@
 ---
-source_sha: "78d348192770"
+source_sha: "178ebb248edf"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1564,12 +1564,12 @@ puede tardar un rato en mostrar los comandos nuevos en todos los servidores.
 | Un mensaje directo | A cada mensaje. El mensaje directo es una conversación, y `/new` la empieza de nuevo |
 | Un canal de servidor | Cuando se le @menciona o un mensaje le responde. La respuesta abre un hilo sobre la pregunta, y el hilo es la conversación |
 | Un hilo que abrió el bot | A cada mensaje del hilo |
-| `/ask` | En cualquier sitio: se publica la pregunta y la respuesta va en un hilo debajo |
+| `/ask` | En cualquier sitio: se publica la pregunta, de hasta 2000 caracteres, y la respuesta va en un hilo debajo |
 | *Apps → Ask the agent* | Sobre cualquier mensaje: se pregunta al agent por ese mensaje, en un hilo sobre él |
 
 `/agents`, `/link` y los demás comandos responden en privado, solo a quien los
 ejecutó. En un canal donde el bot no puede abrir hilos, la respuesta es en cambio
-una respuesta a la pregunta.
+una respuesta a la pregunta, y responder a ella continúa esa conversación.
 
 **La respuesta se escribe en su sitio.** El bot publica un mensaje y lo edita a
 medida que la respuesta llega, y pasados 2000 caracteres continúa en mensajes

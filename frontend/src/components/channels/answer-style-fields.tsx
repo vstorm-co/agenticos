@@ -47,6 +47,11 @@ export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
  */
 const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost"];
 
+/** Whether the bot can react to a question on `platform`. */
+export function reactsOn(platform: ChannelPlatform): boolean {
+  return REACTS.includes(platform);
+}
+
 /** The select's value for "no reaction" - a name no platform spells. */
 const NONE = "none";
 
@@ -80,7 +85,7 @@ export function AnswerStyleFields({
   return (
     <div className="space-y-4">
       <p className="text-sm font-medium">{t("answerStyle")}</p>
-      {REACTS.includes(platform) && (
+      {reactsOn(platform) && (
         <FormField
           label={t("ackReaction")}
           htmlFor={`${idPrefix}-ack-reaction`}
