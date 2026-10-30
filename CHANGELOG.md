@@ -30,6 +30,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Update the locked pyasn1 parser to 0.6.5 to fix four ASN.1 decoding denial-of-service advisories.
+
 - Refresh recognizes the stock desktop-era Architect from 1.31.x while preserving organization edits.
 
 - Channel messages store only the sender's text. Author context is assembled
