@@ -21,9 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- A long document indexes against a local Ollama server. Its chunks were sent to
-  `/embeddings` in one request, which Ollama drops past about 320 inputs; they
-  now go in requests of at most 64.
+- A long document indexes against a local Ollama server. Its chunks now go to
+  `/embeddings` in requests of at most 64 instead of one oversized request.
+
+## [1.31.0] - 2026-10-30
+
+### Fixed
 
 - Refuse oversized local writes before encoding, preserve pending native sign-ins across unrelated deep links, hide mobile task previews before background snapshots and serialize desktop updater-manifest publishing. Clear native notification bindings on automatic session loss as well as explicit sign-out.
 
