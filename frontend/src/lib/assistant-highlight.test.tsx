@@ -1,0 +1,443 @@
+import { act, cleanup, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The Builder's tabs read their state from the URL (`useUrlState`), so the
+// tabs below do too, against the address jsdom actually holds.
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+
+import { consoleLink, pointAt } from "./assistant-highlight";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
+import { useUrlState } from "@/hooks/use-url-state";
+import { useMotionStore } from "@/stores/motion-store";
+
+const ORIGIN = "https://console.example";
+
+describe("consoleLink", () => {
+  it("reads a console page and the control to point at", () => {
+    expect(consoleLink("/agents?highlight=agents-new", ORIGIN)).toEqual({
+      path: "/agents",
+      anchor: "agents-new",
+    });
+    expect(consoleLink("/runs?tab=spend#top", ORIGIN)).toEqual({
+      path: "/runs?tab=spend#top",
+      anchor: null,
+    });
+  });
+
+  it("keeps a locale prefix, the rest of the query and the hash", () => {
+    expect(consoleLink("/pl/agents?highlight=agents-new", ORIGIN)).toEqual({
+      path: "/pl/agents",
+      anchor: "agents-new",
+    });
+    expect(consoleLink("/en/runs?tab=spend&highlight=runs-filter#top", ORIGIN)).toEqual({
+      path: "/en/runs?tab=spend#top",
+      anchor: "runs-filter",
+    });
+  });
+
+  it("leaves every other link an ordinary link", () => {
+    for (const href of [
+      null,
+      "https://evil.example/agents",
+      "//evil.example",
+      "#cite-1",
+      "agents",
+      "/api/v1/agents",
+      "/a/../api/v1/agents",
+    ]) {
+      expect(consoleLink(href, ORIGIN)).toBeNull();
+    }
+  });
+
+  // #2544: each of these passes a check on the raw string and leaves the
+  // console once the URL parser has normalised it.
+  it.each([
+    "/a/..//evil.example/x",
+    "/.//evil.example/x",
+    "/%2e%2e//evil.example",
+    "/.\\/evil.example",
+    "/\\evil.example",
+    "/\\\\evil.example",
+    "/\t/evil.example",
+    "/\n/evil.example",
+    "/\r/evil.example",
+  ])("refuses %j, which normalises off the console", (href) => {
+    expect(consoleLink(href, ORIGIN)).toBeNull();
+  });
+
+  it("refuses an href the URL parser rejects rather than throwing", () => {
+    expect(consoleLink("/\\[", ORIGIN)).toBeNull();
+  });
+});
+
+/** An agent's Builder, wired as the page wires it: the tab is `?tab=`, Build by default. */
+function Builder({ agent }: { agent: string }) {
+  const [tabParam, changeTab] = useUrlState("tab");
+  const tab = tabParam ?? "build";
+  return (
+    <Tabs value={tab} onValueChange={(next) => changeTab(next === "build" ? null : next)}>
+      <TabsList>
+        <TabsTrigger value="build" data-tour="agent-tab-build">
+          Build
+        </TabsTrigger>
+        <TabsTrigger value="limits" data-tour="agent-tab-limits">
+          Limits
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="build">
+        <div data-tour="agent-instructions">{agent}</div>
+      </TabsContent>
+      <TabsContent value="limits">
+        <div data-tour="agent-limits">{agent}</div>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/**
+ * The Activity page, wired as it wires it: its anchors sit on the tab panels
+ * themselves, and Radix keeps an inactive panel in the document, empty and `hidden`.
+ */
+function Activity() {
+  const [tabParam, changeTab] = useUrlState("tab");
+  const tab = tabParam ?? "runs";
+  return (
+    <Tabs value={tab} onValueChange={(next) => changeTab(next === "runs" ? null : next)}>
+      <TabsList>
+        <TabsTrigger value="runs" data-tour="activity-tab-runs">
+          Runs
+        </TabsTrigger>
+        <TabsTrigger value="spend" data-tour="activity-tab-spend">
+          Spend
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="runs" data-tour="activity-runs">
+        runs
+      </TabsContent>
+      <TabsContent value="spend" data-tour="activity-spend">
+        spend
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/**
+ * The organization page, wired as it wires it: every panel stays mounted, an
+ * inactive one `hidden`, so a control behind another tab is in the document.
+ */
+function Organization() {
+  const [tabParam, changeTab] = useUrlState("tab");
+  const tab = tabParam ?? "members";
+  return (
+    <Tabs value={tab} onValueChange={(next) => changeTab(next === "members" ? null : next)}>
+      <TabsList>
+        <TabsTrigger value="members" data-tour="org-tab-members">
+          Members
+        </TabsTrigger>
+        <TabsTrigger value="proactivity" data-tour="org-tab-proactivity">
+          Proactivity
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="members" hidden={tab !== "members"} forceMount>
+        <div data-tour="org-members">members</div>
+      </TabsContent>
+      <TabsContent
+        value="proactivity"
+        data-tour="org-proactivity"
+        hidden={tab !== "proactivity"}
+        forceMount
+      >
+        <legend data-tour="org-proactivity-model">model</legend>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+const ringed = (anchor: string) =>
+  document.querySelector(`[data-tour="${anchor}"]`)?.classList.contains("assistant-highlight");
+
+describe("pointAt", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    useMotionStore.setState({ motion: "system" });
+    // Unmount what a test rendered before wiping what it wrote by hand, or the
+    // popover's portal is removed from under React.
+    cleanup();
+    document.body.innerHTML = "";
+    window.history.replaceState(null, "", "/");
+  });
+
+  /**
+   * Start pointing, then poll for 200 ms inside `act`, which the tab switch needs.
+   * Wrapped in an object: an async function returning the promise would await it.
+   */
+  async function pointFor(anchor: string, page: string): Promise<{ pointing: Promise<boolean> }> {
+    let pointing: Promise<boolean> = Promise.resolve(false);
+    await act(async () => {
+      pointing = pointAt(anchor, page);
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    return { pointing };
+  }
+
+  /** Whether `pointing` has settled, and how - "waiting" while it still polls. */
+  const settled = (pointing: Promise<boolean>) =>
+    Promise.race([pointing, Promise.resolve("waiting" as const)]);
+
+  it("rings a control that is on the page, then lets it go", async () => {
+    // The router may have prefixed the locale; the page is the same page.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
+    const button = document.querySelector("button")!;
+
+    await expect(pointAt("agents-new", "/agents")).resolves.toBe(true);
+    expect(button).toHaveClass("assistant-highlight");
+    // And a link an agent copied from the address bar, prefix and all.
+    await expect(pointAt("agents-new", "/pl/agents")).resolves.toBe(true);
+
+    vi.advanceTimersByTime(3000);
+    expect(button).not.toHaveClass("assistant-highlight");
+  });
+
+  it("reads a locale prefix in any case, as the middleware does", async () => {
+    // `/PL/agents` is redirected to `/pl/agents`; the page is the same page.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
+
+    await expect(pointAt("agents-new", "/PL/agents")).resolves.toBe(true);
+    // And a locale's home, which is the console's root.
+    window.history.replaceState(null, "", "/pl");
+    await expect(pointAt("agents-new", "/")).resolves.toBe(true);
+  });
+
+  it("waits for a locale the link names before pointing", async () => {
+    // From the Polish page to the German one: the same page in another locale,
+    // with the same control on it.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">Nowy</button>`;
+
+    const pointing = pointAt("agents-new", "/de/agents");
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(settled(pointing)).resolves.toBe("waiting");
+    expect(ringed("agents-new")).toBe(false);
+
+    window.history.pushState(null, "", "/de/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">Neu</button>`;
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("agents-new")).toBe(true);
+  });
+
+  it("points on the page the locale cookie sent a link to", async () => {
+    // A reader who chose Polish clicks `/en/...`; the middleware serves `/pl/...`.
+    window.history.replaceState(null, "", "/pl/agents/a");
+    document.body.innerHTML = `<button data-tour="agent-history">Historia</button>`;
+
+    const pointing = pointAt("agent-history", "/en/agents/b");
+    await vi.advanceTimersByTimeAsync(200);
+    await expect(settled(pointing)).resolves.toBe("waiting");
+
+    window.history.pushState(null, "", "/pl/agents/b");
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("agent-history")).toBe(true);
+  });
+
+  it("stops waiting for a link's locale the cookie keeps it out of", async () => {
+    // `/en/agents` from `/pl/agents` is redirected back to `/pl/agents`.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">Nowy</button>`;
+
+    const pointing = pointAt("agents-new", "/en/agents");
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(settled(pointing)).resolves.toBe("waiting");
+
+    await vi.advanceTimersByTimeAsync(600);
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("agents-new")).toBe(true);
+  });
+
+  it("takes the default locale's prefix to mean no prefix", async () => {
+    // `/en/agents` is served as `/agents`.
+    window.history.replaceState(null, "", "/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
+
+    await expect(pointAt("agents-new", "/en/agents")).resolves.toBe(true);
+  });
+
+  it("switches the tab a control lives behind, and leaves focus where it was", async () => {
+    window.history.replaceState(null, "", "/agents/x?tab=limits");
+    render(
+      <>
+        <input aria-label="Architect" />
+        <Builder agent="x" />
+      </>,
+    );
+    const input = document.querySelector("input")!;
+    input.focus();
+    const build = document.querySelector('[data-tour="agent-tab-build"]')!;
+    expect(build).toHaveAttribute("data-state", "inactive");
+
+    const { pointing } = await pointFor("agent-instructions", "/agents/x");
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(build).toHaveAttribute("data-state", "active");
+    expect(window.location.search).toBe("");
+    expect(ringed("agent-instructions")).toBe(true);
+    // The reader was typing to the Architect, and still is.
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("leaves the page being left alone and points on the page it opens", async () => {
+    // On agent x's Builder, following a link to agent y's limits. Both pages
+    // carry the same tab trigger and the same anchor.
+    window.history.replaceState(null, "", "/agents/x");
+    const view = render(<Builder agent="x" key="x" />);
+
+    // Outside `act`: nothing on the page may change while the pointer waits.
+    const pointing = pointAt("agent-limits", "/agents/y");
+    await vi.advanceTimersByTimeAsync(200);
+
+    // Switching x's tab would rewrite its URL and cancel the navigation.
+    await expect(settled(pointing)).resolves.toBe("waiting");
+    expect(window.location.pathname).toBe("/agents/x");
+    expect(window.location.search).toBe("");
+    expect(document.querySelector('[data-tour="agent-tab-limits"]')).toHaveAttribute(
+      "data-state",
+      "inactive",
+    );
+
+    // The navigation lands.
+    window.history.pushState(null, "", "/agents/y");
+    view.rerender(<Builder agent="y" key="y" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(window.location.search).toBe("?tab=limits");
+    expect(document.querySelector('[data-tour="agent-limits"]')).toHaveTextContent("y");
+    expect(ringed("agent-limits")).toBe(true);
+  });
+
+  it("switches to the tab whose panel is the control, not ringing it hidden", async () => {
+    // `activity-spend` is the Spend panel itself: in the document, empty and
+    // hidden, while Runs is open.
+    window.history.replaceState(null, "", "/runs");
+    render(<Activity />);
+    expect(document.querySelector('[data-tour="activity-spend"]')).toHaveAttribute("hidden");
+
+    const { pointing } = await pointFor("activity-spend", "/runs");
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(document.querySelector('[data-tour="activity-tab-spend"]')).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(window.location.search).toBe("?tab=spend");
+    const panel = document.querySelector('[data-tour="activity-spend"]')!;
+    expect(panel).not.toHaveAttribute("hidden");
+    expect(panel).toHaveTextContent("spend");
+    expect(ringed("activity-spend")).toBe(true);
+  });
+
+  it("switches the tab of a panel kept mounted while hidden", async () => {
+    // The organization page keeps every panel mounted: the control is in the
+    // document from the start, inside a hidden panel.
+    window.history.replaceState(null, "", "/orgs/o/members");
+    render(<Organization />);
+    expect(document.querySelector('[data-tour="org-proactivity-model"]')).not.toBeNull();
+
+    const { pointing } = await pointFor("org-proactivity-model", "/orgs/o/members");
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(document.querySelector('[data-tour="org-tab-proactivity"]')).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(document.querySelector('[data-tour="org-proactivity"]')).not.toHaveAttribute("hidden");
+    expect(ringed("org-proactivity-model")).toBe(true);
+  });
+
+  it("rings the shown copy of a control when a hidden one comes first", async () => {
+    document.body.innerHTML = `
+      <div hidden><button data-tour="agents-new">Hidden</button></div>
+      <button data-tour="agents-new">Shown</button>`;
+
+    await expect(pointAt("agents-new", "/")).resolves.toBe(true);
+    expect(document.querySelectorAll(".assistant-highlight")).toHaveLength(1);
+    expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
+  });
+
+  it("rings the copy a stylesheet shows, not one it collapses", async () => {
+    // A column `hidden lg:block` below its breakpoint: no `hidden` attribute,
+    // only `display: none` from the stylesheet.
+    document.body.innerHTML = `
+      <style>.narrow-hidden { display: none; }</style>
+      <aside class="narrow-hidden"><button data-tour="activity-runs">Collapsed</button></aside>
+      <main><button data-tour="activity-runs">Shown</button></main>`;
+
+    await expect(pointAt("activity-runs", "/")).resolves.toBe(true);
+    expect(document.querySelectorAll(".assistant-highlight")).toHaveLength(1);
+    expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
+  });
+
+  it("does not ring a control it cannot reveal", async () => {
+    // Hidden, and no tab of the walk opens it: nothing the reader could see.
+    document.body.innerHTML = `<div hidden><button data-tour="agents-new">New</button></div>`;
+
+    const pointing = pointAt("agents-new", "/");
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(pointing).resolves.toBe(false);
+    expect(ringed("agents-new")).toBe(false);
+  });
+
+  it("opens the popover a control lives behind", async () => {
+    // `chat-approval-mode` sits inside the chat settings popover.
+    window.history.replaceState(null, "", "/chat");
+    render(
+      <Popover>
+        <PopoverTrigger data-tour="chat-settings">Settings</PopoverTrigger>
+        <PopoverContent>
+          <div data-tour="chat-approval-mode">approval</div>
+        </PopoverContent>
+      </Popover>,
+    );
+
+    const { pointing } = await pointFor("chat-approval-mode", "/chat");
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("chat-approval-mode")).toBe(true);
+  });
+
+  it("jumps rather than glides for a reader who asked for less motion", async () => {
+    useMotionStore.setState({ motion: "reduce" });
+    document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
+    const scroll = vi.spyOn(document.querySelector("button")!, "scrollIntoView");
+
+    await expect(pointAt("agents-new", "/")).resolves.toBe(true);
+    expect(scroll).toHaveBeenCalledWith({ block: "center", behavior: "auto" });
+  });
+
+  it("gives up on a control the page never draws", async () => {
+    const pointing = pointAt("agent-instructions", "/");
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(pointing).resolves.toBe(false);
+  });
+});

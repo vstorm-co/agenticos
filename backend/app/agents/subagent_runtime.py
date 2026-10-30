@@ -31,6 +31,7 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.tools import DeferredToolResults
 
 from app.agents.spec import DelegationMode
+from app.db.vector_tables import VectorScope
 
 if TYPE_CHECKING:
     from app.agents.capabilities.budget import SpendLedger
@@ -109,6 +110,14 @@ class ResolvedSubagent:
     `AgentDeps.clone_for_subagent`), so the two halves are complementary: the
     parent's are dropped, and these are put back. Applied by the delegation
     capability to the cloned deps, which is the only place that holds both.
+    """
+    collection_scopes: tuple[tuple[str, VectorScope], ...] = ()
+    """The bound knowledge base behind each of `collection_names`, by name.
+
+    Put back beside the names for the same reason, and searched by: a name is not
+    unique, and resolving it again would read whichever same-named base comes
+    first rather than the one this delegate is bound to (#2537). A tuple of pairs
+    rather than a mapping so the frozen dataclass stays hashable.
     """
 
 

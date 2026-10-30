@@ -1,5 +1,5 @@
 ---
-source_sha: "a4eb76e940aa"
+source_sha: "4417ff8a41d7"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1868,7 +1868,18 @@ durch diese Plattform zurückleitet.
     früher ab, in `DelegatingToolset._refuse_dynamic`.
 
 Das Modell darf nur ein Modell benennen, für das die Organisation ein Profil hat,
-und die Ablehnung nennt die Liste. Es darf keine Capabilities anhängen: Einem
+und die Ablehnung nennt die Liste.
+
+Ein Profil auf der
+[ChatGPT-Anmeldung](../models.md#running-on-a-chatgpt-subscription) einer Person,
+oder eines, dessen erste drei Fallbacks eine erreichen, steht nur dann auf der Liste,
+wenn der Spec des Agents genau dieses Profil nennt - sein eigenes Modell, das eines
+Reviewers, eines Inline-Spezialisten oder einer eingeschalteten Capability -, denn
+eine Anmeldung ist das Abonnement einer Person. Ein Profil, das die Person, die den
+Agenten ausführt, nicht verwenden darf, wird ausgelassen, statt den Run scheitern zu
+lassen.
+
+Das Modell darf keine Capabilities anhängen: Einem
 Modell zu erlauben, seinem eigenen Kind eine Capability zu gewähren, ist das
 Versagen des nicht gewährten Scopes mit einem neuen Hut. Er bekommt kein Wissen,
 keine eigenen Delegierten, und nichts wird über Runs hinweg gespeichert — einen
@@ -2558,6 +2569,19 @@ also Streaming unterstützen.
 geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speichert die
 Nachricht so, wie die Person sie eingegeben hat, einschließlich personenbezogener
 Daten. Wer die Unterhaltung lesen kann, kann auch diese Nachricht lesen.
+
+**Die Eingabekante prüft einen Anhang, bevor er geschrieben wird.** Eine angehängte
+Datei erreicht den Prompt als ihr Name, ihr Pfad und ihre ersten 20 Zeilen
+(höchstens 2.000 Zeichen), und die Eingabekante liest sie zusammen mit der Nachricht
+der Person. Bei einem Agent mit Workspace wird dieser Text geprüft, bevor die Datei
+nach `uploads/` kopiert wird. Ein Zug, den die Kante blockiert, schreibt also
+nichts, und ein späterer Zug in einem Workspace mit Scope `conversation`, `user`
+oder `agent` hat keine abgelehnte Datei zum Öffnen. Die Kante liest nur diese ersten
+Zeilen, ein blockierter Begriff weiter unten in der Datei wird hier also nicht
+erkannt; dafür gibt es die Prüfung der Tool-Ergebnisse. Ein direkt mitgesendetes
+Bild ist die Ausnahme: Die Kante liest auch seine Bytes, und eine Blockade, die
+diese Bytes auslösen, wird nicht vorhergesehen, also wird ein solches Bild trotzdem
+geschrieben.
 
 **Die Prüfung von Tool-Ergebnissen ist der Grund, warum diese Kante am meisten
 zählt.** Sie ist die einzige Absicherung gegen nicht vertrauenswürdige Inhalte, die

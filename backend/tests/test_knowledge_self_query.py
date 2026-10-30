@@ -49,6 +49,7 @@ from app.agents.capabilities.knowledge._self_query import (
 )
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
 from app.agents.deps import AgentDeps
+from app.db.vector_tables import VectorScope
 from app.services.rag.filters import (
     AppScope,
     RetrievalFilters,
@@ -333,8 +334,8 @@ class TestOrganizationalUnitsInScope:
         rows - the same resolution `search_knowledge_base` performs, so the facet
         never names a unit the search could not have returned."""
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(
-            side_effect=lambda name, org: org if name == "own" else None
+        store.resolve_scope = AsyncMock(
+            side_effect=lambda name, org: VectorScope(tenant=org if name == "own" else None)
         )
         store.distinct_metadata_values = AsyncMock(
             side_effect=[
@@ -351,6 +352,27 @@ class TestOrganizationalUnitsInScope:
         assert units == ["Finance", "HR"]
         scopes = [call.args[2] for call in store.distinct_metadata_values.await_args_list]
         assert scopes == [TenantScope(organization_id=ORG), AppScope()]
+
+    @pytest.mark.security
+    async def test_a_bound_base_is_read_rather_than_its_name_resolved(self):
+        """The facet reads the base the agent is bound to, as its search does, so
+        it never names a unit of a same-named base it does not search (#2537)."""
+        kb = uuid4()
+        store = MagicMock()
+        store.resolve_scope = AsyncMock(side_effect=AssertionError("must not resolve"))
+        store.distinct_metadata_values = AsyncMock(return_value={"organizational_unit": ["HR"]})
+        settings = MagicMock(enable_hybrid_search=False)
+        with patch(
+            f"{_SEARCH}.get_retrieval_service", return_value=RetrievalService(store, settings)
+        ):
+            await organizational_units_in_scope(
+                ["own"],
+                ORG,
+                kb_vector_scopes={"own": VectorScope(tenant=ORG, knowledge_base_id=kb)},
+            )
+
+        scope = store.distinct_metadata_values.await_args.args[2]
+        assert scope == TenantScope(organization_id=ORG, knowledge_base_id=kb)
 
 
 class TestSelfQueryWiring:
@@ -577,7 +599,7 @@ class TestSelfQueryWiring:
         says, the store receives the caller's own tenant scope, resolved server-
         side, with only the inferred business filters composed into it."""
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=ORG)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=ORG))
         store.distinct_metadata_values = AsyncMock(
             return_value={"organizational_unit": ["Finance"]}
         )
@@ -596,4 +618,4 @@ class TestSelfQueryWiring:
             scope=TenantScope(organization_id=ORG),
             filters=RetrievalFilters(document_type=["pdf"], organizational_unit=["Finance"]),
         )
-        assert {call.args for call in store.resolve_tenant.await_args_list} == {("kb", ORG)}
+        assert {call.args for call in store.resolve_scope.await_args_list} == {("kb", ORG)}

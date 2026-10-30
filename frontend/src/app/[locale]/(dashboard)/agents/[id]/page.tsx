@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -43,6 +43,7 @@ import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
 import { usableForAgents } from "@/lib/model-profiles";
+import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -304,6 +305,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [tabParam, changeTab] = useUrlState("tab");
   const tab = tabParam !== null && BUILDER_TABS.has(tabParam) ? tabParam : "build";
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
+  // The Model card, which "No model selected" takes its reader to (#2483).
+  // From another tab the card mounts a render after the tab changes, so the
+  // scroll waits for the card to attach rather than for the tab.
+  const modelCard = useRef<HTMLDivElement | null>(null);
+  const revealModel = useRef(false);
+  const attachModelCard = useCallback((node: HTMLDivElement | null) => {
+    modelCard.current = node;
+    if (node && revealModel.current) {
+      revealModel.current = false;
+      node.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+    }
+  }, []);
+  const goToModel = () => {
+    if (tab === "build" && modelCard.current) {
+      modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+      return;
+    }
+    revealModel.current = true;
+    setTab("build");
+  };
   // Set by the first publish only: the moment an agent can be reached is the
   // moment to say where it can be reached from, which people did not find on
   // their own (#2131).
@@ -1247,7 +1268,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </p>
               <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                 {problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
+                  <li key={problem}>
+                    {problem}
+                    {/* Publish marks the missing model on its field, and the
+                        field lives on a tab the reader may not be on. */}
+                    {configProblems.some(
+                      (found) => found.field === "model_profile_id" && found.message === problem,
+                    ) && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="ml-2 h-auto p-0"
+                        onClick={goToModel}
+                      >
+                        {t("goToModel")}
+                      </Button>
+                    )}
+                  </li>
                 ))}
               </ul>
             </CardContent>
@@ -1368,7 +1405,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card data-tour="agent-model">
+            <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
               <CardHeader>
                 <CardTitle>{t("model")}</CardTitle>
                 <CardDescription>{t("howAgentAsksIts")}</CardDescription>

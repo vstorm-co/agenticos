@@ -1078,6 +1078,48 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
 
         assert any(path.startswith("/uploads/") for path in document.files)
 
+    @pytest.mark.security
+    async def test_a_file_the_input_edge_refuses_is_not_written(self):
+        """Screened before routing, not only on the first model request: a refused
+        file written first stayed in a conversation's workspace for the next turn
+        to open (#2559). The text still goes to the run, whose edge refuses it."""
+        from pydantic_ai_backends import StateBackend
+
+        from app.agents.spec import AgentSpec, CapabilityBindingSpec
+        from tests.workspaces import document_workspace
+
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\nXYZZY,10",
+        )
+        document = StateBackend()
+        prepared = _prepared()
+        prepared.spec = AgentSpec(
+            name="Clerk",
+            capabilities=[
+                CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": "XYZZY"})
+            ],
+        )
+        prepared.workspace = SimpleNamespace(
+            workspace=document_workspace(document), briefing=None, parses_documents=False
+        )
+        load = AsyncMock(return_value=b"month,total")
+
+        with (
+            _runner(prepared),
+            patch("app.services.attachments.get_file_storage", lambda: SimpleNamespace(load=load)),
+        ):
+            await _run(_db(), attachments=[attachment])
+
+        assert document.files == {}
+        load.assert_not_awaited()
+        assert "XYZZY" in prepared.built.agent.iter.call_args.args[0]
+
     async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
         """A caller passing the richer shape would otherwise have its
         attachments appended to a `repr`."""

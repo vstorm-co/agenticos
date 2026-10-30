@@ -17,13 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
-from app.db.locks import LockScope, try_hold_subject_on_connection
+from app.db.locks import LockScope, hold_name, try_hold_subject_on_connection
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.sync_source import SyncSource
 from app.db.session import get_worker_connection, get_worker_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     collection_teardown_repo,
     ingestion_spend_repo,
@@ -121,16 +123,17 @@ def _announcing_resolver(organization_id: UUID | None) -> EmbeddingResolver:
 
 @asynccontextmanager
 async def _ingestion_service(
-    *, processor: DocumentProcessor, organization_id: UUID | None, tenant: UUID | None
+    *, processor: DocumentProcessor, organization_id: UUID | None, scope: VectorScope
 ) -> AsyncGenerator[IngestionService]:
     """An ingester that reads documents the way the collection asked to be read.
 
     `organization_id` is the flow's own, and scopes embedding resolution to the
-    right tenant's key (#913). `tenant` is the collection's - resolved from its
-    knowledge base by the caller, `None` for an app-scoped base or a local-path
-    sync - and is what the rows are stamped and scoped by (#1684). They differ for
-    an app-scoped base: the organization pays for the embeddings, but the rows are
-    deployment-wide and carry no tenant.
+    right tenant's key (#913). `scope` is the collection's knowledge base -
+    resolved by the caller, its `vector_scope`, or the deployment-wide tenant with
+    no base for a collection no base claims - and is what the rows are stamped and
+    scoped by (#1684, #2537). They differ for an app-scoped base: the
+    organization pays for the embeddings, but the rows are deployment-wide and
+    carry no tenant.
 
     Both halves come off the collection. The parser, the chunker and the image
     model come through the `processor` the caller built from its
@@ -167,7 +170,7 @@ async def _ingestion_service(
                 resolver=_announcing_resolver(organization_id),
                 engine=engine,
             ),
-            tenant=tenant,
+            scope=scope,
         )
     finally:
         await engine.dispose()
@@ -252,6 +255,11 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     there is a summary rather than the exception's own text (#423). The text
     itself is in the worker's log, with the traceback, because the failure is
     re-raised - which is also what lets the queue retry it.
+
+    A refused ingest is the exception: its collection or knowledge base was
+    removed while the file parsed, so `_run_ingestion` fails the row with the
+    written reason and returns, logged at INFO, and the queue does not retry it
+    (#2561).
 
     `job.attempt` is which dispatch of the document this is (#1598) - `1` for an
     upload, whatever `retry_ingestion` bumped it to for a retry - carried through
@@ -395,16 +403,17 @@ async def _run_ingestion(
         # rather than a flow parameter a queued run would not carry (#1777).
         organizational_unit = record.organizational_unit
         processor = await IngestionConfigService(db).build_processor(organization_id, config)
-        # The collection's own tenant, off the knowledge base this document is
-        # tracked under - its organization for an org base, None for an app-scoped
-        # one every organization reads. Distinct from `organization_id`, which
-        # pays for the embeddings even when the rows are deployment-wide (#1684).
+        # The collection's own scope, off the knowledge base this document is
+        # tracked under: the base itself (#2537) and its tenant - its organization
+        # for an org base, None for an app-scoped one every organization reads.
+        # Distinct from `organization_id`, which pays for the embeddings even when
+        # the rows are deployment-wide (#1684).
         kb = (
             await knowledge_base_repo.get_by_id(db, record.knowledge_base_id)
             if record.knowledge_base_id is not None
             else None
         )
-        tenant = kb.vector_tenant if kb is not None else None
+        scope = kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     ledger = SpendLedger(organization_id=organization_id)
     file_path = Path(filepath)
@@ -412,12 +421,13 @@ async def _run_ingestion(
     # The trusted tenant comes off the tracked row, never from the uploader.
     upload_mtime = file_path.stat().st_mtime if file_path.exists() else None
     async with _ingestion_service(
-        processor=processor, organization_id=organization_id, tenant=tenant
+        processor=processor, organization_id=organization_id, scope=scope
     ) as ingester:
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(
                     filepath=file_path,
+                    rag_document_id=UUID(rag_document_id),
                     collection_name=collection_name,
                     replace=replace,
                     source_path=source_path,
@@ -453,6 +463,13 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
+        if result.refused:
+            # Skipped on purpose: the collection or its base went while the file
+            # parsed. A retry cannot index it, so this ends the job instead of
+            # raising into one, and it is not an error worth a traceback (#2561).
+            logger.info("Ingestion of %s refused: %s", source_path, reason)
+            await _fail_document(rag_document_id, error_message=reason, attempt=attempt, final=True)
+            return {"status": "refused", "filename": source_path, "message": reason}
         await _fail_document(rag_document_id, error_message=reason, attempt=attempt)
         raise RuntimeError(f"Ingestion failed for {source_path}: {reason}")
 
@@ -511,8 +528,9 @@ async def _run_sync(
         # the route resolved rather than re-resolved from the name here: `path`
         # names a server directory, but the *destination* is a real collection, and
         # re-resolving by name could pick a same-named base in a different scope than
-        # the one authorized (#1684). Its tenant is what every row this sync writes
-        # is stamped and scoped by - `None` for an app-scoped base (deployment-wide,
+        # the one authorized (#1684). Its scope - the base itself (#2537) and its
+        # tenant - is what every row this sync writes is stamped and scoped by. The
+        # tenant is `None` for an app-scoped base (deployment-wide,
         # as a local sync always was) or its organization for an org or personal one,
         # which normal reads for that collection filter on; writing untagged there
         # would strand the content from search, listing, count and replace, and could
@@ -525,8 +543,19 @@ async def _run_sync(
             if knowledge_base_id is None
             else await knowledge_base_repo.get_by_id(db, UUID(knowledge_base_id))
         )
+        if knowledge_base_id is not None and kb is None:
+            # Deleted while the job waited. Falling through would write its files
+            # under the deployment-wide scope below, unfiled where any same-named
+            # app-scoped base reads them and no base's purge removes them (#2561).
+            # Settled in this session, as the budget refusal below is: a write
+            # that fails raises into a retry rather than leaving the log running.
+            reason = "The knowledge base was deleted before this sync ran"
+            await RAGSyncService(db).complete_sync(
+                sync_log_id, status="error", error_message=reason
+            )
+            return {"status": "error", "message": reason}
         organization_id = None if kb is None else kb.organization_id
-        tenant = None if kb is None else kb.vector_tenant
+        scope = VectorScope(tenant=None) if kb is None else kb.vector_scope
         resolved_kb_id = None if kb is None else kb.id
         ingestion_config = (
             deployment_defaults()
@@ -569,7 +598,7 @@ async def _run_sync(
     # Entered after the validations above, so an early "path not found" return
     # builds no engine, and every return inside the loop still disposes one (#948).
     async with _ingestion_service(
-        processor=processor, organization_id=organization_id, tenant=tenant
+        processor=processor, organization_id=organization_id, scope=scope
     ) as ingester:
         for filepath in files:
             async with get_worker_db_context() as db:
@@ -639,6 +668,7 @@ async def _run_sync(
                 with metered_by(ledger):
                     result = await ingester.ingest_file(
                         filepath=filepath,
+                        rag_document_id=UUID(row_id),
                         collection_name=collection_name,
                         replace=True,
                         still_wanted=lambda rid=row_id: _still_ingestable(rid, collection_name),
@@ -649,12 +679,12 @@ async def _run_sync(
                         # the filename fallback, and the row and the vector would
                         # now disagree about which file this is (#996).
                         source_path=source_path,
-                        # The origin only. Which tenant these chunks carry is not
-                        # decided here and never from the path: it is the
-                        # destination base's own `vector_tenant`, bound on the
+                        # The origin only. Which tenant and base these chunks carry
+                        # is not decided here and never from the path: it is the
+                        # destination base's own `vector_scope`, bound on the
                         # ingester above - an organization's id for an org or
                         # personal base, `None` for an app-scoped one, which
-                        # `AppScope` is what reads back (FA-039 R5, #1684).
+                        # `AppScope` is what reads back (FA-039 R5, #1684, #2537).
                         source=Source.LOCAL,
                         doc_date=iso_doc_date(stat_result.st_mtime),
                     )
@@ -697,7 +727,9 @@ async def _run_sync(
         }
 
 
-async def _fail_document(rag_document_id: str, *, error_message: str | None, attempt: int) -> None:
+async def _fail_document(
+    rag_document_id: str, *, error_message: str | None, attempt: int, final: bool = False
+) -> None:
     """Put a failure on the document row, and let the first one keep it.
 
     One collapse is reported by up to three handlers here: the stage that
@@ -716,6 +748,9 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
     queue gave up on the job finds a `done` or already-failed row and leaves it.
     And only on the job's last attempt (`is_final_attempt`): an earlier one is
     retried, and failing the row then reported a failure the retry undid.
+    `final` says the job ends here whatever its attempt - a refused ingest,
+    which returns rather than raising into a retry. A row already gone is what
+    such a refusal usually finds, so it is noted at INFO rather than warned of.
 
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
@@ -723,7 +758,7 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
     """
     from app.services.rag_document import RAGDocumentService
 
-    if not is_final_attempt():
+    if not final and not is_final_attempt():
         # The queue tries again: the document stays `processing`, and its owner is
         # told nothing yet - the retry may well index it (Codex, #2248).
         logger.info("Ingestion of %s failed; the queue retries it", rag_document_id)
@@ -736,6 +771,8 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
             await doc_svc.fail_ingestion(
                 rag_document_id, error_message=error_message or "Unknown error", attempt=attempt
             )
+    except NotFoundError:
+        logger.info("Document %s is gone; no failure to record", rag_document_id)
     except Exception as e:
         logger.warning("Failed to record the ingestion failure: %s", e)
 
@@ -861,26 +898,31 @@ async def _settle_document_row(
     """
     from app.services.rag_document import RAGDocumentService
 
-    async with get_worker_db_context() as db:
-        documents = RAGDocumentService(db)
-        # A sync's row is opened fresh per file, every run (#992) - there is
-        # no `retry_ingestion` on this path, so `attempt` is always `1`, the
-        # column's own default; re-syncing the same source another night
-        # opens another row rather than resubmitting this one.
-        if result.status is IngestionStatus.DONE and result.document_id:
-            await documents.complete_ingestion(
-                row_id,
-                vector_document_id=result.document_id,
-                chunk_count=result.chunk_count,
-                replaced_document_id=result.replaced_document_id,
-                attempt=1,
-            )
-        else:
-            await documents.fail_ingestion(
-                row_id, result.error_message or "Ingestion failed", attempt=1
-            )
-        if inherited:
-            await documents.add_claims(row_id, sync_source_ids=set(inherited))
+    try:
+        async with get_worker_db_context() as db:
+            documents = RAGDocumentService(db)
+            # A sync's row is opened fresh per file, every run (#992) - there is
+            # no `retry_ingestion` on this path, so `attempt` is always `1`, the
+            # column's own default; re-syncing the same source another night
+            # opens another row rather than resubmitting this one.
+            if result.status is IngestionStatus.DONE and result.document_id:
+                await documents.complete_ingestion(
+                    row_id,
+                    vector_document_id=result.document_id,
+                    chunk_count=result.chunk_count,
+                    replaced_document_id=result.replaced_document_id,
+                    attempt=1,
+                )
+            else:
+                await documents.fail_ingestion(
+                    row_id, result.error_message or "Ingestion failed", attempt=1
+                )
+            if inherited:
+                await documents.add_claims(row_id, sync_source_ids=set(inherited))
+    except NotFoundError:
+        # The base was deleted mid-sync and took the row with it (#2561). Raising
+        # here escaped the per-file loop's own handler and failed the whole run.
+        logger.info("Document %s is gone; nothing to settle", row_id)
 
 
 async def _notify_sync_start_failure(
@@ -1004,8 +1046,13 @@ async def _remove_unlisted(
             doc = await documents.release_claim(row_id, sync_source_id=source_id)
             if doc is None:
                 continue
+            # Under the base the row is filed under, not the ingester's: the base a
+            # sync resolves to can change - an app-scoped base created, a base
+            # deleted - and a delete under another base's scope matches none of
+            # this document's chunks while the row below is forgotten, leaving
+            # them searchable with nothing tracking them (#992, #2537).
             if doc.vector_document_id and not await ingester.remove_document(
-                collection_name, doc.vector_document_id
+                collection_name, doc.vector_document_id, await documents.vector_scope(doc)
             ):
                 unremoved += 1
                 continue
@@ -1076,6 +1123,11 @@ async def _reconcile_stale_rows(
                 tracked = await documents.tracked_vector_ids(
                     collection_name=collection_name, vector_document_ids=stored
                 )
+                # Only rows filed under the base this run writes for: `stored` was
+                # read in its scope, so a row filed under another base - the
+                # base the sync resolved to before one was created or deleted -
+                # is absent from it whether or not its vectors are there, and
+                # forgetting it would strand them (#2537).
                 gone = [
                     str(row.id)
                     for row in await documents.settled_at(
@@ -1083,7 +1135,9 @@ async def _reconcile_stale_rows(
                         collection_name=collection_name,
                         source_path=source_path,
                     )
-                    if row.vector_document_id and row.vector_document_id not in stored
+                    if row.vector_document_id
+                    and row.vector_document_id not in stored
+                    and row.knowledge_base_id == ingester.scope.knowledge_base_id
                 ]
             cleared = True
             for vector_document_id in sorted(stored - tracked):
@@ -1173,6 +1227,12 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         source_svc = SyncSourceService(db)
 
         source = await source_svc.get_source(source_id)
+        assigned_collection = source.collection_name
+        if assigned_collection is not None:
+            # Deletion detaches sources under this lock. Refresh after waiting
+            # so a queued run cannot resolve the old name into a different base.
+            await hold_name(db, LockScope.COLLECTION_TEARDOWN, assigned_collection)
+            await db.refresh(source)
         attempt_started_at = datetime.now(UTC)
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
@@ -1192,13 +1252,17 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             return {"status": "error", "message": message}
 
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
-        if source.collection_name is None:
+        if source.collection_name is None or source.collection_name != assigned_collection:
             # Both callers guarantee this before dispatching: `trigger_sync`
             # refuses a source with no collection, and the scheduler's own
             # query only selects sources that have one. Guarded again here
             # because a source can be edited between `trigger_sync`'s check and
             # this job actually running, the same stuck-log risk as above applies.
-            message = "Source has no assigned collection."
+            message = (
+                "Source has no assigned collection."
+                if source.collection_name is None
+                else "Source collection changed before this sync started. Run it again."
+            )
             await _notify_sync_start_failure(
                 db,
                 source=source,
@@ -1276,11 +1340,12 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             else IngestionConfig.model_validate(knowledge_base.ingestion_config)
         )
         knowledge_base_id = None if knowledge_base is None else knowledge_base.id
-        # The collection's tenant, read off the base while its row is loaded (the
-        # property only touches already-loaded columns). Its organization for an
-        # org base, None for an app-scoped one or a collection no base claims -
-        # what this sync's rows are stamped and scoped by (#1684).
-        tenant = None if knowledge_base is None else knowledge_base.vector_tenant
+        # The collection's scope, read off the base while its row is loaded (the
+        # property only touches already-loaded columns): the base and its tenant -
+        # its organization for an org base, None for an app-scoped one or a
+        # collection no base claims. What this sync's rows are stamped and scoped
+        # by (#1684, #2537).
+        scope = VectorScope(tenant=None) if knowledge_base is None else knowledge_base.vector_scope
         # Both models, resolved once for the collection rather than per file, and
         # recorded on every row this sync writes - the provenance the documents
         # page reads. An upload has carried them since it started tracking; a
@@ -1313,7 +1378,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
     version: str | None = None
 
     async with _ingestion_service(
-        processor=processor, organization_id=organization_id, tenant=tenant
+        processor=processor, organization_id=organization_id, scope=scope
     ) as ingester:
         try:
             # Asked before anything is listed: the same version under the same
@@ -1436,6 +1501,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                         with metered_by(ledger):
                             result = await ingester.ingest_file(
                                 filepath=local_path,
+                                rag_document_id=UUID(row_id),
                                 collection_name=collection_name,
                                 still_wanted=lambda rid=row_id: _still_ingestable(
                                     rid, collection_name
@@ -1446,7 +1512,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 replace=True,
                                 source_path=remote_file.source_path,
                                 # The trusted tenant already rides `ingester`'s own
-                                # bound `self._tenant`, resolved from the source's
+                                # bound `self._scope`, resolved from the source's
                                 # collection when it was built above; `source` is
                                 # the connector's canonical name (gdrive, s3);
                                 # doc_date is the remote file's modified time, else
@@ -1663,16 +1729,16 @@ async def apply_retention() -> None:
     """
     from app.services.retention import RetentionService
 
-    # Bound to no tenant, deliberately: this ingester exists to delete by id for
-    # every organization in turn, and the tag each document's chunks carry comes
-    # off its own collection - so `RetentionService` passes it per document
-    # rather than letting the ingester's own stand in (#1684).
+    # Bound to no base, deliberately: this ingester exists to delete by id for
+    # every organization in turn, and the tags each document's chunks carry come
+    # off its own knowledge base - so `RetentionService` passes its scope per
+    # document rather than letting the ingester's own stand in (#1684, #2537).
     async with (
         get_worker_db_context() as db,
         _ingestion_service(
             processor=DocumentProcessor(settings=settings.rag),
             organization_id=None,
-            tenant=None,
+            scope=VectorScope(tenant=None),
         ) as ingestion,
     ):
         service = RetentionService(db, remove_vectors=ingestion.remove_document)

@@ -24,6 +24,7 @@ from app.agents.compaction_events import CompactionEvent
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.visual_reports import VisualReports
+from app.db.vector_tables import VectorScope
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
 """How a delegate reaches the person waiting on its parent, and back.
@@ -82,6 +83,12 @@ class AgentDeps:
 
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)
+
+    # The bound knowledge base behind each of those names, as the vector store
+    # scopes it. A name is not unique, so searching by it would read whichever
+    # same-named base resolves first rather than the one the agent is bound to
+    # (#2537). Travels with the names wherever they do.
+    kb_vector_scopes: dict[str, VectorScope] = field(default_factory=dict)
 
     # Set when the surface can ask the user something mid-run (WebSocket chat);
     # None on surfaces that cannot, so tools must handle its absence.
@@ -183,10 +190,11 @@ class AgentDeps:
         `delegated` is set, not inherited: whatever the parent is, this run is a
         delegate, and a drawing it makes is never shown in the conversation.
 
-        What it does **not** inherit: `kb_collection_names`. Those come from the
-        delegate's own spec, and inheriting the parent's would hand a specialist a
-        collection nobody granted it. The delegate's own are put back by the
-        delegation capability, from `ResolvedSubagent.collection_names` - because
+        What it does **not** inherit: `kb_collection_names` and `kb_vector_scopes`.
+        Those come from the delegate's own spec, and inheriting the parent's would
+        hand a specialist a collection nobody granted it. The delegate's own are put
+        back by the delegation capability, from `ResolvedSubagent.collection_names`
+        and `collection_scopes` - because
         the deps our factory built for the child are *this* object's replacement,
         so the collections resolved for it would otherwise be resolved and never
         read.

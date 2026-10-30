@@ -1,5 +1,5 @@
 ---
-source_sha: "a4eb76e940aa"
+source_sha: "4417ff8a41d7"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1789,7 +1789,17 @@ clave. La factory es lo que la encamina de vuelta por esta plataforma.
     `DelegatingToolset._refuse_dynamic`.
 
 El modelo solo puede nombrar un modelo del que la organización tenga un perfil, y el
-rechazo nombra la lista. No puede adjuntar capabilities: dejar que un modelo conceda
+rechazo nombra la lista.
+
+Un perfil sobre el
+[inicio de sesión de ChatGPT](../models.md#running-on-a-chatgpt-subscription) de
+alguien, o uno cuyos tres primeros fallbacks llegan a uno, solo está en la lista
+cuando el spec del agent nombra exactamente ese perfil - su propio modelo, el de un revisor, el de un
+especialista inline o el de una capability activada -, porque un inicio de sesión es
+la suscripción de una persona. Un perfil que quien ejecuta el agente no puede usar
+se omite en vez de hacer fallar el run.
+
+El modelo no puede adjuntar capabilities: dejar que un modelo conceda
 una capability a su propio hijo es el fallo del scope no concedido con sombrero
 nuevo. No recibe conocimiento, ni delegados propios, y no se persiste nada entre
 runs: conservar un especialista significa publicar un agent, que es la acción de una
@@ -2441,6 +2451,18 @@ través de la API HTTP, así que su modelo debe admitir streaming.
 censurado llega al modelo limpio, pero la conversación guarda el mensaje tal como lo
 escribió la persona, datos personales incluidos. Quien pueda leer la conversación
 puede leer ese mensaje.
+
+**El borde de entrada revisa un adjunto antes de escribirlo.** Un archivo adjunto
+llega al prompt como su nombre, su ruta y sus primeras 20 líneas (como máximo 2.000
+caracteres), y el borde de entrada las lee junto con el mensaje de la persona. En un
+agent con workspace ese texto se revisa antes de copiar el archivo a `uploads/`, así
+que un turno que el borde bloquea no escribe nada, y un turno posterior en un
+workspace con alcance `conversation`, `user` o `agent` no tiene ningún archivo
+rechazado que abrir. El borde solo lee esas primeras líneas, así que un término
+bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisión de
+los resultados de las herramientas. Una imagen enviada en línea es la excepción: el
+borde también lee sus bytes, y un bloqueo que causan esos bytes no se prevé, así que
+esa imagen se sigue escribiendo.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

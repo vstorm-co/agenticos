@@ -84,14 +84,19 @@ async def list_org_connectors(
 async def create_org_integration(
     data: SyncSourceCreate,
     sync_source_svc: SyncSourceSvc,
+    access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
     """Create an org-level integration.
 
     Omit `collection_name` to keep it unassigned - it can be cloned
     into multiple knowledge bases later.  Pass a `collection_name` to
-    immediately wire it to a specific KB collection.
+    immediately wire it to a specific KB collection: the caller must be able
+    to write the base its sync writes into, as on every other route that points
+    a source at a collection (`CollectionAccessService.source_target`, #2537).
     """
+    if data.collection_name is not None:
+        await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.create_source(data, ctx=ctx)
 
 

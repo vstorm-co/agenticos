@@ -1,5 +1,5 @@
 ---
-source_sha: "86a6f70a9b26"
+source_sha: "69ec30c9ff43"
 ---
 
 # Sicherheit { #security }
@@ -191,6 +191,7 @@ SOC 2 CC6–CC8.
 | Kontrolle | Mechanismus | Gehalten von |
 |---|---|---|
 | Mandantentrennung, auch wenn der Aufrufer die Zeile besitzt | `resolve_access` verweigert eine Ressource mit abweichender `organization_id` vor der Eigentumsprüfung (`app/services/access.py`) | `test_resource_access.py::TestTenantBoundary`, `test_conversation_tenant_isolation.py`, `test_platform_flows.py` |
+| Gleichnamige Wissensbasen halten ihre Chunks getrennt | Jeder Chunk in der geteilten Tabelle `rag_<name>` hält seinen Tenant und die Wissensbasis fest, für die er indexiert wurde; jedes Lesen, Zählen, Ersetzen und Löschen von Vektoren nimmt den `vector_scope` der Basis (`app/services/rag/vectorstore.py`). Chunks aus der Zeit vor dem Upgrade, die `0180_stamp_rag_rows_by_base` keiner einzelnen Basis zuordnen konnte, behalten die Tenant-Regel | `integration/test_rag_vector_scope_per_base.py`, `integration/test_rag_ingest_tenant_scope.py` |
 | Eine Berechtigung auf jeder Collection-Route | Route-Dependency `require(*perms)` auf Listen-, Erstellungs- und Katalogrouten (`app/api/deps.py`), Katalog in `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Routen pro Ressource autorisieren im Service, nicht auf der Route | Eine Route, die auf einem Agent, Skill oder einer Collection arbeitet, trägt kein `require()`-Gate — ein Rollen-Gate würde einen Grant-Inhaber abweisen, bevor der Grant greift — und ruft stattdessen `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (jede Route ist gegated oder wird im Service entschieden) |
 | Ein Grant erweitert den Zugriff, ohne das Mitglied zu befördern | `resolve_access` pro Ressource nimmt `max(Rollen-Scope, Grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |

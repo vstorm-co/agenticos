@@ -31,6 +31,7 @@ from app.agents.model_resolver import ResolvedCredential, build_with_fallbacks
 from app.core.config import settings as app_settings
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.core.secret_kinds import ApiKeySecret
+from app.db.vector_tables import VectorScope
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
 from app.services.rag.filters import RetrievalFilters, RetrievalQuery, TenantScope
@@ -70,7 +71,7 @@ class TestSearchingSeveralCollections:
         held and nothing on any screen said so.
         """
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=None)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
         store.search = AsyncMock(
             side_effect=[
                 [SearchResult(content="from the healthy one", score=0.9)],
@@ -90,7 +91,7 @@ class TestSearchingSeveralCollections:
     async def test_an_empty_collection_is_not_a_failure(self):
         """The store reports an absent table as no results, so it merges as none."""
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=None)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
         store.search = AsyncMock(
             side_effect=[[SearchResult(content="found", score=0.9)], []],
         )
@@ -113,7 +114,7 @@ class TestSearchingSeveralCollections:
         silently dropped the attribution from every result.
         """
         store = MagicMock()
-        store.resolve_tenant = AsyncMock(return_value=None)
+        store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=None))
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(
@@ -157,6 +158,30 @@ class TestKnowledgeSearchGuards:
                 query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
             )
         service.retrieve.assert_awaited_once()
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_bound_base_is_searched_rather_than_its_name_resolved(self):
+        """An agent bound to a member's personal base must search it, not the
+        organization's base that shares its name and resolves first (#2537)."""
+        org, kb = uuid4(), uuid4()
+        bound = VectorScope(tenant=org, knowledge_base_id=kb)
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(side_effect=AssertionError("must not resolve"))
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                kb_vector_scopes={"kb_a": bound},
+                organization_id=org,
+            )
+        assert service.retrieve.await_args.kwargs["scope"] == TenantScope(
+            organization_id=org, knowledge_base_id=kb
+        )
 
     @pytest.mark.anyio
     async def test_several_collections_use_the_multi_path(self):
@@ -446,7 +471,7 @@ class TestEmbeddingCredential:
         # empty collection must not depend on the query succeeding.
         store.async_session = MagicMock(side_effect=AssertionError("should not query"))
 
-        info = asyncio.run(store.get_collection_info("never_ingested"))
+        info = asyncio.run(store.get_collection_info("never_ingested", VectorScope(tenant=None)))
 
         assert (info.name, info.total_vectors, info.dim) == ("never_ingested", 0, 1536)
 

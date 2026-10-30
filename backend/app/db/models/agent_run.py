@@ -273,6 +273,11 @@ class AgentRun(Base, TimestampMixin):
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    # Only a completed run that reached workspace attachment setup closes their window.
+    earlier_attachments_checked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+
     # The run this one was delegated from, and the delegation's own id inside it.
     # Both null for a run somebody started, which is every run except a
     # delegation to a published agent - an inline specialist has no agent to

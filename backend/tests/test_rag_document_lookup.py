@@ -24,6 +24,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.ingestion import IngestionService, StoredDocument
 from app.services.rag.models import (
     Document,
@@ -326,9 +327,9 @@ class TestReplacingADocument:
 
         assert result.status is IngestionStatus.DONE
         assert result.replaced_document_id == "doc-old"
-        # The replace-delete carries the ingester's bound tenant (None here), so
+        # The replace-delete carries the ingester's bound scope (deployment-wide here), so
         # it can only remove the old document within that tenant's rows (#1684).
-        store.delete_document.assert_awaited_once_with("kb", "doc-old", None)
+        store.delete_document.assert_awaited_once_with("kb", "doc-old", VectorScope(tenant=None))
 
 
 class TestTheIndexedLookupIssuesOneStatementPerKey:
@@ -369,7 +370,7 @@ class TestTheIndexedLookupIssuesOneStatementPerKey:
         store = self._store_over(execute)
 
         hit = await store.find_existing_document(
-            "kb", source_path="/p/handbook.pdf", content_hash="h"
+            "kb", source_path="/p/handbook.pdf", content_hash="h", scope=VectorScope(tenant=None)
         )
 
         assert hit is not None and hit.document_id == "doc-a"
@@ -392,7 +393,7 @@ class TestTheIndexedLookupIssuesOneStatementPerKey:
         store = self._store_over(execute)
 
         hit = await store.find_existing_document(
-            "kb", source_path="/p/handbook.pdf", content_hash="h"
+            "kb", source_path="/p/handbook.pdf", content_hash="h", scope=VectorScope(tenant=None)
         )
 
         assert hit is not None and hit.document_id == "doc-c"
@@ -407,7 +408,9 @@ class TestTheIndexedLookupIssuesOneStatementPerKey:
         store._collection_exists = AsyncMock(return_value=False)  # type: ignore[method-assign]
 
         assert (
-            await store.find_existing_document("kb", source_path="/p/x.pdf", content_hash="h")
+            await store.find_existing_document(
+                "kb", source_path="/p/x.pdf", content_hash="h", scope=VectorScope(tenant=None)
+            )
         ) is None
         execute.assert_not_awaited()
 
@@ -430,7 +433,7 @@ class TestGetDocumentsIsDeterministic:
         store._collection_exists = AsyncMock(return_value=True)  # type: ignore[method-assign]
         store._table = MagicMock(return_value="collection_kb")  # type: ignore[method-assign]
 
-        await store.get_documents("kb")
+        await store.get_documents("kb", VectorScope(tenant=None))
 
         statement = str(session.execute.await_args.args[0])
         assert "ORDER BY parent_doc_id, id" in statement
