@@ -64,6 +64,8 @@ jobs:
             fi
           done
       - name: Build desktop installer packages
+        env:
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         shell: bash
         run: |
           set -euo pipefail

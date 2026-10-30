@@ -17,6 +17,17 @@ async fn verify(app: &tauri::AppHandle, address: &str) -> Result<(), String> {
     let opened = native_browser::create(app, 0, Some("a".repeat(64)), Some(vec!["127.0.0.1".into()]), address).await?;
     let id = opened.get("id").and_then(Value::as_str).ok_or("Missing native tab")?;
     let lease = opened.get("lease").and_then(Value::as_str).ok_or("Missing lease")?;
+    // WebKitGTK hit-testing requires a mapped WebView, as in the real console.
+    native_browser::native_browser_view(
+        app.clone(),
+        app.get_webview(WINDOW).ok_or("Console missing")?,
+        id.to_owned(),
+        "show".into(),
+        Some(serde_json::from_value(json!({"x":0,"y":80,"width":1000,"height":650})).map_err(|e| e.to_string())?),
+        None,
+        Some("smoke-renderer".into()),
+    )
+    .await?;
     let call = |method: &str, params: Value| -> Map<String, Value> {
         json!({"id":id,"lease":lease,"method":method,"params":params})
             .as_object()
@@ -341,7 +352,7 @@ fn main() {
         ])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::External("about:blank".parse()?))
-                .visible(false)
+                .visible(cfg!(target_os = "linux"))
                 .inner_size(1100.0, 800.0)
                 .build()?;
             app.add_capability(
