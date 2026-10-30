@@ -564,7 +564,7 @@ class TestRagDropGoesThroughTheTeardown:
         from unittest.mock import AsyncMock, MagicMock
 
         from app.commands import rag as rag_command
-        from app.repositories import collection_teardown_repo, knowledge_base_repo
+        from app.repositories import collection_teardown_repo, knowledge_base_repo, sync_source_repo
         from app.repositories import rag_document as rag_document_repo
 
         db = MagicMock(execute=AsyncMock())
@@ -581,6 +581,7 @@ class TestRagDropGoesThroughTheTeardown:
         )
         monkeypatch.setattr(knowledge_base_repo, "lock", AsyncMock())
         monkeypatch.setattr(knowledge_base_repo, "delete", AsyncMock())
+        monkeypatch.setattr(sync_source_repo, "get_all", AsyncMock(return_value=[]))
         monkeypatch.setattr(collection_teardown_repo, "reserve", AsyncMock())
         repos = {
             "by_name": AsyncMock(return_value=[]),

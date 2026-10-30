@@ -1856,7 +1856,7 @@ class TestWritingTheQueuedRows:
 
     @staticmethod
     def _prepared(delegations: list[Any]) -> MagicMock:
-        prepared = MagicMock()
+        prepared = MagicMock(earlier_attachments_checked=False)
         prepared.run = _parent_run()
         prepared.built.ledger = SpendLedger()
         prepared.delegations = delegations
