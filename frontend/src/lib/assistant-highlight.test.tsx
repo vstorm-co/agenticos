@@ -241,6 +241,36 @@ describe("pointAt", () => {
     expect(ringed("agents-new")).toBe(true);
   });
 
+  it("points on the page the locale cookie sent a link to", async () => {
+    // A reader who chose Polish clicks `/en/...`; the middleware serves `/pl/...`.
+    window.history.replaceState(null, "", "/pl/agents/a");
+    document.body.innerHTML = `<button data-tour="agent-history">Historia</button>`;
+
+    const pointing = pointAt("agent-history", "/en/agents/b");
+    await vi.advanceTimersByTimeAsync(200);
+    await expect(settled(pointing)).resolves.toBe("waiting");
+
+    window.history.pushState(null, "", "/pl/agents/b");
+    await vi.advanceTimersByTimeAsync(200);
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("agent-history")).toBe(true);
+  });
+
+  it("stops waiting for a link's locale the cookie keeps it out of", async () => {
+    // `/en/agents` from `/pl/agents` is redirected back to `/pl/agents`.
+    window.history.replaceState(null, "", "/pl/agents");
+    document.body.innerHTML = `<button data-tour="agents-new">Nowy</button>`;
+
+    const pointing = pointAt("agents-new", "/en/agents");
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(settled(pointing)).resolves.toBe("waiting");
+
+    await vi.advanceTimersByTimeAsync(600);
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(ringed("agents-new")).toBe(true);
+  });
+
   it("takes the default locale's prefix to mean no prefix", async () => {
     // `/en/agents` is served as `/agents`.
     window.history.replaceState(null, "", "/agents");
@@ -349,6 +379,19 @@ describe("pointAt", () => {
       <button data-tour="agents-new">Shown</button>`;
 
     await expect(pointAt("agents-new", "/")).resolves.toBe(true);
+    expect(document.querySelectorAll(".assistant-highlight")).toHaveLength(1);
+    expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
+  });
+
+  it("rings the copy a stylesheet shows, not one it collapses", async () => {
+    // A column `hidden lg:block` below its breakpoint: no `hidden` attribute,
+    // only `display: none` from the stylesheet.
+    document.body.innerHTML = `
+      <style>.narrow-hidden { display: none; }</style>
+      <aside class="narrow-hidden"><button data-tour="activity-runs">Collapsed</button></aside>
+      <main><button data-tour="activity-runs">Shown</button></main>`;
+
+    await expect(pointAt("activity-runs", "/")).resolves.toBe(true);
     expect(document.querySelectorAll(".assistant-highlight")).toHaveLength(1);
     expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
   });
