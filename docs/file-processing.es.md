@@ -1,5 +1,5 @@
 ---
-source_sha: "bf0f7df73fd8"
+source_sha: "86223097fd0d"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -960,6 +960,18 @@ fragmentos asignados a la base borrada. Borrar una organización y borrar una cu
 hacen lo mismo con las bases que eliminan. Los fragmentos sin asignar se quedan y
 coinciden por su tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Una subida o una sincronización que aún indexa un archivo para la base cuando se
+borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que
+choca con el del borrado, en la transacción que inserta los fragmentos: una escritura que llega segunda no
+encuentra la base, no escribe nada y falla en el paso de indexación, y una escritura
+que llega primera se confirma antes del borrado, cuya limpieza elimina después sus
+fragmentos
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Una sincronización local encolada para una base borrada antes de ejecutarse
+termina con un error y no escribe nada
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
 
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el

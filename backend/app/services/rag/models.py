@@ -170,6 +170,11 @@ class IngestionResult(BaseModel):
     which row that was. Left unretired, its `chunk_count` keeps being summed
     into the collection's total, so a nightly sync reports a collection growing
     by its own size every night while the vector store holds one copy.
+
+    `refused` marks an `ERROR` the ingester chose rather than one it hit: the
+    collection or its knowledge base was removed while the file was parsed, so
+    nothing was written. Trying again cannot succeed, so the worker ends the job
+    instead of handing it to a retry (#2561).
     """
 
     status: IngestionStatus = IngestionStatus.NEW
@@ -178,6 +183,7 @@ class IngestionResult(BaseModel):
     document_id: str | None = None
     chunk_count: int = 0
     replaced_document_id: str | None = None
+    refused: bool = False
 
 
 class CollectionInfo(BaseModel):

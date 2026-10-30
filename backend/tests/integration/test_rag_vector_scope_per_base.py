@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.vector_tables import VectorScope
+from app.repositories import knowledge_base_repo
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import RetrievalQuery, scope_for
 from app.services.rag.models import Document, DocumentMetadata, DocumentPage, DocumentPageChunk
@@ -72,6 +73,14 @@ def _store(engine: AsyncEngine) -> PgVectorStore:
     )
     store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
     return store
+
+
+@pytest.fixture(autouse=True)
+def _bases_are_not_persisted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These bases never reach `knowledge_bases`, so the write's hold on the base
+    (#2561) has no row to find; `test_deletion_reconciliation.py` covers it on real
+    rows."""
+    monkeypatch.setattr(knowledge_base_repo, "hold_key_share", AsyncMock(return_value=True))
 
 
 def _document(content: str) -> Document:

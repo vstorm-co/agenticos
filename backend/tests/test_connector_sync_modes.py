@@ -764,6 +764,29 @@ class TestTheLocalDirectorySync:
         assert created["organization_id"] == org
         assert created["knowledge_base_id"] == kb.id
 
+    @pytest.mark.security
+    async def test_a_base_deleted_while_the_job_waited_gets_nothing(self, tmp_path: Path):
+        """The job names the base the route authorized. Gone by the time it runs,
+        it used to fall back to the deployment-wide scope and write the files there,
+        unfiled and readable through any same-named app-scoped base (#2561)."""
+        (tmp_path / "handbook.md").write_text("body")
+        update_log = AsyncMock()
+
+        async with self._syncing(result=_result()) as documents:
+            with (
+                patch.object(
+                    rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=None)
+                ),
+                patch.object(rag_tasks, "_update_sync_log", new=update_log),
+            ):
+                answer = await rag_tasks._run_sync(
+                    "log-1", "local", "docs", "full", str(tmp_path), str(uuid.uuid4())
+                )
+
+        assert answer["status"] == "error"
+        documents.create_document.assert_not_awaited()
+        assert update_log.await_args.args[:2] == ("log-1", "error")
+
     async def test_a_file_that_failed_to_parse_keeps_its_own_reason(self, tmp_path: Path):
         (tmp_path / "handbook.md").write_text("body")
         failure = MagicMock(

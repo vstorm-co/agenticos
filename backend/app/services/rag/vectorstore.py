@@ -13,6 +13,7 @@ from uuid import UUID
 # a caller may drop it.
 import app.db.models  # noqa: F401
 from app.core.blocking import run_blocking_settled
+from app.core.exceptions import NotFoundError
 from app.db.base import Base
 from app.db.vector_tables import (
     RAG_SAFE_TO_DATE_FN,
@@ -31,6 +32,7 @@ from app.db.vector_tables import (
     is_runtime_vector_table,
     validate_collection_name,
 )
+from app.repositories import knowledge_base_repo
 from app.schemas.rag import RAGDocumentItem, RAGDocumentList
 from app.services.rag.filters import AppScope, RetrievalQuery, RetrievalScope, TenantScope
 from app.services.rag.models import (
@@ -44,6 +46,10 @@ from app.services.rag.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class KnowledgeBaseRemovedError(NotFoundError):
+    """The knowledge base a chunk write was for is gone; nothing was inserted (#2561)."""
 
 
 def _document_is_unaddressed(doc: DocumentInfo) -> bool:
@@ -862,6 +868,17 @@ class PgVectorStore(BaseVectorStore):
             ON CONFLICT (id) DO UPDATE SET content = :content, embedding = :embedding, metadata = :metadata
         """)
         async with self.async_session() as session:
+            # In this transaction, before the rows: see `hold_key_share` (#2561).
+            if scope.knowledge_base_id is not None and not await knowledge_base_repo.hold_key_share(
+                session, scope.knowledge_base_id
+            ):
+                raise KnowledgeBaseRemovedError(
+                    message="The knowledge base was deleted while this file was being indexed",
+                    details={
+                        "collection": collection_name,
+                        "knowledge_base_id": str(scope.knowledge_base_id),
+                    },
+                )
             for batch in batched(
                 enumerate(document.chunked_pages), _CHUNK_INSERT_BATCH, strict=False
             ):

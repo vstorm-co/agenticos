@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendLedger, metered_by
 from app.core.config import settings
+from app.core.exceptions import NotFoundError
 from app.core.secret_kinds import SecretKind, StorableSecret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.locks import LockScope, try_hold_subject_on_connection
@@ -255,6 +256,11 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     itself is in the worker's log, with the traceback, because the failure is
     re-raised - which is also what lets the queue retry it.
 
+    A refused ingest is the exception: its collection or knowledge base was
+    removed while the file parsed, so `_run_ingestion` fails the row with the
+    written reason and returns, logged at INFO, and the queue does not retry it
+    (#2561).
+
     `job.attempt` is which dispatch of the document this is (#1598) - `1` for an
     upload, whatever `retry_ingestion` bumped it to for a retry - carried through
     to every settlement so a stale one (superseded by a later retry) is ignored
@@ -456,6 +462,13 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
+        if result.refused:
+            # Skipped on purpose: the collection or its base went while the file
+            # parsed. A retry cannot index it, so this ends the job instead of
+            # raising into one, and it is not an error worth a traceback (#2561).
+            logger.info("Ingestion of %s refused: %s", source_path, reason)
+            await _fail_document(rag_document_id, error_message=reason, attempt=attempt, final=True)
+            return {"status": "refused", "filename": source_path, "message": reason}
         await _fail_document(rag_document_id, error_message=reason, attempt=attempt)
         raise RuntimeError(f"Ingestion failed for {source_path}: {reason}")
 
@@ -529,6 +542,13 @@ async def _run_sync(
             if knowledge_base_id is None
             else await knowledge_base_repo.get_by_id(db, UUID(knowledge_base_id))
         )
+        if knowledge_base_id is not None and kb is None:
+            # Deleted while the job waited. Falling through would write its files
+            # under the deployment-wide scope below, unfiled where any same-named
+            # app-scoped base reads them and no base's purge removes them (#2561).
+            reason = "The knowledge base was deleted before this sync ran"
+            await _update_sync_log(sync_log_id, "error", error_message=reason)
+            return {"status": "error", "message": reason}
         organization_id = None if kb is None else kb.organization_id
         scope = VectorScope(tenant=None) if kb is None else kb.vector_scope
         resolved_kb_id = None if kb is None else kb.id
@@ -701,7 +721,9 @@ async def _run_sync(
         }
 
 
-async def _fail_document(rag_document_id: str, *, error_message: str | None, attempt: int) -> None:
+async def _fail_document(
+    rag_document_id: str, *, error_message: str | None, attempt: int, final: bool = False
+) -> None:
     """Put a failure on the document row, and let the first one keep it.
 
     One collapse is reported by up to three handlers here: the stage that
@@ -720,6 +742,9 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
     queue gave up on the job finds a `done` or already-failed row and leaves it.
     And only on the job's last attempt (`is_final_attempt`): an earlier one is
     retried, and failing the row then reported a failure the retry undid.
+    `final` says the job ends here whatever its attempt - a refused ingest,
+    which returns rather than raising into a retry. A row already gone is what
+    such a refusal usually finds, so it is noted at INFO rather than warned of.
 
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
@@ -727,7 +752,7 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
     """
     from app.services.rag_document import RAGDocumentService
 
-    if not is_final_attempt():
+    if not final and not is_final_attempt():
         # The queue tries again: the document stays `processing`, and its owner is
         # told nothing yet - the retry may well index it (Codex, #2248).
         logger.info("Ingestion of %s failed; the queue retries it", rag_document_id)
@@ -740,6 +765,8 @@ async def _fail_document(rag_document_id: str, *, error_message: str | None, att
             await doc_svc.fail_ingestion(
                 rag_document_id, error_message=error_message or "Unknown error", attempt=attempt
             )
+    except NotFoundError:
+        logger.info("Document %s is gone; no failure to record", rag_document_id)
     except Exception as e:
         logger.warning("Failed to record the ingestion failure: %s", e)
 

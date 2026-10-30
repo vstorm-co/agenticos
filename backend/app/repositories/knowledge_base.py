@@ -30,6 +30,26 @@ async def lock(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
     return result.scalars().first()
 
 
+async def hold_key_share(db: AsyncSession, kb_id: UUID) -> bool:
+    """Whether the base exists, holding its row `FOR KEY SHARE` until the tx ends.
+
+    The lock a `rag_documents` insert takes for its foreign key, which :func:`lock`
+    and a `DELETE` of the row conflict with. A vector write takes it in the
+    transaction that inserts its chunks: a delete in flight makes it wait and then
+    find no row, and a write holding it makes the delete - and the purge job the
+    delete queues - wait for its chunks to commit. Otherwise a base deleted beside a
+    sibling that keeps the collection name could be purged between an ingest's
+    `still_wanted` gate and its insert, leaving chunks filed under a base nothing
+    reads or removes (#2561).
+    """
+    result = await db.execute(
+        select(KnowledgeBase.id)
+        .where(KnowledgeBase.id == kb_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    return result.first() is not None
+
+
 async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, KnowledgeBase]:
     """The collections for a set of ids, keyed by id, in one query.
 
