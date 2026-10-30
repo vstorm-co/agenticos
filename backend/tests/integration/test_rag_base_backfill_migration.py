@@ -42,7 +42,7 @@ def _load_migration():
         Path(__file__).resolve().parents[2]
         / "alembic"
         / "versions"
-        / "0179_stamp_rag_rows_by_base.py"
+        / "0180_stamp_rag_rows_by_base.py"
     )
     spec = importlib.util.spec_from_file_location("mig_0179_under_test", path)
     assert spec is not None and spec.loader is not None

@@ -128,7 +128,7 @@ class _Patched:
                     )
                 ),
             ),
-            patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock()),
+            patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock(return_value=None)),
             patch(f"{_MODULE}.channel_prompt_repo.pick", new=self._pick),
         ]
 
@@ -151,7 +151,7 @@ class _Patched:
 
 
 def _segment(output: str = "Sent.") -> MagicMock:
-    return MagicMock(output=output)
+    return MagicMock(output=output, tool_calls=[], settled={}, generated_files=frozenset())
 
 
 class TestPressValues:
@@ -448,7 +448,10 @@ class TestSettlingAPress:
 
     @pytest.fixture(autouse=True)
     def _lock(self):
-        with patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock()) as lock:
+        with patch(
+            f"{_MODULE}.agent_run_repo.claim_parked_run",
+            new=AsyncMock(return_value=MagicMock(paused_state=None)),
+        ) as lock:
             self.lock = lock
             yield
 
@@ -863,7 +866,11 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
 
     segment = SimpleNamespace(
         output="Sent.",
+        tool_calls=[],
+        settled={},
+        generated_files=frozenset(),
         run=SimpleNamespace(
+            conversation_id=None,
             id=RUN,
             status="completed",
             channel_identity_id=uuid.uuid4(),

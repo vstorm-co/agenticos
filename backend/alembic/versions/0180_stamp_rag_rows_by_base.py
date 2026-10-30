@@ -44,8 +44,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0179_stamp_rag_rows_by_base"
-down_revision: str | Sequence[str] | None = "0178_project_workspace_moves"
+revision: str = "0180_stamp_rag_rows_by_base"
+down_revision: str | Sequence[str] | None = "0179_channel_history_version"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

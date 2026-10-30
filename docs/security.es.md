@@ -1,5 +1,5 @@
 ---
-source_sha: "81308872b244"
+source_sha: "69ec30c9ff43"
 ---
 
 # Seguridad { #security }
@@ -185,7 +185,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Control | Mecanismo | Sostenido por |
 |---|---|---|
 | Aislamiento entre tenants, incluso cuando el llamante es dueño de la fila | `resolve_access` rechaza un recurso cuyo `organization_id` difiere antes de comprobar la propiedad (`app/services/access.py`) | `test_resource_access.py::TestTenantBoundary`, `test_conversation_tenant_isolation.py`, `test_platform_flows.py` |
-| Las bases de conocimiento del mismo nombre no mezclan sus fragmentos | Cada fragmento de la tabla compartida `rag_<name>` registra su tenant y la base de conocimiento para la que se indexó; cada lectura, recuento, reemplazo y borrado de vectores toma el `vector_scope` de la base (`app/services/rag/vectorstore.py`). Los fragmentos anteriores a la actualización que `0179_stamp_rag_rows_by_base` no pudo atribuir a una sola base conservan la regla de tenant | `integration/test_rag_vector_scope_per_base.py`, `integration/test_rag_ingest_tenant_scope.py` |
+| Las bases de conocimiento del mismo nombre no mezclan sus fragmentos | Cada fragmento de la tabla compartida `rag_<name>` registra su tenant y la base de conocimiento para la que se indexó; cada lectura, recuento, reemplazo y borrado de vectores toma el `vector_scope` de la base (`app/services/rag/vectorstore.py`). Los fragmentos anteriores a la actualización que `0180_stamp_rag_rows_by_base` no pudo atribuir a una sola base conservan la regla de tenant | `integration/test_rag_vector_scope_per_base.py`, `integration/test_rag_ingest_tenant_scope.py` |
 | Un permiso en cada ruta de colección | Dependencia de ruta `require(*perms)` en las rutas de listado, creación y catálogo (`app/api/deps.py`), catálogo en `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Las rutas por recurso autorizan en el servicio, no en la ruta | Una ruta que actúa sobre un agent, un skill o una colección no lleva gate `require()` — un gate de rol rechazaría al portador de un grant antes de que el grant se aplicara — y en su lugar llama a `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (toda ruta está gateada o la decide el servicio) |
 | Un grant amplía el acceso sin ascender al miembro | El `resolve_access` por recurso toma `max(alcance del rol, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |

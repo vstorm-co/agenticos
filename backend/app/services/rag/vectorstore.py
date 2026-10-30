@@ -786,7 +786,7 @@ class PgVectorStore(BaseVectorStore):
             # handful of bases - a hash bucket of one value grows an overflow
             # chain every insert walks, where a btree deduplicates it. It also
             # answers the `IS NULL` arm of an unfiled-chunk scope.
-            # `0179_stamp_rag_rows_by_base` builds it on collections that predate it.
+            # `0180_stamp_rag_rows_by_base` builds it on collections that predate it.
             await session.execute(
                 text(
                     f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_KB_INDEX_SUFFIX} "
