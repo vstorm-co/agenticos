@@ -1075,7 +1075,8 @@
     "signupWithInvitation": "Sie registrieren sich mit einer Einladung, deshalb gelten die Registrierungsbeschränkungen dieses Deployments für Sie nicht.",
     "directorySignIn": "Mit {provider} anmelden",
     "directoryUsername": "{provider}-Benutzername",
-    "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden"
+    "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden",
+    "nativeLogoutFailed": "Abgemeldet, aber die App konnte den lokalen Zugriff nicht löschen. Beende die App, bevor sich eine andere Person anmeldet."
   },
   "billing": {
     "description": "Verwalten Sie das Abonnement von {org}.",
@@ -8028,7 +8029,7 @@
       },
       "allowed_domains": {
         "title": "Erlaubte Domains",
-        "description": "Erlaubte Browser-Hosts; null bedeutet uneingeschränkt, eine leere Liste verweigert alle. Muster wie *.example.com sind erlaubt. Wird bei jedem Schritt geprüft, nicht nur beim ersten."
+        "description": "Erlaubte Browser-Hosts. Ohne Einschränkung sind alle Domains erlaubt; eine leere Domainliste blockiert alle. Muster wie *.example.com werden unterstützt. Wird bei jedem Schritt geprüft."
       },
       "max_steps": {
         "title": "Höchstens Schritte pro Aufruf",

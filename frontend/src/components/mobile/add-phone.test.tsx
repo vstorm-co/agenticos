@@ -39,7 +39,7 @@ describe("AddPhone", () => {
       await screen.findByRole("img", { name: /signs the AgenticOS app in/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Works for 3 more seconds");
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show a (new )?code/ })).toBeNull();
 
     await act(async () => vi.advanceTimersByTimeAsync(3100));
 

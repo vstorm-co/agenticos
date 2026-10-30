@@ -1075,7 +1075,8 @@
     "signupWithInvitation": "Rejestrujesz się z zaproszeniem, więc ograniczenia rejestracji tej instalacji Cię nie dotyczą.",
     "directorySignIn": "Zaloguj się przez {provider}",
     "directoryUsername": "Nazwa użytkownika {provider}",
-    "useEmailInstead": "Użyj e-maila i hasła"
+    "useEmailInstead": "Użyj e-maila i hasła",
+    "nativeLogoutFailed": "Wylogowano, ale aplikacja nie mogła wyczyścić dostępu lokalnego. Zamknij aplikację, zanim zaloguje się inna osoba."
   },
   "billing": {
     "description": "Zarządzaj subskrypcją dla {org}.",
@@ -7934,7 +7935,7 @@
       },
       "allowed_domains": {
         "title": "Dozwolone domeny",
-        "description": "Hosty dostępne w przeglądarce; null nie ogranicza dostępu, a pusta lista blokuje wszystko. Dozwolone są wzorce, np. *.example.com. Sprawdzane przy każdym kroku, nie tylko pierwszym."
+        "description": "Dozwolone hosty przeglądarki. Brak ograniczenia pozwala na każdą domenę; pusta lista domen blokuje wszystkie. Obsługiwane są wzorce takie jak *.example.com. Sprawdzane przy każdym kroku."
       },
       "max_steps": {
         "title": "Maksymalnie kroków na wywołanie",

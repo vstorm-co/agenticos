@@ -81,7 +81,10 @@ function PushCard() {
 
   if (state === null) return null;
   return (
-    <SectionCard title={t("title")} description={t(`state.${state}`)}>
+    <SectionCard title={t("title")}>
+      <p role="status" className="text-foreground mb-3 text-sm">
+        {t(`state.${state}`)}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
           <BellRing className="h-4 w-4" aria-hidden />

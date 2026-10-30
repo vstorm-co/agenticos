@@ -1075,7 +1075,8 @@
     "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you.",
     "directorySignIn": "Sign in with {provider}",
     "directoryUsername": "{provider} username",
-    "useEmailInstead": "Use email and password instead"
+    "useEmailInstead": "Use email and password instead",
+    "nativeLogoutFailed": "Signed out, but the app could not clear local access. Quit the app before another person signs in."
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
@@ -8149,7 +8150,7 @@
       },
       "allowed_domains": {
         "title": "Allowed domains",
-        "description": "Hosts the browser may be on; null is unrestricted and an empty list denies all. Globs like *.example.com are allowed. Checked on every step, not only the first."
+        "description": "Allowed browser hosts. No restriction allows any domain; an empty domain list blocks all. Patterns such as *.example.com are supported. Checked on every step."
       },
       "max_steps": {
         "title": "Steps per call at most",

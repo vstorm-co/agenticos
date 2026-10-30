@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 import { WorkOn } from "./work-on";
 import { useConversationStore } from "@/stores";
+import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { DeviceStatus, LocalGrant } from "@/lib/desktop/commands";
 
@@ -29,6 +30,7 @@ vi.mock("@/hooks/use-desktop", async (importOriginal) => ({
 }));
 
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   native.pick.mockReset();
   native.link.mockReset();
   native.linked = true;
@@ -65,7 +67,11 @@ it("keeps the native folder choice when the settings close while the dialog is o
       mode: "read_only",
     }),
   );
-  expect(useWorkOnStore.getState().targetFor("other")).toBeNull();
+  expect(useWorkOnStore.getState().targetFor("other")).toMatchObject({
+    folder: "/approved/Desktop",
+    mode: "read_only",
+  });
+  expect(Object.keys(useWorkOnStore.getState().byConversation)).toHaveLength(1);
   client.clear();
 });
 
@@ -105,6 +111,6 @@ it("finishes pairing and picks for the original draft even after the popover clo
     folder: "/approved/Desktop",
     mode: "read_only",
   });
-  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+  expect(useWorkOnStore.getState().draft).toBeNull();
   client.clear();
 });

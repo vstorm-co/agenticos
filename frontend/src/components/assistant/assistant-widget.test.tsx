@@ -174,7 +174,7 @@ describe("the Architect widget", () => {
     state.assistant = assistant({ name: "Architect (AgenticOS)" });
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toBeInTheDocument();
-    expect(document.querySelector('svg circle[fill="#2557d6"]')).not.toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).not.toBeNull();
     unmount();
 
     state.assistant = assistant({
@@ -186,7 +186,7 @@ describe("the Architect widget", () => {
     render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Ola z IT" })).toBeInTheDocument();
     // Given a picture, it wears the picture.
-    expect(document.querySelector('svg circle[fill="#2557d6"]')).toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
   });
 
   it("walks through connecting a model when it has none", () => {

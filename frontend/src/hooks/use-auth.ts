@@ -14,6 +14,14 @@ import { ROUTES } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 import { isNetworkFailure, offlineAvailable } from "@/lib/offline/device-cache";
 
+import {
+  invokeShell,
+  isDesktopShell,
+  isMobileShell,
+  readShellInfo,
+  reportShellFailure,
+} from "@/lib/desktop/shell";
+
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
 // promise; later mounts skip entirely (the store is persisted across the
@@ -354,6 +362,20 @@ export function useAuth() {
       queryClient.clear();
       resetSessionState();
       logout();
+      const shell = readShellInfo();
+      const cleanup = isDesktopShell(shell)
+        ? "device_unlink"
+        : isMobileShell(shell)
+          ? "clear_push_session"
+          : null;
+      if (cleanup) {
+        try {
+          await invokeShell(cleanup);
+        } catch (error) {
+          reportShellFailure("sign out", error);
+          toast.error(t("nativeLogoutFailed"));
+        }
+      }
       toast.success(t("loggedOut"));
       router.push(ROUTES.LOGIN);
     }

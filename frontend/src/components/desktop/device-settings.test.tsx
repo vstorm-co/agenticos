@@ -31,19 +31,19 @@ beforeEach(() => {
 });
 it("links only after the person chooses the action and waits for native consent", async () => {
   const view = render(<DeviceSettings />);
-  const link = screen.getByRole("button");
+  const link = screen.getByRole("button", { name: "Let agents work here" });
   await userEvent.click(link);
   expect(env.link).toHaveBeenCalledOnce();
   env.pending = true;
   view.rerender(<DeviceSettings />);
-  expect(screen.getByRole("button")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Let agents work here" })).toBeDisabled();
   expect(screen.getByTestId("services")).toBeInTheDocument();
 });
 it("shows reconnecting and live states and disconnects the paired computer", async () => {
   env.status = { linked: true, connected: false };
   const view = render(<DeviceSettings />);
   expect(screen.getByText(/reconnecting/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button"));
+  await userEvent.click(screen.getByRole("button", { name: "Unlink" }));
   expect(env.unlink).toHaveBeenCalledOnce();
   env.status.connected = true;
   view.rerender(<DeviceSettings />);

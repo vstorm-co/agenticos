@@ -140,10 +140,13 @@ describe("RoutinesPage", () => {
 
 it("keeps the same page heading and description across both tabs", async () => {
   render(<RoutinesPage />);
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
   const description = screen.getByText(
     "Agent routines carry out tasks. My watches check your connected accounts and bring findings to your private Inbox.",
   );
+  await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("tab", { name: "My watches" }));
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
   expect(screen.getByRole("heading", { level: 1, name: "Routines" })).toBeInTheDocument();
-  expect(description).toBeInTheDocument();
+  expect(screen.getByText(description.textContent!)).toBeInTheDocument();
 });

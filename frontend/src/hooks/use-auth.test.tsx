@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { readSession, useAdoptSession, useAuth, useReauthenticate } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { invokeShell } from "@/lib/desktop/shell";
 import { useAuthStore, useConversationStore, useOrgStore } from "@/stores";
 import type { User } from "@/types";
 import type { ReactNode } from "react";
@@ -14,6 +15,10 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn() } };
 });
+vi.mock("@/lib/desktop/shell", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // Whether this console keeps a copy on the device - the apps do, a tab does not.
@@ -79,6 +84,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   // `clearAllMocks` in beforeEach clears calls but does not undo a `spyOn`;
   // without this, a test that spies on `window.location` freezes it for
@@ -550,6 +556,22 @@ describe("signing in", () => {
 });
 
 describe("signing out", () => {
+  it.each([
+    ["ios", "clear_push_session"],
+    ["android", "clear_push_session"],
+    ["macos", "device_unlink"],
+  ])("clears native account state on %s", async (platform, command) => {
+    window.__AGENTICOS_SHELL__ = { platform, version: "1.31.0", window: "main", vibrancy: false };
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    await act(async () => {
+      await result.current.logout();
+    });
+    expect(invokeShell).toHaveBeenCalledWith(command);
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(push).toHaveBeenCalledWith(ROUTES.LOGIN);
+  });
+
   it("clears the session, says so, and goes to the login page", async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
