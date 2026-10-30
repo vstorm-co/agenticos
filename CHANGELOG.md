@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.31.3] - 2026-10-30
+
 ### Fixed
 
 - A long document indexes against a local Ollama server. Its chunks now go to
