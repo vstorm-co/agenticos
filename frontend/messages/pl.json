@@ -9427,19 +9427,47 @@
         },
         "e2b": {
           "label": "E2B",
-          "description": "Uruchom osobny pulpit E2B dla tego przebiegu. Wybierz poniżej klucz E2B organizacji; połączenie Sandbox nie jest potrzebne."
+          "description": "Uruchom osobny pulpit E2B dla tego przebiegu. Wybierz poniżej klucz E2B organizacji; połączenie Sandbox nie jest potrzebne.",
+          "summary": "Odizolowany pulpit w chmurze E2B."
         },
         "sandbox": {
           "label": "Docker / Sandbox",
-          "description": "Użyj połączenia Sandbox agenta (Docker lub E2B) z runtime desktop. Połączenie skonfiguruj w capability Sandbox."
+          "description": "Używa połączenia Sandbox agenta z runtime desktop. Docker Compose zawiera sandboxd; własny host podłączysz przez URL i klucz w Połączenia → Sandboxy, a następnie wybierzesz go w ustawieniach Sandbox agenta.",
+          "summary": "Pulpit na podłączonym hoście sandboxa."
         },
         "local": {
           "label": "Local",
-          "description": "Użyj sparowanej aplikacji desktopowej. W chacie wybierz lokalne Computer use lub pracę na tym komputerze. Użytkownik musi zezwolić na dostęp do ekranu."
+          "description": "Użyj sparowanej aplikacji desktopowej. W chacie wybierz lokalne Computer use lub pracę na tym komputerze. Użytkownik musi zezwolić na dostęp do ekranu.",
+          "summary": "Ekran sparowanej aplikacji desktopowej."
         },
         "daemon": {
           "label": "Zdalny komputer",
-          "description": "Połącz się z komputerem, na którym działa computerd. Ustaw poniżej zatwierdzony adres i wybierz jego token dostępu."
+          "description": "Połącz się z komputerem, na którym działa computerd. Ustaw poniżej zatwierdzony adres i wybierz jego token dostępu.",
+          "summary": "Twój komputer z uruchomionym computerd."
+        }
+      }
+    },
+    "browser_use": {
+      "connection": {
+        "built_in": {
+          "label": "Wbudowana",
+          "summary": "Przeglądarka dołączona do tego wdrożenia.",
+          "description": "Używa przeglądarki dołączonej do wdrożenia. Jej adres DevTools ustawisz poniżej."
+        },
+        "proxy": {
+          "label": "Przez proxy",
+          "summary": "Przeglądarka wdrożenia z Twoim proxy.",
+          "description": "Używa przeglądarki wdrożenia przez Twoje proxy. Poniżej ustawisz adres i dane dostępowe."
+        },
+        "hosted": {
+          "label": "Hostowana przeglądarka",
+          "summary": "Podłączona zewnętrzna usługa przeglądarki.",
+          "description": "Połącz hostowaną przeglądarkę przez adres CDP i dane dostępowe poniżej."
+        },
+        "local": {
+          "label": "Ten komputer (aplikacja desktopowa)",
+          "summary": "Prywatna przeglądarka na Twoim komputerze.",
+          "description": "Wymaga sparowanej aplikacji desktopowej i wybrania lokalnej przeglądarki w tym czacie. Nie udostępnia Twojej osobistej sesji przeglądarki."
         }
       }
     }

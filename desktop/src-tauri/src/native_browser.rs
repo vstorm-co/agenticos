@@ -20,14 +20,62 @@ const MAX_REPLY: usize = 2 * 1024 * 1024;
 const SCRIPT: &str = include_str!("native_browser_page.js");
 
 #[derive(Default)]
-pub struct NativeBrowsers(Mutex<Registry>, tokio::sync::Mutex<()>);
+pub struct NativeBrowsers(Mutex<Registry>, tokio::sync::Mutex<()>, tokio::sync::Mutex<()>);
 #[derive(Default)]
 struct Registry {
     generation: u64,
     tabs: HashMap<String, Tab>,
+    consents: Vec<Consent>,
+}
+struct Consent {
+    scope: String,
+    domains: Option<Vec<String>>,
+}
+impl Registry {
+    fn consented(&self, scope: Option<&str>, domains: &Option<Vec<String>>) -> bool {
+        scope.is_some_and(|scope| {
+            self.consents
+                .iter()
+                .any(|grant| grant.scope == scope && &grant.domains == domains)
+        })
+    }
+
+    fn approve(&mut self, generation: u64, scope: Option<&str>, domains: &Option<Vec<String>>) -> Result<(), String> {
+        if self.generation != generation {
+            return Err("The browser connection changed while awaiting consent.".into());
+        }
+        if let Some(scope) = scope {
+            self.consents.retain(|grant| grant.scope != scope);
+            // Bound dormant conversation grants; eviction can only require consent again.
+            if self.consents.len() >= 128 {
+                self.consents.remove(0);
+            }
+            self.consents.push(Consent {
+                scope: scope.to_owned(),
+                domains: domains.clone(),
+            });
+        }
+        Ok(())
+    }
+
+    fn disconnect(&mut self) -> HashMap<String, Tab> {
+        self.generation = self.generation.wrapping_add(1);
+        self.consents.clear();
+        std::mem::take(&mut self.tabs)
+    }
+
+    fn close_by_person(&mut self, id: &str) {
+        self.generation = self.generation.wrapping_add(1);
+        if let Some(scope) = self.tabs.remove(id).and_then(|tab| tab.consent_scope) {
+            if !self.tabs.values().any(|tab| tab.consent_scope.as_ref() == Some(&scope)) {
+                self.consents.retain(|grant| grant.scope != scope);
+            }
+        }
+    }
 }
 struct Tab {
     scope: Option<String>,
+    consent_scope: Option<String>,
     domains: Option<Vec<String>>,
     lease: Option<String>,
     touched: Instant,
@@ -168,10 +216,23 @@ pub async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<Stri
     {
         return Err("Invalid browser conversation scope.".into());
     }
+    let consent_scope = args
+        .get("consent_scope")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| scope.clone());
+    if consent_scope
+        .as_ref()
+        .is_some_and(|s| scope.is_none() || s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        return Err("Invalid browser consent scope.".into());
+    }
     let domains: Option<Vec<String>> =
         serde_json::from_value(args.get("allowed_domains").cloned().unwrap_or(Value::Null))
             .map_err(|_| "Invalid browser domains.")?;
     let state = app.state::<NativeBrowsers>();
+    // Serialize opens so parallel tabs share one native consent decision.
+    let _opening = state.2.lock().await;
     let mut expired = Vec::new();
     let generation;
     {
@@ -231,18 +292,34 @@ pub async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<Stri
     if args.get("resume").and_then(Value::as_bool) == Some(true) {
         return Err("No browser tab is open for this conversation.".into());
     }
-    let (send, receive) = tokio::sync::oneshot::channel();
-    app.dialog().message("Allow this agent to use a browser tab inside AgenticOS? It has a separate private session and can reach websites and local network apps. The tab stays open between messages until you close it or disconnect this computer. Your personal browser is not shared.")
-        .title("Open an AgenticOS browser tab?").buttons(MessageDialogButtons::OkCancel)
-        .show(move |yes| { let _ = send.send(yes); });
-    if !receive.await.unwrap_or(false) {
-        return Err("Local browsing was cancelled.".into());
-    }
     let target = args
         .get("start_url")
         .and_then(Value::as_str)
         .ok_or("Name the browser's initial address.")?;
-    create(app, generation, scope, domains, target).await
+    let address: tauri::Url = target.parse().map_err(|_| "Use a web address.")?;
+    if !allowed(&address, &domains) {
+        return Err("This address is outside the agent's allowed domains.".into());
+    }
+    let consented = state
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .consented(consent_scope.as_deref(), &domains);
+    if !consented {
+        let (send, receive) = tokio::sync::oneshot::channel();
+        app.dialog().message("Allow this agent to use browser tabs for this conversation? They have a separate private session and can reach websites and local network apps. You will not be asked again for each tab or message. Close this conversation's last browser tab or disconnect this computer to revoke access. Your personal browser is not shared.")
+            .title("Allow browsing for this conversation?").buttons(MessageDialogButtons::OkCancel)
+            .show(move |yes| { let _ = send.send(yes); });
+        if !receive.await.unwrap_or(false) {
+            return Err("Local browsing was cancelled.".into());
+        }
+        state
+            .0
+            .lock()
+            .map_err(|e| e.to_string())?
+            .approve(generation, consent_scope.as_deref(), &domains)?;
+    }
+    create(app, generation, scope, consent_scope, domains, target).await
 }
 
 /// Called only after native consent; also exercised by the isolated smoke binary.
@@ -250,6 +327,7 @@ pub(crate) async fn create(
     app: &AppHandle,
     generation: u64,
     scope: Option<String>,
+    consent_scope: Option<String>,
     domains: Option<Vec<String>>,
     start_url: &str,
 ) -> Result<Map<String, Value>, String> {
@@ -331,6 +409,7 @@ pub(crate) async fn create(
         id.clone(),
         Tab {
             scope,
+            consent_scope,
             domains,
             lease: Some(lease.clone()),
             touched: Instant::now(),
@@ -679,8 +758,7 @@ pub async fn native_browser_view(
                 .0
                 .lock()
                 .map_err(|e| e.to_string())?
-                .tabs
-                .remove(&id);
+                .close_by_person(&id);
             view.close().map_err(|e| e.to_string())?;
         }
         "navigate" => {
@@ -769,8 +847,7 @@ pub async fn close_all(app: &AppHandle) {
     let tabs = {
         let state = app.state::<NativeBrowsers>();
         let mut registry = state.0.lock().unwrap_or_else(|e| e.into_inner());
-        registry.generation = registry.generation.wrapping_add(1);
-        std::mem::take(&mut registry.tabs)
+        registry.disconnect()
     };
     for (id, _) in tabs {
         if let Some(view) = app.get_webview(&id) {
@@ -827,6 +904,7 @@ mod tests {
     fn a_lease_must_match_and_remain_fresh_before_renewal() {
         let mut tab = Tab {
             scope: Some("scope".into()),
+            consent_scope: Some("conversation".into()),
             domains: None,
             lease: Some("lease".into()),
             touched: Instant::now(),
@@ -841,5 +919,76 @@ mod tests {
         tab.renewed = Instant::now();
         tab.lease = None;
         assert!(!tab.accepts("lease"));
+    }
+    fn conversation_tab(id: &str) -> Tab {
+        Tab {
+            scope: Some(id.into()),
+            consent_scope: Some("conversation".into()),
+            domains: None,
+            lease: None,
+            touched: Instant::now(),
+            renewed: Instant::now(),
+            held: Arc::new(AtomicBool::new(false)),
+            mount: None,
+        }
+    }
+
+    #[test]
+    fn consent_is_shared_across_tabs_but_isolated_by_conversation_and_policy() {
+        let mut registry = Registry::default();
+        registry.approve(0, Some("conversation"), &None).unwrap();
+        registry.tabs.insert("one".into(), conversation_tab("one"));
+        registry.tabs.insert("two".into(), conversation_tab("two"));
+        assert!(registry.consented(Some("conversation"), &None));
+        assert!(!registry.consented(Some("another-person-or-agent"), &None));
+        assert!(!registry.consented(Some("conversation"), &Some(vec![])));
+        assert!(!registry.consented(Some("conversation"), &Some(vec!["example.com".into()])));
+        let domains = Some(vec!["example.com".into()]);
+        registry.approve(0, Some("restricted"), &domains).unwrap();
+        assert!(registry.consented(Some("restricted"), &domains));
+        assert!(!registry.consented(Some("restricted"), &None));
+    }
+
+    #[test]
+    fn agent_cleanup_keeps_consent_and_closing_the_last_tab_revokes_it() {
+        let mut registry = Registry::default();
+        registry.approve(0, Some("conversation"), &None).unwrap();
+        registry.tabs.insert("one".into(), conversation_tab("one"));
+        // Releasing or closing an agent's tab does not revoke the person's decision.
+        registry.tabs.remove("one");
+        assert!(registry.consented(Some("conversation"), &None));
+        registry.tabs.insert("one".into(), conversation_tab("one"));
+        registry.tabs.insert("two".into(), conversation_tab("two"));
+        registry.close_by_person("one");
+        assert!(registry.consented(Some("conversation"), &None));
+        registry.close_by_person("two");
+        assert!(!registry.consented(Some("conversation"), &None));
+        assert!(registry.approve(0, Some("conversation"), &None).is_err());
+    }
+
+    #[test]
+    fn disconnect_clears_consent_and_rejects_an_old_dialog_answer() {
+        let mut registry = Registry::default();
+        registry.approve(0, Some("conversation"), &None).unwrap();
+        registry.tabs.insert("one".into(), conversation_tab("one"));
+        let closed = registry.disconnect();
+        assert_eq!(closed.len(), 1);
+        assert!(registry.tabs.is_empty());
+        assert!(!registry.consented(Some("conversation"), &None));
+        assert!(registry.approve(0, Some("conversation"), &None).is_err());
+        assert!(registry.consents.is_empty());
+    }
+
+    #[test]
+    fn unscoped_runs_never_cache_consent_and_dormant_grants_are_bounded() {
+        let mut registry = Registry::default();
+        registry.approve(0, None, &None).unwrap();
+        assert!(!registry.consented(None, &None));
+        for index in 0..129 {
+            registry.approve(0, Some(&index.to_string()), &None).unwrap();
+        }
+        assert_eq!(registry.consents.len(), 128);
+        assert!(!registry.consented(Some("0"), &None));
+        assert!(registry.consented(Some("128"), &None));
     }
 }

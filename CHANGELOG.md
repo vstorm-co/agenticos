@@ -19,6 +19,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Remember native browser consent across tabs in the same conversation and domain policy until the person closes its last tab or disconnects the device.
+- Use explicit environment cards for Computer use and Web browser, with E2B’s official mark and clearer sandbox host configuration. Existing automatic computer configurations remain readable.
+
 - Simplify Quick Ask to one new-chat action and compact inline history; show sidebar files as full-width rows and offer a dismissible desktop download reminder in browser navigation.
 
 ### Security

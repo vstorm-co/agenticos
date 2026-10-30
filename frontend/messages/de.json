@@ -9314,19 +9314,47 @@
         },
         "e2b": {
           "label": "E2B",
-          "description": "Einen eigenen E2B-Desktop für diesen Lauf starten. Unten den E2B-Schlüssel der Organisation wählen; keine Sandbox-Verbindung erforderlich."
+          "description": "Einen eigenen E2B-Desktop für diesen Lauf starten. Unten den E2B-Schlüssel der Organisation wählen; keine Sandbox-Verbindung erforderlich.",
+          "summary": "Ein isolierter Desktop in der E2B-Cloud."
         },
         "sandbox": {
           "label": "Docker / Sandbox",
-          "description": "Die Sandbox-Verbindung des Agenten (Docker oder E2B) mit der Runtime desktop verwenden. Die Verbindung wird in der Capability Sandbox eingerichtet."
+          "description": "Verwendet die Sandbox-Verbindung des Agenten mit der Desktop-Laufzeit. Docker Compose enthält sandboxd; einen eigenen Host registrierst du mit URL und Schlüssel unter Verbindungen → Sandboxes und wählst ihn dann in der Sandbox-Fähigkeit.",
+          "summary": "Ein Desktop auf deinem Sandbox-Host."
         },
         "local": {
           "label": "Local",
-          "description": "Die gekoppelte Desktop-App verwenden. Im Chat lokales Computer use oder die Arbeit auf diesem Computer auswählen. Die Person muss dem Bildschirmzugriff zustimmen."
+          "description": "Die gekoppelte Desktop-App verwenden. Im Chat lokales Computer use oder die Arbeit auf diesem Computer auswählen. Die Person muss dem Bildschirmzugriff zustimmen.",
+          "summary": "Der Bildschirm deiner gekoppelten Desktop-App."
         },
         "daemon": {
           "label": "Remote-Computer",
-          "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen."
+          "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
+          "summary": "Dein eigener Computer mit computerd."
+        }
+      }
+    },
+    "browser_use": {
+      "connection": {
+        "built_in": {
+          "label": "Integriert",
+          "summary": "Der Browser dieser Bereitstellung.",
+          "description": "Verwendet den mitgelieferten Browser. Seine DevTools-Adresse wird unten konfiguriert."
+        },
+        "proxy": {
+          "label": "Über einen Proxy",
+          "summary": "Der integrierte Browser mit deinem Proxy.",
+          "description": "Verwendet den Browser dieser Bereitstellung über deinen Proxy. Adresse und Zugangsdaten werden unten konfiguriert."
+        },
+        "hosted": {
+          "label": "Gehosteter Browser",
+          "summary": "Ein externer Browserdienst.",
+          "description": "Verbinde einen gehosteten Browser über seinen CDP-Endpunkt und die Zugangsdaten unten."
+        },
+        "local": {
+          "label": "Dieser Computer (Desktop-App)",
+          "summary": "Ein privater Browser auf deinem Computer.",
+          "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
         }
       }
     }

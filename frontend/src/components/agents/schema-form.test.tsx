@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useCapabilityFieldCopy } from "./capability-field-copy";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchemaForm } from "./schema-form";
@@ -1206,7 +1206,7 @@ describe("x-enum-when", () => {
   });
 });
 
-it("keeps environment options short, explains the current choice and saves its original enum", async () => {
+it("offers explicit environment cards without rewriting a legacy automatic value", async () => {
   const changed = vi.fn();
   function Environment() {
     const copyFor = useCapabilityFieldCopy("computer_use");
@@ -1222,6 +1222,7 @@ it("keeps environment options short, explains the current choice and saves its o
               default: "auto",
               enum: ["auto", "e2b", "sandbox", "local", "daemon"],
               title: "Environment",
+              "x-widget": "computer-environment",
             },
           },
         }}
@@ -1234,22 +1235,25 @@ it("keeps environment options short, explains the current choice and saves its o
     );
   }
   render(<Environment />);
-  const trigger = screen.getByRole("combobox", { name: "Environment" });
-  expect(trigger).toHaveTextContent("Automatic");
-  expect(trigger).toHaveAccessibleDescription(/Use Local when the chat/);
-  await userEvent.click(trigger);
-  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-    "Automatic",
-    "E2B",
-    "Docker / Sandbox",
-    "Local",
-    "Remote computer",
-  ]);
-  await userEvent.click(screen.getByRole("option", { name: "E2B" }));
+  const group = screen.getByRole("radiogroup", { name: "Environment" });
+  expect(changed).not.toHaveBeenCalled();
+  expect(within(group).queryByRole("radio", { name: "Automatic" })).toBeNull();
+  expect(
+    within(group)
+      .getAllByRole("radio")
+      .map((option) => option.getAttribute("aria-label")),
+  ).toEqual(["E2B", "Docker / Sandbox", "Local", "Remote computer"]);
+  expect(
+    within(group)
+      .getAllByRole("radio")
+      .every((option) => option.getAttribute("aria-checked") === "false"),
+  ).toBe(true);
+  await userEvent.click(within(group).getByRole("radio", { name: "E2B" }));
   expect(changed).toHaveBeenLastCalledWith({ desktop: "e2b" });
-  expect(trigger).toHaveTextContent("E2B");
-  expect(trigger).toHaveAccessibleDescription(/no Sandbox connection is needed/);
+  expect(within(group).getByRole("radio", { name: "E2B" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByText(/no Sandbox connection is needed/)).toBeVisible();
 });
+
 it("shows schema option help when no localized choices are available", () => {
   render(
     <SchemaForm

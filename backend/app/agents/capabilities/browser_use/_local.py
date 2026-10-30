@@ -211,6 +211,7 @@ def page_factory(session_id: UUID, *, native: bool = True) -> PageFactory:
         sign_ins: Sequence[SignIn] = (),
         route: BrowserRoute | None = None,
         conversation_scope: str | None = None,
+        consent_scope: str | None = None,
     ) -> AsyncGenerator[LocalPage | NativePage]:
         if start_url is not None and not domain_allowed(start_url, policy.allowed_domains):
             raise DomainRefused("This URL is outside the agent's allowed domains.")
@@ -223,6 +224,7 @@ def page_factory(session_id: UUID, *, native: bool = True) -> PageFactory:
             args = {
                 "engine": "native",
                 "scope": conversation_scope,
+                "consent_scope": consent_scope,
                 "allowed_domains": list(policy.allowed_domains)
                 if policy.allowed_domains is not None
                 else None,

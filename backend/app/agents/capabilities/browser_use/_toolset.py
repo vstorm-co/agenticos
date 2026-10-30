@@ -609,6 +609,7 @@ def build_toolset(
         scope = conversation_scope(ctx.deps)
         if resume_local:
             if scope is not None:
+                options["consent_scope"] = scope
                 options["conversation_scope"] = (
                     scope
                     if toolset.tab_id == "main"

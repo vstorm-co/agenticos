@@ -14,7 +14,15 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 async fn verify(app: &tauri::AppHandle, address: &str) -> Result<(), String> {
     eprintln!("native smoke: create");
-    let opened = native_browser::create(app, 0, Some("a".repeat(64)), Some(vec!["127.0.0.1".into()]), address).await?;
+    let opened = native_browser::create(
+        app,
+        0,
+        Some("a".repeat(64)),
+        Some("a".repeat(64)),
+        Some(vec!["127.0.0.1".into()]),
+        address,
+    )
+    .await?;
     let id = opened.get("id").and_then(Value::as_str).ok_or("Missing native tab")?;
     let lease = opened.get("lease").and_then(Value::as_str).ok_or("Missing lease")?;
     // WebKitGTK hit-testing requires a mapped WebView, as in the real console.

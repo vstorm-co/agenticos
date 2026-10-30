@@ -1,5 +1,5 @@
 ---
-source_sha: "35d7af87f101"
+source_sha: "38fb3bf79fce"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -469,6 +469,10 @@ jeden run. Run odnawia dzierżawę automatycznie; po zatrzymaniu jego backendu
 dzierżawa staje się ponownie dostępna po dwóch minutach. **Zamknij kartę** ją usuwa; zamknięcie panelu tylko ją ukrywa.
 Rozłączenie sparowanego urządzenia zamyka wszystkie jego karty. Limit to osiem
 kart; karty nieaktywne przez dwie godziny mogą zostać usunięte przy otwarciu kolejnej.
+
+Zgoda na natywne przeglądanie obejmuje karty tej rozmowy w bieżącym połączeniu urządzenia. Nowe karty i karty ponownie otwarte przez agenta nie wymagają kolejnego potwierdzenia przy tej samej polityce domen. Samodzielne zamknięcie ostatniej karty cofa zgodę; ukrycie panelu jej nie cofa. Odłączenie urządzenia usuwa zgodę. Inna osoba, agent, rozmowa lub polityka domen wymaga osobnej zgody.
+
+Ustawienia Computer use i przeglądarki używają kafelków środowisk z krótkimi opisami. Nowo włączony Computer use jawnie wybiera Docker / Sandbox. Wybór automatyczny nie jest już oferowany; istniejące konfiguracje pozostają czytelne i niezmienione do czasu wyboru środowiska przez użytkownika. Docker Compose zawiera sandboxd i runtime desktop. Operator może zarejestrować URL i klucz innego hosta w Połączenia → Sandboxy, a następnie wybrać go i runtime desktop w ustawieniach Sandbox agenta.
 
 Aby wybrać zgodność z Chromium, wyłącz **Używaj natywnej przeglądarki lokalnej**
 w ustawieniach funkcji przeglądarki. Zadania z vision lub zmianą języka albo strefy

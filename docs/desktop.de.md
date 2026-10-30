@@ -1,5 +1,5 @@
 ---
-source_sha: "35d7af87f101"
+source_sha: "38fb3bf79fce"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -499,6 +499,10 @@ wird sie nach zwei Minuten wieder verfügbar. **Tab schließen** entfernt ihn; d
 blendet ihn nur aus. Beim Trennen des gekoppelten Geräts schließen alle Tabs.
 Es bleiben höchstens acht Tabs erhalten; zwei Stunden inaktive Tabs können beim
 Öffnen eines weiteren Tabs entfernt werden.
+
+Die Zustimmung zum nativen Browser gilt für die Tabs dieses Gesprächs während der aktuellen Geräteverbindung. Neue oder vom Agenten erneut geöffnete Tabs fragen bei gleicher Domain-Richtlinie nicht erneut. Wenn du den letzten Tab selbst schließt, wird die Zustimmung widerrufen; Ausblenden des Panels widerruft sie nicht. Trennen des Geräts löscht sie. Eine andere Person, ein anderer Agent, ein anderes Gespräch oder eine andere Domain-Richtlinie benötigt eine eigene Zustimmung.
+
+Computer use und Webbrowser bieten Umgebungskarten mit kurzen Beschreibungen. Neue Computer-use-Bindungen wählen ausdrücklich Docker / Sandbox. Automatisch wird nicht mehr angeboten; bestehende automatische Konfigurationen bleiben lesbar und unverändert, bis eine Person eine Umgebung auswählt. Docker Compose enthält sandboxd und die Desktop-Laufzeit. Andere Sandbox-Hosts registriert ein Operator mit URL und Schlüssel unter Verbindungen → Sandboxes und wählt sie samt Desktop-Laufzeit in den Sandbox-Einstellungen des Agenten.
 
 Für Chromium-Kompatibilität **Nativen lokalen Browser verwenden** in der
 Browserfähigkeit deaktivieren. Aufgaben mit Vision oder Sprach-/Zeitzonenüberschreibungen verwenden ebenfalls

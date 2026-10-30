@@ -1,17 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  ChevronRight,
-  Cloud,
-  Container,
-  Eye,
-  EyeOff,
-  Globe,
-  Laptop,
-  Network,
-  WandSparkles,
-} from "lucide-react";
+import Image from "next/image";
+import { ChevronRight, Cloud, Container, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
 
 import {
   Input,
@@ -245,7 +236,10 @@ function SchemaField({
   const t = useTranslations("agents");
   const label = copy?.title ?? property.title ?? humanise(name);
 
-  const choices = enumChoices(property);
+  const computerEnvironment = property["x-widget"] === "computer-environment";
+  const tiled = computerEnvironment || property["x-widget"] === "browser-connection";
+  const choices =
+    enumChoices(property)?.filter((choice) => !computerEnvironment || choice !== "auto") ?? null;
   const kind = resolveKind(property);
   const masked = isSecret(property);
   // What the field shows while nobody has touched it. Shown as the *value*
@@ -262,11 +256,13 @@ function SchemaField({
     property["x-enum-descriptions"] ??
     property.anyOf?.find((entry) => entry["x-enum-descriptions"])?.["x-enum-descriptions"];
   const description =
-    (kind === "enum"
-      ? (copy?.options?.[selected]?.description ?? optionDescriptions?.[selected])
-      : undefined) ??
-    copy?.description ??
-    property.description;
+    computerEnvironment && selected === "auto"
+      ? (copy?.description ?? property.description)
+      : ((kind === "enum"
+          ? (copy?.options?.[selected]?.description ?? optionDescriptions?.[selected])
+          : undefined) ??
+        copy?.description ??
+        property.description);
 
   const multiline = property["x-multiline"] === true;
   // A connector's plain-text config box (`textarea`), distinct from the prompt
@@ -327,7 +323,7 @@ function SchemaField({
         />
       )}
 
-      {kind === "enum" && choices !== null && property["x-widget"] === "browser-connection" && (
+      {kind === "enum" && choices !== null && tiled && (
         <div
           id={id}
           role="radiogroup"
@@ -337,37 +333,37 @@ function SchemaField({
           {...invalid}
         >
           {choices.map((choice) => {
-            const Icon =
-              choice === "local"
-                ? Laptop
-                : choice === "hosted"
-                  ? Cloud
-                  : choice === "proxy"
-                    ? Network
-                    : Globe;
             return (
               <button
                 key={choice}
                 type="button"
                 role="radio"
                 aria-checked={selected === choice}
+                aria-label={enumLabel(property, choice, copy)}
                 disabled={disabled}
                 onClick={() => onChange(choice)}
                 className={cn(
-                  "flex min-h-14 items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition-colors disabled:opacity-50",
+                  "flex min-h-14 flex-col items-start gap-1.5 rounded-xl border px-3 py-3 text-left text-sm transition-colors disabled:opacity-50",
                   selected === choice
                     ? "border-foreground/40 bg-foreground/5"
                     : "border-border hover:bg-muted",
                 )}
               >
-                <Icon aria-hidden className="size-5 shrink-0" />
-                {enumLabel(property, choice, copy)}
+                <span className="flex items-center gap-2 font-medium">
+                  {choiceMark(choice, computerEnvironment ? "desktop" : "browser-connection")}
+                  {enumLabel(property, choice, copy)}
+                </span>
+                {copy?.options?.[choice]?.summary && (
+                  <span className="text-muted-foreground text-xs leading-relaxed">
+                    {copy?.options?.[choice]?.summary}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       )}
-      {kind === "enum" && choices !== null && property["x-widget"] !== "browser-connection" && (
+      {kind === "enum" && choices !== null && !tiled && (
         <Select
           value={
             typeof value === "string" ? value : typeof fallback === "string" ? fallback : UNSET
@@ -672,16 +668,37 @@ function choiceMark(choice: string, field: string) {
   if (field === "desktop") {
     const className = "h-3.5 w-3.5 shrink-0";
     switch (choice) {
-      case "auto":
-        return <WandSparkles className={className} aria-hidden />;
       case "e2b":
-        return <Cloud className={className} aria-hidden />;
+        // Official E2B app mark, from https://e2b.dev/icon2.png.
+        return (
+          <Image
+            src="/icons/e2b.png"
+            width={20}
+            height={20}
+            alt=""
+            className="size-5 shrink-0"
+            unoptimized
+          />
+        );
       case "sandbox":
         return <Container className={className} aria-hidden />;
       case "local":
         return <Laptop className={className} aria-hidden />;
       case "daemon":
         return <Network className={className} aria-hidden />;
+    }
+  }
+  if (field === "browser-connection") {
+    const className = "h-4 w-4 shrink-0";
+    switch (choice) {
+      case "local":
+        return <Laptop className={className} aria-hidden />;
+      case "hosted":
+        return <Cloud className={className} aria-hidden />;
+      case "proxy":
+        return <Network className={className} aria-hidden />;
+      default:
+        return <Globe className={className} aria-hidden />;
     }
   }
   if (choice in BRAND_GLYPHS) {

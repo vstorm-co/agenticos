@@ -9642,19 +9642,47 @@
         },
         "sandbox": {
           "label": "Docker / Sandbox",
-          "description": "Use the agent's Sandbox connection (Docker or E2B) with the desktop runtime. Configure the connection in the Sandbox capability."
+          "description": "Use the agent's Sandbox connection with the desktop runtime. Docker Compose includes sandboxd; you can also register your own host URL and key under Connections → Sandboxes, then choose that connection in the Sandbox capability.",
+          "summary": "A desktop on your registered sandbox host."
         },
         "daemon": {
           "label": "Remote computer",
-          "description": "Connect to a computer running computerd. Set its approved address and select its access token below."
+          "description": "Connect to a computer running computerd. Set its approved address and select its access token below.",
+          "summary": "Your own computer running computerd."
         },
         "local": {
           "label": "Local",
-          "description": "Use the person's paired desktop app. In chat, select local Computer use or work on This computer. The person must approve screen access."
+          "description": "Use the person's paired desktop app. In chat, select local Computer use or work on This computer. The person must approve screen access.",
+          "summary": "The screen of your paired desktop app."
         },
         "e2b": {
           "label": "E2B",
-          "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed."
+          "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
+          "summary": "An isolated desktop hosted by E2B."
+        }
+      }
+    },
+    "browser_use": {
+      "connection": {
+        "built_in": {
+          "label": "Built in",
+          "summary": "The browser included with this deployment.",
+          "description": "Use the browser service included in this deployment. Its DevTools address is configured below."
+        },
+        "proxy": {
+          "label": "Through a proxy",
+          "summary": "The deployment browser, with your proxy.",
+          "description": "Use the deployment browser through your proxy. Configure its address and credentials below."
+        },
+        "hosted": {
+          "label": "A hosted browser",
+          "summary": "An external browser service you connect.",
+          "description": "Connect a hosted browser through its CDP endpoint and credentials below."
+        },
+        "local": {
+          "label": "This computer (desktop app)",
+          "summary": "A private browser on your paired computer.",
+          "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
         }
       }
     }

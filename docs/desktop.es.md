@@ -1,5 +1,5 @@
 ---
-source_sha: "35d7af87f101"
+source_sha: "38fb3bf79fce"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -490,6 +490,10 @@ a la vez. El run renueva su lease automáticamente; si su backend se detiene,
 la lease vuelve a estar disponible tras dos minutos. **Close tab** la elimina; cerrar el panel solo la oculta. Desconectar el
 equipo emparejado cierra todas sus pestañas. Se conservan hasta ocho; las inactivas
 durante dos horas pueden eliminarse al abrir otra.
+
+El consentimiento del navegador nativo cubre las pestañas de esta conversación durante la conexión actual del dispositivo. Las pestañas nuevas o reabiertas por el agente no vuelven a pedir permiso con la misma política de dominios. Cerrar tú mismo la última pestaña revoca el consentimiento; ocultar el panel no. Desconectar el dispositivo lo elimina. Otra persona, agente, conversación o política de dominios requiere su propio consentimiento.
+
+Computer use y el navegador muestran tarjetas de entorno con descripciones breves. Las nuevas vinculaciones de Computer use eligen explícitamente Docker / Sandbox. Automático ya no se ofrece; las configuraciones anteriores siguen siendo legibles y no cambian hasta que la persona elija un entorno. Docker Compose incluye sandboxd y el runtime desktop. Un operador puede registrar otro host con URL y clave en Conexiones → Sandboxes y elegirlo junto con el runtime desktop en la configuración Sandbox del agente.
 
 Para elegir compatibilidad con Chromium, desactiva **Use the native local browser**
 en la capacidad del navegador. Las tareas con vision o cambios de idioma o zona

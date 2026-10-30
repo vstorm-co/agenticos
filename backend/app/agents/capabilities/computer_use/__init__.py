@@ -40,6 +40,7 @@ class ComputerUseConfig(BaseModel):
         title="Environment",
         description="Choose where this agent operates a desktop. The selected environment's requirements are shown below.",
         json_schema_extra={
+            "x-widget": "computer-environment",
             "x-enum-labels": {
                 "auto": "Automatic",
                 "sandbox": "Docker / Sandbox",

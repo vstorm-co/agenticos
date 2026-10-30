@@ -460,6 +460,10 @@ stops, the lease becomes available again after two minutes. **Close tab** destro
 it. Disconnecting the paired device closes all its tabs. At most eight tabs are
 kept, and tabs idle for two hours may be evicted when another is opened.
 
+Native browsing consent is shared by this conversation’s tabs for the current device connection. New tabs and tabs reopened by the agent do not prompt again under the same domain policy. Closing the last tab yourself revokes consent; hiding the panel does not. Disconnecting the device clears it. A different person, agent, conversation or domain policy requires its own consent.
+
+Computer use and Web browser settings use environment cards with short descriptions. New Computer use bindings explicitly select Docker / Sandbox. Automatic is no longer offered in the picker; existing automatic configurations remain readable and unchanged until a person chooses an environment. Docker Compose includes sandboxd and its desktop runtime. An operator can register another sandbox host URL and key under Connections → Sandboxes, then select it and the desktop runtime in the agent’s Sandbox settings.
+
 Disable **Use the native local browser** in the browser capability to choose
 Chromium compatibility. Tasks using vision or language/time-zone overrides also
 use the existing isolated

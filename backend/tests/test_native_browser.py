@@ -156,9 +156,11 @@ async def test_native_factory_releases_its_lease_without_destroying_the_conversa
         start_url=None if resume else "https://example.test/",
         policy=POLICY,
         conversation_scope="a" * 64,
+        consent_scope="b" * 64,
     ) as page:
         assert isinstance(page, NativePage)
         assert call.call_args.args[2]["scope"] == "a" * 64
+        assert call.call_args.args[2]["consent_scope"] == "b" * 64
         assert call.call_args.args[2]["resume"] is resume
         page.close_on_release = close
     assert call.call_args.args == (
@@ -514,6 +516,8 @@ async def test_explicit_close_destroys_a_native_tab_and_other_tabs_have_distinct
             "browser_new_tab", {"url": "https://example.test/"}, ctx, tools["browser_new_tab"]
         )
         assert opener.opened[0]["conversation_scope"] != opener.opened[1]["conversation_scope"]
+        assert opener.opened[0]["consent_scope"] == opener.opened[1]["consent_scope"]
+        assert opener.opened[0]["consent_scope"] == opener.opened[0]["conversation_scope"]
         page = native_page()
         monkeypatch.setattr(
             page, "location", AsyncMock(return_value=("https://example.test/", "Example"))

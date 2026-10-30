@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 export interface FieldCopy {
   title: string;
   description: string;
-  options?: Record<string, { label: string; description: string }>;
+  options?: Record<string, { label: string; description: string; summary?: string }>;
 }
 
 /** The copy for a field of a generated form, or `null` to show the schema's own. */
@@ -49,7 +49,13 @@ export function useCapabilityFieldCopy(capabilityId: string): FieldCopyFor {
           typeof entry.label === "string" &&
           typeof entry.description === "string"
         ) {
-          options[key] = { label: entry.label, description: entry.description };
+          options[key] = {
+            label: entry.label,
+            description: entry.description,
+            ...("summary" in entry && typeof entry.summary === "string"
+              ? { summary: entry.summary }
+              : {}),
+          };
         }
       }
       return { title, description, options };
