@@ -9,6 +9,7 @@ fn main() {
             "mobile_settings",
             "mobile_servers",
             "bind_push_session",
+            "clear_push_session",
             "open_mobile_settings",
             "set_mobile_lock",
             "forget_server",

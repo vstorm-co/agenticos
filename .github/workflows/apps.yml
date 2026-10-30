@@ -25,6 +25,11 @@ jobs:
       - name: Linux native libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
+      # Ubuntu's hosted runner restricts unprivileged user namespaces. Exercise
+      # the actual bubblewrap boundary instead of skipping its confinement test.
+      - name: Allow sandbox namespaces on the ephemeral Linux runner
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Rust toolchain
         run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy

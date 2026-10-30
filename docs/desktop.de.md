@@ -1,8 +1,10 @@
 ---
-source_sha: "9350ca23bd90"
+source_sha: "2173ddb6c019"
 ---
 
 # Die Desktop-App { #the-desktop-app }
+
+Beim Trennen, Abmelden, erneuten Koppeln oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
 
 AgenticOS läuft im Browser, und so nutzen es die meisten. Die Desktop-App ist für
 alle, die mehr davon auf dem eigenen Computer wollen: die Konsole in einem eigenen

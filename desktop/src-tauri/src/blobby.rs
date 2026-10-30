@@ -163,7 +163,7 @@ const MAX_NAME: usize = 200;
 /// assumed: a cast member that exists, ids and names of a sane length, and a
 /// colour slot from the avatar ramp.
 pub fn validate(character: &Character) -> Result<(), String> {
-    let slot_ok = |slot: &Option<u8>| slot.map_or(true, |s| (1..=10).contains(&s));
+    let slot_ok = |slot: &Option<u8>| slot.is_none_or(|s| (1..=10).contains(&s));
     let sized = |value: &str, max: usize| !value.trim().is_empty() && value.chars().count() <= max;
     match character {
         Character::Cast { id } if cast().iter().any(|member| &member.id == id) => Ok(()),

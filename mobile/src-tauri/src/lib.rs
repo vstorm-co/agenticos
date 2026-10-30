@@ -308,6 +308,7 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .permission("allow-unlock")
             .permission("allow-mobile-settings")
             .permission("allow-bind-push-session")
+            .permission("allow-clear-push-session")
             .permission("allow-open-mobile-settings")
             .permission("allow-set-mobile-lock")
             .permission("allow-choose-server")
@@ -496,6 +497,26 @@ async fn bind_push_session(app: AppHandle, session_id: String) -> Result<(), Str
     .map_err(|e| e.to_string())?
 }
 
+/// Forget the signed-in recipient and remove notification previews from the phone.
+#[tauri::command]
+async fn clear_push_session(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || clear_push_binding(&app))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn clear_push_binding(app: &AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "ios")]
+    return apns::bind(app, "");
+    #[cfg(target_os = "android")]
+    return push::bind(app, "");
+    #[cfg(not(mobile))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
 #[tauri::command]
 async fn open_mobile_settings(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -531,6 +552,7 @@ async fn choose_server(app: AppHandle) -> Result<(), String> {
     }
     let handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        clear_push_binding(&handle)?;
         live::clear(&handle)?;
         widget::clear(&handle)?;
         share::take(&handle)?;
@@ -792,6 +814,7 @@ pub fn run() {
             mobile_settings,
             mobile_servers,
             bind_push_session,
+            clear_push_session,
             open_mobile_settings,
             set_mobile_lock,
             forget_server,

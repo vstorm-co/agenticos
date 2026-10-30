@@ -546,14 +546,39 @@ async fn shell(
             }
         }
     }
-    let mut child = command
+    run_command(command, timeout).await
+}
+
+/// Always stop descendants, including when the future is dropped by a lost socket.
+struct CommandTree(Box<dyn process_wrap::tokio::ChildWrapper>);
+
+impl Drop for CommandTree {
+    fn drop(&mut self) {
+        let _ = self.0.start_kill();
+    }
+}
+
+fn spawn_tree(command: tokio::process::Command) -> Result<CommandTree, Refusal> {
+    use process_wrap::tokio::{CommandWrap, KillOnDrop};
+    let mut wrapped = CommandWrap::from(command);
+    wrapped.wrap(KillOnDrop);
+    #[cfg(unix)]
+    wrapped.wrap(process_wrap::tokio::ProcessGroup::leader());
+    #[cfg(windows)]
+    wrapped.wrap(process_wrap::tokio::JobObject);
+    wrapped
         .spawn()
-        .map_err(|e| Refusal::new("io", format!("The command could not start: {e}")))?;
-    let mut stdout = child.stdout.take().expect("piped");
-    let mut stderr = child.stderr.take().expect("piped");
+        .map(CommandTree)
+        .map_err(|e| Refusal::new("io", format!("The command could not start: {e}")))
+}
+
+async fn run_command(command: tokio::process::Command, timeout: f64) -> Result<Map<String, Value>, Refusal> {
+    let mut child = spawn_tree(command)?;
+    let mut stdout = child.0.stdout().take().expect("piped");
+    let mut stderr = child.0.stderr().take().expect("piped");
     let collect = async {
         let (out, err) = tokio::join!(capped(&mut stdout), capped(&mut stderr));
-        let status = child.wait().await;
+        let status = child.0.wait().await;
         (out, err, status)
     };
     match tokio::time::timeout(std::time::Duration::from_secs_f64(timeout.max(1.0)), collect).await {
@@ -712,6 +737,71 @@ async fn allowed(app: &AppHandle, root: &Path, line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn process_tree_leaf_fixture() {
+        if std::env::var_os("AGENTICOS_TREE_TEST").is_none() {
+            return;
+        }
+        use std::io::Write;
+        println!("leaf-ready");
+        std::io::stdout().flush().unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(60));
+    }
+
+    #[test]
+    fn process_tree_parent_fixture() {
+        if std::env::var_os("AGENTICOS_TREE_TEST").is_none() {
+            return;
+        }
+        let mut leaf = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "local_work::tests::process_tree_leaf_fixture", "--nocapture"])
+            .spawn()
+            .unwrap();
+        leaf.wait().unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_command_stops_its_descendants_and_closes_their_pipes() {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "local_work::tests::process_tree_parent_fixture",
+                "--nocapture",
+            ])
+            .env("AGENTICOS_TREE_TEST", "1")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        let (send, receive) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            let mut tree = spawn_tree(command).unwrap();
+            send.send(tree.0.stdout().take().unwrap()).unwrap();
+            std::future::pending::<()>().await;
+            drop(tree);
+        });
+        let mut output = BufReader::new(receive.await.unwrap());
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let mut line = String::new();
+                assert_ne!(output.read_line(&mut line).await.unwrap(), 0);
+                if line.contains("leaf-ready") {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("the descendant starts before cancellation");
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        let mut rest = String::new();
+        tokio::time::timeout(std::time::Duration::from_secs(5), output.read_to_string(&mut rest))
+            .await
+            .expect("a surviving descendant would keep stdout open")
+            .unwrap();
+    }
 
     #[test]
     fn a_path_is_kept_inside_its_folder() {

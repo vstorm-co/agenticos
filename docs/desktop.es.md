@@ -1,8 +1,10 @@
 ---
-source_sha: "9350ca23bd90"
+source_sha: "2173ddb6c019"
 ---
 
 # La app de escritorio { #the-desktop-app }
+
+Al desconectar, cerrar sesión, volver a vincular o cambiar de servidor se eliminan los permisos de carpetas, servicios locales, todo el equipo y pantalla. La vinculación muestra la cuenta antes de consumir el código de un solo uso. Cancelar un comando o superar su tiempo límite también termina sus procesos secundarios.
 
 AgenticOS funciona en el navegador, y así lo usa la mayoría. La app de escritorio
 es para quien quiere más en su propio ordenador: la consola en una ventana propia,

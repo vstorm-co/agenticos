@@ -368,15 +368,17 @@ export function useAuth() {
         : isMobileShell(shell)
           ? "clear_push_session"
           : null;
+      let cleanupFailed = false;
       if (cleanup) {
         try {
           await invokeShell(cleanup);
         } catch (error) {
+          cleanupFailed = true;
           reportShellFailure("sign out", error);
           toast.error(t("nativeLogoutFailed"));
         }
       }
-      toast.success(t("loggedOut"));
+      if (!cleanupFailed) toast.success(t("loggedOut"));
       router.push(ROUTES.LOGIN);
     }
   }, [logout, router, queryClient, t]);

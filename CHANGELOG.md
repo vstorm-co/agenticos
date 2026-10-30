@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Revoke desktop local grants and screen control when changing connections or accounts; preview pairing before consuming codes, and stop command process trees on cancellation. Clear native phone notification previews on sign-out.
+
 - Route local calls to one connection, select devices by connection recency, reject oversized local file reads, isolate folder commands from unrelated personal files and clear mobile notification/shortcut remnants when switching accounts or servers.
 
 - Preserve accepted push deliveries when fan-out times out, bound APNs previews by encoded payload size, retain device registrations on configuration mismatches and include the iOS push entitlement in generated builds.

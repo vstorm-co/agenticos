@@ -447,13 +447,15 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, server, Deployment::Server)
+    arrive(&app, &window, server, Deployment::Server).await
 }
 
 /// Point the shell at a console that answers, remember where it lives, and
 /// review this connection, including for an existing account.
-fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+    let _transition = device::transition(app).await;
     managed::check(app, &server)?;
+    device::clear_authority(app).await?;
     let (settings, ()) = settings::update(app, |settings| {
         settings.server_url = Some(server.clone());
         settings.connection_revision = uuid::Uuid::new_v4().to_string();
@@ -535,7 +537,7 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
     let console = tauri::async_runtime::spawn_blocking(move || local_stack::set_up(&handle, &owner))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, console, Deployment::Local)
+    arrive(&app, &window, console, Deployment::Local).await
 }
 
 /// Use the AgenticOS already answering on this computer - a `make dev` stack, or one set up before.
@@ -565,7 +567,7 @@ async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<St
     tauri::async_runtime::spawn_blocking(move || reachable(&probed))
         .await
         .map_err(|e| e.to_string())??;
-    arrive(&app, &window, console, Deployment::Local)
+    arrive(&app, &window, console, Deployment::Local).await
 }
 
 #[tauri::command]

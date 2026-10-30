@@ -44,6 +44,7 @@ pub const PLATFORM: &str = "linux";
 #[derive(Default)]
 pub struct Device {
     connected: Mutex<bool>,
+    transition: Arc<tokio::sync::Mutex<()>>,
     stop: Mutex<Option<Arc<Notify>>>,
 }
 
@@ -168,29 +169,20 @@ pub fn device_status(app: AppHandle) -> DeviceStatus {
 /// computer may decide whose runs work on it.
 #[tauri::command]
 pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, String> {
+    let _transition = transition(&app).await;
     let server = settings::current(&app)
         .server_url
         .ok_or("Connect the app to a server first.")?;
     let client = http()?;
     let endpoints = endpoints(&client, &server).await?;
-    let pair: TokenPair = client
-        .post(endpoints.api_route("/api/v1/auth/pairing-codes/redeem"))
+    let revision = settings::current(&app).connection_revision;
+    let me: Me = client
+        .post(endpoints.api_route("/api/v1/auth/pairing-codes/preview"))
         .json(&serde_json::json!({ "code": code }))
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
         .map_err(|_| "That code has expired or was already used. Try again.".to_owned())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
-    let bearer = format!("Bearer {}", pair.access_token);
-    let me: Me = client
-        .get(endpoints.api_route("/api/v1/auth/me"))
-        .header("Authorization", &bearer)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| e.to_string())?
         .json()
         .await
         .map_err(|e| e.to_string())?;
@@ -210,24 +202,38 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
         });
     let confirmed = answer.await.unwrap_or(false);
     if !confirmed {
-        let _ = client
-            .post(endpoints.api_route("/api/v1/auth/logout"))
-            .json(&serde_json::json!({ "refresh_token": pair.refresh_token }))
-            .send()
-            .await;
         return Err("Not linked.".to_owned());
     }
-    // Named in the Devices list as the desktop app, which is what lets it hold a
-    // device socket at all.
-    client
-        .put(endpoints.api_route("/api/v1/sessions/current/app"))
-        .header("Authorization", &bearer)
-        .json(&serde_json::json!({ "platform": PLATFORM, "version": env!("CARGO_PKG_VERSION") }))
+    ensure_connection(&app, &server, &revision)?;
+    unlink(&app).await?;
+    ensure_connection(&app, &server, &revision)?;
+    let pair: TokenPair = client
+        .post(endpoints.api_route("/api/v1/auth/pairing-codes/redeem"))
+        .json(&serde_json::json!({ "code": code }))
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
+        .map_err(|_| "That code has expired or was already used. Try again.".to_owned())?
+        .json()
+        .await
         .map_err(|e| e.to_string())?;
-    store_refresh(&server, &pair.refresh_token)?;
+    let activated = async {
+        client
+            .put(endpoints.api_route("/api/v1/sessions/current/app"))
+            .bearer_auth(&pair.access_token)
+            .json(&serde_json::json!({ "platform": PLATFORM, "version": env!("CARGO_PKG_VERSION") }))
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|e| e.to_string())?;
+        ensure_connection(&app, &server, &revision)?;
+        store_refresh(&server, &pair.refresh_token)
+    }
+    .await;
+    if let Err(error) = activated {
+        revoke_session(&client, &endpoints, &pair.refresh_token).await;
+        return Err(error);
+    }
     start(&app);
     Ok(status(&app))
 }
@@ -235,23 +241,63 @@ pub async fn device_link(app: AppHandle, code: String) -> Result<DeviceStatus, S
 /// Unlink this computer: its session ends on the server and the keychain forgets it.
 #[tauri::command]
 pub async fn device_unlink(app: AppHandle) -> Result<DeviceStatus, String> {
-    stop(&app);
-    crate::local_browser::close_all(&app).await;
-    if let Some(server) = settings::current(&app).server_url {
-        if let Some(token) = stored_refresh(&server) {
-            let client = http()?;
-            if let Ok(endpoints) = endpoints(&client, &server).await {
-                let _ = client
-                    .post(endpoints.api_route("/api/v1/auth/logout"))
-                    .json(&serde_json::json!({ "refresh_token": token }))
-                    .send()
-                    .await;
+    let _transition = transition(&app).await;
+    unlink(&app).await
+}
+
+async fn unlink(app: &AppHandle) -> Result<DeviceStatus, String> {
+    let server = settings::current(app).server_url;
+    let token = server.as_ref().and_then(stored_refresh);
+    clear_authority(app).await?;
+    if let Some(server) = server {
+        if let Some(token) = token {
+            match http() {
+                Ok(client) => match endpoints(&client, &server).await {
+                    Ok(endpoints) => revoke_session(&client, &endpoints, &token).await,
+                    Err(error) => eprintln!("Could not revoke the device session: {error}"),
+                },
+                Err(error) => eprintln!("Could not revoke the device session: {error}"),
             }
         }
         forget(&server);
     }
-    set_connected(&app, false);
-    Ok(status(&app))
+    set_connected(app, false);
+    Ok(status(app))
+}
+
+/// Pairing, unlinking and server changes own one connection transition at a time.
+pub(crate) async fn transition(app: &AppHandle) -> tokio::sync::OwnedMutexGuard<()> {
+    Arc::clone(&app.state::<Device>().transition).lock_owned().await
+}
+
+fn ensure_connection(app: &AppHandle, server: &Url, revision: &str) -> Result<(), String> {
+    let current = settings::current(app);
+    if current.server_url.as_ref() != Some(server) || current.connection_revision != revision {
+        return Err("The connection changed. Link this computer again.".into());
+    }
+    Ok(())
+}
+
+async fn revoke_session(client: &reqwest::Client, endpoints: &Endpoints, token: &str) {
+    if let Err(error) = client
+        .post(endpoints.api_route("/api/v1/auth/logout"))
+        .json(&serde_json::json!({ "refresh_token": token }))
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+    {
+        eprintln!("Could not revoke the device session: {error}");
+    }
+}
+
+pub(crate) async fn clear_authority(app: &AppHandle) -> Result<(), String> {
+    stop(app);
+    crate::screen::stop(app);
+    crate::computer_access::clear(app)?;
+    settings::update(app, settings::clear_local_authority)?;
+    crate::local_browser::close_all(app).await;
+    set_connected(app, false);
+    Ok(())
 }
 
 fn stop(app: &AppHandle) {
@@ -289,6 +335,9 @@ pub fn start(app: &AppHandle) {
             set_connected(&app, false);
             match ended {
                 Ended::Revoked => {
+                    if let Err(error) = clear_authority(&app).await {
+                        eprintln!("Could not clear revoked device access: {error}");
+                    }
                     forget(&server);
                     let _ = app.emit(STATUS_EVENT, status(&app));
                     return;

@@ -1,8 +1,10 @@
 ---
-source_sha: "9350ca23bd90"
+source_sha: "2173ddb6c019"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
+
+Odłączenie, wylogowanie, ponowne sparowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
 
 AgenticOS działa w przeglądarce i tak używa go większość ludzi. Aplikacja
 desktopowa jest dla tych, którzy chcą więcej na własnym komputerze: konsola we

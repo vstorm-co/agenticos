@@ -44,6 +44,12 @@ pub struct Settings {
     pub local_services: Vec<crate::local_services::Service>,
 }
 
+/// Personal grants must not follow the console into another account or server.
+pub fn clear_local_authority(settings: &mut Settings) {
+    settings.local_grants.clear();
+    settings.local_services.clear();
+}
+
 /// A stack the app set up on this machine, or an organization's server.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -253,7 +259,23 @@ mod tests {
 
     use tauri_plugin_global_shortcut::Shortcut;
 
-    use super::{Action, Settings, Shortcuts, WindowPreferences};
+    use super::{clear_local_authority, Action, Settings, Shortcuts, WindowPreferences};
+
+    #[test]
+    fn account_changes_remove_personal_grants_without_resetting_appearance() {
+        let mut settings: Settings = serde_json::from_value(serde_json::json!({
+            "server_url": "https://example.com/",
+            "local_grants": [{"path": "/private/work", "mode": "full_access"}],
+            "local_services": [{"id": "local", "name": "Private model", "kind": "model", "endpoint": "http://127.0.0.1:11434", "model": "test"}],
+            "connection_revision": "previous"
+        })).unwrap();
+        clear_local_authority(&mut settings);
+        let restored: Settings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert!(restored.local_grants.is_empty());
+        assert!(restored.local_services.is_empty());
+        assert_eq!(restored.connection_revision, "previous");
+        assert_eq!(restored.server_url.unwrap().as_str(), "https://example.com/");
+    }
 
     #[test]
     fn existing_installs_get_open_console_and_can_rebind_or_disable_it() {

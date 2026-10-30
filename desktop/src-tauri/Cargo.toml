@@ -5,7 +5,7 @@ description = "The AgenticOS console in a window of its own"
 license = "Apache-2.0"
 repository = "https://github.com/vstorm-co/agenticos"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.87.0"
 
 [lib]
 name = "agenticos_desktop"
@@ -45,6 +45,7 @@ tauri-plugin-updater = "2"
 xcap = "0.9.8"
 enigo = "0.6.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
+process-wrap = { version = "=10.0.1", default-features = false, features = ["tokio1", "job-object", "process-group", "kill-on-drop"] }
 cap-std = "=4.0.3"
 cap-fs-ext = "=4.0.3"
 

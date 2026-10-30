@@ -1,5 +1,7 @@
 # The desktop app
 
+Unlinking, signing out, relinking or changing servers clears approved folders, local services, whole-computer and screen consents. Pairing previews the account before consuming the single-use code. Cancelling or timing out a command terminates its descendant processes too.
+
 AgenticOS runs in a browser, and that is how most people use it. The desktop app is
 for whoever wants more of it on their own computer: the console in a window of its
 own, a quick ask from anywhere, blobby on the desktop, and - the part a browser

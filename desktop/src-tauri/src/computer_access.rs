@@ -113,6 +113,13 @@ pub async fn local_allow_computer(app: AppHandle, conversation_id: Option<String
     Ok(Some(Granted { id, path: root }))
 }
 
+/// Connection changes cannot carry another account's conversation consents.
+pub fn clear(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<Access>();
+    let _guard = state.0.lock().map_err(|e| e.to_string())?;
+    save(&store(app)?, &[])
+}
+
 #[tauri::command]
 pub fn local_revoke_computer(app: AppHandle, id: String) -> Result<(), String> {
     let state = app.state::<Access>();
