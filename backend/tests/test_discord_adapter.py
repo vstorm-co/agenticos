@@ -288,6 +288,21 @@ class TestPosting:
         assert len(api.posted(f"/channels/{CHANNEL}/messages/{MESSAGE}/threads")) == 1
         assert len(api.posted(f"/channels/{MESSAGE}/messages")) == 2
 
+    async def test_a_thread_this_process_has_not_seen_is_found_rather_than_left(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET",
+            f"/channels/{THREAD}",
+            httpx.Response(200, json={"id": THREAD, "type": 11, "parent_id": CHANNEL}),
+        )
+        await adapter.send_message("tok", OutgoingMessage(f"{CHANNEL}:{THREAD}", "approved"))
+
+        assert api.posted(f"/channels/{CHANNEL}/messages/{THREAD}/threads") == []
+        assert api.posted(f"/channels/{CHANNEL}/messages") == []
+        [body] = api.posted(f"/channels/{THREAD}/messages")
+        assert body["content"] == "approved"
+
     async def test_where_no_thread_may_be_opened_the_answer_replies_in_the_channel(
         self, adapter: DiscordAdapter, api: _Discord
     ):

@@ -215,12 +215,22 @@ class DiscordAdapter(ChannelAdapter):
         already the thread's - and the thread is opened here, on the first post
         into it. A channel where the bot may not open threads gets its answer
         as a reply to the message instead.
+
+        A thread this process has not seen - after a restart, on another
+        worker, or one started without a message - is asked about first. It
+        has no message to open a thread on, and falling back to a reply would
+        put its answer in the channel around it.
         """
         channel, thread = split_thread(chat_key)
         if not thread or thread in self._threads:
             return thread or channel, None
         if chat_key in self._unthreaded:
             return channel, thread
+        await self._learn_channel(bot_token, thread)
+        known = self._channels.get(thread)
+        if known is not None and known.kind in THREAD_TYPES:
+            self._threads.put(thread, True)
+            return thread, None
         response = await self._call(
             "POST",
             f"/channels/{channel}/messages/{thread}/threads",

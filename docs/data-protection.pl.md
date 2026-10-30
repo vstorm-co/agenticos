@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "9d508a0ed0d4"
 ---
 
 # Ochrona danych { #data-protection }
@@ -203,7 +203,7 @@ jest luką — i tak jest nazwany.
 | W tranzycie, do magazynów | `POSTGRES_SSLMODE` i `REDIS_SSL`; `agenticos cmd doctor` raportuje, czy połączenie, które nawiązał, było szyfrowane | [Połączenia szyfrowane](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | W tranzycie, do providerów | HTTPS do każdego skatalogowanego endpointu. Własny `base_url` jest odrzucany bez hosta albo z poświadczeniami w środku, ale **`http://` jest przyjmowany**, dla Ollamy albo gatewaya w sieci samego wdrożenia; profil na zwykłym HTTP wskazujący poza tę sieć wysyła prompty i klucz jawnie. Punkt 4 listy kontrolnej wypisuje każdy taki profil | `refused_field("base_url", ...)` w serwisie profili modeli; schemat to kontrola operatora |
 | Sekrety w odpowiedziach, logach, audycie, eksportach | Żaden endpoint nie zwraca jawnego tekstu; `SecretStr` wszędzie; spece odwołują się do sekretów po id | [Sekrety](secrets.md#what-never-happens) |
-| Dane osobowe w logach | `app/core/logging.py` redaguje adresy e-mail, JWT, klucze API, tokeny bearer i pary `password=` z każdego rekordu logu, tak w API, jak i w workerze | `tests/test_logging.py`; worker instaluje to w `app/worker/__main__.py`, a każdy proces potomny ingestii w `app/worker/child.py` (#440) |
+| Dane osobowe w logach | `app/core/logging.py` redaguje adresy e-mail, JWT, klucze API, tokeny bearer, tokeny interakcji Discorda i pary `password=` z każdego rekordu logu, tak w API, jak i w workerze | `tests/test_logging.py`; worker instaluje to w `app/worker/__main__.py`, a każdy proces potomny ingestii w `app/worker/child.py` (#440) |
 | Dane osobowe docierające do modelu | Capability `guardrails` redaguje numery IBAN, numery kart, amerykańskie numery ubezpieczenia społecznego, numery telefonów i adresy e-mail z promptów, odpowiedzi, wyników i argumentów narzędzi, jeśli jest skonfigurowana | [Capabilities](reference/capabilities.md); jej testy pod `tests/` |
 | Dane osobowe w kolumnie błędu | `rag_documents.error_message` i pokrewne zapisują etap i klasę, nigdy tekst klienta | `app/services/rag/failures.py` (#423) |
 | Rozliczalność | Wpisy audytu dzielą transakcję działającą i zawodzą zamknięte; podszycie nazywa obie osoby; eksporty masowe są zapisywane | [Nadzór](governance.md#audit) |

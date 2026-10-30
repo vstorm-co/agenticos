@@ -68,6 +68,13 @@ class PiiRedactionFilter(logging.Filter):
             "[SECRET_REDACTED]",
         ),
         (re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{10,}"), "Bearer [TOKEN_REDACTED]"),
+        # A Discord interaction's token is the last segment of the URL that
+        # answers it, and a failed call's error carries that URL. Whoever holds
+        # the token may post and edit as the bot there for fifteen minutes.
+        (
+            re.compile(r"(/(?:interactions|webhooks)/\d+/)[A-Za-z0-9_.-]{20,}"),
+            r"\1[TOKEN_REDACTED]",
+        ),
         # Password/secret in key=value or key: value patterns
         (
             re.compile(

@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "9d508a0ed0d4"
 ---
 
 # Datenschutz { #data-protection }
@@ -212,7 +212,7 @@ Issue ist, ist eine Lücke und steht als solche da.
 | Auf dem Transportweg, zu den Speichern | `POSTGRES_SSLMODE` und `REDIS_SSL`; `agenticos cmd doctor` meldet, ob die hergestellte Verbindung verschlüsselt war | [Verschlüsselte Verbindungen](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | Auf dem Transportweg, zu den Providern | HTTPS zu jedem katalogisierten Endpunkt. Eine eigene `base_url` wird ohne Host oder mit Zugangsdaten darin abgelehnt, aber **`http://` wird akzeptiert**, für ein Ollama oder ein Gateway im Netz des Deployments selbst; ein Klartext-HTTP-Profil, das aus diesem Netz hinauszeigt, sendet Prompts und Schlüssel im Klartext. Punkt 4 der Checkliste listet jedes solche Profil | `refused_field("base_url", ...)` im Model-Profile-Service; das Schema ist Sache des Betreibers |
 | Secrets in Antworten, Logs, Audit, Exporten | Kein Endpunkt gibt einen Klartext zurück; `SecretStr` überall; Specs referenzieren Secrets per Id | [Secrets](secrets.md#what-never-happens) |
-| Personenbezogene Daten in Logs | `app/core/logging.py` redigiert E-Mail-Adressen, JWTs, API-Schlüssel, Bearer-Token und `password=`-Paare aus jedem Log-Record, in API wie Worker | `tests/test_logging.py`; der Worker installiert es in `app/worker/__main__.py`, jeder Kindprozess der Ingestion in `app/worker/child.py` (#440) |
+| Personenbezogene Daten in Logs | `app/core/logging.py` redigiert E-Mail-Adressen, JWTs, API-Schlüssel, Bearer-Token, Discord-Interaktions-Token und `password=`-Paare aus jedem Log-Record, in API wie Worker | `tests/test_logging.py`; der Worker installiert es in `app/worker/__main__.py`, jeder Kindprozess der Ingestion in `app/worker/child.py` (#440) |
 | Personenbezogene Daten, die das Model erreichen | Die Capability `guardrails` redigiert IBANs, Kartennummern, US-Sozialversicherungsnummern, Telefonnummern und E-Mail-Adressen aus Prompts, Antworten, Tool-Ergebnissen und Tool-Argumenten, sofern konfiguriert | [Capabilities](reference/capabilities.md); ihre Tests unter `tests/` |
 | Personenbezogene Daten in einer Fehlerspalte | `rag_documents.error_message` und Verwandte halten Stufe und Klasse fest, nie den Text des Kunden | `app/services/rag/failures.py` (#423) |
 | Rechenschaft | Audit-Einträge teilen die handelnde Transaktion und scheitern geschlossen; Impersonation nennt beide Personen; Massenexporte werden festgehalten | [Governance](governance.md#audit) |
