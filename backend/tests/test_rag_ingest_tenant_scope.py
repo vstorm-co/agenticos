@@ -29,7 +29,7 @@ import pytest
 
 from app.db.vector_tables import VectorScope
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
-from app.services.rag.filters import AppScope, RetrievalQuery, TenantScope
+from app.services.rag.filters import AppScope, RetrievalQuery, TenantScope, scope_for
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
     Document,
@@ -309,6 +309,26 @@ class TestKnowledgeBaseVectorTenant:
 
 
 class TestTheScopeClause:
+    @pytest.mark.parametrize("tenant", [None, ORG_A], ids=["orgless", "org"])
+    @pytest.mark.parametrize("takes_unfiled", [False, True])
+    def test_a_bound_union_preserves_the_tenant_and_round_trips(self, tenant, takes_unfiled):
+        second = uuid.uuid4()
+        scope = VectorScope(
+            tenant=tenant,
+            knowledge_base_id=KB_A,
+            takes_unfiled=takes_unfiled,
+            additional_knowledge_base_ids=(second,),
+        )
+        assert scope_for(scope).vectors() == scope
+        clause, params = _vector_scope_clause(scope, prefix="search_")
+        assert "(metadata->>'knowledge_base_id') = ANY(:search_kbs)" in clause
+        assert params["search_kbs"] == [str(KB_A), str(second)]
+        if tenant is None:
+            assert "(metadata->>'organization_id') IS NULL" in clause
+        else:
+            assert params["search_org"] == str(tenant)
+        assert ("OR (metadata->>'knowledge_base_id') IS NULL" in clause) is takes_unfiled
+
     def test_a_tenant_is_an_equality_with_a_bound_value(self):
         clause, params = _vector_scope_clause(VectorScope(tenant=ORG_A))
 

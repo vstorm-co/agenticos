@@ -329,3 +329,5 @@ class VectorScope:
     tenant: UUID | None
     knowledge_base_id: UUID | None = None
     takes_unfiled: bool = True
+    # Additional explicitly bound bases of the same tenant, for read unions.
+    additional_knowledge_base_ids: tuple[UUID, ...] = ()

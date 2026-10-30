@@ -2647,8 +2647,20 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            names.append(collection.collection_name)
-            scopes[collection.collection_name] = collection.vector_scope
+            name = collection.collection_name
+            if previous := scopes.get(name):
+                # Both bases passed the organization check above, so they share
+                # a vector tenant. Read their union without widening to siblings.
+                scopes[name] = replace(
+                    previous,
+                    additional_knowledge_base_ids=(
+                        *previous.additional_knowledge_base_ids,
+                        collection.id,
+                    ),
+                )
+            else:
+                names.append(name)
+                scopes[name] = collection.vector_scope
         return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:

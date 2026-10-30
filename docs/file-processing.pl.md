@@ -1,5 +1,5 @@
 ---
-source_sha: "a8658d688185"
+source_sha: "ffee109a8c8e"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -908,7 +908,7 @@ które usuwają. Nieprzypisane chunki zostają i pasują po swoim tenancie
 
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
-nazwie przeszukuje tylko jedną z nich, więc przypinaj jedną bazę na nazwę.
+nazwie przeszukuje ich połączony zakres, pomijając inne bazy o tej samej nazwie.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

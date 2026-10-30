@@ -498,8 +498,14 @@ def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, 
         params = {f"{prefix}org": str(scope.tenant)}
     if scope.knowledge_base_id is None:
         return tenant_clause, params
-    filed = f"(metadata->>'knowledge_base_id') = :{prefix}kb"
-    params[f"{prefix}kb"] = str(scope.knowledge_base_id)
+    if scope.additional_knowledge_base_ids:
+        filed = f"(metadata->>'knowledge_base_id') = ANY(:{prefix}kbs)"
+        params[f"{prefix}kbs"] = [
+            str(kb) for kb in (scope.knowledge_base_id, *scope.additional_knowledge_base_ids)
+        ]
+    else:
+        filed = f"(metadata->>'knowledge_base_id') = :{prefix}kb"
+        params[f"{prefix}kb"] = str(scope.knowledge_base_id)
     if scope.takes_unfiled:
         filed = f"({filed} OR (metadata->>'knowledge_base_id') IS NULL)"
     return f"{tenant_clause} AND {filed}", params

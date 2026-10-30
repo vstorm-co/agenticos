@@ -28,7 +28,7 @@ Two things are versioned separately from this file and worth knowing about:
   base it was ingested for, and every vector read and write is confined to the
   base. An agent searches the bases it is bound to rather than whichever base of
   that name resolves first; an agent bound to two bases that share a name
-  searches only one of them. Resolving a collection name for an organization
+  searches both without reaching unbound same-named bases. Resolving a collection name for an organization
   with no base of its own falls back only to an app-scoped base, never to a
   personal base outside any organization. A sync source writes into the
   organization's oldest base of its collection name, as before; pointing one at

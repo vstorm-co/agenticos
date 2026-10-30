@@ -857,7 +857,7 @@ bases they remove. Unfiled chunks stay, matched by their tenant
 
 An agent searches the knowledge bases it is bound to under their own scopes, not by
 resolving their names again. An agent bound to two bases that share a name
-searches only one of them, so bind one base per name.
+searches their combined scope, excluding other same-named bases.
 
 **`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
 values actually present in the collection, under that same scope. It exists because

@@ -19,6 +19,7 @@ which only a populated Postgres shows isolating real rows.
 import json
 import uuid
 from collections.abc import AsyncGenerator
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -391,3 +392,25 @@ async def test_a_chunk_filed_under_the_base_with_another_tenant_stays_out(
 
     assert await _searched(store, personal) == {"restamped"}
     assert await _counted(store, personal) == 1
+
+
+@pytest.mark.parametrize("tenant", [None, ORG], ids=["orgless", "org"])
+async def test_a_bound_union_reads_both_bases_and_no_unbound_sibling(
+    engine: AsyncEngine, tenant: uuid.UUID | None
+) -> None:
+    scope = KBScope.PERSONAL if tenant is None else KBScope.ORG
+    first, second, unbound = [_kb(scope, tenant) for _ in range(3)]
+    foreign = _kb(KBScope.ORG, uuid.uuid4())
+    store = _store(engine)
+    await _ingest(store, first, "first")
+    await _ingest(store, second, "second")
+    unbound_doc = await _ingest(store, unbound, "unbound")
+    await _ingest(store, foreign, "foreign")
+    union = replace(first.vector_scope, additional_knowledge_base_ids=(second.id,))
+    retrieval = scope_for(union)
+    assert retrieval.vectors() == union
+    results = await store.search(COLLECTION, "anything", RetrievalQuery(scope=retrieval), limit=20)
+    assert {result.content for result in results} == {"first", "second"}
+    assert (await store.get_collection_info(COLLECTION, union)).total_vectors == 2
+    assert len(await store.get_documents(COLLECTION, union)) == 2
+    assert await store.get_document_chunks(COLLECTION, unbound_doc, union) == []

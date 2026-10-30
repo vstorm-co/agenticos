@@ -1,5 +1,5 @@
 ---
-source_sha: "a8658d688185"
+source_sha: "ffee109a8c8e"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -925,7 +925,7 @@ coinciden por su tenant
 
 Un agente busca en las bases de conocimiento a las que está vinculado con su propio
 ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el
-mismo nombre busca solo en una de ellas, así que vincula una base por nombre.
+mismo nombre busca en su ámbito combinado, excluyendo otras bases del mismo nombre.
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.

@@ -187,6 +187,7 @@ class TenantScope(BaseModel):
     # the unfiled ones of this tenant when `takes_unfiled` (#2537, `VectorScope`).
     knowledge_base_id: UUID | None = None
     takes_unfiled: bool = True
+    additional_knowledge_base_ids: tuple[UUID, ...] = ()
 
     def vectors(self) -> VectorScope:
         """The same restriction as the store's row-level operations take it."""
@@ -194,6 +195,7 @@ class TenantScope(BaseModel):
             tenant=self.organization_id,
             knowledge_base_id=self.knowledge_base_id,
             takes_unfiled=self.takes_unfiled,
+            additional_knowledge_base_ids=self.additional_knowledge_base_ids,
         )
 
 
@@ -228,6 +230,7 @@ class AppScope(BaseModel):
     # tenant and searches through this shape, with `takes_unfiled` off (#2537).
     knowledge_base_id: UUID | None = None
     takes_unfiled: bool = True
+    additional_knowledge_base_ids: tuple[UUID, ...] = ()
 
     def vectors(self) -> VectorScope:
         """The same restriction as the store's row-level operations take it."""
@@ -235,6 +238,7 @@ class AppScope(BaseModel):
             tenant=None,
             knowledge_base_id=self.knowledge_base_id,
             takes_unfiled=self.takes_unfiled,
+            additional_knowledge_base_ids=self.additional_knowledge_base_ids,
         )
 
 
@@ -271,12 +275,15 @@ def scope_for(vectors: VectorScope) -> TenantScope | AppScope:
     """
     if vectors.tenant is None:
         return AppScope(
-            knowledge_base_id=vectors.knowledge_base_id, takes_unfiled=vectors.takes_unfiled
+            knowledge_base_id=vectors.knowledge_base_id,
+            takes_unfiled=vectors.takes_unfiled,
+            additional_knowledge_base_ids=vectors.additional_knowledge_base_ids,
         )
     return TenantScope(
         organization_id=vectors.tenant,
         knowledge_base_id=vectors.knowledge_base_id,
         takes_unfiled=vectors.takes_unfiled,
+        additional_knowledge_base_ids=vectors.additional_knowledge_base_ids,
     )
 
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a8658d688185"
+source_sha: "ffee109a8c8e"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -967,7 +967,8 @@ entfernen. Nicht zugeordnete Chunks bleiben und passen über ihren Tenant
 
 Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
 Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben
-Namens gebunden ist, durchsucht nur eine davon, also binde eine Basis pro Namen.
+Namens gebunden ist, durchsucht ihren gemeinsamen Scope und schließt andere
+gleichnamige Basen aus.
 
 **`GET /rag/collections/{name}/filter-values`** antwortet mit den
 `organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter
