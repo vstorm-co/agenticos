@@ -1,5 +1,5 @@
 ---
-source_sha: "3e03a19684c2"
+source_sha: "78d348192770"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1516,7 +1516,10 @@ bot Discorda nie ma trybu webhooka.
 1. W [Developer Portal](https://discord.com/developers/applications) utwórz
    aplikację. W sekcji **Bot** zresetuj i skopiuj **token** oraz włącz **Message
    Content Intent**. Bez niego Discord odrzuca połączenie, a wiersz bota mówi,
-   który przełącznik włączyć.
+   który przełącznik włączyć. W sekcji **Installation** ustaw **Install Link** na
+   *None*, a potem w sekcji **Bot** wyłącz **Public Bot**. Bota publicznego każdy
+   może dodać do własnego serwera i rozmawiać tam z agentem, więc bot odmawia
+   połączenia, dopóki jest publiczny.
 2. W **OAuth2 → URL Generator** zaznacz scope'y `bot` i `applications.commands`
    oraz uprawnienia **View Channels**, **Send Messages**, **Send Messages in
    Threads**, **Create Public Threads** i **Read Message History**, a potem otwórz

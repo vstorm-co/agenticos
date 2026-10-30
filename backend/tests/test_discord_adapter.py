@@ -876,6 +876,19 @@ class TestGateway:
         ):
             await adapter._run_stream(BOT, "tok")
 
+    async def test_a_public_bot_stops_before_connecting(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", "/gateway/bot", httpx.Response(200, json={"url": "wss://gw"}))
+        api.answer("GET", "/applications/@me", httpx.Response(200, json={"bot_public": True}))
+        connect = AsyncMock()
+        with (
+            patch.object(discord, "connect", connect),
+            pytest.raises(ChannelNotConfigured, match="Public Bot"),
+        ):
+            await adapter._run_stream(BOT, "tok")
+        connect.assert_not_called()
+
     async def test_a_rejected_token_stops_before_connecting(
         self, adapter: DiscordAdapter, api: _Discord
     ):

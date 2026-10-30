@@ -1,5 +1,5 @@
 ---
-source_sha: "3e03a19684c2"
+source_sha: "78d348192770"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1626,7 +1626,11 @@ Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
 1. Erstellen Sie im [Developer Portal](https://discord.com/developers/applications)
    eine Anwendung. Setzen Sie unter **Bot** das **Token** zurück, kopieren Sie es
    und schalten Sie **Message Content Intent** ein. Ohne den lehnt Discord die
-   Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt.
+   Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt. Setzen Sie
+   unter **Installation** den **Install Link** auf *None* und schalten Sie dann
+   unter **Bot** **Public Bot** aus. Einen öffentlichen Bot kann jeder zu seinem
+   eigenen Server hinzufügen und dort mit dem Agenten sprechen, deshalb verweigert
+   der Bot die Verbindung, solange er öffentlich ist.
 2. Kreuzen Sie unter **OAuth2 → URL Generator** die Scopes `bot` und
    `applications.commands` an sowie die Berechtigungen **View Channels**, **Send
    Messages**, **Send Messages in Threads**, **Create Public Threads** und **Read

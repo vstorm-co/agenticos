@@ -1471,7 +1471,10 @@ Discord bot has no webhook mode.
 1. In the [Developer Portal](https://discord.com/developers/applications), create
    an application. Under **Bot**, reset and copy the **token**, and switch on
    **Message Content Intent**. Without it Discord refuses the connection, and the
-   bot's row says which switch to turn on.
+   bot's row says which switch to turn on. Under **Installation**, set **Install
+   Link** to *None*, then switch off **Public Bot** under **Bot**. Anyone can add
+   a public bot to their own server and talk to the agent there, so the bot
+   refuses to connect while it is public.
 2. Under **OAuth2 → URL Generator**, tick the `bot` and `applications.commands`
    scopes and the permissions **View Channels**, **Send Messages**, **Send
    Messages in Threads**, **Create Public Threads** and **Read Message History**,

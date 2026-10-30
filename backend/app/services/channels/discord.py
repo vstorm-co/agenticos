@@ -64,6 +64,7 @@ from app.services.channels.discord_protocol import (
     MESSAGE_LIMIT,
     NO_MENTIONS,
     PRIVATE_THREAD,
+    PUBLIC_BOT,
     THREAD_TYPES,
     Recent,
     attachment_type,
@@ -579,7 +580,7 @@ class DiscordAdapter(ChannelAdapter):
         )
 
     async def _gateway_url(self, bot_token: str, bot_id: str) -> str:
-        """Where to connect, asked with the token - so a rejected token stops here."""
+        """Where to connect, asked with the token - so a rejected token or a public bot stops here."""
         response = await self._call("GET", "/gateway/bot", bot_token)
         if response.status_code == 401:
             raise ChannelNotConfigured(
@@ -587,6 +588,10 @@ class DiscordAdapter(ChannelAdapter):
                 details={"bot_id": bot_id},
             )
         response.raise_for_status()
+        application = await self._call("GET", "/applications/@me", bot_token)
+        application.raise_for_status()
+        if application.json().get("bot_public"):
+            raise ChannelNotConfigured(message=PUBLIC_BOT, details={"bot_id": bot_id})
         return str(response.json()["url"])
 
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:

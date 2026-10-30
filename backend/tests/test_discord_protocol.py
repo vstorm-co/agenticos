@@ -72,6 +72,9 @@ class TestCommands:
         assert registered[-1]["type"] == 3
         assert set(names[1:-1]) == {name for name, _ in CHANNEL_COMMANDS} - {"start"}
 
+    def test_no_command_follows_an_install_to_a_user_s_own_account(self):
+        assert {tuple(command["integration_types"]) for command in commands()} == {(0,)}
+
 
 class TestChunks:
     def test_a_short_answer_is_one_message(self):

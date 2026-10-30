@@ -63,6 +63,19 @@ _UNRECOVERABLE: dict[int, str] = {
 
 _SESSION_LOST = frozenset({4007, 4009})
 
+PUBLIC_BOT = (
+    "This bot is public, so anyone can add it to their own server and use the agent. "
+    "Switch off 'Public Bot' under Bot in the Developer Portal."
+)
+"""Why a public bot is refused before it connects.
+
+Every message from a server the bot is in is routed, and an open access policy
+then admits whoever sent it. A private bot can be added to a server only by its
+owner, so the servers it is in are the ones its owner chose.
+"""
+
+_GUILD_INSTALL = [0]
+
 _MENTION = re.compile(r"<@[!&]?\d+>")
 
 
@@ -105,6 +118,9 @@ def commands() -> list[dict[str, Any]]:
     """The application commands a bot registers: `/ask`, the channel commands, and one on messages.
 
     `/start` is Telegram's greeting and has no meaning in a server, so it is left out.
+    Each is offered only where the bot was added to a server: a user who installs
+    the application to their own account gets none, since that would reach the
+    agent from servers its owner never chose.
     """
     return [
         {
@@ -114,13 +130,14 @@ def commands() -> list[dict[str, Any]]:
             "options": [
                 {"type": 3, "name": "question", "description": "What to ask", "required": True}
             ],
+            "integration_types": _GUILD_INSTALL,
         },
         *(
-            {"name": name, "type": 1, "description": what}
+            {"name": name, "type": 1, "description": what, "integration_types": _GUILD_INSTALL}
             for name, what in CHANNEL_COMMANDS
             if name != "start"
         ),
-        {"name": ASK_ABOUT, "type": 3},
+        {"name": ASK_ABOUT, "type": 3, "integration_types": _GUILD_INSTALL},
     ]
 
 
