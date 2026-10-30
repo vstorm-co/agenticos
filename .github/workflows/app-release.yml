@@ -114,6 +114,7 @@ jobs:
           includeUpdaterJson: true
   android:
     needs: resolve
+    if: vars.AGENTICOS_MOBILE_RELEASES_ENABLED == 'true'
     environment: apps-release
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -159,7 +160,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/android.keystore"
   ios:
     needs: resolve
-    if: vars.AGENTICOS_TESTFLIGHT_ENABLED == 'true'
+    if: vars.AGENTICOS_MOBILE_RELEASES_ENABLED == 'true' && vars.AGENTICOS_TESTFLIGHT_ENABLED == 'true'
     environment: apps-release
     runs-on: macos-latest
     timeout-minutes: 45

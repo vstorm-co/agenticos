@@ -1,5 +1,5 @@
 ---
-source_sha: "0b10688013ea"
+source_sha: "444cec63e6e1"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -16,6 +16,42 @@ tenant son los de la consola.
 
 Es una app de [Tauri](https://tauri.app) en `mobile/`, con las mitades nativas -
 Swift para iOS, Kotlin para Android - en `mobile/src-tauri/`.
+
+## Disponibilidad e instalación propia { #availability-and-self-installation }
+
+!!! info "Los builds móviles son para desarrollo, no para distribución pública"
+
+    Compilamos la aplicación móvil en CI, pero actualmente no la publicamos mediante
+    TestFlight, App Store ni Google Play, ni ofrecemos una versión móvil con soporte
+    para descargar. Para usar la aplicación nativa ahora, debes compilarla e instalarla
+    por tu cuenta y conectarla a un despliegue AgenticOS operado por ti o tu organización.
+    No proporcionamos un servidor AgenticOS alojado ni cuentas Apple para firmar la app.
+
+El workflow **Apps** compila una APK de depuración Android y una aplicación sin firma
+para el simulador iOS. Son verificaciones de desarrollo, no versiones de tienda.
+Un build del simulador iOS no se puede instalar en un iPhone físico. Un dispositivo
+real requiere firma y perfiles de aprovisionamiento propios para la app y sus extensiones.
+
+Tras clonar el repositorio, instala Rust y las herramientas de plataforma: Xcode en
+macOS para iOS, o Android SDK, NDK y JDK para Android. Después:
+
+```bash
+cd mobile
+bun install --frozen-lockfile
+bun run ios        # desarrollo iOS en macOS
+# o
+bun run android    # desarrollo Android
+```
+
+Al iniciar, introduce la dirección de tu despliegue. Debe ser accesible desde el
+teléfono; `localhost` en un teléfono se refiere al propio teléfono, no al ordenador
+de desarrollo. La [versión del navegador/pantalla de inicio](#installing-the-console-instead)
+permite usar la consola sin compilar la app nativa.
+
+La distribución móvil pública está desactivada por defecto en el workflow de versiones.
+Activarla más adelante requiere `AGENTICOS_MOBILE_RELEASES_ENABLED=true`; iOS también
+requiere `AGENTICOS_TESTFLIGHT_ENABLED=true` y la configuración de firma descrita en
+[versiones de aplicaciones](desktop.md#installers-and-updates). Los builds normales de CI siguen activos.
 
 ## Iniciar sesión { #signing-in }
 

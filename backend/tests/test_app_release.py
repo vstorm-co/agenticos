@@ -6,6 +6,7 @@ import plistlib
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -77,3 +78,22 @@ def test_homebrew_cask_hashes_both_architectures_and_refuses_ambiguity(tmp_path:
     (tmp_path / "duplicate_aarch64.dmg").write_bytes(b"other")
     with pytest.raises(ValueError, match="exactly one"):
         module.cask(tmp_path, "v1.8.3")
+
+
+def test_mobile_publication_is_opt_in_without_disabling_ci_builds() -> None:
+    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    builds = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
+    mobile_gate = "vars.AGENTICOS_MOBILE_RELEASES_ENABLED == 'true'"
+    assert release["jobs"]["android"]["if"] == mobile_gate
+    assert release["jobs"]["ios"]["if"] == (
+        mobile_gate + " && vars.AGENTICOS_TESTFLIGHT_ENABLED == 'true'"
+    )
+    assert "AGENTICOS_MOBILE_RELEASES_ENABLED" not in str(release["jobs"]["desktop"])
+    for platform in ("android", "ios"):
+        job = builds["jobs"][platform]
+        assert "if" not in job
+        commands = "\n".join(step.get("run", "") for step in job["steps"])
+        if platform == "android":
+            assert "tauri android build --debug" in commands
+        else:
+            assert "--target aarch64-sim --no-sign" in commands

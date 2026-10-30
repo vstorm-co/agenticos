@@ -1,5 +1,5 @@
 ---
-source_sha: "38fb3bf79fce"
+source_sha: "10fa5377e44e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -525,6 +525,12 @@ einen Homebrew-Cask an ein bestehendes veröffentlichtes stabiles Release
 Der Cask ist eine herunterladbare Datei; ein Homebrew-Tap wird separat veröffentlicht.
 **Check for Updates…** benötigt einen Build mit öffentlichem Update-Schlüssel und
 prüft vor der Installation die Signatur.
+
+Die Veröffentlichung der mobilen App ist derzeit deaktiviert. Die Repository-Variable
+`AGENTICOS_MOBILE_RELEASES_ENABLED=true` aktiviert signierte Android-Releases;
+iOS benötigt zusätzlich den unten genannten TestFlight-Schalter. Reguläre CI-Builds
+bleiben aktiv. Bis zur Freigabe der Verteilung gilt die Anleitung zur
+[Selbstinstallation der mobilen App](mobile.md#availability-and-self-installation).
 
 Vor einem Release die GitHub-Umgebung `apps-release` konfigurieren:
 

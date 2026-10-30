@@ -1,5 +1,5 @@
 ---
-source_sha: "38fb3bf79fce"
+source_sha: "10fa5377e44e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -517,6 +517,12 @@ versión estable ya publicada `v1.MINOR.PATCH` cuyo commit pertenece a `main`.
 No crea una versión de la plataforma. El cask es un archivo descargable; publicar
 un tap Homebrew es una operación separada. **Check for Updates…** requiere un
 build con la clave pública y verifica la firma antes de instalar.
+
+La publicación móvil está desactivada actualmente. La variable del repositorio
+`AGENTICOS_MOBILE_RELEASES_ENABLED=true` habilita las versiones firmadas de Android;
+iOS requiere además la opción de TestFlight indicada abajo. Las compilaciones
+habituales de CI siguen activas. Hasta habilitar la distribución, consulta la
+[instalación móvil por tu cuenta](mobile.md#availability-and-self-installation).
 
 Configura el entorno GitHub `apps-release` antes de publicar:
 

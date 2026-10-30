@@ -1,5 +1,5 @@
 ---
-source_sha: "0b10688013ea"
+source_sha: "444cec63e6e1"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -15,6 +15,43 @@ kontrole tenanta są konsoli.
 
 To aplikacja [Tauri](https://tauri.app) w `mobile/`, z natywnymi połówkami - Swift
 dla iOS, Kotlin dla Androida - w `mobile/src-tauri/`.
+
+## Dostępność i samodzielna instalacja { #availability-and-self-installation }
+
+!!! info "Buildy mobilne służą do rozwoju, nie do publicznej dystrybucji"
+
+    Budujemy aplikację mobilną w CI, ale obecnie nie publikujemy jej w TestFlight,
+    App Store ani Google Play i nie udostępniamy wspieranego wydania mobilnego do
+    pobrania. Aby korzystać z natywnej aplikacji już teraz, zbuduj i zainstaluj ją
+    samodzielnie, a następnie połącz z wdrożeniem AgenticOS prowadzonym przez Ciebie
+    lub Twoją organizację. Nie zapewniamy hostowanego serwera AgenticOS ani kont
+    Apple do podpisywania aplikacji.
+
+Workflow **Apps** buduje debugowy APK Androida i niepodpisaną aplikację symulatora
+iOS. Są to kontrole deweloperskie, nie wydania sklepowe. Buildu symulatora iOS nie
+można zainstalować na fizycznym iPhonie. Uruchomienie na urządzeniu wymaga własnego
+podpisywania i profili provisioning dla aplikacji oraz rozszerzeń.
+
+Po sklonowaniu repozytorium zainstaluj Rust i narzędzia platformy: Xcode na macOS
+dla iOS albo Android SDK, NDK i JDK dla Androida. Następnie:
+
+```bash
+cd mobile
+bun install --frozen-lockfile
+bun run ios        # rozwój iOS na macOS
+# albo
+bun run android    # rozwój Androida
+```
+
+Przy uruchomieniu wpisz adres swojego wdrożenia. Musi być osiągalny z telefonu;
+`localhost` na telefonie oznacza telefon, nie komputer deweloperski. Możesz też
+korzystać z [wersji przeglądarkowej dodanej do ekranu głównego](#installing-the-console-instead)
+bez budowania natywnej aplikacji.
+
+Publiczna dystrybucja mobilna jest domyślnie wyłączona w workflow wydawniczym.
+Późniejsze włączenie wymaga `AGENTICOS_MOBILE_RELEASES_ENABLED=true`; iOS dodatkowo
+wymaga `AGENTICOS_TESTFLIGHT_ENABLED=true` i konfiguracji podpisywania opisanej
+w [wydaniach aplikacji](desktop.md#installers-and-updates). Zwykłe buildy CI pozostają aktywne.
 
 ## Logowanie { #signing-in }
 

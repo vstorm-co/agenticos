@@ -488,6 +488,12 @@ is a downloadable asset; publishing a Homebrew tap is a separate operator step.
 The desktop menu's **Check for Updates…** requires a build with the updater public
 key and verifies the downloaded signature before installation.
 
+Mobile publishing is currently disabled. Set the repository variable
+`AGENTICOS_MOBILE_RELEASES_ENABLED=true` to opt in to signed Android releases;
+iOS also requires the TestFlight flag below. This does not disable regular CI
+builds. Until distribution is enabled, follow
+[mobile self-installation](mobile.md#availability-and-self-installation).
+
 Configure the `apps-release` GitHub environment before running a release:
 
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secrets `TAURI_SIGNING_PRIVATE_KEY`

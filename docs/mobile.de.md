@@ -1,5 +1,5 @@
 ---
-source_sha: "0b10688013ea"
+source_sha: "444cec63e6e1"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -15,6 +15,43 @@ also gehören Anmeldung, Berechtigungen und Mandantenprüfungen der Konsole.
 
 Sie ist eine [Tauri](https://tauri.app)-App in `mobile/`, mit den nativen Hälften -
 Swift für iOS, Kotlin für Android - unter `mobile/src-tauri/`.
+
+## Verfügbarkeit und eigene Installation { #availability-and-self-installation }
+
+!!! info "Mobile Builds dienen der Entwicklung, nicht der öffentlichen Verteilung"
+
+    Wir bauen die mobile App in CI, veröffentlichen sie derzeit aber weder über
+    TestFlight noch im App Store oder bei Google Play und bieten keinen unterstützten
+    mobilen Release zum Download an. Wer die native App jetzt nutzen möchte, muss
+    sie selbst bauen und installieren und mit einem eigenen oder vom Unternehmen
+    betriebenen AgenticOS-Deployment verbinden. Ein gehosteter AgenticOS-Server
+    oder Apple-Konten zum Signieren werden nicht mitgeliefert.
+
+Der Workflow **Apps** baut eine Android-Debug-APK und eine unsignierte iOS-Simulator-App.
+Das sind Entwicklungsprüfungen, keine Store-Releases. Ein iOS-Simulator-Build lässt
+sich nicht auf einem echten iPhone installieren. Für ein echtes Gerät werden eigene
+Signaturen und Provisioning-Profile für App und Erweiterungen benötigt.
+
+Nach dem Klonen installierst du Rust und die Plattformwerkzeuge: Xcode auf macOS
+für iOS oder Android SDK, NDK und JDK für Android. Danach:
+
+```bash
+cd mobile
+bun install --frozen-lockfile
+bun run ios        # iOS-Entwicklung auf macOS
+# oder
+bun run android    # Android-Entwicklung
+```
+
+Gib beim Start die Adresse deines Deployments ein. Sie muss vom Telefon erreichbar
+sein; `localhost` auf dem Telefon bezeichnet das Telefon, nicht den Entwicklungsrechner.
+Die [Browser-/Startbildschirm-Version](#installing-the-console-instead) funktioniert
+auch ohne eigenen nativen Build.
+
+Die öffentliche mobile Verteilung ist im Release-Workflow standardmäßig deaktiviert.
+Eine spätere Aktivierung benötigt `AGENTICOS_MOBILE_RELEASES_ENABLED=true`; iOS braucht
+zusätzlich `AGENTICOS_TESTFLIGHT_ENABLED=true` und die Signaturkonfiguration unter
+[App-Releases](desktop.md#installers-and-updates). Die regulären CI-Builds bleiben aktiv.
 
 ## Anmelden { #signing-in }
 

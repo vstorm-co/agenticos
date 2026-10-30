@@ -12,6 +12,42 @@ tenant checks are the console's.
 It is a [Tauri](https://tauri.app) app in `mobile/`, with the native halves -
 Swift for iOS, Kotlin for Android - under `mobile/src-tauri/`.
 
+## Availability and self-installation
+
+!!! info "Mobile builds are available for development, not public distribution"
+
+    We build the mobile app in CI, but do not currently publish it through TestFlight,
+    the App Store or Google Play, or provide a supported mobile release download.
+    To use the native app now, build and install it yourself and connect it to an
+    AgenticOS deployment operated by you or your organization. We do not provide
+    a hosted AgenticOS server or Apple signing accounts with the app.
+
+The **Apps** workflow builds an Android debug APK and an unsigned iOS simulator
+app. These are development checks, not store releases. An iOS simulator build
+cannot be installed on a physical iPhone. Running on a real device requires your
+own signing and provisioning for the app and its extensions.
+
+From a clone, install Rust and the platform toolchain: Xcode on macOS for iOS,
+or the Android SDK, NDK and JDK for Android. Then:
+
+```bash
+cd mobile
+bun install --frozen-lockfile
+bun run ios        # iOS development on macOS
+# or
+bun run android    # Android development
+```
+
+Enter the address of your deployment when the app starts. It must be reachable
+from the phone; `localhost` on a phone refers to the phone, not your development
+computer. The [browser/home-screen version](#installing-the-console-instead)
+remains an option without building the native app.
+
+Public mobile distribution is disabled by default in the release workflow.
+Enabling it later requires `AGENTICOS_MOBILE_RELEASES_ENABLED=true`; iOS also
+requires `AGENTICOS_TESTFLIGHT_ENABLED=true` and the signing configuration in
+[app releases](desktop.md#installers-and-updates). The regular CI builds remain enabled.
+
 ## Signing in
 
 Scanning shows the target account’s name and email first. Confirm the account to sign in; cancel leaves the current session unchanged. Previewing never consumes the code or extends its one-minute lifetime.

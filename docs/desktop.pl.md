@@ -1,5 +1,5 @@
 ---
-source_sha: "38fb3bf79fce"
+source_sha: "10fa5377e44e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -496,6 +496,12 @@ aktualizacji, APK i cask Homebrew do istniejącego, opublikowanego stabilnego wy
 Cask jest plikiem do pobrania; publikacja tapu Homebrew pozostaje zadaniem operatora.
 Menu **Sprawdź aktualizacje…** wymaga buildu z publicznym kluczem aktualizatora i
 weryfikuje podpis przed instalacją.
+
+Publikacja mobile jest obecnie wyłączona. Zmienna repozytorium
+`AGENTICOS_MOBILE_RELEASES_ENABLED=true` włącza podpisane wydania Androida;
+iOS wymaga dodatkowo flagi TestFlight opisanej poniżej. Zwykłe buildy CI pozostają
+aktywne. Do czasu uruchomienia dystrybucji skorzystaj z instrukcji
+[samodzielnej instalacji mobile](mobile.md#availability-and-self-installation).
 
 Przed wydaniem skonfiguruj środowisko GitHub `apps-release`:
 
