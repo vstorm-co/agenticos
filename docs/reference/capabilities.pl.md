@@ -1,5 +1,5 @@
 ---
-source_sha: "c009f12941c5"
+source_sha: "4417ff8a41d7"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2391,6 +2391,17 @@ streaming.
 dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
 osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
 wiadomość.
+
+**Krawędź wejścia sprawdza załącznik, zanim zostanie zapisany.** Załączony plik
+trafia do promptu jako nazwa, ścieżka i pierwsze 20 linii (najwyżej 2000 znaków), a
+krawędź wejścia czyta je razem z wiadomością osoby. Agent z workspace'em ma ten
+tekst sprawdzony, zanim plik zostanie skopiowany do `uploads/`, więc tura
+zablokowana przez krawędź nic nie zapisuje, a późniejsza tura w workspace'ie o
+zakresie `conversation`, `user` lub `agent` nie ma odrzuconego pliku do otwarcia.
+Krawędź czyta tylko te początkowe linie, więc zablokowane słowo dalej w pliku nie
+jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Wyjątkiem jest
+obraz wysłany bezpośrednio: krawędź czyta też jego bajty, a blokada, którą wywołują
+te bajty, nie jest przewidywana, więc taki obraz nadal zostaje zapisany.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —

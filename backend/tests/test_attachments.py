@@ -13,7 +13,9 @@ from uuid import uuid4
 
 import pytest
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai_harness import GuardrailResult
 
+from app.agents.capabilities.guardrails import GuardrailBlocked, GuardrailsConfig, input_screen
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.repositories import chat_file as chat_file_repo
 from app.services import attachments as attachments_module
@@ -1322,3 +1324,134 @@ class TestAFileTheInputEdgeRefusesIsNotPutBack:
         for text in (crlf, long_lines, "a\rb\nc" * 2000):
             prefix = text[: attachments_module._OPENING_CHARS]
             assert attachments_module._head(prefix) == attachments_module._head(text)
+
+
+def _blocking(word: str = "XYZZY"):
+    """The input edge's own detector, blocking `word` - the one the harness runs."""
+    screen = input_screen(GuardrailsConfig(blocked_keywords_in=word))
+    assert screen is not None
+    return screen
+
+
+@pytest.mark.security
+class TestTheInputEdgeScreensBeforeAnythingIsWritten:
+    """A file the input guardrail refuses never reaches the workspace (#2559).
+
+    The edge screens the prompt on the first model request, and routing used to
+    write the file while the prompt was built - before that. On a conversation-,
+    user- or agent-scoped workspace the refused file stayed, and a later turn
+    could open it.
+    """
+
+    async def test_a_refused_file_is_not_written(self, storage):
+        document = _document()
+        chat_file = _file(parsed_content="month,total\nXYZZY,10")
+
+        await AttachmentRouter(document_workspace(document), screen=_blocking()).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        assert document.files == {}
+        storage.assert_not_awaited()
+
+    async def test_a_refused_turn_is_handed_on_for_the_edge_to_refuse(self, storage):
+        """Built from the same text the edge reads, so the edge refuses it and the
+        turn ends as `guardrail_blocked` the way it always did."""
+        screen = _blocking()
+
+        prompt = await AttachmentRouter(
+            document_workspace(_document()), screen=screen
+        ).build_prompt("summarise", [_file(parsed_content="month,total\nXYZZY,10")])
+
+        assert isinstance(prompt, str)
+        assert "XYZZY" in prompt
+        with pytest.raises(GuardrailBlocked):
+            screen(prompt)
+
+    async def test_a_refused_turn_leaves_the_next_turn_nothing_to_look_for(self, storage):
+        """`context` is replayed to later turns; a path to a file that was never
+        written would send the model looking for it."""
+        router = AttachmentRouter(document_workspace(_document()), screen=_blocking())
+
+        await router.build_prompt("summarise", [_file(parsed_content="XYZZY")])
+
+        assert router.context == ""
+
+    async def test_the_message_alone_is_enough_to_stop_the_write(self, storage):
+        document = _document()
+
+        await AttachmentRouter(document_workspace(document), screen=_blocking()).build_prompt(
+            "XYZZY - summarise", [_file()]
+        )
+
+        assert document.files == {}
+
+    async def test_the_extracted_text_of_a_document_is_screened_too(self, storage):
+        """A PDF's opening lines reach the prompt through its parse, like any other."""
+        document = _document()
+        chat_file = _file(
+            filename="memo.pdf",
+            mime_type="application/pdf",
+            file_type="pdf",
+            parsed_content="XYZZY confidential",
+        )
+
+        await AttachmentRouter(document_workspace(document), screen=_blocking()).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        assert document.files == {}
+
+    async def test_a_screen_that_answers_block_rather_than_raising_stops_it_too(self, storage):
+        document = _document()
+
+        await AttachmentRouter(
+            document_workspace(document), screen=lambda _text: GuardrailResult.block("no")
+        ).build_prompt("summarise", [_file()])
+
+        assert document.files == {}
+
+    async def test_a_clean_turn_is_routed_as_before(self, storage):
+        document = _document()
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(
+            document_workspace(document), screen=_blocking()
+        ).build_prompt("summarise", [chat_file])
+
+        assert document.exists(workspace_path(chat_file))
+        assert workspace_path(chat_file) in prompt
+
+    async def test_a_redacting_screen_does_not_stop_the_write(self, storage):
+        """Only a refusal stops the turn; a redaction is the edge's to apply."""
+        document = _document()
+        chat_file = _file()
+
+        await AttachmentRouter(
+            document_workspace(document), screen=lambda text: GuardrailResult.replace(text)
+        ).build_prompt("summarise", [chat_file])
+
+        assert document.exists(workspace_path(chat_file))
+
+    async def test_an_agent_with_no_workspace_is_not_screened_here(self, storage):
+        """Nothing is written without a workspace, so the edge alone decides."""
+        prompt = await AttachmentRouter(None, screen=_blocking()).build_prompt(
+            "summarise", [_file(parsed_content="XYZZY")]
+        )
+
+        assert isinstance(prompt, str)
+        assert "XYZZY" in prompt
+
+    async def test_what_is_screened_is_what_a_clean_turn_sends(self, storage):
+        """The screen predicts the edge only while both read the same text: a
+        reference worded differently in one place would let a refused head through."""
+        chat_file = _file()
+        clean = await AttachmentRouter(document_workspace(_document())).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        refused = await AttachmentRouter(
+            document_workspace(_document()), screen=lambda _text: GuardrailResult.block("no")
+        ).build_prompt("summarise", [chat_file])
+
+        assert refused == clean

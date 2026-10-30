@@ -404,8 +404,12 @@ class AttachmentRouter:
         workspace: Workspace | None = None,
         *,
         can_parse: bool = False,
+        screen: Callable[[str], GuardrailResult] | None = None,
     ) -> None:
         self._workspace = workspace
+        # The agent's input edge (`input_screen_for`), run over the turn before
+        # anything is written - see `_refused_by_the_input_edge`.
+        self._screen = screen
         self.context = ""
         """What the last `build_prompt` appended to the person's message.
 
@@ -426,6 +430,12 @@ class AttachmentRouter:
         """The user's message, with everything they attached folded in."""
         if not files:
             return user_message
+        refused_turn = self._refused_by_the_input_edge(user_message, files)
+        if refused_turn is not None:
+            # Nothing routed, so nothing to replay: a later turn told the file is
+            # in its workspace would go looking for one that was never written.
+            self.context = ""
+            return refused_turn
 
         text_parts: list[str] = []
         inline: list[BinaryContent] = []
@@ -480,6 +490,46 @@ class AttachmentRouter:
         if inline:
             return [full_text, *inline]
         return full_text
+
+    def _refused_by_the_input_edge(self, user_message: str, files: list[ChatFile]) -> str | None:
+        """The turn as the input edge will read it, when the edge will refuse it.
+
+        Routing writes each file into the workspace, and the edge screens the
+        prompt only on the first model request - after the writes. A refused turn
+        then left its file in a `conversation`, `user` or `agent` workspace for
+        any later turn to open (#2559). So the turn is screened here first, with
+        the same detector, over what the edge would read of each file: its name,
+        path and opening lines (`_referenced`), the extracted-text sibling named
+        as if its write had landed.
+
+        On a refusal the caller gets that text back, unrouted - no write, no
+        sandbox session opened - and hands it to the run, where the edge refuses
+        the same text again and the turn ends `guardrail_blocked` the way it
+        always did. Screened only with a workspace: without one nothing is
+        written, and the edge alone decides.
+
+        Text only. On a turn that inlines a picture the edge reads the prompt
+        list's repr, image bytes included, and can refuse because of those
+        bytes - a long digit run under PII redaction, a keyword the repr happens
+        to contain. That refusal is about no content anybody wrote, and it is
+        not predicted here, so such a picture is still written.
+
+        Every file's reference is screened, including one the turn's text budget
+        would drop: a refusal there fails closed, and the edge refuses the same
+        text again.
+        """
+        if self._screen is None or self._workspace is None:
+            return None
+        previewed = user_message
+        for chat_file in files:
+            path = workspace_path(chat_file)
+            sibling = None if self._skips_sibling(chat_file) else _text_sibling(chat_file, path)
+            previewed += _referenced(chat_file, path, sibling=sibling)
+        try:
+            refused = self._screen(previewed).action == "block"
+        except GuardrailBlocked:
+            refused = True
+        return previewed if refused else None
 
     async def route(
         self, chat_file: ChatFile, *, inline_budget: int | None = None
