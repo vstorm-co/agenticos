@@ -9,6 +9,10 @@ out
 build
 dist
 
+# Tests are checked by CI in the full repository; the image context is frontend-only.
+**/*.test.ts
+**/*.test.tsx
+
 # Testing
 coverage
 .nyc_output

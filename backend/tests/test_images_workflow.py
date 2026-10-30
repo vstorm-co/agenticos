@@ -23,6 +23,7 @@ laptop, where the override file builds the image locally under another name.
 """
 
 import re
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -300,3 +301,22 @@ class TestTheReleaseCarriesAnInventory:
             if job.get("permissions", {}).get("contents") == "write"
         }
         assert writing == {"sbom"}
+
+
+def test_frontend_container_omits_tests_that_require_the_monorepo() -> None:
+    frontend = REPO_ROOT / "frontend"
+    patterns = [
+        line.strip()
+        for line in (frontend / ".dockerignore").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    source = frontend / "src/components/desktop"
+    for name in ("connection-permissions.test.ts", "local-computer.test.ts"):
+        file = source / name
+        assert "../../../../desktop/ui/" in file.read_text()
+        relative = file.relative_to(frontend).as_posix()
+        assert any(fnmatchcase(relative, pattern) for pattern in patterns), (
+            f"{relative} imports files outside the frontend-only image context"
+        )
+    # Excluding tests must not exclude the production desktop bridge itself.
+    assert not any(fnmatchcase("src/components/desktop/desktop-bridge.tsx", p) for p in patterns)
