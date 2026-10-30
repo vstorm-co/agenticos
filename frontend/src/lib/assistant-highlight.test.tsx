@@ -71,6 +71,65 @@ function Builder({ agent }: { agent: string }) {
   );
 }
 
+/**
+ * The Activity page, wired as it wires it: its anchors sit on the tab panels
+ * themselves, and Radix keeps an inactive panel in the document, empty and `hidden`.
+ */
+function Activity() {
+  const [tabParam, changeTab] = useUrlState("tab");
+  const tab = tabParam ?? "runs";
+  return (
+    <Tabs value={tab} onValueChange={(next) => changeTab(next === "runs" ? null : next)}>
+      <TabsList>
+        <TabsTrigger value="runs" data-tour="activity-tab-runs">
+          Runs
+        </TabsTrigger>
+        <TabsTrigger value="spend" data-tour="activity-tab-spend">
+          Spend
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="runs" data-tour="activity-runs">
+        runs
+      </TabsContent>
+      <TabsContent value="spend" data-tour="activity-spend">
+        spend
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/**
+ * The organization page, wired as it wires it: every panel stays mounted, an
+ * inactive one `hidden`, so a control behind another tab is in the document.
+ */
+function Organization() {
+  const [tabParam, changeTab] = useUrlState("tab");
+  const tab = tabParam ?? "members";
+  return (
+    <Tabs value={tab} onValueChange={(next) => changeTab(next === "members" ? null : next)}>
+      <TabsList>
+        <TabsTrigger value="members" data-tour="org-tab-members">
+          Members
+        </TabsTrigger>
+        <TabsTrigger value="proactivity" data-tour="org-tab-proactivity">
+          Proactivity
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="members" hidden={tab !== "members"} forceMount>
+        <div data-tour="org-members">members</div>
+      </TabsContent>
+      <TabsContent
+        value="proactivity"
+        data-tour="org-proactivity"
+        hidden={tab !== "proactivity"}
+        forceMount
+      >
+        <legend data-tour="org-proactivity-model">model</legend>
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 const ringed = (anchor: string) =>
   document.querySelector(`[data-tour="${anchor}"]`)?.classList.contains("assistant-highlight");
 
@@ -210,6 +269,56 @@ describe("pointAt", () => {
     expect(window.location.search).toBe("?tab=limits");
     expect(document.querySelector('[data-tour="agent-limits"]')).toHaveTextContent("y");
     expect(ringed("agent-limits")).toBe(true);
+  });
+
+  it("switches to the tab whose panel is the control, not ringing it hidden", async () => {
+    // `activity-spend` is the Spend panel itself: in the document, empty and
+    // hidden, while Runs is open.
+    window.history.replaceState(null, "", "/runs");
+    render(<Activity />);
+    expect(document.querySelector('[data-tour="activity-spend"]')).toHaveAttribute("hidden");
+
+    const { pointing } = await pointFor("activity-spend", "/runs");
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(document.querySelector('[data-tour="activity-tab-spend"]')).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(window.location.search).toBe("?tab=spend");
+    const panel = document.querySelector('[data-tour="activity-spend"]')!;
+    expect(panel).not.toHaveAttribute("hidden");
+    expect(panel).toHaveTextContent("spend");
+    expect(ringed("activity-spend")).toBe(true);
+  });
+
+  it("switches the tab of a panel kept mounted while hidden", async () => {
+    // The organization page keeps every panel mounted: the control is in the
+    // document from the start, inside a hidden panel.
+    window.history.replaceState(null, "", "/orgs/o/members");
+    render(<Organization />);
+    expect(document.querySelector('[data-tour="org-proactivity-model"]')).not.toBeNull();
+
+    const { pointing } = await pointFor("org-proactivity-model", "/orgs/o/members");
+
+    await expect(settled(pointing)).resolves.toBe(true);
+    expect(document.querySelector('[data-tour="org-tab-proactivity"]')).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(document.querySelector('[data-tour="org-proactivity"]')).not.toHaveAttribute("hidden");
+    expect(ringed("org-proactivity-model")).toBe(true);
+  });
+
+  it("does not ring a control it cannot reveal", async () => {
+    // Hidden, and no tab of the walk opens it: nothing the reader could see.
+    document.body.innerHTML = `<div hidden><button data-tour="agents-new">New</button></div>`;
+
+    const pointing = pointAt("agents-new", "/");
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(pointing).resolves.toBe(false);
+    expect(ringed("agents-new")).toBe(false);
   });
 
   it("opens the popover a control lives behind", async () => {

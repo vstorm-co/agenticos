@@ -22,10 +22,12 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - When the Architect points at a control on a tab that is not open, the tab now
-  switches and the control is highlighted. A link to another page no longer
-  switches a tab on the page being left, a tab switch leaves keyboard focus in
-  the Architect's panel, and the scroll respects a reduced-motion preference
-  (#2536).
+  switches and the control is highlighted. This includes a control that the
+  page keeps hidden in the document while its tab is closed: the Approvals,
+  Runs and Spend tabs on the Activity page and every tab on the organization
+  page. A link to another page no longer switches a tab on the page being left,
+  a tab switch leaves keyboard focus in the Architect's panel, and the scroll
+  respects a reduced-motion preference (#2536).
 
 ## [1.29.0] - 2026-10-29
 

@@ -49,6 +49,18 @@ function find(anchor: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
 }
 
+/**
+ * An anchor the reader can see, or `null`. A control behind another tab can
+ * already be in the document: Radix keeps an inactive panel as an empty,
+ * `hidden` element (the Activity page's anchors are its panels), and the
+ * organization page keeps every panel mounted. Counting such a control as found
+ * rang an invisible element and never switched its tab.
+ */
+function findShown(anchor: string): HTMLElement | null {
+  const element = find(anchor);
+  return element?.closest('[hidden], [role="tabpanel"][data-state="inactive"]') ? null : element;
+}
+
 /** A path without its locale prefix, read in any case as the middleware reads it. */
 function withoutLocale(pathname: string): string {
   const locale = localePrefixOf(pathname);
@@ -85,7 +97,7 @@ export async function pointAt(anchor: string, page: string): Promise<boolean> {
   const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
   let revealed = false;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
-    const element = arrivedAt(page) ? find(anchor) : null;
+    const element = arrivedAt(page) ? findShown(anchor) : null;
     if (element) {
       element.scrollIntoView({ block: "center", behavior: glideOrJump() });
       element.classList.add(HIGHLIGHT_CLASS);
