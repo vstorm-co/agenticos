@@ -350,6 +350,19 @@ describe("pointAt", () => {
     expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
   });
 
+  it("rings the copy a stylesheet shows, not one it collapses", async () => {
+    // A column `hidden lg:block` below its breakpoint: no `hidden` attribute,
+    // only `display: none` from the stylesheet.
+    document.body.innerHTML = `
+      <style>.narrow-hidden { display: none; }</style>
+      <aside class="narrow-hidden"><button data-tour="activity-runs">Collapsed</button></aside>
+      <main><button data-tour="activity-runs">Shown</button></main>`;
+
+    await expect(pointAt("activity-runs", "/")).resolves.toBe(true);
+    expect(document.querySelectorAll(".assistant-highlight")).toHaveLength(1);
+    expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
+  });
+
   it("does not ring a control it cannot reveal", async () => {
     // Hidden, and no tab of the walk opens it: nothing the reader could see.
     document.body.innerHTML = `<div hidden><button data-tour="agents-new">New</button></div>`;

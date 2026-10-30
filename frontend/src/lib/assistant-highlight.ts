@@ -15,6 +15,7 @@ import { localePrefixOf } from "@/lib/locale-routing";
 import { defaultLocale } from "@/lib/locales";
 import { glideOrJump } from "@/lib/motion";
 import { TOUR_STEPS } from "@/lib/onboarding/tour";
+import { isRendered } from "@/lib/rendered";
 
 const HIGHLIGHT = "highlight";
 const HIGHLIGHT_CLASS = "assistant-highlight";
@@ -55,18 +56,19 @@ function find(anchor: string): HTMLElement | null {
 }
 
 /**
- * The first copy of an anchor outside a `hidden` element and an inactive tab
+ * The first copy of an anchor that is rendered and outside an inactive tab
  * panel, or `null`. A control behind another tab can already be in the
  * document: Radix keeps an inactive panel as an empty, `hidden` element (the
  * Activity page's anchors are its panels), and the organization page keeps
- * every panel mounted. Counting such a control as found rang an invisible
- * element and never switched its tab. Hiding by a CSS class is not detected.
+ * every panel mounted. A column a breakpoint collapses (`hidden lg:block`)
+ * holds its anchors too. Counting such a control as found rang an invisible
+ * element and never switched its tab.
  */
 function findShown(anchor: string): HTMLElement | null {
   const copies = document.querySelectorAll<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
   return (
     Array.from(copies).find(
-      (copy) => !copy.closest('[hidden], [role="tabpanel"][data-state="inactive"]'),
+      (copy) => !copy.closest('[role="tabpanel"][data-state="inactive"]') && isRendered(copy),
     ) ?? null
   );
 }
