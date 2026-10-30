@@ -396,6 +396,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reveal Quick Ask tab close buttons on hover or keyboard focus, keeping touch controls available and tab widths stable.
+
 - Show uploaded organization avatars and chosen-color initials in the administration directory.
 
 - Keep list pagination at the panel bottom and scroll paged administration table rows independently of headers and footer.

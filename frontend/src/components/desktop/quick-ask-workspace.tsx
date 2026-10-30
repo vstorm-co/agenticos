@@ -87,8 +87,13 @@ function Workspace() {
         className="flex min-w-0 flex-1 scrollbar-thin gap-1 overflow-x-auto"
       >
         {tabs.map((tab) => (
-          <div key={tab.key} className="bg-foreground/4 flex shrink-0 items-center rounded-lg">
+          <div
+            key={tab.key}
+            data-active={active === tab.key}
+            className="group/tab bg-foreground/4 hover:bg-foreground/8 data-[active=true]:bg-foreground/10 flex shrink-0 items-center rounded-lg transition-colors motion-reduce:transition-none"
+          >
             <button
+              type="button"
               role="tab"
               id={`tab-${tab.key}`}
               aria-controls={`panel-${tab.key}`}
@@ -113,7 +118,7 @@ function Workspace() {
                   document.getElementById(`tab-${tabs[next]!.key}`)?.focus();
                 }
               }}
-              className="aria-selected:bg-foreground/10 focus-visible:outline-ring flex max-w-40 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs aria-selected:font-medium"
+              className="focus-visible:outline-ring flex max-w-40 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs aria-selected:font-medium"
             >
               {tab.processing ? (
                 <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
@@ -123,10 +128,11 @@ function Workspace() {
               <span className="truncate">{tab.title}</span>
             </button>
             <button
+              type="button"
               onClick={() => close(tab.key)}
               aria-label={t("closeTab", { title: tab.title })}
               title={t("closeTab", { title: tab.title })}
-              className="text-muted-foreground hover:text-foreground rounded-md p-1"
+              className="text-muted-foreground hover:text-foreground hover:bg-foreground/10 focus-visible:outline-ring mr-1 rounded-md p-1 opacity-0 transition-opacity duration-150 group-hover/tab:opacity-100 group-has-[:focus-visible]/tab:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
             >
               <X className="size-3" aria-hidden />
             </button>
