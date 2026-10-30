@@ -38,6 +38,7 @@ Two things are versioned separately from this file and worth knowing about:
   Account deletion removes those author labels from future model history while
   preserving shared message bodies. Manifests omit request-only channel parts;
   paused runs retain opaque author references instead of platform labels.
+- Replay saved channel user turns through the current agent's input guardrails before model dispatch, preserving stored messages while withholding blocked values and redacting protected text.
 - Editable channel reference values follow the configured input guardrails.
   Protected values are redacted or withheld without treating fixed metadata
   syntax or platform identifiers as the user's question.

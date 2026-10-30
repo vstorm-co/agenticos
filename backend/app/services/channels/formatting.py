@@ -223,25 +223,26 @@ _AUTHOR_FIELDS = TypeAdapter(dict[str, str | None])
 _REFERENCE_FIELDS = ("Name", "Purpose", "Topic", "Visible members")
 
 
+def _screen_channel_value(value: str, screen: TextDetector) -> str:
+    try:
+        verdict = screen(value)
+    except GuardrailBlocked:
+        return "(withheld by input guardrail)"
+    if verdict.action == "block":
+        return "(withheld by input guardrail)"
+    return str(verdict.replacement) if verdict.action == "replace" else value
+
+
 def screen_channel_reference(text: str, screen: TextDetector | None) -> str:
     """Screen editable reference values without blocking on fixed metadata syntax."""
     if screen is None:
         return text
 
-    def screened(value: str) -> str:
-        try:
-            verdict = screen(value)
-        except GuardrailBlocked:
-            return "(withheld by input guardrail)"
-        if verdict.action == "block":
-            return "(withheld by input guardrail)"
-        return str(verdict.replacement) if verdict.action == "replace" else value
-
     def author(match: re.Match[str]) -> str:
         metadata = _AUTHOR_FIELDS.validate_json(match[2])
         for key in ("username", "display_name"):
             if (value := metadata.get(key)) is not None:
-                metadata[key] = screened(value)
+                metadata[key] = _screen_channel_value(value, screen)
         return match[1] + json.dumps(metadata, ensure_ascii=False) + match[3]
 
     text = _AUTHOR_METADATA.sub(author, text)
@@ -251,7 +252,7 @@ def screen_channel_reference(text: str, screen: TextDetector | None) -> str:
         if delimiter and any(
             label.removeprefix("- ").startswith(field) for field in _REFERENCE_FIELDS
         ):
-            line = label + delimiter + screened(value)
+            line = label + delimiter + _screen_channel_value(value, screen)
         lines.append(line)
     return "\n".join(lines)
 
@@ -309,6 +310,16 @@ class ChannelReference(AbstractCapability[AgentDeps]):
         messages = request_context.messages
         if not messages or not isinstance(messages[-1], ModelRequest):
             return await handler(request_context)
+        current_prompt = next(
+            (
+                part
+                for message in reversed(messages)
+                if isinstance(message, ModelRequest)
+                for part in reversed(message.parts)
+                if isinstance(part, UserPromptPart) and not isinstance(part, ChannelReferencePart)
+            ),
+            None,
+        )
         ids = set(self.authors_by_timestamp.values())
         if self.author_identity_id is not None and not self.author_context:
             ids.add(self.author_identity_id)
@@ -333,6 +344,29 @@ class ChannelReference(AbstractCapability[AgentDeps]):
                             content="Untrusted channel author reference:\n"
                             + screen_channel_reference(authored_history("", identity), self.screen)
                         )
+                    )
+                # Persisted user turns keep their raw text, including refused
+                # turns. Reapply this agent's input policy only to the dispatch
+                # copy so a later mention cannot replay protected values.
+                if (
+                    self.screen is not None
+                    and isinstance(original, UserPromptPart)
+                    and not isinstance(original, ChannelReferencePart)
+                    and original is not current_prompt
+                ):
+                    content = original.content
+                    original = replace(
+                        original,
+                        content=(
+                            _screen_channel_value(content, self.screen)
+                            if isinstance(content, str)
+                            else [
+                                _screen_channel_value(item, self.screen)
+                                if isinstance(item, str)
+                                else item
+                                for item in content
+                            ]
+                        ),
                     )
                 parts.append(original)
             if index == len(messages) - 1:

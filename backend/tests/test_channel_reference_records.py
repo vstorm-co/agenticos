@@ -6,7 +6,13 @@ from uuid import uuid4
 
 import pytest
 from pydantic_ai import Agent
-from pydantic_ai.messages import ModelRequest, ModelResponse, SystemPromptPart, TextPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+)
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai_harness.guardrails import GuardrailResult
 
@@ -301,3 +307,52 @@ def test_a_manifest_omits_channel_references_and_ephemeral_desktop_screenshots()
     assert isinstance(restored_attachment, BinaryContent)
     assert restored_attachment.data == attachment.data
     assert restored_attachment.media_type == attachment.media_type
+
+
+@pytest.mark.parametrize("adjacent", [False, True])
+async def test_replayed_channel_history_is_screened_only_for_dispatch(adjacent: bool) -> None:
+    from pydantic_ai.messages import BinaryContent, UserPromptPart
+    from pydantic_ai.models.function import AgentInfo
+
+    from app.agents.deps import AgentDeps
+
+    image = BinaryContent(data=b"image", media_type="image/png")
+    blocked = UserPromptPart(content="classified")
+    redacted = UserPromptPart(content=["alice@example.com", image, "safe"])
+    history: list[ModelMessage] = [
+        ModelRequest(parts=[blocked]),
+        ModelResponse(parts=[TextPart(content="Earlier refusal")]),
+        ModelRequest(parts=[redacted]),
+        ModelResponse(parts=[TextPart(content="Earlier answer")]),
+    ]
+    if adjacent:
+        history = [message for message in history if isinstance(message, ModelRequest)]
+    observed: list[ModelMessage] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        observed.extend(messages)
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    reference = ChannelReference(
+        "- Name: room",
+        screen=input_screen(GuardrailsConfig(redact_pii_in=True, blocked_keywords_in="classified")),
+    )
+    await Agent(FunctionModel(respond), deps_type=AgentDeps, capabilities=[reference]).run(
+        "Benign mention", message_history=history
+    )
+    dispatched = str(observed)
+    assert "classified" not in dispatched and "alice@example.com" not in dispatched
+    assert "withheld by input guardrail" in dispatched and "safe" in dispatched
+    assert "Benign mention" in dispatched
+    if not adjacent:
+        assert "Earlier answer" in dispatched
+    user_parts = [
+        part
+        for message in observed
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, UserPromptPart)
+    ]
+    assert any(isinstance(part.content, list) and image in part.content for part in user_parts)
+    assert blocked.content == "classified"
+    assert redacted.content == ["alice@example.com", image, "safe"]
