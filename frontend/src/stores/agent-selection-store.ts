@@ -50,7 +50,7 @@ const agentSelectionState: StateCreator<AgentSelectionState> = (set) => ({
 });
 
 /** A copy of its own, held in memory and addressed to `agentId`, for a conversation in a scope - see `ChatScope`. */
-export const createAgentSelectionStore = (agentId: string) =>
+export const createAgentSelectionStore = (agentId: string | null) =>
   createStore<AgentSelectionState>()((...args) => ({
     ...agentSelectionState(...args),
     selectedAgentId: agentId,

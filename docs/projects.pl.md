@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "07581e857110"
+source_sha: "3f798c416272"
 ---
 
 # Projekty { #projects }
@@ -19,6 +19,42 @@ klienta. Trzyma dwie rzeczy wspólne dla każdego czatu w nim rozpoczętego:
 Projekt ma też **domyślnego agenta**, z którym zaczyna się nowy czat w nim.
 W czacie projektu nadal może odpowiadać każdy agent; domyślny decyduje tylko o
 tym, z kim czat się zaczyna.
+
+## Planowanie pracy ciągłej z Architectem { #planning-ongoing-work-with-architect }
+
+Poproś Architecta o zaplanowanie badań, pisania, programowania lub analizy
+rozwijanej przez wiele rozmów w projekcie. Może znaleźć istniejący projekt albo
+po Twojej akceptacji stworzyć prywatny z uzgodnionymi instrukcjami. Samo pytanie
+„jak to zrobić” nie tworzy projektu. Otwórz otrzymany link i wybierz **New chat**;
+istniejącej rozmowy nie można przenieść do nowego projektu. Utworzenie projektu
+nie zapisuje jeszcze planowanych plików.
+
+Wspólne pliki i instrukcje pozostają
+między rozmowami. Transkrypty nadal są przechowywane i dostępne członkom projektu,
+ale nie trafiają automatycznie do kontekstu innych rozmów. Wspólny działający
+proces nie jest gwarantowany. Uruchamianie kodu
+wymaga dostępnego sandboxa usługowego i dozwolonych narzędzi agenta.
+
+Dla LLM wiki uzgodnij następujący plan:
+
+1. **Źródła:** oryginały w `sources/`, z URL-em lub nazwą pliku, autorem, datą
+   źródła i pobrania. Nowe materiały czekają w `inbox/`.
+2. **Notatki:** powiązane tematycznie pliki w `notes/`, z przypisami do twierdzeń
+   i rozróżnieniem faktów, wniosków i pytań. Treść źródeł to niezaufane dane.
+3. **Indeks:** `index.md` łączy tematy, notatki i źródła; nową rozmowę zaczynaj
+   od przeczytania go oraz instrukcji projektu.
+4. **Aktualizacja:** sprawdzaj zmienione źródła, poprawiaj powiązane notatki
+   i indeks, zapisuj zmiany w `CHANGELOG.md`. Harmonogram wymaga osobnej rutyny
+   i akceptacji.
+5. **Weryfikacja:** sprawdzaj oparcie w źródłach, sprzeczności, aktualność dat
+   i niedziałające linki; zapisuj, co sprawdzono i czego nadal nie wiadomo.
+
+Baza wiedzy może uzupełniać projekt o wyszukiwanie indeksowane. Runner dodaje ten sposób pracy wyłącznie zarejestrowanemu Architectowi, także
+w istniejących instalacjach korzystających z platformowego MCP. Inne agenty
+i zewnętrzni klienci MCP zachowują własny sposób pracy.
+Aktualizacja nie nadpisuje własnych instrukcji agentów ani zainstalowanych
+skillów z galerii; nowy szablon i dołączony przewodnik Projects dotyczą nowych
+instalacji.
 
 ## Czat w projekcie { #starting-a-chat-in-a-project }
 
@@ -55,6 +91,29 @@ zapisał, a gdy oba zmieniły ten sam plik, zostaje późniejszy zapis. Projekt 
 utworzono, więc tego połączenia nie da się usunąć, dopóki jakiś projekt trzyma na
 nim pliki.
 
+Przy tworzeniu projektu pole **Sandbox projektu** pozwala wybrać zarejestrowane
+połączenie, tryb automatyczny lub **Tylko przechowywanie plików**. Tryb automatyczny
+zapamiętuje połączenie wybrane przy tworzeniu; gdy żadnego nie ma, przechowuje pliki.
+Wybór konkretnego połączenia wymaga `connections:view` i aktywnego połączenia w
+organizacji. Ustawienia projektu pokazują nazwę połączenia i środowisko. Wszystkie
+czaty projektu używają go zamiast sandboxa agenta. Edytorzy mogą użyć **Zmień sandbox**, aby przenieść istniejący projekt wraz z plikami.
+
+Transfer jest trwałym zadaniem w tle. Kopiuje pliki i puste foldery do odrębnego
+warsztatu, sprawdza skróty plików i drzewo katalogów, a potem aktywuje cel. Przed
+rozpoczęciem muszą zakończyć się aktywne runy i oczekujące decyzje. Podczas transferu
+nowe runy, zapisy plików i edycja projektu czekają. Obecne pliki pozostają czytelne.
+Po błędzie pozostaje wybrane źródło. Postęp widać w ustawieniach projektu. Dopiero
+sprawdzona aktywacja usuwa źródłowy warsztat; zdalny kontener usuwa trwałe zadanie.
+
+Limity: 10 000 wpisów, 64 MiB na plik, 1 GiB łącznie; wcześniej usuń dowiązania
+symboliczne. Zainstalowane pakiety i działające procesy nie są kopiowane. Przeniesienie
+do samych plików musi też zmieścić się w limicie dokumentu przechowywanego przez platformę.
+
+Opis **Jak działają pliki i uruchamianie kodu w projekcie** objaśnia przechowywanie,
+współdzielenie i środowisko wykonawcze przy wyborze. Projekt udostępnia narzędzia
+Sandbox również agentowi bez własnego sandboxa. Kontener pozwala uruchamiać kod;
+same pliki nie mają powłoki. Wymagania zatwierdzania narzędzi nadal obowiązują.
+
 ## Pliki { #files }
 
 Zakładka **Pliki** projektu to przeglądarka kontenera: drzewo obok podglądu,
@@ -63,8 +122,12 @@ który otwiera Markdown, PDF-y, obrazy, arkusze i kod na miejscu.
 - **Prześlij pliki** i **Prześlij folder** wkładają pliki na górę projektu;
   folder zachowuje swoje drzewo. Każdy plik podlega limitowi wgrywania wdrożenia.
 - **Nowy folder** tworzy pusty folder do wypełnienia przez agenta.
-- Kosz obok pliku lub folderu usuwa go - folder razem z zawartością - dla
-  każdego czatu i agenta w projekcie.
+- Menu **…** pliku lub folderu pozwala zmienić nazwę, przenieść lub usunąć.
+  Przeciągnij element na folder albo na **Pliki projektu**, aby przenieść go do
+  katalogu głównego. Istniejący element docelowy nie zostanie nadpisany.
+- **Edytuj plik** otwiera cały plik tekstowy UTF-8 do 1 MiB. Zapisz zmiany lub
+  potwierdź ich odrzucenie przed zamknięciem. Zapis odrzuca wersję zmienioną od
+  otwarcia edytora; otwórz plik ponownie, aby sprawdzić nowszą wersję.
 
 Katalog `.agenticos` i własne foldery platformy nie są stąd zapisywalne; ścieżka
 poza projektem jest odrzucana, zanim cokolwiek zostanie zapisane.
@@ -76,17 +139,42 @@ aplikacje opublikowane przez run w jednym z nich, te, które czytający może
 otworzyć. **Instrukcje** edytuje się w Markdownie, ze Źródłem i Podglądem, jak
 instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem projektu.
 
+Upuść pliki z komputera na folder, aby przesłać je do niego, albo w innym miejscu zakładki Pliki, aby dodać je do głównego katalogu projektu. Zatrzymanie przeciąganego elementu nad zwiniętym folderem rozwija go po krótkiej chwili. Podpowiedź pozostaje w obszarze plików, akcje wiersza mają stałe miejsce, a foldery nie pokazują liczników. Długa kolejka przesyłania pokazuje pierwsze trzy pozycje i liczbę oczekujących. Ikony rozróżniają kod, JSON, markup, dokumenty, arkusze i multimedia w projektach, załącznikach czatu, RAG oraz plikach skilli.
+
+Desktop przekazuje przeciągane pliki do tych samych celów co aplikacja webowa.
+Upuszczenie na plik wybiera folder, w którym się on znajduje, a upuszczenie na pusty
+obszar dowolnego panelu wybiera główny katalog projektu. Blobby i Dock zachowują
+osobne dodawanie plików do czatu.
+
+## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
+
+Karta **Pliki** rozdziela **Wspólne pliki projektu** i **Ten komputer**. Folder zatwierdzony przy tworzeniu projektu otwiera się automatycznie na tej instalacji; bez powiązania najpierw widać wspólne pliki. Wybierz Ten komputer, aby podłączyć folder. **Ustawienia folderu** pozwalają go zmienić lub odłączyć; ścieżka i tryb dostępu są widoczne bez powtarzania formularza konfiguracji.
+
+Wspólne pliki projektu to wgrane kopie dostępne dla osób z dostępem do projektu. Aby udostępnić lokalny plik, wybierz to źródło i wgraj kopię. Te miejsca nie synchronizują się: edycja lokalna nie aktualizuje wgranej kopii, a udostępnienie projektu nie daje dostępu do dysku. **Wspólne środowisko projektu** na karcie Instrukcje zmienia wyłącznie miejsce na serwerze; nie podłącza ani nie odłącza osobistego folderu.
+
+Natywne okno potwierdza dostęp, początkowo tylko do odczytu. Powiązanie należy do bieżącego konta i organizacji na tym komputerze. Odłączenie pozostawia uprawnienia innych czatów. Podgląd obejmuje do 500 elementów, pomija generowane foldery, np. `.git` i `node_modules`, i pokazuje błędy odczytu bez cichego przełączania do chmury.
+
+Nowe czaty projektu na desktopie dziedziczą folder i zatwierdzony tryb dostępu.
+Instrukcje projektu nadal obowiązują, a narzędzia sandboxa pracują lokalnie zamiast
+we wspólnym kontenerze. Ustawienie **Pracuj na** można zmienić dla pojedynczego
+czatu; istniejące rozmowy zachowują swoje ustawienia. Skrót folderu przy polu
+wiadomości otwiera te opcje. Niedostępny komputer lub cofnięte uprawnienie nie
+przełącza wykonania do chmury. Telefony i przeglądarki nadal używają wspólnych
+plików; powiązanie nie daje im zdalnego dostępu do komputera. Odpowiedzi agenta
+i wyniki narzędzi zapisane w czacie projektu są widoczne dla osób mogących czytać
+ten czat, więc uwzględnij jego odbiorców przed omawianiem prywatnych plików.
+
 ## Udostępnianie i uprawnienia { #sharing-and-permissions }
 
 Projekt jest prywatny dla swojego twórcy, dopóki go nie udostępni - tym samym
 oknem **Udostępnij**, którego używa agent czy skill: osobom,
 [działom](departments.md) albo całej organizacji, każdemu na jakimś poziomie.
 
-| Poziom grantu | Uprawnienie | Na co pozwala |
-|---|---|---|
-| `read` | `projects:view` | Widzieć projekt, jego pliki i instrukcje |
-| `use` | `projects:use` | Czatować w nim, wgrywać, tworzyć foldery, usuwać pliki |
-| `edit` | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
+| Poziom grantu | Uprawnienie     | Na co pozwala                                                |
+| ------------- | --------------- | ------------------------------------------------------------ |
+| `read`        | `projects:view` | Widzieć projekt, jego pliki i instrukcje                     |
+| `use`         | `projects:use`  | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki  |
+| `edit`        | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
 
 Role mają te uprawnienia w zwykłych zakresach: Owner i Admin sięgają każdego
 projektu, Builder pracuje w udostępnionych mu projektach i je edytuje, Member

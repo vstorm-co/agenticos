@@ -515,6 +515,23 @@ The refusal names the ceiling and the count it was measured against
 rather than by an administrator's memory. It is raised in the service that
 creates the thing, not at the route, because the route is not the only way in.
 
+The console does not wait for that refusal. `GET /agents/ceiling`, open to a
+caller with `agents:edit`, answers with the limit (`limit`, null where none is
+set) and whether a create would hit it (`at_limit`), and at the limit the Agents
+page disables **New agent** and template installs and says why, before anybody
+fills in a form.
+
+If another create fills the limit during a guided agent creation, the walk ends
+instead of freezing the page around a disabled button. A successful creation
+from that walk is recorded before the ceiling refresh, so taking the last slot
+does not interrupt its remaining Builder steps.
+
+The count itself (`held`) goes only to a caller whose
+`agents:view` reaches every agent in the organization: it includes agents a
+Member cannot see, and set against their own listing it would say how many are
+hidden from them. **Duplicate** and **Restore** are still refused only when tried.
+The refusal stays the guarantee: the count is a forecast, read without the lock.
+
 Zero is refused by the schema: an account that may own no organizations is an
 account that cannot be created, since sign-up gives every one of them a personal
 organization.

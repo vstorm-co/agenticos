@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What an organization's device management may set for the app (#2097):
+     its server, whether the person may change it, and the biometric lock. -->
+<restrictions xmlns:android="http://schemas.android.com/apk/res/android">
+    <restriction
+        android:key="serverUrl"
+        android:restrictionType="string"
+        android:title="@string/managed_server_url"
+        android:description="@string/managed_server_url_hint" />
+    <restriction
+        android:key="serverLocked"
+        android:restrictionType="bool"
+        android:defaultValue="false"
+        android:title="@string/managed_server_locked" />
+    <restriction
+        android:key="biometricLock"
+        android:restrictionType="choice"
+        android:defaultValue="person"
+        android:entries="@array/managed_lock_entries"
+        android:entryValues="@array/managed_lock_values"
+        android:title="@string/managed_biometric_lock" />
+</restrictions>

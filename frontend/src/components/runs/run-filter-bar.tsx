@@ -36,6 +36,8 @@ export const SURFACES = [
   "teams",
   "schedule",
   "workflow",
+  "follow_ups",
+  "proactive",
 ] as const;
 
 // The shape and its defaults live in `lib/runs/filter-params.ts`, with the two

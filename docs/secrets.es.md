@@ -1,5 +1,5 @@
 ---
-source_sha: "4d3610509a70"
+source_sha: "eb6562d37c82"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -122,6 +122,12 @@ dos, y una clave que se vuelve privada después deja de usarse. A diferencia de
 `github_oauth_app`, estas claves se nombran por id, así que puede haber varias
 guardadas a la vez.
 
+El selector de claves identifica las claves visibles que son privadas o están
+compartidas solo con algunas personas y explica que primero deben compartirse
+con la organización. Identifica por separado el inicio de sesión de ChatGPT:
+permite acceder a modelos mediante una suscripción de ChatGPT y no sustituye
+una clave de API de OpenAI para las funciones de voz. El selector nunca cambia automáticamente el acceso.
+
 `git_token` lleva su host porque una fuente de sincronización Git envía el token a
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
 token no puede dirigirse a otro servidor editando la fuente, y ninguna otra clave
@@ -179,7 +185,12 @@ truncado mientras el formulario sigue abierto.
 
 **Providers de modelos.** Los nombra un [perfil de modelo](models.md). El gasto se
 atribuye al secreto al que resolvió el run, y así «qué clave está costando más»
-tiene respuesta.
+tiene respuesta. Asignar una clave a un perfil se la presta a todos los que se
+ejecutan sobre él, así que crear o editar un perfil - su clave o su endpoint -
+requiere `secrets:view` sobre esa clave. Una clave borrada deja sus perfiles
+marcados con `missing_key` hasta que reciban otra, también uno delante de un
+gateway. Solo un perfil guardado sin clave a propósito sigue ejecutándose sin
+ella ([Un perfil sin clave](models.md#a-profile-without-a-key)).
 
 **Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
 id junto al proveedor y el modelo allí donde se configura la voz a texto: la

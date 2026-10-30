@@ -1,10 +1,14 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  SlidersHorizontal,
+  Wrench,
+  ShieldCheck,
   Archive,
   ArchiveRestore,
   Copy,
@@ -24,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   AgentMap,
@@ -43,6 +48,8 @@ import { RemoteChangeBanner } from "@/components/live-updates/remote-change-bann
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
+import { usableForAgents } from "@/lib/model-profiles";
+import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -308,6 +315,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [tabParam, changeTab] = useUrlState("tab");
   const tab = tabParam !== null && BUILDER_TABS.has(tabParam) ? tabParam : "build";
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
+  // The Model card, which "No model selected" takes its reader to (#2483).
+  // From another tab the card mounts a render after the tab changes, so the
+  // scroll waits for the card to attach rather than for the tab.
+  const modelCard = useRef<HTMLDivElement | null>(null);
+  const revealModel = useRef(false);
+  const attachModelCard = useCallback((node: HTMLDivElement | null) => {
+    modelCard.current = node;
+    if (node && revealModel.current) {
+      revealModel.current = false;
+      node.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+    }
+  }, []);
+  const goToModel = () => {
+    if (tab === "build" && modelCard.current) {
+      modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+      return;
+    }
+    revealModel.current = true;
+    setTab("build");
+  };
   // Set by the first publish only: the moment an agent can be reached is the
   // moment to say where it can be reached from, which people did not find on
   // their own (#2131).
@@ -348,6 +375,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const ownedByWorkflow = agent?.workflow_id ?? null;
   const canEdit = can(Perm.agentsEdit) && ownedByWorkflow === null;
   const canPublish = can(Perm.agentsPublish) && ownedByWorkflow === null;
+  const resourceCreation = useResourceCreation({
+    mayCreateSkill: canEdit && can(Perm.skillsEdit),
+    mayCreateContext: canEdit && can(Perm.contextEdit),
+    setSpec,
+  });
   useTestShortcut(canEdit, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
@@ -376,7 +408,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // either alone tells a caller who has models, or who may add one, they are stuck.
   const modelDeadEnd =
     profilesStatus === "loaded" &&
-    profiles.length === 0 &&
+    !profiles.some(usableForAgents) &&
     permissionsLoaded &&
     !can(Perm.connectionsManage);
 
@@ -953,6 +985,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -1253,7 +1296,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </p>
               <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                 {problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
+                  <li key={problem}>
+                    {problem}
+                    {/* Publish marks the missing model on its field, and the
+                        field lives on a tab the reader may not be on. */}
+                    {configProblems.some(
+                      (found) => found.field === "model_profile_id" && found.message === problem,
+                    ) && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="ml-2 h-auto p-0"
+                        onClick={goToModel}
+                      >
+                        {t("goToModel")}
+                      </Button>
+                    )}
+                  </li>
                 ))}
               </ul>
             </CardContent>
@@ -1314,21 +1373,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
+              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+              <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("mcpServers")}
             </TabsTrigger>
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
+              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             <TabsTrigger value="availability" data-tour="agent-tab-availability">
+              <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("availability")}
             </TabsTrigger>
             <TabsTrigger value="history" data-tour="agent-tab-history">
+              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
@@ -1386,7 +1451,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card data-tour="agent-model">
+            <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
               <CardHeader>
                 <CardTitle>{t("model")}</CardTitle>
                 <CardDescription>{t("howAgentAsksIts")}</CardDescription>
@@ -1546,7 +1611,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // on with the first pick, because bound without it the resources
                   // are resolved and then discarded.
                   resources={{
-                    contextFiles,
+                    contextFiles: mergeResourceChoices(contextFiles, resourceCreation.context),
+                    onCreateContext: resourceCreation.createContext,
                     contextTotal: contextCount,
                     contextIds: spec.context_ids,
                     onContextToggle: (fileId: string) =>
@@ -1555,7 +1621,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     collectionIds: spec.collection_ids,
                     onCollectionToggle: (collectionId: string) =>
                       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills,
+                    skills: mergeResourceChoices(skills, resourceCreation.skills),
+                    onCreateSkill: resourceCreation.createSkill,
                     skillTotal: skillCount,
                     skillIds: spec.skill_ids,
                     onSkillToggle: (skillId: string) =>
@@ -1842,6 +1909,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
+      {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel
           agentId={id}

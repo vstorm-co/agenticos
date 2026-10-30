@@ -24,6 +24,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.services import rate_limit
+from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
 from app.services.api_key import is_api_key
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
@@ -48,12 +49,16 @@ def _tool_error(message: str) -> dict[str, Any]:
     raise ToolError(message)
 
 
-INSTRUCTIONS = """\
+INSTRUCTIONS = (
+    """\
 Tools for operating an AgenticOS organization: its agents, runs, knowledge bases,
-skills and members. Every call acts as the person who issued the connection's key,
+skills, projects and members. Every call acts as the person who issued the connection's key,
 within that key's permissions - a refusal names the permission that was missing.
 Start with `whoami` to see the organization and what this connection may do.
 """
+    + "\n\n"
+    + APP_ENVIRONMENT_GUIDANCE
+)
 
 
 def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:

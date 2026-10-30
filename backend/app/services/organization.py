@@ -38,10 +38,11 @@ from app.services import skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
-from app.worker.jobs import Restamp
+from app.worker.jobs import BasePurge, Restamp
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -594,15 +595,20 @@ class OrganizationService:
             if "proactive_model_profile_id" in named
             else org.proactive_model_profile_id
         )
-        if (
-            "proactive_model_profile_id" in named
-            and profile_id is not None
-            and await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
-            is None
-        ):
-            raise refused_field(
-                "proactive_model_profile_id", "That model is not one of this organization's"
-            )
+        if profile_id is not None and ("proactive_model_profile_id" in named or enabled or watches):
+            profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
+            if profile is None:
+                raise refused_field(
+                    "proactive_model_profile_id", "That model is not one of this organization's"
+                )
+            outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+            if not outputs.chat and (
+                enabled or watches or profile_id != org.proactive_model_profile_id
+            ):
+                raise refused_field(
+                    "proactive_model_profile_id",
+                    not_chat_refusal(profile.label, profile.model, outputs),
+                )
         if (enabled or watches) and profile_id is None:
             raise refused_field(
                 "proactive_model_profile_id",
@@ -744,8 +750,9 @@ class OrganizationService:
         `ck_knowledge_bases_org_scope_has_org` (#9). Personal collections that
         merely carry this org's id are left to the `SET NULL` - but that flips
         their `vector_tenant` to `None` while their rows stay stamped with the
-        deleted org, so the deferred cleanup re-stamps those rows to untagged,
-        matching the `None` read scope again rather than stranding them (#1684).
+        deleted org, so the deferred cleanup re-stamps those rows to untagged and
+        filed under their base, matching the `None` read scope again rather than
+        stranding them (#1684, #2537).
 
         Two locks, in one order. Each doomed collection's `COLLECTION_TEARDOWN`
         lock is taken first, from a snapshot read without the row lock, and only
@@ -803,16 +810,18 @@ class OrganizationService:
         await organization_repo.get_by_id_for_update(self.db, org.id)
         collections: list[str] = []
         storage_paths: list[str] = []
+        deleted_bases: list[BasePurge] = []
         for kb in await knowledge_base_repo.list_org_scoped(self.db, org.id):
             storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
             collections.append(kb.collection_name)
+            deleted_bases.append(BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id))
             await knowledge_base_repo.delete(self.db, kb.id)
 
         # A personal base carrying this org's id is left standing by the `SET NULL`,
         # which flips its `vector_tenant` to `None` while its rows stay stamped with
         # the org - stranding them behind the read side's `IS NULL` scope. Each is
-        # handed to the deferred cleanup, which untags that base's own rows so they
-        # match again. Identified here, under the org lock, before the `SET NULL`:
+        # handed to the deferred cleanup, which untags that base's own rows - and
+        # files them under it (#2537) - so they match again. Identified here, under the org lock, before the `SET NULL`:
         # the cleanup re-stamps by the base's own `parent_doc_id`s (resolved at run
         # time), so it touches only its own documents even on a table it shares with
         # this org's own torn-down collection, and never another tenant's rows (#1684).
@@ -856,6 +865,14 @@ class OrganizationService:
             Restamp(collection=kb.collection_name, organization_id=org.id, knowledge_base_id=kb.id)
             for kb in restamp_orphans
         ]
+        # A base whose table another organization keeps leaves its chunks in it,
+        # filed under an id no scope reads; the job deletes them by that id (#2537).
+        # Only with a store wired, the same signal the drops follow.
+        base_purges = (
+            [purge for purge in deleted_bases if purge.collection not in to_drop]
+            if self._vector_store is not None
+            else []
+        )
         # The images, speech and video its agents generated go in the same job
         # (#2310): their rows cascade with the organization, so the job is the
         # only record of the bytes left. One prefix, which also takes the files
@@ -870,6 +887,7 @@ class OrganizationService:
             restamps,
             prefixes=[organization_directory(org.id)],
             organization_id=org.id,
+            base_purges=base_purges,
         )
         # Whatever the `media` capability offloaded out of any of this tenant's
         # compacted histories. Content-addressed objects record nothing about who

@@ -61,11 +61,14 @@ const BUILDER_STEPS = [
 // pass takes one of these (kb-documents).
 const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
-// The organization detail walk: the members page (profile, the public-data switch,
-// the Voice card, the AI Architect's card, then the list), then across into the
-// roles matrix. None are inTour — orgs is a "?"-only section.
+// The organization detail walk: the members page (profile, the Voice card, the
+// AI Architect's card, then the list), then across into the roles matrix. None
+// are inTour — orgs is a "?"-only section.
 const ORG_STEPS = [
   "org-profile",
+  "org-governance",
+  "org-proactivity",
+  "org-proactivity-model",
   "org-public-live-data",
   "org-voice",
   "org-assistant",
@@ -350,13 +353,62 @@ describe("stepsForPage", () => {
     );
   });
 
+  it("opens the organization tab before looking for its tour target", () => {
+    const steps = stepsForPage("/orgs/some-id/members", () => true);
+    for (const section of [
+      "profile",
+      "governance",
+      "proactivity",
+      "voice",
+      "assistant",
+      "members",
+    ]) {
+      expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
+        `org-tab-${section}`,
+      );
+    }
+  });
+
   it("skips the Voice stop for somebody who may not change organization settings", () => {
     // The card is hidden from them, and an ungated step would wait on it.
     expect(
       stepsForPage("/orgs/some-id/members", (permission) => permission !== Perm.orgSettings).map(
         (step) => step.id,
       ),
-    ).toEqual(["org-profile", "org-members", "org-roles"]);
+    ).toEqual([
+      "org-profile",
+      "org-governance",
+      "org-proactivity",
+      "org-proactivity-model",
+      "org-members",
+      "org-roles",
+    ]);
+  });
+
+  it.each([Perm.budgetsManage, Perm.approvalsDecide, Perm.orgSettings])(
+    "gates settings stops by either qualifying grant: %s",
+    (grant) => {
+      const ids = stepsForPage("/orgs/id/members", (permission) => permission === grant).map(
+        (step) => step.id,
+      );
+      expect(ids.includes("org-governance")).toBe(grant !== Perm.orgSettings);
+      expect(ids.includes("org-proactivity")).toBe(grant !== Perm.approvalsDecide);
+    },
+  );
+
+  it("requires both budget and connection permissions for inline model guidance", () => {
+    for (const missing of [Perm.budgetsManage, Perm.connectionsManage]) {
+      expect(
+        stepsForPage("/orgs/id/members", (permission) => permission !== missing).some(
+          (step) => step.id === "org-proactivity-model",
+        ),
+      ).toBe(false);
+    }
+    const step = stepsForPage("/orgs/id/members", () => true).find(
+      (entry) => entry.id === "org-proactivity-model",
+    );
+    expect(step?.optional).toBe(true);
+    expect(step?.target).toBe("org-proactivity-model");
   });
 
   it("walks only the roles matrix from a roles route — the last page of the flow", () => {
@@ -461,12 +513,7 @@ describe("the Routines page", () => {
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
     expect(refused).toEqual(["routines-list", "routines-watches"]);
-    expect(allowed).toEqual([
-      "routines-list",
-      "routines-watches",
-      "routines-create",
-      "routines-ideas",
-    ]);
+    expect(allowed).toEqual(["routines-list", "routines-watches", "routines-create"]);
   });
 });
 

@@ -35,10 +35,7 @@ export function ActiveSwitch({
       <span className="text-muted-foreground inline-flex items-center gap-1.5 text-sm">
         <span
           aria-hidden="true"
-          className={cn(
-            "size-2 rounded-full",
-            active ? "bg-emerald-500" : "bg-muted-foreground/40",
-          )}
+          className={cn("size-2 rounded-full", active ? "bg-success" : "bg-muted-foreground/40")}
         />
         {active ? t("activeOn") : t("activeOff")}
       </span>

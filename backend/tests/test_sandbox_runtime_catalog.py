@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from app.commands.sandbox_runtimes import COMPOSE_FILES, _repo_root, compose_value
 from app.services.sandbox_runtimes import (
     CATALOG,
+    DESKTOP_RUNTIME,
     SandboxRuntimeDefinition,
     allowlist_value,
     runtime_briefing,
@@ -157,16 +158,27 @@ def test_generating_the_line_leaves_the_prose_around_it_alone() -> None:
 
 
 def test_the_catalogue_file_is_what_the_product_offers() -> None:
-    """One runtime, and the file is the reason.
+    """Two runtimes, and the file is the reason.
 
     Not a style assertion: `prewarm` builds every entry as the service starts, so
     a catalogue that grew back to eight aliases is eight `pip install`s in a
-    start-up nobody is watching. A deployment adding a second runtime is expected
-    to change this number deliberately.
+    start-up nobody is watching. `workbench` stays first because the first entry
+    is what an agent naming no runtime gets; `desktop` is the one `computer_use`
+    needs. A deployment adding a third is expected to change this deliberately.
     """
     path = Path(__file__).parents[1] / "app" / "core" / "catalog" / "sandbox_runtimes.json"
-    assert len(json.loads(path.read_text())) == len(CATALOG) == 1
-    assert CATALOG[0].alias == "workbench"
+    assert len(json.loads(path.read_text())) == len(CATALOG) == 2
+    assert [runtime.alias for runtime in CATALOG] == ["workbench", "desktop"]
+
+
+def test_the_runtime_publish_requires_for_a_desktop_has_one() -> None:
+    """Publish refuses a sandbox desktop on any other runtime, so this one has to
+    carry what `computer_use` runs: the display, the desktop, the input and the
+    screenshot."""
+    desktop = next(runtime for runtime in CATALOG if runtime.alias == DESKTOP_RUNTIME)
+    installed = " ".join(desktop.setup_commands).split()
+
+    assert {"xvfb", "xfce4", "dbus-x11", "xdotool", "scrot"} <= set(installed)
 
 
 def _definition(**overrides: Any) -> SandboxRuntimeDefinition:
@@ -378,6 +390,16 @@ class TestWhatTheModelIsTold:
         assert "lit parse" in briefing
         assert "LibreOffice" in briefing
         assert "no C compiler" in briefing
+
+    def test_workbench_explains_the_shell_and_persistent_file_boundary(self) -> None:
+        briefing = runtime_briefing("workbench")
+
+        assert briefing is not None
+        assert "POSIX `/bin/sh`" in briefing
+        assert "mkdir -p sources inbox notes" in briefing
+        assert "`~` is the user home, outside the shared files" in briefing
+        assert "a previous call's `cd` or shell variables do not persist" in briefing
+        assert "verify the expected files before reporting success" in briefing
 
     def test_a_runtime_nothing_named_is_the_one_the_service_defaults_to(self) -> None:
         """The spec deferring to the connection, which defers to the host, is the

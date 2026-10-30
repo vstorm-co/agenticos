@@ -137,11 +137,15 @@ export default defineConfig({
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
         "src/components/layout/navigation-progress.tsx",
+        // The offline strip in the apps (#2097).
+        "src/components/layout/offline-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-room-bar.tsx",
         "src/components/chat/typing-indicator.tsx",
         "src/components/chat/reply-quote.tsx",
+        // A thread's picture from the copy on the device, offline (#2097).
+        "src/components/chat/kept-image.tsx",
         "src/components/chat/person-face.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under
@@ -162,6 +166,14 @@ export default defineConfig({
         "src/components/layout/account-locale.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
+        // The desktop app's pages and the console's half of it (#2305): blobby,
+        // quick ask, the desktop settings tabs, the notification bridge - and
+        // the looks, with what applies them before the first paint.
+        "src/components/desktop/**/*.tsx",
+        "src/components/mobile/**/*.tsx",
+        "src/components/settings/look-picker.tsx",
+        "src/components/theme/appearance-script.tsx",
+        "src/components/theme/theme-provider.tsx",
         "src/components/settings/agent-context-settings.tsx",
         "src/components/settings/working-hours-field.tsx",
         "src/components/chat/suggestion-cards.tsx",
@@ -181,13 +193,21 @@ export default defineConfig({
         // The cue a sideways-scrolling strip gives that there is more of it.
         "src/components/ui/scroll-fade.ts",
         "src/components/ui/more-options.tsx",
+        // A row a finger swipes to decide (#2097).
+        "src/components/ui/swipe-to-decide.tsx",
+        // A list's filters behind one button on a phone (#2097).
+        "src/components/ui/phone-filters.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",
+        "src/components/chat/browser-visit.tsx",
         "src/components/chat/browser-comment.tsx",
         "src/components/chat/browser-panel.tsx",
+        "src/components/chat/browser-panel-frame.tsx",
         "src/components/chat/browser-view.tsx",
         "src/components/chat/browser-window.tsx",
+        "src/components/chat/browser-navigation.tsx",
+        "src/components/chat/native-browser.tsx",
         "src/components/chat/live-viewport.tsx",
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",

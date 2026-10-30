@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { directionFor } from "@/lib/navigation-direction";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,8 @@ import { cn } from "@/lib/utils";
  * transcript's height. The workflow editor needs it for the same reason: its
  * palette and property panel scroll inside a workspace that fills the window.
  */
-const OWN_SCROLL_PANE = /\/chat(?:\/|$)|\/workflows\/[^/]+$/;
+const OWN_SCROLL_PANE =
+  /\/(?:chat|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$/;
 
 /**
  * Routes that place their own room under themselves, lower down.
@@ -34,10 +36,13 @@ const OWN_SCROLL_PANE = /\/chat(?:\/|$)|\/workflows\/[^/]+$/;
  *   the same `PAGE_CLEARANCE` one level in, on the list column, where it lands
  *   under the last row and leaves the row itself ending at the viewport.
  */
-const OWN_BOTTOM_ROOM = /\/(?:chat|runs)(?:\/|$)|\/workflows\/[^/]+$/;
+const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^/]+$/;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // The phone app slides a page in from the side it came from (`desktop.css`);
+  // everywhere else the attribute changes nothing.
+  const direction = directionFor(pathname);
 
   return (
     // Everywhere else the room under a page is declared here, and this is the
@@ -49,6 +54,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     // padding here is painted after the last element.
     <div
       key={pathname}
+      data-direction={direction}
       className={cn(
         "page-enter flex flex-1 flex-col",
         OWN_SCROLL_PANE.test(pathname) && "min-h-0",

@@ -101,7 +101,6 @@ class SkillRead(BaseSchema):
     description: str
     content: str
     category: str | None = None
-    enabled: bool
     version: int
     visibility: str
     owner_user_id: UUID | None = None
@@ -123,7 +122,6 @@ class SkillSummary(BaseSchema):
     name: str
     description: str
     category: str | None = None
-    enabled: bool
     visibility: str = Field(
         description="`org` reaches everyone; `private` its owner and whoever it is shared with"
     )
@@ -205,7 +203,6 @@ class SkillCreate(AudienceChoice):
 class SkillUpdate(BaseSchema):
     description: str | None = Field(default=None, max_length=500)
     content: str | None = None
-    enabled: bool | None = None
     category: str | None = Field(default=None, min_length=1, max_length=64)
 
 

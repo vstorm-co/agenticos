@@ -9,8 +9,8 @@ import { CheckCircle2 } from "lucide-react";
 import { DecidedApproval, PendingApproval } from "@/components/runs/approval-cards";
 import { DecidedWorkflowApproval } from "@/components/runs/workflow-approvals-card";
 import { ExportMenu } from "@/components/runs/export-menu";
-import { ErrorState } from "@/components/states";
-import { ListCard, ListCardEmpty, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
+import { EmptyState, ErrorState } from "@/components/states";
+import { ListCard, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
 import {
   useApprovalHistory,
   useApprovals,
@@ -100,6 +100,7 @@ export function ApprovalsTab({
 
   return (
     <ListCard
+      fill
       title={t("approvalsTitle")}
       counted={
         isLoading || history.isLoading
@@ -146,13 +147,27 @@ export function ApprovalsTab({
               <Skeleton className="h-24 w-full" />
               <Skeleton className="h-24 w-full" />
             </div>
+          ) : approvals.length === 0 &&
+            decided.length > 0 &&
+            !stepQueue.error &&
+            stepQueue.total === 0 ? (
+            <div className="flex items-center gap-3 px-5 py-5" role="status">
+              <CheckCircle2 className="text-muted-foreground h-5 w-5 shrink-0" aria-hidden />
+              <div>
+                <p className="text-sm font-medium">{t("nothingWaiting")}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {t("agentsAreRunningWithout")}
+                </p>
+              </div>
+            </div>
           ) : approvals.length === 0 ? (
             // Not while the card above has steps waiting on the same person:
             // "nothing waiting" under "waiting on you" contradicts itself. Nor
             // when that queue could not be read - then nobody knows.
             !stepQueue.error &&
             stepQueue.total === 0 && (
-              <ListCardEmpty
+              <EmptyState
+                className="flex-1 rounded-none border-0 bg-transparent shadow-none"
                 icon={CheckCircle2}
                 title={t("nothingWaiting")}
                 description={t("agentsAreRunningWithout")}

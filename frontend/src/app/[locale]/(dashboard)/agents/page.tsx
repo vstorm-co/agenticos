@@ -6,9 +6,15 @@ import { useRouter } from "next/navigation";
 import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import {
+  AGENT_LIMIT_NOTICE_ID,
+  AgentLimitNotice,
+  isAtAgentLimit,
+} from "@/components/agents/agent-limit-notice";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -23,7 +29,7 @@ import {
   SearchInput,
   Skeleton,
 } from "@/components/ui";
-import { useAgents, usePermissions } from "@/hooks";
+import { useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
@@ -55,6 +61,7 @@ function AgentsCard({
   const t = useTranslations("pages.agents");
   return (
     <ListCard
+      fill
       namedByPage
       title={t("catalog")}
       counted={
@@ -108,6 +115,9 @@ export default function AgentsPage() {
   });
   const { can } = usePermissions();
   const canEdit = can(Perm.agentsEdit);
+  const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: canEdit });
+  const atLimit = isAtAgentLimit(ceiling);
+  const tLimit = useTranslations("agentLimit");
 
   // Any narrowing at all - the client status/text filters and the server facet.
   // A zero-match facet returns an empty page, so this is what tells "no agent
@@ -143,64 +153,75 @@ export default function AgentsPage() {
   // Both controls narrow the gallery, so they live in its card header - the
   // container's own controls slot, like every list card's.
   const galleryControls = (
-    <div data-tour="agents-filters" className="flex flex-wrap items-center gap-2">
-      <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
-      {/* Wrapped under the search on a phone: a row swiped sideways hid its
-          last filter past the screen's edge. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-          <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FILTERS.map((entry) => (
-              <SelectItem key={entry.value} value={entry.value}>
-                {entry.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <LabelFilter
-          options={categoryOptions}
-          selected={categories}
-          onChange={setCategories}
-          ariaLabel={t("filterByCategory")}
-          allLabel={t("allCategories")}
-          countLabel={(count) => t("categoryCount", { count })}
-          clearLabel={t("clearFilter")}
-          max={MAX_AGENT_CATEGORIES}
-        />
-        <LabelFilter
-          options={tagOptions}
-          selected={tags}
-          onChange={setTags}
-          ariaLabel={t("filterByTag")}
-          allLabel={t("allTags")}
-          countLabel={(count) => t("tagCount", { count })}
-          clearLabel={t("clearFilter")}
-          max={MAX_AGENT_TAGS}
-        />
-      </div>
+    <div data-tour="agents-filters" className="flex min-w-0 flex-wrap items-center gap-2">
+      <SearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder={t("searchAgents2")}
+        className="min-w-0 flex-1 sm:flex-none"
+      />
+      <ListFilters compact active={Number(filter !== "all") + categories.length + tags.length}>
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+          <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+            <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FILTERS.map((entry) => (
+                <SelectItem key={entry.value} value={entry.value}>
+                  {entry.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <LabelFilter
+            options={categoryOptions}
+            selected={categories}
+            onChange={setCategories}
+            ariaLabel={t("filterByCategory")}
+            allLabel={t("allCategories")}
+            countLabel={(count) => t("categoryCount", { count })}
+            clearLabel={t("clearFilter")}
+            max={MAX_AGENT_CATEGORIES}
+          />
+          <LabelFilter
+            options={tagOptions}
+            selected={tags}
+            onChange={setTags}
+            ariaLabel={t("filterByTag")}
+            allLabel={t("allTags")}
+            countLabel={(count) => t("tagCount", { count })}
+            clearLabel={t("clearFilter")}
+            max={MAX_AGENT_TAGS}
+          />
+        </div>
+      </ListFilters>
     </div>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("agents")}
         description={t("agentConfigurationNotCode")}
         actions={
           canEdit ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 data-tour="agents-templates"
+                disabled={!ceilingKnown}
                 onClick={() => setTemplatesOpen(true)}
               >
                 <Library className="h-4 w-4" />
                 {tTemplates("browse")}
               </Button>
-              <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
+              <Button
+                data-tour="agents-new"
+                disabled={!ceilingKnown || atLimit}
+                aria-describedby={atLimit ? AGENT_LIMIT_NOTICE_ID : undefined}
+                onClick={() => setCreateOpen(true)}
+              >
                 <Plus className="h-4 w-4" />
                 {t("newAgent")}
               </Button>
@@ -208,6 +229,10 @@ export default function AgentsPage() {
           ) : undefined
         }
       />
+
+      {canEdit && atLimit ? (
+        <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
+      ) : null}
 
       {/* The header and the controls are static, so they stay put while the
           list loads rather than being replaced by a placeholder of themselves.
@@ -240,7 +265,11 @@ export default function AgentsPage() {
                 filtersActive
                   ? t("noAgentHereMatches")
                   : canEdit
-                    ? t("createOneGiveInstructions")
+                    ? !ceilingKnown
+                      ? undefined
+                      : atLimit
+                        ? tLimit("emptyGallery")
+                        : t("createOneGiveInstructions")
                     : t("nobodyHasSharedAgent")
               }
               cta={
@@ -249,7 +278,7 @@ export default function AgentsPage() {
                       label: t("clearFilters"),
                       onClick: clearFilters,
                     }
-                  : canEdit
+                  : canEdit && ceilingKnown && !atLimit
                     ? {
                         label: (
                           <>
@@ -286,7 +315,7 @@ export default function AgentsPage() {
         </AgentsCard>
       )}
 
-      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
+      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} ceiling={ceiling} />
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

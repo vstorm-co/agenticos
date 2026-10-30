@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* The looks beyond the standard one, and the console inside the desktop app. */
+@import "./looks.css";
+@import "./desktop.css";
 
 /* A device with no pointer that can hover - a phone, a tablet.
  *
@@ -193,11 +196,11 @@
      depth changed with whatever it happened to be over. */
   --color-sidebar: oklch(96.3% 0.002 265);
   --color-background: oklch(97.8% 0.002 265);
-  --color-foreground: oklch(17.5% 0.004 265);
+  --color-foreground: oklch(16% 0.004 265);
   --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(17.5% 0.004 265);
+  --color-card-foreground: oklch(16% 0.004 265);
   --color-popover: oklch(100% 0 0);
-  --color-popover-foreground: oklch(17.5% 0.004 265);
+  --color-popover-foreground: oklch(16% 0.004 265);
   /* The document peek: a card's content drawn as a sheet of paper resting in a
      well, with the rest of it stacked behind. The paper is always the lightest
      of the three, in both themes, which is why these are their own tokens
@@ -206,20 +209,19 @@
   --color-peek-well: oklch(95.5% 0.002 265);
   --color-peek-sheet: oklch(88.5% 0.004 265);
   --color-peek-paper: oklch(100% 0 0);
-  /* `primary` is INK, not the accent: the platform's primary action is a
-     near-black button (white in dark themes), the way OpenAI's and
-     ElevenLabs' consoles draw theirs. The accent keeps the quieter jobs -
-     links, selection, focus, charts - which is what keeps it legible as
-     "you are here" rather than "click me". Pointer states are explicit
-     steps, not alpha fades, for the same reason the brand ramp's are. */
+  /* The main action carries full ink contrast; secondary actions stay quiet. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-secondary: oklch(95.5% 0.002 265);
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: oklch(95.5% 0.002 265);
-  --color-muted-foreground: oklch(44% 0.006 265);
+  --color-muted-foreground: oklch(40% 0.006 265);
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
@@ -243,13 +245,9 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  /* Firmer than the 91.5% it replaces (1.29:1 on a white card, now about
-     1.45:1). The quieter edge read as washed out: cards, table rules and
-     dividers faded into the page, and a layout drawn in hairlines nobody can
-     see is not calm, it is unfinished. `input` stays darker than `border`,
-     because the edge of a field somebody has to find and click is doing a
-     different job from the edge of a panel. */
-  --color-border: oklch(84.5% 0.003 265);
+  /* Decorative edges stay quiet; input edges remain stronger so fields
+     remain easy to locate independently of the panel around them. */
+  --color-border: oklch(89% 0 0);
   --color-input: oklch(77% 0.005 265);
   /* The bright step, not the text step: a focused field ringed in the deep
      rust of `brand` read as a field in error. */
@@ -257,7 +255,7 @@
 
   /* Radius */
   --radius: 0.5rem;
-  --radius-card: 0.5rem;
+  --radius-card: 0.75rem;
   --radius-pill: 999px;
 
   /* Elevation. One soft step for resting cards - borders do the separating,
@@ -302,22 +300,26 @@
   :root:not(.light) {
     --color-sidebar: oklch(20.5% 0.0025 265);
     --color-background: oklch(23.5% 0.0025 265);
-    --color-foreground: oklch(94.5% 0.003 265);
+    --color-foreground: oklch(96.5% 0.003 265);
     --color-card: oklch(26.2% 0.0025 265);
-    --color-card-foreground: oklch(94.5% 0.003 265);
+    --color-card-foreground: oklch(96.5% 0.003 265);
     --color-popover: oklch(28.5% 0.0025 265);
-    --color-popover-foreground: oklch(94.5% 0.003 265);
+    --color-popover-foreground: oklch(96.5% 0.003 265);
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
     --color-peek-paper: oklch(29.5% 0.003 265);
     /* Accent roles, dark mapping. The fill lightens - a bright accent reads as
        forward on near-black - and its foreground flips to near-black ink,
        which buys more contrast than white-on-blue reaches at any lightness.
-       Ink flips with it: the primary button goes white on graphite. */
+       Primary actions keep a neutral surface with light text. */
     --color-primary: oklch(96% 0.003 250);
     --color-primary-foreground: oklch(16% 0.01 250);
     --color-primary-hover: oklch(88% 0.004 250);
     --color-primary-active: oklch(81% 0.005 250);
+    --color-action: var(--color-primary);
+    --color-action-foreground: var(--color-primary-foreground);
+    --color-action-hover: var(--color-primary-hover);
+    --color-action-active: var(--color-primary-active);
     --color-brand: var(--brand-400);
     --color-brand-hover: var(--brand-300);
     --color-brand-active: var(--brand-200);
@@ -328,10 +330,10 @@
     --color-secondary: oklch(30% 0.0025 265);
     --color-secondary-foreground: oklch(95% 0 0);
     --color-muted: oklch(30% 0.0025 265);
-    --color-muted-foreground: oklch(73.5% 0.006 265);
+    --color-muted-foreground: oklch(78% 0.006 265);
     --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: oklch(38.5% 0.003 265);
+    --color-border: oklch(34% 0 0);
     --color-input: oklch(47% 0.004 265);
     --color-chart: oklch(74% 0.14 277);
     --color-chart-fill: oklch(60% 0.16 277);
@@ -349,11 +351,11 @@
 :root.dark {
   --color-sidebar: oklch(20.5% 0.0025 265);
   --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(94.5% 0.003 265);
+  --color-foreground: oklch(96.5% 0.003 265);
   --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-card-foreground: oklch(96.5% 0.003 265);
   --color-popover: oklch(28.5% 0.0025 265);
-  --color-popover-foreground: oklch(94.5% 0.003 265);
+  --color-popover-foreground: oklch(96.5% 0.003 265);
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
   --color-peek-paper: oklch(29.5% 0.003 265);
@@ -363,6 +365,10 @@
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -373,10 +379,10 @@
   --color-secondary: oklch(30% 0.0025 265);
   --color-secondary-foreground: oklch(95% 0 0);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(73.5% 0.006 265);
+  --color-muted-foreground: oklch(78% 0.006 265);
   --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: oklch(38.5% 0.003 265);
+  --color-border: oklch(34% 0 0);
   --color-input: oklch(47% 0.004 265);
   --color-chart: oklch(74% 0.14 277);
   --color-chart-fill: oklch(60% 0.16 277);
@@ -402,13 +408,17 @@
   --color-card-foreground: oklch(15% 0 0);
   --color-muted: oklch(94% 0.004 250);
   --color-muted-foreground: oklch(44% 0 0);
-  --color-border: oklch(84.5% 0.004 250);
+  --color-border: oklch(89% 0 0);
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-700);
   --color-brand-hover: var(--brand-800);
   --color-brand-active: var(--brand-900);
@@ -431,16 +441,20 @@
 .theme-dark {
   --color-sidebar: oklch(20.5% 0.0025 265);
   --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(94.5% 0.003 265);
+  --color-foreground: oklch(96.5% 0.003 265);
   --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-card-foreground: oklch(96.5% 0.003 265);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(73.5% 0.006 265);
-  --color-border: oklch(38.5% 0.003 265);
+  --color-muted-foreground: oklch(78% 0.006 265);
+  --color-border: oklch(34% 0 0);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -473,22 +487,10 @@
   html[data-motion="reduce"] {
     scroll-behavior: auto;
   }
-  :root.dark body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not(.light) body {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
-    /* Grayscale smoothing only on dark: on macOS it turns off stem darkening,
-       which keeps light text on a dark ground from blooming - and leaves dark
-       text on a light ground thin and grey, worst on a 1x monitor. */
+    /* Keep the platform's font rendering and stem weight in both themes. */
     font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
     /* Disable iOS tap highlight - focus rings + active states do the job. */
@@ -2231,7 +2233,6 @@ body .tour-spotlight {
   transition:
     transform var(--duration-slow) var(--ease-out),
     box-shadow var(--duration-slow) var(--ease-out);
-  will-change: transform;
 }
 
 /* The pages behind. Offset up and inward, so each shows a sliver of edge
@@ -2358,34 +2359,34 @@ body .tour-spotlight {
   }
 }
 .rise-in > * {
-  animation: rise-in 420ms var(--ease-out) both;
+  animation: rise-in 240ms var(--ease-out) both;
 }
 .rise-in > :nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: 24ms;
 }
 .rise-in > :nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: 48ms;
 }
 .rise-in > :nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: 72ms;
 }
 .rise-in > :nth-child(5) {
-  animation-delay: 160ms;
+  animation-delay: 96ms;
 }
 .rise-in > :nth-child(6) {
-  animation-delay: 200ms;
+  animation-delay: 120ms;
 }
 .rise-in > :nth-child(7) {
-  animation-delay: 240ms;
+  animation-delay: 144ms;
 }
 .rise-in > :nth-child(8) {
-  animation-delay: 280ms;
+  animation-delay: 168ms;
 }
 .rise-in > :nth-child(n + 9) {
-  animation-delay: 320ms;
+  animation-delay: 192ms;
 }
 /* The global reduced-motion rule shortens durations but keeps these delays, and
-   with `both` fill a later card would sit invisible for up to 320ms and then
+   with `both` fill a later card would sit invisible for up to 192ms and then
    appear at once (#1930). Without motion the grid is simply there. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in > * {
@@ -2401,7 +2402,6 @@ body .tour-spotlight {
   from {
     opacity: 0;
     transform: translateY(3px);
-    filter: blur(1.5px);
   }
   to {
     opacity: 1;
@@ -2410,24 +2410,22 @@ body .tour-spotlight {
   }
 }
 .stream-in > :not(.stream-cursor) {
-  animation: stream-block-in 420ms var(--ease-out) both;
+  animation: stream-block-in 220ms var(--ease-out) both;
 }
 
-/* Each word of a streaming answer surfacing out of a soft blur, spans from
+/* Each word of a streaming answer arriving with an opacity transition, spans from
    `rehypeStreamWords`. `backwards`, not `both`: once a word has arrived it
-   keeps no filter, so a long answer is not hundreds of compositing layers. */
+   keeps no animation state, so long answers do not retain compositing layers. */
 @keyframes stream-word-in {
   from {
     opacity: 0;
-    filter: blur(4px);
   }
   to {
     opacity: 1;
-    filter: blur(0);
   }
 }
 .stream-word {
-  animation: stream-word-in 700ms var(--ease-out) backwards;
+  animation: stream-word-in 220ms var(--ease-out) backwards;
 }
 :root[data-motion="reduce"] .stream-word {
   animation: none;
@@ -2513,6 +2511,15 @@ body .tour-spotlight {
 }
 @utility slide-in-from-right {
   --tw-enter-translate-x: 100%;
+}
+@utility slide-out-to-left {
+  --tw-exit-translate-x: -100%;
+}
+@utility slide-out-to-right {
+  --tw-exit-translate-x: 100%;
+}
+@utility slide-out-to-bottom {
+  --tw-exit-translate-y: 100%;
 }
 
 /* The composer's voice glow (components/ui/voice-glow.tsx): a blurred bloom
@@ -2765,4 +2772,26 @@ body .tour-spotlight {
     opacity: 0.9;
     transform: translateY(-2px);
   }
+}
+
+/* Dialogs share the shell's visible height, including when a touch keyboard is
+   open. The same budget sizes the modal and every dialog shape token. */
+:root {
+  --dialog-available-height: calc(
+    var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 2rem
+  );
+  --dialog-center: calc(
+    (var(--app-height, 100dvh) + var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)) / 2
+  );
+}
+
+/* Sonner's default palette follows its own theme; these roles also follow a
+   person's explicit console appearance, including changes while a toast is open. */
+.console-toasts[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--color-popover);
+  --normal-text: var(--color-popover-foreground);
+  --normal-border: var(--color-border);
+}
+.console-toasts [data-sonner-toast][data-styled="true"] [data-description] {
+  color: var(--color-muted-foreground);
 }

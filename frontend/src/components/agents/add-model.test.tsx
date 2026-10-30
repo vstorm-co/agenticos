@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   defaultApi,
+  endpointProfileLabel,
   modelHint,
   modelIdIsWellFormed,
   modelPlaceholder,
@@ -170,5 +171,30 @@ describe("defaultApi", () => {
   it("has nothing to say for a provider that serves one API", () => {
     expect(defaultApi({ native_api: null }, "")).toBeNull();
     expect(defaultApi(null, "")).toBeNull();
+  });
+});
+
+describe("endpointProfileLabel", () => {
+  it("distinguishes regional URLs, global API and long conflicting names", () => {
+    const base = "OpenRouter · anthropic/claude-sonnet-5";
+    const eu = endpointProfileLabel(base, "https://eu.openrouter.ai/api/v1/", [], "Default API");
+    expect(eu).toBe(`${base} · eu.openrouter.ai/api/v1`);
+    expect(endpointProfileLabel(base, "", [], "Default API")).toBe(`${base} · Default API`);
+    expect(
+      endpointProfileLabel(
+        base,
+        "https://eu.openrouter.ai/api/v1",
+        [eu, `${eu} (2)`],
+        "Default API",
+      ),
+    ).toBe(`${eu} (3)`);
+    expect(
+      endpointProfileLabel(
+        "x".repeat(200),
+        "https://gateway.example/" + "a".repeat(200),
+        [],
+        "Default API",
+      ).length,
+    ).toBeLessThanOrEqual(128);
   });
 });

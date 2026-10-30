@@ -110,6 +110,12 @@ receives, so a member's private key is refused when either is saved, and a key
 made private afterwards stops being used. Unlike `github_oauth_app`, these keys
 are named by id, so several may be stored side by side.
 
+The speech key picker names visible keys that cannot be selected because they
+are private or shared only with selected people, and explains that they must be
+shared with the organization first. A ChatGPT sign-in is identified separately:
+it provides model access through a ChatGPT subscription and cannot replace an
+OpenAI API key for voice features. The picker never changes a credential's access automatically.
+
 `git_token` carries its host because a Git sync source sends the token to a URL
 whoever edits the source chooses. Bound to the host the token was added with, the
 token cannot be aimed at another server by editing the source, and no other key
@@ -169,7 +175,11 @@ the floor also catches a truncated paste while the form is still open.
 
 **Model providers.** Named by a [model profile](models.md). Spend is attributed to
 the secret the run resolved to, which is how "which key is costing the most" gets
-an answer.
+an answer. Keying a profile lends the key to everyone who runs on it, so creating
+or editing one - its key or its endpoint - needs `secrets:view` on that key. A
+deleted key leaves its profiles marked `missing_key` until they get another,
+including one in front of a gateway. Only a profile saved with no key on purpose
+keeps running without one ([A profile without a key](models.md#a-profile-without-a-key)).
 
 **Speech to text.** An API key whose purpose is the provider, named by id next to
 the provider and model wherever speech to text is set up: the organization's

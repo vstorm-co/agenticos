@@ -36,6 +36,7 @@
     },
     "briefing": [
       "Python 3.12 (`python3`) and Node 24 (`node`, `npm`, `tsx` for TypeScript). Shell tools: `git`, `rg`, `fd`, `jq`, `curl`, `unzip`, and `uv` for installing Python packages fast.",
+      "Shell commands use POSIX `/bin/sh`, not Bash: create directories with `mkdir -p sources inbox notes`, not brace expansion such as `{sources,inbox,notes}`. Keep project files under `/workspace`; `~` is the user home, outside the shared files. Each command starts a new process: use `cd /workspace && ...` in the same call when needed; a previous call's `cd` or shell variables do not persist. Check a failed command's output and verify the expected files before reporting success.",
       "**Never read a large file into your reply to look through it.** Extract it to a text file once, then work on that file: `rg -n <pattern> file.txt` to find the places that matter and `sed -n '400,460p' file.txt` to read one of them. A book is thousands of lines; you need tens of them.",
       "PDFs, images and office documents: `lit parse <file> -o out.md` gives text or markdown, OCR included - use it rather than writing an extractor. `pdfinfo <file>` gives the page count first, which is worth knowing before you start.",
       "A page with no text layer has to be OCR'd, which is seconds per page, and any single command is killed at the service's timeout (five minutes by default). So for a scan of more than a few dozen pages, work in ranges - `lit parse --target-pages 1-40 book.pdf -o part1.md` - rather than in one call that gets killed with nothing to show.",
@@ -43,6 +44,25 @@
       "Write office files with `python-docx`, `openpyxl` and `python-pptx`, which is also the most precise way to read `.docx` and `.xlsx`.",
       "LibreOffice is here and headless: `soffice --headless --convert-to pdf deck.pptx` renders what you built, `--convert-to png` gives you a picture of the first slide you can read back and look at, and it is what lets `lit` read the legacy `.doc`, `.xls` and `.ppt` formats at all. About a second per document.",
       "There is no C compiler, so a package with no prebuilt wheel will fail to install."
+    ],
+    "mem_limit": "2g",
+    "needs_network": true
+  },
+  {
+    "alias": "desktop",
+    "description": "A Linux desktop (XFCE and Firefox) for computer use, with Python and a shell",
+    "base_image": "python:3.12-slim",
+    "setup_commands": [
+      "apt-get update && apt-get install -y --no-install-recommends xvfb x11-utils xfce4 xfce4-terminal dbus-x11 xdotool scrot firefox-esr fonts-dejavu-core fonts-noto-color-emoji git curl ca-certificates jq procps unzip && rm -rf /var/lib/apt/lists/*"
+    ],
+    "env_vars": {
+      "PYTHONUNBUFFERED": "1",
+      "PYTHONUTF8": "1",
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+    },
+    "briefing": [
+      "A Linux desktop (XFCE, with Firefox) runs on display `:0` of this same machine once a computer use tool has looked at it, and the computer use tools drive it. Files you write here are the files on that desktop.",
+      "To open something on the desktop from the shell, start it detached on that display - `DISPLAY=:0 setsid nohup firefox-esr https://example.com >/dev/null 2>&1 &` - then look with `computer_screenshot`. Reading or writing a file with the file tools is quicker and more precise than doing it through the screen, so use the screen for what has no other way in."
     ],
     "mem_limit": "2g",
     "needs_network": true

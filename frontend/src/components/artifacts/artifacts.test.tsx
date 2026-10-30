@@ -1526,6 +1526,17 @@ describe("the public page", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
+  it("lets an anonymous reader switch app theme without replacing the page", async () => {
+    render(<PublicArtifact artifact={opened} publicKey="k" />);
+    const frame = screen.getByTitle("Weekly report");
+    expect(frame).toHaveStyle({ colorScheme: "light" });
+    await userEvent.click(screen.getByRole("button", { name: "Use dark app theme" }));
+    expect(screen.getByTitle("Weekly report")).toBe(frame);
+    expect(frame).toHaveStyle({ colorScheme: "dark" });
+    await userEvent.click(screen.getByRole("button", { name: "Use light app theme" }));
+    expect(frame).toHaveStyle({ colorScheme: "light" });
+  });
+
   it("asks for the password first and says nothing else about the page", async () => {
     const mutate = vi.fn();
     unlockMock.mockReturnValue({ mutate, data: undefined, error: null, isPending: false });

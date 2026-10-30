@@ -168,6 +168,13 @@ Three rules the workflow keeps, each worth knowing before relying on a tag:
     `scripts/deploy.sh` pins for you - to the `sha-` tag of the commit it deploys -
     for exactly as long as the deploy runs.
 
+    Pin it from that release's checkout: `git checkout v0.0.380` beside the
+    variable. The sandbox service's image is pinned in the compose file, at the
+    version the backend of the same commit speaks, so an older backend run from a
+    newer checkout meets a newer `sandboxd` - and `latest` from an old checkout is
+    the same mismatch the other way round. `scripts/deploy.sh` checks out the
+    commit it deploys, so a scripted deploy or rollback keeps the two together.
+
 Both packages pull anonymously. If a pull answers `unauthorized`, the package has
 been made private or a stale `docker login ghcr.io` is in the way; neither is
 something a host can fix by itself.
@@ -438,6 +445,19 @@ deployment's own.
     token rather than taking a flag.
 
 ## Deploying a change
+
+### The retry-history boundary in 1.25.0 { #retry-history-upgrade }
+
+Version 1.25.0 adopts Pydantic AI 2.61's `retried` tool outcomes and separate
+`retry-feedback` messages. Existing histories and run checkpoints load without a
+database migration or republishing agents. Histories containing these parts need
+the new reader: an older backend cannot replay these message shapes.
+
+Upgrade all API and worker processes together, draining or stopping the old
+processes before the new ones accept work. Do not mix older and newer backend
+replicas against the same database. After either new retry form has been written, a
+code-only rollback across this boundary is unsupported; retaining the new reader
+or restoring a pre-upgrade database snapshot is required.
 
 ### By hand
 

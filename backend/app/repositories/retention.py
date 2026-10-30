@@ -23,15 +23,12 @@ from sqlalchemy import (
     CursorResult,
     DateTime,
     and_,
-    case,
     delete,
     func,
-    literal,
     or_,
     select,
     type_coerce,
 )
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,7 +38,7 @@ from app.db.models.artifact import Artifact, ArtifactVersion
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.generated_media import GeneratedMedia
-from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
@@ -52,6 +49,7 @@ from app.db.models.virtual_table import (
     VirtualTableReceipt,
     VirtualTableRecordHistory,
 )
+from app.db.vector_tables import VectorScope
 
 #: The statuses a retention sweep may retire.
 #:
@@ -398,15 +396,16 @@ async def delete_artifacts(
 
 async def expiring_documents(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[tuple[UUID, str, str | None, str | None, UUID | None]]:
-    """Uploaded documents past their window: id, collection, vector id, file, tenant.
+) -> list[tuple[UUID, str, str | None, str | None, VectorScope]]:
+    """Uploaded documents past their window: id, collection, vector id, file, scope.
 
-    **The tenant comes off the knowledge base, not off the document.** A
-    collection name is not unique across organizations, so the runtime table is
-    shared and each row carries the tag its chunks were stamped with at ingest
-    (#1684) - which is the base's organization, and `None` for an app-scoped one.
-    Sweeping with this organization's id instead would match nothing for an
-    app-scoped base and leave content searchable with its row gone.
+    **The scope comes off the knowledge base, not off the document.** A
+    collection name is not unique, so the runtime table is shared and each row
+    carries the tags its chunks were stamped with at ingest: the base's tenant -
+    its organization, `None` for an app-scoped one (#1684) - and the base itself
+    (#2537). Sweeping with this organization's id instead would match nothing for
+    an app-scoped base and leave content searchable with its row gone. A document
+    with no base, or whose base is gone, is deployment-wide with no base.
 
     **`source_path IS NULL` is the whole of the synchronization answer.** A
     document a connector put there is that source's to remove - purging it here
@@ -426,10 +425,7 @@ async def expiring_documents(
             RAGDocument.collection_name,
             RAGDocument.vector_document_id,
             RAGDocument.storage_path,
-            case(
-                (KnowledgeBase.scope == KBScope.APP.value, literal(None, PG_UUID(as_uuid=True))),
-                else_=KnowledgeBase.organization_id,
-            ),
+            KnowledgeBase,
         )
         .outerjoin(KnowledgeBase, KnowledgeBase.id == RAGDocument.knowledge_base_id)
         .where(
@@ -442,7 +438,16 @@ async def expiring_documents(
         .limit(limit)
         .with_for_update(of=RAGDocument, skip_locked=True)
     )
-    return [(row[0], row[1], row[2], row[3], row[4]) for row in rows.all()]
+    return [
+        (
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            VectorScope(tenant=None) if row[4] is None else row[4].vector_scope,
+        )
+        for row in rows.all()
+    ]
 
 
 async def delete_documents(db: AsyncSession, *, document_ids: list[UUID]) -> int:

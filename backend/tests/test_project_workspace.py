@@ -19,7 +19,7 @@ from app.agents.capabilities.sandbox._identity import (
     scope_key,
 )
 from app.agents.spec import AgentSpec
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_workspace import AgentWorkspace
 from app.repositories import agent_workspace as workspace_repo
@@ -47,6 +47,8 @@ def _project(**overrides: object) -> SimpleNamespace:
         "backend": "state",
         "sandbox_connection_id": None,
         "runtime": None,
+        "workspace_generation": None,
+        "workspace_move_job_id": None,
     }
     return SimpleNamespace(**{**fields, **overrides})
 
@@ -229,3 +231,42 @@ class TestARunInAProject:
         assert sandbox.config["runtime"] == "python"
         assert sandbox.config["session_scope"] != "agent"
         assert "### The project's instructions" not in ran.instructions
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("moving", [False, True])
+async def test_opening_a_project_workspace_rechecks_its_current_generation(monkeypatch, moving):
+    from app.services import project_workspace_guard
+
+    ctx = _ctx()
+    old = _project()
+    current = _project(
+        id=old.id, backend="service", sandbox_connection_id=uuid4(), workspace_generation=uuid4()
+    )
+    guard = AsyncMock(return_value=current)
+    if moving:
+        guard.side_effect = AlreadyExistsError(message="Transfer in progress")
+    monkeypatch.setattr(project_workspace_guard, "project_for_workspace", guard)
+    service = SandboxWorkspaceService(MagicMock())
+    opened = MagicMock()
+    service._open_config = AsyncMock(return_value=opened)
+    identity = WorkspaceIdentity(
+        organization_id=ctx.organization_id, agent_id=uuid4(), run_id=uuid4(), project_id=old.id
+    )
+    spec = _in_project(AgentSpec(name="Writer"), old)
+    if moving:
+        with pytest.raises(AlreadyExistsError):
+            await service.open(spec, ctx=ctx, identity=identity, scope_override="project")
+        service._open_config.assert_not_awaited()
+    else:
+        result = await service.open(spec, ctx=ctx, identity=identity, scope_override="project")
+        assert result is opened
+        config = service._open_config.call_args.args[0]
+        assert config.backend == "service"
+        assert config.connection_id == current.sandbox_connection_id
+        assert (
+            service._open_config.call_args.kwargs["identity"].project_workspace_id
+            == current.workspace_generation
+        )
+        assert identity.project_workspace_id is None
+    guard.assert_awaited_once_with(service.db, ctx, old.id)

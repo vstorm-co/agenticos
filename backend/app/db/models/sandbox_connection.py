@@ -59,7 +59,7 @@ class SandboxConnection(Base, TimestampMixin):
     """What an operator calls this host. Shown wherever an agent picks one."""
 
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    """`docker` for a `sandboxd` service, `daytona` for the cloud.
+    """`docker` for a `sandboxd` service, `daytona` or `e2b` for the cloud.
 
     The *kind* decides what `base_url` and the credential mean, which is why an
     agent spec does not carry it: naming the connection is naming the kind.

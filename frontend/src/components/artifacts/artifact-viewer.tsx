@@ -23,6 +23,8 @@ import {
   LiveRefreshButton,
   ViewerNotice,
 } from "@/components/artifacts/live-data-controls";
+import { ArtifactThemeToggle } from "@/components/artifacts/artifact-theme-toggle";
+import type { ArtifactTheme } from "@/types/artifact";
 import { OtherOrganizations } from "@/components/artifacts/other-organizations";
 import { ArtifactShareDialog } from "@/components/artifacts/artifact-share-dialog";
 import { ArtifactViewerBar } from "@/components/artifacts/artifact-viewer-bar";
@@ -72,6 +74,7 @@ export function ArtifactViewer({
   const tc = useTranslations("common");
   const router = useRouter();
   const pathname = usePathname();
+  const [theme, setTheme] = useState<ArtifactTheme>("light");
   const [versionId, setVersionId] = useState(initialVersionId);
   const [sharing, setSharing] = useState(false);
   const [openingRequests, setOpeningRequests] = useState(openRequests);
@@ -285,6 +288,7 @@ export function ArtifactViewer({
         waitingRequests={waiting.length}
         onRequests={() => setSharing(true)}
       >
+        <ArtifactThemeToggle theme={theme} onChange={setTheme} />
         {live && bridge !== null && (
           <LiveRefreshButton key={artifact.id} artifactId={artifact.id} bridge={bridge} />
         )}
@@ -297,6 +301,7 @@ export function ArtifactViewer({
         <Button
           size="sm"
           variant="outline"
+          className="max-sm:size-11 max-sm:p-0"
           aria-pressed={artifact.following}
           disabled={follow.isPending}
           onClick={() => follow.mutate(!artifact.following)}
@@ -388,6 +393,7 @@ export function ArtifactViewer({
       <div className="flex min-h-0 flex-1 flex-col">
         <ArtifactFrame
           artifactId={artifact.id}
+          theme={theme}
           versionId={versionId}
           title={artifact.title}
           className="min-h-0 rounded-none border-0"

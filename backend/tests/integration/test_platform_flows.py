@@ -52,6 +52,7 @@ from app.core.vault import VaultScope, unseal
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
@@ -82,6 +83,7 @@ from app.repositories import (
     rag_document_repo,
 )
 from app.repositories.agent_run import RunFilters
+from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
@@ -116,6 +118,8 @@ from app.services.rag.documents import LiteParseParser
 from app.services.rag_document import RAGDocumentService
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
+from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge
+from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -193,6 +197,7 @@ async def _default_model(db, tenant: Tenant) -> ModelProfile:
         label="Default",
         provider="openai",
         model="gpt-4.1",
+        secret_id=await provider_key(db, tenant.organization.id),
     )
     db.add(profile)
     await db.flush()
@@ -928,6 +933,60 @@ class TestTenantIsolation:
         assert theirs.json()["error"]["message"] == invented.json()["error"]["message"]
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
         assert await db.get(RAGDocument, rag_estate.other_document.id) is not None
+
+    @pytest.mark.security
+    async def test_dropping_a_shared_name_leaves_the_other_organizations_documents(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """Two organizations' bases share one collection name (#913); dropping
+        one's collection deletes only that base's documents (#2560).
+
+        The drop deleted every `rag_documents` row under the name, with no
+        base or organization predicate, and queued the other organization's
+        stored files for unlinking with its own. The shared table stays for
+        the base that still holds the name; the dropped base's chunks in it
+        are handed to the cleanup by the base's id instead.
+        """
+        home, other = rag_estate.home, rag_estate.other
+        ours_kb = await _kb_row(db, tenant=home, collection_name="shared_name")
+        theirs_kb = await _kb_row(db, tenant=other, collection_name="shared_name")
+        documents = {}
+        for tenant, kb in ((home, ours_kb), (other, theirs_kb)):
+            doc = RAGDocument(
+                id=uuid.uuid4(),
+                organization_id=tenant.organization.id,
+                knowledge_base_id=kb.id,
+                collection_name="shared_name",
+                filename=f"{kb.id}.txt",
+                filesize=12,
+                filetype="txt",
+                status=DocumentStatus.DONE,
+                storage_path=f"rag/shared_name/{kb.id}.txt",
+                vector_document_id=str(uuid.uuid4()),
+            )
+            db.add(doc)
+            documents[kb.id] = doc.id
+        await db.flush()
+
+        response = await rag_api(home.ctx).delete(_rag("/collections/shared_name"))
+
+        assert response.status_code == 204
+        db.expunge_all()
+        assert await db.get(RAGDocument, documents[ours_kb.id]) is None
+        assert await db.get(KnowledgeBase, ours_kb.id) is None
+        assert await db.get(RAGDocument, documents[theirs_kb.id]) is not None
+        assert await db.get(KnowledgeBase, theirs_kb.id) is not None
+        jobs = (
+            await db.execute(
+                select(BackgroundJob).where(BackgroundJob.kind == CLEANUP_EXTERNAL_STATE.kind)
+            )
+        ).scalars()
+        [cleanup] = [CLEANUP_EXTERNAL_STATE.load(job.payload) for job in jobs]
+        assert cleanup.storage_paths == [f"rag/shared_name/{ours_kb.id}.txt"]
+        assert cleanup.collections == []
+        assert cleanup.base_purges == [
+            BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
+        ]
 
     async def test_a_search_naming_one_unreachable_collection_is_refused_entirely(
         self, rag_api: RagClient, rag_estate: RagEstate
@@ -1769,10 +1828,10 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
 
 
 class TestWhatACollectionReportsItHolds:
-    """The counts a picker shows, against a real `GROUP BY`.
+    """The counts a picker shows, against a real aggregate.
 
-    Aggregation is the half a mock cannot check: whether the grouping keys on
-    the right column, whether the `FILTER` clause counts what it claims, and
+    Aggregation is the half a mock cannot check: whether each base counts its
+    own rows, whether the `FILTER` clause counts what it claims, and
     whether a collection with nothing in it comes back absent rather than zero.
     """
 
@@ -1782,26 +1841,30 @@ class TestWhatACollectionReportsItHolds:
         busy = await _collection_with(db, tenant, name="busy", config=IngestionConfig())
         quiet = await _collection_with(db, tenant, name="quiet", config=IngestionConfig())
         for index in range(3):
-            await _rag_document(db, collection_name=busy.collection_name, filename=f"{index}.txt")
-        await _rag_document(db, collection_name=quiet.collection_name, filename="only.txt")
-
-        counts = await rag_document_repo.counts_by_collection(
-            db, collections=[busy.collection_name, quiet.collection_name]
+            await _rag_document(
+                db, collection_name=busy.collection_name, filename=f"{index}.txt", tenant=tenant
+            )
+        await _rag_document(
+            db, collection_name=quiet.collection_name, filename="only.txt", tenant=tenant
         )
 
-        assert counts[busy.collection_name].documents == 3
-        assert counts[quiet.collection_name].documents == 1
+        counts = await rag_document_repo.counts_by_scope(
+            db, scopes=[CollectionScope.of(busy), CollectionScope.of(quiet)]
+        )
+
+        assert counts[busy.id].documents == 3
+        assert counts[quiet.id].documents == 1
 
     async def test_a_collection_nothing_was_uploaded_to_is_absent_not_zero(self, db) -> None:
         """No row to group means no key, which is what the route defaults."""
         tenant = await _tenant(db, name="Empty")
         collection = await _collection_with(db, tenant, name="empty", config=IngestionConfig())
 
-        counts = await rag_document_repo.counts_by_collection(
-            db, collections=[collection.collection_name]
+        counts = await rag_document_repo.counts_by_scope(
+            db, scopes=[CollectionScope.of(collection)]
         )
 
-        assert collection.collection_name not in counts
+        assert collection.id not in counts
 
     async def test_only_finished_documents_count_as_indexed(self, db) -> None:
         """A failed upload stays in `documents` and drops out of `indexed`.
@@ -1819,30 +1882,151 @@ class TestWhatACollectionReportsItHolds:
         tenant = await _tenant(db, name="Partial")
         collection = await _collection_with(db, tenant, name="partial", config=IngestionConfig())
         done = await _rag_document(
-            db, collection_name=collection.collection_name, filename="ok.txt"
+            db, collection_name=collection.collection_name, filename="ok.txt", tenant=tenant
         )
         done.status = DocumentStatus.DONE
         done.chunk_count = 7
         broken = await _rag_document(
-            db, collection_name=collection.collection_name, filename="dead.txt"
+            db, collection_name=collection.collection_name, filename="dead.txt", tenant=tenant
         )
         broken.status = DocumentStatus.ERROR
         broken.chunk_count = 0
         await db.flush()
 
-        counts = await rag_document_repo.counts_by_collection(
-            db, collections=[collection.collection_name]
+        counts = await rag_document_repo.counts_by_scope(
+            db, scopes=[CollectionScope.of(collection)]
         )
 
-        assert counts[collection.collection_name].documents == 2
-        assert counts[collection.collection_name].indexed == 1
-        assert counts[collection.collection_name].chunks == 7
+        assert counts[collection.id].documents == 2
+        assert counts[collection.id].indexed == 1
+        assert counts[collection.id].chunks == 7
+
+    async def test_ingestion_counts_report_each_status_and_hold_indexing_on_processing(
+        self, db
+    ) -> None:
+        """What `GET /rag/collections/{name}/info` reads to say `indexing` (#2486).
+
+        One aggregate with a `FILTER` per status - checked here because a mock
+        cannot say whether a filter counts the value the pipeline writes.
+        """
+        tenant = await _tenant(db, name="Ingesting")
+        collection = await _collection_with(db, tenant, name="ingesting", config=IngestionConfig())
+        for status, count in (
+            (DocumentStatus.PROCESSING, 3),
+            (DocumentStatus.DONE, 2),
+            (DocumentStatus.ERROR, 1),
+        ):
+            for index in range(count):
+                doc = await _rag_document(
+                    db,
+                    collection_name=collection.collection_name,
+                    filename=f"{status}-{index}.txt",
+                    tenant=tenant,
+                )
+                doc.status = status
+        await db.flush()
+
+        counts = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(collection))
+
+        assert counts == IngestionCounts(processing=3, indexed=2, failed=1)
+
+    @pytest.mark.security
+    async def test_ingestion_counts_do_not_include_another_tenants_same_named_collection(
+        self, db
+    ) -> None:
+        """A shared name must not hold one tenant's collection at `indexing`.
+
+        Two organizations can pick the same collection name. The other tenant's
+        upload still processing is theirs; counted here it would report this
+        collection as indexing for as long as theirs takes.
+        """
+        ours = await _tenant(db, name="Ours")
+        theirs = await _tenant(db, name="Theirs")
+        await _rag_document(db, collection_name="shared_name", filename="ours.txt", tenant=ours)
+        busy = await _rag_document(
+            db, collection_name="shared_name", filename="theirs.txt", tenant=theirs
+        )
+        busy.status = DocumentStatus.PROCESSING
+        ours_kb = await _kb_row(db, tenant=ours, collection_name="shared_name")
+        await db.flush()
+
+        mine = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(ours_kb))
+
+        assert mine == IngestionCounts(processing=0, indexed=1, failed=0)
+
+    @pytest.mark.security
+    async def test_ingestion_counts_keep_an_app_base_and_a_same_named_tenant_base_apart(
+        self, db
+    ) -> None:
+        """An app-scoped base and a tenant base sharing a name count only their own rows.
+
+        An app base has no organization, and its rows carry whichever one
+        uploaded into it - so neither "no organization condition" nor the
+        uploader's organization says whose a row is. The vectors are split by
+        tag (`NULL` for the app base, the organization for the tenant's), and
+        the counts follow the same split, in both directions.
+        """
+        tenant = await _tenant(db, name="Beside")
+        uploader = await _tenant(db, name="Uploader")
+        theirs = await _kb_row(db, tenant=tenant, collection_name="app_and_tenant")
+        app_kb = await _kb_row(
+            db, tenant=tenant, collection_name="app_and_tenant", scope=KBScope.APP
+        )
+        app_kb.organization_id = None
+        # The tenant's own batch, still processing.
+        busy = await _rag_document(
+            db, collection_name="app_and_tenant", filename="tenant.txt", tenant=tenant
+        )
+        busy.knowledge_base_id = theirs.id
+        busy.status = DocumentStatus.PROCESSING
+        # Uploads into the app base, stamped with their uploaders' organizations -
+        # one of them the tenant's own - and a deployment-wide sync's untagged row.
+        for who, status in (
+            (uploader, DocumentStatus.DONE),
+            (tenant, DocumentStatus.ERROR),
+            (None, DocumentStatus.DONE),
+        ):
+            doc = await _rag_document(
+                db, collection_name="app_and_tenant", filename=f"app-{status}.txt", tenant=who
+            )
+            doc.knowledge_base_id = app_kb.id if who is not None else None
+            doc.status = status
+        await db.flush()
+
+        app_wide = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(app_kb))
+        tenants = await rag_document_repo.ingestion_counts(db, scope=CollectionScope.of(theirs))
+
+        assert app_wide == IngestionCounts(processing=0, indexed=2, failed=1)
+        assert tenants == IngestionCounts(processing=1, indexed=0, failed=0)
+
+    async def test_a_knowledge_bases_ingestion_counts_only_its_own_documents(self, db) -> None:
+        """What `GET /kb/{kb_id}/ingestion` reads - the rows its page lists.
+
+        Counted by the base, not by the collection its rows are filed under: a
+        batch still processing in another base's rows in the same collection
+        must not hold this base's page at `indexing`.
+        """
+        tenant = await _tenant(db, name="Siblings")
+        ours = await _collection_with(db, tenant, name="ours_kb")
+        theirs = await _collection_with(db, tenant, name="theirs_kb")
+        # Both rows in one collection, as two bases sharing its name file them.
+        for kb, status in ((ours, DocumentStatus.DONE), (theirs, DocumentStatus.PROCESSING)):
+            doc = await _rag_document(
+                db, collection_name="shared_kb", filename=f"{kb.id}.txt", tenant=tenant
+            )
+            doc.knowledge_base_id = kb.id
+            doc.status = status
+        await db.flush()
+
+        counts = await rag_document_repo.ingestion_counts_for_kb(db, ours.id)
+
+        assert counts == IngestionCounts(processing=0, indexed=1, failed=0)
 
     async def test_the_pipeline_marking_a_document_done_makes_it_count_as_indexed(self, db) -> None:
         """The writer and the reader, in one test, with no status written by hand.
 
         `complete_ingestion` is the only thing that finishes a document, and
-        `counts_by_collection` is what the listing reads - so a filter on a
+        `counts_by_scope` is what the listing reads - so a filter on a
         value the pipeline does not write can only be caught by running both.
         Nothing here names a status literal, which is the point: the two agree
         or this fails.
@@ -1850,7 +2034,7 @@ class TestWhatACollectionReportsItHolds:
         tenant = await _tenant(db, name="Finished")
         collection = await _collection_with(db, tenant, name="finished", config=IngestionConfig())
         doc = await _rag_document(
-            db, collection_name=collection.collection_name, filename="handbook.md"
+            db, collection_name=collection.collection_name, filename="handbook.md", tenant=tenant
         )
         doc.status = DocumentStatus.PROCESSING
         await db.flush()
@@ -1863,13 +2047,13 @@ class TestWhatACollectionReportsItHolds:
             attempt=1,
         )
 
-        counts = await rag_document_repo.counts_by_collection(
-            db, collections=[collection.collection_name]
+        counts = await rag_document_repo.counts_by_scope(
+            db, scopes=[CollectionScope.of(collection)]
         )
 
-        assert counts[collection.collection_name].documents == 1
-        assert counts[collection.collection_name].indexed == 1
-        assert counts[collection.collection_name].chunks == 4
+        assert counts[collection.id].documents == 1
+        assert counts[collection.id].indexed == 1
+        assert counts[collection.id].chunks == 4
 
     async def test_a_settlement_for_an_attempt_a_retry_already_superseded_is_ignored(
         self, db
@@ -1881,7 +2065,7 @@ class TestWhatACollectionReportsItHolds:
         tenant = await _tenant(db, name="Superseded")
         collection = await _collection_with(db, tenant, name="superseded", config=IngestionConfig())
         doc = await _rag_document(
-            db, collection_name=collection.collection_name, filename="handbook.md"
+            db, collection_name=collection.collection_name, filename="handbook.md", tenant=tenant
         )
         doc.status = DocumentStatus.PROCESSING
         doc.ingestion_attempt = 2
@@ -1916,7 +2100,7 @@ class TestWhatACollectionReportsItHolds:
             db, tenant, name="notify_quiet", config=IngestionConfig()
         )
         doc = await _rag_document(
-            db, collection_name=collection.collection_name, filename="handbook.md"
+            db, collection_name=collection.collection_name, filename="handbook.md", tenant=tenant
         )
         doc.status = DocumentStatus.PROCESSING
         await db.flush()
@@ -1973,7 +2157,7 @@ class TestWhatACollectionReportsItHolds:
             db, tenant, name="notify_fails_failure", config=IngestionConfig()
         )
         doc = await _rag_document(
-            db, collection_name=collection.collection_name, filename="handbook.md"
+            db, collection_name=collection.collection_name, filename="handbook.md", tenant=tenant
         )
         doc.status = DocumentStatus.PROCESSING
         await db.flush()
@@ -2005,11 +2189,11 @@ class TestWhatACollectionReportsItHolds:
         tenant = await _tenant(db, name="Reingested")
         collection = await _collection_with(db, tenant, name="again", config=IngestionConfig())
         first = await _rag_document(
-            db, collection_name=collection.collection_name, filename="handbook.md"
+            db, collection_name=collection.collection_name, filename="handbook.md", tenant=tenant
         )
         first.chunk_count = 12
         second = await _rag_document(
-            db, collection_name=collection.collection_name, filename="handbook.md"
+            db, collection_name=collection.collection_name, filename="handbook.md", tenant=tenant
         )
         second.chunk_count = 12
         await db.flush()
@@ -2022,24 +2206,20 @@ class TestWhatACollectionReportsItHolds:
             attempt=1,
         )
 
-        counts = await rag_document_repo.counts_by_collection(
-            db, collections=[collection.collection_name]
+        counts = await rag_document_repo.counts_by_scope(
+            db, scopes=[CollectionScope.of(collection)]
         )
 
-        assert counts[collection.collection_name].documents == 1
-        assert counts[collection.collection_name].chunks == 12
+        assert counts[collection.id].documents == 1
+        assert counts[collection.id].chunks == 12
         assert await rag_document_repo.get_by_id(db, first.id) is None
 
     @pytest.mark.security
     async def test_another_tenants_documents_are_not_counted(self, db) -> None:
-        """The counts are keyed on `collection_name`, and `rag_documents` carries a
-        nullable `organization_id` that a sync task never stamps - so the tenant
-        boundary here is the set of collection names the caller was allowed to see,
-        not a column on the document.
-
-        That makes it worth asserting rather than assuming: a collection name is
-        slug-plus-random and unique in practice, but the query is only ever safe
-        because the caller hands it names `list_accessible` already filtered.
+        """The counts are taken per base the caller hands in - the ones
+        `list_accessible` already filtered - and each base counts only the rows
+        its own scope holds, so a collection the caller cannot see contributes
+        nothing.
         """
         mine = await _tenant(db, name="Mine")
         theirs = await _tenant(db, name="Theirs")
@@ -2047,19 +2227,21 @@ class TestWhatACollectionReportsItHolds:
         their_collection = await _collection_with(
             db, theirs, name="theirs", config=IngestionConfig()
         )
-        await _rag_document(db, collection_name=my_collection.collection_name, filename="a.txt")
+        await _rag_document(
+            db, collection_name=my_collection.collection_name, filename="a.txt", tenant=mine
+        )
         for index in range(5):
             await _rag_document(
                 db, collection_name=their_collection.collection_name, filename=f"{index}.txt"
             )
 
         # What the route does: count only over the names this caller may read.
-        counts = await rag_document_repo.counts_by_collection(
-            db, collections=[my_collection.collection_name]
+        counts = await rag_document_repo.counts_by_scope(
+            db, scopes=[CollectionScope.of(my_collection)]
         )
 
-        assert counts[my_collection.collection_name].documents == 1
-        assert their_collection.collection_name not in counts
+        assert counts[my_collection.id].documents == 1
+        assert their_collection.id not in counts
 
 
 # -- publish, run, approve ----------------------------------------------------

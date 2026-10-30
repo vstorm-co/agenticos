@@ -4,11 +4,16 @@ import { useState } from "react";
 import { Lock } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { ArtifactThemeToggle } from "@/components/artifacts/artifact-theme-toggle";
 import { ArtifactFrameView } from "@/components/artifacts/artifact-frame";
 import { Button, FormField, Input } from "@/components/ui";
 import { usePublicArtifactUnlock } from "@/hooks/use-artifacts";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
-import type { OpenPublicArtifact, PublicArtifact as PublicArtifactData } from "@/types/artifact";
+import type {
+  ArtifactTheme,
+  OpenPublicArtifact,
+  PublicArtifact as PublicArtifactData,
+} from "@/types/artifact";
 
 /**
  * What a stranger holding the link sees: the page, its title, and when it was
@@ -22,23 +27,32 @@ import type { OpenPublicArtifact, PublicArtifact as PublicArtifactData } from "@
 export function OpenedArtifact({ artifact }: { artifact: OpenPublicArtifact }) {
   const t = useTranslations("artifacts");
   const format = useFormatter();
+  const [theme, setTheme] = useState<ArtifactTheme>("light");
   return (
     <main className="bg-background flex h-dvh flex-col gap-3 p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-foreground text-lg font-semibold">{artifact.title}</h1>
-        <p className="text-muted-foreground text-xs">
-          {t("publicUpdated", {
-            when: format.dateTime(new Date(artifact.published_at), {
-              dateStyle: "medium",
-              timeStyle: "short",
-            }),
-          })}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-muted-foreground text-xs">
+            {t("publicUpdated", {
+              when: format.dateTime(new Date(artifact.published_at), {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+            })}
+          </p>
+          <ArtifactThemeToggle theme={theme} onChange={setTheme} />
+        </div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col">
         {/* No minimum: on a short window the frame shrinks with it rather than
             pushing the page into a scroll. */}
-        <ArtifactFrameView url={artifact.view.url} title={artifact.title} className="min-h-0" />
+        <ArtifactFrameView
+          url={artifact.view.url}
+          title={artifact.title}
+          className="min-h-0"
+          theme={theme}
+        />
       </div>
     </main>
   );

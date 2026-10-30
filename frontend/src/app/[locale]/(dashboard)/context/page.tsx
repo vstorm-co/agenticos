@@ -6,6 +6,7 @@ import { FileText, Lock, Plus } from "lucide-react";
 
 import { toast } from "sonner";
 
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
@@ -63,7 +64,7 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "touch:min-h-11 touch-manipulation rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         active
           ? "bg-primary text-primary-foreground border-transparent"
           : "text-muted-foreground hover:bg-accent hover:text-foreground border-border",
@@ -213,7 +214,7 @@ export default function ContextPage() {
     return (
       <div className="space-y-6">
         {header}
-        <ListCard namedByPage title={t("contextFiles")} counted={null}>
+        <ListCard layout="grid" namedByPage title={t("contextFiles")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -222,15 +223,49 @@ export default function ContextPage() {
 
   const controls =
     isFiltering || total > 0 ? (
-      <SearchInput
-        value={query}
-        onChange={(next) => {
-          setQuery(next);
-          setPage(0);
-        }}
-        placeholder={t("searchContext")}
-        className="sm:w-56"
-      />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <SearchInput
+          value={query}
+          onChange={(next) => {
+            setQuery(next);
+            setPage(0);
+          }}
+          placeholder={t("searchContext")}
+          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+        />
+        <ListFilters compact active={Number(groupId !== null) + Number(sort !== "name")}>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <GroupFilter
+              value={groupId}
+              onChange={(next) => {
+                setGroupId(next);
+                setPage(0);
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+              <span className="text-muted-foreground text-xs">{t("sort")}</span>
+              <Chip
+                active={sort === "name"}
+                onClick={() => {
+                  setSort("name");
+                  setPage(0);
+                }}
+              >
+                {t("name")}
+              </Chip>
+              <Chip
+                active={sort === "updated"}
+                onClick={() => {
+                  setSort("updated");
+                  setPage(0);
+                }}
+              >
+                {t("recentlyUpdated")}
+              </Chip>
+            </div>
+          </div>
+        </ListFilters>
+      </div>
     ) : undefined;
 
   return (
@@ -238,6 +273,7 @@ export default function ContextPage() {
       {header}
 
       <ListCard
+        layout="grid"
         data-tour="context-list"
         namedByPage
         title={t("contextFiles")}
@@ -246,39 +282,6 @@ export default function ContextPage() {
         controls={controls}
       >
         <div className="space-y-4">
-          {(total > 0 || isFiltering) && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <GroupFilter
-                value={groupId}
-                onChange={(next) => {
-                  setGroupId(next);
-                  setPage(0);
-                }}
-              />
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="text-muted-foreground text-xs">{t("sort")}</span>
-                <Chip
-                  active={sort === "name"}
-                  onClick={() => {
-                    setSort("name");
-                    setPage(0);
-                  }}
-                >
-                  {t("name")}
-                </Chip>
-                <Chip
-                  active={sort === "updated"}
-                  onClick={() => {
-                    setSort("updated");
-                    setPage(0);
-                  }}
-                >
-                  {t("recentlyUpdated")}
-                </Chip>
-              </div>
-            </div>
-          )}
-
           {error ? (
             <ErrorState
               description={getErrorMessage(error, tErrors)}
@@ -313,15 +316,9 @@ export default function ContextPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {files.map((entry) => (
-                  <ContextCard
-                    key={entry.id}
-                    file={entry}
-                    canEdit={entry.can_edit === true}
-                    onOpen={() => setSelected(entry)}
-                    onDelete={() => setPendingDelete(entry)}
-                  />
+                  <ContextCard key={entry.id} file={entry} onOpen={() => setSelected(entry)} />
                 ))}
               </div>
               <Pager
@@ -378,6 +375,7 @@ export default function ContextPage() {
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}
+                onDelete={() => setPendingDelete(selected)}
               />
             )}
           </DialogContent>
@@ -423,6 +421,7 @@ export default function ContextPage() {
           loading={remove.isPending}
           onConfirm={async () => {
             await remove.mutateAsync(pendingDelete.id);
+            if (selected?.id === pendingDelete.id) setSelected(null);
             setPendingDelete(null);
           }}
         />

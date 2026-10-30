@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ChevronRight, MessagesSquare, Paperclip, ThumbsDown } from "lucide-react";
+import { ChevronRight, Paperclip, ThumbsDown } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
 import { FileCard, FileViewer } from "@/components/files";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState, ErrorState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
 import { toolDisplayName } from "@/lib/agent-step-captions";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
@@ -20,6 +20,7 @@ import { glideOrJump } from "@/lib/motion";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, ToolCall } from "@/types";
 import type { RunTranscriptMessage } from "@/types/runs";
+import { StandaloneRunTimeline } from "./standalone-run-timeline";
 
 /**
  * The whole conversation the run sits in, scrolled to the run - the trace the
@@ -70,13 +71,7 @@ export function RunTimeline({ runId }: { runId: string }) {
     return <ErrorState title={t("transcriptCouldNotBeRead")} />;
   }
   if (transcript.conversation_id === null) {
-    return (
-      <EmptyState
-        icon={MessagesSquare}
-        title={t("noTranscriptRecorded")}
-        description={t("thisRunRanWithNoConversation")}
-      />
-    );
+    return <StandaloneRunTimeline runId={transcript.run_id} />;
   }
 
   // The anchor is the answer's own, not the id asked for. Stepping through a
@@ -178,7 +173,18 @@ function TimelineGroup({
   // long, and glide rather than jump: this fires again on every step through the
   // thread, where the sections do not otherwise change.
   useEffect(() => {
-    if (anchored) ref.current?.scrollIntoView?.({ block: "start", behavior: glideOrJump() });
+    const section = ref.current;
+    const scrollport = section?.closest<HTMLElement>("[data-run-scrollport]");
+    if (!anchored || !section || !scrollport) return;
+    // scrollIntoView also scrolls the page around this panel. Its smooth glide
+    // moved the header (and Close) while the reader was trying to click it.
+    scrollport.scrollTo?.({
+      top:
+        scrollport.scrollTop +
+        section.getBoundingClientRect().top -
+        scrollport.getBoundingClientRect().top,
+      behavior: glideOrJump(),
+    });
   }, [anchored]);
 
   const first = group.items[0];

@@ -3,21 +3,39 @@
 Contains database operations for RAGDocument entities.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Self, cast
 from uuid import UUID
 
-from sqlalchemy import and_, exists, func, literal, or_, select, tuple_
+from sqlalchemy import (
+    ColumnElement,
+    String,
+    and_,
+    column,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    table,
+    tuple_,
+    union_all,
+)
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.base import Base
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
+from app.db.vector_tables import VECTOR_TABLE_PREFIX, validate_collection_name
 
 
 @dataclass(frozen=True)
@@ -35,15 +53,101 @@ class CollectionCounts:
     indexed: int
 
 
+@dataclass(frozen=True)
+class IngestionCounts:
+    """Where a collection's, or a knowledge base's, documents are in their ingestion.
+
+    `processing` is every row the pipeline has not settled - a queued upload is
+    already `processing`, there is no separate pending state in the column.
+    """
+
+    processing: int
+    indexed: int
+    failed: int
+
+
+@dataclass(frozen=True)
+class CollectionScope:
+    """One knowledge base's share of its collection: the rows it holds.
+
+    Keyed on the base rather than on the collection's name and organization,
+    because neither says whose a row is. The name is not unique, and an
+    app-scoped base and a personal base outside any organization both have no
+    organization: on (name, organization) alone, the app base - readable by
+    every member of every organization - held the person's documents (#2486).
+    """
+
+    knowledge_base_id: UUID
+    collection_name: str
+    # The base's vector tenant: its organization, `None` for an app-scoped base
+    # or a personal one outside any organization.
+    tenant: UUID | None
+    # Whether rows filed under no base are this base's - see `in_collection_scope`.
+    takes_unfiled: bool
+
+    @classmethod
+    def of(cls, kb: KnowledgeBase) -> Self:
+        """The scope of this knowledge base."""
+        vectors = kb.vector_scope
+        return cls(
+            knowledge_base_id=kb.id,
+            collection_name=kb.collection_name,
+            tenant=vectors.tenant,
+            takes_unfiled=vectors.takes_unfiled,
+        )
+
+
+def in_collection_scope(scope: CollectionScope) -> ColumnElement[bool]:
+    """The documents a knowledge base holds, as a `WHERE` clause.
+
+    A row filed under the base (`knowledge_base_id`) is the base's, whichever
+    organization uploaded it - an app-scoped base takes uploads from members of
+    every organization. A row filed under any other base is never this one's,
+    even by the same name. A row filed under none - a deployment-wide sync, an
+    upload from before documents recorded their base, a base since deleted - is
+    attributed by the tag its vectors carry: an app-scoped base takes those with
+    no organization, an organization's or personal base in an organization those
+    with its organization. A personal base outside any organization takes none:
+    its own rows are always filed under it, and the unfiled rows with no
+    organization are the app scope's.
+
+    The one definition the listing, the ingestion counts and the per-document
+    checks share, so a document cannot be counted in one base and opened
+    through another (#2486).
+    """
+    owned: ColumnElement[bool] = RAGDocument.knowledge_base_id == scope.knowledge_base_id
+    if scope.takes_unfiled:
+        owned = or_(owned, _unfiled_of(scope.tenant))
+    return and_(RAGDocument.collection_name == scope.collection_name, owned)
+
+
+def _unfiled_of(tenant: UUID | None) -> ColumnElement[bool]:
+    """The rows filed under no base whose tag is `tenant`'s."""
+    tag = (
+        RAGDocument.organization_id.is_(None)
+        if tenant is None
+        else RAGDocument.organization_id == tenant
+    )
+    return and_(RAGDocument.knowledge_base_id.is_(None), tag)
+
+
 async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
     """Get a RAG document by ID."""
     return await db.get(RAGDocument, doc_id)
 
 
+async def is_in_collection_scope(db: AsyncSession, doc_id: UUID, *, scope: CollectionScope) -> bool:
+    """Whether this document is one the scope holds, by :func:`in_collection_scope`."""
+    result = await db.execute(
+        select(exists().where(RAGDocument.id == doc_id, in_collection_scope(scope)))
+    )
+    return bool(result.scalar())
+
+
 async def get_all(
     db: AsyncSession,
     *,
-    scopes: list[tuple[str, UUID | None]],
+    scopes: list[CollectionScope],
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[RAGDocument], int]:
@@ -53,27 +157,13 @@ async def get_all(
     selected and serialized every row across the caller's collections, which grows
     without limit with tenant data (#27).
 
-    Each scope is a collection and the organization of the knowledge base that
-    authorized it, because a collection's name is not unique across tenants. A
-    document is stamped with that organization - an upload with the uploader's,
-    a sync with its knowledge base's - and `None` (a deployment-wide knowledge
-    base) matches on the collection alone.
+    Each scope is a knowledge base that authorized the listing, because a
+    collection's name is not unique: which rows it holds is
+    :func:`in_collection_scope`.
     """
     if not scopes:
         return [], 0
-    base = select(RAGDocument).where(
-        or_(
-            *(
-                RAGDocument.collection_name == name
-                if organization_id is None
-                else and_(
-                    RAGDocument.collection_name == name,
-                    RAGDocument.organization_id == organization_id,
-                )
-                for name, organization_id in scopes
-            )
-        )
-    )
+    base = select(RAGDocument).where(or_(*(in_collection_scope(scope) for scope in scopes)))
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
         (
@@ -529,15 +619,19 @@ async def delete(db: AsyncSession, doc_id: UUID) -> bool:
     return True
 
 
-async def counts_by_collection(
-    db: AsyncSession, *, collections: list[str]
-) -> dict[str, CollectionCounts]:
-    """How much each named collection actually holds, in one query.
+async def counts_by_scope(
+    db: AsyncSession, *, scopes: Sequence[CollectionScope]
+) -> dict[UUID, CollectionCounts]:
+    """How much each knowledge base actually holds, in one statement, keyed by base.
 
-    One `GROUP BY` rather than a call per collection: this feeds a listing, and
-    the per-collection alternative (`GET /rag/collections/{name}/info`) asks the
+    One statement rather than a call per base: this feeds a listing, and the
+    per-collection alternative (`GET /rag/collections/{name}/info`) asks the
     vector store once per row - twenty collections, twenty round trips, to
-    render one page.
+    render one page. Each base is one aggregate over :func:`in_collection_scope`,
+    the rows its document listing shows, joined with `UNION ALL`: grouped by the
+    collection's name, an app base and an organization's base sharing it each
+    reported the other's documents (#2486). A row can fall in two scopes - two
+    bases of one organization sharing a name - and counts in each.
 
     Counted from `rag_documents` rather than from the vectors, and the
     difference is the point. This table is what the upload wrote, so a document
@@ -545,33 +639,70 @@ async def counts_by_collection(
     vector yet. A count taken from the vector store would show a collection
     someone just uploaded to as empty, which is the one moment they are looking.
 
-    Collections with no rows are absent from the result rather than present as
-    zero, so callers read it with a default - a name that was never written to
-    has no row to group.
+    A base holding no rows is absent from the result rather than present as
+    zero, so callers read it with a default.
     """
-    if not collections:
+    if not scopes:
         return {}
+    per_base = [
+        select(
+            literal(scope.knowledge_base_id, PG_UUID(as_uuid=True)).label("kb_id"),
+            func.count().label("documents"),
+            func.coalesce(func.sum(RAGDocument.chunk_count), 0).label("chunks"),
+            func.count().filter(RAGDocument.status == DocumentStatus.DONE).label("indexed"),
+        )
+        .where(in_collection_scope(scope))
+        .having(func.count() > 0)
+        for scope in dict.fromkeys(scopes)
+    ]
+    result = await db.execute(union_all(*per_base))
+    return {
+        kb_id: CollectionCounts(documents=int(documents), chunks=int(chunks), indexed=int(indexed))
+        for kb_id, documents, chunks, indexed in result.all()
+    }
+
+
+async def ingestion_counts(db: AsyncSession, *, scope: CollectionScope) -> IngestionCounts:
+    """How many of the documents a scope holds are processing, indexed or failed.
+
+    Scoped by :func:`in_collection_scope`, as the listing is. Counted on the
+    name alone, another tenant's upload still processing would hold this
+    collection at `indexing` (#2486).
+    """
+    return await _count_by_status(db, in_collection_scope(scope))
+
+
+async def ingestion_counts_for_kb(db: AsyncSession, kb_id: UUID) -> IngestionCounts:
+    """How many of one knowledge base's documents are processing, indexed or failed.
+
+    The rows `get_for_kb` lists, so the counts agree with the base's own document
+    list even when another base shares its collection name.
+    """
+    return await _count_by_status(db, RAGDocument.knowledge_base_id == kb_id)
+
+
+async def _count_by_status(db: AsyncSession, scope: ColumnElement[bool]) -> IngestionCounts:
+    """One aggregate with a `FILTER` per status over the rows `scope` selects."""
     result = await db.execute(
         select(
-            RAGDocument.collection_name,
-            func.count(),
-            func.coalesce(func.sum(RAGDocument.chunk_count), 0),
+            func.count().filter(RAGDocument.status == DocumentStatus.PROCESSING),
             func.count().filter(RAGDocument.status == DocumentStatus.DONE),
-        )
-        .where(RAGDocument.collection_name.in_(collections))
-        .group_by(RAGDocument.collection_name)
+            func.count().filter(RAGDocument.status == DocumentStatus.ERROR),
+        ).where(scope)
     )
-    return {
-        name: CollectionCounts(documents=int(documents), chunks=int(chunks), indexed=int(indexed))
-        for name, documents, chunks, indexed in result.all()
-    }
+    processing, indexed, failed = result.one()
+    return IngestionCounts(processing=int(processing), indexed=int(indexed), failed=int(failed))
 
 
 async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[str]:
     """Delete a collection's document rows, returning their stored file paths.
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
-    that physical collection - which is what the collection-drop route means. The
+    that physical collection, in every organization. Only for a name no base
+    other than the one being cleared holds - the last holder's drop, or
+    `rag-drop` of a name no base holds, under the teardown lock - where every
+    row left is one nothing can read once the table is dropped; a base of its
+    own goes by `delete_by_knowledge_base` (#913, #2560). The
     returned `storage_path`s are the uploads the caller still has to unlink; a
     `NULL` one (nothing was stored) is dropped. The bulk delete used to return
     only a rowcount, so the files were orphaned on disk (#1265).
@@ -595,10 +726,104 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
     still has to delete from storage - a `NULL` one (nothing was stored) is
     dropped from the list (#1116).
     """
+    return (await delete_by_knowledge_base_with_vectors(db, kb_id)).storage_paths
+
+
+@dataclass(frozen=True)
+class DeletedDocuments:
+    """What a base's deleted document rows leave behind outside the database."""
+
+    storage_paths: list[str]
+    vector_document_ids: list[str]
+
+
+async def delete_by_knowledge_base_with_vectors(db: AsyncSession, kb_id: UUID) -> DeletedDocuments:
+    """`delete_by_knowledge_base`, also returning the deleted rows' vector document ids.
+
+    For a base that is kept: its chunks are removed by these ids rather than by
+    the base's, which a document uploaded after the delete is filed under too
+    (#2560). Taken from the delete itself, so a row updated between a read and
+    the delete cannot be missed. A row whose ingest never completed has none.
+    """
+    return await _delete_returning(db, RAGDocument.knowledge_base_id == kb_id)
+
+
+async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
+    """Delete the unfiled rows a base takes under its name - its tenant's.
+
+    For a base cleared while other bases hold the name, none of them taking these
+    rows: left behind, a kept default would go on listing and serving them, and
+    a deleted base's would come back with the tenant's next base on the name
+    (#2560). Only for a scope that `takes_unfiled`; the caller decides that.
+    """
+    return await _delete_returning(
+        db,
+        and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
+    )
+
+
+async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> DeletedDocuments:
     result = await db.execute(
         sql_delete(RAGDocument)
-        .where(RAGDocument.knowledge_base_id == kb_id)
-        .returning(RAGDocument.storage_path)
+        .where(where)
+        .returning(RAGDocument.storage_path, RAGDocument.vector_document_id)
     )
     await db.flush()
-    return [path for path in result.scalars().all() if path]
+    rows = result.all()
+    return DeletedDocuments(
+        storage_paths=[path for path, _ in rows if path],
+        vector_document_ids=[doc_id for _, doc_id in rows if doc_id],
+    )
+
+
+async def stored_vector_ids_at_clear(
+    db: AsyncSession, kb: KnowledgeBase, *, takes_unfiled: bool = False
+) -> list[str]:
+    """Snapshot all committed vector documents while the caller holds the base FOR UPDATE.
+
+    A vector insert holds KEY SHARE on this base through its commit. Taking the
+    snapshot under the conflicting clear lock therefore includes inserts whose
+    tracking row has not recorded its vector id yet, while excluding later uploads.
+    `takes_unfiled` includes the tenant-only chunks this clear exclusively owns,
+    such as CLI writes into an app-scoped default.
+    """
+    validate_collection_name(kb.collection_name, metadata=Base.metadata)
+    name = f"{VECTOR_TABLE_PREFIX}{kb.collection_name}"
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
+        return []
+    document_id = column("parent_doc_id", String)
+    metadata = column("metadata", JSONB)
+    runtime = table(name, document_id, metadata, schema="public")
+    owned = metadata["knowledge_base_id"].astext == str(kb.id)
+    if takes_unfiled:
+        tenant = str(kb.vector_tenant) if kb.vector_tenant is not None else None
+        owned = or_(
+            owned,
+            and_(
+                metadata["knowledge_base_id"].astext.is_(None),
+                metadata["organization_id"].astext == tenant,
+            ),
+        )
+    result = await db.scalars(select(document_id).select_from(runtime).where(owned).distinct())
+    return list(result.all())
+
+
+async def hold_for_vector_write(
+    db: AsyncSession, document_id: UUID, *, collection: str, knowledge_base_id: UUID | None
+) -> bool:
+    """Hold the tracking row through the chunk commit, or refuse a cleared document.
+
+    The base lock alone cannot reject a stale insert after a default was cleared:
+    its base survives. The tracking row does not, and its KEY SHARE conflicts
+    with the clear's delete. Acquire after the base lock, matching teardown order.
+    """
+    result = await db.execute(
+        select(RAGDocument.id)
+        .where(
+            RAGDocument.id == document_id,
+            RAGDocument.collection_name == collection,
+            RAGDocument.knowledge_base_id == knowledge_base_id,
+        )
+        .with_for_update(read=True, key_share=True)
+    )
+    return result.first() is not None

@@ -70,7 +70,7 @@ vi.mock("@/hooks", () => ({
   useModelProviders: () => ({ catalog: [], profiles: [], isLoading: false }),
   useKnowledgeBases: () => ({ kbs: [], isLoading: false }),
   useSkills: () => ({ skills: [], total: 0, isLoading: false }),
-  useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+  useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
 }));
 
@@ -667,6 +667,34 @@ describe("context, the capability that reads the files", () => {
     enabled: true,
     size_bytes: 120,
   } as ContextFileSummary;
+
+  it("writes per-agent file policy without changing shared content or other settings", async () => {
+    const onChange = vi.fn();
+    const configured = {
+      ...binding("context"),
+      config: {
+        expose_read_tool: false,
+        file_settings: { [FILE.id]: { mode: "link", enabled: true } },
+      },
+    };
+    renderWorkbench({
+      catalog: [CONTEXT],
+      selected: [configured],
+      onChange,
+      resources: { ...NO_RESOURCES, contextFiles: [FILE], contextTotal: 1, contextIds: [FILE.id] },
+    });
+    await openCapability("Context");
+    await userEvent.click(screen.getByRole("switch", { name: "Use in this agent" }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...configured,
+      config: {
+        expose_read_tool: false,
+        file_settings: { [FILE.id]: { mode: "link", enabled: false } },
+      },
+    });
+    expect(FILE.mode).toBe("inject");
+    expect(FILE.enabled).toBe(true);
+  });
 
   it("opens on what the capability was given, not on its settings", async () => {
     // The files are what somebody came to this panel to change; `expose_read_tool`

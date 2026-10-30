@@ -21,9 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 SKILL = ROOT / "backend/app/core/catalog/skill_gallery/software/agenticos-guide"
 
-#: The pages carried in the skill, by their path under `docs/`. Five that answer
+#: The pages carried in the skill, by their path under `docs/`. These answer
 #: most questions a person asks the Architect about the product - what a thing
-#: is called, what ships, how the pieces fit, MCP both ways, and the API. The
+#: is called, what ships, how the pieces fit, MCP both ways, projects, and the API. The
 #: rest are linked from `SKILL.md` and read from the documentation site.
 PAGES = (
     "reference/glossary.md",
@@ -31,6 +31,10 @@ PAGES = (
     "concepts.md",
     "mcp.md",
     "api.md",
+    "projects.md",
+    "desktop.md",
+    "mobile.md",
+    "sandbox.md",
 )
 
 

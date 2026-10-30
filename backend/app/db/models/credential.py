@@ -11,6 +11,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Integer,
@@ -56,6 +57,16 @@ class ModelProfile(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # Whether this profile runs with no key *on purpose*: a self-hosted model,
+    # or an OpenAI-compatible gateway that authenticates nothing, saved with no
+    # key. Stored because the key column cannot say it - `secret_id` is
+    # `ON DELETE SET NULL`, so a profile whose key was deleted from the vault
+    # and one that never had a key look the same there, and only the first is
+    # broken (#2478). Written true when the profile is saved with no key and
+    # false when it is saved with one; a deleted key leaves it false.
+    runs_without_key: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )
     # Where to send the request, when it is not the provider's public API: a
     # gateway, a LiteLLM proxy, or a model server on the deployment's own

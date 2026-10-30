@@ -43,6 +43,8 @@ Tuesday afternoon. No deploy, no pull request, no engineer.
     [knowledge collection](file-processing.md) is a corpus too large to read,
     reached by search.
 
+In the Agent Builder, open **Skills → New skill** to write a skill without leaving the capability panel. Saving creates the library entry, attaches it to the current draft and enables the Skills capability. Publishing remains a separate step. The action requires permission to edit both the agent and skills.
+
 ## The shape
 
 ```markdown
@@ -184,6 +186,12 @@ Three turns of one conversation refining the same skill leave **one** proposal, 
 three. A reviewer asked the same question three times has been given more work
 rather than more information.
 
+Workspace proposals use the same metadata limits as stored skills: a name of
+1–64 characters and a description up to 500 characters. A change outside these
+limits is skipped with a warning; its original workspace files stay intact.
+Proposal writes run in a savepoint, so a refused proposal cannot roll back the
+turn or prevent its status and spend from being recorded.
+
 ## Getting skills into an organization
 
 **Write one.** Skills → New, in the UI. This is the normal path.
@@ -200,8 +208,7 @@ The skills page shows one list, with a `built-in` badge on anything whose name
 matches the shipped library. Those four are not chosen — they arrive once, at
 creation.
 
-**And they are yours from then on.** A seeded skill is an ordinary row: edit it,
-disable it, or delete it. Nothing puts a deleted one back.
+**And they are yours from then on.** A seeded skill is an ordinary row: edit it or delete it. Nothing puts a deleted one back.
 
 That is a change. The listing used to top itself up — copying in any bundled name
 the organization did not have, every time anyone opened the page — so a deleted
@@ -355,8 +362,9 @@ The alternative is worse in two specific ways:
   role reaches shared skills only — thinner instructions than it gives a builder,
   with the difference visible nowhere.
 
-A skill deleted or disabled after publish is skipped with a warning rather than
-failing the run. The agent is less capable, not broken.
+Skills have no separate enabled switch: an agent can use the skills bound to it.
+Remove a binding and publish the agent to stop using that skill. A skill deleted
+after publish is skipped with a warning rather than failing the run.
 
 ## Recap
 

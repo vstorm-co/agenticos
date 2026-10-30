@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { CollectionPicker } from "@/components/agents/collection-picker";
-import { ContextGallery } from "@/components/agents/context-gallery";
-import { SkillGallery } from "@/components/agents/skill-gallery";
+import { ContextGallery, type ContextChoice } from "@/components/agents/context-gallery";
+import { SkillGallery, type SkillChoice } from "@/components/agents/skill-gallery";
 import {
   ARTIFACTS_ID,
   COMPANION_SKILLS,
@@ -15,7 +15,7 @@ import {
   SKILLS_ID,
 } from "@/lib/agent-spec";
 import type { KnowledgeBase } from "@/types";
-import type { ContextFileSummary, SkillSummary } from "@/types/providers";
+import type { ContextSettings } from "@/lib/context-settings";
 import { useTranslations } from "next-intl";
 
 /**
@@ -28,14 +28,16 @@ import { useTranslations } from "next-intl";
  * lot instead of twelve.
  */
 export interface AgentResources {
-  contextFiles: ContextFileSummary[];
+  contextFiles: ContextChoice[];
+  onCreateContext?: () => void;
   contextTotal: number;
   contextIds: string[];
   onContextToggle: (fileId: string) => void;
   collections: KnowledgeBase[];
   collectionIds: string[];
   onCollectionToggle: (collectionId: string) => void;
-  skills: SkillSummary[];
+  skills: SkillChoice[];
+  onCreateSkill?: () => void;
   skillTotal: number;
   skillIds: string[];
   onSkillToggle: (skillId: string) => void;
@@ -81,7 +83,11 @@ export function CapabilityResources({
   enabled,
   resources,
   disabled,
+  fileSettings = {},
+  onFileSettingsChange,
 }: {
+  fileSettings?: ContextSettings;
+  onFileSettingsChange?: (settings: ContextSettings) => void;
   capabilityId: string;
   /** Whether the capability is granted - see the warning below. */
   enabled: boolean;
@@ -94,14 +100,17 @@ export function CapabilityResources({
     return (
       <ResourceGroup
         detail={t("contextFilesDetail")}
-        warning={contextWarning(t, enabled, resources)}
+        warning={contextWarning(t, enabled, resources, fileSettings)}
       >
         <ContextGallery
+          onCreate={resources.onCreateContext}
           files={resources.contextFiles}
           total={resources.contextTotal}
           selectedIds={resources.contextIds}
           onToggle={resources.onContextToggle}
           disabled={disabled}
+          settings={fileSettings}
+          onSettingsChange={onFileSettingsChange}
         />
       </ResourceGroup>
     );
@@ -132,6 +141,7 @@ export function CapabilityResources({
         warning={enabled || resources.skillIds.length === 0 ? null : t("skillsOffButBound")}
       >
         <SkillGallery
+          onCreate={resources.onCreateSkill}
           skills={resources.skills}
           total={resources.skillTotal}
           selectedIds={resources.skillIds}
@@ -200,13 +210,19 @@ function contextWarning(
   t: (key: string) => string,
   enabled: boolean,
   resources: AgentResources,
+  settings: ContextSettings,
 ): string | null {
   if (resources.contextIds.length === 0) return null;
   if (!enabled) return t("contextOffButBound");
   const known = new Map(resources.contextFiles.map((file) => [file.id, file]));
   const bound = resources.contextIds.map((id) => known.get(id));
   if (bound.some((file) => file === undefined)) return null;
-  const reads = bound.some((file) => file?.mode === "link" && file.enabled);
+  const reads = bound.some(
+    (file) =>
+      file &&
+      (settings[file.id]?.mode ?? file.mode) === "link" &&
+      (settings[file.id]?.enabled ?? file.enabled),
+  );
   return reads ? null : t("contextInjectOnlyNoTools");
 }
 

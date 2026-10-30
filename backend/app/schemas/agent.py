@@ -221,6 +221,10 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    published_capabilities: list[str] | None = Field(
+        default=None,
+        description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -248,6 +252,29 @@ class AgentDetail(AgentRead):
     """An agent plus the spec currently being edited."""
 
     draft_spec: AgentSpec
+
+
+class AgentCeiling(BaseSchema):
+    """The deployment's agent limit for this organization, and whether it is reached.
+
+    Read by a console to say a create would be refused before it is attempted.
+    The count is every agent in the organization that is not archived - the
+    same count a create is refused on - so it includes agents the caller may
+    not see. It is therefore given only to a caller whose `agents:view` reaches
+    every agent in the organization; anyone else gets `at_limit` alone, which
+    is no more than a refused create would tell them.
+    """
+
+    limit: int | None = Field(
+        description="Agents the deployment allows per organization. Null is no limit"
+    )
+    held: int | None = Field(
+        description=(
+            "Agents this organization holds, archived ones excluded. Null when there "
+            "is no limit, or the caller cannot see every agent in the organization"
+        )
+    )
+    at_limit: bool = Field(description="Whether a new agent would be refused for the limit")
 
 
 class AgentList(BaseSchema):
@@ -963,11 +990,12 @@ class TemplateInstallRequest(BaseSchema):
 class TemplateInstallResult(BaseSchema):
     """What was created, and what the person still has to do.
 
-    An installed template is a **draft**: it names no model, because this
-    platform has no organization-wide default on purpose, and it may name no
-    collection. Both are decisions the spec refuses to make on somebody's
-    behalf, so the result carries them back rather than publishing something
-    that would answer its first question from nowhere.
+    An installed template is a **draft**. It names no model, because this
+    platform has no organization-wide default on purpose, unless the
+    organization has exactly one model an agent can run on and the draft starts
+    on that (#2483). It may name no collection, which is never chosen for
+    anybody. So the result carries back what is still to attach rather than
+    publishing something that would answer its first question from nowhere.
     """
 
     agent_id: UUID

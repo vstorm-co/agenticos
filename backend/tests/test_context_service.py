@@ -288,3 +288,27 @@ class TestDelete:
         clear.assert_awaited_once()
         remove.assert_awaited_once()
         assert audit.call_args.kwargs["action"] == "context.deleted"
+
+
+async def test_per_agent_availability_overrides_legacy_file_defaults_without_mutating_them():
+    from app.agents.capabilities.context import ContextConfig, ContextFileSettings
+
+    file = _file(enabled=False)
+    with patch(
+        f"{CONTEXT_PATH}.context_repo.get_many", new=AsyncMock(return_value={file.id: file})
+    ):
+        service = ContextService(MagicMock())
+        assert await service.resolve_for_agent(
+            _ctx(),
+            [file.id],
+            config=ContextConfig(file_settings={file.id: ContextFileSettings(enabled=True)}),
+        ) == [file]
+        assert (
+            await service.resolve_for_agent(
+                _ctx(),
+                [file.id],
+                config=ContextConfig(file_settings={file.id: ContextFileSettings(enabled=False)}),
+            )
+            == []
+        )
+        assert not file.enabled

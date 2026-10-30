@@ -202,7 +202,7 @@ export default function WorkflowsPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -235,6 +235,9 @@ export default function WorkflowsPage() {
       />
 
       <ListCard
+        namedByPage
+        layout="grid"
+        fill
         title={t("catalog")}
         counted={
           isLoading

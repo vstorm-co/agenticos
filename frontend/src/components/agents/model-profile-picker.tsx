@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
@@ -8,8 +8,9 @@ import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
+import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
-import { modelDetail } from "@/lib/model-profiles";
+import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -30,6 +31,7 @@ interface ModelProfilePickerProps {
   /** `null` means "whatever the organization's default is". */
   value: string | null;
   onChange: (profileId: string | null) => void;
+  onCreationPendingChange?: (pending: boolean) => void;
 
   /**
    * Whether this panel can create a model, which also decides its shape.
@@ -102,6 +104,7 @@ export function ModelProfilePicker({
   profilesStatus,
   value,
   onChange,
+  onCreationPendingChange,
   allowAdd = false,
   allowRemove = false,
   disabled,
@@ -109,7 +112,33 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const { deleteProfile, refetchProfiles } = useModelProviders();
+  const [selectionVersion, setSelectionVersion] = useState(0);
+  const currentSelection = useRef(0);
+  if (useChanged(value)) setSelectionVersion((version) => version + 1);
+  // Retire old callbacks in the commit that changes the choice or unmounts the picker.
+  useLayoutEffect(() => {
+    currentSelection.current = selectionVersion;
+    return () => {
+      currentSelection.current += 1;
+    };
+  }, [selectionVersion]);
+  const selectProfile = (profileId: string): void => {
+    const version = currentSelection.current + 1;
+    currentSelection.current = version;
+    setSelectionVersion(version);
+    onChange(profileId);
+  };
+
   const selected = profiles.find((profile) => profile.id === value);
+  // The models an agent can run on: one on a text-to-speech or embedding model
+  // fails on its first turn (#2487), and so does one whose key was deleted
+  // (#2478). The one this agent already names stays,
+  // marked, because a choice that vanished would read as no choice at all; and
+  // where models are managed the rest stay too, marked and not selectable, since
+  // this is the only place in the console that deletes one.
+  const offered = profiles.filter(
+    (profile) => usableForAgents(profile) || profile.id === value || allowRemove,
+  );
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
   // accessible name the first one's caption.
@@ -117,21 +146,21 @@ export function ModelProfilePicker({
 
   const list = (
     <div role="radiogroup" aria-label={t("model2")} className="space-y-1">
-      {profiles.map((profile) => (
+      {offered.map((profile) => (
         <ProfileRow
           key={profile.id}
           selected={value === profile.id}
-          onSelect={() => onChange(profile.id)}
+          onSelect={() => selectProfile(profile.id)}
           title={profile.label}
           subtitle={modelDetail(profile)}
           provider={profile.provider}
           // A picker that omits this lets somebody publish an agent onto a model
-          // that cannot answer. Read from `secret_id` alone: this used to also
-          // test a `credential_id` the API has not sent since the vault became
-          // the only key store, and `undefined === null` is false - so the badge
-          // rendered for no profile at all, including the ones that really had
-          // no key.
-          noKey={!profile.secret_id}
+          // that cannot answer. The server's `missing_key`, not `secret_id`
+          // alone: a self-hosted model at an endpoint has no key and needs none,
+          // and reading the column marked every Ollama profile "no key" (#2478).
+          noKey={!hasKey(profile)}
+          notChat={!runsAgents(profile)}
+          selectable={usableForAgents(profile) || profile.id === value}
           disabled={disabled}
           onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
         />
@@ -161,7 +190,18 @@ export function ModelProfilePicker({
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
-      {!selected.secret_id && <Badge variant="destructive">{t("noKey")}</Badge>}
+      {!hasKey(selected) && <Badge variant="destructive">{t("noKey")}</Badge>}
+      {!runsAgents(selected) && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
+      {!runsAgents(selected) && (
+        <p role="alert" className="text-destructive basis-full text-xs">
+          {t("notAChatModelHint", { model: selected.model })}
+        </p>
+      )}
+      {runsAgents(selected) && !hasKey(selected) && (
+        <p role="alert" className="text-destructive basis-full text-xs">
+          {t("modelHasNoKeyHint")}
+        </p>
+      )}
     </div>
   ) : null;
 
@@ -179,7 +219,7 @@ export function ModelProfilePicker({
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
   if (!allowAdd) {
-    if (profiles.length === 0) {
+    if (offered.length === 0) {
       if (profilesStatus === "failed") return failed;
       // Still in flight, which is every cold load of this panel: a wait shaped
       // like the rows it is waiting for, rather than a claim about the
@@ -229,10 +269,13 @@ export function ModelProfilePicker({
           "Choose a provider" above an agent that plainly has one, for as long as the
           list took - green on a warm laptop and red in CI. */}
       <AddModel
-        key={selected?.id ?? "none"}
+        key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
         disabled={disabled}
+        onCreationPendingChange={onCreationPendingChange}
         onCreated={(profile) => {
+          // A newer choice or an unmounted picker no longer owns this result.
+          if (currentSelection.current !== selectionVersion) return;
           // Selected, not merely added: somebody who came here to choose a
           // model has chosen one, and leaving the agent on the old value would
           // make the work look like it did not take.
@@ -246,13 +289,16 @@ export function ModelProfilePicker({
           Nothing is said while that read is still in flight: the form above is
           the panel here and it already works, so a wait would stand in for a
           disclosure that may well have nothing to disclose. */}
-      {profiles.length === 0 && profilesStatus === "failed" && failed}
+      {offered.length === 0 && profilesStatus === "failed" && failed}
 
-      {profiles.length > 0 && (
+      {offered.length > 0 && (
         <details className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
-            {t("useSavedModelCount", { count: profiles.length })}
+            {t("useSavedModelCount", {
+              count: offered.filter((profile) => usableForAgents(profile) || profile.id === value)
+                .length,
+            })}
           </summary>
           <div className="mt-2 space-y-2">
             {list}
@@ -271,6 +317,8 @@ function ProfileRow({
   subtitle,
   provider,
   noKey,
+  notChat,
+  selectable = true,
   disabled,
   onRemove,
 }: {
@@ -281,6 +329,9 @@ function ProfileRow({
   subtitle: string | null;
   provider: string;
   noKey?: boolean;
+  notChat?: boolean;
+  /** False for a non-chat model listed only so it can be removed. */
+  selectable?: boolean;
   disabled?: boolean;
   /** Offered only where models are managed. */
   onRemove?: () => void;
@@ -296,12 +347,12 @@ function ProfileRow({
         role="radio"
         aria-checked={selected}
         aria-label={title}
-        disabled={disabled}
+        disabled={disabled || !selectable}
         onClick={onSelect}
         className={cn(
           "flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
           selected ? "border-brand bg-brand/5" : "border-border hover:border-foreground/20",
-          disabled && "cursor-not-allowed opacity-60",
+          (disabled || !selectable) && "cursor-not-allowed opacity-60",
         )}
       >
         <ProviderIcon provider={provider} />
@@ -309,6 +360,7 @@ function ProfileRow({
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
             {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
+            {notChat && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
           </span>
           {subtitle !== null && (
             <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">

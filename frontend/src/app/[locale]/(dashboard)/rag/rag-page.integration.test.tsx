@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -170,6 +170,31 @@ describe("a failed list renders an error, not an empty state (#32)", () => {
 });
 
 describe("search", () => {
+  it("offers creation from an empty search only to an editor", async () => {
+    mockApi([]);
+    perms.add("collections:edit");
+    render(<RAGPage />, { wrapper });
+    await openSearchTab();
+
+    const empty = await screen.findByText("rag.search.noBasesTitle");
+    const region = empty.parentElement!;
+    await userEvent.click(
+      within(region).getByRole("button", { name: "pages.kb.newKnowledgeBase" }),
+    );
+    expect(await screen.findByRole("dialog")).toBeVisible();
+  });
+
+  it("keeps the empty search readable without offering creation to a viewer", async () => {
+    mockApi([]);
+    render(<RAGPage />, { wrapper });
+    await openSearchTab();
+
+    expect(await screen.findByText("rag.search.noBasesTitle")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "pages.kb.newKnowledgeBase" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("searches every readable base by default, deduplicating shared collections", async () => {
     mockApi([
       kb("kb-1", "Handbook", "handbook", true),
@@ -258,6 +283,7 @@ describe("search", () => {
           score: 0.874,
           metadata: { filename: "handbook.pdf", page_num: 12, collection: "handbook" },
           parent_doc_id: "vec-1",
+          page: 12,
         },
       ],
     });
@@ -273,6 +299,34 @@ describe("search", () => {
     expect(screen.getByText("0.874")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Handbook/ })).toHaveAttribute("href", "/rag/kb-1");
     expect(screen.getByText("Vacations are requested through the portal.")).toBeInTheDocument();
+    expect(screen.getByText("rag.search.page")).toBeInTheDocument();
+  });
+
+  it("shows no page for a result whose format has none, whatever page_num says (#2489)", async () => {
+    // Every Markdown chunk is stored with page_num 1; the API's `page` is null
+    // for it, and that is what the badge follows.
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    vi.mocked(searchDocuments).mockResolvedValue({
+      results: [
+        {
+          content: "Capabilities are listed per agent.",
+          score: 0.81,
+          metadata: { filename: "capabilities.pl.md", page_num: 1, collection: "handbook" },
+          parent_doc_id: "vec-2",
+          page: null,
+        },
+      ],
+    });
+
+    render(<RAGPage />, { wrapper });
+    await waitFor(() => expect(screen.getByText("Handbook")).toBeInTheDocument());
+    const user = await openSearchTab();
+
+    await user.type(screen.getByPlaceholderText("rag.search.placeholder"), "capabilities");
+    await user.click(screen.getByRole("button", { name: "rag.search.button" }));
+
+    await waitFor(() => expect(screen.getByText("capabilities.pl.md")).toBeInTheDocument());
+    expect(screen.queryByText("rag.search.page")).not.toBeInTheDocument();
   });
 });
 

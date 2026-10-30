@@ -127,4 +127,20 @@ describe("usePollWhileIngesting", () => {
 
     expect(refresh).toHaveBeenCalledTimes(3);
   });
+
+  it("keeps polling a settled list while something beyond it is still pending", () => {
+    // A batch larger than the loaded page settles there first (#2486).
+    const refresh = vi.fn();
+    const { rerender } = renderHook(
+      ({ pending }) => usePollWhileIngesting(DONE, refresh, pending),
+      { initialProps: { pending: true } },
+    );
+
+    vi.advanceTimersByTime(2_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    rerender({ pending: false });
+    vi.advanceTimersByTime(60_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
 });

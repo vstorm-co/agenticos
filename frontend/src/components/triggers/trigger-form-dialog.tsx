@@ -43,6 +43,7 @@ import {
 } from "@/components/triggers/cadence-choices";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
+import { LocalTargetField } from "@/components/triggers/local-target-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
@@ -63,6 +64,7 @@ import {
   WEEKDAYS,
   weekdayKey,
 } from "@/lib/trigger-format";
+import type { LocalTarget } from "@/lib/desktop/commands";
 import type {
   EventSource,
   ScheduleKind,
@@ -212,6 +214,7 @@ export function TriggerFormDialog({
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
   // A new trigger is the caller's own; an existing one is whoever made it.
@@ -434,6 +437,7 @@ export function TriggerFormDialog({
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
+      ...(runsAsCreator && localTarget ? { local_target: localTarget } : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
     };
     if (type === "schedule") {
@@ -460,6 +464,14 @@ export function TriggerFormDialog({
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
+        // Turning acting-as-me off clears the folder on the server; say nothing then.
+        const before = trigger.local_target ?? null;
+        if (
+          runsAsCreator &&
+          (localTarget?.folder !== before?.folder || localTarget?.mode !== before?.mode)
+        ) {
+          patch.local_target = localTarget;
+        }
         if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
           patch.overlap = overlap;
         }
@@ -721,6 +733,11 @@ export function TriggerFormDialog({
               type={trigger.trigger_type}
               isCreator={isCreator}
             />
+            <LocalTargetField
+              value={localTarget}
+              onChange={setLocalTarget}
+              visible={runsAsCreator && isCreator}
+            />
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -836,6 +853,11 @@ export function TriggerFormDialog({
                 onChange={setRunsAsCreator}
                 type={type}
                 isCreator={isCreator}
+              />
+              <LocalTargetField
+                value={localTarget}
+                onChange={setLocalTarget}
+                visible={runsAsCreator && isCreator}
               />
             </div>
           )}

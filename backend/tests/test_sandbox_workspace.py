@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -65,6 +65,7 @@ from app.services.sandbox_workspace import (
     RETRY_CAP,
     SandboxWorkspaceService,
     WorkspaceContents,
+    _keyed_runtime,
     browsable,
     next_destroy_attempt,
     retry_pending_destroys,
@@ -298,6 +299,25 @@ class TestWhoSharesAWorkspace:
             identity, "conversation", "service", host
         )
 
+    def test_changing_the_runtime_does_not_reattach_to_the_old_ones_workspace(self):
+        """A session's image is chosen when it is created and never again, so the
+        old key on a new runtime attaches to a container of the old one."""
+        identity = _identity()
+        host = uuid4()
+
+        assert scope_key(identity, "conversation", "service", host, "desktop") != scope_key(
+            identity, "conversation", "service", host, "python"
+        )
+
+    def test_the_default_runtime_keeps_the_key_it_had(self):
+        """Every workspace opened before the runtime was keyed was keyed as this."""
+        identity = _identity()
+        host = uuid4()
+
+        assert scope_key(identity, "conversation", "service", host, None) == scope_key(
+            identity, "conversation", "service", host
+        )
+
     def test_a_stored_workspace_keys_on_no_host_at_all(self):
         """It runs on none, so folding one in would be inventing a distinction."""
         identity = _identity()
@@ -310,15 +330,25 @@ class TestWhoSharesAWorkspace:
     def test_every_key_fits_what_the_service_accepts(self, scope: str):
         """`sandboxd` rejects an id over 64 characters, on the first tool call.
 
-        53 with a host folded in, against the 44 a stored workspace takes - so
-        this is the case that has to be checked, not the shorter one.
+        60 with a host and a runtime folded in, against the 44 a stored workspace
+        takes - so this is the case that has to be checked, not the shorter one.
         """
         identity = _identity(user_id="U" * 200, channel_key="C" * 200)
 
         assert (
-            len(scope_key(identity, scope, "service", uuid4()))  # type: ignore[arg-type]
+            len(scope_key(identity, scope, "service", uuid4(), "r" * 64))  # type: ignore[arg-type]
             <= MAX_SESSION_ID
         )
+
+    @pytest.mark.parametrize("scope", ["run", "conversation", "channel", "user", "agent"])
+    def test_a_runtime_is_folded_in_without_cutting_the_subject(self, scope: str):
+        """Truncation cuts from the end, which is the subject - the part that says
+        whose workspace it is. 60 characters with a host and a runtime leaves it whole."""
+        identity = _identity(user_id="U" * 200, channel_key="C" * 200)
+
+        key = scope_key(identity, scope, "service", uuid4(), "r" * 64)  # type: ignore[arg-type]
+
+        assert key.endswith(scope_key(identity, scope, "state").rsplit("-", 1)[1])  # type: ignore[arg-type]
 
     def test_a_conversation_scope_with_no_conversation_is_refused(self):
         with pytest.raises(WorkspaceScopeUnavailable):
@@ -2500,6 +2530,7 @@ class _Sandboxes:
                 super().__init__(**kwargs)
                 self.provider = str(kwargs["provider"])
                 self.name = str(kwargs["session_name"])
+                self.service_url = str(kwargs["service_url"])
 
         class _Daytona(_Provider):
             def __init__(self, **kwargs: object) -> None:
@@ -2992,6 +3023,91 @@ class TestASessionAcrossRuns:
             WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="xc-recorded")
         ]
 
+    async def test_a_new_runtime_opens_a_session_rather_than_attaching_to_the_old_one(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """An agent moved to `desktop` kept attaching to its workbench container,
+        which has no display, and failed every screenshot."""
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        identity = _identity()
+        old_key = scope_key(identity, "conversation", "service", resolved.row.id)
+        recorded = _row(backend="service", session_id=old_key, connection_id=resolved.row.id)
+
+        async def by_key(db, *, organization_id, scope_key):
+            return recorded if scope_key == old_key else None
+
+        monkeypatch.setattr(workspace_repo, "get_by_key", by_key)
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=recorded))
+        monkeypatch.setattr(workspace_repo, "create", AsyncMock(return_value=_row()))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        before = await service.open(_spec(backend="service"), ctx=_ctx(), identity=identity)
+        after = await service.open(
+            _spec(backend="service", runtime="desktop"), ctx=_ctx(), identity=identity
+        )
+
+        assert before is not None and after is not None
+        assert before.scope_key == old_key
+        assert after.scope_key != old_key
+        # The first attaches to the recorded session; the second opens one.
+        assert sandboxes.attached == [
+            WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id=old_key),
+            None,
+        ]
+
+    @pytest.mark.parametrize(
+        ("runtime", "default_runtime"),
+        [(None, None), ("workbench", None), (None, "workbench"), ("workbench", "desktop")],
+    )
+    async def test_every_way_of_reaching_the_default_runtime_keeps_one_key(
+        self,
+        monkeypatch,
+        mock_db_session,
+        sandboxes,
+        runtime: str | None,
+        default_runtime: str | None,
+    ):
+        """No runtime and the shipped default are one image on the allowlist this
+        repository generates, and every workspace opened before the runtime was
+        keyed was keyed as this - so naming the default orphans nothing."""
+        resolved = _resolved(default_runtime=default_runtime)
+        _serve(monkeypatch, resolved)
+        self._row_with(monkeypatch, mock_db_session, None)
+        identity = _identity()
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service", runtime=runtime), ctx=_ctx(), identity=identity
+        )
+
+        assert workspace is not None
+        assert workspace.scope_key == scope_key(
+            identity, "conversation", "service", resolved.row.id
+        )
+
+    async def test_the_connections_default_runtime_keys_like_the_specs(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """What the container is decides the key, not which level named it."""
+        resolved = _resolved(default_runtime="desktop")
+        _serve(monkeypatch, resolved)
+        self._row_with(monkeypatch, mock_db_session, None)
+        identity = _identity()
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=identity
+        )
+
+        assert workspace is not None
+        assert workspace.scope_key == scope_key(
+            identity, "conversation", "service", resolved.row.id, "desktop"
+        )
+
+    def test_daytona_is_given_no_runtime_so_its_key_names_none(self):
+        """It runs its own image whatever the spec says, so a runtime in its key
+        would only move a workspace away from its files."""
+        assert _keyed_runtime(SandboxConfig(runtime="desktop"), _resolved(kind="daytona")) is None
+
     async def test_a_purged_session_is_reported_rather_than_replaced(
         self, monkeypatch, mock_db_session, sandboxes
     ):
@@ -3007,6 +3123,61 @@ class TestASessionAcrossRuns:
         with pytest.raises(WorkspaceUnavailableError):
             await workspace.workspace.write_text("notes.txt", "into an empty directory")
         assert not (sandboxes.root / "notes.txt").exists()
+
+    async def test_a_service_of_another_version_is_not_reported_as_a_lost_session(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """A 404 from a service lacking the route reads as "gone" to the client
+        (#2484). The session is alive, so it is not reported lost - but its ref is
+        forgotten, because an older service answers an attach by ref with a 409
+        while the session lives, and the next turn would fail on that instead."""
+        from app.services import sandbox_workspace
+        from app.services.sandboxd_compat import SandboxdVersionMismatchError
+
+        sandboxes.gone = True
+        mismatch = SandboxdVersionMismatchError(message="the service does not serve /run")
+        explain = AsyncMock(return_value=mismatch)
+        monkeypatch.setattr(sandbox_workspace, "explain_unavailable", explain)
+        _serve(monkeypatch, _resolved())
+        recorded = self._row_with(monkeypatch, mock_db_session, "xc-recorded")
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(_spec(backend="service"), ctx=_ctx(), identity=_identity())
+
+        assert workspace is not None
+        assert isinstance(workspace.workspace, RecordingWorkspace)
+        with pytest.raises(SandboxdVersionMismatchError):
+            await workspace.workspace.write_text("notes.txt", "x")
+        assert explain.await_args.kwargs["base_url"] == "http://sandboxd:8080"
+        assert not workspace.workspace.lost
+        assert workspace.workspace.mismatched
+
+        await service.close(workspace)
+
+        assert recorded.await_args.kwargs["session_id"] is None
+
+    async def test_a_daytona_sandbox_found_gone_is_not_asked_about_a_version(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Only `sandboxd` has an index to ask; Daytona's loss stays a loss."""
+        from app.services import sandbox_workspace
+
+        sandboxes.gone = True
+        explain = AsyncMock()
+        monkeypatch.setattr(sandbox_workspace, "explain_unavailable", explain)
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None, token="dtn-live-key"))
+        self._row_with(monkeypatch, mock_db_session, "dt-recorded")
+
+        workspace = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert workspace is not None
+        assert isinstance(workspace.workspace, RecordingWorkspace)
+        with pytest.raises(WorkspaceUnavailableError):
+            await workspace.workspace.write_text("notes.txt", "x")
+        explain.assert_not_awaited()
+        assert workspace.workspace.lost
 
     async def test_the_model_is_told_its_files_are_gone(
         self, monkeypatch, mock_db_session, sandboxes
@@ -5149,3 +5320,128 @@ class TestTheSharedSandboxdClient:
         await sandbox_workspace.close_sandboxd_client()
         # Closing twice is a shutdown that found nothing to close.
         await sandbox_workspace.close_sandboxd_client()
+
+
+class TestLocalDeviceSelection:
+    async def test_a_local_target_is_not_silently_ignored_without_a_sandbox(self, mock_db_session):
+        from app.schemas.local_target import LocalTarget
+
+        with pytest.raises(BadRequestError, match="Sandbox capability"):
+            await SandboxWorkspaceService(mock_db_session).open(
+                AgentSpec(name="Plain"),
+                ctx=_ctx(),
+                identity=_identity(),
+                local=LocalTarget(folder="/approved"),
+            )
+
+    @pytest.mark.parametrize("mode", ["read_only", "workspace_write", "full_access"])
+    async def test_only_the_callers_device_is_resolved(self, mode, monkeypatch, mock_db_session):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        session = uuid4()
+        wait = AsyncMock(
+            return_value=device_hub.Device(
+                session_id=session, user_id=ctx.user_id, platform="macos"
+            )
+        )
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        service = SandboxWorkspaceService(mock_db_session)
+        result = await service.open(
+            _spec(),
+            ctx=ctx,
+            identity=_identity(),
+            local=LocalTarget(folder="/approved", mode=mode, device_id=session),
+        )
+        assert result is not None and result.local
+        assert result.row_id is None
+        assert result.workspace.backend.session_id == session
+        wait.assert_awaited_once_with(ctx.user_id, session, timeout=0)
+        assert "/approved" in result.briefing
+        await service.close(result)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("identity", ["anonymous", "key", "publisher"])
+    async def test_nonpersonal_runs_never_contact_a_computer(
+        self, identity, monkeypatch, mock_db_session
+    ):
+        from dataclasses import replace
+
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        ctx = (
+            replace(ctx, user_id=None)
+            if identity == "anonymous"
+            else replace(ctx, api_key_id=uuid4())
+            if identity == "key"
+            else replace(ctx, subject_is_publisher_fallback=True)
+        )
+        wait = AsyncMock()
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        with pytest.raises(BadRequestError, match="Only your own"):
+            await SandboxWorkspaceService(mock_db_session)._open_local(
+                ctx, LocalTarget(folder="/approved")
+            )
+        wait.assert_not_called()
+
+    @pytest.mark.parametrize("back", [True, False])
+    @pytest.mark.parametrize("notify", [True, False])
+    async def test_wait_state_is_cleared_on_reconnect_or_timeout(
+        self, back, notify, monkeypatch, mock_db_session
+    ):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        device = device_hub.Device(session_id=uuid4(), user_id=ctx.user_id, platform="macos")
+        wait = AsyncMock(side_effect=[None, device if back else None])
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        sink = AsyncMock() if notify else None
+        service = SandboxWorkspaceService(mock_db_session)
+        if back:
+            result = await service._open_local(ctx, LocalTarget(folder="/approved"), on_wait=sink)
+            assert result.local
+        else:
+            with pytest.raises(BadRequestError, match="not connected"):
+                await service._open_local(ctx, LocalTarget(folder="/approved"), on_wait=sink)
+        if sink is not None:
+            assert [call.args for call in sink.await_args_list] == [(True,), (False,)]
+
+
+@pytest.mark.parametrize("runtime", [None, "chosen-template"])
+def test_an_e2b_sandbox_connection_supplies_its_own_key_and_template(runtime: str | None) -> None:
+    with patch("app.services.sandbox_workspace.E2BWorkspace") as factory:
+        result = SandboxWorkspaceService._service_capability(
+            _resolved(kind="e2b", default_runtime="desktop", token="tenant-key"),
+            "scope",
+            runtime=runtime,
+        )
+    assert result is factory.return_value
+    factory.assert_called_once_with(api_key="tenant-key", template=runtime or "desktop")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("computer", [False, True])
+async def test_browser_only_selection_keeps_the_agents_sandbox(
+    mock_db_session, monkeypatch, computer: bool
+):
+    from app.schemas.local_target import LocalTarget
+
+    service = SandboxWorkspaceService(mock_db_session)
+    local = AsyncMock()
+    cloud = AsyncMock(return_value=None)
+    monkeypatch.setattr(service, "_open_local", local)
+    monkeypatch.setattr(service, "_open_config", cloud)
+    target = LocalTarget(browser=not computer, computer=computer)
+    result = await service.open(
+        AgentSpec(name="Browser"), ctx=_ctx(), identity=_identity(), local=target
+    )
+    assert result is None
+    local.assert_not_awaited()
+    cloud.assert_not_awaited()
+    await service.open(_spec(), ctx=_ctx(), identity=_identity(), local=target)
+    cloud.assert_awaited_once()
+    local.assert_not_awaited()

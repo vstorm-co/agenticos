@@ -1,5 +1,5 @@
 ---
-source_sha: "ed87cd5395cb"
+source_sha: "5f4471e1f0e0"
 ---
 
 # Governance { #governance }
@@ -544,6 +544,25 @@ Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Ru
 dessen Ausgaben mit seinem Prozess sterben.
 
 ### Arbeit aus eigener Initiative { #proactive-work }
+
+Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
+Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
+festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
+Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
+Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
+Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
+Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
+behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
+erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
+aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
+Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
+
+Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlüssel
+wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
+Modellprofil erstellen; ohne diese Berechtigung wählt es ein vorhandenes Profil.
+Ein neues Profil wird sofort gespeichert. **Speichern** übernimmt die Auswahl
+für die nächtlichen Vorschläge und Watches der Organisation, die sich dieses
+Modell und das Limit pro Person teilen.
 
 Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
 bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer

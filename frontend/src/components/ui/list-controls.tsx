@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,20 +126,51 @@ export function SearchInput({
   /** The longest text the search accepts, where the server refuses more. */
   maxLength?: number;
 }) {
+  const t = useTranslations("ui");
+  const input = useRef<HTMLInputElement>(null);
   return (
     <div className={cn("relative w-full sm:w-64", className)}>
       <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
       {/* The height of the filters beside it; still 16px on a phone, where iOS
           zooms into anything smaller. */}
       <Input
+        ref={input}
+        data-search-input
+        type="text"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={label ?? placeholder}
         autoFocus={autoFocus}
         maxLength={maxLength}
-        className="border-foreground/12 h-8 rounded-lg border pl-8 md:text-[13px]"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && value) {
+            event.preventDefault();
+            event.stopPropagation();
+            onChange("");
+          }
+        }}
+        className={cn(
+          "border-foreground/12 h-9 rounded-xl border pl-8 md:text-[13px] [&::-webkit-search-cancel-button]:appearance-none",
+          value ? "pr-11" : "pr-3",
+        )}
       />
+      {value && (
+        <button
+          type="button"
+          aria-label={t("clearSearch")}
+          onClick={() => {
+            onChange("");
+            input.current?.focus();
+          }}
+          className="text-muted-foreground hover:text-foreground focus-visible:outline-ring absolute inset-y-0 right-0 flex w-11 touch-manipulation items-center justify-center rounded-r-xl focus-visible:outline-2 focus-visible:-outline-offset-2"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      )}
     </div>
   );
 }
@@ -187,7 +218,7 @@ export function Pager({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2">
       <p className="text-muted-foreground text-xs">
         {matched === total
           ? t("pagerAll", { counted, page: page + 1, pageCount })

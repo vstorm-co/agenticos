@@ -39,6 +39,7 @@ from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as capability_def
+from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities.approval import (
     ApprovalGate,
     approval_describers,
@@ -47,7 +48,7 @@ from app.agents.capabilities.approval import (
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
-from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID
+from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID, WebBrowser
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -377,7 +378,16 @@ def build_agent(
     # Before hooks run in list order, and a compaction strategy rebuilds the
     # request from the run's history in its own: reminders appended before it
     # would be dropped (see `SystemReminders.before_model_request`).
-    configured.sort(key=lambda capability: isinstance(capability, SystemReminders))
+    # Browser tables must also be pruned after compaction rebuilds the request.
+    configured.sort(
+        key=lambda capability: (
+            isinstance(capability, SystemReminders),
+            isinstance(
+                capability.wrapped if isinstance(capability, ToolOverrides) else capability,
+                WebBrowser,
+            ),
+        )
+    )
     if voice is not None:
         configured = voice_configured(configured)
 
@@ -411,6 +421,7 @@ def build_agent(
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
+        kb_vector_scopes=dict((resources or {}).get("kb_vector_scopes") or {}),
         request_approval=request_approval,
     )
 

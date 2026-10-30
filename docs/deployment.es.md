@@ -1,5 +1,5 @@
 ---
-source_sha: "65de499462fe"
+source_sha: "dba106dd80cc"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -554,6 +554,24 @@ El rechazo nombra el techo y el recuento contra el que se midió
 (`{"limit": 5, "held": 5}`), así que «por qué no puedo» lo responde la respuesta y
 no la memoria de un administrador. Se lanza en el servicio que crea la cosa, no en
 la ruta, porque la ruta no es la única entrada.
+
+La consola no espera a ese rechazo. `GET /agents/ceiling`, abierto a quien llama
+con `agents:edit`, devuelve el límite (`limit`, null donde no hay ninguno) y si
+una creación chocaría con él (`at_limit`), y, en el límite, la página Agentes
+desactiva **New agent** y la instalación de plantillas y dice por qué, antes de
+que nadie rellene un formulario.
+
+Si otra creación alcanza el límite durante la creación guiada de un agent,
+la guía termina en vez de bloquear la página alrededor de un botón desactivado.
+Una creación exitosa de esa guía se registra antes de actualizar el límite,
+por lo que ocupar la última plaza no interrumpe los pasos restantes del Builder.
+
+El recuento en sí (`held`) solo lo recibe quien
+llama con un `agents:view` que alcanza a todos los agentes de la organización:
+incluye agentes que un miembro (Member) no ve, y comparado con su propio listado
+diría cuántos se le ocultan. **Duplicate** y **Restore** se siguen rechazando solo
+al intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
+leída sin el bloqueo.
 
 El schema rechaza el cero: una cuenta que no puede poseer ninguna organización es
 una cuenta que no se puede crear, ya que el registro da a cada una su propia

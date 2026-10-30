@@ -268,6 +268,7 @@ async def latest_run_for_conversation(
             AgentRun.conversation_id == conversation_id,
             AgentRun.organization_id == organization_id,
             AgentRun.parent_run_id.is_(None),
+            AgentRun.surface != RunSurface.FOLLOW_UPS.value,
         )
         .order_by(AgentRun.created_at.desc())
         .limit(1)
@@ -2323,3 +2324,22 @@ async def decide_approval(
     await db.flush()
     await db.refresh(approval)
     return approval
+
+
+async def associate_auxiliary_conversation(
+    db: AsyncSession, run: AgentRun, conversation_id: UUID
+) -> None:
+    """Keep an auxiliary run under its source conversation's read permissions.
+
+    The runner deliberately assembled it without conversation resources: linking
+    the row afterwards grants no tools and changes no conversation state.
+    """
+    run.conversation_id = conversation_id
+    await db.flush()
+
+
+async def record_attachment_lookup(db: AsyncSession, run: AgentRun) -> None:
+    """Record a real earlier-attachment lookup, so workspace-less turns close nothing."""
+    run.earlier_attachments_checked = True
+    db.add(run)
+    await db.flush()

@@ -1,16 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { Sheet, SheetContent } from "./sheet";
+import { useState } from "react";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./dropdown-menu";
+import { Sheet, SheetContent, SheetTitle } from "./sheet";
 
 function renderSheet(open: boolean) {
   const onOpenChange = vi.fn();
   render(
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right">
-        <p>settings</p>
+        <SheetTitle>settings</SheetTitle>
       </SheetContent>
     </Sheet>,
   );
@@ -26,19 +34,29 @@ describe("the sheet", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("leaves an Escape a control inside already handled", async () => {
-    // An open select or menu in the panel closes itself on Escape first; the
-    // same key must not take the whole panel with it.
-    const onOpenChange = renderSheet(true);
-    screen.getByText("settings").addEventListener("keydown", (event) => event.preventDefault());
-
-    screen
-      .getByText("settings")
-      .dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
-      );
-
+  it("closes a nested menu on Escape before closing the sheet", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <Sheet open onOpenChange={onOpenChange}>
+        <SheetContent>
+          <SheetTitle>Settings</SheetTitle>
+          <DropdownMenu>
+            <DropdownMenuTrigger>Options</DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem>Edit</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SheetContent>
+      </Sheet>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Options" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("listens for nothing while closed", async () => {
@@ -49,4 +67,38 @@ describe("the sheet", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+});
+
+function ControlledSheet() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>Open details</button>
+      <button>Outside action</button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetTitle>Details</SheetTitle>
+          <button>First action</button>
+          <button onClick={() => setOpen(false)}>Close details</button>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+it("traps keyboard focus and restores the opener when dismissed", async () => {
+  render(<ControlledSheet />);
+  const user = userEvent.setup();
+  const opener = screen.getByRole("button", { name: "Open details" });
+  await user.click(opener);
+  expect(screen.getByRole("dialog", { name: "Details" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "First action" })).toHaveFocus();
+  expect(screen.queryByRole("button", { name: "Outside action" })).not.toBeInTheDocument();
+  await user.tab({ shift: true });
+  expect(screen.getByRole("button", { name: "Close details" })).toHaveFocus();
+  await user.tab();
+  expect(screen.getByRole("button", { name: "First action" })).toHaveFocus();
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(opener).toHaveFocus());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

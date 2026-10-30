@@ -21,6 +21,7 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   const t = useTranslations("pages.channels");
   return (
     <ListCard
+      fill
       data-tour="channels-list"
       namedByPage
       title={t("bots")}
@@ -64,7 +65,7 @@ export default function ChannelsPage() {
 
   if (!canManage) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-6">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={0}>
           <p className="text-muted-foreground px-6 py-16 text-center text-sm">
@@ -79,7 +80,7 @@ export default function ChannelsPage() {
   // draws a different shape from what follows is a layout jump on every load.
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-6">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={null}>
           {[0, 1, 2].map((row) => (
@@ -100,7 +101,7 @@ export default function ChannelsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       <PageHeader
         title={t("channels")}
         description={t("pageDescription")}

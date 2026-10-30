@@ -6,6 +6,14 @@ board in the working plan (`VstormOS — MVP`).
 
 Updated: 2026-09-29.
 
+## Mobile distribution decision — 2026-10-30
+
+Keep Android and iOS builds in CI. Public mobile distribution, including TestFlight,
+is deferred until an Apple Developer account is available; revisit in November–December
+2026. This is a planning window, not a promised release date. Until then, users build
+and install the native app themselves and connect it to their own or their
+organization’s AgenticOS deployment. See [mobile availability](mobile.md#availability-and-self-installation).
+
 ## Where the platform stands
 
 | Area | State |

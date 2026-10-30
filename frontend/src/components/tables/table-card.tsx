@@ -41,7 +41,7 @@ export function TableCard({ table }: { table: TableListItem }) {
           aria-label={tc("openNamed", { name: table.name })}
         />
         <div className="pointer-events-none relative flex flex-1 items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+          <span className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
             <Table2 aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0 flex-1">

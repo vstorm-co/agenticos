@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Figure } from "@/components/ui";
 
 import { useAgents, useOrganizationList, useSpend } from "@/hooks";
@@ -63,7 +64,7 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
       options={options}
     >
       {isLoading || organizations.isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : cap === null ? (
@@ -87,8 +88,17 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
                 const agentUsed = perAgentUsed.get(agent.id) ?? 0;
                 return (
                   <div key={agent.id} className="text-xs">
-                    <div className="flex justify-between gap-2">
-                      <span className="text-muted-foreground truncate">{agent.name}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground flex min-w-0 items-center gap-2">
+                        <AgentAvatar
+                          agentId={agent.id}
+                          slug={agent.slug}
+                          hasAvatar={agent.has_avatar}
+                          colorSlot={agent.avatar_color}
+                          size="sm"
+                        />
+                        <span className="truncate">{agent.name}</span>
+                      </span>
                       <span className="text-foreground shrink-0 tabular-nums">
                         {formatUsd(agentUsed)} / {formatUsd(agentCap)}
                       </span>

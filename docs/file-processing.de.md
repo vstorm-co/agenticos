@@ -1,5 +1,5 @@
 ---
-source_sha: "42ba4dae462d"
+source_sha: "759491a1f3dc"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -7,6 +7,12 @@ source_sha: "42ba4dae462d"
 Dieses Dokument beschreibt, wie Dateien in zwei Zusammenhängen behandelt werden:
 Datei-Uploads im Chat, die der Person gehören, die sie gemacht hat, und die
 Ingestion von RAG-Dokumenten, die zu einer Collection gehört und daran gebunden
+Beim Löschen einer Basis werden die Sync-Quellen getrennt und deaktiviert, deren Ziel diese
+Basis war. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync ist eine
+ausdrückliche Neuzuordnung nötig. Eine gleichnamige Basis übernimmt sie nicht. Beim Leeren
+der Standardbasis bleiben die Quellen erhalten, weil die Zielzeile bestehen bleibt.
+Der CLI-Import verweigert Namen, die bis zur Bereinigung für einen ausstehenden Drop reserviert sind.
+
 ist, [wer sie erreichen darf](#who-may-reach-a-collection).
 
 ## Datei-Uploads im Chat { #chat-file-uploads }
@@ -142,6 +148,39 @@ diesem Verlauf nur genannt, nicht erneut gesendet; ein Agent, der es noch einmal
 ansehen muss, bittet darum oder öffnet es aus `uploads/`, wenn er einen Workspace
 hat.
 
+**Eine Datei aus einem abgebrochenen Zug legt der nächste Zug zurück.** Eine Datei
+wird vor dem Start des Runs an die Nachricht gebunden, mit der sie kam, und kann
+deshalb nicht erneut angehängt werden. Endete der Run zu dieser Nachricht, ohne
+abzuschließen — mit einem Fehler, abgebrochen oder gestoppt durch ein Budget oder
+den Schleifenwächter —, schreibt der nächste Zug desselben Agenten für diese Person
+in dieser Unterhaltung die Datei zurück nach `uploads/` (mit ihrem extrahierten
+Text, wo der Workspace das Original nicht lesen kann, und nur den Text, wenn nur er
+fehlt), bevor er den Workspace zum ersten Mal nutzt: sofort bei einem gespeicherten
+Workspace, beim ersten Zugriff bei einer Sandbox. Der Run wird angewiesen,
+`uploads/` aufzulisten, bevor er sagt, dass eine Datei fehlt, und zu sagen, dass sie
+nicht zurückgelegt werden konnte, wenn sie dann noch fehlt.
+
+Zurückgelegt werden nur die eigenen Dateien der Person, nur aus abgebrochenen Zügen
+dieses Agenten, höchstens die 50 neuesten, und nur, bis dieser Agent für dieselbe
+Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann und frühere Anhänge
+im Workspace tatsächlich vorbereitet hat. Ein abgeschlossener Zug ohne Workspace oder ohne Sandbox-Nutzung lässt dieses Zeitfenster offen. Ein Zug mit
+einem API-Schlüssel, für einen Widget-Besucher oder von jemand anderem aus einer
+Freigabe entlassen beendet diesen Zeitraum nicht. Eine danach entfernte Datei bleibt
+entfernt.
+
+Manche Dateien kommen nicht zurück: die eines Zugs, den eine Guardrail blockiert
+hat, weil die Eingabe-Guardrail abgelehnt hat, was er mitbrachte; die eines Prompts,
+dessen Run nie geöffnet wurde und der keinem Agenten gehört; Dateien eines Zugs mit
+einem API-Schlüssel oder für einen Widget-Besucher.
+
+Hat der Agent eine Eingabe-Guardrail, wird jede Datei vor dem Zurücklegen auch
+daraufhin geprüft, was die Guardrail von ihr lesen würde: ihren Namen, ihren Pfad
+und ihre ersten Zeilen. Ein Zug kann stoppen, bevor die Guardrail seine Eingabe
+liest, etwa an einem Budget. Eine Datei, die die Guardrail ablehnt, wird daher
+nicht geschrieben, und das Log nennt nur ihre ID. Werden alle Dateien abgelehnt,
+erfährt der Run nicht, dass eine zurück sein könnte. Ohne Eingabe-Guardrail ändert
+sich nichts.
+
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede
 Tabelle geschrieben, mit der Begründung, dass eine Shell für keines davon eine
@@ -195,6 +234,12 @@ geschrieben hatte, und versuchte es weiter — `ls`, dann ein `curl` auf eine
 `data:`-URI, dann drei Behelfslösungen, der Person angeboten, über zwei Runden
 hinweg. Ein Satz sagt jetzt, dass der Workspace nicht verfügbar ist und dass ein
 weiterer Versuch auf dieselbe Weise scheitern wird.
+
+**Ein Zug, den der Eingabe-Guardrail blockiert, schreibt nichts.** Der Verweis
+und sein Kopf werden von der Eingabekante des Agents geprüft, bevor die Datei
+geschrieben wird. Eine Datei aus einem blockierten Zug erreicht `uploads/` also nie,
+und ein späterer Zug kann sie nicht öffnen. Siehe
+[Schutzregeln](reference/capabilities.md#guardrails).
 
 Die Referenz ist das, was das Modell tatsächlich liest:
 
@@ -411,6 +456,25 @@ Eine der beiden ließ den Schlüssel früher weg, statt ihn null zu senden, ein
 Client, der die Antwort normalisierte, bekam also von jeder eine andere Form
 ([#560](https://github.com/vstorm-co/agenticos/issues/560)).
 
+**Auf `complete` warten, nicht auf Vektoren.** `GET /rag/collections/{name}/info`
+leitet `indexing_status` aus den verfolgten Dokumenten der Collection ab:
+`indexing`, solange eines davon noch `processing` ist - in der Warteschlange
+oder in der Ingestion - und `complete`, sobald keines mehr es ist.
+`processing_count`, `indexed_count` und `failed_count` geben an, wie viele
+Dokumente in welchem Zustand sind. Ein fehlgeschlagenes Dokument befindet sich
+in einem Endzustand und hält die Collection deshalb nicht auf `indexing`; es
+erscheint in `failed_count`. Das Feld war früher die Konstante `complete`, und
+`total_vectors` wächst, während der Worker einen Stapel abarbeitet - ein
+Skript, das auf eines von beiden wartete, fragte eine halb aufgebaute
+Collection ab ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+`GET /kb/{kb_id}/ingestion` beantwortet dasselbe für eine Wissensdatenbank und
+zählt die Dokumente, die ihre Seite auflistet, statt alles unter ihrem
+Collection-Namen, den eine andere Wissensdatenbank teilen kann; die Seite der
+Wissensdatenbank zeigt diesen Zustand neben der Dokumentanzahl. Ein Dokument,
+das in `processing` hängen bleibt, hält beide Antworten auf `indexing`, bis
+es gelöscht wird oder, bei einem synchronisierten Dokument, bis seine Quelle
+erneut synchronisiert.
+
 !!! danger "Die Aufgabe wird gestartet, nachdem die Transaktion der Anfrage committet"
 
     Sie wird mit `spawn_after_commit` übergeben, **nicht** mit `spawn`, und von der
@@ -607,6 +671,22 @@ seine Zugangsdaten laufen lassen
 löst daher die eigene Konfiguration jeder Organisation auf, mit Rückfall auf
 eine app-weite Collection, aber nie auf die eines dritten Tenants.
 
+Der Rückfall ist ausschließlich eine app-weite Basis: Eine persönliche Basis
+außerhalb jeder Organisation hat ebenfalls keine Organisation, gehört aber einer
+einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Eine Sync-Quelle hält eine Organisation und einen Collection-Namen fest, keine
+Wissensbasis, also schreibt ihr Sync in die Basis, die diese Auflösung wählt - die
+älteste Basis der Organisation mit diesem Namen -, und nur diese Basis listet und
+startet sie. Jede API-Route, die eine Quelle auf eine Collection richtet, prüft
+Schreibrechte auf diese Basis, und eine Quelle einer anderen Basis desselben
+Namens hinzuzufügen, wird mit 400 abgelehnt.
+
+Ist die persönliche Basis eines Mitglieds älter als die gleichnamige Basis der
+Organisation, landen die Syncs der Organisation unter diesem Namen deshalb in der
+persönlichen Basis, und die Basis der Organisation nimmt keine Quelle an: Lege sie
+unter einem eigenen Namen an.
+
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 
     Pro Organisation aufzulösen ist nur deshalb sicher, weil sich alle Zeilen zu
@@ -630,6 +710,24 @@ das Anlageformular bietet also die Modelle an, die ein Provider tatsächlich
 bedienen kann — früher bot es jedes Modell an, für das dieser Build eine *Breite*
 kannte, darunter drei Sentence-Transformer-Gewichte, die hier nichts aufrufen
 kann.
+
+Eine OpenRouter-Collection kann einen eigenen **Endpoint** (`embedding_base_url`)
+nennen, etwa den regionalen `https://eu.openrouter.ai/api/v1`. Ein regionaler
+Endpoint stellt nur einen Teil des Katalogs bereit, und nur er weiß, welchen.
+Deshalb fragt `GET /rag/embedding-models/openrouter?base_url=…` ihn und antwortet
+mit den Katalogmodellen, die er aufführt. Die Breite liefert weiterhin der
+Katalog, weil die Liste keine nennt. Das Anlageformular bietet diese engere Liste
+an, und der Service lehnt eine Collection ab, deren Modell der Endpoint nicht
+bereitstellt: beim Erstellen auf `embedding_model`, beim Verschieben einer
+bestehenden auf `embedding_base_url`.
+
+Ein Endpoint, der nicht gefragt werden
+kann, gilt nicht als Ablehnung: Das Formular zeigt den ganzen Katalog und
+kennzeichnet ihn als unbestätigt. Ein Modell, das der Endpoint nicht
+bereitstellt, wurde früher angenommen, und dann scheiterte jeder Upload mit
+OpenRouters "No endpoints found supporting your data region", gespeichert als
+allgemeiner Hinweis, den Schlüssel zu prüfen. Ein 404 eines Embedding-Endpoints
+wird jetzt als das Modell gespeichert, das er nicht bereitstellt.
 
 Der Schlüssel wird bei der Erstellung validiert. Ein Schlüssel, den eine andere
 Organisation hält, einer mit dem falschen Zweck oder einer, den die wählende
@@ -812,7 +910,23 @@ sein, statt in einer Tabelle zu verharren, die nichts auflistet (#1361). Eine
 Suche liest die fehlende Tabelle als leer, und der nächste Upload legt sie neu
 an. Die Tabelle wird nur dann verschont, wenn eine Geschwister-Wissensdatenbank
 denselben Namen hält, denn der Vektor-Namensraum ist nicht Tenant-eindeutig und
-sie zu löschen würde deren Chunks mitnehmen (#913).
+sie zu löschen würde deren Chunks mitnehmen (#913). Dann verschwinden nur die
+Dokumentzeilen und Dateien der gelöschten Basis, und ihre Chunks werden aus der
+behaltenen Tabelle entfernt, wie unten für eine gelöschte Basis. Nicht zugeordnete
+Dokumentzeilen der Organisation der Basis (Uploads aus der Zeit, bevor Dokumente ihre
+Basis speicherten) verschwinden mit ihren Dateien und Chunks ebenfalls, außer eine
+andere Basis dieser Organisation hält den Namen und listet sie noch. Das Löschen einer
+Collection löschte früher jede Dokumentzeile unter dem Namen, auch die einer anderen
+Organisation (#2560).
+
+`rag-drop <name>` läuft durch denselben Teardown. Früher löschte es die Vektortabelle
+direkt, ohne Referenzprüfung, Sperre oder Reservierung, und ließ die Dokumentzeilen
+zurück, sodass es eine Tabelle zerstören konnte, die eine andere Basis noch nutzte.
+Jetzt leert es die eine Basis, die den Namen hält, oder löscht einen Namen ohne Basis
+(von `rag-ingest` befüllt) mit seinen Dokumentzeilen. Halten mehrere Basen den Namen,
+lehnt es ab und listet ihre IDs; `--knowledge-base <id>` nennt die zu leerende Basis,
+und die Tabelle bleibt für die anderen. Ein Worker löscht Tabelle und Dateien, nachdem
+der Befehl committet hat (#2560).
 
 `documents` war auch die **Vorgabe**-Collection, der CLI-Schnellstart zielte also
 früher auf die Verfolgungstabelle; die Vorgabe ist jetzt `default`. Eine
@@ -906,6 +1020,54 @@ von außerhalb des Scopes hervorholen kann. Eine app-scoped, deploymentweite Col
 wird darüber getroffen, dass *kein Tenant aufgestempelt ist*, statt über eine
 Gleichheit, an der jede Organisation scheitern würde - und genau das lässt alle die
 geteilte Basis lesen, ohne dass jemand die der anderen liest.
+
+**Ein Filter reicht auch nicht in eine andere Wissensbasis desselben Namens.** Der
+Tenant allein unterscheidet nicht jedes Paar: Eine app-weite Basis und eine persönliche
+Basis außerhalb jeder Organisation haben keinen, und die Basis einer Organisation und
+die persönliche Basis eines Mitglieds darin haben dieselbe Organisation. Deshalb hält
+jeder Chunk auch die Wissensbasis fest, für die er indexiert wurde, und Suche,
+Vektorzählung, die Suche beim Ersetzen und das Löschen lesen nur die Chunks der
+eigenen Basis; das Löschen eines Dokuments entfernt auch seine eigenen Chunks, die
+keine Basis festhalten. Ein Chunk, der geschrieben wurde, bevor Chunks ihre Basis
+festhielten, und den das Upgrade nicht zugeordnet hat, passt wie bisher über seinen
+Tenant - außer für eine persönliche Basis außerhalb jeder Organisation, deren Suche
+und Zählung keinen davon nehmen ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Das Löschen einer Wissensbasis, deren Collection-Namen eine andere Basis noch hält,
+behält die gemeinsame Tabelle, und der mit dem Löschen eingereihte Aufräum-Job
+entfernt die Chunks, die der gelöschten Basis zugeordnet sind. Das Löschen einer
+Organisation und das Löschen eines Kontos tun dasselbe für die Basen, die sie
+entfernen, und ebenso das Löschen einer Collection (`DELETE /rag/collections/{name}`),
+das auch nur die Dokumentzeilen dieser Basis löscht; bei einer behaltenen
+Standardbasis entfernt es nur die Chunks der gelöschten Dokumente, sodass ein Upload
+nach dem Löschen seine eigenen behält und ein Chunk ohne Dokumentzeile bleibt
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Wird eine Wissensbasis gelöscht (`DELETE /kb/{id}`), während eine andere Basis ihren
+Namen hält, gehen auch die nicht zugeordneten Dokumentzeilen ihrer Organisation mit
+ihren Dateien und Chunks, außer eine andere Basis dieser Organisation hält den Namen
+und listet sie noch - dieselbe Regel wie beim Löschen einer Collection ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+Sonst bleiben nicht zugeordnete Chunks und passen über ihren Tenant, und nicht
+zugeordnete Dokumentzeilen bleiben in den Basen ihres Tenants gelistet ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Ein Upload oder eine Synchronisierung, die beim Löschen der Basis noch eine Datei
+für sie indexiert, hinterlässt keine Chunks. Der Schreibvorgang nimmt eine
+Sperre auf der Zeile der Basis, die mit der des Löschens kollidiert, in der
+Transaktion, die die Chunks einfügt:
+Ein Schreibvorgang, der als zweiter kommt, findet die Basis nicht mehr, schreibt
+nichts und schlägt im Indexierungsschritt fehl, und ein Schreibvorgang, der als
+erster kommt, wird vor dem Löschen festgeschrieben, dessen Aufräumen seine Chunks
+danach entfernt
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Eine lokale Synchronisierung, die für eine vor ihrem Start gelöschte Basis
+eingereiht ist, endet mit einem Fehler und schreibt nichts
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Ein Agent durchsucht die Wissensbasen, an die er gebunden ist, in ihrem eigenen
+Scope, statt ihre Namen erneut aufzulösen. Ein Agent, der an zwei Basen desselben
+Namens gebunden ist, durchsucht ihren gemeinsamen Scope und schließt andere
+gleichnamige Basen aus.
 
 **`GET /rag/collections/{name}/filter-values`** antwortet mit den
 `organizational_unit`-Werten, die in der Collection tatsächlich vorkommen, unter
@@ -1549,8 +1711,10 @@ bildfähiges Modellprofil. Die Auswahl ist dieselbe, die der Agent-Builder nutzt
 ein Provider, ein Modell und sein Schlüssel lassen sich also festlegen, ohne den
 Dialog zu verlassen — ein Deployment ohne Modellprofile ist keine Sackgasse. Was
 sie nicht anbietet, ist das Löschen eines Profils: das gehört dorthin, wo die
-Modelle einer Organisation verwaltet werden, denn jeder Agent, der darauf zeigt,
-verliert es. Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
+Modelle einer Organisation verwaltet werden, und ein Profil, das Agents nutzen,
+lässt sich gar nicht löschen.
+
+Die erzeugten Beschreibungen werden in den Dokumenttext aufgenommen,
 für eine bessere semantische Suche.
 
 ## Aus einem Kanal { #from-a-channel }

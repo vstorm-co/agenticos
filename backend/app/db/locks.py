@@ -17,13 +17,14 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
-from enum import IntEnum
+from enum import IntEnum, unique
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
+@unique
 class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
@@ -67,15 +68,15 @@ class LockScope(IntEnum):
     #: tables, and "is this name free" followed by an insert is two statements:
     #: without this two creates of one name both pass the check and the second
     #: dies on the unique index with a 500 instead of a 409 (#1782).
-    VIRTUAL_TABLE_NAMES_PER_ORG = 12
+    VIRTUAL_TABLE_NAMES_PER_ORG = 20
     #: The record count of one table. A quota reads "how many records" and then
     #: inserts, which two creates can do at once and both pass at limit - 1, so
     #: creates into one table take turns for the length of the check (#1823).
-    VIRTUAL_TABLE_RECORD_COUNT = 13
+    VIRTUAL_TABLE_RECORD_COUNT = 21
     #: The agent one workflow step configures in place. Its first run creates it and
     #: a changed spec publishes a version, each read-then-write: two runs of the step
     #: at once would otherwise create it twice or publish the same spec twice.
-    WORKFLOW_STEP_AGENT = 14
+    WORKFLOW_STEP_AGENT = 22
     #: The stored file bytes of one organization. A quota sums what is stored and
     #: then inserts, which two steps can do at once and both pass at the ceiling.
     WORKFLOW_FILE_BYTES = 15
@@ -97,6 +98,13 @@ class LockScope(IntEnum):
     ACCOUNT_BOOTSTRAP = 12
     #: One mailbox poll, independent of its separately committed OAuth refresh.
     PORTAL_POLL = 13
+    #: One organization's model profiles against the agent specs that name them
+    #: (#2478). Deleting a profile checks that no draft, served or pinned version
+    #: names it and then deletes it; a draft save, a publish or a promotion
+    #: committing in between would name a profile that is gone. Every such write
+    #: takes this *shared*, so they never wait for each other; the delete takes it
+    #: exclusive, so it waits for those in flight and they wait for it.
+    MODEL_PROFILE_REFERENCES = 14
 
 
 def _key(subject: UUID) -> int:
@@ -135,6 +143,23 @@ async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) ->
                 func.pg_try_advisory_xact_lock(
                     cast(scope.value, Integer), cast(_key(subject), Integer)
                 )
+            )
+        )
+    )
+
+
+async def hold_subject_shared(db: AsyncSession, scope: LockScope, subject: UUID) -> None:
+    """Take the shared side of a subject's lock, until this transaction ends.
+
+    Shared holders never wait for each other; they wait only while a
+    transaction holds the same lock through :func:`hold_subject`, and that one
+    waits for every shared holder in flight. The key is the same two integers,
+    so the two sides meet.
+    """
+    await db.execute(
+        select(
+            func.pg_advisory_xact_lock_shared(
+                cast(scope.value, Integer), cast(_key(subject), Integer)
             )
         )
     )

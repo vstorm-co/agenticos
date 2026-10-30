@@ -42,14 +42,11 @@ describe("drawing a person", () => {
     expect(screen.getByText("(you)")).toBeVisible();
   });
 
-  it("falls back to a generated face when there is no picture", () => {
-    // Drawn from the id, so it is there for an account with no name at all and
-    // does not move when somebody sets one.
-    const { container } = render(
-      <MemberIdentity member={{ user_id: "u-2", full_name: null, email: "bob@acme.test" }} />,
-    );
+  it("falls back to initials when there is no picture or name", () => {
+    // An email still supplies a readable fallback for a nameless account.
+    render(<MemberIdentity member={{ user_id: "u-2", full_name: null, email: "bob@acme.test" }} />);
 
-    expect(container.querySelector("g.mo-root")).not.toBeNull();
+    expect(screen.getByText("BA")).toBeVisible();
   });
 
   it("prefers the name somebody gave over their address", () => {

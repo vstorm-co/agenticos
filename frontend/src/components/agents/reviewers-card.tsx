@@ -16,6 +16,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
+import { usableForAgents } from "@/lib/model-profiles";
 import type { RunReviewerSpec } from "@/types/agents";
 
 /** The spec's ceiling, so the button goes before the publish refusal would. */
@@ -51,7 +52,7 @@ export function ReviewersCard({ value, onChange, disabled }: ReviewersCardProps)
       ...reviewers,
       {
         name: unusedName(reviewers),
-        model_profile_id: profiles[0]?.id ?? null,
+        model_profile_id: profiles.find(usableForAgents)?.id ?? null,
         instructions: "",
         every: 10,
         window: 20_000,

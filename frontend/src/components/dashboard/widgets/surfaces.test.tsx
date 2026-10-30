@@ -28,6 +28,7 @@ function renderWidget() {
         { surface: "mattermost", runs: 31 },
         { surface: "web", runs: 16 },
         { surface: "workflow", runs: 3 },
+        { surface: "proactive", runs: 2 },
       ],
     },
     isLoading: false,
@@ -63,6 +64,13 @@ describe("the surfaces widget", () => {
     renderWidget();
 
     expect(screen.getByRole("link", { name: "Workflow" })).toBeVisible();
+  });
+
+  it("names proactive checks and links to their Activity filter", () => {
+    renderWidget();
+    const link = screen.getByRole("link", { name: "Proactive" });
+    expect(link.getAttribute("href")).toContain("surface=proactive");
+    expect(link.querySelector("svg")).not.toBeNull();
   });
 
   it("draws the surface's own mark beside its name", () => {

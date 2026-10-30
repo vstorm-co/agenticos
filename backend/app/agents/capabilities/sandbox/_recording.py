@@ -47,6 +47,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from typing import TYPE_CHECKING, TypeVar
 from uuid import UUID
 
+import httpx
 from pydantic_ai.workspaces import (
     CommandResult,
     FileEntry,
@@ -55,6 +56,8 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
     WrapperWorkspace,
 )
+
+from app.core.exceptions import ExternalServiceError
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,8 +97,14 @@ class RecordingWorkspace(WrapperWorkspace):
         agent_id: UUID | None,
         run_id: UUID | None = None,
         on_settled: Callable[[], Awaitable[None]] | None = None,
+        explain_unavailable: Callable[[Exception], Awaitable[Exception | None]] | None = None,
     ) -> None:
         super().__init__(wrapped)
+        # Asked about every "session is gone" before it is believed. A service of
+        # another version answers a route it lacks with a 404 the client reads as
+        # a lost session (#2484); the error this returns is raised instead, and a
+        # session it explains is noted as `mismatched` rather than `lost`.
+        self._explain_unavailable = explain_unavailable
         # Awaited after every operation, whatever it ended in. The first one also
         # opens the session, so this is how "the sandbox is ready" is heard
         # without the client having to say so.
@@ -113,6 +122,9 @@ class RecordingWorkspace(WrapperWorkspace):
         # operation passes through, and the close needs it: a lost session is
         # forgotten, so the next run opens a fresh one instead of failing again.
         self.lost = False
+        # Whether an operation met a service of another version (#2484). The
+        # session is alive, but the close forgets its ref as for a lost one.
+        self.mismatched = False
         # Whether any operation has reached the workspace this run, so the end of
         # a turn can leave an untouched one unopened instead of listing it.
         self.touched = False
@@ -192,9 +204,11 @@ class RecordingWorkspace(WrapperWorkspace):
         await self._first_use(call)
         try:
             return await call
-        except WorkspaceUnavailableError:
-            self.lost = True
-            raise
+        except Exception as exc:
+            explained = await self._explained(exc)
+            if explained is exc:
+                raise
+            raise explained from exc
         finally:
             await self._settled()
 
@@ -210,17 +224,47 @@ class RecordingWorkspace(WrapperWorkspace):
         try:
             result = await call
         except Exception as exc:
-            if isinstance(exc, WorkspaceUnavailableError):
-                self.lost = True
-            # The class, never the message: a shell's message is the command's
-            # own output and an HTTP client's carries the failing request (#423).
-            self._record(op, target, ok=False, detail=exc.__class__.__name__, started=started)
-            raise
+            explained: Exception = exc
+            try:
+                explained = await self._explained(exc)
+            finally:
+                # The class, never the message: a shell's message is the command's
+                # own output and an HTTP client's carries the failing request (#423).
+                # In a `finally` so a run cancelled during the probe still has its row.
+                self._record(
+                    op, target, ok=False, detail=explained.__class__.__name__, started=started
+                )
+            if explained is exc:
+                raise
+            raise explained from exc
         finally:
             await self._settled()
         ok, detail = outcome(result)
         self._record(op, target, ok=ok, detail=detail, started=started)
         return result
+
+    async def _explained(self, exc: Exception) -> Exception:
+        """What a session found gone means: the error explaining it, or `exc` - lost.
+
+        An unavailable session is noted lost unless an explanation arrives.
+        Other errors keep their original loss state, including legacy attach
+        conflicts: the service still holds their session.
+        """
+        if isinstance(exc, httpx.RequestError):
+            return ExternalServiceError(
+                message="The sandbox service is unreachable. Try again once its connection is restored.",
+                details={"service": "sandbox"},
+            )
+        explained: Exception | None = None
+        try:
+            if self._explain_unavailable is not None:
+                explained = await self._explain_unavailable(exc)
+        finally:
+            if explained is not None:
+                self.mismatched = True
+            elif isinstance(exc, WorkspaceUnavailableError):
+                self.lost = True
+        return exc if explained is None else explained
 
     async def _first_use(self, call: Coroutine[object, object, object]) -> None:
         """Mark the workspace used, running a deferred set-up first if there is one.

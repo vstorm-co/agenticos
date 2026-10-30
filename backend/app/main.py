@@ -21,6 +21,7 @@ from app.services import (
     browse_plans,
     change_feed,
     chat_room,
+    device_hub,
     live_browse,
     live_turn,
     platform_mcp,
@@ -283,6 +284,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # And the change feed (#2061): its middleware publishes above the dependency
     # graph, and its sockets outlive the request that opened them.
     change_feed.configure(redis_client)
+    # And the device hub (#2305): a computer's socket outlives any request, and a
+    # call to it is routed to whichever host holds that socket.
+    device_hub.configure(redis_client)
     # And browses' live views (#2128): published from a tool call, read by sockets
     # that outlive any request.
     live_browse.configure(redis_client)
@@ -409,6 +413,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     trigger_dedupe.configure(None)
     maintenance.configure(None)
     change_feed.configure(None)
+    device_hub.configure(None)
     live_browse.configure(None)
     live_turn.configure(None)
     chat_room.configure(None)

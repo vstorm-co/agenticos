@@ -275,6 +275,29 @@ describe("ArtifactViewer", () => {
     expect(sharingPanel).not.toHaveBeenCalled();
   });
 
+  it("changes the app theme independently of the console without reloading its frame", async () => {
+    useArtifactMock.mockReturnValue(state(detail()));
+    document.documentElement.classList.add("dark");
+    try {
+      render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+      const frame = screen.getByTitle("Weekly report");
+      expect(frame).toHaveStyle({ colorScheme: "light" });
+      await userEvent.click(screen.getByRole("button", { name: "Use dark app theme" }));
+      expect(screen.getByTitle("Weekly report")).toBe(frame);
+      expect(frame).toHaveStyle({ colorScheme: "dark" });
+      expect(screen.getByRole("button", { name: "Use dark app theme" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Use light app theme" }));
+      expect(frame).toHaveStyle({ colorScheme: "light" });
+      expect(document.documentElement).toHaveClass("dark");
+      expect(frame).toHaveAttribute("src", "https://api/c/t");
+    } finally {
+      document.documentElement.classList.remove("dark");
+    }
+  });
+
   it("follows a page, and says so on the button once it does", async () => {
     const follow = mutation();
     useArtifactMock.mockReturnValue(state(detail(), { follow }));

@@ -61,7 +61,9 @@ from app.services.channels.base import (
     IncomingPress,
     OutgoingMessage,
     PromptMessage,
+    broadcast_mentioned,
     feedback_value,
+    mentionable_text,
     split_thread,
     supervise_stream,
     thread_key,
@@ -487,10 +489,10 @@ class MattermostAdapter(ChannelAdapter):
         response.raise_for_status()
 
     async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
-        """Take the thumbs off, saying which was pressed - Mattermost's buttons do not."""
-        await self.settle_prompt(
-            bot_token, press, ":+1: Rated helpful" if helpful else ":-1: Rated not helpful"
-        )
+        """Keep shared buttons available; the callback privately confirms the vote.
+
+        Removing them from the post would stop every other participant voting.
+        """
 
     async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
         """Take the buttons off the pressed post, leaving what was asked and chosen."""
@@ -1200,7 +1202,19 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=data.get("sender_name") or None,
             message_id=post.get("id"),
             attachments=attachments,
-            addressed=self._addressed(data, bot_id),
+            broadcast_mention=broadcast_mentioned(self.platform, text),
+            addressed=self._direct_addressed(data, bot_id, text),
+        )
+
+    def _direct_addressed(self, data: dict[str, Any], bot_id: str, text: str) -> bool | None:
+        addressed = self._addressed(data, bot_id)
+        if not broadcast_mentioned(self.platform, text):
+            return addressed
+        own = self._own_names.get(bot_id)
+        return bool(
+            addressed is True
+            and own
+            and re.search(rf"(?<!\w)@{re.escape(own)}(?![\w.-])", mentionable_text(text), re.I)
         )
 
     def _addressed(self, data: dict[str, Any], bot_id: str) -> bool | None:
@@ -1428,5 +1442,8 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=str(payload.get("user_name") or "") or None,
             message_id=str(payload.get("post_id") or "") or None,
             attachments=attachments,
-            addressed=bool(str(payload.get("trigger_word") or "").strip()),
+            broadcast_mention=broadcast_mentioned(self.platform, text),
+            addressed=bool(str(payload.get("trigger_word") or "").strip())
+            and str(payload.get("trigger_word") or "").strip().lstrip("@").casefold()
+            not in {"all", "here", "channel", "everyone"},
         )

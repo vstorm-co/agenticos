@@ -1,5 +1,5 @@
 ---
-source_sha: "f059e3252bba"
+source_sha: "3b553bcc7ca4"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -24,6 +24,21 @@ Playwright. Gestor de paquetes y runner: **bun**.
 
 Los Server Components son lo predeterminado. `"use client"` es para state,
 effects y handlers, no por costumbre.
+
+## Presentación de la consola { #console-presentation }
+
+Usa `PageHeader` para títulos y acciones compactos. Los catálogos de tarjetas
+usan `ListCard layout="grid"` sin un panel adicional; las tablas conservan el
+panel. Los botones usan tokens neutros `action`, independientes de `primary`
+para controles seleccionados e insignias. El foco y los bordes de los campos
+siguen siendo visibles.
+
+Las personas y organizaciones usan `EntityAvatar`: las fotos se recortan en
+círculos, con iniciales sobre un color estable como alternativa. Los agentes
+conservan sus caras generadas. Las descripciones del catálogo reservan dos
+líneas; al abrir un elemento se muestra la descripción completa.
+
+Las acciones asíncronas usan `Button loading` para conservar su etiqueta y tamaño y evitar envíos repetidos. El estado continúa hasta completar todos los pasos, incluidas las cargas de archivos. Los botones basados en enlaces conservan un único hijo y bloquean la activación mientras no están disponibles. Los controles comparten el foco de teclado y tamaños compactos en escritorio, con objetivos táctiles de 44px cuando hay espacio. Las capas se animan desde su anclaje; las ayudas ajustan el texto al ancho de la ventana. El calendario usa el idioma de la consola y el progreso expone su valor real y máximo a las tecnologías de asistencia. Las animaciones respetan la preferencia Motion de la persona.
 
 ## El navegador nunca llama al backend { #the-browser-never-calls-the-backend }
 

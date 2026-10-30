@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Eye, FileText, Loader2, Trash2, Upload } from "lucide-react";
+import { Download, Eye, Loader2, Trash2, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -12,6 +12,7 @@ import {
   ListCardFootRow,
   type Column,
 } from "@/components/ui";
+import { FileIcon } from "@/components/files/file-icon";
 import { DocumentProvenance } from "@/components/rag/document-cells";
 import { RagStatusBadge } from "@/components/rag/rag-status-badge";
 import { kbDocumentAccess } from "@/lib/rag-api";
@@ -79,7 +80,7 @@ export function DocumentsTable({
         cell: (doc) => (
           <div className="flex min-w-0 items-center gap-3">
             <span className="bg-muted text-muted-foreground inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-              <FileText className="h-3.5 w-3.5" />
+              <FileIcon name={doc.filename} mimeType={doc.filetype} className="size-4" />
             </span>
             <span className="text-foreground truncate font-medium" title={doc.filename}>
               {doc.filename}
@@ -173,6 +174,7 @@ export function DocumentsTable({
 
   return (
     <ListCard
+      fill
       data-tour="kb-documents"
       title={t("documents")}
       counted={

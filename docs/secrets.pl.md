@@ -1,5 +1,5 @@
 ---
-source_sha: "4d3610509a70"
+source_sha: "eb6562d37c82"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -119,6 +119,12 @@ jest odrzucany przy zapisie każdego z nich, a klucz, który później stał si�
 prywatny, przestaje być używany. W odróżnieniu od `github_oauth_app` te klucze
 są wskazywane po identyfikatorze, więc może ich być kilka obok siebie.
 
+Lista kluczy głosowych wskazuje widoczne klucze, których nie można wybrać,
+ponieważ są prywatne lub udostępnione tylko wybranym osobom, i wyjaśnia potrzebę
+udostępnienia ich organizacji. Logowanie ChatGPT jest rozpoznawane osobno:
+zapewnia dostęp do modeli w ramach subskrypcji ChatGPT i nie zastępuje klucza
+API OpenAI do funkcji głosowych. Lista nigdy nie zmienia automatycznie dostępu do poświadczeń.
+
 `git_token` niesie swój host, bo źródło synchronizacji Git wysyła token pod adres
 URL wybrany przez tego, kto edytuje źródło. Związany z hostem, z którym został
 dodany, token nie może zostać skierowany na inny serwer przez edycję źródła
@@ -177,7 +183,12 @@ jest jeszcze otwarty.
 
 **Providerzy modeli.** Nazywani przez [profil modelu](models.md). Wydatek jest
 przypisywany do sekretu, do którego rozwiązał się dany run, i tak właśnie pytanie
-„który klucz kosztuje najwięcej" dostaje odpowiedź.
+„który klucz kosztuje najwięcej" dostaje odpowiedź. Przypisanie klucza do profilu
+pożycza go każdemu, kto na nim działa, więc utworzenie lub edycja profilu - jego
+klucza albo endpointu - wymaga `secrets:view` na tym kluczu. Usunięty klucz
+zostawia swoje profile oznaczone `missing_key`, dopóki nie dostaną innego, także
+profil przed gatewayem. Bez klucza dalej działa tylko profil celowo zapisany bez
+klucza ([Profil bez klucza](models.md#a-profile-without-a-key)).
 
 **Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
 wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie

@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -40,7 +40,190 @@ El spec de un agent nombra uno con `model_profile_id`, y el run lo resuelve.
     lista de aquí, y un campo que no puede expresar «ese» es un campo que la
     gente esquiva editando el spec a mano.
 
+### Un perfil en el que un agent no puede ejecutarse { #a-profile-an-agent-cannot-run-on }
+
+Un perfil puede nombrar un modelo que no mantiene una conversación: un modelo de
+texto a voz como `gpt-4o-mini-tts`, un modelo de voz en tiempo real, un modelo de
+transcripción, un modelo de
+imágenes, un modelo de vídeo o un modelo de embeddings. Un agent en uno de ellos
+falla en su primer turno. El texto a voz, la generación de imágenes y la
+transcripción no usan perfiles: cada función nombra su propio provider y su propio
+modelo.
+
+La plataforma conoce estos modelos por sus propios catálogos (las listas de texto
+a voz, voz en tiempo real, transcripción, imágenes, vídeo y embeddings).
+`GET /providers/model-profiles` marca cada perfil con `chat_capable` y
+`output_modalities`, y `GET /providers/{provider}/models` marca cada sugerencia
+con `chat_capable`. Esos dos campos también leen el listado de un provider que
+indica qué emite cada modelo (OpenRouter y el router de Hugging Face lo hacen),
+cuando el proceso de la API ya lo ha obtenido. Ese listado solo cambia lo que
+ofrece un selector. Nunca rechaza una publicación, porque otro proceso de la API
+puede no haberlo obtenido.
+
+La consola también actualiza los perfiles guardados
+cuando el listado llega después. Los alias de provider como `openai_codex` y
+`google_cloud` usan los catálogos del proveedor correspondiente. Entonces:
+
+- El panel de modelo del Builder, los selectores de revisor y de especialista, los
+  campos del modelo de los pasos siguientes y del modelo de pasos del navegador y
+  el selector del modelo que describe imágenes en la base de conocimiento no
+  ofrecen un modelo así. Si un agent ya nombra uno, el Builder lo sigue mostrando,
+  marcado como un modelo que no es de chat. A un miembro que gestiona conexiones,
+  el Builder también le lista los demás, marcados y sin poder elegirse, para que
+  se puedan eliminar.
+- El selector de modelo del chat y el formulario para añadir un modelo del Builder
+  no sugieren un modelo así y rechazan uno escrito a mano.
+- La publicación rechaza un modelo así como modelo del agent, de un revisor o de
+  un especialista, como modelo de pasos del navegador o como modelo de los pasos
+  siguientes, y lo nombra. También rechaza un perfil cuyos fallbacks incluyen un
+  modelo así. La misma comprobación se ejecuta al volver a una versión, en la
+  comprobación del borrador, en la prueba del Builder y al activar una capability
+  desde el chat. Una versión guardada en un modelo así sigue cargándose, pero no se
+  puede restaurar mientras su perfil nombre un modelo que no es de chat o lo liste
+  como fallback. Apunta ese perfil a un modelo de chat o publica una versión nueva.
+- Un run deja un fallback así fuera de su cadena, igual que uno eliminado, cuando
+  se añadió al perfil después de publicar.
+- Una conversación que nombra un modelo así en lugar del modelo del agent, desde
+  el chat o a través de la API, se rechaza antes de que empiece el run.
+- Un modelo que los catálogos no clasifican, como un modelo de Ollama o un modelo
+  publicado esta mañana, está permitido. Un modelo desconocido no es un rechazo.
+  Un perfil con su propio endpoint (`base_url`) nunca se clasifica, sea cual sea
+  el id del modelo: los catálogos describen la API propia del provider, y un
+  servidor compatible con OpenAI puede servir un modelo de chat con cualquier
+  nombre.
+
+El selector de modelo de proactividad sigue la misma regla. La comprobación de los
+catálogos estables también se aplica al configurar la proactividad y al resolver
+un perfil para una petición de texto normal, incluida la descripción de imágenes
+al configurar y en el worker. Las configuraciones antiguas siguen cargándose;
+hay que sustituir un modelo incompatible antes de usarlas. Sigue siendo posible
+desactivar la función. Los nombres de despliegues de Azure no se clasifican a
+partir de los identificadores de modelos base del catálogo.
+
+### El modelo con el que empieza un agent nuevo { #the-model-a-new-agent-starts-on }
+
+No hay un modelo predeterminado para toda la organización. El spec de un agent
+nombra su modelo, y la publicación rechaza un spec que no nombra ninguno.
+
+Un agent nuevo que no nombra un modelo empieza con el modelo de la organización
+cuando la organización tiene exactamente un modelo en el que un agent puede
+ejecutarse. Es un modelo de chat con clave, o uno autoalojado guardado para
+ejecutarse sin clave, que la publicación acepta tal como está, fallbacks incluidos.
+Se aplica a todas las formas de crear un agent: **New agent** en la consola, `POST
+/agents` sin `model_profile_id`, una plantilla, una copia de un borrador sin modelo
+y un especialista promovido.
+
+El Architect, el asistente de la organización, elige su propio modelo al publicarse:
+el primer modelo de chat que la publicación acepta, y nunca un modelo con un [inicio
+de sesión de ChatGPT](#running-on-a-chatgpt-subscription). El Architect sirve a toda
+la organización, y un inicio de sesión es la suscripción de una persona: las
+ejecuciones de los miembros que no pueden verlo en el vault se rechazan, y las de
+quienes sí pueden, como los propietarios y administradores de la organización, la
+gastan. Con solo un inicio de sesión, el Architect espera a otro modelo.
+
+Un inicio de sesión que alguien elige en su borrador, o un modelo con un fallback
+a uno, se queda ahí, pero solo se publica cuando alguien que puede cambiar la configuración de la organización lo
+publica en el Builder. Un Architect ya publicado con un inicio de sesión conserva
+ese modelo hasta que alguien que puede cambiar la configuración de la organización
+elige otro en **Build > Model** y lo publica.
+
+El modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
+**Model**, y su historial muestra con qué modelo se publicó. Un spec que nombra un
+modelo lo conserva. El borrador cuenta entonces como uso del modelo: el modelo no se
+puede borrar hasta que el agent pase a otro modelo o se borre; archivarlo no basta.
+Para cambiar solo la clave o el endpoint del modelo, edítalo en su sitio ([Cambiar
+la clave o el endpoint de un perfil](#changing-a-profiles-key-or-endpoint)).
+
+El borrador se queda sin modelo cuando la organización no tiene ninguno o tiene más
+de uno. Los perfiles en los que un agent no puede ejecutarse no cuentan: un perfil
+sin clave, un modelo de texto a voz y los demás modelos de [Un perfil en el que un
+agent no puede ejecutarse](#a-profile-an-agent-cannot-run-on), ni un perfil que la
+publicación rechazaría, como uno con un fallback a uno de esos modelos. Un modelo con un
+[inicio de sesión de ChatGPT](#running-on-a-chatgpt-subscription) nunca se elige en
+nombre de nadie, porque es la suscripción de una persona, pero cuenta como modelo.
+
+Tampoco se elige un modelo cuyos fallbacks incluyen un inicio de sesión entre los
+tres primeros, los que prueba un run: cuando el modelo falla, el run de cualquiera
+que pueda ver el inicio de sesión pasaría a esa suscripción. El Architect tampoco
+elige un modelo así. Un autor todavía puede elegirlo a
+propósito y publicarlo.
+
+La publicación rechaza entonces el borrador con *No model selected - pick one under
+Build > Model before publishing*. El rechazo también marca el campo
+(`model_profile_id` en `details.fields`), y la consola muestra al lado **Go to
+Model**, que abre la pestaña **Build** en la tarjeta **Model**.
+
+### Cambiar la clave o el endpoint de un perfil { #changing-a-profiles-key-or-endpoint }
+
+Los agents nombran un perfil por su id. Para mover un modelo a otra clave, otro
+endpoint u otra API de OpenAI, edita el perfil en su sitio:
+`PATCH /providers/model-profiles/{id}` cambia `secret_id`, `base_url`, `api`,
+`params` o `label` y conserva el id. Cada agent sobre el perfil usa el cambio
+desde su siguiente run. Nadie tiene que volver a publicar nada.
+
+En el panel de modelo del Builder, cambia la clave, el endpoint o la API del
+modelo en uso. El botón pasa a decir **Update model**, y el panel indica que cada
+agent sobre este modelo cambia con él. **Add model** sigue siendo el botón para
+otro provider u otro modelo, y para un modelo al que das un nombre propio. Usa
+**Name it something else** para dar solo a este agent un modelo aparte.
+
+Una edición sigue las mismas reglas que la creación y necesita el mismo permiso
+`connections:manage`. Una clave nueva debe estar en el vault de esta
+organización, ser visible para ti y estar guardada para el provider del perfil.
+Un endpoint nuevo comprueba la clave guardada del mismo modo, porque el endpoint
+es adonde se envía la clave. Un provider que necesita clave no puede perderla. Un
+provider keyless sin clave conserva un endpoint. La etiqueta debe seguir siendo
+única.
+
+Si cambias el endpoint y no envías `api`, una API que solo era la
+predeterminada del endpoint anterior pasa a la predeterminada del nuevo, y una
+API elegida a propósito se mantiene. El registro de auditoría guarda
+`model_profile.updated` con los nombres de los campos cambiados, no sus valores.
+No puedes cambiar el provider ni el id del modelo. Otro modelo es otro perfil.
+
+`connections:manage` es, por tanto, la autoridad para mover a cada agent sobre un
+modelo, incluidos los agents que no puedes editar: un endpoint nuevo recibe sus
+peticiones desde el siguiente run. Concédelo a quienes gestionan los modelos de
+la organización.
+
+### Un perfil sin clave { #a-profile-without-a-key }
+
+Si borras una clave del vault, sus perfiles se quedan con `secret_id` a null.
+`GET /providers/model-profiles` los marca con `missing_key: true`. Un perfil
+guardado sin clave a propósito es otra cosa: un modelo autoalojado o un gateway
+que no autentica nada, en un provider keyless con endpoint, como un Ollama en tu
+red o un servidor compatible con OpenAI. Lo registra como `runs_without_key` y
+sigue ejecutándose. Un perfil de gateway que tenía clave y la perdió se marca con
+`missing_key` como cualquier otro. Entonces:
+
+- Los selectores de modelo del agent y del chat no lo ofrecen. Si un agent ya lo
+  nombra, el Builder lo muestra con la marca **no key** y te pide que le des una
+  clave.
+- La publicación lo rechaza y nombra el modelo. También rechaza un perfil cuyos
+  tres primeros fallbacks incluyen uno sin clave, porque un run lo saltaría. Un run sobre él falla con
+  "no key configured".
+- Para repararlo, abre un agent sobre ese modelo, elige una clave en **Model** y
+  pulsa **Update model**. Cada agent sobre el modelo vuelve a funcionar.
+
+### Borrar un perfil { #deleting-a-profile }
+
+`DELETE /providers/model-profiles/{id}` rechaza un perfil que usan agents. La
+respuesta es `409 IN_USE`, y `details.agents` lista cada agent que puedes ver, con
+id y nombre. `details.hidden_agents` cuenta los agents que no puedes ver. Un
+perfil está en uso cuando el borrador de un agent, su versión servida o una
+versión que fija un entorno nombra el perfil en cualquier lugar: como modelo del
+agent, de un revisor o de un especialista, o en una capability, como el modelo de
+follow-ups o el modelo de los pasos del navegador.
+
+Los agents archivados cuentan,
+porque desarchivarlos restaura la versión que servían. El rechazo los marca con
+`archived`: un agent archivado no puede publicar, así que bórralo, o
+restáuralo y muévelo. Las versiones antiguas que nada sirve no cuentan. Mueve
+primero los demás agents a otro modelo. Para cambiar solo la clave, edita el perfil.
+
 ### Fallbacks { #fallbacks }
+
+El runner usa solo los tres primeros fallbacks; solo esos se comprueban al publicar.
 
 Un perfil puede listar perfiles de fallback, probados en orden. La caída de un
 provider no debería tumbar los agents de una organización cuando esta tiene una
@@ -142,7 +325,7 @@ credencial quiere un provider.**
 | OpenAI | `openai` | clave de API, o ninguna | ✓ |
 | Anthropic | `anthropic` | clave de API | ✓ |
 | Google Gemini | `google` | clave de API | ✓ |
-| OpenRouter | `openrouter` | clave de API | |
+| OpenRouter | `openrouter` | clave de API |  ✓ |
 | Alibaba Cloud | `alibaba` | clave de API | ✓ |
 | Cerebras | `cerebras` | clave de API | |
 | DeepSeek | `deepseek` | clave de API | |
@@ -256,6 +439,24 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       una página pública o un embed, quien llama con una clave API - y para el
       trabajo en segundo plano como describir las imágenes de un documento, el
       modelo se rechaza y un fallback sobre él se omite.
+    - **No cualquiera puede publicar sobre él.** Publicar, hacer rollback a o
+      promover una versión de un agente se rechaza para quien no puede ver el
+      inicio de sesión en el vault cuando funciona sobre él un modelo al que
+      llegan sus runs: el modelo del agente, el de un revisor, el de un
+      especialista inline o el de una capability activada, el modelo de un
+      [delegado que fija](reference/capabilities.md#delegation) y de lo que ese
+      delegado alcanza a su vez, o uno de los tres primeros fallbacks de
+      cualquiera de ellos. Pueden hacerlo el dueño del inicio de sesión, los
+      owners y admins, y cualquiera con quien se haya compartido. Una clave de
+      API no puede, vea lo que vea quien la emitió, porque un run con una clave
+      nunca gasta un inicio de sesión. Una versión publicada antes sobre él
+      sigue funcionando.
+    - **No se ofrece a un especialista que invente el modelo.** Con
+      [`allow_dynamic`](reference/capabilities.md#delegation) el modelo de un run
+      puede elegir el modelo de un especialista entre los perfiles de la
+      organización. Un perfil sobre un inicio de sesión, o uno cuyos tres
+      primeros fallbacks llegan a uno, solo está en esa lista cuando el spec del
+      agent nombra exactamente ese perfil como uno de los modelos de arriba.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
       la API de OpenAI para el mismo modelo, que es lo que un
       [budget](governance.md#budgets) puede razonar. La suscripción en sí la
@@ -564,3 +765,11 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 hace las tres cosas para un despliegue nuevo.
+
+Para usar la API regional de OpenRouter, conserva **OpenRouter** como proveedor e introduce `https://eu.openrouter.ai/api/v1` en **Endpoint** del formulario del modelo. El perfil mantiene su clave OpenRouter del Vault, el tratamiento nativo de modelos y los controles de caché. Las sugerencias se obtienen de ese endpoint y se almacenan en una caché independiente; si falla la lista regional, no se utiliza el catálogo global. En las bases de conocimiento, configura el endpoint de embeddings por separado al crear la colección o editar su proveedor de embeddings. Las configuraciones existentes mantienen el endpoint global. El enrutamiento EU requiere un plan OpenRouter Business o Enterprise adecuado; el [enrutamiento regional](https://openrouter.ai/docs/guides/get-started/sovereign-ai) y ZDR son políticas distintas de OpenRouter.
+
+Un endpoint regional sirve menos modelos de embeddings que el global: `eu.openrouter.ai` sirve `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` y `google/gemini-embedding-2`, y ninguno de OpenAI. El formulario de creación ofrece solo los modelos que lista el endpoint, y se rechaza una colección cuyo modelo el endpoint no sirve, tanto al crearla como al moverla a él. Los dos modelos de Mistral no están en la instantánea de precios incluida, así que su gasto se registra como valorado en parte.
+
+Actualiza todos los procesos de API y workers antes de configurar endpoints regionales. Las versiones anteriores ignoran el endpoint personalizado de OpenRouter.
+
+Para otro endpoint con el mismo proveedor y modelo, elija **Añadir modelo separado** en el Builder. El nombre automático incluye el endpoint y el perfil existente no cambia. **Actualizar modelo** modifica el perfil compartido. Los catálogos personalizados están limitados a 2 MiB, 2048 modelos y longitudes de campos acotadas, con un máximo de 16 catálogos en caché por proceso. Una respuesta comprimida o demasiado grande permite escribir el ID del modelo sin recurrir a una lista global.

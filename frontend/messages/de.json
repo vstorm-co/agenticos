@@ -143,9 +143,9 @@
     "capabilityToolsTab": "Tools",
     "capabilityUsesNoSecret": "Diese Capability nutzt kein Secret, das dafür gewählte würde also gespeichert und nie gelesen. Das Veröffentlichen lehnt es ab.",
     "channelCanOverrideScope": "Jeder Kanal, auf dem dieser Agent veröffentlicht ist, kann das überschreiben.",
-    "channelLookupsHint": "Aufgeführt ist nur, was diese Plattform beantworten kann. Der Agent sieht genau das, was der Bot sieht, er muss also zuerst im Kanal sein.",
-    "channelLookupsOn": "Was dieser Agent auf {platform} nachschlagen darf",
-    "channelPromptHint": "Wird nur hier den Instruktionen des Agents hinzugefügt. Ein neuer Kanal beginnt mit dem, was dieser Client darstellt und wie dort ein Link geschrieben wird – ändern Sie es, ergänzen Sie es oder leeren Sie es.",
+    "channelLookupsHint": "Name, Thema und eine begrenzte sichtbare Mitgliederliste werden automatisch ergänzt. Diese Schalter gewähren weitere Aktionen; Dateizustellung benötigt eine Nutzeranfrage.",
+    "channelLookupsOn": "Was dieser Agent auf {platform} tun darf",
+    "channelPromptHint": "Die Laufzeit ergänzt Plattform, Kontoverbindung des Absenders und aktuelle Kanaldaten bei jedem Run. Dieser editierbare Text ergänzt Bindungsinstruktionen; neue Bindungen enthalten Formatierungs- und Gesprächshinweise.",
     "channelPromptOn": "Zusätzliche Instruktionen auf {bot}",
     "channelPromptPlaceholder": "Was dieser Agent wissen sollte, um hier zu antworten.",
     "channelPromptVariables": "Einfügen:",
@@ -846,7 +846,7 @@
     "embedVoiceUnavailable": "Sprachanrufe setzen eine eingerichtete Stimme auf der Karte „Stimme“ dieses Agents voraus.",
     "embedVoiceDrift": "Besucher sehen keine Anruftaste, bis dieser Agent wieder Anrufe annehmen kann.",
     "embedVoiceUnchecked": "Sprachanrufe lassen sich gerade nicht prüfen: Der Anrufstatus dieses Agents konnte nicht geladen werden. Laden Sie die Seite neu, um es erneut zu versuchen.",
-    "voiceProviderNoKey": "{name} (noch kein Schlüssel)",
+    "voiceProviderNoKey": "{name} (kein geeigneter Schlüssel)",
     "voiceConversationEnabled": "Sprachanrufe erlauben",
     "voiceConversationEnabledHint": "Aus, bis Sie es einschalten. Wirkt, sobald der Agent veröffentlicht ist.",
     "voiceConversationProvider": "Provider für Anrufe",
@@ -972,7 +972,22 @@
     "newStarterPlaceholder": "Wobei kannst du mir helfen?",
     "addStarter": "Hinzufügen",
     "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
-    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher"
+    "platformHeldBadge": "liest frühere Unterhaltungen, fragt vorher",
+    "noKeyForEndpoint": "Kein Schlüssel - der Endpunkt braucht keinen",
+    "notAChatModel": "kein Chat-Modell",
+    "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wählen Sie vor dem Veröffentlichen ein Chat-Modell.",
+    "modelHasNoKeyHint": "Der Schlüssel dieses Modells wurde aus dem Vault gelöscht, daher kann nichts darauf laufen. Geben Sie ihm im Modellbereich einen Schlüssel oder wählen Sie ein anderes Modell.",
+    "updateModel": "Modell aktualisieren",
+    "updateModelHint": "Speichert den neuen Schlüssel, Endpunkt oder die API für {label}. Alles, was dieses Modell nutzt, wechselt mit: jeder Agent und jede Sammlung oder geplante Arbeit darauf. Um diese unverändert zu lassen, wählen Sie „Nennen Sie ihn anders“ und fügen Sie ein eigenes Modell hinzu.",
+    "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
+    "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",
+    "openRouterEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
+    "defaultEndpoint": "Standard-API",
+    "addSeparateModel": "Separates Modell hinzufügen",
+    "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird.",
+    "backendComputerLabel": "Computer",
+    "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
+    "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1081,7 +1096,8 @@
     "signupWithInvitation": "Sie registrieren sich mit einer Einladung, deshalb gelten die Registrierungsbeschränkungen dieses Deployments für Sie nicht.",
     "directorySignIn": "Mit {provider} anmelden",
     "directoryUsername": "{provider}-Benutzername",
-    "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden"
+    "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden",
+    "nativeLogoutFailed": "Abgemeldet, aber die App konnte den lokalen Zugriff nicht löschen."
   },
   "billing": {
     "description": "Verwalten Sie das Abonnement von {org}.",
@@ -1167,7 +1183,6 @@
     "controls": {
       "approvalMode": "Freigabemodus",
       "backAgentAposS": "Zurück zum eigenen Modell des Agents",
-      "cannotWaive": "Freigaben zu übergehen braucht die Berechtigung, über sie zu entscheiden, und diese Organisation muss es erlauben.",
       "escToClose": "Esc zum Schließen",
       "howMuchToBeAsked": "Wie oft möchten Sie gefragt werden, bevor ein Tool läuft?",
       "label": "Chat-Steuerung",
@@ -1182,9 +1197,52 @@
         "ask_all": "Vor jedem Tool fragen, das dieser Agent nutzen darf, auch vor denen, die er sonst nicht bremst."
       },
       "modelTitle": "Modell: {model}",
-      "savedForChat": "Für diesen Chat gespeichert",
-      "savesOnSend": "Wird beim Senden gespeichert",
-      "whichModelRunsHere": "Auf welchem Modell diese Unterhaltung läuft. Alles andere am Agent bleibt, wie es ist."
+      "whichModelRunsHere": "Auf welchem Modell diese Unterhaltung läuft. Alles andere am Agent bleibt, wie es ist.",
+      "workOn": {
+        "browserTitle": "Browser",
+        "agentBrowser": "Agent-Einstellung",
+        "computerBrowser": "Lokaler Browser",
+        "browserIndependent": "Im Desktop-Chat auch ohne Browser-Fähigkeit des Agenten verfügbar. Dateien und Befehle haben eine eigene Auswahl.",
+        "title": "Arbeiten auf",
+        "cloud": "Cloud",
+        "computer": "Diesem Computer",
+        "notLinked": "Wählen Sie einen Ordner oder Gesamter Computer, um die App zu verbinden und Zugriff zu erlauben.",
+        "linking": "Verknüpfen…",
+        "offline": "Dieser Computer ist gerade nicht verbunden; ein Lauf wartet, bis er zurück ist.",
+        "folders": "Ordner",
+        "pick": "Ordner wählen…",
+        "folderAccess": "Ordnerzugriff",
+        "pickFailed": "Dieser Ordner konnte nicht hinzugefügt werden.",
+        "revoke": "Agenten nicht mehr in {folder} arbeiten lassen",
+        "mode": {
+          "read_only": "Nur lesen",
+          "workspace_write": "Im Ordner schreiben",
+          "full_access": "Vollzugriff"
+        },
+        "modeHint": {
+          "read_only": "Agenten lesen hier Dateien; nichts wird geschrieben und kein Befehl läuft.",
+          "workspace_write": "Agenten schreiben in diesem Ordner; Befehle laufen in einer Sandbox und können nirgendwo anders schreiben.",
+          "full_access": "Befehle laufen als Sie, und jeder fragt Sie vorher."
+        },
+        "model": "Modell für diesen Chat",
+        "agentModel": "Konfiguriertes Modell des Agenten",
+        "accessHint": "Lokale Werkzeuge sind hier ohne Sandbox im Builder verfügbar. Der Ordnermodus gilt für Dateien und Befehle; Browser und MCP haben eigene Berechtigungen.",
+        "mcpLimit": "Wähle bis zu 8 lokale MCP-Dienste pro Chat.",
+        "wholeComputer": "Gesamter Computer",
+        "revokeComputer": "Zugriff auf den gesamten Computer widerrufen",
+        "computerConsent": "Für dieses Gespräch erlaubt. Befehle laufen ohne einzelne native Bestätigungen. Hier können Sie den Zugriff widerrufen; Systemberechtigungen gelten weiterhin.",
+        "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut.",
+        "computerUseTitle": "Computer use",
+        "computerUseIndependent": "Bildschirm, Maus und Tastatur dieses Computers verwenden, auch wenn der Agent keine Computer-use-Fähigkeit hat. Dies gewährt keinen Dateizugriff. Die Desktop-App fragt bei Bedarf nach Bildschirm- und Bedienungshilfenberechtigungen.",
+        "computerUseLocal": "Lokaler Computer"
+      },
+      "modelSection": "Modell",
+      "permissionsSection": "Berechtigungen",
+      "waiverPermission": "Dieser Modus erfordert die Berechtigung, Genehmigungen zu entscheiden. Wende dich an die Organisationsverwaltung.",
+      "waiverOrg": "Deine Organisation hat diesen Modus deaktiviert. Er lässt sich unter Budget und Genehmigungen aktivieren.",
+      "waiverUnknown": "Die Genehmigungseinstellungen der Organisation sind noch nicht verfügbar. Versuche es nach dem Laden der Organisation erneut.",
+      "waiverSettings": "Genehmigungseinstellungen öffnen",
+      "savedPreferences": "Für weitere Chats gespeichert"
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",
@@ -1279,7 +1337,8 @@
       "showWithCount": "Die Dateien anzeigen ({count})",
       "storedSuffix": "{size} gespeichert",
       "title": "Dateien",
-      "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt."
+      "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt.",
+      "onThisComputer": "In {folder} auf diesem Computer"
     },
     "generateShareLink": "Freigabelink erzeugen",
     "helpful": "Hilfreich",
@@ -1309,6 +1368,15 @@
       "commandsHint": "Aus einer Liste wählen - wie das Tippen von /",
       "project": "In einem Projekt arbeiten",
       "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen",
+      "closeSheet": "Schließen",
+      "source": {
+        "camera": "Kamera",
+        "photos": "Fotos",
+        "files": "Dateien"
+      },
+      "callAgent": "{agent} anrufen",
+      "modelAndApprovals": "Modell und Freigaben",
+      "contextUsed": "Genutzter Kontext",
       "reconnecting": "Verbindung wird wiederhergestellt…"
     },
     "knowledgeBase": "Wissensdatenbank",
@@ -1322,9 +1390,13 @@
       "model": "Modell",
       "needsConnectionsManage": "Ein anderes Modell zu wählen braucht eine Berechtigung, die Sie nicht haben. Jemand, der die Verbindungen dieser Organisation verwalten darf, kann es ändern.",
       "noProviderKey": "Noch kein {provider}-Schlüssel im Vault.",
+      "notAChatModel": "{model} ist kein Chat-Modell, daher kann diese Unterhaltung nicht darauf laufen. Wählen Sie ein anderes Modell.",
+      "modelHasNoKey": "{model} ist ohne Schlüssel gespeichert, daher kann diese Unterhaltung nicht darauf laufen. Geben Sie ihm zuerst im Modellbereich eines Agents einen Schlüssel.",
       "provider": "Provider",
       "runModel": "Auf diesem Modell ausführen",
-      "thisChat": "Nur dieser Chat"
+      "thisChat": "Nur dieser Chat",
+      "changeModel": "Modell ändern",
+      "profilesUnavailable": "Die Modelleinstellungen konnten nicht geladen werden. Versuche es erneut, bevor du ein anderes Modell auswählst."
     },
     "newChat": "Neuer Chat",
     "newConversation": "Neue Unterhaltung",
@@ -1671,7 +1743,18 @@
       "requestingCapability": "Bittet um eine Capability",
       "capabilityRequest": "Bitte um eine Capability",
       "proposingSetup": "Schlage vor, was sich einrichten lässt",
-      "setupProposals": "Zum Einrichten"
+      "setupProposals": "Zum Einrichten",
+      "lookingAtScreen": "Sehe mir den Bildschirm an",
+      "takeScreenshot": "Bildschirmfoto aufnehmen",
+      "savingScreenshot": "Speichere ein Bildschirmfoto",
+      "savedScreenshot": "Bildschirmfoto",
+      "screenshotNotStored": "Das Bildschirmfoto wurde aufgenommen, aber nicht gespeichert.",
+      "usingComputer": "Bediene den Computer",
+      "useComputer": "Den Computer bedienen",
+      "listingApps": "Liste die Anwendungen auf",
+      "listApps": "Anwendungen auflisten",
+      "sendingChannelFile": "Sendet eine Datei an den Kanal",
+      "sendChannelFile": "Datei an Kanal senden"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1741,7 +1824,7 @@
     "browserCommentMessage": "Auf {url} - die im Bild markierte Stelle: {note}",
     "browserGoal": "Ziel",
     "browserWaitingForFrame": "Warte auf die erste Ansicht der Seite…",
-    "browserNoPreview": "Dieser Agent läuft ohne Live-Vorschau.",
+    "browserNoPreview": "Für diese Seite ist keine gespeicherte Vorschau verfügbar.",
     "browserOutcome": {
       "done": "Abgeschlossen",
       "blocked": "Von der Seite blockiert",
@@ -1770,7 +1853,6 @@
     "moveUp": "Nach oben",
     "moveDown": "Nach unten",
     "browserAction": "{operation, select, CLICK {Geklickt} TYPE_TEXT {Eingegeben in} SELECT {Gewählt in} SCROLL {Seite gescrollt} NAVIGATE {Geöffnet} BACK {Zurück} WAIT {Auf die Seite gewartet} DONE {Fertig} BLOCKED {Angehalten} ASK_PERSON {Um Hilfe gebeten} other {Auf der Seite gearbeitet}}",
-    "browserShownFullScreen": "{host} ist im Vollbild geöffnet - klicken, um es hierher zurückzuholen",
     "browserLive": "Live",
     "browserAgentCursor": "Agent",
     "browserStarting": "Seite wird geöffnet…",
@@ -1779,7 +1861,6 @@
     "browserShowSteps": "{count, plural, =0 {Schritte} one {# Schritt} other {# Schritte}}",
     "browserOpenNewTab": "In neuem Tab öffnen",
     "browserNoSteps": "Noch keine Schritte.",
-    "browserHolding": "Sie steuern - klicken, tippen und scrollen Sie auf der Seite",
     "browserLineBrowsed": "War auf {host}",
     "browserLineBrowsedWeb": "War im Web",
     "browserVisitSite": "Seite öffnen",
@@ -2112,7 +2193,19 @@
       "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
     },
     "turnLost": "Der Agent hat aufgehört, bevor er geantwortet hat - der Server, auf dem er lief, ist weggefallen.",
-    "turnLostAskAgain": "Erneut fragen"
+    "turnLostAskAgain": "Erneut fragen",
+    "waitingForComputer": "Warte auf Ihren Computer. Öffnen Sie dort die AgenticOS-App, dann läuft der Lauf weiter…",
+    "browserShownInPanel": "{host} ist im Browserbereich geöffnet",
+    "browserOpenPanel": "Neben dem Chat öffnen",
+    "browserDock": "Zurück neben den Chat",
+    "browserResize": "Breite des Browserbereichs ändern",
+    "computerLineUsed": "Hat einen Computer bedient",
+    "queuedWaitingForNetwork": "Wartet auf das Netz",
+    "queuedNotSent": "Nicht gesendet: {reason}",
+    "queuedRetry": "Erneut senden",
+    "browserResume": "Sitzung fortsetzen",
+    "browserResumePrompt": "Setze die Browsersitzung fort. Lies die aktuelle Seite erneut, bevor du fortfährst.",
+    "browserMenu": "Browseroptionen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -2152,7 +2245,12 @@
     "showLess": "Weniger",
     "copy": "Kopieren",
     "copied": "Kopiert",
-    "searchShortcut": "Strg K"
+    "searchShortcut": "Strg K",
+    "filters": "Filter",
+    "filesRoot": "Projektdateien",
+    "moreInformation": "Weitere Informationen",
+    "details": "Details",
+    "resourceActions": "Weitere Aktionen für {name}"
   },
   "dashboard": {
     "actions": {
@@ -2587,7 +2685,9 @@
           "slack": "Slack",
           "telegram": "Telegram",
           "web": "Web-Chat",
-          "workflow": "Workflow"
+          "workflow": "Workflow",
+          "follow_ups": "Nächste Schritte",
+          "proactive": "Proaktiv"
         },
         "title": "Woher die Runs kommen",
         "description": "Woher Runs kommen - Web-Chat, API, Kanäle.",
@@ -2995,7 +3095,9 @@
       "left": "{count, plural, =1 {Noch 1 Schritt} other {Noch # Schritte}}",
       "ratio": "{done}/{total}",
       "start": "Loslegen",
-      "doneHeading": "Schon erledigt"
+      "doneHeading": "Schon erledigt",
+      "showAll": "Alle Schritte anzeigen ({count})",
+      "showLess": "Weniger Schritte anzeigen"
     },
     "views": {
       "label": "Dashboard-Ansicht",
@@ -3096,7 +3198,10 @@
       "body": "{count, plural, =0 {Noch niemand ist darin - fügen Sie Personen hinzu und teilen Sie einen Agent mit der Gruppe.} =1 {Ihr einziges Mitglied hat keinen Agent ausgeführt. Teilen Sie einen Agent mit der Gruppe, dann erscheint er in seinem Chat.} other {Keines ihrer # Mitglieder hat einen Agent ausgeführt. Teilen Sie einen Agent mit der Gruppe, dann erscheint er in ihrem Chat.}}",
       "openGroup": "Gruppe öffnen",
       "widen": "Letzte 90 Tage zeigen"
-    }
+    },
+    "appSession": "AgenticOS für {platform} {version}",
+    "pushOn": "Push",
+    "pushOnHint": "Dieses Gerät erhält Push-Benachrichtigungen"
   },
   "errors": {
     "authorizationFailed": "Autorisierung fehlgeschlagen",
@@ -3117,7 +3222,8 @@
     "requestFailed": "Anfrage fehlgeschlagen",
     "sessionExpired": "Sitzung abgelaufen",
     "unexpected": "Ein unerwarteter Fehler ist aufgetreten",
-    "uploadFailed": "Upload fehlgeschlagen"
+    "uploadFailed": "Upload fehlgeschlagen",
+    "releaseCheckUnavailable": "Neue Releases konnten nicht geprüft werden. Versuche es später erneut."
   },
   "files": {
     "couldNotBeFetched": "Diese Datei konnte nicht abgerufen werden",
@@ -3423,6 +3529,11 @@
     "whereLiteparseStopsWhat": "Wo LiteParse aufhört. Das begrenzt die Kosten eines Dokuments – der Timeout begrenzt nur die Wartezeit.",
     "whoseAccountEachParse": "Wessen Konto jeder Parse berechnet wird.",
     "widthIsFixed": "Die Breite kommt mit dem Modell, und die Collection wird damit erstellt.",
+    "checkingEndpointModels": "Dieser Endpoint wird gefragt, welche Embedding-Modelle er bereitstellt …",
+    "endpointModelsListed": "Es werden nur die Modelle aufgeführt, die dieser Endpoint bereitstellt.",
+    "endpointModelsUnconfirmed": "Dieser Endpoint konnte nicht gefragt werden, welche Modelle er bereitstellt, daher werden alle OpenRouter-Modelle aufgeführt. Ein Modell, das er nicht bereitstellt, schlägt beim ersten Upload fehl.",
+    "endpointServesNoModel": "Dieser Endpoint stellt keines der Embedding-Modelle bereit, die AgenticOS anbietet. Lassen Sie den Endpoint leer oder wählen Sie einen anderen Provider.",
+    "endpointLacksCollectionModel": "Dieser Endpoint stellt {model} nicht bereit, das Modell, mit dem die Vektoren dieser Collection erstellt wurden. Lassen Sie den Endpoint leer oder wählen Sie einen, der es bereitstellt.",
     "localServices": "Lokale Dienste",
     "localServicesHint": "Server im eigenen Netz des Deployments – ein Ollama, das einbettet, ein OCR-Sidecar für LiteParse – einmal registriert und pro Collection gewählt. Nichts, was an einen davon geht, verlässt das Deployment.",
     "addServer": "Server hinzufügen",
@@ -3453,7 +3564,10 @@
     "whoCanSearchIt": "Wer sie durchsuchen kann",
     "parsingDetails": "Chunking, OCR und Bilder",
     "moreOptions": "Weitere Optionen",
-    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt."
+    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt.",
+    "embeddingEndpoint": "Endpunkt",
+    "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
+    "noConnectorsAvailable": "Keine Quell-Konnektoren verfügbar. Ein Administrator kann einen Konnektor für diese Installation aktivieren."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -3504,7 +3618,28 @@
     "primary": "Primär",
     "quickActions": "Schnellaktionen",
     "retryInvitation": "Erneut versuchen",
-    "searchJump": "Suchen oder springen zu …"
+    "searchJump": "Suchen oder springen zu …",
+    "offline": {
+      "noNetwork": "Keine Verbindung. Geschriebene Nachrichten werden gesendet, sobald das Netz zurück ist.",
+      "savedCopy": "Keine Verbindung. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie.",
+      "outboxWaiting": "{count, plural, =1 {1 Nachricht wartet auf den Versand} other {# Nachrichten warten auf den Versand}}",
+      "unreachable": "Der Server ist nicht erreichbar. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie."
+    },
+    "install": {
+      "offer": "Installieren Sie AgenticOS als App: eigenes Fenster, Benachrichtigungen und ein Symbol auf dem Startbildschirm.",
+      "iosHint": "Um AgenticOS zu installieren, tippen Sie auf Teilen und dann auf Zum Home-Bildschirm.",
+      "install": "Installieren",
+      "dismiss": "Nicht mehr anzeigen"
+    },
+    "sessionUnavailable": "Die Sitzung konnte nicht geprüft werden",
+    "sessionUnavailableHint": "Der Server ist vorübergehend nicht erreichbar. Ihre gespeicherte Sitzung bleibt erhalten. Versuchen Sie es erneut, sobald die Verbindung wiederhergestellt ist.",
+    "retrySession": "Erneut versuchen",
+    "desktopInstall": {
+      "title": "AgenticOS auf deinem Desktop",
+      "description": "Quick Ask, Sprache und lokale Werkzeuge per Tastenkürzel.",
+      "download": "Desktop-App herunterladen",
+      "dismiss": "In 14 Tagen erinnern"
+    }
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",
@@ -3907,7 +4042,15 @@
     "loadingPage": "Seite wird geöffnet",
     "tables": "Tabellen",
     "inbox": "Posteingang",
-    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}"
+    "inboxCount": "{count, plural, =1 {1 wartet} other {# warten}}",
+    "consoleVersion": "Konsolenversion {version}",
+    "updateAvailable": "Version {version} ist verfügbar",
+    "updateTitle": "Update verfügbar",
+    "updateDescription": "Du verwendest {current}. AgenticOS {latest} ist verfügbar.",
+    "viewRelease": "Release ansehen",
+    "whatsNewTitle": "Neu in {version}",
+    "whatsNewDescription": "Änderungen in der verwendeten Version.",
+    "whatsNewDone": "Verstanden"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4519,10 +4662,6 @@
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
       },
-      "routines-ideas": {
-        "title": "Oder mit einer Idee beginnen",
-        "body": "Fertige Routinen - ein Morgenüberblick, eine Wochenzusammenfassung, eine stündliche Prüfung - jeweils mit der Uhrzeit, zu der sie liefe. Wählen Sie eine, und der neue Zeitplan öffnet sich bereits ausgefüllt."
-      },
       "sign-in-to-site": {
         "title": "Bei einer Website anmelden",
         "body": "Öffne einen Browser auf einer Website nur für dich, melde dich an und gib ihn mit Keep me signed in zurück - der Browser deiner Agents startet dort ab dann angemeldet."
@@ -4545,7 +4684,7 @@
       },
       "project-tabs": {
         "title": "Chats, Dateien und Anweisungen",
-        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt."
+        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt. In der Desktop-App können Sie auch einen lokalen Ordner verbinden, ohne seine Dateien hochzuladen."
       },
       "chat-visual": {
         "title": "Zeichnungen",
@@ -4674,6 +4813,22 @@
       "inbox-filters": {
         "title": "Was von selbst zu Ihnen kam",
         "body": "Funde Ihrer Beobachtungen und die nächtlichen Vorschläge, Dringendes zuerst. Nach Herkunft filtern oder unter Erledigt einen abgelehnten zurückholen."
+      },
+      "org-governance": {
+        "title": "Budget und Freigaben",
+        "body": "Lege das Ausgabenlimit der Organisation fest und verwalte Freigabeausnahmen. Die verfügbaren Optionen hängen von deinen Berechtigungen ab."
+      },
+      "org-proactivity-model": {
+        "title": "Proaktivitätsmodell auswählen",
+        "body": "Wähle Anbieter, Modell und Vault-Schlüssel und füge das Modellprofil hinzu. Das Profil wird sofort gespeichert; Save übernimmt es für nächtliche Vorschläge und MCP-Beobachtungen. Diese Prüfungen verwenden dieses Modell unabhängig vom AgenticOS-Startagenten in Activity."
+      },
+      "org-proactivity": {
+        "title": "Proaktivität",
+        "body": "Konfiguriere nächtliche Vorschläge, die Überwachung von Verbindungen und proaktive Chatbegrüßungen. Wähle hier Modell, Zeitplan und Budget pro Person."
+      },
+      "project-file-location": {
+        "title": "Dein Computer oder gemeinsame Dateien",
+        "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
       }
     },
     "chooseLanguage": "Sprache",
@@ -4780,7 +4935,7 @@
       "dislikes": "Negative Bewertungen",
       "eachRowSaysWhat": "Jede Zeile sagt, was geprüft wurde. Aktualisiert sich alle 30 Sek.",
       "everyCheckPassed": "Jede Prüfung bestanden",
-      "everyStatusHereComes": "Jeder Status hier stammt aus einer Prüfung, die beim Laden dieser Seite lief. Es gibt keine Verfügbarkeitshistorie: Nichts zeichnet eine auf, und eine Zahl, die wie eine aussähe, wäre erfunden.",
+      "everyStatusHereComes": "Aktuelle Prüfungen dieser Installation. Bei aktivierter automatischer Aktualisierung werden die Ergebnisse alle 30 Sekunden erneuert.",
       "failedFetchHealth": "Zustand konnte nicht abgerufen werden",
       "failingServices": "Fehlerhaft: {names}",
       "inspect": "Untersuchen",
@@ -4810,7 +4965,7 @@
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & Queue-Broker",
       "serviceScheduler": "Geplante Jobs",
-      "serviceSchedulerDetail": "Trigger, E-Mails und Sweeps, über die Job-Warteschlange",
+      "serviceSchedulerDetail": "Trigger, E-Mails und Wartungsaufgaben",
       "serviceVectorStore": "Vektorspeicher",
       "serviceVectorStoreDetail": "pgvector, dieselbe Datenbank",
       "services": "Dienste",
@@ -5064,7 +5219,8 @@
       "identity": "Name und Beschreibung",
       "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter.",
       "ownedByWorkflow": "Dieser Agent ist in einem Workflow-Schritt konfiguriert und wird mit diesem Workflow versioniert. Ändern Sie ihn dort.",
-      "openWorkflow": "Workflow öffnen"
+      "openWorkflow": "Workflow öffnen",
+      "goToModel": "Zum Abschnitt Modell"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -5094,6 +5250,10 @@
       "theAgentWillRunAsYou": "Der Bot muss wissen, wer Sie sind, bevor er Ihnen antwortet."
     },
     "channels": {
+      "respondToBroadcasts": "Auf Gruppen-Erwähnungen antworten",
+      "respondToBroadcastsHint": "Aus: auf direkte Aufrufe dieses Bots reagieren. Ein: auch auf @all, @here und unterstützte Gruppen-Erwähnungen. Direktnachrichten benötigen keine Erwähnung.",
+      "broadcastsTeamsHint": "Laden Sie nach dem Aktivieren das aktualisierte Teams-App-Paket herunter und installieren oder aktualisieren Sie es im Zielteam oder Chat. Der Besitzer muss dem Empfang von Nachrichten zustimmen.",
+      "broadcastsTelegramHint": "Telegram verwendet die Text-Aliase @all, @here, @channel und @everyone. Sie benachrichtigen nicht die ganze Gruppe. Der Bot muss Gruppennachrichten empfangen; prüfen Sie den Datenschutzmodus in BotFather.",
       "addChannel": "Kanal hinzufügen",
       "addChannelDescription": "Registrieren Sie einen Slack-, Telegram- oder Mattermost-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
       "addOneBecomesBindable": "Registrieren Sie einen, und Agents lassen sich über ihren Tab Verfügbarkeit darauf bereitstellen.",
@@ -5198,7 +5358,7 @@
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
-      "transcriptionProviderNoKey": "{name} (noch kein Schlüssel)",
+      "transcriptionProviderNoKey": "{name} (kein geeigneter Schlüssel)",
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird."
     },
     "invitations": {
@@ -5247,7 +5407,6 @@
       "everyMinutes": "alle {minutes} Min.",
       "filedUnder": "Abgelegt unter {unit}",
       "filedUnderNext": "Die nächsten Dateien, die Sie hinzufügen, werden unter <strong>{unit}</strong> abgelegt.",
-      "filesWillBeAddedTo": "Dateien werden zu <strong>{name}</strong> hinzugefügt",
       "groupRelatedDocumentsInto": "Dokumente, aus denen ein Agent antwortet. Legen Sie eine Datenbank an, laden Sie Dateien hoch und fügen Sie sie einem Agenten hinzu – auf der Seite der Datenbank oder im Builder des Agenten.",
       "howDocumentsAreRead": "Wie Dokumente gelesen werden",
       "images": "+ Bilder",
@@ -5309,7 +5468,11 @@
       "uploading": "Wird hochgeladen …",
       "uploading2": "Wird hochgeladen …",
       "vectorCount": "{count, plural, =1 {1 Vektor} other {# Vektoren}}",
-      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten"
+      "vectorCountLoaded": "{count, plural, =1 {1 Vektor} other {# Vektoren}} in den geladenen Dokumenten",
+      "indexingInProgress": "{count, plural, =1 {Indexierung: 1 Dokument in Bearbeitung} other {Indexierung: # Dokumente in Bearbeitung}}",
+      "indexingComplete": "Indexierung abgeschlossen",
+      "indexingFailed": "{count, plural, =1 {1 Dokument fehlgeschlagen} other {# Dokumente fehlgeschlagen}}",
+      "moreUploads": "{count, plural, one {# weitere Datei in der Upload-Warteschlange} other {# weitere Dateien in der Upload-Warteschlange}}"
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",
@@ -5402,7 +5565,12 @@
       "workspaceProfile": "Organisationsprofil",
       "workspaces": "Organisationen",
       "you": "(Sie)",
-      "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>"
+      "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>",
+      "tabProfile": "Profil",
+      "tabGovernance": "Budget und Freigaben",
+      "tabProactivity": "Proaktivität",
+      "tabVoice": "Sprache",
+      "tabAssistant": "AI Architect"
     },
     "rag": {
       "active": "Aktiv",
@@ -5461,7 +5629,7 @@
       "activity2": "Aktivität",
       "agentColumn": "Agent",
       "agentFilter": "Nach Agent filtern",
-      "agentsAreRunningWithout": "Agents laufen, ohne Sie zu brauchen.",
+      "agentsAreRunningWithout": "Anfragen, die deine Entscheidung benötigen, erscheinen hier.",
       "answered": "Antwort erhalten",
       "anyAgent": "Alle Agents",
       "anyModel": "Beliebiges Modell",
@@ -5543,7 +5711,7 @@
       "nothingRecordedBecause": "Der Run hat nie ein Modell erreicht – von einem Budget oder einem Guardrail gestoppt – oder er lief, bevor dies aufgezeichnet wurde.",
       "nothingRecordedForThisRun": "Für diesen Run wurde nichts aufgezeichnet",
       "nothingSpentYet": "Noch nichts ausgegeben.",
-      "nothingWaiting": "Nichts wartet",
+      "nothingWaiting": "Keine ausstehenden Freigaben",
       "openTheAgent": "Den Agent öffnen",
       "openTheChatBehind": "Den Chat öffnen, in dem dieser Run stattfand",
       "openTheRunItCame": "Den Run öffnen, aus dem er stammt",
@@ -5700,7 +5868,11 @@
       "stepApprovalLength": "{count, number} von {max, number} Zeichen",
       "stepApprovalNotYours": "Nur die in diesem Schritt genannten Personen können darüber entscheiden.",
       "stepApprovalEdited": "Bearbeitet",
-      "surfaceTeams": "Microsoft Teams"
+      "surfaceTeams": "Microsoft Teams",
+      "surfaceFollowUps": "Nächste Schritte",
+      "surfaceProactive": "Proaktiv",
+      "standaloneRequest": "Modellanfrage",
+      "standaloneResponse": "Modellantwort"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5749,7 +5921,7 @@
       "displayName": "Anzeigename",
       "email": "E-Mail",
       "emailChannel": "E-Mail",
-      "emailsAboutRunsNobody": "E-Mails über Runs, die niemand beobachtet. Jeder Schalter wird geprüft, bevor die E-Mail gesendet wird. Das sind Ihre eigenen Abmeldungen und sie nehmen immer nur weg: Ein Agent entscheidet, wer von ihm erfahren soll, und einen hier abzuschalten nimmt Sie von dieser Liste, was der Agent auch sagt. Wem ein Agent Bescheid gibt, wird am Agent unter Limits gesetzt.",
+      "emailsAboutRunsNobody": "Wähle E-Mails zu Budgets, Freigaben und Nutzung. Die Limits-Einstellungen des jeweiligen Agenten bestimmen die Empfänger.",
       "failedDeleteAccount": "Konto konnte nicht gelöscht werden",
       "failedLoadPreferences": "Benachrichtigungseinstellungen konnten nicht geladen werden",
       "failedSavePreference": "Einstellung konnte nicht gespeichert werden",
@@ -5828,7 +6000,7 @@
       "signOutFromAll": "Von allen Geräten abmelden?",
       "signedOutFromAll": "Von allen Geräten abgemeldet",
       "slashCommands": "Slash-Befehle",
-      "squareImagesLookBest": "Quadratische Bilder wirken am besten. Bis zu 2 MB. JPG, PNG, WEBP oder GIF.",
+      "squareImagesLookBest": "Dein Foto wird kreisförmig zugeschnitten.",
       "transactionalEmailsWhatTriggers": "Die transaktionalen E-Mails, was jede auslöst und warum keine davon optional ist.",
       "updatePassword": "Passwort aktualisieren",
       "uploadAvatar3": "Avatar hochladen",
@@ -5875,7 +6047,42 @@
       "prefCapabilityRequested": "Eine Capability angefragt",
       "prefCapabilityRequestedTrigger": "Jemand hat eine Capability angefragt, die einem Ihrer Agents fehlt. An den Besitzer des Agents, einmal pro Person und Capability.",
       "prefFinding": "Funde Ihrer Beobachtungen",
-      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest."
+      "prefFindingTrigger": "Was eine Beobachtung sofort melden sollte, und das Morgen-Briefing für den Rest.",
+      "pushChannel": "Push",
+      "push": {
+        "title": "Push-Benachrichtigungen in diesem Browser",
+        "state": {
+          "unsupported": "Dieser Browser kann keine Push-Benachrichtigungen empfangen. Auf dem iPhone füge AgenticOS zuerst zum Home-Bildschirm hinzu und öffne es von dort.",
+          "blocked": "Dieser Browser blockiert Benachrichtigungen von AgenticOS. Erlaube sie in den Website-Einstellungen und komm dann hierher zurück.",
+          "off": "Werde hier benachrichtigt, wenn ein Agent dich braucht, auch wenn AgenticOS geschlossen ist. Welche Ereignisse dich erreichen, legst du unten fest.",
+          "on": "In diesem Browser an. Welche Ereignisse dich erreichen, legst du unten unter Push fest."
+        },
+        "turnOn": "Einschalten",
+        "turnOff": "In diesem Browser ausschalten",
+        "test": "Test senden",
+        "testSent": "Gesendet. Er sollte gleich erscheinen.",
+        "testNotSent": "Der Push-Dienst hat den Test nicht angenommen. Schalte Push in diesem Browser aus und wieder ein.",
+        "failed": "Push konnte in diesem Browser nicht geändert werden.",
+        "phone": {
+          "title": "Benachrichtigungen bei geschlossener App",
+          "noDistributor": "AgenticOS stellt sie über ntfy zu, ohne Googles Server. Installiere ntfy aus dem Play Store oder F-Droid, öffne es einmal und komm hierher zurück.",
+          "off": "Werde benachrichtigt, wenn ein Agent dich braucht, auch wenn AgenticOS geschlossen ist. Sie kommen über {distributor}.",
+          "failed": "{distributor} hat die Registrierung nicht angenommen. Öffne es, prüfe die Verbindung zu seinem Server und versuche es erneut.",
+          "on": "An, über {distributor}. Welche Ereignisse dich erreichen, legst du unten unter Push fest.",
+          "turnOff": "Auf diesem Telefon ausschalten",
+          "notRegistered": "ntfy hat keine Adresse übergeben. Öffne es und versuche es erneut.",
+          "denied": "Benachrichtigungen sind in den Android-Einstellungen deaktiviert. Erlaube sie für AgenticOS und prüfe erneut."
+        },
+        "iphone": {
+          "title": "Benachrichtigungen bei geschlossener App",
+          "notConfigured": "Deine Organisation hat iPhone-Benachrichtigungen noch nicht eingerichtet. Eine Administratorin oder ein Administrator fügt den APNs-Schlüssel der Firma unter Admin, Einstellungen hinzu.",
+          "denied": "Benachrichtigungen für AgenticOS sind auf diesem iPhone aus. Schalte sie unter Einstellungen, Mitteilungen, AgenticOS ein und komm dann hierher zurück.",
+          "off": "Lass dich benachrichtigen, wenn ein Agent dich braucht, auch wenn AgenticOS geschlossen ist.",
+          "on": "Auf diesem iPhone an. Welche Ereignisse dich erreichen, legst du unten unter Push fest.",
+          "turnOff": "Auf diesem iPhone ausschalten"
+        }
+      },
+      "whoReceivesThis": "Wer erhält diese Nachricht?"
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
@@ -5952,10 +6159,10 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis.",
-      "ideasTitle": "Ideen zum Starten",
-      "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern.",
-      "newWatch": "Neue Beobachtung"
+      "description": "Agentenroutinen führen Aufgaben aus. Meine Beobachtungen prüfen verbundene Konten und liefern Ergebnisse in deinen privaten Posteingang.",
+      "newWatch": "Neue Beobachtung",
+      "agentsTab": "Agentenaufgaben",
+      "watchesTab": "Meine Beobachtungen"
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -6776,6 +6983,31 @@
       "alertStepHint": "Einen Schritt beobachten oder jeden Schritt, der protokolliert",
       "alertWindowHint": "Innerhalb welcher Zeit",
       "alertAudienceHint": "Wer die Glocke und die E-Mail bekommt"
+    },
+    "adminApns": {
+      "title": "iPhone-Benachrichtigungen",
+      "hint": "Push an die iOS-App läuft über Apple mit dem eigenen Schlüssel der Firma: dem Apple-Developer-Konto, mit dem die App signiert ist.",
+      "whose": "Schlüssel {key}, Team {team}, {environment}",
+      "environment": {
+        "production": "Produktion",
+        "sandbox": "Entwicklung"
+      },
+      "environmentLabel": "Apple-Dienst",
+      "keyId": "Key ID",
+      "keyIdHint": "Zehn Zeichen, neben dem Schlüssel unter Certificates, Identifiers & Profiles, Keys.",
+      "teamId": "Team ID",
+      "teamIdHint": "Zehn Zeichen, in den Mitgliedschaftsdetails des Entwicklerkontos.",
+      "topic": "Bundle ID",
+      "topicHint": "Die Kennung, mit der euer Build der App signiert ist.",
+      "file": "Schlüsseldatei (.p8)",
+      "fileHint": "Einmal beim Erstellen des Schlüssels heruntergeladen. Sie wird im Tresor versiegelt und nie wieder angezeigt.",
+      "save": "Schlüssel speichern",
+      "replace": "Ersetzen",
+      "remove": "Entfernen",
+      "cancel": "Abbrechen",
+      "saved": "Gespeichert. iPhones können Benachrichtigungen jetzt einschalten.",
+      "removed": "Entfernt. iPhones erhalten keine Benachrichtigungen, bis ein Schlüssel hinzugefügt wird.",
+      "failed": "Der Schlüssel konnte nicht gespeichert werden."
     }
   },
   "profile": {
@@ -6855,7 +7087,7 @@
       "button": "Suchen",
       "failedDescription": "Die Suchanfrage ist fehlgeschlagen, ob etwas passt, ist also unbekannt.",
       "failedTitle": "Suche konnte nicht ausgeführt werden",
-      "noBases": "Noch nichts zu durchsuchen – legen Sie zuerst eine Wissensdatenbank an und laden Sie ein Dokument hoch.",
+      "noBases": "Erstelle eine Wissensdatenbank und lade Dokumente hoch. Ihre Inhalte lassen sich hier durchsuchen.",
       "noResults": "Keine Ergebnisse gefunden",
       "noResultsHint": "Versuchen Sie eine andere Suchanfrage oder eine andere Wissensdatenbank",
       "page": "S. {page}",
@@ -6864,7 +7096,11 @@
       "retry": "Erneut versuchen",
       "scopeLabel": "Suchbereich",
       "searching": "Wird gesucht …",
-      "openFile": "{name} öffnen"
+      "openFile": "{name} öffnen",
+      "noBasesTitle": "Wissen zum Durchsuchen hinzufügen",
+      "queryLabel": "Suchanfrage",
+      "idleTitle": "Die Quelle einer Antwort finden",
+      "idleDescription": "Suche nach einem Thema oder stelle eine Frage. Die Ergebnisse verlinken auf das Originaldokument, damit du die Quelle prüfen kannst."
     },
     "skippedCount": "{count} übersprungen",
     "sourceName": "Name der Quelle",
@@ -6920,7 +7156,11 @@
       "whatAgentAuthorsWill": "Was Agent-Autoren sehen, wenn sie einen Host wählen.",
       "whereOrganizationAposS": "Wo die Agents dieser Organisation Shell-Befehle ausführen und Dateien aufbewahren.",
       "whereSandboxServiceAnswers": "Er hält das Docker-Socket, er sollte also von außerhalb Ihres Netzes nicht erreichbar sein.",
-      "willUseDeploymentToken": "Bleibt es leer, wird das Token, mit dem der eigene Sandbox-Dienst dieses Deployments gestartet wurde, im Vault gespeichert und verwendet."
+      "willUseDeploymentToken": "Bleibt es leer, wird das Token, mit dem der eigene Sandbox-Dienst dieses Deployments gestartet wurde, im Vault gespeichert und verwendet.",
+      "kindE2b": "E2B-Cloud",
+      "e2bKeyHint": "Ein API-Schlüssel aus Ihrem E2B-Dashboard. Sandboxes laufen auf diesem Konto und werden darüber abgerechnet.",
+      "e2bTemplateWhat": "Ein E2B-Vorlagenname; leer nimmt die Standardvorlage von E2B. Für die Computersteuerung desktop verwenden.",
+      "secretNameE2b": "E2B-API-Schlüssel"
     },
     "daytonaSnapshotImageWhat": "Ein Daytona-Snapshot oder -Image. Was es erlaubt, ist dort eine Kontoeinstellung, es gibt also keine Liste zur Auswahl.",
     "default": "Standard",
@@ -7053,7 +7293,8 @@
       "off": "Aus",
       "serviceSOwn": "der Standard des Dienstes",
       "whatAllows": "Was sie erlaubt",
-      "whatNamedAllows": "Was {name} erlaubt"
+      "whatNamedAllows": "Was {name} erlaubt",
+      "e2bCloud": "E2B-Cloud"
     },
     "turningOffRefusesNew": "Sie auszuschalten verweigert hier neue Sandboxes, ohne die Aufzeichnung dessen zu löschen, was Agents darauf getan haben.",
     "whatAgentAuthorsWill": "Was Agent-Autoren sehen, wenn sie einen Host wählen.",
@@ -7115,6 +7356,9 @@
     "lowercaseLettersDigitsHyphens": "Kleinbuchstaben, Ziffern, Bindestriche. Höchstens 32 Zeichen.",
     "modelAdded": "{label} hinzugefügt",
     "modelRemoved": "Modell entfernt",
+    "modelUpdated": "{label} aktualisiert",
+    "modelInUse": "{label} wird noch verwendet von {names}{hidden, plural, =0 {} one { und einem Agenten, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}. Verschieben Sie diese zuerst auf ein anderes Modell, oder ändern Sie den Schlüssel dieses Modells, statt es zu löschen. {archived, plural, =0 {} one {Einer davon ist archiviert: Löschen Sie ihn, oder stellen Sie ihn wieder her und verschieben Sie ihn.} other {# davon sind archiviert: Löschen Sie diese, oder stellen Sie sie wieder her und verschieben Sie sie.}}",
+    "modelInUseHidden": "{label} wird noch von {count, plural, one {einem Agenten verwendet, den Sie nicht sehen. Bitten Sie einen Admin, ihn} other {# Agents verwendet, die Sie nicht sehen. Bitten Sie einen Admin, diese}} zuerst auf ein anderes Modell zu verschieben.",
     "name": "Name",
     "nameMustBeLowercase": "Der Name darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten (höchstens 32 Zeichen).",
     "newCommand": "Neuer Befehl",
@@ -7192,12 +7436,10 @@
     "description": "Beschreibung",
     "description2": "Beschreibung",
     "description3": "Beschreibung",
-    "disabled": "deaktiviert",
     "discard": "Verwerfen",
     "discard2": "Verwerfen",
     "discardChangeTo": "Die Änderung an {name} verwerfen",
     "edit": "Bearbeiten",
-    "enabled": "Aktiviert",
     "failedLoadProposedChanges": "Vorgeschlagene Skill-Änderungen konnten nicht geladen werden",
     "fileAdded": "Datei hinzugefügt",
     "fileBody": "Der Dateiinhalt",
@@ -7372,7 +7614,7 @@
       "cancel": "Abbrechen",
       "save": "Änderungen speichern",
       "saved": "Spracheinstellungen gespeichert",
-      "providerNoKey": "{name} (noch kein Schlüssel)",
+      "providerNoKey": "{name} (kein geeigneter Schlüssel)",
       "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen."
     },
     "sending2": "Wird gesendet …",
@@ -7400,7 +7642,6 @@
       "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
       "model": "Modell",
       "modelHint": "Worauf der nächtliche Blick und die Beobachtungen laufen. Ein kleines, günstiges Modell reicht.",
-      "modelPlaceholder": "Modell wählen",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
       "label": "Limit pro Person (USD im Monat)",
       "days": "Tage",
@@ -7423,7 +7664,10 @@
       "watches": "Verbindungen der Mitglieder beobachten",
       "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
       "watchMinutes": "Höchstens",
-      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr."
+      "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
+      "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
+      "switchOrganization": "Zu {name} wechseln",
+      "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
     }
   },
   "theme": {
@@ -7494,7 +7738,8 @@
     "goToQuestion": "Zu Frage {step}",
     "skipped": "Übersprungen",
     "sendAnswers": "Antworten senden",
-    "backToOptions": "Zurück zu den Optionen"
+    "backToOptions": "Zurück zu den Optionen",
+    "clearSearch": "Suche zurücksetzen"
   },
   "vault": {
     "access": "Zugriff",
@@ -7576,7 +7821,6 @@
     "speechKey": {
       "label": "Schlüssel",
       "choose": "Schlüssel wählen",
-      "option": "{name} (…{hint})",
       "orgHint": "Ein organisationsweiter API-Schlüssel für diesen Provider. Er wird für alle verwendet, daher kann hier kein Schlüssel gewählt werden, den nur einige sehen können.",
       "agentHint": "Ein API-Schlüssel für diesen Provider, den Sie sehen können. Mit dem Veröffentlichen stellen Sie ihn allen zur Verfügung, die diesen Agent ausführen dürfen.",
       "stale": "Der gewählte Schlüssel wurde gelöscht oder kann hier nicht mehr verwendet werden. Wählen Sie einen Schlüssel.",
@@ -7584,7 +7828,9 @@
       "noneOrg": "Im Vault gibt es noch keine organisationsweiten Schlüssel für {provider}. Fügen Sie unten einen hinzu oder teilen Sie einen vorhandenen mit der ganzen Organisation.",
       "cannotList": "Sie können die Schlüssel im Vault nicht auflisten, daher kann hier kein Schlüssel gewählt werden. Bitten Sie jemanden, der Verbindungen verwaltet.",
       "suggestedName": "{provider} Spracherkennung",
-      "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier."
+      "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier.",
+      "notShared": "{name} ist bereits im Vault, muss aber für die gesamte Organisation freigegeben werden, bevor der Schlüssel hier verwendet werden kann. Ändern Sie den Zugriff im Vault.",
+      "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für den Modellzugriff über ein ChatGPT-Abonnement. Sprachfunktionen benötigen einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
     }
   },
   "context": {
@@ -7596,14 +7842,12 @@
     "modeLink": "verknüpft",
     "modeInjectHint": "Wird bei jedem Run in die Instruktionen des Agents eingefügt.",
     "modeLinkHint": "Bleibt aus dem Prompt heraus; der Agent liest sie bei Bedarf.",
-    "sizeWithFormat": "{format} · {size}",
     "newContext": "Neue Kontextdatei",
     "availableEveryAgentOrganization": "Wählen Sie unten, wer sie nutzen darf. Ein Agent liest sie, sobald sie ihm hinzugefügt wurde.",
     "name": "Name",
     "howItIsReferredTo": "Wie diese Datei referenziert wird; das lässt sich später nicht mehr ändern.",
     "mode": "Modus",
     "format": "Format",
-    "formatHint": "Ein Hinweis zur Darstellung, zum Beispiel md oder txt.",
     "description": "Beschreibung",
     "whatIsInIt": "Was darin steht, damit eine verknüpfte Datei gewählt werden kann, ohne sie zu öffnen",
     "shownWhenLinked": "Wird neben dem Namen angezeigt, wenn die Datei verknüpft ist.",
@@ -7623,7 +7867,10 @@
     "droppedTooLarge": "{count, plural, =1 {Eine Datei ist größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection} other {# Dateien sind größer als {max} – ein so großes Dokument gehört in eine Wissens-Collection}}",
     "moreFilesWaiting": "{count, plural, =1 {1 weitere Datei wartet} other {# weitere Dateien warten}}",
     "bodyPlaceholder": "# Glossar\n\nWas ein Begriff hier bedeutet und was nicht.\n\n- **SLA** - die Reaktionszeit, die wir zusagen, nicht die Behebungszeit.\n",
-    "whoCanUseIt": "Wer es nutzen darf"
+    "whoCanUseIt": "Wer es nutzen darf",
+    "useForAgent": "In diesem Agenten verwenden",
+    "usageForAgent": "Verwendung von {name}",
+    "bindingSettingsHint": "Die Verwendung dieser Datei wird für jeden Agenten im Builder unter Context eingestellt."
   },
   "memory": {
     "clearAction": "Gedächtnis leeren",
@@ -7805,10 +8052,10 @@
     "runsCouldNotBeRead": "Die Runs dieses Triggers konnten nicht gelesen werden.",
     "unit": "Einheit",
     "activityTitle": "Routinen",
-    "activityEmptyTitle": "Noch läuft nichts von allein",
+    "activityEmptyTitle": "Noch keine Agentenroutinen",
     "searchRoutines": "Routinen suchen",
     "noRoutineMatches": "Keine Routine passt dazu.",
-    "routineCount": "{count, plural, =0 {Keine Routinen} =1 {1 Routine} other {# Routinen}}",
+    "routineCount": "{count, plural, one {# Routine} other {# Routinen}}",
     "activityEmptyDescription": "Sobald ein Agent sich selbst ausführen soll, erscheint er hier.",
     "agent": "Agent",
     "chooseAgent": "Agent wählen",
@@ -7869,7 +8116,15 @@
     "moreOptions": "Weitere Optionen",
     "summaryInterval": "Läuft {unit, select, minutes {{count, plural, =1 {jede Minute} other {alle # Minuten}}} hours {{count, plural, =1 {jede Stunde} other {alle # Stunden}}} other {{count, plural, =1 {jeden Tag} other {alle # Tage}}}}, ab dem Speichern.",
     "templatesMore": "{count, plural, =1 {1 weitere zeigen} other {# weitere zeigen}}",
-    "templatesFewer": "Weniger zeigen"
+    "templatesFewer": "Weniger zeigen",
+    "local": {
+      "label": "Arbeiten auf",
+      "hint": "Jeder Lauf arbeitet über die Desktop-App in einem Ordner auf Ihrem Computer oder in der Sandbox des Agenten. Ist die App geschlossen, wartet der Lauf auf sie.",
+      "elsewhereHint": "Jeder Lauf arbeitet in diesem Ordner auf Ihrem Computer. Ändern Sie ihn in der Desktop-App auf diesem Computer.",
+      "sandbox": "Die Sandbox des Agenten",
+      "pick": "Ordner wählen…",
+      "useSandbox": "Sandbox verwenden"
+    }
   },
   "portals": {
     "mailboxInterval": {
@@ -7987,7 +8242,8 @@
       "description": "Budget-Warnungen, Freigaben, fehlgeschlagene Runs und mehr erscheinen hier."
     },
     "clearAll": "Alle löschen",
-    "dismissRow": "Ausblenden"
+    "dismissRow": "Ausblenden",
+    "triggerLabel": "Benachrichtigungen{count, plural, =0 {} other {, # ungelesen}}"
   },
   "workflows": {
     "autosaveConflict": "Entwurf wurde anderswo geändert",
@@ -9047,7 +9303,10 @@
       "audienceEmbeds": "Auf diesen Websites gezeigt, wenn sie die Seite einbetten: {sites}.",
       "blockedSwitch": "Ein Owner oder Admin muss zuerst Live-Daten auf öffentlichen Seiten in den Einstellungen der Organisation einschalten.",
       "blockedLink": "Die Seite hat keinen öffentlichen Link. Schalten Sie ihn zuerst ein."
-    }
+    },
+    "appTheme": "App-Design",
+    "lightTheme": "Helles App-Design verwenden",
+    "darkTheme": "Dunkles App-Design verwenden"
   },
   "tables": {
     "cells": {
@@ -9918,8 +10177,8 @@
       "example1": "Eine Tabelle bereinigen und das Ergebnis zurückgeben",
       "example2": "Ein Skript schreiben, ausführen und korrigieren, bis es läuft",
       "example3": "Einen Berichtsentwurf über mehrere Tage fortschreiben",
-      "needs": "Eine Sandbox. Ein Standard-Deployment richtet sie selbst ein; sonst fügt ein Administrator sie unter Sandboxes hinzu.",
-      "never": "Erreicht nie Ihren Computer oder andere Systeme des Unternehmens. Dateien ändern und Befehle ausführen warten auf die Freigabe durch einen Menschen, außer Sie ändern das."
+      "needs": "Ein Dateispeicher, eine registrierte Sandbox oder ein gekoppelter, im Chat erlaubter Computer.",
+      "never": "Erreicht Ihren Computer erst nach Auswahl und Zustimmung in der Desktop-App. Dateiänderungen und Befehle folgen den Freigaberegeln des Agents und dem gewählten nativen Zugriffsmodus."
     },
     "skills": {
       "name": "Skills",
@@ -10029,6 +10288,14 @@
       "example2": "Mach das jeden Montag um 9:00",
       "needs": "Nichts weiter. Die Buttons erscheinen im Web-Chat, im Widget und auf der gehosteten Seite.",
       "never": "Sendet nie etwas von selbst - ein Schritt geht erst nach einem Klick raus."
+    },
+    "computer_use": {
+      "name": "Computer-Bedienung",
+      "does": "Lässt den Agenten einen ganzen Desktop bedienen - jede Anwendung, nicht nur Webseiten - anhand von Screenshots, mit Maus und Tastatur. Sie sehen live im Chat zu.",
+      "example1": "Ein Formular in einer Desktop-Anwendung ausfüllen",
+      "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
+      "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
+      "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
     }
   },
   "capabilityCategories": {
@@ -10067,7 +10334,7 @@
       },
       "allowed_domains": {
         "title": "Erlaubte Domains",
-        "description": "Hosts, auf denen der Browser sein darf; leer heißt keine Einschränkung. Muster wie *.example.com sind erlaubt. Bei jedem Schritt geprüft, nicht nur beim ersten."
+        "description": "Erlaubte Browser-Hosts. Ohne Einschränkung sind alle Domains erlaubt; eine leere Domainliste blockiert alle. Muster wie *.example.com werden unterstützt. Wird bei jedem Schritt geprüft."
       },
       "max_steps": {
         "title": "Höchstens Schritte pro Aufruf",
@@ -10095,7 +10362,7 @@
       },
       "connection": {
         "title": "Wie der Browser ins Netz geht",
-        "description": "Eingebaut nutzt den Browser des Deployments und dessen Adresse. Ein Proxy schickt die Browses über eine eigene Adresse - eine private oder regionale, die Websites seltener sperren. Ein gehosteter Browser führt sie in einem bezahlten Browser-Dienst aus, erreicht über CDP."
+        "description": "Eingebaut nutzt den Browser des Deployments und dessen Adresse. Ein Proxy schickt die Browses über eine eigene Adresse - eine private oder regionale, die Websites seltener sperren. Ein gehosteter Browser führt sie in einem bezahlten Browser-Dienst aus, erreicht über CDP. „Dieser Computer“ erfordert eine gekoppelte Desktop-App und lokales Browsing für diesen Chat."
       },
       "proxy_url": {
         "title": "Proxy-Adresse",
@@ -10116,6 +10383,10 @@
       "locale": {
         "title": "Sprache des Browsers",
         "description": "Ein Sprach-Tag wie pl-PL, gesendet als Accept-Language und navigator.language."
+      },
+      "prefer_native_browser": {
+        "title": "Nativen lokalen Browser verwenden",
+        "description": "Einen eingebetteten nativen Tab für lokales DOM-Browsing verwenden. Für isolierte Chromium-Kompatibilität deaktivieren. Vision sowie Sprach- und Zeitzonenüberschreibungen verwenden Chromium."
       }
     },
     "channel_tools": {
@@ -10178,6 +10449,10 @@
       "expose_read_tool": {
         "title": "Verlinkte Dateien öffnen lassen",
         "description": "Ob Dateien im Link-Modus über ein Lese-Tool erreichbar sind. Aus bedeutet, dass nur eingefügte Dateien das Modell erreichen und nichts bei Bedarf gelesen wird."
+      },
+      "file_settings": {
+        "title": "Verwendung je Datei",
+        "description": "Modus und Verfügbarkeit angehängter Kontextdateien für diesen Agenten. Ohne Eintrag bleiben die bisherigen Dateivorgaben erhalten."
       }
     },
     "conversation_search": {
@@ -10327,7 +10602,7 @@
     "sandbox": {
       "backend": {
         "title": "Wo die Dateien liegen",
-        "description": "state: nur Dateien, keine Shell, von der Plattform gespeichert - funktioniert auf jeder Installation ohne zusätzliche Dienste. service: ein Container oder eine Cloud-Sandbox, über eine der Verbindungen, die diese Organisation registriert hat."
+        "description": "state: nur Dateien, keine Shell, von der Plattform gespeichert — funktioniert ohne zusätzliche Dienste. service: ein Container oder eine Cloud-Sandbox auf einer Verbindung der Organisation. local: die Person wählt und genehmigt ihren eigenen Computer im Desktop-Chat; dieser Spec speichert weder Gerätepfade noch native Zustimmung."
       },
       "connection_id": {
         "title": "Sandbox-Verbindung",
@@ -10595,7 +10870,37 @@
     "follow_ups": {
       "model_profile_id": {
         "title": "Modell für nächste Schritte",
-        "description": "Ein Modellprofil, das die nächsten Schritte schreibt, sobald die Antwort da ist, statt dass das Modell des Agents sie als Tool anbietet. Für drei kurze Schaltflächen reicht ein kleines, günstiges Modell, und der Agent verbraucht dafür keine Anfrage mehr. Leer lässt der Agent sie selbst anbieten."
+        "description": "Ein separates Modellprofil erstellt Schaltflächen für nächste Schritte im Hintergrund, nachdem die Antwort gespeichert wurde. Es verzögert weder die Antwort noch die nächste Nachricht. Ein kleines, günstiges Modell reicht aus. Ohne Auswahl sind Vorschläge deaktiviert."
+      }
+    },
+    "computer_use": {
+      "desktop": {
+        "title": "Umgebung",
+        "description": "Wählen Sie, wo der Agent einen Desktop bedient. Die Anforderungen der gewählten Umgebung stehen unten."
+      },
+      "daemon_url": {
+        "title": "Daemon-URL",
+        "description": "Der computerd-Endpunkt Ihres Desktops. Sein Host muss in COMPUTER_DAEMON_ALLOWED_HOSTS stehen."
+      },
+      "screen_width": {
+        "title": "Screenshot-Breite",
+        "description": "Die größte Breite eines Screenshots, den das Modell sieht; größere Bildschirme werden passend verkleinert."
+      },
+      "screen_height": {
+        "title": "Screenshot-Höhe",
+        "description": "Die größte Höhe eines Screenshots, den das Modell sieht."
+      },
+      "max_actions_per_call": {
+        "title": "Aktionen pro Aufruf",
+        "description": "Wie viele Aktionen ein Aufruf senden darf."
+      },
+      "max_actions": {
+        "title": "Aktionen pro Lauf",
+        "description": "Wie viele Aktionen ein Lauf insgesamt ausführen darf."
+      },
+      "preview": {
+        "title": "Live-Vorschau",
+        "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
       }
     }
   },
@@ -10673,6 +10978,13 @@
     "needsYou": "Der Agent braucht Sie",
     "takeOver": "Übernehmen",
     "takingOver": "Übernahme nach dem aktuellen Schritt…",
+    "browserAddress": "Webadresse",
+    "browserBack": "Zurück",
+    "browserForward": "Vorwärts",
+    "browserReload": "Neu laden",
+    "browserGo": "Öffnen",
+    "browserInvalidAddress": "Geben Sie eine HTTP- oder HTTPS-Webadresse ein.",
+    "browserNavigationHint": "Übernehmen Sie die Steuerung, um zu navigieren.",
     "takeOverHint": "Der Agent hält nach seinem aktuellen Schritt an, und die Seite gehört Ihnen, bis Sie sie zurückgeben.",
     "giveBack": "Zurückgeben",
     "heldBy": "{name} hat den Browser.",
@@ -10684,7 +10996,12 @@
     "unavailableTitle": "Live-Ansicht nicht verfügbar",
     "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal.",
     "rememberSignIn": "Anmeldung bei {site} für spätere Browses behalten",
-    "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen."
+    "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen.",
+    "nativeReturn": "An Agent zurückgeben",
+    "nativeTake": "Übernehmen",
+    "nativeCloseTab": "Tab schließen",
+    "nativeViewport": "Native Browserseite",
+    "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser."
   },
   "remoteAgents": {
     "title": "Remote Agents",
@@ -10797,7 +11114,78 @@
     "uploadFailed": "Der Upload ist fehlgeschlagen",
     "noFilesYet": "Noch nichts in diesem Projekt",
     "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
-    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier.",
+    "localFolder": {
+      "title": "Ordner auf diesem Computer",
+      "hint": "Dateien direkt verwenden, ohne eine Kopie hochzuladen. Diese Verbindung gilt nur für Sie auf diesem Computer; andere Projektmitglieder verwenden gemeinsame Dateien.",
+      "connect": "Ordner verbinden",
+      "change": "Ordner ändern",
+      "disconnect": "Trennen",
+      "connecting": "Verbinden…",
+      "activeAccess": "Aktueller Zugriff: {mode}",
+      "fileLocation": "Dateispeicherort",
+      "localFiles": "Dieser Computer",
+      "sharedFiles": "Gemeinsame Projektdateien",
+      "refresh": "Dateien aktualisieren",
+      "previewHint": "Vorschau von bis zu 500 lokalen Einträgen. Generierte Ordner wie node_modules und .git werden übersprungen. Die Dateien bleiben auf diesem Computer.",
+      "manage": "Ordnereinstellungen",
+      "sharedHint": "Hochgeladene Kopien sind für alle mit Projektzugriff verfügbar. Lokale Ordner werden hier nicht synchronisiert.",
+      "privateHint": "Diese Dateien bleiben auf deinem Computer. Andere Mitglieder haben keinen Zugriff auf diesen Ordner. Zum Teilen wähle Gemeinsame Projektdateien und lade eine Kopie hoch. Antworten und Werkzeugergebnisse in gemeinsamen Projektchats können den Mitgliedern dieses Chats dennoch Dateiinhalte zeigen."
+    },
+    "noFilesMobileHint": "Lade Dateien hoch, um sie im Projekt zu teilen. Jeder Projektchat kann sie verwenden.",
+    "fileManager": {
+      "actions": "Aktionen für {name}",
+      "rename": "Umbenennen",
+      "move": "In Ordner verschieben",
+      "delete": "Löschen",
+      "name": "Name",
+      "destination": "Zielordner",
+      "root": "Projektdateien",
+      "moveFailed": "Verschieben fehlgeschlagen. Namen und Ziel prüfen und erneut versuchen.",
+      "cancel": "Abbrechen",
+      "saving": "Wird gespeichert…",
+      "confirm": "Bestätigen",
+      "edit": "Datei bearbeiten",
+      "loading": "Datei wird geladen…",
+      "contents": "Dateiinhalt",
+      "unsaved": "Ungespeicherte Änderungen",
+      "saved": "Gespeichert",
+      "textOnly": "UTF-8-Textdateien bis 1 MiB",
+      "close": "Schließen",
+      "save": "Änderungen speichern",
+      "discardTitle": "Änderungen verwerfen?",
+      "discardBody": "Die Änderungen wurden nicht gespeichert. Editor schließen und Änderungen verwerfen?",
+      "discard": "Änderungen verwerfen"
+    },
+    "sandbox": {
+      "label": "Projekt-Sandbox",
+      "automatic": "Automatisch",
+      "automaticNamed": "Automatisch · {name}",
+      "stored": "Nur Dateien speichern",
+      "storedHint": "Die Plattform speichert die Dateien. Agenten können sie lesen und schreiben, hier aber keinen Code ausführen.",
+      "sharedHint": "Dies ist die gemeinsame Serverumgebung. Andere Mitglieder sowie Web- und Mobile-Chats nutzen diese Dateien. Deine persönliche Computerauswahl bleibt davon getrennt.",
+      "failed": "Sandbox-Verbindungen konnten nicht geladen werden. Automatische Auswahl und Dateispeicherung bleiben verfügbar.",
+      "configured": "Konfigurierte Sandbox",
+      "containerHint": "Ein eigener Container auf dieser Verbindung. Sie bleibt ausgewählt, bis die Projektdateien ausdrücklich übertragen werden.",
+      "howItWorks": "Dateien und Codeausführung im Projekt",
+      "locationTitle": "Wo Dateien liegen",
+      "locationHelp": "Gespeicherte Dateien liegen ohne Shell in der Plattformdatenbank. Eine Sandbox-Verbindung stellt einen Container auf Ihrer Infrastruktur oder eine Cloud-Sandbox bereit. Automatisch wählt beim Erstellen den Organisationsstandard.",
+      "sharingTitle": "Ein gemeinsamer Arbeitsbereich",
+      "sharingHelp": "Dateien bleiben über Gespräche hinweg erhalten und sind für Personen mit Projektzugriff gemeinsam verfügbar. Projektchats verwenden diesen Arbeitsbereich statt der Sandbox-Verbindung des Agenten.",
+      "executionTitle": "Wann ein Agent Code ausführen kann",
+      "executionHelp": "In einem Projekt mit Container erhalten Agenten die Sandbox-Werkzeuge des Projekts und können dort Code ausführen. Bestehende Werkzeugfreigaben gelten weiterhin. Gespeicherte Dateien haben keine Shell: Agenten können Dateien lesen und schreiben, aber keinen Code ausführen.",
+      "change": "Sandbox ändern",
+      "move": "Projektdateien übertragen",
+      "transferHint": "Kopiert Dateien und leere Ordner und prüft die Kopie vor dem Wechsel. Neue Läufe und Dateiänderungen pausieren währenddessen. Bei Fehlern bleibt der bisherige Arbeitsbereich ausgewählt. Bis 10.000 Einträge, 64 MiB pro Datei und 1 GiB insgesamt; symbolische Links vorher entfernen. Installierte Pakete und laufende Prozesse werden nicht übertragen.",
+      "moving": "Dateien nach {name} übertragen",
+      "progress": "{copied} von {total} Dateien kopiert",
+      "paused": "Vorhandene Dateien bleiben lesbar. Neue Läufe und Änderungen sind nach Abschluss wieder möglich.",
+      "moveFailed": "Die Übertragung wurde nicht abgeschlossen. Der bisherige Arbeitsbereich bleibt ausgewählt. Versuchen Sie es erneut.",
+      "moved": "Dateien geprüft und neuer Arbeitsbereich aktiviert.",
+      "computer": "Computer · Ihre Dateien",
+      "computerHint": "Einen Ordner auf diesem Computer für Ihre Chats verwenden. Das ist Ihre persönliche Wahl; andere Projektmitglieder nutzen weiter den gemeinsamen Workspace.",
+      "sharedWorkspace": "Gemeinsame Projektumgebung"
+    }
   },
   "voiceGlow": {
     "title": "Diktieranimation",
@@ -10818,7 +11206,31 @@
     "workflowNodes": "Workflow-Schritte",
     "colour": "Farbig",
     "simple": "Schlicht",
-    "workflowNodesHint": "Farbig zeichnet jeden Schritt in der Farbe seiner Familie. Schlicht lässt die Kacheln neutral und die Minikarte grau."
+    "workflowNodesHint": "Farbig zeichnet jeden Schritt in der Farbe seiner Familie. Schlicht lässt die Kacheln neutral und die Minikarte grau.",
+    "look": "Stil",
+    "lookHint": "Jeder Stil hat eine helle und eine dunkle Seite; das Design oben wählt sie. In der Desktop-App lässt Glass den Schreibtisch durchscheinen.",
+    "looks": {
+      "standard": {
+        "name": "Standard",
+        "hint": "Neutral, die Voreinstellung"
+      },
+      "glass": {
+        "name": "Glas",
+        "hint": "Durchscheinende Ebenen"
+      },
+      "graphite": {
+        "name": "Graphit",
+        "hint": "Warmes Grau"
+      },
+      "midnight": {
+        "name": "Mitternacht",
+        "hint": "Tiefes Blauschwarz"
+      },
+      "paper": {
+        "name": "Papier",
+        "hint": "Warm, zum Lesen"
+      }
+    }
   },
   "answerFormat": {
     "title": "Antwortformat",
@@ -11000,12 +11412,12 @@
       }
     },
     "signInAgain": "Erneut anmelden",
-    "count": "{count, plural, =0 {Noch nichts beobachtet} =1 {1 Beobachtung} other {# Beobachtungen}}",
+    "count": "{count, plural, one {# Beobachtung} other {# Beobachtungen}}",
     "findings": "Was sie gefunden haben",
     "offTitle": "Beobachtungen sind aus",
     "noConnectionsTitle": "Verbinden Sie ein Konto, um es zu beobachten",
     "connect": "MCP-Server öffnen",
-    "emptyTitle": "Noch nichts beobachtet",
+    "emptyTitle": "Noch keine Beobachtungen",
     "emptyDescription": "Wählen Sie eines Ihrer Konten und sagen Sie, wonach gesucht werden soll. Was eine Beobachtung findet, landet in Ihrem Posteingang; Dringendes erreicht Sie sofort.",
     "rowLooked": "{cadence} · geprüft {when}",
     "rowFirst": "{cadence} · erste Prüfung innerhalb einer Minute",
@@ -11040,6 +11452,299 @@
       "profile": "Profil",
       "role_pack": "Routinenpaket",
       "finding": "Beobachtung"
+    }
+  },
+  "agentLimit": {
+    "title": "Diese Organisation hat ihr Agenten-Limit erreicht",
+    "body": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat {held}. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "bodyReached": "Dieses Deployment erlaubt {limit, plural, =1 {1 Agenten} other {# Agenten}} pro Organisation, und diese hat das Limit erreicht. Archivieren Sie einen Agenten, den Sie nicht mehr nutzen, um Platz für einen neuen zu schaffen, oder bitten Sie einen Administrator, das Limit zu erhöhen.",
+    "emptyGallery": "Keiner der Agenten dieser Organisation ist mit Ihnen geteilt, und sie hat bereits so viele, wie dieses Deployment erlaubt."
+  },
+  "mobile": {
+    "activity": {
+      "approvalTitle": "{agent} möchte {tool} ausführen",
+      "anAgent": "Ein Agent",
+      "approve": "Genehmigen",
+      "reject": "Ablehnen",
+      "runTitle": "{agent} arbeitet",
+      "runBody": "Tippen, um in AgenticOS mitzuverfolgen.",
+      "questionTitle": "{agent} hat eine Frage an Sie",
+      "questionBody": "Tippen Sie, um in AgenticOS zu antworten.",
+      "callTitle": "Im Gespräch mit {agent}",
+      "callBody": "Tippen Sie, um zum Gespräch zurückzukehren.",
+      "callAsking": "Es fragt Sie etwas - tippen Sie, um zu antworten.",
+      "reviewApproval": "Freigabe prüfen"
+    },
+    "share": {
+      "notAttached": "Konnte nicht angehängt werden: {names}"
+    },
+    "setup": {
+      "title": "Dieses Telefon fertig einrichten",
+      "welcome": "Prüfe diese Verbindung, auch wenn du AgenticOS bereits nutzt. Optionale Einstellungen kannst du später ergänzen.",
+      "hint": "Dein Konto und die Einstellungen dieses Telefons auf diesem Server.",
+      "account": "Angemeldetes Konto",
+      "agent": "Ein verfügbarer Agent",
+      "lock": "App-Sperre",
+      "notifications": "Benachrichtigungen",
+      "ready": "Bereit",
+      "missing": "Nicht eingerichtet",
+      "checking": "Wird geprüft…",
+      "error": "Prüfung fehlgeschlagen. Bitte erneut versuchen.",
+      "unavailable": "Auf diesem Gerät nicht verfügbar",
+      "retry": "Erneut prüfen",
+      "open": "Öffnen",
+      "settings": "Telefoneinstellungen",
+      "deviceTitle": "Dieses Telefon",
+      "deviceHint": "Schutz und gespeicherte Serververbindungen.",
+      "lockHint": "Face ID, Fingerabdruck oder Gerätecode beim Zurückkehren zur App verwenden.",
+      "managed": "Von deiner Organisation verwaltet",
+      "failed": "Die Einstellung konnte nicht geändert werden. Bitte erneut versuchen.",
+      "servers": "Server wechseln",
+      "switching": "Wechsel läuft…",
+      "switchFailed": "Wechsel fehlgeschlagen. Verbinde dich mit dem aktuellen Server, um seine Push-Registrierung zu entfernen, und versuche es erneut.",
+      "serverHint": "Gespeicherte Server behalten ihre eigene Anmeldung und Offline-Daten. Ein Wechsel deaktiviert Push für den bisherigen Server; aktiviere es beim nächsten erneut. Das Entfernen eines Eintrags löscht die Anmeldung nicht: Melde dich auf einem gemeinsam genutzten Telefon zuerst ab.",
+      "contextPermissions": "Kamerazugriff wird nur beim Scannen angefragt, Mikrofonzugriff beim Start einer Sprachunterhaltung. Diese Prüfungen nehmen nichts auf.",
+      "privacyTitle": "Datenschutz bei Telefonbenachrichtigungen",
+      "privacyHint": "Gilt für diese Anmeldung und wird vor dem Versand angewendet, auch bei geschlossener App.",
+      "hidePreviews": "Benachrichtigungstext ausblenden",
+      "mutedCount": "{count} Unterhaltungen auf diesem Telefon stummgeschaltet.",
+      "mute": "Diese Unterhaltung stummschalten",
+      "unmute": "Benachrichtigungen für diese Unterhaltung aktivieren",
+      "systemSettings": "Systemeinstellungen öffnen",
+      "installDistributor": "ntfy installieren",
+      "testAccepted": "Der Push-Dienst hat den Test angenommen.",
+      "testHint": "Ein erfolgreicher Test bestätigt die Annahme durch den Push-Dienst, nicht die Anzeige auf diesem Telefon. Prüfe die Mitteilungszentrale oder den Sperrbildschirm.",
+      "continue": "Weiter"
+    },
+    "pair": {
+      "confirmTitle": "Bei diesem Konto anmelden?",
+      "confirmHint": "Fahre nur fort, wenn dies dein Konto ist. Die Bestätigung ersetzt das auf diesem Gerät angemeldete Konto.",
+      "confirm": "Anmeldung bestätigen",
+      "cancel": "Abbrechen",
+      "loading": "Gescanntes Konto wird geprüft"
+    }
+  },
+  "desktop": {
+    "server": {
+      "change": "Server wechseln…",
+      "changeFailed": "Die Serverauswahl konnte nicht geöffnet werden."
+    },
+    "blobby": {
+      "dropHere": "Lass es hier fallen, dann starte ich damit einen Chat."
+    },
+    "settings": {
+      "pinned": {
+        "title": "Angeheftete Agenten",
+        "descriptionDock": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Dock-Symbols (Rechtsklick) und des Menüleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
+        "descriptionTray": "Ein neuer Chat mit jedem von ihnen aus dem Menü des Taskleistensymbols. Einen Agenten heftest du auf seiner Seite an.",
+        "empty": "Noch keine Agenten angeheftet. Öffne einen Agenten und wähle Anheften.",
+        "unpin": "Lösen"
+      },
+      "device": {
+        "title": "Dieser Computer",
+        "description": "Lassen Sie Ihre eigenen Agents hier arbeiten, wenn Sie in einem Chat „Dieser Computer“ wählen - im gewählten Ordner, so weit der gewählte Modus es erlaubt. Runs anderer erreichen ihn nicht.",
+        "notLinked": "Nicht verbunden",
+        "connected": "Verbunden - Ihre Agents können hier arbeiten",
+        "reconnecting": "Verbunden - stellt Verbindung wieder her…",
+        "live": "Live",
+        "link": "Agents hier arbeiten lassen",
+        "unlink": "Trennen",
+        "linkFailed": "Dieser Computer konnte nicht verbunden werden.",
+        "unlinkFailed": "Dieser Computer konnte nicht getrennt werden."
+      },
+      "services": {
+        "title": "Lokale Modelle und MCP",
+        "description": "Verbinde Dienste auf diesem Computer. Die App fragt für jede Verbindung nach deiner Zustimmung; wähle sie im Chat unter Arbeitsort. Modelle nutzen einen OpenAI-kompatiblen /v1-Endpunkt, MCP nutzt Streamable HTTP.",
+        "kind": "Diensttyp",
+        "modelKind": "Lokales Modell (Ollama, LM Studio)",
+        "failed": "Lokale Dienste konnten nicht geändert werden. Prüfe die Adresse, bestätige den Zugriff im Desktop-Dialog und versuche es erneut.",
+        "mcpKind": "Lokaler MCP-Server (HTTP)",
+        "name": "Name",
+        "endpoint": "Loopback-Adresse",
+        "model": "ID des installierten Modells",
+        "remove": "Entfernen",
+        "removeNamed": "{name} entfernen",
+        "add": "Dienst verbinden",
+        "confirm": "In der App bestätigen…"
+      },
+      "shortcuts": {
+        "open_console": {
+          "label": "AgenticOS öffnen",
+          "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
+        }
+      }
+    },
+    "welcome": {
+      "shortcuts": {
+        "open_console": "AgenticOS öffnen"
+      }
+    },
+    "quickAsk": {
+      "conversation": "Quick-Ask-Gespräch",
+      "repairSetup": "Richten Sie Agent oder Mikrofon für diese Funktion ein",
+      "needsAnswer": "Der Agent benötigt Ihre Antwort",
+      "title": "Quick Ask",
+      "newConversation": "Neuer Chat",
+      "newConversationHint": "Neue Unterhaltung (⌘N / Strg+N)",
+      "dismiss": "Quick Ask schließen",
+      "dismissHint": "Schließen (Esc)",
+      "sendHint": "Enter sendet · Shift+Enter für neue Zeile",
+      "mentionHint": "@ erwähnt eine Ressource",
+      "offline": "Offline · Nachrichten warten",
+      "pin": "Quick Ask auf dem Bildschirm halten",
+      "unpin": "Quick Ask lösen",
+      "pinFailed": "Quick Ask konnte nicht angeheftet werden. Versuche es erneut.",
+      "tabs": "Unterhaltungen",
+      "closeTab": "Tab schließen: {title}",
+      "history": "Letzte Unterhaltungen",
+      "searchHistory": "Unterhaltungen suchen…",
+      "loadingHistory": "Unterhaltungen werden geladen…",
+      "retryHistory": "Unterhaltungen konnten nicht geladen werden. Erneut versuchen",
+      "emptyHistory": "Keine Unterhaltungen gefunden",
+      "tabLimit": "Bis zu acht Tabs können in einem Fenster geöffnet werden.",
+      "earlierMessages": "Frühere Nachrichten laden",
+      "startDictation": "Diktat starten",
+      "stopDictation": "Diktat stoppen"
+    },
+    "readiness": {
+      "title": "App-Bereitschaft",
+      "description": "Der Zustand dieses Macs und Ihres Kontos auf diesem Server. Aktivieren Sie nur benötigte Funktionen.",
+      "desktopOnly": "Öffnen Sie die Desktop-App, um ihre Einrichtung zu prüfen.",
+      "refresh": "Erneut prüfen",
+      "requestFailed": "Die Systemberechtigung konnte nicht geändert werden. Öffnen Sie die Systemeinstellungen und prüfen Sie erneut.",
+      "askAdmin": "Bitten Sie einen Administrator, ein Modell für die Organisation einzurichten.",
+      "askAgentAdmin": "Bitten Sie einen Administrator, einen nutzbaren Agent zu veröffentlichen oder freizugeben.",
+      "permissionNote": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
+      "retryScreenshot": "Screenshot erneut versuchen",
+      "welcome": "Desktop-Verbindung fertig einrichten",
+      "welcomeHint": "Aktiviere die gewünschten Desktop-Funktionen. Optionale Schritte kannst du später abschließen.",
+      "later": "Später",
+      "done": "Weiter",
+      "retry": "Wiederholen",
+      "enable": "Einrichten",
+      "connect": "Verbinden",
+      "configure": "Konfigurieren",
+      "items": {
+        "account": "Angemeldetes Konto",
+        "device": "Gekoppelter Computer",
+        "agent": "Nutzbarer Agent",
+        "model": "Modell des AI Architect",
+        "screen_capture": "Bildschirmaufnahme",
+        "accessibility": "Bedienungshilfen",
+        "microphone": "Mikrofon",
+        "notifications": "Mitteilungen",
+        "shortcuts": "Quick Ask und Tastenkürzel"
+      },
+      "state": {
+        "ready": "Bereit",
+        "missing": "Nicht eingerichtet",
+        "checking": "Wird geprüft…",
+        "error": "Prüfung fehlgeschlagen — erneut versuchen",
+        "unsupported": "Hier nicht erforderlich"
+      },
+      "viewAgents": "Agents ansehen",
+      "finishFailed": "Die Verbindungseinrichtung konnte nicht abgeschlossen werden. Versuchen Sie es erneut.",
+      "opening": "Arbeitsbereich wird geöffnet…"
+    },
+    "notificationSettings": {
+      "title": "Desktop-Mitteilungen",
+      "description": "Einstellungen für dieses Konto und diese Organisation auf diesem Server. Stumme Desktop-Banner ändern den Posteingang nicht.",
+      "completed": "Abgeschlossene Aufgaben",
+      "failed": "Fehlgeschlagene Aufgaben",
+      "approvals": "Freigabeanfragen",
+      "questions": "Agent benötigt eine Antwort",
+      "other": "Andere Posteingangsereignisse",
+      "hide_previews": "Private Inhalte ausblenden",
+      "privacyHint": "Eine allgemeine Nachricht anzeigen. Freigaben erfolgen in der App, damit Sie zuerst die Argumente prüfen können.",
+      "enable": "Systemmitteilungen einrichten",
+      "test": "Testmitteilung senden",
+      "testTitle": "Testbenachrichtigung",
+      "testBody": "Wenn du diese Nachricht siehst, hat macOS die Benachrichtigung zugestellt.",
+      "failedTest": "Der Test konnte nicht gesendet werden. Prüfen Sie die Systemmitteilungen.",
+      "unmuteAll": "{count, plural, one {# Gespräch wieder aktivieren} other {# Gespräche wieder aktivieren}}",
+      "mute": "Mitteilungen für dieses Gespräch stummschalten",
+      "unmute": "Mitteilungen für dieses Gespräch aktivieren",
+      "privateTitle": "AgenticOS-Aktivität",
+      "privateApproval": "Ein Agent benötigt eine Freigabe. Öffnen Sie die App zur Prüfung.",
+      "privateQuestion": "Ein Agent benötigt Ihre Antwort.",
+      "privateFailed": "Eine Aufgabe ist fehlgeschlagen. Details finden Sie in der App.",
+      "privateUpdate": "Es gibt Neuigkeiten zu Ihrer Arbeit."
+    },
+    "activity": {
+      "running": "{agent} · arbeitet",
+      "question": "{agent} · benötigt eine Antwort",
+      "approval": "{agent} · Freigabe erforderlich",
+      "agent": "Agent"
+    },
+    "notifications": {
+      "questionBody": "Öffnen Sie das Gespräch, um dem Agent zu antworten."
+    }
+  },
+  "agentPin": {
+    "toDock": "Im Dock anheften",
+    "toTray": "In der Taskleiste anheften",
+    "unpin": "Lösen",
+    "dockHint": "Rechtsklick auf das AgenticOS-Symbol im Dock startet einen neuen Chat mit diesem Agenten.",
+    "trayHint": "Ein neuer Chat mit diesem Agenten aus dem Menü des AgenticOS-Symbols.",
+    "toHomeScreen": "Zum Startbildschirm hinzufügen",
+    "onHomeScreen": "Auf dem Startbildschirm. Tippen für einen neuen Chat.",
+    "inLongPress": "Dein Launcher kann ihn nicht anheften, darum steht er in der Liste beim langen Drücken auf das AgenticOS-Symbol.",
+    "failed": "Der Agent konnte nicht zum Startbildschirm hinzugefügt werden.",
+    "toWidget": "An Widget anheften",
+    "inWidget": "Angeheftet. Füge das Widget „Angeheftete Agenten“ zum Home-Bildschirm hinzu; der Agent ist auch im Menü des AgenticOS-Symbols und in Kurzbefehle."
+  },
+  "capabilityChoices": {
+    "computer_use": {
+      "desktop": {
+        "auto": {
+          "label": "Automatisch",
+          "description": "Local verwenden, wenn der Chat auf diesem Computer arbeitet; andernfalls E2B, wenn diese Capability einen Schlüssel hat, oder die Sandbox des Agenten."
+        },
+        "e2b": {
+          "label": "E2B",
+          "description": "Einen eigenen E2B-Desktop für diesen Lauf starten. Unten den E2B-Schlüssel der Organisation wählen; keine Sandbox-Verbindung erforderlich.",
+          "summary": "Ein isolierter Desktop in der E2B-Cloud."
+        },
+        "sandbox": {
+          "label": "Docker / Sandbox",
+          "description": "Verwendet die Sandbox-Verbindung des Agenten mit der Desktop-Laufzeit. Docker Compose enthält sandboxd; einen eigenen Host registrierst du mit URL und Schlüssel unter Verbindungen → Sandboxes und wählst ihn dann in der Sandbox-Fähigkeit.",
+          "summary": "Ein Desktop auf deinem Sandbox-Host."
+        },
+        "local": {
+          "label": "Local",
+          "description": "Die gekoppelte Desktop-App verwenden. Im Chat lokales Computer use oder die Arbeit auf diesem Computer auswählen. Die Person muss dem Bildschirmzugriff zustimmen.",
+          "summary": "Der Bildschirm deiner gekoppelten Desktop-App."
+        },
+        "daemon": {
+          "label": "Remote-Computer",
+          "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
+          "summary": "Dein eigener Computer mit computerd."
+        }
+      }
+    },
+    "browser_use": {
+      "connection": {
+        "built_in": {
+          "label": "Integriert",
+          "summary": "Der Browser dieser Bereitstellung.",
+          "description": "Verwendet den mitgelieferten Browser. Seine DevTools-Adresse wird unten konfiguriert."
+        },
+        "proxy": {
+          "label": "Über einen Proxy",
+          "summary": "Der integrierte Browser mit deinem Proxy.",
+          "description": "Verwendet den Browser dieser Bereitstellung über deinen Proxy. Adresse und Zugangsdaten werden unten konfiguriert."
+        },
+        "hosted": {
+          "label": "Gehosteter Browser",
+          "summary": "Ein externer Browserdienst.",
+          "description": "Verbinde einen gehosteten Browser über seinen CDP-Endpunkt und die Zugangsdaten unten."
+        },
+        "local": {
+          "label": "Dieser Computer (Desktop-App)",
+          "summary": "Ein privater Browser auf deinem Computer.",
+          "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
+        }
+      }
     }
   }
 }

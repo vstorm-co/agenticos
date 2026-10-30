@@ -565,40 +565,72 @@ class TestLegacyCookieSessionRevocation:
                 db.add_all([user, admin])
                 await db.flush()
                 now = datetime.now(UTC)
-                old = Session(
-                    user_id=user.id,
-                    refresh_token_hash=hash_token("legacy-current"),
-                    previous_refresh_token_hash=hash_token("legacy-spent"),
-                    rotated_at=now,
-                    expires_at=now + timedelta(days=1),
-                    is_active=True,
+                old_id, impersonation_id, ended_id, user_id = uuid4(), uuid4(), uuid4(), user.id
+                # Seed the historical schema without today's app/push columns.
+                await db.execute(
+                    text(
+                        "INSERT INTO sessions (id, user_id, impersonator_user_id, refresh_token_hash, previous_refresh_token_hash, rotated_at, expires_at, is_active, created_at, last_used_at) VALUES (:id, :user, :impersonator, :current, :previous, :rotated, :expires, :active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    [
+                        {
+                            "id": old_id,
+                            "user": user.id,
+                            "impersonator": None,
+                            "current": hash_token("legacy-current"),
+                            "previous": hash_token("legacy-spent"),
+                            "rotated": now,
+                            "expires": now + timedelta(days=1),
+                            "active": True,
+                        },
+                        {
+                            "id": impersonation_id,
+                            "user": user.id,
+                            "impersonator": admin.id,
+                            "current": hash_token("legacy-impersonation"),
+                            "previous": None,
+                            "rotated": None,
+                            "expires": now + timedelta(minutes=5),
+                            "active": True,
+                        },
+                        {
+                            "id": ended_id,
+                            "user": user.id,
+                            "impersonator": None,
+                            "current": hash_token("legacy-ended"),
+                            "previous": None,
+                            "rotated": None,
+                            "expires": now + timedelta(days=1),
+                            "active": False,
+                        },
+                    ],
                 )
-                impersonation = Session(
-                    user_id=user.id,
-                    impersonator_user_id=admin.id,
-                    refresh_token_hash=hash_token("legacy-impersonation"),
-                    expires_at=now + timedelta(minutes=5),
-                    is_active=True,
-                )
-                ended = Session(
-                    user_id=user.id,
-                    refresh_token_hash=hash_token("legacy-ended"),
-                    expires_at=now + timedelta(days=1),
-                    is_active=False,
-                )
-                db.add_all([old, impersonation, ended])
                 await db.commit()
-                old_id, impersonation_id, ended_id, user_id = (
-                    old.id,
-                    impersonation.id,
-                    ended.id,
-                    user.id,
+                assert (
+                    await db.scalar(
+                        text("SELECT is_active FROM sessions WHERE id=:id"), {"id": old_id}
+                    )
+                    is True
                 )
-                before = await SessionService(db).validate_refresh_token("legacy-current")
-                assert before is old
                 await db.commit()
 
             up = _alembic("upgrade", "0173_revoke_cookie_sessions")
+            assert up.returncode == 0, up.stderr
+            async with factory() as db:
+                active = (
+                    (
+                        await db.execute(
+                            text(
+                                "SELECT is_active FROM sessions WHERE id IN (:old, :impersonation, :ended)"
+                            ),
+                            {"old": old_id, "impersonation": impersonation_id, "ended": ended_id},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                assert len(active) == 3 and not any(active)
+            # Current services are exercised only once their full schema exists.
+            up = _alembic("upgrade", "head")
             assert up.returncode == 0, up.stderr
             async with factory() as db:
                 service = SessionService(db)
@@ -636,11 +668,14 @@ class TestLegacyCookieSessionRevocation:
             down = _alembic("downgrade", "0172_mcp_health_queue_clock")
             assert down.returncode == 0, down.stderr
             async with factory() as db:
-                service = SessionService(db)
-                revoked = await service.validate_refresh_token("legacy-current")
-                retained = await service.validate_refresh_token("fresh-current")
-                assert revoked is None
-                assert retained is not None
+                revoked = await db.scalar(
+                    text("SELECT is_active FROM sessions WHERE id=:id"), {"id": old_id}
+                )
+                retained = await db.scalar(
+                    text("SELECT is_active FROM sessions WHERE id=:id"), {"id": fresh_id}
+                )
+                assert revoked is False
+                assert retained is True
         finally:
             await engine.dispose()
 
@@ -681,5 +716,131 @@ class TestMessageClientCorrelation:
                     )
                     == "before correlation"
                 )
+        finally:
+            engine.dispose()
+
+
+class TestChannelRatingAuthors:
+    def test_account_votes_survive_and_channel_authors_are_constrained(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0174_message_client_id")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        message_id, user_id, original_id, identity_id = (uuid4() for _ in range(4))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO message_ratings (id, message_id, user_id, rating) VALUES (:id, :message, :user, 1)"
+                    ),
+                    {"id": original_id, "message": message_id, "user": user_id},
+                )
+            upgraded = _alembic("upgrade", "head")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.begin() as connection:
+                row = connection.execute(
+                    text("SELECT user_id, channel_identity_id FROM message_ratings WHERE id=:id"),
+                    {"id": original_id},
+                ).one()
+                assert tuple(row) == (user_id, None)
+                connection.execute(
+                    text(
+                        "INSERT INTO channel_identities (id, platform, platform_user_id, is_active) VALUES (:id, 'mattermost', 'participant', true)"
+                    ),
+                    {"id": identity_id},
+                )
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO message_ratings (id, message_id, channel_identity_id, rating) VALUES (:id, :message, :identity, -1)"
+                    ),
+                    {"id": uuid4(), "message": message_id, "identity": identity_id},
+                )
+            from sqlalchemy.exc import IntegrityError
+
+            for user, identity in [(None, None), (user_id, identity_id)]:
+                with pytest.raises(IntegrityError), engine.begin() as connection:
+                    connection.execute(text("SET LOCAL session_replication_role = replica"))
+                    connection.execute(
+                        text(
+                            "INSERT INTO message_ratings (id, message_id, user_id, channel_identity_id, rating) VALUES (:id, :message, :user, :identity, 1)"
+                        ),
+                        {"id": uuid4(), "message": uuid4(), "user": user, "identity": identity},
+                    )
+            with pytest.raises(IntegrityError), engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO message_ratings (id, message_id, channel_identity_id, rating) VALUES (:id, :message, :identity, 1)"
+                    ),
+                    {"id": uuid4(), "message": message_id, "identity": identity_id},
+                )
+            back = _alembic("downgrade", "0174_message_client_id")
+            assert back.returncode == 0, back.stderr
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text("SELECT id, user_id FROM message_ratings")
+                ).all() == [(original_id, user_id)]
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr + check.stdout
+        finally:
+            engine.dispose()
+
+
+class TestSkillBindingAvailability:
+    def test_removing_the_switch_preserves_skills_and_rolls_back_on_populated_tables(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0179_session_push_preferences")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        skill_ids = [uuid4(), uuid4()]
+        selected = {"a": skill_ids[0], "b": skill_ids[1]}
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for index, skill_id in enumerate(skill_ids):
+                    connection.execute(
+                        text(
+                            "INSERT INTO skills (id, organization_id, name, description, content, "
+                            "enabled, version, visibility) VALUES "
+                            "(:id, :org, :name, 'A procedure', 'Check the order', :enabled, 1, 'org')"
+                        ),
+                        {
+                            "id": skill_id,
+                            "org": uuid4(),
+                            "name": f"procedure-{index}",
+                            "enabled": bool(index),
+                        },
+                    )
+            upgraded = _alembic("upgrade", "0180_remove_skill_enabled")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text("SELECT count(*) FROM skills WHERE id IN (:a, :b)"), selected
+                    ).scalar_one()
+                    == 2
+                )
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'skills' AND column_name = 'enabled'"
+                        )
+                    ).scalar_one()
+                    == 0
+                )
+            downgraded = _alembic("downgrade", "0179_session_push_preferences")
+            assert downgraded.returncode == 0, downgraded.stderr
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text("SELECT enabled FROM skills WHERE id IN (:a, :b)"), selected
+                ).scalars().all() == [True, True]
+            upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
+            assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
             engine.dispose()

@@ -1,13 +1,26 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The connect page: the IPC it needs is the commands the shell defines, plus opening a sign-in in the system browser and being sent back to it.",
-  "windows": [
-    "main"
-  ],
+  "description": "Onboarding, the one page the shell carries itself: where AgenticOS lives - a stack it sets up on this computer, or an organization's server - and the title bar it is dragged by. The console's own pages are granted at runtime, for the configured server's origin only (console.rs).",
+  "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
     "opener:allow-open-url",
-    "deep-link:default"
+    "deep-link:default",
+    "allow-server-url",
+    "allow-startup-notice",
+    "allow-connect",
+    "allow-page-error",
+    "allow-onboarding-state",
+    "allow-onboarding-permissions",
+    "allow-request-onboarding-permission",
+    "allow-local-status",
+    "allow-local-instances",
+    "allow-set-up-local",
+    "allow-use-local",
+    "allow-open-docker-download",
+    "allow-download-docker",
+    "allow-open-docker"
   ]
 }

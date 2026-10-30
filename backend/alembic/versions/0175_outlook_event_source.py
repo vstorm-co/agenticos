@@ -1,19 +1,22 @@
 """Outlook joins Gmail as a polled mail source
 
 Revision ID: 0175_outlook_event_source
-Revises: 0174_message_client_id
+Revises: 0180_remove_skill_enabled
 Create Date: 2026-10-17
 
 `outlook` is a Microsoft 365 mailbox read through the organization's Microsoft
 grant, the same delivery as `gmail`: polled, so it has no inbound door and no
 per-trigger secret (agenticos#1984). Both constraints that name the polled
 sources widen to it; no existing row changes.
+
+This unreleased branch follows the released desktop/mobile chain. Revision
+numbers reflect when the branches were written, not their application order.
 """
 
 from alembic import op
 
 revision = "0175_outlook_event_source"
-down_revision = "0174_message_client_id"
+down_revision = "0180_remove_skill_enabled"
 branch_labels = None
 depends_on = None
 

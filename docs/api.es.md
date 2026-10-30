@@ -1,5 +1,5 @@
 ---
-source_sha: "2f49c387cc96"
+source_sha: "7298c6f9c182"
 ---
 
 # La API HTTP { #the-http-api }
@@ -546,7 +546,8 @@ nombra el ejemplo; la consola la muestra una vez.
 **Sube un documento a una base de conocimiento y búscalo** — una clave con
 `collections:view` y `collections:edit` (la plantilla *Knowledge ingest*). La
 ingesta corre en segundo plano, así que una búsqueda justo después de subirlo puede
-no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado.
+no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado, y
+`GET /api/v1/kb/$KB_ID/ingestion` responde `complete` cuando ya no se procesa ninguno.
 
 ```bash
 # Find the knowledge base, upload a file into it, and search it.

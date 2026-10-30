@@ -129,24 +129,20 @@ export function ArchitectMark({
       ref={ref}
       aria-hidden
       className={cn(
-        "inline-flex shrink-0 overflow-hidden rounded-full",
+        "inline-flex shrink-0 overflow-hidden rounded-[30%]",
         size && SIZES[size],
         className,
       )}
     >
       <svg viewBox="0 0 24 24" className="h-full w-full">
-        <circle cx="12" cy="12" r="12" fill={BLUEPRINT} />
-        {/* The drafting grid, faint, so it reads as paper rather than a pattern. */}
-        <g stroke="#fff" strokeOpacity="0.24" strokeWidth="0.45">
-          <path d="M0 7.5h24M0 12h24M0 16.5h24M7.5 0v24M12 0v24M16.5 0v24" />
-        </g>
+        <rect x="1" y="1" width="22" height="22" rx="8" fill={BLUEPRINT} />
         {/* The eyes every agent in the console wears. */}
         <g
           data-testid="architect-eyes"
           className="transition-transform duration-200 ease-out motion-reduce:transition-none"
           style={{ transform: `translate(${gaze.x}px, ${gaze.y}px)` }}
         >
-          <g className="origin-center [transform-box:fill-box] motion-safe:animate-[architect-blink_5.5s_ease-in-out_infinite]">
+          <g className="origin-center [transform-box:fill-box]">
             <rect x="8.4" y="8.9" width="2.3" height="4.9" rx="1.15" fill="#fff" />
             <rect x="13.3" y="8.9" width="2.3" height="4.9" rx="1.15" fill="#fff" />
           </g>

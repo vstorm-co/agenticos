@@ -136,6 +136,8 @@ export interface TourStep {
   /** A `[data-tour="…"]` to click before spotlighting — a tab that reveals the target. */
   activate?: string;
   permission?: Permission;
+  /** A section visible to holders of any of these grants. */
+  anyPermission?: readonly Permission[];
   /** Part of the curated first-run walkthrough. Omitted means "?"-only. */
   inTour?: boolean;
   /**
@@ -710,23 +712,46 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
   // The organization detail, entered from the workspaces list. Two routes, one
-  // walk: the members page (profile, then the member list) and then a step
+  // walk: the organization tabs (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
-  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
-  // The switch for page data on public links: Owner and Admin only, the PATCH's own gate.
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile", activate: "org-tab-profile" },
+  {
+    id: "org-governance",
+    page: ORG_MEMBERS,
+    target: "org-governance",
+    activate: "org-tab-governance",
+    anyPermission: [Perm.budgetsManage, Perm.approvalsDecide],
+  },
+  {
+    id: "org-proactivity",
+    page: ORG_MEMBERS,
+    target: "org-proactivity",
+    activate: "org-tab-proactivity",
+    anyPermission: [Perm.budgetsManage, Perm.orgSettings],
+  },
+  {
+    id: "org-proactivity-model",
+    page: ORG_MEMBERS,
+    target: "org-proactivity-model",
+    activate: "org-tab-proactivity",
+    permission: Perm.budgetsManage,
+    anyPermission: [Perm.connectionsManage],
+    optional: true,
+  },
   {
     id: "org-public-live-data",
     page: ORG_MEMBERS,
     target: "org-public-live-data",
+    activate: "org-tab-governance",
     permission: Perm.orgSettings,
   },
-  // The Voice card sits above the member list on the same page, so it comes
-  // before the list rather than doubling back from the roles matrix. Gated like
+  // Activate each settings tab before locating its card. Gated like
   // the card, which is hidden from anybody who may not change settings.
   {
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
+    activate: "org-tab-voice",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -735,10 +760,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-assistant",
     page: ORG_MEMBERS,
     target: "org-assistant",
+    activate: "org-tab-assistant",
     permission: Perm.orgSettings,
     optional: true,
   },
-  { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
+  { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",
@@ -856,6 +882,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.projectsView,
   },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
 
   // Other vendors' agents, reached over A2A (#2092). The list is what the page
   // is for; registering is `agents:edit`, which the button carries.
@@ -880,22 +907,25 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // "?"-only, like the workspaces stop: the launch pass is deliberately six steps
   // - welcome, the dashboard, the chat, finish - and a seventh about work nobody
   // has scheduled yet is a page a first login has no reason to visit.
-  { id: "routines-list", page: ROUTES.ROUTINES, target: "routines-list" },
+  {
+    id: "routines-list",
+    page: ROUTES.ROUTINES,
+    target: "routines-list",
+    activate: "routines-agents-tab",
+  },
   // Watches over the reader's own connections (#2301); the card's header is always drawn.
-  { id: "routines-watches", page: ROUTES.ROUTINES, target: "routines-watches" },
+  {
+    id: "routines-watches",
+    page: ROUTES.ROUTINES,
+    target: "routines-watches",
+    activate: "routines-watches-tab",
+  },
   {
     id: "routines-create",
+    activate: "routines-agents-tab",
     page: ROUTES.ROUTINES,
     target: "routines-create",
     permission: Perm.agentsRun,
-  },
-  // Rendered only once the template catalog has answered, so optional.
-  {
-    id: "routines-ideas",
-    page: ROUTES.ROUTINES,
-    target: "routines-ideas",
-    permission: Perm.agentsRun,
-    optional: true,
   },
 
   // What the platform brought the reader on its own (#2301). "?"-only, like the
@@ -989,12 +1019,19 @@ function flowFor(pageId: string): readonly string[] {
   return SECTION_FLOWS.find((flow) => flow.includes(pageId)) ?? [pageId];
 }
 
+function canVisitStep(step: TourStep, can: (permission: Permission) => boolean): boolean {
+  return (
+    (!step.permission || can(step.permission)) &&
+    (!step.anyPermission || step.anyPermission.some(can))
+  );
+}
+
 /**
  * The curated first-run walkthrough: the `inTour` steps, permission-filtered the
  * way the sidebar is, so a Viewer's tour is exactly the sections they can act on.
  */
 export function visibleTourSteps(can: (permission: Permission) => boolean): readonly TourStep[] {
-  return TOUR_STEPS.filter((step) => step.inTour && (!step.permission || can(step.permission)));
+  return TOUR_STEPS.filter((step) => step.inTour && canVisitStep(step, can));
 }
 
 /**
@@ -1015,10 +1052,7 @@ export function stepsForPage(
   const flow = flowFor(current);
   const reachable = new Set(flow.slice(flow.indexOf(current)));
   return TOUR_STEPS.filter(
-    (step) =>
-      step.page !== undefined &&
-      reachable.has(step.page) &&
-      (!step.permission || can(step.permission)),
+    (step) => step.page !== undefined && reachable.has(step.page) && canVisitStep(step, can),
   );
 }
 

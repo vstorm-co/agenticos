@@ -5,23 +5,31 @@ key is the last thing that should leak across tenants, and a forgotten filter
 must not look like an ordinary call (see tests/test_org_scope_regression.py).
 """
 
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.credential import ModelProfile
 
 
 async def get_profile(
-    db: AsyncSession, profile_id: UUID, *, organization_id: UUID
+    db: AsyncSession, profile_id: UUID, *, organization_id: UUID, for_update: bool = False
 ) -> ModelProfile | None:
-    result = await db.execute(
-        select(ModelProfile).where(
-            ModelProfile.id == profile_id,
-            ModelProfile.organization_id == organization_id,
-        )
+    """One profile in its organization.
+
+    `for_update` locks the row until the transaction ends, for a read that the
+    same transaction validates and then writes: two edits each validating their
+    own stale copy could otherwise leave a profile no edit would have allowed.
+    """
+    statement = select(ModelProfile).where(
+        ModelProfile.id == profile_id,
+        ModelProfile.organization_id == organization_id,
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 
@@ -74,6 +82,7 @@ async def create_profile(
     params: dict | None = None,
     fallback_profile_ids: list[str] | None = None,
     context_length: int | None = None,
+    runs_without_key: bool = False,
 ) -> ModelProfile:
     profile = ModelProfile(
         organization_id=organization_id,
@@ -86,6 +95,7 @@ async def create_profile(
         params=params or {},
         fallback_profile_ids=fallback_profile_ids or [],
         context_length=context_length,
+        runs_without_key=runs_without_key,
     )
     db.add(profile)
     await db.flush()
@@ -93,10 +103,32 @@ async def create_profile(
     return profile
 
 
-async def delete_profile(db: AsyncSession, profile_id: UUID, *, organization_id: UUID) -> bool:
-    profile = await get_profile(db, profile_id, organization_id=organization_id)
-    if profile is None:
-        return False
-    await db.delete(profile)
+async def update_profile(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    profile: ModelProfile,
+    update_data: dict[str, Any],
+) -> ModelProfile:
+    """Write changed columns onto a profile, by an `UPDATE` scoped to its organization.
+
+    The row is the one the service read; the statement still names the tenant, so
+    a profile handed in from elsewhere matches nothing rather than being written.
+    """
+    await db.execute(
+        update(ModelProfile)
+        .where(ModelProfile.id == profile.id, ModelProfile.organization_id == organization_id)
+        .values(**update_data)
+    )
     await db.flush()
-    return True
+    await db.refresh(profile)
+    return profile
+
+
+async def delete_profile(db: AsyncSession, profile_id: UUID, *, organization_id: UUID) -> None:
+    await db.execute(
+        delete(ModelProfile).where(
+            ModelProfile.id == profile_id, ModelProfile.organization_id == organization_id
+        )
+    )
+    await db.flush()

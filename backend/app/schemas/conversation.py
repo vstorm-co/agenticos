@@ -522,8 +522,8 @@ class ConversationRead(ConversationBase, TimestampSchema):
     agents: list[ConversationAgent] = Field(
         default_factory=list,
         description=(
-            "Every agent that answered in this conversation, in the order they first "
-            "did. A list rather than one agent because the picker can be changed "
+            "Every agent used in this conversation, most recently used first, based on "
+            "its latest message or top-level run. The picker can be changed "
             "mid-thread."
         ),
     )

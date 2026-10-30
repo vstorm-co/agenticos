@@ -1,5 +1,5 @@
 ---
-source_sha: "934f449b312e"
+source_sha: "f96ca8950f4c"
 ---
 
 # Koncepcje { #concepts }
@@ -218,6 +218,11 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
 - **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
   audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
   działało.
+- **Może pracować na własnym komputerze twórcy.** Z włączonym Run as me twórca
+  może wskazać triggerowi folder na swoim komputerze, w polu **Pracuj na (Work
+  on)**; każde odpalenie pracuje wtedy tam przez
+  [aplikację desktopową](desktop.md#work-on-this-computer). Wyłączenie Run as me to
+  czyści, a odpalenie, które nie działa jako twórca, nie dostaje komputera.
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
@@ -617,7 +622,9 @@ speców.
 
 Profil, za którym nie stoi żadne poświadczenie, jest oznaczony `no key`
 wszędzie, gdzie się pojawia, bo to jedyny fakt rozstrzygający, czy agent może się
-w ogóle uruchomić.
+w ogóle uruchomić. Pickery go nie oferują, a publikacja go odrzuca, dopóki znów
+nie ma klucza. Profilu, którego używają agenci, nie można usunąć; zobacz
+[Zmiana klucza lub endpointu profilu](models.md#changing-a-profiles-key-or-endpoint).
 
 Ceny pochodzą z [`genai-prices`](https://github.com/pydantic/genai-prices),
 utrzymywanego przez Pydantic, a nie z tabelki w tym repozytorium — tabelka

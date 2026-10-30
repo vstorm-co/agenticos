@@ -43,6 +43,52 @@ def server(api: MagicMock) -> FastMCP:
 
 CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     ("whoami", {}, ("GET", "/me/permissions", {})),
+    ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
+    (
+        "list_projects",
+        {"q": "wiki", "limit": 10, "skip": 20},
+        ("GET", "/projects", {"params": {"q": "wiki", "limit": 10, "skip": 20}}),
+    ),
+    ("get_project", {"project_id": str(KB)}, ("GET", f"/projects/{KB}", {})),
+    (
+        "create_project",
+        {"name": "Wiki"},
+        (
+            "POST",
+            "/projects",
+            {
+                "json": {
+                    "name": "Wiki",
+                    "instructions": "",
+                    "description": None,
+                    "default_agent_id": None,
+                    "visibility": "private",
+                }
+            },
+        ),
+    ),
+    (
+        "create_project",
+        {
+            "name": "Wiki",
+            "instructions": "Read index.md first.",
+            "description": "Continuing research",
+            "default_agent_id": str(AGENT),
+        },
+        (
+            "POST",
+            "/projects",
+            {
+                "json": {
+                    "name": "Wiki",
+                    "instructions": "Read index.md first.",
+                    "description": "Continuing research",
+                    "default_agent_id": str(AGENT),
+                    "visibility": "private",
+                }
+            },
+        ),
+    ),
     ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
     ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
     (
@@ -385,6 +431,8 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
 ) -> None:
+    if tool == "list_projects":
+        api.request.return_value = {"items": [], "total": 0}
     await server.call_tool(tool, arguments)
 
     method, path, kwargs = call
@@ -573,6 +621,9 @@ class TestWhatNeverWaitsForApproval:
 
         assert tools["set_my_profile"].writes
         assert not tools["set_my_profile"].ungated
+        assert tools["create_project"].writes and not tools["create_project"].ungated
+        assert not tools["list_projects"].writes
+        assert not tools["get_project"].writes
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 
@@ -581,8 +632,12 @@ class TestWhatNeverWaitsForApproval:
         them, so a page that injected both calls could carry one off."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.held} == {"read_conversation"}
+        assert {name for name, tool in tools.items() if tool.held} == {
+            "read_conversation",
+            "get_project",
+        }
         assert not tools["read_conversation"].writes
+        assert not tools["get_project"].writes
         assert not tools["get_run"].held
 
     async def test_a_held_read_is_announced_as_no_read_only_tool(self) -> None:
@@ -593,6 +648,7 @@ class TestWhatNeverWaitsForApproval:
         listed = {tool.name: tool for tool in await server.list_tools()}
 
         assert listed["read_conversation"].annotations.readOnlyHint is False
+        assert listed["get_project"].annotations.read_only_hint is False
         assert listed["get_run"].annotations.readOnlyHint is True
 
     def test_the_agent_layer_names_the_same_set(self) -> None:
@@ -912,3 +968,49 @@ class TestConfiguredDrafts:
                 },
             )
         api.request.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_project_discovery_returns_only_names_and_ids(
+    server: FastMCP, api: MagicMock
+) -> None:
+    api.request.return_value = {
+        "items": [
+            {
+                "id": str(KB),
+                "name": "Shared wiki",
+                "instructions": "Untrusted payload",
+                "description": "Injected description",
+                "default_agent_name": "Another label",
+            }
+        ],
+        "total": 12,
+        "skip": 0,
+        "limit": 1,
+    }
+    listing = await server.call_tool("list_projects", {"limit": 1})
+    assert listing.structured_content == {
+        "items": [{"id": str(KB), "name": "Shared wiki"}],
+        "total": 12,
+        "skip": 0,
+        "limit": 1,
+    }
+
+
+async def test_project_discovery_preserves_empty_pages(server: FastMCP, api: MagicMock) -> None:
+    api.request.return_value = {"items": [], "total": 0}
+    assert (await server.call_tool("list_projects", {})).structured_content == {
+        "items": [],
+        "total": 0,
+    }
+
+
+async def test_create_project_configures_only_the_shared_workspace(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "create_project")
+    await tool.function(name="Local coding", backend="service", sandbox_connection_id=KB)
+    payload = api.request.call_args.kwargs["json"]
+    assert payload["backend"] == "service"
+    assert payload["sandbox_connection_id"] == str(KB)
+    assert "local" not in payload and "folder" not in payload
+    assert tool.writes
+    assert "cannot select a native folder" in tool.function.__doc__

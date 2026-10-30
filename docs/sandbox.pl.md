@@ -1,5 +1,5 @@
 ---
-source_sha: "6de4a5082694"
+source_sha: "bbf935c0ed43"
 ---
 
 # Sandbox { #the-sandbox }
@@ -46,9 +46,65 @@ flowchart LR
 
 `sandboxd` to serwer z [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
 dostarczany jako `ghcr.io/vstorm-co/sandboxd`; backend rozmawia z nim po HTTP,
-z tokenem w `SANDBOXD_TOKEN`. Dwa pozostałe backendy sandboksa, które spec może
-wskazać — `daytona` i `state` — to usługa hostowana i dokument w Postgresie
-i żaden z nich nie ma nic wspólnego z powyższym.
+z tokenem w `SANDBOXD_TOKEN`. Pozostałe backendy sandboksa — połączenia `daytona`
+i `e2b` oraz `state` — to usługi hostowane i dokument w Postgresie i żaden z nich
+nie ma nic wspólnego z powyższym; własny komputer osoby też nie (zobacz
+[Poza sandboxd](#beyond-sandboxd)).
+
+### Usługa i backend zmieniają się razem { #the-service-and-the-backend-move-together }
+
+Usługa i klient backendu pochodzą z tego samego wydania `pydantic-ai-backend`,
+a klient wywołuje ścieżki, które obsługuje tylko jego własne wydanie. Dlatego
+każdy plik compose przypina obraz dokładnie do wersji z `backend/uv.lock`, a test
+backendu nie przechodzi, gdy pliki compose albo inwentarz licencji podają inną.
+Podbijaj lock, pliki compose i inwentarz w jednej zmianie. Nowy pin to tag,
+którego host jeszcze nie ma, więc `make dev` i `scripts/deploy.sh` pobierają go
+przy następnym starcie.
+
+Pin żyje w checkoucie, nie w `AGENTICOS_VERSION`, więc host, który ręcznie
+przypina albo wycofuje backend, robi też checkout tagu tego wydania ([Przypnij wydanie](deploy.md#the-images)).
+Instalacja bez checkoutu, taka jak ta z `scripts/quickstart.sh`, pobiera zamiast
+tego `docker-compose.yml` tego wydania ([Instalacja](install.md)).
+
+Ruchomy tag już raz to zepsuł (#2484). Zapisany w pamięci podręcznej
+`sandboxd:0.2` obsługiwał starsze API niż to, którym mówił klient, i każde
+polecenie kończyło się błędem `sandboxd session '…' is gone`, choć sesja żyła.
+Platforma odróżnia teraz te dwa przypadki. Gdy 404 niesie gołe
+`{"detail":"Not Found"}` FastAPI zamiast własnego `No such session` usługi,
+platforma czyta indeks usługi pod `/`. Jeśli w indeksie brakuje ścieżki, której
+klient potrzebuje, wywołanie narzędzia kończy się błędem, a agent dostaje
+komunikat:
+
+```text
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
+```
+
+To samo sprawdzenie obsługuje `409` przy podłączaniu referencji sesji zapisanej
+przed aktualizacją: stara usługa może ją odrzucić, choć sesja nadal istnieje. Tylko
+potwierdzony brak endpointu zmienia konflikt w błąd wersji; zwykłe konflikty
+i niedostępny indeks zachowują pierwotny błąd.
+
+Komunikat pomija adres usługi, którego członkowie i model mogą nie mieć prawa
+widzieć; backend zapisuje go w logu jako `sandboxd_version_mismatch`. Sesja nie
+jest zgłaszana jako utracona, ale rozmowa zapomina zapisane odwołanie do niej:
+starsza usługa odmawia dołączenia do żywej sesji po odwołaniu. Następna tura
+otwiera sesję po nazwie, więc po aktualizacji rozmowa wraca do tej samej sesji,
+jeśli usługa ją zachowała.
+
+`agenticos cmd doctor` robi to samo sprawdzenie dla
+każdego zarejestrowanego połączenia i podaje obraz, który trzeba uruchomić.
+Wdróż ponownie stos, który uruchamia usługę: `scripts/deploy.sh` w produkcji
+(uruchamia profil `sandbox`, gdy ustawiony jest `SANDBOXD_TOKEN`), `make dev` na
+laptopie. `make prod` nie rusza usługi, bo nie uruchamia tego profilu; na stosie
+uruchomionym w ten sposób pobierz i odtwórz ją sam:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
 
 !!! danger "Ten token jest równoważny rootowi"
 
@@ -118,7 +174,7 @@ Co oddziela jednego tenanta od drugiego:
 
 ## O jakie środowiska agent może poprosić { #which-environments-an-agent-may-ask-for }
 
-**Dostarczany jest jeden runtime i jest on zdefiniowany w tym repozytorium** —
+**Dostarczane są dwa runtime'y i są one zdefiniowane w tym repozytorium** —
 `backend/app/core/catalog/sandbox_runtimes.json`:
 
 | | `workbench` — 1,93 GB, budowany w około 65 s na rozgrzanym hoście |
@@ -134,15 +190,28 @@ Co oddziela jednego tenanta od drugiego:
 | Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
 | Inne | `pyyaml` |
 | Pamięć | 2 GiB |
-| Sieć | tak — jedyny runtime, który ją ma |
+| Sieć | tak |
 
-Jeden zamiast ośmiu, a powodem jest `prewarm`: usługa buduje przy starcie
+| | `desktop` — do [obsługi komputera](reference/capabilities.md#computer-use) |
+|---|---|
+| Zbudowany na | `python:3.12-slim` |
+| Pulpit | Xvfb na ekranie `:0`, XFCE, Firefox ESR; `xdotool` i `scrot`, które nim sterują i go fotografują |
+| Narzędzia | `git`, `curl`, `jq`, `procps`, `unzip` |
+| Pamięć | 2 GiB |
+| Sieć | tak, żeby przeglądarka na nim mogła otworzyć stronę |
+
+Dwa zamiast ośmiu, a powodem jest `prewarm`: usługa buduje przy starcie
 **każdy** wpis swojej listy dozwolonych, więc osiem aliasów to osiem instalacji
 `pip` w starcie, któremu nikt się nie przygląda, osiem obrazów w cache hosta
 i agent poproszony o przeczytanie PDF-a dostający ten alias, który akurat wskazał
 jego spec. `workbench` jest zbudowany tak, by być odpowiedzią na *napisz
 i uruchom trochę kodu, przeczytaj to, co załączył użytkownik, narysuj wykres,
-pobierz stronę*.
+pobierz stronę*, i jest pierwszy, więc dostaje go agent, który nie wskazuje
+żadnego runtime'u.
+
+`desktop` jest jedynym, czym `workbench` być nie może: ekranem, na który agent
+z `computer_use` patrzy i w który klika. Jego pulpit startuje przy pierwszym
+zrzucie ekranu w runie, a nie razem z kontenerem.
 
 Do #1040 tym katalogiem było `BUILTIN_RUNTIMES` z biblioteki sandboksa:
 piętnaście receptur, z których `sandboxd` uruchomiony przez ten projekt
@@ -438,7 +507,7 @@ ostatnim razem, nadal zainstalowanym.
 Co się trzyma:
 
 - sandbox nie widzi gniazda Dockera; widzi je tylko `sandboxd`;
-- żadnej sieci, chyba że runtime o nią prosi, a robi to tylko `workbench`;
+- żadnej sieci, chyba że runtime o nią prosi, a robią to oba dostarczane runtime'y;
 - 2 CPU, 512 procesów i 64 MiB `tmpfs` pod `/tmp` na sandbox, plus
   `SANDBOXD_EXECUTE_TIMEOUT` (300 s) na każde polecenie oraz
   `SANDBOXD_MAX_READ_BYTES` (8 MiB) na każdy odczyt;
@@ -465,7 +534,7 @@ Co pozostaje, powiedziane wprost, a nie tylko zasugerowane:
 !!! warning "Zastrzeżenie dla laptopa, ale sprawdź je, zanim skopiujesz lokalny plik compose"
 
     `docker-compose.yml` publikuje Postgresa i Redisa z `postgres/postgres`,
-    a `workbench` jest jedynym runtimem z siecią. Na współdzielonym hoście jest to
+    a oba dostarczane runtime'y mają sieć. Na współdzielonym hoście jest to
     osiągalne z wnętrza sandboksa; `docker-compose-prod.yml` nie publikuje żadnego
     z nich.
 
@@ -596,17 +665,46 @@ usunięte albo unieważnione, usuń sandboxy w konsoli dostawcy. Potem usuń
 połączenie jeszcze raz i potwierdź, że to zrobiono: tombstone'y zostaną
 zapomniane, a ich liczba trafi do logu audytu.
 
+## Poza sandboxd { #beyond-sandboxd }
+
+Jeszcze dwa miejsca, gdzie mogą działać narzędzia sandboksa runa - z tymi samymi
+narzędziami i bez niczego z powyższej izolacji.
+
+**Połączenie E2B.** Połączenie sandboksa rodzaju `e2b` uruchamia sandboksy na
+własnym koncie [E2B](https://e2b.dev) organizacji: jego klucz API to sekret
+połączenia w vault, a domyślny runtime połączenia nazywa szablon E2B - puste dla
+domyślnego szablonu E2B, `desktop` dla szablonu, którym steruje computer use.
+Każde utworzenie, podłączenie i zniszczenie odbywa się tym kluczem, nigdy
+`E2B_API_KEY`, który akurat ma proces wdrożenia, więc sandboksy każdej organizacji
+działają i są rozliczane na jej własnym koncie. Sandbox jest na koniec swojej
+godziny wstrzymywany, a nie zabijany, więc workspace o dłuższym zakresie zachowuje
+pliki, a sweep niszczenia kończy go tak jak sandbox Daytona.
+
+**Własny komputer osoby.** W [aplikacji desktopowej](desktop.md#work-on-this-computer)
+czat może pracować w folderze na komputerze, na którym działa. Narzędzia sięgają
+go przez połączenie aplikacji z serwerem, a to aplikacja - nie ten serwer -
+odrzuca każdy folder i tryb, którego osoba nie przyznała; zapisy działają pod
+Seatbelt na macOS albo bubblewrap na Linuksie. Tylko własne czaty osoby i
+triggery działające jako ich twórca sięgają jej komputera; run czeka do dziesięciu
+minut, aż się połączy. Nic z tego nie jest tu trzymane: nie ma wiersza workspace'u
+ani sesji do sprzątania.
+
 ## Podsumowanie { #recap }
 
 - Kontener API **nie trzyma gniazda Dockera**. Trzyma je `sandboxd`, a sandbox
   jest jego rodzeństwem, a nie kontenerem w jego środku.
 - **Klucz sesji** zawiera w sobie zasięg, organizację, rodzaj backendu i host —
   czyli dokładnie to, co decyduje, kto dzieli kontener.
-- **Dostarczany jest jeden runtime**, `workbench`, a model jest informowany o tym,
-  co w nim jest, składanym z tego samego katalogu, który go zbudował.
+- **Dostarczane są dwa runtime'y**, `workbench` i `desktop`, a model jest
+  informowany o tym, co jest w tym, na którym działa, składanym z tego samego
+  katalogu, który go zbudował.
 - Zapis tego, co zrobił agent, żyje w **tabeli tej platformy**, trzyma ścieżkę,
   a nigdy zawartości, i przeżywa agenta.
 - **Pliki są trzymane bezterminowo**, chyba że ustawisz `SANDBOXD_WORKSPACE_TTL`.
   Zużycie dysku tylko rośnie.
+- **E2B i własny komputer osoby** to też sandboksy: jeden na własnym kluczu
+  organizacji, drugi trzymany tego, co osoba na nim przyznała.
 
 Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, również przy końcowym scalaniu równoległych zmian. Jeśli osobno zaakceptowane dokumenty nie mieszczą się razem, wspólny dokument pozostaje bez zmian, a późniejszy zapis trafia do kopii odzyskiwania w **Documents**. Run zapisuje błąd z identyfikatorem kopii; operacja na projekcie zwraca konflikt zamiast sukcesu. Kopie projektów wymagają uprawnień do przeglądania i używania projektu. Klucz obcy usuwa kopię wraz ze źródłem, także przy równoczesnym usuwaniu danych. Obniżenie limitu poniżej rozmiaru istniejącego dokumentu nadal pozwala go zmniejszać.
+
+Instrukcje workbench wyjaśniają agentom, że polecenia działają w POSIX `/bin/sh`, a nie w Bashu. Na przykład `mkdir -p sources inbox notes` tworzy trzy foldery; ta powłoka nie rozwija `{sources,inbox,notes}`. Pliki projektu należą do `/workspace`; katalog domowy (`~`) znajduje się poza współdzielonymi plikami. Każde polecenie uruchamia nowy proces, więc zmienne powłoki i zmiany katalogu nie przechodzą do kolejnego wywołania. Agent ma sprawdzać błędy i pliki przed zgłoszeniem powodzenia.

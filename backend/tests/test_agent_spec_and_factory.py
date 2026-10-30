@@ -1307,3 +1307,57 @@ class TestVoiceSpec:
     def test_the_spec_version_did_not_move(self):
         # 13 is the browser's fold (#2127); an optional section with a default adds none.
         assert SPEC_VERSION == 13
+
+
+@pytest.mark.parametrize(
+    "order",
+    [
+        ("browser_use", "system_reminders", "compaction"),
+        ("compaction", "browser_use", "system_reminders"),
+    ],
+)
+@pytest.mark.parametrize("override", ["none", "name", "description"])
+def test_browser_history_pruning_runs_after_compaction_and_before_reminders(
+    order: tuple[str, ...],
+    override: str,
+) -> None:
+    from app.agents.capabilities.browser_use import WebBrowser
+    from app.agents.capabilities.compaction import MeteredCompaction
+    from app.agents.capabilities.system_reminders import SystemReminders
+
+    spec = AgentSpec(
+        name="Browser",
+        capabilities=[
+            {
+                "id": name,
+                "tool_overrides": {"browser_click": {"name": "press"}}
+                if override == "name" and name == "browser_use"
+                else {"browser_click": {"description": "Press an element"}}
+                if override == "description" and name == "browser_use"
+                else {},
+                "config": {"reminders": [{"content": "Stay on task"}]}
+                if name == "system_reminders"
+                else {},
+            }
+            for name in order
+        ],
+    )
+    built = build_agent(
+        spec, _model_spec(), organization_id=uuid.uuid4(), granted_scopes=frozenset({"web:browse"})
+    )
+    from app.agents.capabilities._overrides import ToolOverrides
+
+    types = [
+        type(capability.wrapped if isinstance(capability, ToolOverrides) else capability)
+        for capability in built.capabilities
+    ]
+    assert types.index(MeteredCompaction) < types.index(WebBrowser) < types.index(SystemReminders)
+    browser = next(
+        capability.wrapped if isinstance(capability, ToolOverrides) else capability
+        for capability in built.capabilities
+        if isinstance(
+            capability.wrapped if isinstance(capability, ToolOverrides) else capability, WebBrowser
+        )
+    )
+    assert isinstance(browser, WebBrowser)
+    assert ("press" in browser.report_tool_names) is (override == "name")

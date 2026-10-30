@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type HTMLAttributes, type ReactNode } from "react";
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -52,6 +52,7 @@ interface PathTreeProps<N extends PathTreeNode> {
   renderFileMeta?: (node: N) => ReactNode;
   /** Anything to the right of a folder's name - a count, a size. */
   renderFolderMeta?: (node: N) => ReactNode;
+  rowInteractions?: (node: N) => HTMLAttributes<HTMLElement>;
 }
 
 /**
@@ -83,6 +84,7 @@ export function PathTree<N extends PathTreeNode>({
   renderFile,
   renderFileMeta,
   renderFolderMeta,
+  rowInteractions,
 }: PathTreeProps<N>) {
   // Here rather than at each caller: a tree with nothing in it is nothing, and
   // a surface that wants to say something instead - the workspace explorer says
@@ -103,6 +105,7 @@ export function PathTree<N extends PathTreeNode>({
           renderFile={renderFile}
           renderFileMeta={renderFileMeta}
           renderFolderMeta={renderFolderMeta}
+          rowInteractions={rowInteractions}
         />
       ))}
     </ul>
@@ -130,6 +133,7 @@ function PathTreeRow<N extends PathTreeNode>({
   renderFile,
   renderFileMeta,
   renderFolderMeta,
+  rowInteractions,
 }: {
   node: N;
   depth: number;
@@ -137,23 +141,36 @@ function PathTreeRow<N extends PathTreeNode>({
   onToggle: (path: string) => void;
 } & Pick<
   PathTreeProps<N>,
-  "selectedPath" | "onSelect" | "renderFile" | "renderFileMeta" | "renderFolderMeta"
+  | "selectedPath"
+  | "onSelect"
+  | "renderFile"
+  | "renderFileMeta"
+  | "renderFolderMeta"
+  | "rowInteractions"
 >) {
-  const indent = { paddingLeft: `${depth * 0.75 + 0.5}rem` };
+  const indent = { paddingLeft: `${depth * 0.875 + 0.5}rem` };
 
   if (!node.isDir) {
     const isSelected = selectedPath === node.path;
     return (
-      <li role="treeitem" aria-selected={isSelected} className="flex items-center gap-1">
+      <li
+        {...rowInteractions?.(node)}
+        role="treeitem"
+        aria-selected={isSelected}
+        className={cn(
+          "group/file relative flex min-h-9 items-center rounded-lg transition-colors duration-[var(--duration-fast)]",
+          isSelected ? "bg-accent" : "hover:bg-accent/60",
+        )}
+      >
         <button
           type="button"
           onClick={() => onSelect(node)}
           aria-current={isSelected}
           title={node.path}
-          style={indent}
+          style={{ paddingLeft: `${depth * 0.875 + 1.75}rem` }}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-2 text-left",
-            isSelected ? "bg-accent" : "hover:bg-accent/60",
+            "touch:min-h-11 flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 pr-2 text-left",
+            "focus-visible:outline-offset-[-2px]",
           )}
         >
           {renderFile(node, isSelected)}
@@ -168,26 +185,35 @@ function PathTreeRow<N extends PathTreeNode>({
     // `aria-selected` on a folder too: the role requires it, and a folder in this
     // tree is never the selection - what is read beside it is always a file.
     <li role="treeitem" aria-expanded={isOpen} aria-selected={false}>
-      <div className="flex items-center gap-1">
+      <div
+        {...rowInteractions?.(node)}
+        className="group/file hover:bg-accent/60 flex min-h-9 items-center gap-1 rounded-lg transition-colors duration-[var(--duration-fast)]"
+      >
         <button
           type="button"
           onClick={() => onToggle(node.path)}
           style={indent}
-          className="hover:bg-accent/60 flex w-full items-center gap-1.5 rounded-md py-1.5 pr-2 text-left"
+          className="touch:min-h-11 flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 pr-2 text-left focus-visible:outline-offset-[-2px]"
         >
           <ChevronRight
             className={cn(
-              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform duration-[var(--duration-fast)]",
               isOpen && "rotate-90",
             )}
             aria-hidden
           />
           {isOpen ? (
-            <FolderOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+            <FolderOpen
+              className="text-foreground/65 fill-foreground/[0.06] size-4 shrink-0"
+              aria-hidden
+            />
           ) : (
-            <Folder className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+            <Folder
+              className="text-foreground/65 fill-foreground/[0.06] size-4 shrink-0"
+              aria-hidden
+            />
           )}
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">{node.label}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{node.label}</span>
         </button>
         {renderFolderMeta?.(node)}
       </div>
@@ -206,6 +232,7 @@ function PathTreeRow<N extends PathTreeNode>({
               renderFile={renderFile}
               renderFileMeta={renderFileMeta}
               renderFolderMeta={renderFolderMeta}
+              rowInteractions={rowInteractions}
             />
           ))}
         </ul>

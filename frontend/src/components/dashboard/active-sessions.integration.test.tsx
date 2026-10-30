@@ -109,6 +109,24 @@ describe("ActiveSessions", () => {
     expect(screen.getByText("1 / 3")).toBeInTheDocument();
   });
 
+  it("names an AgenticOS app by its platform and version, and marks this session", async () => {
+    const rows = server(3);
+    Object.assign(rows[0]!, { app_platform: "macos", app_version: "0.2.0", is_current: true });
+    Object.assign(rows[1]!, {
+      app_platform: "android",
+      app_version: "0.1.0",
+      device_type: "desktop",
+    });
+    Object.assign(rows[2]!, { app_platform: "plan9", app_version: null });
+    render(<ActiveSessions />);
+
+    expect(await screen.findByText("AgenticOS for macOS 0.2.0")).toBeInTheDocument();
+    expect(screen.getByText("AgenticOS for Android 0.1.0")).toBeInTheDocument();
+    expect(screen.getByText("AgenticOS for plan9")).toBeInTheDocument();
+    // The session doing the asking is not revoked from its own list.
+    expect(screen.getAllByLabelText("Revoke session")).toHaveLength(2);
+  });
+
   it("fetches the next page from the server", async () => {
     server(12);
     render(<ActiveSessions />);

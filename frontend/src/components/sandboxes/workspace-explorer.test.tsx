@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { FileExplorer, WorkspaceExplorer, treeOf } from "./workspace-explorer";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 
@@ -185,14 +186,13 @@ describe("the workspace explorer", () => {
     );
   });
 
-  it("counts everything under a folder, not only what sits directly in it", async () => {
-    // `skills` holds no file of its own - both are one level further down - and it
-    // read `0 files` above two visible rows.
+  it("shows the folder hierarchy without redundant file counts", () => {
     render(<WorkspaceExplorer workspaceId="w-1" />);
 
     const folder = screen.getByRole("treeitem", { name: /skills/ });
 
-    expect(folder).toHaveTextContent("2 files");
+    expect(folder).not.toHaveTextContent(/\d+ files/);
+    expect(screen.getByRole("button", { name: "SKILL.md" })).toBeVisible();
   });
 
   it("indents each level, which is what says what is inside what", async () => {
@@ -201,8 +201,8 @@ describe("the workspace explorer", () => {
     const indent = (name: string) => screen.getByText(name).closest("button")!.style.paddingLeft;
 
     expect(indent("skills")).toBe("0.5rem");
-    expect(indent("code-review")).toBe("1.25rem");
-    expect(indent("SKILL.md")).toBe("2rem");
+    expect(indent("code-review")).toBe("1.375rem");
+    expect(indent("SKILL.md")).toBe("3.5rem");
   });
 
   it("is a tree to a screen reader, not a list of buttons", async () => {
@@ -586,4 +586,217 @@ it("keeps both file explorer panes while the listing loads", () => {
   rerender(<WorkspaceExplorer workspaceId="ws-1" />);
   expect(Array.from(grid?.children ?? [])).toEqual(panes);
   expect(screen.getByRole("textbox")).toBeEnabled();
+});
+
+it("moves a file into a folder and back to the project root through drag and drop", async () => {
+  const move = vi.fn().mockResolvedValue(undefined);
+  const files = listing([file("notes", { is_dir: true }), file("brief.md")]);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={files}
+      isLoading={false}
+      error={null}
+      onMove={move}
+    />,
+  );
+  const dataTransfer = {
+    types: ["application/x-agenticos-project-path"],
+    getData: () => "brief.md",
+    setData: vi.fn(),
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  const row = screen.getByRole("button", { name: "brief.md" }).closest("li");
+  if (!row) throw new Error("Missing file row");
+  await userEvent.click(screen.getByRole("button", { name: "brief.md" }));
+  fireEvent.dragStart(row, { dataTransfer });
+  expect(dataTransfer.setData).toHaveBeenCalledWith(
+    "application/x-agenticos-project-path",
+    "brief.md",
+  );
+  const folder = screen.getByRole("button", { name: "notes" }).parentElement;
+  if (!folder) throw new Error("Missing folder row");
+  fireEvent.dragOver(folder, { dataTransfer });
+  fireEvent.drop(folder, { dataTransfer });
+  await waitFor(() => expect(move).toHaveBeenCalledWith("brief.md", "notes/brief.md"));
+  fireEvent.dragLeave(folder, { dataTransfer });
+  fireEvent.dragEnd(row, { dataTransfer });
+  fireEvent.dragOver(screen.getByRole("button", { name: "Project files" }), { dataTransfer });
+  fireEvent.drop(screen.getByRole("button", { name: "Project files" }), {
+    dataTransfer: { ...dataTransfer, getData: () => "notes/brief.md" },
+  });
+  await waitFor(() => expect(move).toHaveBeenCalledWith("notes/brief.md", "brief.md"));
+  fireEvent.dragLeave(screen.getByRole("button", { name: "Project files" }), { dataTransfer });
+  await userEvent.click(screen.getByRole("button", { name: "Project files" }));
+  fireEvent.drop(folder, { dataTransfer: { ...dataTransfer, types: ["Files"] } });
+  fireEvent.drop(folder, { dataTransfer: { ...dataTransfer, getData: () => "notes" } });
+  move.mockRejectedValueOnce(new Error("conflict"));
+  fireEvent.drop(folder, { dataTransfer });
+  await waitFor(() => expect(move).toHaveBeenCalledTimes(3));
+  await userEvent.type(screen.getByRole("textbox", { name: "Search files by name" }), "brief");
+  expect(screen.getByRole("button", { name: "Actions for brief.md" })).toBeInTheDocument();
+});
+
+it("uploads into the hovered folder once and dismisses the outer drop hint", () => {
+  const upload = vi.fn();
+  const rootUpload = vi.fn();
+  render(
+    <FileDropZone collectionName="Project" onFiles={rootUpload}>
+      <FileExplorer
+        source={{ kind: "project", id: "p-1" }}
+        files={listing([file("notes", { is_dir: true })])}
+        isLoading={false}
+        error={null}
+        onUpload={upload}
+        onMove={vi.fn()}
+      />
+    </FileDropZone>,
+  );
+  const folder = screen.getByRole("button", { name: "notes" });
+  const dragged = new File(["hello"], "brief.md");
+  const dataTransfer = { types: ["Files"], files: [dragged], dropEffect: "" };
+  fireEvent.dragEnter(folder, { dataTransfer });
+  expect(screen.getByTestId("project-file-drop-overlay")).toBeInTheDocument();
+  fireEvent.dragOver(folder, { dataTransfer });
+  expect(dataTransfer.dropEffect).toBe("copy");
+  const row = folder.parentElement;
+  if (!row) throw new Error("Missing row");
+  const highlight = row.style.backgroundColor;
+  expect(highlight).not.toBe("");
+  const leave = createEvent.dragLeave(row, { dataTransfer });
+  Object.defineProperty(leave, "relatedTarget", { value: folder });
+  fireEvent(row, leave);
+  expect(row.style.backgroundColor).toBe(highlight);
+  vi.spyOn(row, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 10, 200, 100));
+  const webkitLeave = createEvent.dragLeave(row, { dataTransfer });
+  Object.defineProperties(webkitLeave, {
+    relatedTarget: { value: null },
+    clientX: { value: 50 },
+    clientY: { value: 60 },
+  });
+  fireEvent(row, webkitLeave);
+  expect(row.style.backgroundColor).toBe(highlight);
+  fireEvent.drop(folder, { dataTransfer });
+  expect(upload).toHaveBeenCalledExactlyOnceWith([dragged], "notes");
+  expect(rootUpload).not.toHaveBeenCalled();
+  expect(screen.queryByTestId("project-file-drop-overlay")).not.toBeInTheDocument();
+});
+
+it("opens a collapsed destination after hovering, and cancels a hover on leave", () => {
+  vi.useFakeTimers();
+  try {
+    render(
+      <FileExplorer
+        source={{ kind: "project", id: "p-1" }}
+        files={listing([file("notes/brief.md")])}
+        isLoading={false}
+        error={null}
+        onUpload={vi.fn()}
+      />,
+    );
+    const folder = screen.getByRole("button", { name: "notes" });
+    fireEvent.click(folder);
+    expect(screen.queryByRole("button", { name: "brief.md" })).not.toBeInTheDocument();
+    const dataTransfer = { types: ["Files"], files: [], dropEffect: "" };
+    fireEvent.dragOver(folder, { dataTransfer });
+    fireEvent.dragLeave(folder, { dataTransfer });
+    act(() => vi.advanceTimersByTime(700));
+    expect(screen.queryByRole("button", { name: "brief.md" })).not.toBeInTheDocument();
+    fireEvent.dragOver(folder, { dataTransfer });
+    act(() => vi.advanceTimersByTime(600));
+    expect(screen.getByRole("button", { name: "brief.md" })).toBeVisible();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("uses the file's containing folder as a drop destination", async () => {
+  const upload = vi.fn();
+  const move = vi.fn().mockResolvedValue(undefined);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={listing([file("notes/existing.md"), file("brief.md")])}
+      isLoading={false}
+      error={null}
+      onUpload={upload}
+      onMove={move}
+    />,
+  );
+  const target = screen.getByRole("button", { name: "existing.md" });
+  const dragged = new File(["new"], "new.txt");
+  fireEvent.dragOver(target, {
+    dataTransfer: { types: ["Files"], files: [dragged], dropEffect: "" },
+  });
+  fireEvent.drop(target, { dataTransfer: { types: ["Files"], files: [dragged] } });
+  expect(upload).toHaveBeenCalledExactlyOnceWith([dragged], "notes");
+  fireEvent.drop(target, {
+    dataTransfer: { types: ["application/x-agenticos-project-path"], getData: () => "brief.md" },
+  });
+  await waitFor(() => expect(move).toHaveBeenCalledExactlyOnceWith("brief.md", "notes/brief.md"));
+});
+
+it("accepts root drops on empty space in either pane instead of requiring the root label", async () => {
+  const upload = vi.fn();
+  const move = vi.fn().mockResolvedValue(undefined);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={listing([file("notes/brief.md")])}
+      isLoading={false}
+      error={null}
+      onUpload={upload}
+      onMove={move}
+    />,
+  );
+  const tree = screen.getByRole("tree");
+  const pane = tree.parentElement;
+  const grid = pane?.parentElement;
+  if (!pane || !grid) throw new Error("Missing file panes");
+  const dragged = new File(["new"], "new.txt");
+  fireEvent.drop(pane, { dataTransfer: { types: ["Files"], files: [dragged] } });
+  expect(upload).toHaveBeenCalledExactlyOnceWith([dragged], "");
+  fireEvent.drop(grid.lastElementChild ?? grid, {
+    dataTransfer: {
+      types: ["application/x-agenticos-project-path"],
+      getData: () => "notes/brief.md",
+    },
+  });
+  await waitFor(() => expect(move).toHaveBeenCalledExactlyOnceWith("notes/brief.md", "brief.md"));
+});
+
+it("refuses dragging a file onto its current folder and accepts root hover", async () => {
+  const move = vi.fn().mockResolvedValue(undefined);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={listing([file("notes/brief.md")])}
+      isLoading={false}
+      error={null}
+      onMove={move}
+    />,
+  );
+  const folder = screen.getByRole("button", { name: "notes" });
+  const row = screen.getByRole("button", { name: "brief.md" }).closest("li");
+  if (!row) throw new Error("Missing file row");
+  const dataTransfer = {
+    types: ["application/x-agenticos-project-path"],
+    setData: vi.fn(),
+    getData: () => "notes/brief.md",
+    dropEffect: "",
+    effectAllowed: "",
+  };
+  fireEvent.dragStart(row, { dataTransfer });
+  fireEvent.dragOver(folder, { dataTransfer });
+  expect(dataTransfer.dropEffect).toBe("none");
+  expect(move).not.toHaveBeenCalled();
+  const grid = screen.getByRole("tree").parentElement?.parentElement;
+  if (!grid) throw new Error("Missing explorer grid");
+  fireEvent.dragOver(grid, { dataTransfer });
+  expect(dataTransfer.dropEffect).toBe("move");
+  fireEvent.dragLeave(grid, { dataTransfer });
+  fireEvent.dragOver(grid, { dataTransfer: null });
+  fireEvent.dragOver(grid, { dataTransfer: { types: ["text/plain"] } });
+  fireEvent.drop(grid, { dataTransfer: null });
 });

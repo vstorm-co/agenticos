@@ -147,7 +147,7 @@ export function WatchDialog({
           description: t("createdWhere"),
           action: onRoutines
             ? undefined
-            : { label: t("seeIt"), onClick: () => router.push(ROUTES.ROUTINES) },
+            : { label: t("seeIt"), onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`) },
         });
       }
       onOpenChange(false);
@@ -302,7 +302,7 @@ export function WatchDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("cancel")}
           </Button>
-          <Button onClick={save} disabled={saving || !ready}>
+          <Button onClick={save} loading={saving} disabled={!ready}>
             {watch ? t("save") : t("create")}
           </Button>
         </DialogFooter>

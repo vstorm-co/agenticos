@@ -16,6 +16,8 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.api.public_api import PUBLIC
+from app.core.exceptions import AuthorizationError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
     ImageModelRead,
@@ -24,6 +26,7 @@ from app.schemas.model_profile import (
     ModelProfileCreate,
     ModelProfileList,
     ModelProfileRead,
+    ModelProfileUpdate,
     ProviderCatalog,
     ProviderInfo,
     ProviderModelList,
@@ -45,7 +48,8 @@ from app.schemas.model_profile import (
 from app.services import realtime_models
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
-from app.services.model_profile import provider_catalog
+from app.services.model_outputs import stated_outputs
+from app.services.model_profile import provider_catalog, validate_endpoint_url
 from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 from app.services.text_to_speech_models import providers as text_to_speech_providers
@@ -119,6 +123,26 @@ async def create_model_profile(
     )
 
 
+@router.patch(
+    "/model-profiles/{profile_id}",
+    response_model=ModelProfileRead,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def update_model_profile(
+    profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
+) -> Any:
+    """Change a model's key, endpoint, API, settings or name in place.
+
+    The profile keeps its id, so every agent on it uses the change from its next
+    run - rotating a key is one call rather than a new model and a republish of
+    each agent. Gated like creating one: `connections:manage`, and a new key - or
+    a new endpoint for the stored key, which is where the key is sent - must be
+    one the caller can see in the vault. Answers with the profile; the key itself
+    is never in a response.
+    """
+    return await service.update_profile(ctx, profile_id, data)
+
+
 @router.delete(
     "/model-profiles/{profile_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -126,6 +150,14 @@ async def create_model_profile(
     dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: Auth) -> None:
+    """Delete a model no agent uses.
+
+    Refused with `409 IN_USE` while an agent's draft, served version or an
+    environment's pinned version names the profile anywhere - its model, a
+    reviewer, a specialist, a capability - archived agents included.
+    `details.agents` lists the ones the caller can see by id, name and whether
+    they are archived, and `details.hidden_agents` counts the rest.
+    """
     await service.delete_profile(ctx, profile_id)
 
 
@@ -354,7 +386,9 @@ async def list_video_models() -> Any:
     response_model=ProviderModelList,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> Any:
+async def list_provider_models(
+    provider: str, secrets: SecretSvc, ctx: Auth, base_url: str | None = None
+) -> Any:
     """What this provider offers, for the field where a model id is chosen.
 
     Suggestions, not a constraint - the field stays free text, because a
@@ -366,9 +400,23 @@ async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> 
     organization has one. Nothing here opens it: the vault service hands back a
     bearer token for this one outbound request, and providers that publish a
     public list (OpenRouter) are asked without one.
+
+    `base_url` selects an OpenRouter regional or custom API. It requires
+    connection-management authority, is fetched without any vault credential,
+    and has a separate cache with no global catalog fallback.
     """
-    api_key = await secrets.listing_key(ctx, provider)
-    models, source = await models_for(provider, api_key=api_key)
+    if base_url is not None:
+        if provider != "openrouter":
+            raise refused_field(
+                "base_url", "Only OpenRouter supports a custom model listing endpoint"
+            )
+        if not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise AuthorizationError(
+                message="Managing connections is required for a custom endpoint"
+            )
+        base_url = await validate_endpoint_url(base_url)
+    api_key = None if base_url is not None else await secrets.listing_key(ctx, provider)
+    models, source = await models_for(provider, api_key=api_key, base_url=base_url)
     return ProviderModelList(
         items=[
             ProviderModelRead(
@@ -376,6 +424,7 @@ async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> 
                 name=entry.name,
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
+                chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models
         ],

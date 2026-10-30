@@ -12,6 +12,9 @@ import type { Suggestion } from "@/lib/suggestions-api";
 
 const state = vi.hoisted(() => ({
   open: [] as Suggestion[],
+  loading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
   history: [] as Suggestion[],
   restore: vi.fn(),
   shown: [] as Suggestion[],
@@ -22,8 +25,19 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-suggestions", () => ({
-  useSuggestions: () => ({ suggestions: state.open }),
-  useSuggestionHistory: () => ({ history: state.history, restore: state.restore }),
+  useSuggestions: () => ({
+    suggestions: state.open,
+    isLoading: state.loading,
+    error: state.error,
+    refetch: state.refetch,
+  }),
+  useSuggestionHistory: () => ({
+    history: state.history,
+    restore: state.restore,
+    isLoading: state.loading,
+    error: state.error,
+    refetch: state.refetch,
+  }),
 }));
 vi.mock("./suggestion-rows", () => ({
   SuggestionRows: ({ items }: { items: Suggestion[] }) => {
@@ -57,6 +71,9 @@ function item(id: string, overrides: Partial<Suggestion> = {}): Suggestion {
 
 beforeEach(() => {
   state.open = [];
+  state.loading = false;
+  state.error = null;
+  state.refetch.mockReset();
   state.history = [];
   state.shown = [];
   state.filter = null;
@@ -83,13 +100,15 @@ describe("InboxPage", () => {
     expect(state.shown).toEqual([finding, urgent]);
     await userEvent.click(screen.getByRole("radio", { name: "Suggestions" }));
     expect(state.shown).toEqual([routine]);
+    await userEvent.click(screen.getByRole("radio", { name: "All" }));
+    expect(state.shown).toEqual([finding, urgent, routine]);
   });
 
   it("says nothing waits, and sends the person to set up a watch", async () => {
     render(<InboxPage />);
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Set up a watch" }));
-    expect(state.push).toHaveBeenCalledWith("/routines");
+    expect(state.push).toHaveBeenCalledWith("/routines?tab=watches");
 
     // Nothing urgent is not a reason to set up a watch.
     await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
@@ -139,4 +158,47 @@ describe("InboxPage", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Done" }));
     expect(screen.getByText("Nothing answered yet")).toBeInTheDocument();
   });
+});
+
+it("does not announce an empty inbox while its data is still loading", () => {
+  state.loading = true;
+  render(<InboxPage />);
+  expect(screen.queryByText("Nothing waits here")).not.toBeInTheDocument();
+  expect(screen.queryByText("Nothing waiting")).not.toBeInTheDocument();
+});
+
+it("shows a retry for a failed read instead of claiming nothing waits", async () => {
+  state.error = new Error("offline");
+  render(<InboxPage />);
+  expect(screen.queryByText("Nothing waits here")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
+});
+
+it("applies a watch-filter link while the inbox is already open", () => {
+  const finding = item("finding", { kind: "finding" });
+  state.open = [finding, item("routine")];
+  const { rerender } = render(<InboxPage />);
+  state.filter = "watches";
+  rerender(<InboxPage />);
+  expect(state.shown).toEqual([finding]);
+});
+
+it("lets the person retry a failed Done history read", async () => {
+  state.error = new Error("offline");
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("radio", { name: "Done" }));
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetch).toHaveBeenCalledOnce();
+});
+
+it("keeps Done history in a loading state until its read finishes", () => {
+  state.filter = "done";
+  state.loading = true;
+  const { rerender } = render(<InboxPage />);
+  expect(screen.queryByText("Nothing answered yet")).not.toBeInTheDocument();
+  state.loading = false;
+  state.history = [item("done", { status: "accepted" })];
+  rerender(<InboxPage />);
+  expect(screen.getByText("Title done")).toBeInTheDocument();
 });

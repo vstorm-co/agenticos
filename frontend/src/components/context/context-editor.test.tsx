@@ -87,9 +87,6 @@ describe("ContextEditor", () => {
     expect(onSave).toHaveBeenCalledWith({
       description: "terms",
       content: "SLA: service level agreement. extra",
-      format: "md",
-      mode: "inject",
-      enabled: true,
     });
   });
 
@@ -117,51 +114,26 @@ describe("ContextEditor", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ description: null }));
   });
 
-  it("takes the format from a closed list rather than from typing", async () => {
-    // It was a text input, so `markdown`, `MD` and a typo were all accepted and
-    // only one of them decided how the body renders.
-    const { onSave } = mount();
-
-    await userEvent.click(screen.getByLabelText("Format"));
-    await userEvent.click(await screen.findByRole("option", { name: "txt" }));
-    await userEvent.click(save());
-
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ format: "txt" }));
+  it("keeps usage policy in the agent builder instead of editing it globally", () => {
+    mount();
+    expect(screen.queryByLabelText("Mode")).toBeNull();
+    expect(screen.queryByLabelText("Format")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getByText(/Choose how each agent/)).toBeInTheDocument();
   });
 
-  it("keeps a format the catalog does not list, rather than showing none", async () => {
-    // The column took free text before the select did, so a stored `html` has to
-    // remain both visible and unchanged - deciding it "really means md" would
-    // make opening a file an edit.
-    mount({ file: { ...FILE, format: "html" } });
-
-    expect(screen.getByLabelText("Format")).toHaveTextContent("html");
+  it("preserves a legacy format when opening and editing the content", async () => {
+    const { onSave } = mount({ file: { ...FILE, format: "html" } });
     expect(save()).toBeDisabled();
-  });
-
-  it("switches an injected file to linked through the mode select", async () => {
-    const { onSave } = mount();
-
-    await userEvent.click(screen.getByLabelText("Mode"));
-    await userEvent.click(await screen.findByRole("option", { name: "linked" }));
+    await userEvent.type(screen.getByLabelText("Description"), " updated");
     await userEvent.click(save());
-
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ mode: "link" }));
-  });
-
-  it("toggles the enabled switch", async () => {
-    const { onSave } = mount();
-
-    await userEvent.click(screen.getByRole("switch"));
-    await userEvent.click(save());
-
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+    expect(onSave).toHaveBeenCalledWith({ description: "terms updated", content: FILE.content });
   });
 
   it("starts an editor for a file with no description without crashing", async () => {
     const { onSave } = mount({ file: { ...FILE, description: null } });
 
-    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.type(body(), " extra");
     await userEvent.click(save());
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ description: null }));
@@ -184,4 +156,23 @@ describe("ContextEditor", () => {
     await openSource();
     expect(body()).toHaveAttribute("readonly");
   });
+});
+
+it("offers deletion from the editor's resource menu", async () => {
+  const onDelete = vi.fn();
+  mount({ onDelete });
+  await userEvent.click(screen.getByRole("button", { name: "More actions for glossary" }));
+  expect(onDelete).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("menuitem", { name: "Delete glossary" }));
+  expect(onDelete).toHaveBeenCalledOnce();
+});
+
+it("does not offer the resource menu to a reader", () => {
+  mount({ canEdit: false, onDelete: vi.fn() });
+  expect(screen.queryByRole("button", { name: "More actions for glossary" })).toBeNull();
+});
+
+it("disables destructive actions while a save is pending", () => {
+  mount({ isSaving: true, onDelete: vi.fn() });
+  expect(screen.getByRole("button", { name: "More actions for glossary" })).toBeDisabled();
 });

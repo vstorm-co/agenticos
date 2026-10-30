@@ -86,6 +86,19 @@ export interface ModelProfile {
    * that already exists.
    */
   context_length?: number | null;
+  /**
+   * Whether an agent can run on this model (#2487). False only for one the
+   * platform knows is something else - text to speech, transcription, image,
+   * video or embeddings. Absent reads as true: a model nothing classifies is
+   * never hidden.
+   */
+  chat_capable?: boolean;
+  /**
+   * Whether it has nothing to authenticate with, so no run can use it (#2478):
+   * its key was deleted from the vault or never set, on a provider that needs
+   * one. A keyless provider with an endpoint is false. Absent reads as false.
+   */
+  missing_key?: boolean;
   created_at?: string;
 }
 
@@ -114,7 +127,6 @@ export interface Skill {
   content: string;
   /** A grouping label for people ("marketing", "devops"); null is uncategorized. */
   category: string | null;
-  enabled: boolean;
   version: number;
   visibility: string;
   owner_user_id: string | null;
@@ -133,7 +145,6 @@ export interface SkillSummary {
   name: string;
   description: string;
   category: string | null;
-  enabled: boolean;
   /** `org` is everyone; `private` is its owner and whoever it is shared with. */
   visibility: string;
   /** How many files the skill carries beyond its body. */

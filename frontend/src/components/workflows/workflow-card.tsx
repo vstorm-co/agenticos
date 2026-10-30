@@ -149,7 +149,7 @@ export function WorkflowCard({
                       aria-hidden="true"
                       className={cn(
                         "size-1.5 rounded-full",
-                        workflow.trigger_active ? "bg-emerald-500" : "bg-muted-foreground/40",
+                        workflow.trigger_active ? "bg-success" : "bg-muted-foreground/40",
                       )}
                     />
                     {workflow.trigger_active ? t("activeOn") : t("activeOff")}

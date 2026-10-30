@@ -16,10 +16,11 @@ describe("AvatarFace", () => {
   /** The figure, without the `<title>` and the backdrop drawn beside it. */
   const figure = (container: HTMLElement) => container.querySelector("g.mo-root")!.innerHTML;
 
-  it("renders as inline SVG that is always moving", () => {
+  it("renders an idle face that only moves on hover", () => {
     const { container } = render(<AvatarFace seed="u-1" />);
 
-    expect(container.querySelector("g.mo-always")).not.toBeNull();
+    expect(container.querySelector("g.mo-always")).toBeNull();
+    expect(container.querySelector("g.mo-root")).not.toBeNull();
     expect(container.querySelector("img")).toBeNull();
   });
 
@@ -62,7 +63,7 @@ describe("AvatarFace", () => {
     const { container } = render(<AvatarFace seed="u-1" thinking />);
     const { container: idle } = render(<AvatarFace seed="u-1" />);
 
-    expect(container.querySelector("g.mo-expr")).not.toBeNull();
+    expect(container.querySelector("g.mo-expr.mo-always")).not.toBeNull();
     expect(idle.querySelector("g.mo-expr")).toBeNull();
   });
 

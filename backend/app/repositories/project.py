@@ -10,16 +10,23 @@ from sqlalchemy import delete as delete_rows
 from sqlalchemy import update as update_rows
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.background_job import BackgroundJob
 from app.db.models.conversation import Conversation
 from app.db.models.project import Project
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
 
 
-async def get(db: AsyncSession, project_id: UUID, *, organization_id: UUID) -> Project | None:
-    result = await db.execute(
-        select(Project).where(Project.id == project_id, Project.organization_id == organization_id)
+async def get(
+    db: AsyncSession, project_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> Project | None:
+    statement = select(Project).where(
+        Project.id == project_id, Project.organization_id == organization_id
     )
+    if for_update:
+        statement = statement.execution_options(populate_existing=True).with_for_update()
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 
@@ -229,3 +236,39 @@ async def detach_conversations(db: AsyncSession, *, project: Project) -> None:
         )
         .values(project_id=None)
     )
+
+
+async def has_active_runs(db: AsyncSession, *, project_id: UUID, organization_id: UUID) -> bool:
+    row = await db.execute(
+        select(AgentRun.id)
+        .join(Conversation, Conversation.id == AgentRun.conversation_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            Conversation.organization_id == organization_id,
+            Conversation.project_id == project_id,
+            AgentRun.status.in_(
+                [RunStatus.RUNNING, RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL]
+            ),
+        )
+        .limit(1)
+    )
+    return row.scalar_one_or_none() is not None
+
+
+async def active_moves_for_connection(
+    db: AsyncSession, *, connection_id: UUID, organization_id: UUID
+) -> bool:
+    result = await db.execute(
+        select(Project.id)
+        .join(BackgroundJob, BackgroundJob.id == Project.workspace_move_job_id)
+        .where(
+            Project.organization_id == organization_id,
+            BackgroundJob.status.in_(["queued", "running"]),
+            or_(
+                BackgroundJob.payload["target_connection_id"].astext == str(connection_id),
+                BackgroundJob.payload["source_connection_id"].astext == str(connection_id),
+            ),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None

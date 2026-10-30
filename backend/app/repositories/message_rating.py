@@ -5,13 +5,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, type_coerce
+from sqlalchemy import ColumnElement, and_, case, delete, func, or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunSurface
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
@@ -54,6 +56,95 @@ async def create_rating(
     await db.flush()
     await db.refresh(rating_obj)
     return rating_obj
+
+
+async def upsert_channel_rating(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    channel_identity_id: UUID,
+    rating: int | None,
+    comment: str | None = None,
+) -> MessageRating:
+    """One verified channel participant's vote, atomically inserted or changed.
+
+    A later comment preserves the verdict; a repeated vote preserves its comment.
+    Unlinked participants use their channel identity. Linked participants share
+    the same author key as the console; the identity lock serializes linking
+    with a vote so an anonymous vote cannot land after its transfer.
+    """
+    identity = (
+        await db.execute(
+            select(ChannelIdentity)
+            .where(ChannelIdentity.id == channel_identity_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    linked = identity.user_id is not None
+    statement = pg_insert(MessageRating).values(
+        message_id=message_id,
+        user_id=identity.user_id,
+        channel_identity_id=None if linked else channel_identity_id,
+        rating=-1 if rating is None else rating,
+        comment=comment,
+    )
+    statement = statement.on_conflict_do_update(
+        constraint="uq_message_user_rating" if linked else "uq_message_channel_rating",
+        set_={
+            "rating": MessageRating.rating if rating is None else statement.excluded.rating,
+            "comment": MessageRating.comment if comment is None else statement.excluded.comment,
+            "updated_at": func.now(),
+        },
+    ).returning(MessageRating)
+    result = await db.execute(statement.execution_options(populate_existing=True))
+    return result.scalar_one()
+
+
+async def adopt_channel_ratings(db: AsyncSession, *, identity_id: UUID, user_id: UUID) -> None:
+    """Transfer earlier channel votes in the account-link transaction.
+
+    Lock the identity in the same order as channel writes. A web vote may already
+    exist; keep whichever opinion was changed most recently rather than counting
+    the person twice. Unlinking later leaves these authenticated votes with their
+    owner, just like votes originally cast in the console.
+    """
+    await db.execute(
+        select(ChannelIdentity.id).where(ChannelIdentity.id == identity_id).with_for_update()
+    )
+    ratings = (
+        (
+            await db.execute(
+                select(MessageRating)
+                .where(MessageRating.channel_identity_id == identity_id)
+                .order_by(MessageRating.message_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for rating in ratings:
+        statement = pg_insert(MessageRating).values(
+            message_id=rating.message_id,
+            user_id=user_id,
+            rating=rating.rating,
+            comment=rating.comment,
+            created_at=rating.created_at,
+            updated_at=rating.updated_at,
+        )
+        await db.execute(
+            statement.on_conflict_do_update(
+                constraint="uq_message_user_rating",
+                set_={
+                    "rating": statement.excluded.rating,
+                    "comment": statement.excluded.comment,
+                    "updated_at": statement.excluded.updated_at,
+                },
+                where=func.coalesce(MessageRating.updated_at, MessageRating.created_at)
+                <= func.coalesce(statement.excluded.updated_at, statement.excluded.created_at),
+            )
+        )
+    await db.execute(delete(MessageRating).where(MessageRating.channel_identity_id == identity_id))
 
 
 async def update_rating(
@@ -289,7 +380,15 @@ async def get_rating_summary_scoped(
         MessageRating.created_at < end,
     ]
     if user_id is not None:
-        conditions.append(or_(Conversation.user_id == user_id, MessageRating.user_id == user_id))
+        conditions.append(
+            or_(
+                Conversation.user_id == user_id,
+                MessageRating.user_id == user_id,
+                MessageRating.channel_identity_id.in_(
+                    select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+                ),
+            )
+        )
 
     counts_query = (
         select(
@@ -403,7 +502,11 @@ async def ratings_by_group(
             func.sum(case((MessageRating.rating > 0, 1), else_=0)),
             func.sum(case((MessageRating.rating < 0, 1), else_=0)),
         )
-        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == MessageRating.channel_identity_id)
+        .join(
+            GroupMember,
+            GroupMember.user_id == func.coalesce(MessageRating.user_id, ChannelIdentity.user_id),
+        )
         .join(Group, Group.id == GroupMember.group_id)
         .join(Message, Message.id == MessageRating.message_id)
         .join(Conversation, Conversation.id == Message.conversation_id)
@@ -436,7 +539,11 @@ async def group_down_rated(
             Agent.id,
             Agent.name,
         )
-        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .outerjoin(ChannelIdentity, ChannelIdentity.id == MessageRating.channel_identity_id)
+        .join(
+            GroupMember,
+            GroupMember.user_id == func.coalesce(MessageRating.user_id, ChannelIdentity.user_id),
+        )
         .join(Message, Message.id == MessageRating.message_id)
         .join(Conversation, Conversation.id == Message.conversation_id)
         .outerjoin(AgentRun, AgentRun.id == Message.run_id)

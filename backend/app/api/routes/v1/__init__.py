@@ -8,6 +8,7 @@ from app.api.routes.v1 import (
     assistant,
     browse_live,
     change_events,
+    device_hub,
     health,
     mcp_oauth,
     public_openapi,
@@ -15,6 +16,7 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
+from app.api.routes.v1 import push
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
 from app.api.routes.v1 import admin_conversations
@@ -208,6 +210,7 @@ v1_router.include_router(admin_ratings.router, prefix="/admin/ratings", tags=["a
 v1_router.include_router(oauth.router, prefix="/oauth", tags=["oauth"])
 
 v1_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
+v1_router.include_router(push.router, prefix="/push", tags=["push"])
 
 v1_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
 
@@ -235,6 +238,7 @@ v1_router.include_router(
 v1_router.include_router(agent.router, tags=["agent"])
 v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
+v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])

@@ -34,9 +34,179 @@ An agent's spec names one by `model_profile_id`, and the run resolves it.
     field that cannot express "that one" is a field people work around by editing
     the spec by hand.
 
+### A profile an agent cannot run on
+
+A profile can name a model that cannot hold a conversation: a text-to-speech model
+such as `gpt-4o-mini-tts`, a realtime voice model, a transcription model, an image
+model, a video model or an embedding model. An agent on one fails on its first turn. Text to speech, image
+generation and transcription do not use profiles: each feature names its own
+provider and model.
+
+The platform knows these models from its own catalogs (the realtime voice, text-to-speech,
+transcription, image, video and embedding lists). `GET /providers/model-profiles`
+marks each profile with `chat_capable` and `output_modalities`, and
+`GET /providers/{provider}/models` marks each suggestion with `chat_capable`.
+Those two fields also read a provider listing that states what each model emits
+(OpenRouter and the Hugging Face router do), when the API process has already
+fetched it. That listing only changes what a picker offers. It never refuses a
+publish, because another API process may not have fetched it. The console also
+updates saved profiles when a listing arrives later. Provider aliases such as
+`openai_codex` and `google_cloud` use the corresponding vendor catalogs. Then:
+
+- The Builder's model panel, the reviewer and specialist pickers, the follow-ups
+  and browser step model fields and the knowledge-base image-description picker do
+  not offer such a model. If an agent already names one, the Builder still shows
+  it, marked as not a chat model. For a member who can manage connections, the
+  Builder also lists the others, marked and not selectable, so they can be
+  removed.
+- The chat's model picker and the Builder's form for adding a model do not
+  suggest such a model, and refuse one that is typed in.
+- Publish refuses such a model as the agent's model, a reviewer's, a specialist's,
+  the browser step model or the follow-ups model, and names it. It also refuses a
+  profile whose fallbacks include such a model. The same check runs on rollback,
+  on the draft check, on the Builder's test run and when a capability is enabled
+  from chat. A stored version on such a model still loads, but it cannot be
+  restored while its profile names a non-chat model or lists one as a fallback.
+  Point that profile at a chat model, or publish a new version.
+- A run leaves such a fallback out of its chain, the same as a deleted one, when
+  it was added to the profile after publish.
+- A conversation that names such a model in place of the agent's own, from the
+  chat or through the API, is refused before the run starts.
+- A model that the catalogs do not classify, such as an Ollama model or a model
+  released this morning, is allowed. An unknown model is not a refusal. A profile
+  with its own endpoint (`base_url`) is never classified, whatever its model id:
+  the catalogs describe the provider's own API, and an OpenAI-compatible server
+  can serve a chat model under any name.
+
+The proactivity model picker follows the same rule. The stable catalog check also
+runs when proactivity is configured and whenever a profile is resolved for an
+ordinary text request, including image description at configuration and worker
+time. Old configurations still load; replace an incompatible model before using
+them. Switching off remains possible. Azure deployment names are not classified
+from the catalog's base-model IDs.
+
+### The model a new agent starts on
+
+There is no organization-wide default model. An agent's spec names its model,
+and publish refuses a spec that names none.
+
+A new agent that names no model starts on the organization's model when the
+organization has exactly one model an agent can run on. That is a chat model with a
+key, or a self-hosted one saved to run without a key, which publish accepts as it
+stands, fallbacks included. It applies to every way of creating an agent: **New
+agent** in the console, `POST /agents` without a `model_profile_id`, a template, a
+copy of a draft that has no model, and a promoted specialist.
+
+The Architect, the organization's assistant, chooses its own model when it
+publishes: the first chat model that publish accepts, and never a model on a
+[ChatGPT sign-in](#running-on-a-chatgpt-subscription). The Architect serves the
+whole organization, and a sign-in is one person's subscription: runs by members who
+may not see it in the vault are refused, and runs by those who may, such as the
+organization's owners and admins, spend it. With only a sign-in, the Architect waits
+for another model.
+
+A sign-in somebody picks in its draft, or a model that falls back to one, stays
+there, but is published only when somebody who may change the organization's
+settings publishes it in the Builder. An
+Architect already published on a sign-in keeps that model until somebody who may
+change the organization's settings picks another under **Build > Model** and
+publishes it.
+
+The model is written into the draft, so the agent publishes without anybody opening
+**Model**, and its history shows which model it was published on. A spec that names
+a model keeps it. The draft then counts as using the model, so the model cannot be
+deleted until the agent moves to another model or is deleted; archiving it is not
+enough. To change only the model's key or endpoint, edit it in place
+([Changing a profile's key or endpoint](#changing-a-profiles-key-or-endpoint)).
+
+The draft stays without a model when the organization has none, or more than one.
+Profiles that cannot run an agent do not count: a profile with no key, a
+text-to-speech model and the other models in
+[A profile an agent cannot run on](#a-profile-an-agent-cannot-run-on), and neither does a profile
+publish would refuse, such as one that falls back to such a model. A model on
+a [ChatGPT sign-in](#running-on-a-chatgpt-subscription) is never chosen for
+somebody, because it is one person's subscription, but it counts as a model.
+
+Nor is a new agent started on a model whose fallbacks include a sign-in among
+the first three, the ones a run tries: when the model fails, the run of anybody
+who may see the sign-in would fall back onto that subscription. The Architect
+does not choose such a model either. An author may still pick one deliberately
+and publish it.
+
+Publish then refuses the draft with *No model selected - pick one under Build >
+Model before publishing*. The refusal also marks the field (`model_profile_id` in
+`details.fields`), and the console shows **Go to Model** beside it, which opens the
+**Build** tab at the **Model** card.
+
+### Changing a profile's key or endpoint
+
+Agents name a profile by its id. To move a model to another key, another
+endpoint or the other OpenAI API, edit the profile in place:
+`PATCH /providers/model-profiles/{id}` changes `secret_id`, `base_url`, `api`,
+`params` or `label` and keeps the id. Every agent on the profile uses the change
+from its next run. Nobody has to republish anything.
+
+In the Builder's model panel, change the key, the endpoint or the API of the model
+in use. The button then reads **Update model**, and the panel says that every
+agent on this model switches with it. **Add model** is still the button for
+another provider or model, and for a model you give a name of its own. Use
+**Name it something else** to give only this agent a separate model.
+
+An edit has the same rules as creation and needs the same `connections:manage`
+permission. A new key must be in this organization's vault, be visible to you,
+and be stored for the profile's provider. A new endpoint checks the stored key in
+the same way, because the endpoint is where the key is sent. A provider that needs
+a key cannot lose it. A keyless provider with no key keeps an endpoint. A label
+must stay unique.
+
+If you change the endpoint and send no `api`, an API that was
+only the old endpoint's default moves to the new endpoint's default, and an API
+somebody chose stays. The audit log records `model_profile.updated` with the
+names of the changed fields, not their values. You cannot change the provider or
+the model id. Another model is another profile.
+
+`connections:manage` is therefore the authority to move every agent on a model,
+including agents you cannot edit: a new endpoint receives their requests from
+the next run. Grant it to the people who manage the organization's models.
+
+### A profile without a key
+
+If you delete a key from the vault, its profiles stay with `secret_id` set to
+null, and `GET /providers/model-profiles` marks them `missing_key: true`. A
+profile saved with no key on purpose is different: a self-hosted model or a
+gateway that authenticates nothing, on a keyless provider with an endpoint, such
+as an Ollama on your network or an OpenAI-compatible server. It records that as
+`runs_without_key` and keeps running. A gateway profile that had a key and lost
+it is marked `missing_key` like any other. Then:
+
+- Agent and chat model pickers do not offer it. If an agent already names it, the
+  Builder shows it with a **no key** badge and tells you to give it a key.
+- Publish refuses it and names the model. It also refuses a profile whose first
+  three fallbacks include one with no key, because a run would skip it. A run on
+  it fails with "no key configured".
+- To repair it, open an agent on that model and choose a key under **Model**, then
+  press **Update model**. Every agent on the model works again.
+
+### Deleting a profile
+
+`DELETE /providers/model-profiles/{id}` refuses a profile that agents use. The
+answer is `409 IN_USE`, and `details.agents` lists each agent you can see, by id
+and name. `details.hidden_agents` counts the agents you cannot see. A profile is
+in use when an agent's draft, its served version or a version that an environment
+pins names the profile anywhere: as the agent's model, a reviewer's or a
+specialist's, or in a capability, such as the follow-ups model or the browser step
+model.
+
+Archived agents count, because unarchiving restores the version they
+served. The refusal marks them `archived`: an archived agent cannot publish, so
+delete it, or restore it and move it. Old versions that nothing serves do not
+count. Move the other agents to another model first. To change only the key, edit the profile
+instead.
+
 ### Fallbacks
 
-A profile may list fallback profiles, tried in order. One provider's outage should
+A profile may list fallback profiles, tried in order. Only the first three are
+used by the runner and checked at publish. One provider's outage should
 not take an organization's agents down when it has a second key or a second
 provider configured.
 
@@ -133,7 +303,7 @@ inference cannot: **which credential shape a provider wants.**
 | OpenAI | `openai` | API key, or none | ✓ |
 | Anthropic | `anthropic` | API key | ✓ |
 | Google Gemini | `google` | API key | ✓ |
-| OpenRouter | `openrouter` | API key | |
+| OpenRouter | `openrouter` | API key |  ✓ |
 | Alibaba Cloud | `alibaba` | API key | ✓ |
 | Cerebras | `cerebras` | API key | |
 | DeepSeek | `deepseek` | API key | |
@@ -242,6 +412,21 @@ again without changing its id.
       page or an embed, a caller with an API key - and for background work such as
       describing a document's images, the model is refused, and a fallback on it is
       skipped.
+    - **It is not anybody's to publish on.** Publishing, rolling back to or
+      promoting a version of an agent is refused for somebody who cannot see the
+      sign-in in the vault when a model its runs reach is on one: the agent's
+      model, a reviewer's, an inline specialist's or an enabled capability's,
+      the model of a [delegate it pins](reference/capabilities.md#delegation)
+      and of what that delegate reaches in turn, or one of the first three
+      fallbacks of any of them. The sign-in's owner, owners and admins, and
+      anybody it was shared with may. An API key may not, whatever its issuer
+      can see, because a run under a key never spends a sign-in. A version
+      published on it earlier keeps running.
+    - **It is not offered to a specialist the model invents.** Under
+      [`allow_dynamic`](reference/capabilities.md#delegation) a run's model may
+      pick a specialist's model from the organization's profiles. A profile on a
+      sign-in, or one whose first three fallbacks reach one, is on that list only
+      when the agent's spec names that exact profile as one of the models above.
     - **The spend shown is not your bill.** A run is priced at the OpenAI API
       rates for the same model, which is what a [budget](governance.md#budgets)
       can reason about. The subscription itself is billed by OpenAI at a flat rate.
@@ -529,3 +714,11 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 does all three for a new deployment.
+
+For a regional OpenRouter API, keep **OpenRouter** as the provider and set **Endpoint** to `https://eu.openrouter.ai/api/v1` in the model form. The profile keeps its OpenRouter vault key, native model handling and cache controls. Model suggestions come from that endpoint and are cached separately; a failed regional listing does not fall back to the global catalog. For knowledge bases, set the embedding **Endpoint** separately when creating the collection or editing its embedding provider. Existing configurations keep the global endpoint. EU routing requires an eligible OpenRouter Business or Enterprise plan; [regional routing](https://openrouter.ai/docs/guides/get-started/sovereign-ai) and ZDR are separate OpenRouter policies.
+
+A regional endpoint serves fewer embedding models than the global one: `eu.openrouter.ai` serves `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` and `google/gemini-embedding-2`, and none of OpenAI's. The create form offers only the models the endpoint lists, and a collection whose model the endpoint does not serve is refused, both when it is created and when it is moved there. The two Mistral models are not in the bundled price snapshot, so their spend is recorded as partially priced.
+
+Upgrade every API and worker process before configuring regional endpoints. Earlier builds ignore the OpenRouter endpoint override.
+
+For another endpoint with the same provider and model, choose **Add separate model** in the Builder. Its automatic name includes the endpoint, and the existing profile stays unchanged. **Update model** edits the shared profile instead. Custom catalog downloads are limited to 2 MiB, 2,048 models and bounded field lengths, with at most 16 catalogs cached per process. A compressed or oversized response leaves the model ID editable without falling back to a global listing.

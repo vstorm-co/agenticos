@@ -224,7 +224,7 @@ describe("a bot's three-way transcription choice", () => {
 
     await userEvent.click(screen.getByLabelText("Provider"));
 
-    expect(screen.getByRole("option", { name: "Mistral (no key yet)" })).not.toHaveAttribute(
+    expect(screen.getByRole("option", { name: "Mistral (no usable key)" })).not.toHaveAttribute(
       "aria-disabled",
     );
     expect(screen.getByRole("option", { name: "OpenAI" })).toBeInTheDocument();

@@ -113,3 +113,9 @@ describe("ConnectionsTable", () => {
     expect(handlers.onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: "c-1" }));
   });
 });
+
+it("identifies E2B as a cloud connection without showing a fake address", () => {
+  mount([connection({ kind: "e2b", base_url: null })]);
+  expect(screen.getByText("E2B cloud")).toBeVisible();
+  expect(screen.getByText("their API")).toBeVisible();
+});

@@ -28,6 +28,7 @@ import type {
   IngestionOverride,
   KBDocument,
   KBDocumentList,
+  KBIngestion,
   KnowledgeBase,
   KnowledgeBaseList,
 } from "@/types";
@@ -259,6 +260,23 @@ export function useKBDetail(id: string | null) {
 
   const kb = kbQuery.data ?? null;
 
+  // Whether the KB is still indexing, counted over every document rather than
+  // the page of them loaded below - a batch of two hundred uploads reads as
+  // settled from its first twenty while the rest are still queued (#2486). Not
+  // load-bearing: a failure leaves the strip without the state, not the page
+  // without the collection.
+  const ingestionQuery = useQuery({
+    queryKey: qk.kb.ingestion(id ?? "none"),
+    queryFn: () => apiClient.get<KBIngestion>(`/kb/${id}/ingestion`),
+    enabled,
+    retry: false,
+  });
+  // React Query keeps the last answer when a refetch fails; a stale `indexing`
+  // would keep the strip spinning, so a failure shows no state. It still keeps
+  // the poll going: with `retry: false`, the poll is what reads it again.
+  const ingestion = ingestionQuery.isError ? null : (ingestionQuery.data ?? null);
+  const ingestionPending = ingestionQuery.isError || ingestion?.indexing_status === "indexing";
+
   // Flattened and de-duplicated across pages: a poll can re-read a page the
   // append had already fetched, and two copies of one document would list it
   // twice. `useMemo` over the query's `data` keeps the array's identity stable
@@ -320,12 +338,28 @@ export function useKBDetail(id: string | null) {
    * One invalidation of the `["kb", id]` prefix, which every query above is
    * keyed beneath - so a single call refetches the whole page. Stable in
    * identity (it closes over nothing that changes per render), which the page's
-   * `useEffect([refresh])` and the ingest poll both depend on.
+   * `useEffect([refresh])` depends on.
    */
   const { fetchNextPage } = documentsQuery;
   const refresh = useCallback(async () => {
     if (!id) return;
     await queryClient.invalidateQueries({ queryKey: qk.kb.detail(id) });
+  }, [id, queryClient]);
+
+  /**
+   * Reload only what ingestion changes - the documents, the indexing state and
+   * the sync sources, whose last run a sync's ingest settles.
+   *
+   * The ingest poll's refresh: a batch can keep it running for minutes, and the
+   * collection, its integrations and its connectors do not move meanwhile.
+   */
+  const refreshIngestion = useCallback(async () => {
+    if (!id) return;
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.kb.documents(id) }),
+      queryClient.invalidateQueries({ queryKey: qk.kb.ingestion(id) }),
+      queryClient.invalidateQueries({ queryKey: qk.kb.syncSources(id) }),
+    ]);
   }, [id, queryClient]);
 
   /** Append the next page of documents (server-side skip/limit pagination). */
@@ -489,8 +523,9 @@ export function useKBDetail(id: string | null) {
         await apiClient.delete(`/kb/${id}/documents/${docId}`);
         if (!stillSameTenant(startedIn)) return;
         // Drop the row from every loaded page, and the count with it, rather
-        // than refetching: the page polls anyway, and an optimistic removal is
-        // what keeps the table from flashing the document back for a beat.
+        // than refetching: an optimistic removal is what keeps the table from
+        // flashing the document back for a beat. The indexing state is re-read,
+        // since a settled page has no poll to correct its counts.
         queryClient.setQueryData<InfiniteData<KBDocumentList>>(qk.kb.documents(id), (prev) =>
           prev
             ? {
@@ -502,6 +537,7 @@ export function useKBDetail(id: string | null) {
               }
             : prev,
         );
+        void queryClient.invalidateQueries({ queryKey: qk.kb.ingestion(id) });
         toast.success(t("documentRemoved"));
       } catch (e) {
         toast.error(getErrorMessage(e, tErrors, t("failedDeleteDocument")));
@@ -666,6 +702,8 @@ export function useKBDetail(id: string | null) {
     documents,
     documentsTotal,
     hasMoreDocuments: documentsQuery.hasNextPage,
+    ingestion,
+    ingestionPending,
     loadFailed,
     syncSources,
     orgIntegrations,
@@ -677,6 +715,7 @@ export function useKBDetail(id: string | null) {
     uploadProgress,
     error,
     refresh,
+    refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
     updateEmbeddings,

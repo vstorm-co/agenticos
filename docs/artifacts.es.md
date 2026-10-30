@@ -1,5 +1,5 @@
 ---
-source_sha: "fa09f74b62c2"
+source_sha: "10cee0ec4f18"
 ---
 
 # Aplicaciones { #artifacts }
@@ -15,6 +15,20 @@ workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
 aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
+
+## Apariencia de la app { #app-appearance }
+
+La vista autenticada de la app y su enlace público tienen controles
+independientes **light** y **dark**. Las apps se abren con una preferencia clara,
+independientemente del tema de la consola o del sistema. Cambiarla solo modifica
+la preferencia `prefers-color-scheme` de la página integrada: no recarga la app
+ni reescribe su HTML, CSS o versiones guardadas. Los colores fijos se conservan;
+las apps que admiten ambos modos pueden responder a la preferencia seleccionada.
+
+El contraste sigue siendo responsabilidad de la página. En los estilos
+incluidos, `--ao-muted` es un color de fondo; el texto secundario usa
+`--ao-muted-fg` o la clase `.ao-muted`. Usar el fondo como color del texto puede
+hacerlo ilegible en ambos modos.
 
 ## Publicar una { #publishing-one }
 

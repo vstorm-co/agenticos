@@ -8,6 +8,7 @@ empty one, because each is a run that fails with an authentication-shaped error.
 """
 
 import asyncio
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -555,3 +556,251 @@ class TestTheSharedClientAndTheLoopItBelongsTo:
         asyncio.run(model_catalog.close_listing_client())
 
         assert model_catalog._listing_client is None
+
+
+@pytest.mark.anyio
+async def test_openrouter_custom_catalog_is_isolated_and_never_falls_back_to_global():
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.host == "regional.example":
+            raise httpx.ConnectError("regional unavailable")
+        model = "vendor/eu" if request.url.host == "eu.openrouter.ai" else "vendor/global"
+        return httpx.Response(200, json={"data": [{"id": model}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            global_models, _ = await models_for("openrouter")
+            eu_models, source = await models_for(
+                "openrouter", base_url="https://eu.openrouter.ai/api/v1/"
+            )
+            assert [model.id for model in eu_models] == ["vendor/eu"]
+            assert source == "live"
+            assert str(requests[-1].url) == "https://eu.openrouter.ai/api/v1/models"
+            assert "Authorization" not in requests[-1].headers
+            cached, _ = await models_for("openrouter")
+            assert cached == global_models
+            failed, source = await models_for(
+                "openrouter", base_url="https://regional.example/api/v1"
+            )
+            assert failed == [] and source == "unlisted"
+
+
+@pytest.mark.anyio
+async def test_custom_catalog_rejects_an_unsupported_provider():
+    with pytest.raises(ValueError, match="only for OpenRouter"):
+        await models_for("openai", base_url="https://custom.example/v1")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "kind", ["entries", "id", "name", "modality", "modalities", "encoding", "invalid_json"]
+)
+async def test_custom_catalog_bounds_are_refused_without_caching(kind, monkeypatch):
+    monkeypatch.setattr(model_catalog, "MAX_CATALOG_MODELS", 2)
+    row = {"id": "vendor/model", "name": "Model"}
+    payload = {"data": [row]}
+    headers = {}
+    if kind == "entries":
+        payload["data"] = [row, row, row]
+    elif kind == "id":
+        row["id"] = "x" * 257
+    elif kind == "name":
+        row["name"] = "x" * 257
+    elif kind == "modality":
+        row["architecture"] = {"output_modalities": ["x" * 33]}
+    elif kind == "modalities":
+        row["architecture"] = {"output_modalities": ["text"] * 17}
+    elif kind == "encoding":
+        headers["content-encoding"] = "unexpected"
+    content = b"not json" if kind == "invalid_json" else json.dumps(payload).encode()
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, content=content, headers=headers)
+        )
+    ) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for("openrouter", base_url="https://custom.example/v1")
+    assert models == [] and source == "unlisted"
+    assert not model_catalog._cache
+
+
+@pytest.mark.anyio
+async def test_custom_catalog_stops_reading_at_byte_limit_and_closes_stream(monkeypatch):
+    class Chunks(httpx.AsyncByteStream):
+        def __init__(self):
+            self.read = 0
+            self.closed = False
+
+        async def __aiter__(self):
+            for _ in range(10):
+                self.read += 1
+                yield b"x" * 65536
+
+        async def aclose(self):
+            self.closed = True
+
+    stream = Chunks()
+    monkeypatch.setattr(model_catalog, "MAX_LISTING_BYTES", 65536)
+
+    def respond(request):
+        assert request.headers["accept-encoding"] == "identity"
+        return httpx.Response(200, headers={"content-length": "1"}, stream=stream)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            assert await models_for("openrouter", base_url="https://custom.example/v1") == (
+                [],
+                "unlisted",
+            )
+    assert stream.read == 2 and stream.closed
+    assert not model_catalog._cache
+
+
+@pytest.mark.anyio
+async def test_endpoint_cache_evicts_the_least_recently_used_catalog(monkeypatch):
+    monkeypatch.setattr(model_catalog, "MAX_CACHED_CATALOGS", 2)
+    fetched = AsyncMock(return_value=[model_catalog.CatalogModel(id="vendor/model", name="Model")])
+    with patch(f"{MODULE}._fetch", fetched):
+        await models_for("openrouter", base_url="https://one.example/v1")
+        await models_for("openrouter", base_url="https://two.example/v1")
+        await models_for("openrouter", base_url="https://one.example/v1")
+        await models_for("openrouter", base_url="https://three.example/v1")
+    assert len(model_catalog._cache) == 2
+    assert "openrouter:https://two.example/v1" not in model_catalog._cache
+    assert fetched.await_count == 3
+
+
+@pytest.mark.anyio
+async def test_an_endpoints_embedding_models_are_asked_for_by_modality_and_cached_apart():
+    """`/models` leaves embedding models out unless asked for them, and the chat
+    catalog of the same endpoint must not answer for its embedding catalog."""
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        embeddings = request.url.params.get("output_modalities") == "embeddings"
+        model = "mistralai/mistral-embed-2312" if embeddings else "vendor/chat"
+        return httpx.Response(200, json={"data": [{"id": model}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            chat, _ = await models_for("openrouter", base_url="https://eu.openrouter.ai/api/v1")
+            listed = await model_catalog.embedding_models_at("https://eu.openrouter.ai/api/v1/")
+            again = await model_catalog.embedding_models_at("https://eu.openrouter.ai/api/v1")
+
+    assert [model.id for model in chat] == ["vendor/chat"]
+    assert listed is not None
+    assert [model.id for model in listed] == ["mistralai/mistral-embed-2312"]
+    assert again == listed
+    assert len(requests) == 2
+    assert str(requests[-1].url) == (
+        "https://eu.openrouter.ai/api/v1/models?output_modalities=embeddings"
+    )
+    assert "Authorization" not in requests[-1].headers
+
+
+@pytest.mark.anyio
+async def test_an_endpoint_that_cannot_be_asked_is_none_and_one_listing_nothing_is_empty():
+    """None is no answer; an empty tuple is the answer "serves no embedding model",
+    and neither is cached, so the next form asks again."""
+    iterator = iter([httpx.ConnectError("down"), httpx.Response(200, json={"data": []})])
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        answer = next(iterator)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            assert await model_catalog.embedding_models_at("https://x.example/v1") is None
+            assert await model_catalog.embedding_models_at("https://x.example/v1") == ()
+
+    assert model_catalog._cache == {}
+
+
+class TestTheOrderAPickerShows:
+    def test_a_variant_sits_beside_its_model_rather_than_after_every_version(self):
+        """`:` sorts after `.` as a character, which scattered OpenRouter's
+        `:batch` variants to the end of their family."""
+        ids = [
+            "openai/gpt-5.6-terra",
+            "openai/gpt-5:batch",
+            "openai/gpt-5.1",
+            "openai/gpt-5",
+            "anthropic/claude-opus-5.5:batch",
+            "anthropic/claude-opus-5:batch",
+            "anthropic/claude-opus-5.5",
+            "anthropic/claude-opus-5",
+        ]
+
+        assert sorted(ids, key=model_catalog.listing_order) == [
+            "anthropic/claude-opus-5",
+            "anthropic/claude-opus-5:batch",
+            "anthropic/claude-opus-5.5",
+            "anthropic/claude-opus-5.5:batch",
+            "openai/gpt-5",
+            "openai/gpt-5:batch",
+            "openai/gpt-5.1",
+            "openai/gpt-5.6-terra",
+        ]
+
+    def test_versions_compare_as_numbers(self):
+        ids = [
+            "gpt-5.10",
+            "gpt-5.9",
+            "gpt-5.2-mini",
+            "gpt-5.2",
+            "deepseek-v4-1017",
+            "deepseek-v4-0731",
+        ]
+
+        assert sorted(ids, key=model_catalog.listing_order) == [
+            "deepseek-v4-0731",
+            "deepseek-v4-1017",
+            "gpt-5.2",
+            "gpt-5.2-mini",
+            "gpt-5.9",
+            "gpt-5.10",
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_listing_arrives_in_that_order(self):
+        rows = [{"id": "openai/gpt-5:batch"}, {"id": "openai/gpt-5.1"}, {"id": "openai/gpt-5"}]
+        with patch(f"{MODULE}._client", return_value=_responds({"data": rows})):
+            models, _ = await models_for("openrouter")
+
+        assert [model.id for model in models] == [
+            "openai/gpt-5",
+            "openai/gpt-5:batch",
+            "openai/gpt-5.1",
+        ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "body",
+    [{"data": {"not": "a list"}}, [{"id": "a/b"}], "not json at all"],
+    ids=["no-list", "bare-array", "not-json"],
+)
+async def test_an_endpoint_answering_something_that_is_not_a_catalog_is_no_answer(body):
+    def respond(request: httpx.Request) -> httpx.Response:
+        if isinstance(body, str):
+            return httpx.Response(200, content=body.encode())
+        return httpx.Response(200, json=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            assert await model_catalog.embedding_models_at("https://x.example/v1") is None
+
+
+@pytest.mark.anyio
+async def test_a_defect_while_listing_embedding_models_is_not_read_as_unconfirmed():
+    """Swallowed, it would let `require_served_at` wave every model through."""
+    with (
+        patch(f"{MODULE}._fetch", AsyncMock(side_effect=AttributeError("a bug"))),
+        pytest.raises(AttributeError),
+    ):
+        await model_catalog.embedding_models_at("https://x.example/v1")

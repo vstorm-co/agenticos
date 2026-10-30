@@ -1,5 +1,5 @@
 ---
-source_sha: "0c20a47827a4"
+source_sha: "7bd15584abde"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -190,6 +190,14 @@ einen Tag verlassen:
     schlechten Tag das holt, was gestern lief, und nicht das, was heute Morgen
     veröffentlicht wurde. `scripts/deploy.sh` pinnt für Sie - auf den `sha-`-Tag des
     Commits, den es deployt - für genau so lange, wie der Deploy läuft.
+
+    Pinnen Sie es aus dem Checkout dieses Releases: `git checkout v0.0.380` neben
+    der Variablen. Das Image des Sandbox-Dienstes ist in der Compose-Datei
+    gepinnt, auf die Version, die das Backend desselben Commits spricht. Ein
+    älteres Backend aus einem neueren Checkout trifft also auf ein neueres
+    `sandboxd` - und `latest` aus einem alten Checkout ist derselbe Versatz in die
+    andere Richtung. `scripts/deploy.sh` checkt den Commit aus, den es deployt,
+    also hält ein Deploy oder Rollback per Skript beides zusammen.
 
 Beide Pakete lassen sich anonym holen. Antwortet ein Pull mit `unauthorized`,
 wurde das Paket auf privat gestellt oder ein veraltetes `docker login ghcr.io`
@@ -476,6 +484,21 @@ oder `0` bei Docker Desktop, wo der eingebundene Socket der VM gehört. Ein expl
     liest das Skript den Token, statt ein Flag entgegenzunehmen.
 
 ## Eine Änderung deployen { #deploying-a-change }
+
+### Die Grenze des Verlaufsformats in 1.25.0 { #retry-history-upgrade }
+
+Version 1.25.0 übernimmt die Tool-Ergebnisse `retried` und separate Nachrichten
+`retry-feedback` aus Pydantic AI 2.61. Vorhandene Verläufe und Run-Checkpoints
+werden ohne Datenbankmigration oder erneutes Veröffentlichen der Agenten gelesen.
+Verläufe mit diesen Teilen benötigen den neuen Leser: Ein älteres Backend kann diese
+Nachrichtenformen nicht wiedergeben.
+
+Aktualisieren Sie alle API- und Worker-Prozesse zusammen. Lassen Sie alte Prozesse
+auslaufen oder stoppen Sie sie, bevor neue Arbeit annehmen. Mischen Sie keine
+älteren und neueren Backend-Replikate an derselben Datenbank. Sobald eines der neuen Retry-Formate gespeichert wurde,
+wird ein reiner Code-Rollback über diese Grenze nicht unterstützt;
+der neue Leser muss bleiben oder ein Datenbank-Snapshot von vor dem Upgrade
+wiederhergestellt werden.
 
 ### Von Hand { #by-hand }
 

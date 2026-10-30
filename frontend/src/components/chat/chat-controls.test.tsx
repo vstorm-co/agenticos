@@ -1,20 +1,37 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatControls } from "./chat-controls";
 
 const state = vi.hoisted(() => ({
+  desktop: false,
   profiles: [] as { id: string; label: string; provider: string; model: string }[],
   conversationId: null as string | null,
   // Both halves of "may this session waive approvals": the caller's permission
   // and the organization's ceiling (#925).
   mayDecide: true,
   orgAllowsWaiving: true,
+  orgLoaded: true,
   pathname: "/chat",
   openPage: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () => (state.desktop ? { platform: "macos" } : null),
+}));
+vi.mock("./work-on", () => ({
+  WorkOn: () =>
+    state.desktop ? (
+      <section aria-label="Work environment">
+        <p>Browser</p>
+        <p>Sandbox</p>
+      </section>
+    ) : null,
+  ConversationNotifications: () => (state.desktop ? <p>Conversation notifications</p> : null),
+}));
 vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
 vi.mock("@/stores/onboarding-store", () => ({
   useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
@@ -25,12 +42,14 @@ vi.mock("@/hooks", () => ({
     profiles: state.profiles,
     createProfile: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProviderModels: () => ({ models: [], source: "curated", isLoading: false }),
+  useProviderModels: () => ({ models: [], refused: [], source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
   useSecrets: () => ({ secrets: [] }),
   usePermissions: () => ({ can: () => state.mayDecide }),
   useOrganizationList: () => ({
-    data: [{ id: "org-1", chat_may_waive_approvals: state.orgAllowsWaiving }],
+    data: state.orgLoaded
+      ? [{ id: "org-1", chat_may_waive_approvals: state.orgAllowsWaiving }]
+      : [],
   }),
 }));
 vi.mock("@/stores", () => ({
@@ -67,10 +86,14 @@ function open(props: Partial<Parameters<typeof ChatControls>[0]> = {}) {
 const trigger = () => screen.getByRole("button", { name: /Chat controls/ });
 
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
+  state.desktop = false;
+  useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   state.profiles = [{ id: "p-1", label: "openai default", provider: "openai", model: "gpt-4.1" }];
   state.conversationId = null;
   state.mayDecide = true;
   state.orgAllowsWaiving = true;
+  state.orgLoaded = true;
   state.pathname = "/chat";
   state.openPage = vi.fn();
 });
@@ -115,11 +138,11 @@ describe("the chat controls trigger", () => {
     document.body.appendChild(caption);
     await userEvent.click(trigger());
     await userEvent.click(caption);
-    expect(screen.getByText("Saves on send")).toBeInTheDocument();
+    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
 
     caption.remove();
     await userEvent.click(document.body);
-    expect(screen.queryByText("Saves on send")).toBeNull();
+    expect(screen.queryByText("Remembered across chats")).toBeNull();
   });
 
   it("is one icon, titled 'Chat controls' when the agent's model could not be read", () => {
@@ -176,18 +199,20 @@ describe("the chat controls trigger", () => {
     // Before the first turn there is no conversation to save it against.
     const { unmount } = render(<ChatControls onModelProfileChange={vi.fn()} />);
     await userEvent.click(trigger());
-    expect(screen.getByText("Saves on send")).toBeInTheDocument();
+    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
     unmount();
 
     state.conversationId = "c-1";
     render(<ChatControls onModelProfileChange={vi.fn()} />);
     await userEvent.click(trigger());
-    expect(screen.getByText("Saved for this chat")).toBeInTheDocument();
+    expect(screen.getByText("Remembered across chats")).toBeInTheDocument();
   });
 
   it("names a model that is no longer in the organization's list as no model", async () => {
     // A key rotated away takes its profile with it; the trigger must not claim an
     // override it cannot name.
+    state.desktop = false;
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
     state.profiles = [];
     open();
     await userEvent.click(trigger());
@@ -246,7 +271,7 @@ describe("the approval mode", () => {
     await openControls();
 
     expect(screen.getByRole("radio", { name: /Approve everything/ })).toBeDisabled();
-    expect(screen.getByText(/Waiving approvals needs permission/)).toBeVisible();
+    expect(screen.getByText(/You need permission to decide approvals/)).toBeVisible();
   });
 
   it("refuses waiving where the organization has not allowed it", async () => {
@@ -276,4 +301,74 @@ describe("the approval mode", () => {
 
     expect(screen.getByRole("button", { name: "Chat controls" })).toContainHTML("rounded-full");
   });
+});
+
+it("keeps the composer controls free of a duplicate folder badge", () => {
+  state.desktop = true;
+  useWorkOnStore.getState().set(null, { folder: "/approved/Launch", mode: "read_only" });
+  open();
+  expect(screen.queryByRole("button", { name: /Working in \/approved\/Launch/i })).toBeNull();
+  expect(trigger()).toBeVisible();
+});
+
+it("puts browser and sandbox choices before permissions, with notifications afterwards", async () => {
+  state.desktop = true;
+  open();
+  await userEvent.click(trigger());
+  const environment = screen.getByRole("region", { name: "Work environment" });
+  const permissions = screen.getByRole("radiogroup");
+  const notifications = screen.getByText("Conversation notifications");
+  expect(
+    environment.compareDocumentPosition(permissions) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+  expect(
+    permissions.compareDocumentPosition(notifications) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+});
+
+describe("the compact settings panel", () => {
+  it("opens on the panel and closes explicitly without changing choices", async () => {
+    const change = vi.fn();
+    open({ onApprovalModeChange: change });
+    await userEvent.click(trigger());
+    expect(screen.getByRole("dialog", { name: "Chat controls" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(change).not.toHaveBeenCalled();
+    expect(trigger()).toHaveFocus();
+  });
+
+  it("shows the current permission explanation and reveals the others on demand", async () => {
+    open();
+    await userEvent.click(trigger());
+    const askHint =
+      "Ask before every tool this agent can use, including the ones it does not normally gate.";
+    expect(screen.queryByText(askHint)).not.toBeInTheDocument();
+    const help = screen.getAllByRole("button", { name: "More information" });
+    await userEvent.click(help[1]!);
+    expect(screen.getByText(askHint)).toBeInTheDocument();
+  });
+});
+
+it("explains an organization policy refusal and links directly to its approval settings", async () => {
+  state.orgAllowsWaiving = false;
+  open();
+  await userEvent.click(trigger());
+  expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
+  expect(screen.getByText(/Your organization has disabled this mode/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open approval settings" })).toHaveAttribute(
+    "href",
+    "/orgs/org-1/members?tab=governance",
+  );
+  await userEvent.click(screen.getByRole("link", { name: "Open approval settings" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("does not call a missing organization policy disabled or offer its settings link", async () => {
+  state.orgLoaded = false;
+  open();
+  await userEvent.click(trigger());
+  expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
+  expect(screen.getByText(/Organization approval settings are not available yet/)).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Open approval settings" })).toBeNull();
 });

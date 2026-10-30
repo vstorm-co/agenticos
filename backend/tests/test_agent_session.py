@@ -65,7 +65,6 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
-    RetryPromptPart,
     TextPart,
     TextPartDelta,
     ThinkingPart,
@@ -2385,7 +2384,7 @@ class TestForwardingToolEvents:
         ]
 
     async def test_a_retry_is_reported_rather_than_swallowed(self, caplog):
-        """A tool that raised sends a `RetryPromptPart` down the same stream, and a
+        """A retried tool return comes down the same stream, and a
         card that never resolved would spin forever - so the frame still arrives,
         naming the tool that failed. What it does not carry is the retry text: a
         tool builds one out of whatever it caught, and `web_search` catches an
@@ -2400,7 +2399,12 @@ class TestForwardingToolEvents:
                 part=ToolCallPart(tool_name="web_search", args={}, tool_call_id="t9")
             )
             yield FunctionToolResultEvent(
-                part=RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="t9")
+                part=ToolReturnPart(
+                    content=vendor_text,
+                    tool_name="web_search",
+                    tool_call_id="t9",
+                    outcome="retried",
+                )
             )
 
         with caplog.at_level(logging.WARNING, logger="app.services.run_stream"):
@@ -2418,14 +2422,18 @@ class TestForwardingToolEvents:
         assert vendor_text in caplog.text
 
     async def test_a_retry_from_an_unnamed_tool_still_says_a_call_failed(self, caplog):
-        """`RetryPromptPart.tool_name` is optional - a retry can come from output
-        validation rather than from a tool - and a sentence built around a name
-        that is `None` would read "The None call failed"."""
+        """An upstream result can carry an empty tool name. It still needs a generic
+        notice so a card does not stay open forever."""
         session = _session()
 
         async def _events():
             yield FunctionToolResultEvent(
-                part=RetryPromptPart(content="path must be absolute", tool_call_id="t9")
+                part=ToolReturnPart(
+                    content="path must be absolute",
+                    tool_call_id="t9",
+                    tool_name="",
+                    outcome="retried",
+                )
             )
 
         with caplog.at_level(logging.WARNING, logger="app.services.run_stream"):

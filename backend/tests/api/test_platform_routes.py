@@ -265,6 +265,9 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
+    # How close the organization is to its agent limit: only a caller who can
+    # create an agent has a use for it.
+    Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
     # Promoting a specialist creates an agent, so it is gated like `create` - and
     # this is where "a specialist created inside someone else's run does not become
@@ -386,6 +389,12 @@ CALLS: tuple[Call, ...] = (
             "model": "gpt-4.1",
             "secret_id": "00000000-0000-0000-0000-000000000001",
         },
+    ),
+    Call(
+        "PATCH",
+        "/providers/model-profiles/{profile_id}",
+        Perm.CONNECTIONS_MANAGE,
+        body={"secret_id": "00000000-0000-0000-0000-000000000001"},
     ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
@@ -1752,6 +1761,13 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # A phone signing in by scanning the code a signed-in console shows
+        # (#2097). The phone has no session yet - that is what it is getting -
+        # and the single-use, one-minute code is the credential, as a magic
+        # link's token is.
+        ("POST", f"{V1}/auth/pairing-codes/redeem"),
+        # Preview uses the same short-lived code without creating a session.
+        ("POST", f"{V1}/auth/pairing-codes/preview"),
         # Confirming a staged email address (#1772). The link is followed from
         # the *new* address, routinely in a different browser from the one that
         # asked for the change, so there is no session to carry - the token is

@@ -22,6 +22,9 @@ export default function ViewerLayout({ children }: { children: React.ReactNode }
       <ActiveOrgGuard />
       <OnboardingTour />
       <div className="bg-background flex h-dvh flex-col">
+        {/* This layout replaces the sidebar, including its native controls row.
+            Keep the traffic lights above the viewer's back button and title. */}
+        <div aria-hidden className="macos-window-controls" data-tauri-drag-region />
         <ImpersonationBanner />
         <main id="main" tabIndex={-1} className="flex min-h-0 flex-1 flex-col">
           <DeploymentGate>{children}</DeploymentGate>

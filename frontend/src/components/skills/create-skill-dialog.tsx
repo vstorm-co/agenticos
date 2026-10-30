@@ -64,7 +64,10 @@ function isReadableText(file: File): boolean {
   return readsAsText(resolveFileKind(pathOf(file), file.type));
 }
 
+import type { Skill } from "@/types/providers";
+
 interface CreateSkillDialogProps {
+  onCreated?: (skill: Skill) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -89,10 +92,10 @@ const PHONE_SCROLLS = "max-md:overflow-y-auto";
  *
  * What differs from the workbench is only what cannot exist yet: the name is
  * editable here because it is being chosen, there is no Enabled switch because
- * a skill is created enabled, and the files are local File objects held until
+ * the files are local File objects held until
  * the skill exists to attach them to.
  */
-export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps) {
+export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkillDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
   const { create, categories, suggestedCategories } = useSkills();
@@ -109,6 +112,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   const [openPath, setOpenPath] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const setters: Record<Field, (value: string) => void> = {
     name: setName,
@@ -153,6 +157,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
   }
 
   async function handleCreate() {
+    setSubmitting(true);
     try {
       const skill = await create.mutateAsync({
         name,
@@ -179,6 +184,7 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       setOpenPath(null);
       setAdding(false);
       setErrors({});
+      onCreated?.(skill);
       onOpenChange(false);
     } catch (error) {
       const failure = submitFailure(
@@ -191,6 +197,8 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
       );
       setErrors(failure.fields);
       if (failure.toast) toast.error(failure.toast);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -353,7 +361,8 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!name.trim() || !description.trim() || create.isPending}
+              loading={submitting || create.isPending}
+              disabled={!name.trim() || !description.trim()}
               data-tour="skill-dialog-create"
             >
               {t("create")}

@@ -3,23 +3,22 @@ import {
   PanelsTopLeft,
   Activity,
   Boxes,
-  FileText,
+  NotebookTabs,
   FolderKanban,
-  FolderOpen,
+  Files,
   Inbox,
-  BookOpen,
-  Bot,
+  Waypoints,
+  BotMessageSquare,
   Building2,
-  Database,
+  LibraryBig,
   KeyRound,
   LayoutDashboard,
   MessageSquare,
   Network,
   Plug,
-  Repeat,
+  Workflow,
   ShieldCheck,
   Table2,
-  Workflow,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -116,7 +115,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         labelKey: "agents",
         href: ROUTES.AGENTS,
-        icon: Bot,
+        icon: BotMessageSquare,
         permission: Perm.agentsView,
         dataTour: "nav-agents",
       },
@@ -130,7 +129,7 @@ export const NAV_GROUPS: NavGroup[] = [
       // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
       // the floor for seeing an agent's schedule; the create controls inside gate
       // further on `agents:run`, so a viewer sees the list without the buttons.
-      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Repeat, permission: Perm.agentsView },
+      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Workflow, permission: Perm.agentsView },
       {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,
@@ -149,7 +148,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         labelKey: "knowledgeBases",
         href: ROUTES.RAG,
-        icon: Database,
+        icon: LibraryBig,
         permission: Perm.collectionsView,
       },
       {
@@ -166,10 +165,15 @@ export const NAV_GROUPS: NavGroup[] = [
         // an operator's authority.
         labelKey: "documents",
         href: ROUTES.DOCUMENTS,
-        icon: FolderOpen,
+        icon: Files,
       },
-      { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
-      { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
+      { labelKey: "skills", href: ROUTES.SKILLS, icon: Waypoints, permission: Perm.skillsView },
+      {
+        labelKey: "context",
+        href: ROUTES.CONTEXT,
+        icon: NotebookTabs,
+        permission: Perm.contextView,
+      },
     ],
   },
   // What the organization is connected to. Set up once, revisited rarely, so

@@ -12,26 +12,29 @@ A question about the platform you run in - a feature, a setting, an integration,
 
 Read the file first when one is listed; it is the documentation page itself, bundled with this skill. Otherwise fetch the page from the documentation site with `web_fetch`.
 
-| Question | Read |
-|---|---|
-| What a word in the console means, and its name in the API and spec | `docs/reference-glossary.md` |
-| What the platform can do, on one page | `docs/features.md` |
-| Agents, versions, specs, runs, capabilities - how the pieces fit | `docs/concepts.md` |
-| Connecting a tool through MCP; the server catalog; OAuth sign-in | `docs/mcp.md` |
-| Using AgenticOS from Claude Code, Codex, Cursor or Claude Desktop (AgenticOS as an MCP server) | `docs/mcp.md`, section "AgenticOS as an MCP server" |
-| Calling the HTTP API, API keys, streaming, errors | `docs/api.md` |
-| Roles, scopes, sharing an agent | https://vstorm-co.github.io/agenticos/permissions/ |
-| Budgets, approvals, alerts, the audit log | https://vstorm-co.github.io/agenticos/governance/ |
-| Slack, Telegram, Mattermost, the website widget | https://vstorm-co.github.io/agenticos/channels/ |
-| Models, providers, fallbacks, cost | https://vstorm-co.github.io/agenticos/models/ |
-| Skills and how they differ from knowledge | https://vstorm-co.github.io/agenticos/skills/ |
-| Knowledge bases: uploading, parsing, retrieval | https://vstorm-co.github.io/agenticos/file-processing/ |
-| Every capability and its settings | https://vstorm-co.github.io/agenticos/reference/capabilities/ |
-| Credentials and the vault | https://vstorm-co.github.io/agenticos/secrets/ |
-| The sandbox: running code, files, browsers | https://vstorm-co.github.io/agenticos/sandbox/ |
-| Published pages and public links | https://vstorm-co.github.io/agenticos/artifacts/ |
-| Groups and departments | https://vstorm-co.github.io/agenticos/departments/ |
-| Installing and deploying | https://vstorm-co.github.io/agenticos/deploy/ |
+| Question                                                                                       | Read                                                          |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| What a word in the console means, and its name in the API and spec                             | `docs/reference-glossary.md`                                  |
+| What the platform can do, on one page                                                          | `docs/features.md`                                            |
+| Agents, versions, specs, runs, capabilities - how the pieces fit                               | `docs/concepts.md`                                            |
+| Connecting a tool through MCP; the server catalog; OAuth sign-in                               | `docs/mcp.md`                                                 |
+| Using AgenticOS from Claude Code, Codex, Cursor or Claude Desktop (AgenticOS as an MCP server) | `docs/mcp.md`, section "AgenticOS as an MCP server"           |
+| Calling the HTTP API, API keys, streaming, errors                                              | `docs/api.md`                                                 |
+| Ongoing work, shared files across chats, creating a project, an LLM wiki                       | `docs/projects.md`                                            |
+| Roles, scopes, sharing an agent                                                                | https://vstorm-co.github.io/agenticos/permissions/            |
+| Budgets, approvals, alerts, the audit log                                                      | https://vstorm-co.github.io/agenticos/governance/             |
+| Slack, Telegram, Mattermost, the website widget                                                | https://vstorm-co.github.io/agenticos/channels/               |
+| Models, providers, fallbacks, cost                                                             | https://vstorm-co.github.io/agenticos/models/                 |
+| Skills and how they differ from knowledge                                                      | https://vstorm-co.github.io/agenticos/skills/                 |
+| Knowledge bases: uploading, parsing, retrieval                                                 | https://vstorm-co.github.io/agenticos/file-processing/        |
+| Every capability and its settings                                                              | https://vstorm-co.github.io/agenticos/reference/capabilities/ |
+| Credentials and the vault                                                                      | https://vstorm-co.github.io/agenticos/secrets/                |
+| Desktop app, local folders, local browser/models/MCP, permissions and local instances          | `docs/desktop.md`                                             |
+| Mobile app, connecting, sharing, notifications and device limitations                          | `docs/mobile.md`                                              |
+| The sandbox: server versus local execution, files and browsers                                 | `docs/sandbox.md`                                             |
+| Published pages and public links                                                               | https://vstorm-co.github.io/agenticos/artifacts/              |
+| Groups and departments                                                                         | https://vstorm-co.github.io/agenticos/departments/            |
+| Installing and deploying                                                                       | https://vstorm-co.github.io/agenticos/deploy/                 |
 
 ## How to answer
 

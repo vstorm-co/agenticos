@@ -12,18 +12,21 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 
 import asyncio
 import contextlib
+import json
 import uuid
+from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, OperationalError
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.core.exceptions import BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.locks import LockScope, hold_name
 from app.db.models.conversation import Conversation
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -41,8 +44,15 @@ from app.repositories import (
 from app.services.file_storage import get_file_storage
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.organization import OrganizationService
+from app.services.rag.ingestion import IngestionService
+from app.services.rag.models import (
+    Document,
+    DocumentMetadata,
+    DocumentPage,
+    DocumentPageChunk,
+    IngestionStatus,
+)
 from app.services.rag.vectorstore import PgVectorStore
-from app.services.rag_document import RAGDocumentService
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -142,7 +152,7 @@ def _personal_kb(org_id: uuid.UUID, owner_id: uuid.UUID, collection_name: str) -
 
 
 def _kb_document(
-    collection_name: str, kb_id: uuid.UUID, org_id: uuid.UUID, storage_path: str
+    collection_name: str, kb_id: uuid.UUID | None, org_id: uuid.UUID, storage_path: str
 ) -> RAGDocument:
     return RAGDocument(
         id=uuid.uuid4(),
@@ -582,11 +592,9 @@ class TestDeletingAnOrg:
 
             kb = await dropper.get(KnowledgeBase, kb_id)
 
-            async def _drop() -> None:
-                await KnowledgeBaseService(dropper).delete_for_rag_collection(kb)
-                await RAGDocumentService(dropper).delete_by_collection(collection)
-
-            drop_task = asyncio.ensure_future(_drop())
+            drop_task = asyncio.ensure_future(
+                KnowledgeBaseService(dropper).delete_for_rag_collection(kb)
+            )
             try:
                 await asyncio.sleep(0.25)
                 assert not drop_task.done()  # blocked acquiring the teardown lock
@@ -1011,3 +1019,1048 @@ class TestConcurrentSelfDeletes:
             await holder.commit()
 
         assert deleted.id == owner_id
+
+
+async def _filed_table(s, table: str, chunks: dict[str, uuid.UUID]) -> None:
+    """A runtime vector table holding one chunk per id, filed under the given base.
+
+    Only `metadata` matters to the purge, so the table carries no embedding."""
+    await s.execute(text(f"CREATE TABLE {table} (id text PRIMARY KEY, metadata jsonb)"))
+    for chunk_id, kb_id in chunks.items():
+        await s.execute(
+            text(f"INSERT INTO {table} (id, metadata) VALUES (:id, CAST(:meta AS jsonb))"),  # noqa: S608
+            {"id": chunk_id, "meta": json.dumps({"knowledge_base_id": str(kb_id)})},
+        )
+
+
+async def _document_chunk(
+    s,
+    table: str,
+    chunk_id: str,
+    parent_doc_id: str,
+    kb_id: uuid.UUID | None,
+    org_id: uuid.UUID | None = None,
+) -> None:
+    """One chunk of a document in a table `parent_doc_id` keys: filed under a
+    base, or unfiled (`kb_id=None`) and tagged with its tenant."""
+    meta = (
+        {"knowledge_base_id": str(kb_id)}
+        if kb_id
+        else {"organization_id": str(org_id)}
+        if org_id
+        else {}
+    )
+    await s.execute(
+        text(f"INSERT INTO {table} VALUES (:id, :doc, CAST(:meta AS jsonb))"),  # noqa: S608
+        {"id": chunk_id, "doc": parent_doc_id, "meta": json.dumps(meta)},
+    )
+
+
+async def _chunk_ids(s, table: str) -> set[str]:
+    return set((await s.execute(text(f"SELECT id FROM {table}"))).scalars())  # noqa: S608
+
+
+class TestADeletedBasesChunksOnAKeptTable:
+    """A base deleted while another base holds its collection name leaves the shared
+    table standing (#913); the chunks filed under it are read by no scope any more,
+    so the queued cleanup deletes them by the base's id and leaves the survivor's
+    (#2537). These run the real job against a real table."""
+
+    async def test_deleting_a_knowledge_base_removes_its_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            doomed_id = doomed.id
+
+        try:
+            async with factory() as s:
+                await KnowledgeBaseService(s).delete(doomed_id, ctx=ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_deleting_a_knowledge_base_removes_its_tenants_unfiled_documents(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`DELETE /kb/{id}` with another organization's base on the same name: the
+        delete removed only rows filed under the base, so the unfiled legacy rows
+        it took - its organization's - stayed with their files and chunks, and
+        came back with the organization's next base on the name (#2560). Now they
+        go with it, and the other organization's unfiled rows stay."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        ours_file = await storage.save("delete-unfiled", "ours.txt", b"ours")
+        theirs_file = await storage.save("delete-unfiled", "theirs.txt", b"theirs")
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            ours = _kb_document(collection, None, org.id, ours_file)
+            ours.vector_document_id = "ours-doc"
+            theirs = _kb_document(collection, None, other_org.id, theirs_file)
+            theirs.vector_document_id = "theirs-doc"
+            s.add_all([ours, theirs])
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "ours-0", "ours-doc", None, org.id)
+            await _document_chunk(s, table, "theirs-0", "theirs-doc", None, other_org.id)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            doomed_id, ours_id, theirs_id = doomed.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                await KnowledgeBaseService(s).delete(doomed_id, ctx=ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(RAGDocument, ours_id) is None
+                assert await s.get(RAGDocument, theirs_id) is not None
+                assert await _chunk_ids(s, table) == {"theirs-0"}
+            assert not await storage.exists(ours_file)
+            assert await storage.exists(theirs_file)
+        finally:
+            await storage.delete(ours_file)
+            await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_rag_drop_of_a_shared_name_keeps_the_other_organizations_table(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`rag-drop` dropped the table by name, whoever else held it (#2560).
+        Unnamed, a shared name is refused; naming one base clears only it, on
+        the real teardown lock taken twice in one transaction."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            doomed_id, kept_id = doomed.id, kept.id
+
+        try:
+            async with factory() as s:
+                with pytest.raises(BadRequestError):
+                    await KnowledgeBaseService(s).drop_collection_by_name(collection)
+                await s.rollback()
+            async with factory() as s:
+                await KnowledgeBaseService(s).drop_collection_by_name(
+                    collection, knowledge_base_id=doomed_id
+                )
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(KnowledgeBase, kept_id) is not None
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_dropping_a_collection_removes_its_bases_documents_and_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        """`DELETE /rag/collections/{name}` with another organization's base on the
+        same name: the drop deleted every document row under the name and kept
+        the dropped base's chunks in the shared table (#2560). Now it deletes the
+        base's own rows and files, and the queued cleanup purges its chunks."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        ours_file = await storage.save("drop-shared", "ours.txt", b"ours")
+        theirs_file = await storage.save("drop-shared", "theirs.txt", b"theirs")
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            ours = _kb_document(collection, doomed.id, org.id, ours_file)
+            theirs = _kb_document(collection, kept.id, other_org.id, theirs_file)
+            s.add_all([ours, theirs])
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            doomed_id, kept_id, ours_id, theirs_id = doomed.id, kept.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, doomed_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, doomed_id) is None
+                assert await s.get(RAGDocument, ours_id) is None
+                assert await s.get(KnowledgeBase, kept_id) is not None
+                assert await s.get(RAGDocument, theirs_id) is not None
+                assert await _chunk_ids(s, table) == {"kept-0"}
+            assert not await storage.exists(ours_file)
+            assert await storage.exists(theirs_file)
+        finally:
+            await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_clearing_a_kept_default_spares_an_upload_made_after_the_drop(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A cleared default keeps its row, so it takes uploads again once the drop
+        commits, filed under the same id. Its purge removes the chunks of the
+        documents the drop deleted, not every chunk filed under the base - which
+        would take an upload ingested before the cleanup job ran (#2560)."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            sibling = _org_collection(other_org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            old = _kb_document(collection, default.id, org.id, "drop-default/old.txt")
+            old.vector_document_id = "old-doc"
+            s.add(old)
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "old-0", "old-doc", default.id)
+            await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
+            await s.commit()
+            default_id, old_id = default.id, old.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                # An upload into the kept default, ingested before the job runs.
+                await _document_chunk(s, table, "new-0", "new-doc", default_id)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await s.get(RAGDocument, old_id) is None
+                assert await _chunk_ids(s, table) == {"new-0", "sibling-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    @pytest.mark.security
+    @pytest.mark.parametrize("unfiled", [False, True], ids=["bound-worker", "unfiled-cli"])
+    async def test_clearing_a_kept_default_purges_committed_chunks_before_settlement(
+        self, engine: AsyncEngine, unfiled: bool
+    ) -> None:
+        """Chunks committed before tracking settlement still belong to the clear."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            if unfiled:
+                default.scope = KBScope.APP.value
+                default.organization_id = None
+            sibling = _org_collection(other_org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            old = _kb_document(collection, default.id, org.id, "drop-default/old.txt")
+            old.vector_document_id = None
+            old.status = "processing"
+            if unfiled:
+                old.knowledge_base_id = None
+                old.organization_id = None
+            s.add(old)
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "old-0", "old-doc", None if unfiled else default.id)
+            await _document_chunk(s, table, "sibling-0", "sibling-doc", sibling.id)
+            await s.commit()
+            default_id, old_id = default.id, old.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                # An upload into the kept default, ingested before the job runs.
+                await _document_chunk(s, table, "new-0", "new-doc", default_id)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await s.get(RAGDocument, old_id) is None
+                assert await _chunk_ids(s, table) == {"new-0", "sibling-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_clearing_a_kept_default_removes_its_tenants_unfiled_documents(
+        self, engine: AsyncEngine
+    ) -> None:
+        """A kept default lists the unfiled rows its organization holds under the
+        name - legacy uploads from before documents recorded their base. The drop
+        deleted only rows filed under the base, so a cleared default still listed
+        and served them and their chunks stayed searchable; the route's own delete
+        by name used to take them. Now they go with the clear, files and chunks
+        included, and another organization's unfiled rows under the name stay."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        storage = get_file_storage()
+        ours_file = await storage.save("drop-unfiled", "ours.txt", b"ours")
+        theirs_file = await storage.save("drop-unfiled", "theirs.txt", b"theirs")
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            sibling = _org_collection(other_org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            ours = _kb_document(collection, None, org.id, ours_file)
+            ours.vector_document_id = "ours-doc"
+            theirs = _kb_document(collection, None, other_org.id, theirs_file)
+            theirs.vector_document_id = "theirs-doc"
+            s.add_all([ours, theirs])
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "ours-0", "ours-doc", None, org.id)
+            await _document_chunk(s, table, "theirs-0", "theirs-doc", None, other_org.id)
+            await s.commit()
+            default_id, ours_id, theirs_id = default.id, ours.id, theirs.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(KnowledgeBase, default_id) is not None
+                assert await s.get(RAGDocument, ours_id) is None
+                assert await s.get(RAGDocument, theirs_id) is not None
+                assert await _chunk_ids(s, table) == {"theirs-0"}
+            assert not await storage.exists(ours_file)
+            assert await storage.exists(theirs_file)
+        finally:
+            await storage.delete(theirs_file)
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_clearing_a_default_leaves_unfiled_documents_to_a_same_tenant_base(
+        self, engine: AsyncEngine
+    ) -> None:
+        """Another base of the same organization on the name still lists the
+        unfiled rows, so clearing the default leaves them and their chunks to it,
+        and removes only the default's own documents' chunks."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            default = _org_collection(org.id, collection)
+            default.is_default = True
+            sibling = _org_collection(org.id, collection)
+            s.add_all([default, sibling])
+            await s.flush()
+            filed = _kb_document(collection, default.id, org.id, "drop-unfiled/filed.txt")
+            filed.vector_document_id = "filed-doc"
+            legacy = _kb_document(collection, None, org.id, "drop-unfiled/legacy.txt")
+            legacy.vector_document_id = "legacy-doc"
+            s.add_all([filed, legacy])
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
+            await _document_chunk(s, table, "filed-0", "filed-doc", default.id)
+            await _document_chunk(s, table, "legacy-0", "legacy-doc", None, org.id)
+            await s.commit()
+            default_id, filed_id, legacy_id = default.id, filed.id, legacy.id
+
+        try:
+            async with factory() as s:
+                kb = await s.get(KnowledgeBase, default_id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(kb)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await s.get(RAGDocument, filed_id) is None
+                assert await s.get(RAGDocument, legacy_id) is not None
+                assert await _chunk_ids(s, table) == {"legacy-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_purging_an_organization_removes_its_bases_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            org_id = org.id
+
+        try:
+            async with factory() as s:
+                org = await s.get(Organization, org_id)
+                await OrganizationService(s, vector_store=store).purge(org)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_deleting_a_user_removes_their_personal_bases_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            leaver, keeper = _user(), _user()
+            s.add_all([leaver, keeper])
+            await s.flush()
+            leaver_org = await _org(s, leaver, is_personal=True)
+            keeper_org = await _org(s, keeper, is_personal=True)
+            doomed = _personal_kb(leaver_org.id, leaver.id, collection)
+            kept = _personal_kb(keeper_org.id, keeper.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            leaver_id = leaver.id
+
+        try:
+            async with factory() as s:
+                await UserService(s, vector_store=store).delete(leaver_id)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+
+def _store_embedding_in_3d(engine: AsyncEngine) -> PgVectorStore:
+    """A real store on the test database whose embedder answers with no provider."""
+    store = PgVectorStore(
+        settings=app_settings.rag,
+        embedding_service=MagicMock(),
+        resolver=MagicMock(),
+        engine=engine,
+    )
+    embedder = MagicMock(
+        embed_document=lambda document: [[0.1, 0.2, 0.3]] * len(document.chunked_pages)
+    )
+    store._for_collection = AsyncMock(return_value=(embedder, 3))  # type: ignore[method-assign]
+    return store
+
+
+def _parsed(content: str) -> Document:
+    document = Document(
+        pages=[DocumentPage(page_num=1, content=content)],
+        metadata=DocumentMetadata(
+            filename=f"{content}.md", filesize=1, filetype="md", source_path=f"/{content}.md"
+        ),
+    )
+    document.chunked_pages = [
+        DocumentPageChunk(
+            chunk_content=content,
+            chunk_num=0,
+            page_num=1,
+            content=content,
+            parent_doc_id=document.id,
+        )
+    ]
+    return document
+
+
+async def _filed_under(s, table: str, kb_id: uuid.UUID) -> int:
+    return (
+        await s.execute(
+            text(f"SELECT count(*) FROM {table} WHERE (metadata->>'knowledge_base_id') = :kb"),  # noqa: S608
+            {"kb": str(kb_id)},
+        )
+    ).scalar_one()
+
+
+class TestAnIngestRacingItsBasesDelete:
+    """An ingest that passed its `still_wanted` gate before its base was deleted
+    beside a sibling that keeps the name, which reserves nothing the gate reads
+    (#2561). `knowledge_base_repo.hold_key_share` has the reasoning."""
+
+    async def test_a_base_deleted_after_the_parse_gets_no_chunks(self, engine: AsyncEngine) -> None:
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbrace{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+        async def deleted_between_the_parse_and_the_write() -> bool:
+            # The gate answers yes, and the delete commits and its cleanup job
+            # purges the base before the write starts: the window #2561 names.
+            async with factory() as s:
+                await KnowledgeBaseService(s).delete(doomed.id, ctx=ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+            return True
+
+        processor = MagicMock(process_file=AsyncMock(return_value=_parsed("doomed")))
+        ingester = IngestionService(processor, store, scope=doomed.vector_scope)
+
+        try:
+            await store.insert_document(collection, _parsed("kept"), kept.vector_scope)
+            result = await ingester.ingest_file(
+                Path("doomed.md"),
+                collection,
+                replace=False,
+                still_wanted=deleted_between_the_parse_and_the_write,
+            )
+
+            assert result.status is IngestionStatus.ERROR
+            assert result.error_message == (
+                "The knowledge base was deleted while this file was being indexed"
+            )
+            # Refused, which the worker ends without a retry (RR3-c1a).
+            assert result.refused is True
+            async with factory() as s:
+                assert await _filed_under(s, table, doomed.id) == 0
+                assert await _filed_under(s, table, kept.id) == 1
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @pytest.mark.security
+    async def test_a_default_cleared_after_the_gate_gets_no_stale_chunks(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbrace{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            doomed.is_default = True
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            tracking = _kb_document(collection, doomed.id, org.id, "")
+            tracking.status = "processing"
+            s.add(tracking)
+            await s.commit()
+
+        async def deleted_between_the_parse_and_the_write() -> bool:
+            # The gate answers yes, and the delete commits and its cleanup job
+            # purges the base before the write starts: the window #2561 names.
+            async with factory() as s:
+                current = await s.get(KnowledgeBase, doomed.id)
+                await KnowledgeBaseService(s).delete_for_rag_collection(current)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+            return True
+
+        processor = MagicMock(process_file=AsyncMock(return_value=_parsed("doomed")))
+        ingester = IngestionService(processor, store, scope=doomed.vector_scope)
+
+        try:
+            await store.insert_document(collection, _parsed("kept"), kept.vector_scope)
+            result = await ingester.ingest_file(
+                Path("doomed.md"),
+                collection,
+                replace=False,
+                rag_document_id=tracking.id,
+                still_wanted=deleted_between_the_parse_and_the_write,
+            )
+
+            assert result.status is IngestionStatus.ERROR
+            assert result.error_message == (
+                "The document was cleared while this file was being indexed"
+            )
+            # Refused, which the worker ends without a retry (RR3-c1a).
+            assert result.refused is True
+            async with factory() as s:
+                assert await _filed_under(s, table, doomed.id) == 0
+                assert await _filed_under(s, table, kept.id) == 1
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_a_delete_waits_for_a_write_in_flight(self, engine: AsyncEngine) -> None:
+        """The other order: a write that has checked its base holds it until its
+        chunks commit, so the delete - and the purge it queues - comes after them."""
+        store = _store_embedding_in_3d(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbrace{uuid.uuid4().hex[:12]}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.commit()
+
+        async with store.async_session() as writing:
+            assert await knowledge_base_repo.hold_key_share(writing, base.id)
+            async with factory() as deleting:
+                await deleting.execute(text("SET LOCAL lock_timeout = '200ms'"))
+                with pytest.raises(DBAPIError, match="lock timeout"):
+                    await knowledge_base_repo.lock(deleting, base.id)
+            await writing.rollback()
+
+    async def test_two_writes_into_one_base_do_not_wait_for_each_other(
+        self, engine: AsyncEngine
+    ) -> None:
+        """The hold is the foreign key's own share lock, not an exclusive one: a
+        second ingest into the same base must not queue behind the first's insert."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, f"kbrace{uuid.uuid4().hex[:12]}")
+            s.add(base)
+            await s.commit()
+
+        async with factory() as first, factory() as second:
+            assert await knowledge_base_repo.hold_key_share(first, base.id)
+            await second.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            assert await knowledge_base_repo.hold_key_share(second, base.id)
+            await second.rollback()
+            await first.rollback()
+
+
+@pytest.mark.security
+async def test_a_last_base_deleted_after_the_gate_does_not_recreate_its_table(
+    engine: AsyncEngine,
+) -> None:
+    store = _store_embedding_in_3d(engine)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    collection = f"lastbase{uuid.uuid4().hex[:12]}"
+    async with factory() as session:
+        owner = _user()
+        session.add(owner)
+        await session.flush()
+        org = await _org(session, owner)
+        base = _org_collection(org.id, collection)
+        session.add(base)
+        await session.commit()
+        ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+    async def removed_after_gate() -> bool:
+        async with factory() as session:
+            await KnowledgeBaseService(session).delete(base.id, ctx=ctx)
+            await session.commit()
+            start_deferred(session)
+        await drain()
+        assert not await store._collection_exists(collection)
+        return True
+
+    processor = MagicMock(process_file=AsyncMock(return_value=_parsed("stale")))
+    ingester = IngestionService(processor, store, scope=base.vector_scope)
+    try:
+        await store.insert_document(collection, _parsed("before"), base.vector_scope)
+        result = await ingester.ingest_file(
+            Path("stale.md"), collection, replace=False, still_wanted=removed_after_gate
+        )
+        assert result.refused
+        assert not await store._collection_exists(collection)
+    finally:
+        async with factory() as session:
+            await session.execute(text(f"DROP TABLE IF EXISTS rag_{collection}"))
+            await session.commit()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reserved", [False, True])
+async def test_cli_ingestion_refuses_a_reserved_collection_name(
+    engine: AsyncEngine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reserved: bool
+) -> None:
+    from collections.abc import AsyncIterator
+
+    from app.commands import rag as rag_command
+    from app.repositories import collection_teardown_repo
+    from app.services.rag.models import IngestionResult
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    collection = f"reserved{uuid.uuid4().hex[:12]}"
+    (tmp_path / "notes.md").write_text("body")
+    async with factory() as db:
+        if reserved:
+            await collection_teardown_repo.reserve(db, collection)
+        await db.commit()
+
+    @contextlib.asynccontextmanager
+    async def session() -> AsyncIterator[AsyncSession]:
+        async with factory() as db:
+            yield db
+            await db.commit()
+
+    logs = MagicMock(
+        create_sync_log=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        complete_sync=AsyncMock(),
+    )
+    monkeypatch.setattr(rag_command, "get_db_context", session)
+    monkeypatch.setattr(rag_command, "RAGSyncService", lambda _db: logs)
+    ingestion = MagicMock(
+        ingest_file=AsyncMock(
+            return_value=IngestionResult(
+                status=IngestionStatus.DONE, document_id="new-vector", chunk_count=1
+            )
+        )
+    )
+    await rag_command.ingest_path_async(
+        str(tmp_path), collection, True, MagicMock(), MagicMock(), ingestion
+    )
+    assert ingestion.ingest_file.await_count == (0 if reserved else 1)
+    async with factory() as db:
+        docs = list(
+            await db.scalars(select(RAGDocument).where(RAGDocument.collection_name == collection))
+        )
+        assert len(docs) == (0 if reserved else 1)
+        if docs:
+            assert docs[0].vector_document_id == "new-vector"
+        await collection_teardown_repo.release(db, collection)
+        await db.commit()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("operation", ["delete", "rag_drop", "keep_default", "delete_other"])
+async def test_removing_a_source_target_never_reassigns_it_by_name(
+    db: AsyncSession, operation: str
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.sync_source import SyncSource
+
+    owner, other_owner = _user(), _user()
+    db.add_all([owner, other_owner])
+    await db.flush()
+    org = await _org(db, owner)
+    other_org = await _org(db, other_owner)
+    name = f"target{uuid.uuid4().hex[:12]}"
+    selected = _org_collection(org.id, name)
+    selected.created_at = datetime.now(UTC) - timedelta(days=1)
+    same_org_fallback = _org_collection(org.id, name)
+    other_base = _org_collection(other_org.id, name)
+    selected.is_default = operation == "keep_default"
+    db.add_all([selected, same_org_fallback, other_base])
+    source = SyncSource(
+        organization_id=org.id,
+        name="Private connector",
+        connector_type="web",
+        collection_name=name,
+        config={},
+        is_active=True,
+    )
+    other_source = SyncSource(
+        organization_id=other_org.id,
+        name="Other connector",
+        connector_type="web",
+        collection_name=name,
+        config={},
+        is_active=True,
+    )
+    db.add_all([source, other_source])
+    await db.flush()
+    service = KnowledgeBaseService(db)
+    if operation in {"delete", "delete_other"}:
+        ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+        await service.delete(
+            same_org_fallback.id if operation == "delete_other" else selected.id, ctx=ctx
+        )
+    else:
+        await service.delete_for_rag_collection(selected)
+    await db.refresh(source)
+    await db.refresh(other_source)
+    if operation in {"keep_default", "delete_other"}:
+        assert source.collection_name == name and source.is_active
+    else:
+        assert source.collection_name is None and not source.is_active
+    assert other_source.collection_name == name and other_source.is_active
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reassign", [False, True])
+async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, reassign: bool
+) -> None:
+    from collections.abc import AsyncIterator
+
+    from app.db.models.sync_source import SyncSource
+    from app.worker.tasks import rag_tasks
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    name = f"queued{uuid.uuid4().hex[:12]}"
+    async with factory() as db:
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        org = await _org(db, owner)
+        selected, fallback = _org_collection(org.id, name), _org_collection(org.id, name)
+        db.add_all([selected, fallback])
+        await db.flush()
+        source = SyncSource(
+            organization_id=org.id,
+            name="Queued connector",
+            connector_type="web",
+            collection_name=name,
+            config={},
+            is_active=True,
+        )
+        db.add(source)
+        await db.commit()
+        selected_id, source_id = selected.id, str(source.id)
+
+    @contextlib.asynccontextmanager
+    async def worker_db() -> AsyncIterator[AsyncSession]:
+        async with factory() as db:
+            yield db
+            await db.commit()
+
+    async def delete_before_lock(db: AsyncSession, scope: LockScope, collection: str) -> None:
+        async with factory() as deleting:
+            kb = await deleting.get(KnowledgeBase, selected_id)
+            assert kb is not None
+            await KnowledgeBaseService(deleting).delete_for_rag_collection(kb)
+            if reassign:
+                moved = await deleting.get(SyncSource, uuid.UUID(source_id))
+                assert moved is not None
+                moved.collection_name = "different_collection"
+            await deleting.commit()
+            discard_deferred(deleting)
+        await hold_name(db, scope, collection)
+
+    resolve = AsyncMock()
+    monkeypatch.setattr(rag_tasks, "get_worker_db_context", worker_db)
+    monkeypatch.setattr(rag_tasks, "hold_name", delete_before_lock)
+    monkeypatch.setattr(rag_tasks, "_knowledge_base_for", resolve)
+    monkeypatch.setattr(rag_tasks, "_notify_sync_start_failure", AsyncMock())
+    answer = await rag_tasks._sync_source(source_id, None)
+    assert answer == {
+        "status": "error",
+        "message": (
+            "Source collection changed before this sync started. Run it again."
+            if reassign
+            else "Source has no assigned collection."
+        ),
+    }
+    resolve.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_personal_purge_locks_all_names_before_detaching_sources(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.sync_source import SyncSource
+    from app.services import user as user_service
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    prefix = f"order{uuid.uuid4().hex[:12]}"
+    async with factory() as db:
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        org = await _org(db, owner)
+        first = _personal_kb(org.id, owner.id, prefix + "a")
+        second = _personal_kb(org.id, owner.id, prefix + "b")
+        source = SyncSource(
+            organization_id=org.id,
+            name="Moving source",
+            connector_type="web",
+            collection_name=first.collection_name,
+            config={},
+            is_active=True,
+        )
+        db.add_all([first, second, source])
+        await db.commit()
+        owner_id, source_id = owner.id, source.id
+
+    waiting_for_second = asyncio.Event()
+
+    async def observed_hold(db: AsyncSession, scope: LockScope, name: str) -> None:
+        if name == second.collection_name:
+            waiting_for_second.set()
+        await hold_name(db, scope, name)
+
+    monkeypatch.setattr(user_service, "hold_name", observed_hold)
+
+    async def purge() -> None:
+        async with factory() as db:
+            await UserService(db)._purge_personal_collections(owner_id)
+            await db.commit()
+            discard_deferred(db)
+
+    async with factory() as editing:
+        await hold_name(editing, LockScope.COLLECTION_TEARDOWN, second.collection_name)
+        task = asyncio.create_task(purge())
+        try:
+            await asyncio.wait_for(waiting_for_second.wait(), timeout=5)
+            # A source edit holds the new name before updating the existing row.
+            # Purge must not hold that row while waiting for this name.
+            await asyncio.wait_for(
+                editing.execute(
+                    select(SyncSource).where(SyncSource.id == source_id).with_for_update()
+                ),
+                timeout=2,
+            )
+            await editing.commit()
+            await asyncio.wait_for(task, timeout=5)
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task

@@ -35,6 +35,8 @@ import { useAgentTemplates } from "@/hooks/use-agent-templates";
 import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { AgentLimitNotice, isAtAgentLimit } from "@/components/agents/agent-limit-notice";
+import type { AgentCeiling } from "@/types/agents";
 import type { AgentTemplate, TemplateIndustry } from "@/types/providers";
 
 /** Icon per industry directory. An id with no entry falls back rather than blank. */
@@ -49,15 +51,23 @@ const INDUSTRY_ICONS: Record<string, LucideIcon> = {
   general: Sparkles,
 };
 
+/**
+ * At the agent limit (`ceiling`) installing a template would be refused - it
+ * creates an agent - so the dialog says why and disables installs. Browsing
+ * stays open.
+ */
 export function AgentTemplateDialog({
   open,
   onOpenChange,
+  ceiling,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  ceiling: AgentCeiling | null;
 }) {
   const t = useTranslations("agentTemplates");
   const router = useRouter();
+  const atLimit = isAtAgentLimit(ceiling);
   const [industryId, setIndustryId] = useState<string | null>(null);
 
   const { industries, isLoading, isError, install, isInstalling, installingKey } =
@@ -83,6 +93,8 @@ export function AgentTemplateDialog({
           <DialogDescription>{industry ? t("industryHint") : t("description")}</DialogDescription>
         </DialogHeader>
 
+        {atLimit ? <AgentLimitNotice ceiling={ceiling} /> : null}
+
         {isLoading ? (
           <LoadingState variant="skeleton-tiles" />
         ) : isError ? (
@@ -94,6 +106,7 @@ export function AgentTemplateDialog({
             onInstall={install}
             isInstalling={isInstalling}
             installingKey={installingKey}
+            blocked={atLimit}
           />
         ) : (
           <IndustryCards industries={industries} onPick={setIndustryId} />
@@ -143,12 +156,15 @@ function IndustryTemplates({
   onInstall,
   isInstalling,
   installingKey,
+  blocked,
 }: {
   industry: TemplateIndustry;
   onBack: () => void;
   onInstall: (key: string) => void;
   isInstalling: boolean;
   installingKey: string | undefined;
+  /** At the agent limit, where every install would be refused. */
+  blocked: boolean;
 }) {
   const t = useTranslations("agentTemplates");
 
@@ -165,7 +181,7 @@ function IndustryTemplates({
             key={template.key}
             template={template}
             busy={isInstalling && installingKey === template.key}
-            disabled={isInstalling}
+            disabled={isInstalling || blocked}
             onInstall={() => onInstall(template.key)}
           />
         ))}

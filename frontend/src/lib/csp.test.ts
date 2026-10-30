@@ -121,6 +121,10 @@ describe("the console's content security policy", () => {
     }
   });
 
+  it("runs only this origin's own service worker", () => {
+    expect(cspDirectives(DEFAULT_PUBLIC_CONFIG, NONCE)["worker-src"]).toEqual(["'self'"]);
+  });
+
   it("forbids plugin content outright", () => {
     // `<object>`/`<embed>` are not covered by `default-src` on their own, and the
     // console renders none (#1416).

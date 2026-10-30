@@ -31,13 +31,14 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic_ai.messages import (
+    ERROR_OUTCOMES,
     ModelMessage,
-    RetryPromptPart,
     ToolCallPart,
     ToolReturnPart,
 )
 
 from app.agents.ask_user import parked_status
+from app.agents.ephemeral_media import describe_binary
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -74,8 +75,8 @@ class RecordedToolCall:
     result: str | None = None
 
 
-def tool_retry_notice(part: RetryPromptPart) -> str:
-    """What a tool that asked the model to try again may tell a reader.
+def tool_failure_notice(part: ToolReturnPart) -> str:
+    """What a failed or retried tool call may tell a reader.
 
     A retry's content is written by whichever tool raised: `web_search` turns a
     search provider's failure into a `ModelRetry` built out of the `httpx` or
@@ -96,13 +97,12 @@ def tool_retry_notice(part: RetryPromptPart) -> str:
 
     The tool's *name* still goes out, because it is what makes the frame worth
     sending: a card that resolves saying which step failed is the difference
-    from one that spins for ever. `tool_name` is optional on the part - output
-    validation raises a retry that names no tool - hence the two forms.
+    from one that spins for ever. A return with an empty upstream tool name
+    still gets a generic notice.
     """
     called = f"The {part.tool_name} call" if part.tool_name else "A tool call"
-    return (
-        f"{called} failed and the model was asked to try again. The server log has the full error."
-    )
+    retry = " and the model was asked to try again" if part.outcome == "retried" else ""
+    return f"{called} failed{retry}. The server log has the full error."
 
 
 def tool_result_text(content: Any) -> str:
@@ -122,7 +122,7 @@ def tool_result_text(content: Any) -> str:
     if isinstance(content, str):
         return content
     try:
-        return json.dumps(content, ensure_ascii=False, default=str)
+        return json.dumps(content, ensure_ascii=False, default=describe_binary)
     except TypeError, ValueError:
         # `default=` is consulted for a *value* json cannot write and never for a
         # key, so a mapping keyed by a tuple raises `TypeError` and escaped this
@@ -130,7 +130,7 @@ def tool_result_text(content: Any) -> str:
         return str(content)
 
 
-def _result_text(part: ToolReturnPart | RetryPromptPart) -> str:
+def _result_text(part: ToolReturnPart) -> str:
     """What the row stores as the call's outcome.
 
     A return is the tool's own answer and is stored whole. A retry's content is
@@ -142,9 +142,11 @@ def _result_text(part: ToolReturnPart | RetryPromptPart) -> str:
     it (#695). The model is untouched either way: Pydantic AI carries the part
     into the next request itself, and this function only decides what is stored.
     """
-    if isinstance(part, RetryPromptPart):
-        logger.warning("Tool call %s asked the model to retry: %s", part.tool_call_id, part.content)
-        return tool_retry_notice(part)
+    if part.outcome in ERROR_OUTCOMES:
+        logger.warning(
+            "Tool call %s returned %s: %s", part.tool_call_id, part.outcome, part.content
+        )
+        return tool_failure_notice(part)
     return tool_result_text(part.content)
 
 
@@ -157,7 +159,7 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
     shows one `send_email` twice is one nobody can use to decide whether the
     agent behaved.
 
-    A `RetryPromptPart` counts as a result. A call the model was told to retry
+    A retried `ToolReturnPart` counts as a result. A call the model was told to retry
     did happen and did fail, and dropping it would leave the transcript showing
     an argument list with no outcome - which reads as "still running" for ever.
 
@@ -178,7 +180,7 @@ def tool_calls_in(messages: Sequence[ModelMessage]) -> list[RecordedToolCall]:
                     tool_name=part.tool_name,
                     args=part.args_as_dict(raise_if_invalid=False),
                 )
-            elif isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id in calls:
+            elif isinstance(part, ToolReturnPart) and part.tool_call_id in calls:
                 results[part.tool_call_id] = _result_text(part)
     return [
         RecordedToolCall(
@@ -214,7 +216,7 @@ def settled_calls_in(messages: Sequence[ModelMessage]) -> dict[str, str]:
         part.tool_call_id: _result_text(part)
         for message in messages
         for part in message.parts
-        if isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_call_id not in called
+        if isinstance(part, ToolReturnPart) and part.tool_call_id not in called
     }
 
 
@@ -500,3 +502,8 @@ class TranscriptService:
                     result=call.result,
                     completed_at=now,
                 )
+
+        if answer.strip():
+            from app.services.follow_ups import queue_next_steps
+
+            queue_next_steps(self.db, message.id, run.organization_id)

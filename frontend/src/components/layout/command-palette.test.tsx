@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
+import { useSidebarStore } from "@/stores/sidebar-store";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -175,4 +177,12 @@ describe("the tab tables", () => {
 
     expect(missing).toEqual([]);
   });
+});
+
+it("closes mobile navigation when a search result opens a page", async () => {
+  useSidebarStore.getState().open();
+  await openPalette();
+  await userEvent.click(await screen.findByRole("option", { name: "Getting Started" }));
+  expect(push).toHaveBeenCalledWith("/agents/a1");
+  expect(useSidebarStore.getState().isOpen).toBe(false);
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "a43a833ec82f"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -40,7 +40,182 @@ Spec agenta wskazuje jeden przez `model_profile_id`, a run go rozwiązuje.
     rozgrzana, a pole, które nie potrafi wyrazić „o ten”, to pole, które ludzie
     obchodzą, edytując speca ręcznie.
 
+### Profil, na którym agent nie może działać { #a-profile-an-agent-cannot-run-on }
+
+Profil może wskazywać model, który nie prowadzi rozmowy: model zamiany tekstu na
+mowę, taki jak `gpt-4o-mini-tts`, model rozmów głosowych realtime, model
+transkrypcji, model obrazów, model wideo
+albo model embeddingów. Agent na takim modelu zawodzi już przy pierwszej turze.
+Zamiana tekstu na mowę, generowanie obrazów i transkrypcja nie korzystają z
+profili: każda z tych funkcji wskazuje własnego providera i model.
+
+Platforma zna te modele z własnych katalogów (list modeli rozmów realtime, zamiany tekstu na mowę,
+transkrypcji, obrazów, wideo i embeddingów). `GET /providers/model-profiles`
+oznacza każdy profil polami `chat_capable` i `output_modalities`, a
+`GET /providers/{provider}/models` oznacza każdą sugestię polem `chat_capable`.
+Te dwa pola czytają też listing providera, który podaje, co emituje każdy model
+(robią to OpenRouter i router Hugging Face), jeśli proces API już go pobrał. Ten
+listing zmienia tylko to, co oferuje picker. Nigdy nie odrzuca publikacji, bo inny
+proces API mógł go nie pobrać. Konsola aktualizuje też zapisane profile po
+późniejszym nadejściu listingu. Aliasy providerów, takie jak `openai_codex`
+i `google_cloud`, korzystają z katalogów odpowiednich dostawców. Wtedy:
+
+- Panel modelu w Builderze, pickery recenzenta i specjalisty, pola modelu
+  kolejnych kroków i modelu kroków przeglądarki oraz picker modelu do opisywania
+  obrazów w bazie wiedzy nie oferują takiego modelu. Jeśli agent już go wskazuje,
+  Builder nadal go pokazuje, oznaczony jako model, który nie jest modelem czatu.
+  Członkowi, który zarządza połączeniami, Builder wymienia też pozostałe takie
+  modele, oznaczone i bez możliwości wyboru, żeby dało się je usunąć.
+- Picker modelu w czacie i formularz dodawania modelu w Builderze nie podpowiadają
+  takiego modelu i odrzucają wpisany ręcznie.
+- Publikacja odrzuca taki model jako model agenta, recenzenta, specjalisty, model
+  kroków przeglądarki albo model kolejnych kroków i podaje jego nazwę. Odrzuca też
+  profil, którego fallbacki obejmują taki model. To samo sprawdzenie działa przy
+  powrocie do wersji, przy sprawdzaniu szkicu, przy testowym uruchomieniu w
+  Builderze i przy włączaniu capability z czatu. Zapisana wersja na takim modelu
+  nadal się wczytuje, ale nie można jej przywrócić, dopóki jej profil wskazuje
+  model, który nie jest modelem czatu, albo wymienia go jako fallback. Wskaż w tym
+  profilu model czatu albo opublikuj nową wersję.
+- Run pomija taki fallback w swoim łańcuchu, tak jak usunięty, jeśli dodano go do
+  profilu po publikacji.
+- Rozmowa, która wskazuje taki model zamiast modelu agenta, z czatu albo przez
+  API, jest odrzucana, zanim run się zacznie.
+- Model, którego katalogi nie klasyfikują, taki jak model w Ollamie albo model
+  wydany dziś rano, jest dozwolony. Nieznany model nie jest odmową. Profil z
+  własnym endpointem (`base_url`) nigdy nie jest klasyfikowany, niezależnie od id
+  modelu: katalogi opisują własne API providera, a serwer zgodny z OpenAI może
+  serwować model czatu pod dowolną nazwą.
+
+Picker modelu proaktywności stosuje tę samą zasadę. Sprawdzenie stałych katalogów
+działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do zwykłego
+żądania tekstowego, w tym przy konfiguracji opisu obrazów i w workerze. Stare
+konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
+Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
+na podstawie identyfikatorów modeli bazowych z katalogu.
+
+### Model, na którym startuje nowy agent { #the-model-a-new-agent-starts-on }
+
+Nie ma domyślnego modelu dla całej organizacji. Spec agenta wskazuje jego model, a
+publikacja odrzuca spec, który żadnego nie wskazuje.
+
+Nowy agent, który nie wskazuje modelu, startuje na modelu organizacji, gdy
+organizacja ma dokładnie jeden model, na którym agent może działać. To model czatowy
+z kluczem albo model self-hosted zapisany do działania bez klucza, który publikacja
+przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu
+tworzenia agenta: **Nowy agent** w konsoli, `POST /agents` bez `model_profile_id`,
+szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty.
+
+Architekt, asystent organizacji, sam wybiera swój model przy publikacji: pierwszy
+model czatu, który publikacja przyjmuje, i nigdy model na [logowaniu do
+ChatGPT](#running-on-a-chatgpt-subscription). Architekt służy całej organizacji, a
+logowanie to subskrypcja jednej osoby: uruchomienia członków, którzy nie widzą go w
+vault, są odrzucane, a uruchomienia tych, którzy je widzą, na przykład właścicieli i
+administratorów organizacji, zużywają tę subskrypcję. Gdy jest tylko logowanie,
+Architekt czeka na inny model.
+
+Logowanie wybrane przez kogoś w szkicu Architekta, albo model z fallbackiem na
+logowanie, zostaje w nim, ale jest publikowane dopiero wtedy, gdy opublikuje je w Builderze ktoś, kto może zmieniać
+ustawienia organizacji. Architekt opublikowany już wcześniej na logowaniu zachowuje
+ten model, dopóki ktoś, kto może zmieniać ustawienia organizacji, nie wybierze
+innego w **Budowa > Model** (Build > Model) i go nie opublikuje.
+
+Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
+**Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
+który wskazuje model, zachowuje go. Szkic liczy się wtedy jako użycie modelu: modelu
+nie da się usunąć, dopóki agent nie przejdzie na inny model albo nie zostanie
+usunięty; archiwizacja nie wystarczy. Aby zmienić tylko klucz lub endpoint modelu,
+edytuj go w miejscu ([Zmiana klucza lub endpointu
+profilu](#changing-a-profiles-key-or-endpoint)).
+
+Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
+jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
+klucza, model text-to-speech i pozostałe modele z sekcji [Profil, na którym agent
+nie może działać](#a-profile-an-agent-cannot-run-on), ani profil, który publikacja by
+odrzuciła, na przykład taki z fallbackiem na taki model. Model na [logowaniu
+ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
+to subskrypcja jednej osoby, ale jest liczony jako model.
+
+Nie jest też wybierany model, którego fallbacki zawierają logowanie wśród
+pierwszych trzech, czyli tych, których próbuje run: gdy model zawiedzie, run
+każdego, kto widzi to logowanie, przeszedłby na tę subskrypcję. Architekt też
+nie wybiera takiego modelu. Autor nadal może świadomie wybrać taki
+model i go opublikować.
+
+Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
+Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w
+`details.fields`), a konsola pokazuje obok niej **Przejdź do sekcji Model**, co
+otwiera zakładkę **Budowa** na karcie **Model**.
+
+### Zmiana klucza lub endpointu profilu { #changing-a-profiles-key-or-endpoint }
+
+Agenci wskazują profil po jego id. Aby przenieść model na inny klucz, inny
+endpoint albo drugie API OpenAI, edytuj profil w miejscu:
+`PATCH /providers/model-profiles/{id}` zmienia `secret_id`, `base_url`, `api`,
+`params` lub `label` i zachowuje id. Każdy agent na tym profilu używa zmiany od
+następnego runu. Nikt nie musi niczego ponownie publikować.
+
+W panelu modelu w Builderze zmień klucz, endpoint lub API używanego modelu.
+Przycisk zmienia się wtedy na **Zaktualizuj model**, a panel mówi, że każdy agent
+na tym modelu przełączy się razem z nim. **Dodaj model** pozostaje przyciskiem dla
+innego providera lub modelu oraz dla modelu, któremu nadajesz własną nazwę. Użyj
+**Nazwij to inaczej**, aby dać tylko temu agentowi osobny model.
+
+Edycja podlega tym samym regułom co tworzenie i wymaga tego samego uprawnienia
+`connections:manage`. Nowy klucz musi być w vaulcie tej organizacji, musi być dla
+ciebie widoczny i musi być zapisany dla providera profilu. Nowy endpoint sprawdza
+zapisany klucz w ten sam sposób, bo to do endpointu klucz jest wysyłany.
+Provider, który wymaga klucza, nie może go stracić. Provider bez klucza
+(keyless) bez klucza zachowuje endpoint. Etykieta musi pozostać unikalna.
+
+Jeśli zmienisz endpoint i nie wyślesz `api`, API, które było tylko domyślnym dla starego
+endpointu, przechodzi na domyślne dla nowego, a API wybrane przez kogoś zostaje.
+Log audytu zapisuje `model_profile.updated` z nazwami zmienionych pól, nie z ich
+wartościami. Nie możesz zmienić providera ani id modelu. Inny model to inny
+profil.
+
+`connections:manage` jest więc uprawnieniem do przeniesienia każdego agenta na
+danym modelu, także agentów, których nie możesz edytować: nowy endpoint dostaje
+ich zapytania od następnego runu. Nadaj je osobom, które zarządzają modelami
+organizacji.
+
+### Profil bez klucza { #a-profile-without-a-key }
+
+Jeśli usuniesz klucz z vaulta, jego profile zostają z `secret_id` ustawionym na
+null, a `GET /providers/model-profiles` oznacza je jako `missing_key: true`.
+Profil zapisany bez klucza celowo to co innego: model hostowany samodzielnie
+albo gateway, który niczego nie uwierzytelnia, na providerze keyless z
+endpointem, na przykład Ollama w twojej sieci albo serwer zgodny z OpenAI.
+Zapisuje to jako `runs_without_key` i dalej działa. Profil przed gatewayem, który
+miał klucz i go stracił, jest oznaczany `missing_key` jak każdy inny. Wtedy:
+
+- Pickery modelu agenta i czatu go nie oferują. Jeśli agent już go wskazuje,
+  Builder pokazuje go z oznaczeniem **brak klucza** i prosi o przypisanie klucza.
+- Publikacja go odrzuca i podaje nazwę modelu. Odrzuca też profil, którego
+  pierwsze trzy fallbacki obejmują profil bez klucza, bo run by go pominął. Run na nim kończy się błędem
+  „no key configured”.
+- Aby go naprawić, otwórz agenta na tym modelu, wybierz klucz w sekcji **Model** i
+  naciśnij **Zaktualizuj model**. Każdy agent na tym modelu znów działa.
+
+### Usuwanie profilu { #deleting-a-profile }
+
+`DELETE /providers/model-profiles/{id}` odrzuca profil, którego używają agenci.
+Odpowiedź to `409 IN_USE`, a `details.agents` wymienia każdego agenta, którego
+widzisz, z id i nazwą. `details.hidden_agents` liczy agentów, których nie widzisz.
+Profil jest w użyciu, gdy szkic agenta, jego serwowana wersja albo wersja
+przypięta przez środowisko wskazuje ten profil gdziekolwiek: jako model agenta,
+recenzenta lub specjalisty albo w capability, na przykład model follow-upów lub
+model kroków przeglądarki.
+
+Zarchiwizowani agenci się liczą, bo przywrócenie z
+archiwum przywraca wersję, którą serwowali. Odmowa oznacza ich jako `archived`:
+zarchiwizowany agent nie może publikować, więc usuń go albo przywróć i przenieś.
+Stare wersje, których nic nie serwuje, się nie liczą. Pozostałych agentów
+najpierw przenieś na inny model. Aby zmienić
+tylko klucz, edytuj profil.
+
 ### Fallbacki { #fallbacks }
+
+Runner używa tylko pierwszych trzech fallbacków; tylko te są sprawdzane przy publikacji.
 
 Profil może wymienić profile zapasowe, wypróbowywane po kolei. Awaria jednego
 providera nie powinna kłaść agentów organizacji, gdy ma ona drugi klucz albo
@@ -140,7 +315,7 @@ provider.**
 | OpenAI | `openai` | klucz API albo brak | ✓ |
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
-| OpenRouter | `openrouter` | klucz API | |
+| OpenRouter | `openrouter` | klucz API |  ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
 | Cerebras | `cerebras` | klucz API | |
 | DeepSeek | `deepseek` | klucz API | |
@@ -253,6 +428,23 @@ jego id.
       stronę lub embed, wywołującego z kluczem API - i dla pracy w tle, jak
       opisywanie obrazów z dokumentu, model jest odrzucany, a fallback na nim
       pomijany.
+    - **Nie każdy może na nim publikować.** Publikacja, rollback do wersji lub
+      promocja wersji agenta jest odrzucana dla kogoś, kto nie widzi logowania w
+      vault, gdy działa na nim model, do którego docierają runy agenta: model
+      agenta, recenzenta, wbudowanego specjalisty albo włączonej capability,
+      model [przypiętego delegata](reference/capabilities.md#delegation) i tego,
+      do czego ten delegat dociera dalej, lub jeden z pierwszych trzech
+      fallbacków któregokolwiek z nich. Mogą to zrobić osoba, do której należy
+      logowanie, właściciele (owner) i administratorzy (admin) organizacji oraz
+      każdy, komu je udostępniono. Klucz API nie może, niezależnie od tego, co
+      widzi jego wystawca, bo run pod kluczem nigdy nie wydaje logowania.
+      Wersja opublikowana na nim wcześniej działa dalej.
+    - **Nie jest oferowane specjaliście, którego wymyśla model.** Przy
+      [`allow_dynamic`](reference/capabilities.md#delegation) model runu może
+      wybrać model specjalisty spośród profili organizacji. Profil na logowaniu
+      albo taki, którego pierwsze trzy fallbacki do niego docierają, jest na tej
+      liście tylko wtedy, gdy spec agenta nazywa dokładnie ten profil jako jeden
+      z modeli wymienionych wyżej.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według
@@ -551,3 +743,11 @@ make platform-bootstrap BOOTSTRAP_API_KEY=sk-...
 ```
 
 robi wszystkie trzy rzeczy dla nowego deploymentu.
+
+Aby użyć regionalnego API OpenRouter, pozostaw dostawcę **OpenRouter** i wpisz `https://eu.openrouter.ai/api/v1` w polu **Endpoint** formularza modelu. Profil zachowuje klucz OpenRouter z sejfu, natywną obsługę modeli i ustawienia pamięci podręcznej. Lista modeli pochodzi z tego endpointu i ma osobną pamięć podręczną; awaria regionalnej listy nie przełącza jej na globalny katalog. W bazach wiedzy ustaw **Endpoint** embeddingów osobno podczas tworzenia kolekcji lub edycji dostawcy embeddingów. Istniejące konfiguracje zachowują globalny endpoint. Routing EU wymaga odpowiedniego planu OpenRouter Business lub Enterprise; [routing regionalny](https://openrouter.ai/docs/guides/get-started/sovereign-ai) i ZDR są osobnymi politykami OpenRouter.
+
+Endpoint regionalny obsługuje mniej modeli embeddingów niż globalny: `eu.openrouter.ai` obsługuje `mistralai/mistral-embed-2312`, `mistralai/codestral-embed-2505` i `google/gemini-embedding-2`, a żadnego z modeli OpenAI. Formularz tworzenia proponuje tylko modele, które endpoint wymienia, a kolekcja, której modelu endpoint nie obsługuje, jest odrzucana zarówno przy tworzeniu, jak i przy przenoszeniu na ten endpoint. Dwóch modeli Mistral nie ma w dołączonym snapshocie cen, więc ich koszt zapisuje się jako wyceniony częściowo.
+
+Przed ustawieniem regionalnych endpointów zaktualizuj wszystkie procesy API i workerów. Starsze wersje ignorują nadpisanie endpointu OpenRouter.
+
+Aby użyć innego endpointu z tym samym dostawcą i modelem, wybierz w Builderze **Dodaj osobny model**. Automatyczna nazwa zawiera endpoint, a istniejący profil pozostaje bez zmian. **Aktualizuj model** edytuje wspólny profil. Pobieranie niestandardowego katalogu ma limit 2 MiB, 2048 modeli i długości pól; proces przechowuje maksymalnie 16 katalogów. Skompresowana lub zbyt duża odpowiedź pozostawia możliwość wpisania identyfikatora modelu bez przechodzenia na globalną listę.

@@ -15,7 +15,7 @@
  * and the maintenance screen, which `DeploymentGate` returns *instead of*
  * rendering that wrapper.
  */
-export const PAGE_CLEARANCE = "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-16";
+export const PAGE_CLEARANCE = "pb-[calc(5rem+var(--safe-bottom))] lg:pb-16";
 
 /**
  * The room a page drawing its own bottom edge owes a phone's home indicator.
@@ -24,4 +24,4 @@ export const PAGE_CLEARANCE = "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb
  * to the bottom of its own pane, so `PAGE_CLEARANCE` under it would be empty
  * space below the box. Only the safe-area inset: there is no bar under it.
  */
-export const SAFE_AREA_CLEARANCE = "pb-[env(safe-area-inset-bottom)] lg:pb-0";
+export const SAFE_AREA_CLEARANCE = "pb-[var(--safe-bottom)] lg:pb-0";

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ApnsKeyCard } from "@/components/admin/apns-key-card";
 import { BrandingImageField } from "@/components/admin/branding-image-field";
 import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
 import { DomainListField } from "@/components/admin/domain-list-field";
@@ -158,7 +159,7 @@ export default function DeploymentSettingsPage() {
 
   return (
     <LoadingForm loading={isLoading}>
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-6">
         <ListCard title={t("brandingIdentity")} counted={t("brandingIdentityHint")}>
           <div className="space-y-5">
             <FormField
@@ -414,6 +415,8 @@ export default function DeploymentSettingsPage() {
           disabled={save.isPending}
           onChange={(accept) => set("dictation_compressed_audio", accept)}
         />
+
+        <ApnsKeyCard />
 
         <ListCard title={t("noticesTitle")} counted={t("noticesHint")}>
           <div className="space-y-5">

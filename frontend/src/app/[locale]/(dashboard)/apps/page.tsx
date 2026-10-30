@@ -86,7 +86,7 @@ export default function ArtifactsPage() {
 
   if (!isLoadingPermissions && !can(Perm.artifactsView)) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-6">
         {header}
         <EmptyState icon={Lock} title={t("cannotSee")} description={t("askForAccess")} />
       </div>
@@ -94,9 +94,10 @@ export default function ArtifactsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-6">
       {header}
       <ListCard
+        fill
         data-tour="artifacts-list"
         namedByPage
         title={t("title")}

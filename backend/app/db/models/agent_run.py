@@ -125,6 +125,8 @@ class RunSurface(enum.StrEnum):
     # Work the platform did for a person on its own initiative, in the background
     # (#2301): noticing a request they keep repeating, writing their first
     # messages. Metered against the organization's per-person proactivity limit.
+    FOLLOW_UPS = "follow_ups"
+    """Optional next-step generation after a saved answer; never an active chat turn."""
     PROACTIVE = "proactive"
 
 
@@ -273,6 +275,11 @@ class AgentRun(Base, TimestampMixin):
     # a test of the draft has no version, and a run parked on an approval has to
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
+    # Only a completed run that reached workspace attachment setup closes their window.
+    earlier_attachments_checked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     # The run this one was delegated from, and the delegation's own id inside it.
     # Both null for a run somebody started, which is every run except a

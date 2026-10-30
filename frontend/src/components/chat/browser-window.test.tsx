@@ -66,11 +66,11 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     expect(screen.getByText(/Waiting for the first view/)).toBeInTheDocument();
 
     rerender(<BrowserWindow browse={browse({ image: null, outcome: "done" })} control={null} />);
-    expect(screen.getByText(/without a live preview/)).toBeInTheDocument();
+    expect(screen.getByText(/No saved preview/)).toBeInTheDocument();
     expect(screen.queryByText("Live")).toBeNull();
   });
 
-  it("puts what the browser is doing now under the page, and how it ended once it has", () => {
+  it("keeps activity off the page and shows completion in the toolbar", () => {
     const step = {
       step: 2,
       operation: "CLICK",
@@ -81,8 +81,8 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     const { rerender } = render(
       <BrowserWindow browse={browse({ steps: [step] })} control={null} />,
     );
-    expect(screen.getByText("Clicked")).toBeInTheDocument();
-    expect(screen.getByText("Pro plan")).toBeInTheDocument();
+    expect(screen.queryByText("Clicked")).toBeNull();
+    expect(screen.queryByText("Pro plan")).toBeNull();
 
     rerender(
       <BrowserWindow browse={browse({ steps: [{ ...step, target: null }] })} control={null} />,
@@ -103,9 +103,8 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     );
     expect(screen.queryByText(/monthly price of the Pro plan/)).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "1 step" }));
-
-    expect(screen.getByRole("button", { name: "1 step" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "1 step" }));
     expect(screen.getByText(/monthly price of the Pro plan/)).toBeInTheDocument();
     expect(screen.getByText("The price is $20")).toBeInTheDocument();
     expect(screen.getByText("start")).toBeInTheDocument();
@@ -113,7 +112,8 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
 
   it("says there are no steps yet when the list is opened early", async () => {
     render(<BrowserWindow browse={browse({ goal: "" })} control={null} />);
-    await userEvent.click(screen.getByRole("button", { name: "Steps" }));
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Steps" }));
     expect(screen.getByText("No steps yet.")).toBeInTheDocument();
   });
 
@@ -154,7 +154,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
   it("hands the page to its holder - clicks reach it - and hands it back", async () => {
     const live = control();
     render(<BrowserWindow browse={browse({ heldBy: "Ada", heldById: "u1" })} control={live} />);
-    expect(screen.getByText(/You're driving/)).toBeInTheDocument();
+    expect(screen.queryByText(/You're driving/)).toBeNull();
 
     const img = screen.getByRole("img");
     Object.defineProperty(img, "naturalWidth", { value: 100 });
@@ -264,17 +264,22 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
-    await userEvent.click(screen.getByRole("button", { name: "Close the browser panel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Maximize" }));
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Close the browser panel" }));
     expect(onMaximize).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
-    expect(screen.getByRole("link", { name: "Open in a new tab" })).toHaveAttribute(
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    expect(screen.getByRole("menuitem", { name: "Open in a new tab" })).toHaveAttribute(
       "href",
       "/browse/run-1/c1",
     );
 
+    await userEvent.keyboard("{Escape}");
     rerender(<BrowserWindow browse={browse()} control={null} onMaximize={onMaximize} maximized />);
-    expect(screen.getByRole("button", { name: "Back under the message" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    expect(screen.getByRole("menuitem", { name: "Back under the message" })).toBeInTheDocument();
   });
 });
 
@@ -342,6 +347,21 @@ describe("BrowserWindow - the page laid out for the window showing it", () => {
 
     unmount();
     expect(disconnected).toBe(true);
+  });
+
+  it("keeps large-screen resize requests within the server limits", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    const live = control();
+    render(<BrowserWindow browse={browse()} control={live} />);
+    sized(2560, 2160);
+    act(() => resized?.());
+    act(() => vi.advanceTimersByTime(250));
+    expect(live.send).toHaveBeenLastCalledWith({
+      type: "resize",
+      width: 1600,
+      height: 2000,
+      scale: 2,
+    });
   });
 
   it("asks for twice the pixels on a high-density screen", () => {
@@ -472,4 +492,34 @@ describe("BrowserWindow - commenting on the page", () => {
     render(<BrowserWindow browse={browse({ image: null })} control={null} onComment={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Comment on the page" })).toBeNull();
   });
+});
+
+it("offers address navigation only for browser tabs, with server refusals visible", () => {
+  const live = control();
+  const { rerender } = render(
+    <BrowserWindow
+      browse={browse({
+        navigable: true,
+        heldBy: "Ada",
+        heldById: "u1",
+        controlError: "Outside allowed domains",
+      })}
+      control={live}
+    />,
+  );
+  expect(screen.getByRole("textbox", { name: "Website address" })).toHaveValue(
+    "https://example.test/pricing",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Outside allowed domains");
+  expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+  expect(live.send).toHaveBeenCalledWith({ type: "reload" });
+  rerender(
+    <BrowserWindow browse={browse({ navigable: true, url: null, title: null })} control={live} />,
+  );
+  expect(screen.getByRole("heading", { name: "Browser" })).toBeInTheDocument();
+  rerender(<BrowserWindow browse={browse({ navigable: true, title: null })} control={live} />);
+  expect(screen.getByRole("heading", { name: "example.test" })).toBeInTheDocument();
+  rerender(<BrowserWindow browse={browse({ navigable: false })} control={live} />);
+  expect(screen.queryByRole("textbox", { name: "Website address" })).toBeNull();
 });

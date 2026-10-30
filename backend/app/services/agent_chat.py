@@ -29,7 +29,7 @@ from typing import Any, NamedTuple
 from uuid import UUID
 
 from pydantic import TypeAdapter, ValidationError
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
+from pydantic_ai.messages import ModelMessage, UserContent
 from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +42,7 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
+from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import AgentOutput, answer_text
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
@@ -49,6 +50,7 @@ from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.visual_reports import VisualReports
 from app.core.exceptions import AuthorizationError, BadRequestError, RunFailedError
+from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
@@ -68,6 +70,7 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
@@ -164,6 +167,32 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
         raise BadRequestError(
             message="That is not an approval mode",
             details={"approval_mode": str(raw)},
+        ) from exc
+
+
+def requested_local(frame: Mapping[str, Any]) -> LocalTarget | None:
+    """The chat's "Work on: This computer", if it asked for it (#2305).
+
+    `None` - the agent's own sandbox - for a frame that names nothing. Whether the
+    run may work there, and whether the computer is connected, is decided where
+    the workspace opens.
+
+    Raises:
+        BadRequestError: The frame names a target that is not a folder and a mode.
+    """
+    raw = frame.get("local")
+    if raw is None:
+        return None
+    try:
+        return LocalTarget.model_validate(raw)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="That is not a folder on your computer to work in",
+            details={
+                "fields": field_problems(
+                    exc.errors(include_url=False, include_input=False), root="local"
+                )
+            },
         ) from exc
 
 
@@ -408,6 +437,7 @@ class ChatAgentRunner:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        local: LocalTarget | None = None,
         person_time_zone: str | None = None,
         testing: Testing = Testing(test=False, draft=False),
         steering: SteeringInbox | None = None,
@@ -504,6 +534,9 @@ class ChatAgentRunner:
             # caller who may not waive approvals is told, and the turn does not
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
+            # "Work on: This computer" (#2305): the sandbox's tools carried out by
+            # the person's desktop app, in the folder they picked there.
+            local=local,
             request_connection=request_connection,
             # A sandbox whose image is still being built is minutes in which no
             # token and no tool step arrives. Passed in rather than set on the
@@ -532,8 +565,9 @@ class ChatAgentRunner:
         # model request reads it.
         prepared.deps.steering = steering
         prepared.deps.visual_reports = visual_reports
+        input_edge = input_screen_for(prepared.spec)
         if steering is not None:
-            steering.screen = input_screen_for(prepared.spec)
+            steering.screen = input_edge
         # Before the model answers, not after: the model is about to say it cannot
         # reach the person's Notion, and the card with the button that connects it
         # belongs beside that sentence, not under it once the turn is over.
@@ -564,6 +598,9 @@ class ChatAgentRunner:
             router = AttachmentRouter(
                 prepared.workspace.workspace if prepared.workspace is not None else None,
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
+                # Screened before a file is written, not only once the run starts
+                # (#2559): a refused file must not outlive its turn.
+                screen=input_edge,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
             # Kept on the prompt's row so the next turn's history still carries
@@ -610,7 +647,7 @@ class ChatAgentRunner:
             if prepared.built.context.summarized:
                 summarized = await offloaded_history(
                     prepared.built.capabilities,
-                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+                    dump_messages(result.all_messages()),
                 )
             status, output, _structured, paused = _classify_output(
                 result, parked=prepared.approvals.parked

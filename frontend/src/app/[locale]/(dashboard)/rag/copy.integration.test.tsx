@@ -162,6 +162,14 @@ function serve() {
     if (path.endsWith("/sync-sources")) return { items: [SOURCE], total: 1 };
     if (path.includes("/sync-sources")) return { items: [], total: 0 };
     if (path === "/kb") return { items: [COLLECTION], total: 1 };
+    if (path.endsWith("/ingestion")) {
+      return {
+        indexing_status: "complete",
+        processing_count: 0,
+        indexed_count: 1,
+        failed_count: 0,
+      };
+    }
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
     return COLLECTION;
   });
@@ -269,11 +277,11 @@ describe("what a collection's own page says", () => {
     await mountDetail();
 
     fireEvent.dragEnter(screen.getByRole("heading", { name: "Handbook", level: 1 }), {
-      dataTransfer: { types: ["Files"] },
+      dataTransfer: { types: ["Files"], items: [{ kind: "file", type: "text/plain" }] },
     });
 
-    const overlay = await screen.findByText(`${MARK}Drop to upload`);
-    expect(overlay.parentElement).toHaveTextContent(`${MARK}Files will be added to Handbook`);
+    const overlay = await screen.findByTestId("project-file-drop-overlay");
+    expect(overlay).toHaveTextContent(`${MARK}Drop to upload · Handbook`);
   });
 });
 

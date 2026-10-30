@@ -47,12 +47,19 @@ export const SEEDED_MODEL_ID = "gpt-4.1";
  * ------------------------------------------------------------------ */
 
 /** A skill, so the gallery has a row and the editor has something to open. */
-export const SEEDED_SKILL_NAME = "e2e-refund-policy";
-export const SEEDED_SKILL_DESCRIPTION = "How refunds and their exceptions are handled.";
+// Version the name when its contract changes: persistent E2E databases reuse rows.
+export const SEEDED_SKILL_NAME = "e2e-refund-policy-long-description";
+export const SEEDED_SKILL_DESCRIPTION =
+  "How refunds and their exceptions are handled. Check the purchase date, the payment method, " +
+  "the delivery status and the customer’s previous requests before choosing a policy. " +
+  "Explain the evidence for the decision and record any exception so another teammate can " +
+  "understand it later. Escalate conflicting policy documents rather than guessing which one applies.";
 export const SEEDED_SKILL_CONTENT = "## When a customer asks for a refund\n\nCheck the order date.";
 
 /** A knowledge base, so /rag has a row rather than only an empty state. */
 export const SEEDED_KB_NAME = "E2E Handbook";
+export const SEEDED_PROJECT_NAME = "E2E Workspace";
+export const SEEDED_CONTEXT_NAME = "e2e-company-guide.md";
 
 /** A draft agent: the only thing that can prove an unpublished agent will not run. */
 export const DRAFT_AGENT_NAME = "E2E Draft";
@@ -377,7 +384,10 @@ export async function expectNoRenderedSecret(page: Page): Promise<void> {
  * exactly the card roots, since the overlay is a direct child of one.
  */
 export function agentCard(page: Page, text: string): Locator {
-  return page.locator('div:has(> a[href^="/agents/"])').filter({ hasText: text });
+  const cards = page.locator('div:has(> a[href^="/agents/"])');
+  return text.startsWith("@")
+    ? cards.filter({ has: page.getByTitle(text, { exact: true }) })
+    : cards.filter({ hasText: text });
 }
 
 /**
@@ -519,9 +529,9 @@ export function savedModels(page: Page): Locator {
  * only when it is still shut: clicking it twice closes it again.
  *
  * Shared rather than private to `models.spec.ts` because a model is what a spec
- * needs before it can publish anything at all: the seeded draft is created with
- * a name and nothing else, so `No model selected` is the first problem publish
- * reports (#519).
+ * needs before it can publish anything at all: a draft created where the
+ * organization has more than one model starts with none, and `No model
+ * selected` is the first problem publish reports (#519, #2483).
  */
 export async function selectSavedModel(page: Page, label: string): Promise<void> {
   const list = savedModels(page);

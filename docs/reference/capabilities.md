@@ -67,7 +67,8 @@ browser is pointed at the deployment's browser service
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | as-is |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
-| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
+| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
+| `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
@@ -87,7 +88,7 @@ browser is pointed at the deployment's browser service
 | `media` | Media offload | utility | none, by design | — | — | no effect |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | as-is |
-| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
+| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
@@ -142,6 +143,16 @@ Searches the collections the agent's spec binds and cites what it used. The mode
 asks *what* to search, never *where*: collections are resolved from the spec
 before the run and handed to the capability, so an agent cannot reach a collection
 nobody connected to it.
+
+Each result names its document and where in it the match is. A PDF, a presentation
+or a word-processing file such as `.doc`, `.odt` or `.rtf` gives the page. A
+Markdown file, a spreadsheet, a web page or an image has no page a reader can open.
+It gives only the document name, as do plain-text and `.docx` files. Chunks do not
+retain reliable section boundaries, so a leading hash line is not inferred to be
+a heading: it may be a code comment from a block that began in a previous chunk.
+
+This is decided from the document's type when the result is shown, so a collection
+ingested earlier needs no re-ingestion.
 
 | Config | Default | Range |
 |---|---|---|
@@ -651,12 +662,28 @@ page you only need to read, [web fetch](#web-fetch) is faster and has no side ef
 in the agent's own hands: one action a call, chosen by the run's model in its own turn,
 each answered with the page after it - its address, the numbered elements and its
 text. No second request per step, and the agent says what it is doing in the chat
-between actions. The steps draw in one live window under the agent's message, the one the
-first `browser_open` opened, and a person can take the tab over between any two of
-them. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
+between actions. The browser opens automatically in a full-height side panel beside the chat. A person
+can take it over between actions. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
 all of it the step's own model request; a two-click task the agent drove itself took
 13 s where `browse_web` took about 20. Prefer the tools for a short task or one a
 person wants to watch, `browse_web` for a long task handed off whole.
+
+Before each model request, older direct-tool results lose only their obsolete
+numbered element tables. The latest table, article text and action outcomes remain;
+the saved conversation keeps the full results. DOM browsing uses the independent
+preview stream and captures one final image after stopping it. Vision still waits
+for its model input. Readiness follows visible page content rather than unrelated
+background mutations; an empty document gets one bounded retry.
+
+**Several tabs and resuming.** `browser_new_tab(url)` opens a separate page,
+`browser_tabs` lists ids, `browser_switch_tab(tab_id)` selects and reads a page,
+and `browser_close_tab(tab_id)` closes one. At most eight tabs are open per run.
+`browser_open` navigates the selected tab. In private conversations, `browser_read`
+restores an encrypted checkpoint for up to one hour: URLs, cookies and local storage.
+Remote pages close after the run. Restoring reloads pages and obtains fresh element
+numbers; unsaved forms, JavaScript memory and navigation history are not retained.
+Hosted browsers do not receive these checkpoints. Connection cards with icons are
+the first browser setting; desktop users can override the connection for a chat.
 
 **An action names a row, never a selector.** Every element the model can act on is a
 row of a table built on the server from the live DOM, so a page cannot offer an
@@ -712,22 +739,42 @@ minutes for somebody to take over and ends blocked if nobody does, and a person 
 the browser for at most fifteen. The live view is kept in Redis, so it needs one, and
 it lasts an hour after the browse last did anything.
 
+While you hold the browser, edit its address or use Back, Forward and Reload.
+Navigation obeys the agent's allowed domains; a refused address is shown in the
+viewer. Computer-use screens do not offer browser navigation.
+
+Direct browser tools keep the preview streaming between calls until the run ends.
+Images stop when the last viewer disconnects and resume when somebody returns;
+lightweight location checks keep the address and title current between actions.
+Typing does not wait for a screenshot after each character. Page actions wait for
+bounded DOM stability, and explicit navigation tracks the new document even when
+the URL stays the same.
+
+Remote Chromium tabs still close when the run ends. Native local tabs remain
+open for their conversation; see [Local browser](../desktop.md#local-browser-models-and-mcp).
+Image viewers receive only the newest pending frame; a stalled writer is
+disconnected after two seconds. Images use the live-view socket once, without a
+duplicate copy in the chat stream.
+
 | Config | Default | Values |
 |---|---|---|
 | `cdp_url` | empty | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS` |
 | `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted on the web. Every request is also refused when it points inside the deployment's network (a private, loopback, link-local or metadata address, a redirect included) unless its host is listed here - list an internal tool to browse it (and, behind `BROWSER_EGRESS_PROXY`, add it to the proxy's exceptions) |
 | `max_steps` | 50 | 1–200; steps per call, each one model request |
 | `vision` | `false` | also send each step's screenshot to the model, which has to read images |
+| `prefer_native_browser` | `true` | use a native embedded tab for local DOM browsing; disable for Chromium compatibility. Vision and language/time-zone overrides use Chromium; remote connections are unaffected |
 | `candidate_cap` | 60 | 2–200; how many elements may be offered in one step |
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; the viewport width, and so the width of the frames |
 | `step_model_profile_id` | empty | a model profile `browse_web` asks for each step instead of the agent's - a cheaper model makes a long browse cheaper, and quicker only where its provider answers quickly (Claude Haiku through OpenRouter took as long per step as Sonnet); empty uses the agent's model, and the agent's own browser tools always do |
-| `connection` | `built_in` | `built_in`, `proxy` or `hosted`: how the browser reaches the web |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` or `local`: how the browser reaches the web |
 | `proxy_url` | empty | under `proxy`: `http://`, `https://` or `socks5://` with host and port; the binding's secret, when there is one, is its `username:password` |
 | `hosted_url` | empty | under `hosted`: the service's `wss://` CDP address; the binding's secret is its key and is required |
 | `hosted_key_param` | `apiKey` | what the hosted browser calls its key in the address's query |
 | `timezone` | empty | an IANA time zone the browser reports - set it to the proxy's region |
 | `locale` | empty | a language tag such as `pl-PL`, sent as `Accept-Language` and `navigator.language` |
+
+For `local`, select local browsing under **Work on** in the paired [desktop app](../desktop.md#local-browser-models-and-mcp). No server CDP endpoint is required. It uses a temporary visible Chromium profile and the computer's network, including LAN services after native consent; the page-domain allowlist still applies. Proxy and hosted bindings are refused instead of silently ignored. Time zone and locale overrides are supported. The deployment-browser setup below applies to the other connection modes.
 
 **The browser is one you run, and the operator says which.** There is no Chromium in
 the API image: `cdp_url` points at a browser service an operator runs and isolates.
@@ -819,6 +866,146 @@ Specs written before version 13 that bound the step-by-step browser
 (`browser_choice`) load as this one, its `browse_page` approval and rename moved to
 `browse_web`; the decision-model settings and the TypeSafe key are dropped.
 
+## Computer use { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
+
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
+
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
+The agent operates a whole desktop, so it can use any application, not only a
+web page. It looks at a screenshot and sends a few mouse and keyboard actions in
+that screenshot's pixels. Each `computer_act` answer includes a fresh
+screenshot. Larger screens are scaled down to `screen_width`x`screen_height`
+before the model sees them, and every point is mapped back to the desktop's own
+coordinates, including a Retina Mac's points.
+
+**Approval is for acting, and it is opt-in.** Like every tool, neither waits for
+approval until the agent's owner asks for it. `computer_screenshot` changes
+nothing. Set `tool_approval: {computer_act: required}` and every batch of
+actions waits for approval against a screenshot both the model and the approver
+have seen. A point outside that screenshot is refused before anything runs. An
+approved batch runs in a run of its own, which measures the screen first and
+acts only if it is still the shape it was on the screenshot the batch was chosen
+on. A changed resolution or aspect ratio does nothing and shows the model the
+new screen. `max_actions` is the run's, however many times it waits for
+approval. Approval holds the actions, not the pixels under them: a window can
+change between the screenshot and the click while the screen keeps its size, so
+deny a batch aimed at a window you do not trust to stay put.
+
+| `desktop` | The desktop | Needs |
+|---|---|---|
+| `sandbox` | A Linux desktop (XFCE and Firefox) inside the agent's own [sandbox](#files-shell), the same machine its shell and file tools work on | The [Sandbox](#files-shell) capability on a sandbox connection, running the `desktop` runtime |
+| `daemon` | A `computerd` the operator runs: their own Linux desktop (X11), a Mac's own screen (`uv run deploy/computer/computerd.py`) or a desktop in a container (`deploy/computer/Dockerfile`) | `daemon_url` on `COMPUTER_DAEMON_ALLOWED_HOSTS`, and the daemon's token as the binding's secret |
+| `e2b` | An E2B desktop of the run's own, from E2B's `desktop` template, killed when the run lets go of it | The organization's E2B key as the binding's secret |
+| `local` | The person's own screen, in a chat working on their computer through the [desktop app](../desktop.md#the-screen) | Nothing: the app asks the person before the first screenshot |
+| `auto` | The person's screen when the chat works on their computer, else an E2B desktop when the binding names a key, else the sandbox | What the desktop it lands on needs |
+
+A sandbox desktop needs nothing of its own: no address, no token and no
+provider. It lives and is shared exactly as the sandbox is, per conversation or
+per agent by the Sandbox capability's `session_scope`, and a file the agent
+writes with its file tools is a file it can open on the screen.
+
+Publish refuses a `sandbox` desktop on an agent without a sandbox connection,
+and on an inline specialist without one of its own or one its parent shares. It
+also refuses one whose sandbox is not on the `desktop` runtime, read the way a
+run reads it: the Sandbox capability's `runtime`, else the connection's default.
+A sandbox that names neither is refused too, because the shipped default is
+`workbench`, which has no display. A Daytona connection is refused because it
+runs its own image.
+
+**Opening an application.** `computer_apps` lists the applications the
+desktop's menu shows, each by its name in the desktop's language and its id,
+the menu entry's file name. A `launch` action opens one of them by either,
+rather than by finding its icon. The match is exact, ignoring case: a name two
+entries share, such as a system and a Flatpak Firefox, is refused with their
+ids, and an unknown name is refused with a pointer to `computer_apps`. A launch
+takes a name only, never a path or arguments: no slash, no control character,
+and it starts with a letter or a digit.
+
+Every directory on the menu's search path is read (`$XDG_DATA_HOME` and
+`$XDG_DATA_DIRS`, so `/usr/local/share` and Flatpak's exports too) with its
+subdirectories: `kde/konsole.desktop` has the id `kde-konsole`. An entry the
+menu would not show is left out: hidden, not an application, meant for another
+desktop than XFCE, or naming a `TryExec` program that is not installed. The
+entry is opened with `exo-open`, and the action returns once a new window
+appears or the focus moves. If neither happens within ten seconds the launch
+fails and the rest of its batch does not run, so nothing is typed into the
+window that had the focus before.
+
+Launching works on Linux desktops only: a sandbox's, an E2B desktop and the
+computerd container, where the application runs as `desk`, not as the account
+that holds the token. A computerd on a Mac or on an operator's own Linux
+desktop, and the person's own computer reached through the desktop app, refuse
+`launch` and `computer_apps`. Through the desktop app the model is told to use
+that computer's own launcher instead; through a daemon, which may be either
+kind, it is told to call `computer_apps` first and use the computer's own
+launcher if that is refused.
+
+The `execute` tool is not needed, and leaving it off keeps the desktop's actions
+behind `computer_act` and its approval: with `execute`, the agent can run
+`xdotool` from the shell.
+
+One daemon is one desktop: every run pointed at it shares the machine and
+whatever is signed in on it. Give it a dedicated machine or account, not
+somebody's working session. The agent can read anything the account running
+the daemon can, its token included; the container in `deploy/computer/` runs
+the daemon as an account of its own for that reason.
+
+**A daemon's token is the organization's.** The `COMPUTERD_TOKEN` the daemon
+was started with is stored in the organization's [vault](../secrets.md) as an
+API key and named by the binding's `secret_id`, and publish refuses a daemon
+without one. `COMPUTER_DAEMON_ALLOWED_HOSTS` is the deployment's list of where a
+run may send that token. It is checked at publish and again each time a run
+opens the daemon, so taking a host off it stops agents already published. Every
+organization can name an allowed host, so the token, not the list, keeps one
+organization off another's desktop: give each desktop its own token.
+`daemon_url` is the daemon's address alone, and one with a query, a fragment or
+credentials is refused.
+
+| Config | Default | Range |
+|---|---|---|
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
+| `daemon_url` | empty, refused at publish for `daemon` | an allowed host, no query, fragment or credentials |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, not above `max_actions` |
+| `max_actions` | 200 | 1–2000 per run |
+| `preview` | on | |
+
+The chat draws the desktop in a window under the message while the agent
+works: one window per run, opened by its first screenshot, with a frame after
+every call and a line per action. Text the model types is shown there as typed.
+
+**Watching and taking over.** Every desktop is also published to the run's live
+view, the one a browse uses, so a run from a channel or a routine can be watched
+from the console. **Take over** hands the desktop to the person between the
+agent's calls: their clicks, keys and scrolls are carried out on it, the agent
+waits, and **Give back** returns it with the model told to look again. Who may
+watch and take over is the browse's rule; the person's own screen is theirs
+alone.
+
+**A screenshot the user keeps.** `computer_screenshot` is for the model, and
+nothing keeps it: a run waiting on approval, its manifest and a compacted
+conversation store a sentence in its place. When the user asks to see the screen, or a step's result
+should be kept as evidence, the agent calls `computer_save_screenshot`. It
+stores the screen at full resolution for the organization and shows it in the
+chat, linked to the full-size file. When the agent has a workspace, it also
+writes the file to `output/`, so a channel reply carries it and a later step can
+put it in a report. Without one, a channel reply carries no file, as with image
+generation. It changes nothing on the desktop, and approval does not
+hold it unless the owner asks.
+
+!!! warning "Screen text is untrusted"
+
+    The instructions tell the model that what is on the screen is data, never
+    instructions, and to stop for passwords, payments and decisions that belong
+    to the user. Approval is what enforces it, and it is off until the agent's
+    owner sets it: without it, `computer_act` lets the agent act on whatever a
+    window tells it.
+
 ## Calculations { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
@@ -896,11 +1083,14 @@ the field, the file panel labels whose workspace it is rather than calling it "t
 conversation's files", and setting it is recorded in the audit log — because a user
 who sees a file they did not create should be able to find out why.
 
-**Changing the backend or the connection starts a fresh workspace rather than
-reattaching to the old one.** A stored document, a container's volume and a
-Daytona sandbox are three different things, and two `sandboxd` installations are
-two different things — so each gets its own workspace, and the previous one stays
-where it is, still listed and still readable. Moving a live agent is therefore not
+**Changing the backend, the connection or the runtime starts a fresh workspace
+rather than reattaching to the old one.** A stored document, a container's volume
+and a Daytona sandbox are three different things, and two `sandboxd` installations
+are two different things — so each gets its own workspace, and the previous one
+stays where it is, still listed and still readable. A container's runtime is
+chosen when it is created, so a workspace moved to another runtime would otherwise
+keep running on the old image. Naming no runtime and naming `workbench`, the
+shipped default, are the same workspace. Moving a live agent is therefore not
 a way to carry its files across; the agent finds an empty workspace on the new
 host. Since `connection_id: null` means "the organization's default", marking a
 different connection as default has the same effect without any spec changing.
@@ -1306,6 +1496,14 @@ every run uses it, whoever asked - and anything a task runs can read it. Bind a
 key that everyone who may run the agent may share.
 Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
 those plans, which may not allow it on a shared deployment.
+
+**The key fits the harness.** The picker offers Claude Code only keys stored for
+Anthropic, and Codex only OpenAI keys and ChatGPT sign-ins. A key stored for
+`custom` fits either, and so does the key already bound. Publish refuses a key
+stored for another provider and names the ones the harness takes: an OpenAI key
+bound to Claude Code would publish and then fail at every task. With `base_url`
+set, the key is the gateway's - OpenRouter, LiteLLM or any other - so Claude Code
+takes any key there.
 
 **Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
 fresh in-memory workspace with no shell, so a coding agent reached by delegation has
@@ -1752,7 +1950,16 @@ platform instead.
     platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.
 
 The model may name only a model the organization has a profile for, and the refusal
-names the list. It may not attach capabilities: letting a model grant its own child
+names the list.
+
+A profile on somebody's
+[ChatGPT sign-in](../models.md#running-on-a-chatgpt-subscription), or one whose
+first three fallbacks reach one, is on the list only when the agent's spec names that exact
+profile - its own model, a reviewer's, an inline specialist's or an enabled
+capability's - because a sign-in is one person's subscription. A profile the person
+running the agent may not use is left off rather than failing the run.
+
+The model may not attach capabilities: letting a model grant its own child
 a capability is the ungranted-scope failure wearing a new hat. It gets no knowledge,
 no delegates of its own, and nothing is persisted across runs — keeping a specialist
 means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
@@ -1961,7 +2168,7 @@ work that needs several steps held in mind at once.
 
 | Config | Default | Values |
 |---|---|---|
-| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Unset means the provider's own default effort. A level a provider does not have
 maps to its closest one, so a spec stays portable across a model swap.
@@ -2419,6 +2626,17 @@ prompt reaches the model scrubbed, but the conversation stores the message as th
 person typed it, personal data included. Anyone who can read the conversation can
 read that message.
 
+**The input edge screens an attachment before it is written.** An attached file
+reaches the prompt as its name, its path and its first 20 lines (at most 2,000
+characters), and the input edge reads them with the person's message. An agent with
+a workspace has that text screened before the file is copied to `uploads/`, so a
+turn the edge blocks writes nothing, and a later turn in a `conversation`-, `user`-
+or `agent`-scoped workspace has no refused file to open. The edge reads only those
+opening lines, so a blocked term further down the file is not caught here; screen
+tool results for that. A picture sent inline is the exception: the edge also reads
+its bytes, and a block those bytes cause is not foreseen, so that picture is still
+written.
+
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
 response — where a prompt-injection payload would otherwise reach the model unread.
@@ -2435,6 +2653,9 @@ what a single door avoids.
 `list_channel_members` — *List the people in this channel.*
 `search_channels` — *Find other channels by name or purpose, without reading them.*
 `read_channel_history` — *Read the most recent messages in this channel, newest last.*
+`send_channel_file` — *Send a requested workspace file.*
+
+Use a direct message containing plain `link` (without a slash) to connect an account. Open the private connection link while signed in to AgenticOS, then return to the channel. When earlier thread files require linking, the bot explains this without downloading them and retries after connection. Channel pictures use twice the CSS resolution; very wide horizontal Mermaid flowcharts receive a vertical layout for the PNG only.
 
 The one capability an agent's spec may not bind. It is granted **per binding**,
 in the Builder under *Where this agent is available*, because an organization can
@@ -2493,23 +2714,40 @@ the person did not answer in time.
 
 ## Follow-ups { #follow-ups }
 
-At the end of an answer, `suggest_next_steps` offers up to three next steps as
-buttons under it, each at most 80 characters and phrased as the person would say
-it: "Make it a table", "Do this every Monday at 9:00". A click sends the step as
-their next message. Only the latest answer offers them, and none while a turn is
-running. The agent skips them after small talk or a question of its own, and
-does not repeat the steps in its answer. In Slack, Teams, Telegram and Mattermost
-the steps arrive as a message of buttons under the answer, and a press is the
-presser saying that step - [Channels](../channels.md#next-steps-as-buttons) has
-the detail.
+Buttons are supported in console chat and the messaging channels above.
+Public widgets, hosted pages and raw embed sockets do not consume suggestion
+cards, so they do not start a paid follow-up run. Channel writers recheck the
+recorded sender identity, bot binding, current access policy and room membership
+before generation and delivery; an admitted unlinked room sender remains distinct
+from the publisher used for accounting.
 
-**Model for next steps** (`model_profile_id`) hands the steps to a model of their
-own: the agent is no longer offered `suggest_next_steps`, and once its answer is in
-that model reads the request and the answer and writes up to three steps, or none.
-A small, cheap model is enough for three short buttons, and the agent no longer
-spends a request on them. The call is checked against the budgets first and booked
-on the run like any other; one that cannot be made costs the buttons, never the
-answer. Empty, the agent offers them itself.
+Next-step buttons are written only by a separate model selected in **Model for
+next steps** (`model_profile_id`). An empty selection disables suggestions.
+After upgrading, select a profile in the Follow-ups capability to keep using
+buttons. The main model never receives `suggest_next_steps` and does not wait
+for suggestions before finishing its answer or accepting the next prompt.
+
+After the assistant message commits, the optional background task reads that
+run's question and saved answer. It returns up to three short steps in the
+person's language, or none. The console receives a late event naming the exact
+conversation and assistant message; a newer turn is left intact. Stored buttons
+survive reopening the conversation. Slack, Teams, Telegram and Mattermost start
+this work after posting the main reply, and send the buttons separately.
+
+The helper has no tools or main-agent instructions. Its own run checks the
+agent, department and organization budgets, inherits tracing privacy, and books
+its cost independently, including failures. The main answer's cost is unchanged.
+Each process allows four helpers at once; excess work is skipped. Model work
+is limited to 15 seconds, two requests at most and 512 output tokens. There is
+no automatic retry. Suggestions may be lost on shutdown or connection loss;
+they never replace the answer with an error.
+
+Activity labels the auxiliary run **Follow-ups**. It keeps the source
+conversation’s read permissions and contributes to that conversation’s total
+cost, without marking it as busy or replacing its latest foreground run.
+
+`suggest_next_steps` remains the recorded identity of generated buttons, for
+history and existing spec overrides; it is not a callable tool of the main model.
 
 `propose_setup` proposes up to three things to set up, drawn as cards under the
 answer: an agent of the person's own, a routine, or a service to connect. A card
@@ -2578,8 +2816,9 @@ the agent is assembled:
 | `tables:read` | `virtual_tables`, and every [table workflow node](workflow-nodes.md#virtual-tables) |
 | `tables:write` | the table workflow nodes that write |
 | `workflows:run` | `workflows` |
+| `computer:use` | `computer_use` |
 
-!!! note "All eleven are granted by default today"
+!!! note "All twelve are granted by default today"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
     Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check

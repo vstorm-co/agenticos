@@ -52,6 +52,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_approval_mode,
     requested_environment_id,
+    requested_local,
     requested_mentions,
     requested_model_profile_id,
     requested_testing,
@@ -752,6 +753,7 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
+                    local=requested_local(data),
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).
@@ -1404,6 +1406,16 @@ class AgentSession:
                 return
             if event["type"] == chat_room.PRESENCE:
                 await self._send_presence(conversation_id)
+            elif event["type"] == chat_room.NEXT_STEPS:
+                await send_event(
+                    self.websocket,
+                    "next_steps",
+                    {
+                        "conversation_id": conversation_id,
+                        "message_id": event["message_id"],
+                        "steps": event["steps"],
+                    },
+                )
             elif event["type"] == chat_room.TYPING:
                 await self._send_typing(conversation_id, event.get("by"))
             else:

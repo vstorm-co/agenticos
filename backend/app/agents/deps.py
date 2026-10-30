@@ -24,6 +24,7 @@ from app.agents.compaction_events import CompactionEvent
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.visual_reports import VisualReports
+from app.db.vector_tables import VectorScope
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
 """How a delegate reaches the person waiting on its parent, and back.
@@ -58,15 +59,6 @@ stopped for the length of it with nothing said. A run whose surface cannot show
 anything leaves it `None` and the summary is silent, the way a delegation is
 silent on a surface with no `subagent_events`.
 """
-
-
-@dataclass(frozen=True)
-class WrittenNextSteps:
-    """Next steps written after an answer by a model other than the agent's (#2301)."""
-
-    call_id: str
-    """The id they are recorded under, so the console and the transcript agree."""
-    steps: list[str]
 
 
 @dataclass
@@ -106,6 +98,12 @@ class AgentDeps:
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)
 
+    # The bound knowledge base behind each of those names, as the vector store
+    # scopes it. A name is not unique, so searching by it would read whichever
+    # same-named base resolves first rather than the one the agent is bound to
+    # (#2537). Travels with the names wherever they do.
+    kb_vector_scopes: dict[str, VectorScope] = field(default_factory=dict)
+
     # Set when the surface can ask the user something mid-run (WebSocket chat);
     # None on surfaces that cannot, so tools must handle its absence.
     ask_user: AskUserCallback | None = None
@@ -129,6 +127,9 @@ class AgentDeps:
     # calls stay in its own run, so a tool whose result is meant to be seen there
     # - a drawing - has to say so rather than claim the person can see it.
     delegated: bool = False
+
+    # Bound to the current channel and workspace; delegates cannot send files.
+    send_channel_file: Callable[[str], Awaitable[str]] | None = None
 
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
@@ -159,11 +160,6 @@ class AgentDeps:
     # who is not a member, so a tool that reuses a generated file (a video
     # starting from an image) reaches only these, never a leaf it was told.
     generated_files: set[str] = field(default_factory=set)
-    # The next steps a model of the follow-ups capability's own wrote once the
-    # answer was in (#2301). The surfaces hand them on as the agent's own
-    # `suggest_next_steps` call would have been, under this id.
-    next_steps: WrittenNextSteps | None = None
-
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def clone_for_subagent(self, max_depth: int = 0) -> AgentDeps:
@@ -208,10 +204,11 @@ class AgentDeps:
         `delegated` is set, not inherited: whatever the parent is, this run is a
         delegate, and a drawing it makes is never shown in the conversation.
 
-        What it does **not** inherit: `kb_collection_names`. Those come from the
-        delegate's own spec, and inheriting the parent's would hand a specialist a
-        collection nobody granted it. The delegate's own are put back by the
-        delegation capability, from `ResolvedSubagent.collection_names` - because
+        What it does **not** inherit: `kb_collection_names` and `kb_vector_scopes`.
+        Those come from the delegate's own spec, and inheriting the parent's would
+        hand a specialist a collection nobody granted it. The delegate's own are put
+        back by the delegation capability, from `ResolvedSubagent.collection_names`
+        and `collection_scopes` - because
         the deps our factory built for the child are *this* object's replacement,
         so the collections resolved for it would otherwise be resolved and never
         read.

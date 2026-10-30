@@ -70,6 +70,8 @@ class DocumentMetadata(BaseModel):
     source_path: str = ""  # original path: local path, s3://bucket/key, gdrive://file_id
     content_hash: str = ""  # SHA256 hash for deduplication
     organization_id: str | None = None
+    # Trusted worker correlation, excluded from public chunk metadata.
+    rag_document_id: uuid.UUID | None = Field(default=None, exclude=True)
     source: str | None = None
     document_type: str | None = None
     organizational_unit: str | None = None
@@ -170,6 +172,11 @@ class IngestionResult(BaseModel):
     which row that was. Left unretired, its `chunk_count` keeps being summed
     into the collection's total, so a nightly sync reports a collection growing
     by its own size every night while the vector store holds one copy.
+
+    `refused` marks an `ERROR` the ingester chose rather than one it hit: the
+    collection or its knowledge base was removed while the file was parsed, so
+    nothing was written. Trying again cannot succeed, so the worker ends the job
+    instead of handing it to a retry (#2561).
     """
 
     status: IngestionStatus = IngestionStatus.NEW
@@ -178,6 +185,7 @@ class IngestionResult(BaseModel):
     document_id: str | None = None
     chunk_count: int = 0
     replaced_document_id: str | None = None
+    refused: bool = False
 
 
 class CollectionInfo(BaseModel):
@@ -186,7 +194,6 @@ class CollectionInfo(BaseModel):
     name: str
     total_vectors: int
     dim: int
-    indexing_status: str = "complete"
 
 
 class DocumentInfo(BaseModel):

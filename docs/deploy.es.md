@@ -1,5 +1,5 @@
 ---
-source_sha: "0c20a47827a4"
+source_sha: "7bd15584abde"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -186,6 +186,14 @@ fiarse de una etiqueta:
     día descargue lo que funcionaba ayer y no lo que se publicó esta mañana.
     `scripts/deploy.sh` la fija por ti - a la etiqueta `sha-` del commit que
     despliega - exactamente mientras dura el despliegue.
+
+    Fíjala desde el checkout de esa release: `git checkout v0.0.380` junto a la
+    variable. La imagen del servicio de sandbox está fijada en el archivo compose,
+    en la versión que habla el backend del mismo commit, así que un backend más
+    antiguo ejecutado desde un checkout más nuevo se encuentra con un `sandboxd`
+    más nuevo - y `latest` desde un checkout antiguo es el mismo desajuste al
+    revés. `scripts/deploy.sh` hace checkout del commit que despliega, así que un
+    despliegue o una vuelta atrás con el script mantiene los dos juntos.
 
 Los dos paquetes se descargan de forma anónima. Si una descarga responde
 `unauthorized`, el paquete se ha hecho privado o hay un `docker login ghcr.io`
@@ -463,6 +471,21 @@ demonio a través de una *conexión* de sandbox que alguien crea en la consola, 
     (#1506). Por eso el script lee el token en vez de aceptar un flag.
 
 ## Desplegar un cambio { #deploying-a-change }
+
+### El límite del formato del historial en 1.25.0 { #retry-history-upgrade }
+
+La versión 1.25.0 adopta los resultados de herramientas `retried` y los mensajes
+independientes `retry-feedback` de Pydantic AI 2.61. Los historiales y checkpoints
+de runs existentes se leen sin migrar la base de datos ni volver a publicar agentes.
+Los historiales con estas partes requieren el lector nuevo: un backend anterior no puede
+reproducir estos formatos de mensajes.
+
+Actualiza juntos todos los procesos de API y workers, drenando o deteniendo los
+anteriores antes de que los nuevos acepten trabajo. No mezcles réplicas de backend
+anteriores y nuevas con la misma base de datos. Después de guardar uno de los nuevos formatos de reintento,
+no se admite volver atrás solo en el código a través de este límite; hay
+que mantener el lector nuevo o restaurar un snapshot de la base de datos anterior
+a la actualización.
 
 ### A mano { #by-hand }
 

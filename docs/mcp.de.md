@@ -1,5 +1,5 @@
 ---
-source_sha: "bd642ed8004b"
+source_sha: "e91b7d8db539"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -217,10 +217,10 @@ ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren
 Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
 er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
 diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
-der Berechtigung dessen, der fragt, auch eines Admins. Ein Lesezugriff wartet wie
-eine Änderung: `read_conversation`, das dem Modell eine ganze frühere Unterhaltung
-gibt - eine Seite, die der Agent gelesen hat, könnte ihn sonst eine abrufen und
-weiterschicken lassen.
+der Berechtigung dessen, der fragt, auch eines Admins. Zwei Lesezugriffe warten
+wie Änderungen: `read_conversation` gibt eine ganze frühere Unterhaltung frei,
+`get_project` die Anweisungen eines ausgewählten Projekts. Eine gelesene Seite
+darf keine dieser Offenlegungen unbemerkt auslösen.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -1115,9 +1115,18 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | Zugriff auf das Projekt |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers) |
+
+Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
+Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein
+ausgewähltes Projekt einschließlich seiner Anweisungen und wartet unter `writes`
+wie `read_conversation` auf Freigabe. Anweisungen eines anderen geteilten Projekts
+sollen nicht allein durch die Suche nach einem Arbeitsbereich ins Modell gelangen.
 
 Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
 `test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,
@@ -1185,6 +1194,12 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
 Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bittet.
+
+### Desktop, Mobile und lokale Umgebungen { #desktop-mobile-and-local-environments }
+
+Der MCP-Server erklärt dieselben Unterschiede wie Agentenläufe: Desktop kann einen genehmigten lokalen Ordner, Browser, ein Modell oder einen HTTP-MCP-Dienst für die Unterhaltung nutzen. Mobile bietet keine Desktop-Ausführung. Eine native Freigabe bleibt erforderlich; MCP wählt keinen Ordner und erteilt keinen Zugriff im Namen der Person.
+
+`create_project` akzeptiert `backend` (`auto`, `state`, `service`) und optional `sandbox_connection_id` für die gemeinsame Serverumgebung. Der zurückgegebene Backend-Wert beschreibt keine persönliche Computerauswahl. Lokale Ordner bleiben von gemeinsamen Uploads getrennt; gemeinsame Chatantworten können dennoch lokale Inhalte offenlegen. Der Architect-Leitfaden enthält Desktop-, Mobile- und Sandbox-Seiten; jeder Lauf erhält nach der Validierung Informationen über die tatsächlich ausgewählten lokalen Ressourcen.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

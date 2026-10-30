@@ -604,10 +604,41 @@ describe("useRunManifest", () => {
   it("surfaces the 404 rather than retrying it three times", async () => {
     // A run that recorded nothing is an answer, not a hiccup: retried, the panel
     // that says so arrives three round trips late.
-    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "nothing recorded"));
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(404, "nothing recorded"))
+      .mockResolvedValueOnce({ id: "run-1", status: "completed" })
+      .mockRejectedValueOnce(new ApiError(404, "nothing recorded"));
 
     const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
 
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
+    expect(apiClient.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("finds a record committed between the initial 404 and the status read", async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(404, "not settled yet"))
+      .mockResolvedValueOnce({ id: "run-1", status: "completed" })
+      .mockResolvedValueOnce({ run_id: "run-1", transcript: [{ kind: "response" }] });
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
+    await waitFor(() => expect(result.current.manifest).toBeDefined());
+    expect(result.current.error).toBeNull();
+  });
+
+  it("keeps an open active run loading until its manifest is written", async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(404, "not settled"))
+      .mockResolvedValueOnce({ id: "run-1", status: "running" })
+      .mockResolvedValueOnce({ run_id: "run-1", transcript: [{ kind: "response" }] });
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
+    await waitFor(() => expect(result.current.manifest).toBeDefined());
+    expect(result.current.error).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a refused manifest without polling or reading the run", async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(403, "refused"));
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
     await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });

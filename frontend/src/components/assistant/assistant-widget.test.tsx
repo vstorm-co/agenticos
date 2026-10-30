@@ -133,6 +133,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
   localStorage.clear();
@@ -140,6 +141,21 @@ afterEach(() => {
 });
 
 describe("the Architect widget", () => {
+  it("keeps the web launcher at the edge in the native desktop console", () => {
+    state.assistant = assistant();
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      window: "main",
+      version: "0.2.0",
+      vibrancy: false,
+    };
+    render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveAttribute(
+      "data-docked",
+      "true",
+    );
+  });
+
   it.each([
     ["there is no assistant", null],
     ["the person may not run agents", { can_use: false }],
@@ -158,7 +174,7 @@ describe("the Architect widget", () => {
     state.assistant = assistant({ name: "Architect (AgenticOS)" });
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toBeInTheDocument();
-    expect(document.querySelector('svg circle[fill="#2557d6"]')).not.toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).not.toBeNull();
     unmount();
 
     state.assistant = assistant({
@@ -170,7 +186,7 @@ describe("the Architect widget", () => {
     render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Ola z IT" })).toBeInTheDocument();
     // Given a picture, it wears the picture.
-    expect(document.querySelector('svg circle[fill="#2557d6"]')).toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
   });
 
   it("walks through connecting a model when it has none", () => {
@@ -508,7 +524,7 @@ describe("the Architect widget", () => {
     fireEvent.click(screen.getByRole("link", { name: "console link" }));
 
     expect(state.push).toHaveBeenCalledWith("/agents");
-    expect(state.pointAt).toHaveBeenCalledWith("agents-new");
+    expect(state.pointAt).toHaveBeenCalledWith("agents-new", "/agents");
     expect(screen.getByRole("dialog")).not.toHaveClass("hidden");
   });
 

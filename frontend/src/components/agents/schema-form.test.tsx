@@ -1,5 +1,7 @@
+import { useState } from "react";
+import { useCapabilityFieldCopy } from "./capability-field-copy";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchemaForm } from "./schema-form";
@@ -1317,4 +1319,108 @@ describe("a field that suggests rather than restricts", () => {
 
     expect(onChange).toHaveBeenLastCalledWith({});
   });
+});
+
+it("offers explicit environment cards without rewriting a legacy automatic value", async () => {
+  const changed = vi.fn();
+  function Environment() {
+    const copyFor = useCapabilityFieldCopy("computer_use");
+    const [value, setValue] = useState<Record<string, unknown>>({});
+    return (
+      <SchemaForm
+        idPrefix="computer"
+        copyFor={copyFor}
+        schema={{
+          properties: {
+            desktop: {
+              type: "string",
+              default: "auto",
+              enum: ["auto", "e2b", "sandbox", "local", "daemon"],
+              title: "Environment",
+              "x-widget": "computer-environment",
+            },
+          },
+        }}
+        value={value}
+        onChange={(next) => {
+          changed(next);
+          setValue(next);
+        }}
+      />
+    );
+  }
+  render(<Environment />);
+  const group = screen.getByRole("radiogroup", { name: "Environment" });
+  expect(changed).not.toHaveBeenCalled();
+  expect(within(group).queryByRole("radio", { name: "Automatic" })).toBeNull();
+  expect(
+    within(group)
+      .getAllByRole("radio")
+      .map((option) => option.getAttribute("aria-label")),
+  ).toEqual(["E2B", "Docker / Sandbox", "Local", "Remote computer"]);
+  expect(
+    within(group)
+      .getAllByRole("radio")
+      .every((option) => option.getAttribute("aria-checked") === "false"),
+  ).toBe(true);
+  await userEvent.click(within(group).getByRole("radio", { name: "E2B" }));
+  expect(changed).toHaveBeenLastCalledWith({ desktop: "e2b" });
+  expect(within(group).getByRole("radio", { name: "E2B" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByText(/no Sandbox connection is needed/)).toBeVisible();
+});
+
+it("shows schema option help when no localized choices are available", () => {
+  render(
+    <SchemaForm
+      idPrefix="fallback"
+      schema={{
+        properties: {
+          backend: {
+            anyOf: [
+              {
+                type: "string",
+                enum: ["local"],
+                "x-enum-labels": { local: "Local" },
+                "x-enum-descriptions": { local: "Use the approved computer" },
+              },
+              { type: "null" },
+            ],
+            default: "local",
+          },
+        },
+      }}
+      value={{}}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("combobox")).toHaveAccessibleDescription("Use the approved computer");
+});
+
+it("presents browser connections as one icon card choice and writes the selected transport", async () => {
+  const change = vi.fn();
+  render(
+    <SchemaForm
+      schema={{
+        type: "object",
+        properties: {
+          connection: {
+            type: "string",
+            title: "Browser",
+            enum: ["built_in", "proxy", "hosted", "local"],
+            default: "built_in",
+            "x-widget": "browser-connection",
+          },
+        },
+      }}
+      value={{}}
+      idPrefix="browser-choice"
+      onChange={change}
+    />,
+  );
+  const choices = screen.getAllByRole("radio");
+  expect(choices).toHaveLength(4);
+  expect(choices[0]).toHaveAttribute("aria-checked", "true");
+  for (const choice of choices) expect(choice.querySelector("svg")).not.toBeNull();
+  await userEvent.click(choices[3]!);
+  expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
 });

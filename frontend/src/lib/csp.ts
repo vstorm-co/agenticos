@@ -27,6 +27,7 @@ import type { PublicConfig } from "./public-config";
 export type CspDirective =
   | "default-src"
   | "script-src"
+  | "worker-src"
   | "style-src"
   | "img-src"
   | "frame-src"
@@ -70,6 +71,11 @@ export function cspDirectives(
     // (`src/middleware.ts`) - a constant one is `'unsafe-inline'` wearing a
     // disguise (#1624).
     "script-src": ["'self'", "'unsafe-eval'", `'nonce-${nonce}'`, "'strict-dynamic'"],
+    // The service worker Web Push arrives through (`public/sw.js`, #2097). Its
+    // registration is checked against this rather than `script-src`, whose
+    // `'strict-dynamic'` ignores `'self'` and would refuse a worker - which has
+    // no nonce to carry - outright. `'self'` only: no `blob:` worker.
+    "worker-src": ["'self'"],
     "style-src": ["'self'", "'unsafe-inline'"],
     // `blob:` for a canvas export and for bytes fetched then handed to an `img`;
     // `https:` because a model provider's avatar and a connector's brand mark are

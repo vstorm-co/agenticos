@@ -23,6 +23,9 @@ export function ListCard({
   counted,
   controls,
   namedByPage = false,
+  layout = "panel",
+  fill = false,
+  className,
   empty = false,
   contentClassName,
   headerTour,
@@ -47,6 +50,10 @@ export function ListCard({
    * and the title is kept for a screen reader only.
    */
   namedByPage?: boolean;
+  /** Card grids already provide their own surfaces; tables retain a panel. */
+  layout?: "panel" | "grid";
+  /** Fill the remaining page area, including an empty list. */
+  fill?: boolean;
   /**
    * Under `namedByPage`: there is nothing yet, so there is nothing to count or
    * search, and a strip reading "0 skills" above "No skills yet" said it twice.
@@ -64,11 +71,19 @@ export function ListCard({
 } & HTMLAttributes<HTMLDivElement>) {
   if (namedByPage) {
     return (
-      <Card {...rest}>
+      <Card
+        className={cn(
+          fill && "flex min-h-0 flex-1 flex-col",
+          layout === "grid" && "border-0 bg-transparent shadow-none",
+          className,
+        )}
+        {...rest}
+      >
         <CardHeader
           data-tour={headerTour}
           className={cn(
-            "flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            layout === "grid" && "border-0 px-0 pt-0 pb-4 sm:px-0",
             empty && "sr-only",
           )}
         >
@@ -78,18 +93,32 @@ export function ListCard({
           </div>
           {controls}
         </CardHeader>
-        <CardContent className={contentPadding(contentClassName)}>{children}</CardContent>
+        <CardContent
+          className={cn(
+            layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName),
+            fill && "flex min-h-0 flex-1 flex-col",
+          )}
+        >
+          {children}
+        </CardContent>
       </Card>
     );
   }
   return (
-    <Card {...rest}>
+    <Card
+      className={cn(
+        fill && "flex min-h-0 flex-1 flex-col",
+        layout === "grid" && "border-0 bg-transparent shadow-none",
+        className,
+      )}
+      {...rest}
+    >
       {/* A column on a phone: beside a search box and three filters the title
           was squeezed to "Catalo", and it is the one thing in the header that
           says what the card is. */}
       <CardHeader
         data-tour={headerTour}
-        className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+        className="shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       >
         <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
@@ -99,7 +128,14 @@ export function ListCard({
         </div>
         {controls}
       </CardHeader>
-      <CardContent className={contentPadding(contentClassName)}>{children}</CardContent>
+      <CardContent
+        className={cn(
+          layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName),
+          fill && "flex min-h-0 flex-1 flex-col",
+        )}
+      >
+        {children}
+      </CardContent>
     </Card>
   );
 }
@@ -142,7 +178,7 @@ export function ListCardControlsRow({
       className={cn(
         // Wrapped on every screen: swiped sideways on a phone, the last
         // filter sat past the edge cut mid-word, and nobody found it.
-        "border-border flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-5",
+        "border-border flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-5",
         className,
       )}
       {...props}
@@ -163,7 +199,16 @@ export function ListCardFootRow({
   className?: string;
   children: ReactNode;
 }) {
-  return <div className={cn("border-border border-t px-5 py-3", className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        "border-border bg-card sticky bottom-0 z-20 mt-auto shrink-0 rounded-b-xl border-t px-4 py-3 sm:px-5",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -185,7 +230,7 @@ export function ListCardEmpty({
   cta?: { label: ReactNode; onClick: () => void };
 }) {
   return (
-    <div className="px-6 py-16 text-center">
+    <div className="flex min-h-64 flex-1 flex-col items-center justify-center px-6 py-12 text-center">
       <SectionGlyph icon={Icon} className="mx-auto" />
       <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
       {description && (

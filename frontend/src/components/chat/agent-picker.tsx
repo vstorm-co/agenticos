@@ -70,6 +70,7 @@ export function AgentPicker() {
   const { can } = usePermissions();
   const { workflows } = useWorkflows({ enabled: can(Perm.workflowsRun) });
 
+  const options = useRef<HTMLDivElement>(null);
   const runnable = agents.filter(isRunnable);
   const selected =
     agents.find((agent) => agent.id === selectedAgentId && isRunnable(agent)) ?? null;
@@ -118,7 +119,7 @@ export function AgentPicker() {
           // `min-w-0` so the name inside can actually give way: the trigger is
           // in a row that runs out of room at 390px, and `max-w-[160px]` on the
           // name is a cap rather than permission to shrink.
-          className="bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground inline-flex min-w-0 items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors"
+          className="bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground touch:min-h-11 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors"
         >
           {selectedWorkflow ? (
             <WorkflowMark />
@@ -144,6 +145,10 @@ export function AgentPicker() {
 
       <PopoverContent
         align="start"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          options.current?.focus();
+        }}
         sideOffset={8}
         className="border-border bg-popover w-[300px] rounded-xl border p-1.5 shadow-md"
       >
@@ -155,11 +160,34 @@ export function AgentPicker() {
         </p>
 
         <div
+          ref={options}
+          tabIndex={-1}
+          onKeyDown={(event) => {
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+            const buttons = Array.from(
+              event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+            );
+            if (!buttons.length) return;
+            event.preventDefault();
+            const current = buttons.findIndex((button) => button === document.activeElement);
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? buttons.length - 1
+                  : current < 0
+                    ? event.key === "ArrowUp"
+                      ? buttons.length - 1
+                      : 0
+                    : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) %
+                      buttons.length;
+            buttons[next]?.focus();
+          }}
           role="radiogroup"
           aria-label={t("label")}
           // Scrolls on its own, under the line that says what it is, so an
           // organization with many agents does not run the menu off the screen.
-          className="max-h-[min(60vh,26rem)] scrollbar-thin space-y-px overflow-y-auto"
+          className="max-h-[min(60vh,26rem)] scrollbar-thin space-y-px overflow-y-auto outline-none"
         >
           {runnable.map((agent) => (
             <AgentOption
@@ -236,7 +264,7 @@ function AgentOption({
         role="radio"
         aria-checked={selected}
         onClick={onSelect}
-        className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
+        className="focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
         <AgentAvatar
           agentId={agent.id}

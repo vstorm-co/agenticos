@@ -52,6 +52,19 @@ class AlreadyExistsError(AppException):
     status_code = 409
 
 
+class InUseError(AppException):
+    """Resource is still referenced and cannot be removed (409).
+
+    Raised instead of deleting something other rows still point at, such as a
+    model profile an agent runs on. `details` names what refers to it, so the
+    reader can move those first.
+    """
+
+    message = "Resource is in use"
+    code = "IN_USE"
+    status_code = 409
+
+
 class ValidationError(AppException):
     """Validation error (422)."""
 

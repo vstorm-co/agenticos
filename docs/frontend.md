@@ -21,6 +21,20 @@ Playwright. Package manager and runner: **bun**.
 Server Components are the default. `"use client"` is for state, effects and
 handlers, not for habit.
 
+## Console presentation
+
+Use `PageHeader` for compact titles and actions. Grid catalogs use
+`ListCard layout="grid"` to avoid a panel around cards; tables keep the panel.
+Action buttons use neutral `action` tokens, independently of the `primary`
+ink used by checked controls and badges. Keep focus and input edges visible.
+
+People and organizations use `EntityAvatar`: uploaded photos are cropped into
+circles, with stable colours and initials as the fallback. Agents retain their
+generated faces. Gallery descriptions reserve two lines; opening an item shows
+the full description.
+
+Async actions use `Button loading` to preserve their label and footprint while preventing repeat submissions. Keep that state active until every step, including uploads, finishes. Link-backed buttons retain a single child and block activation while unavailable. Controls share keyboard focus treatment and compact desktop sizing, with 44px touch targets where space permits. Overlays animate from their anchor; tooltips wrap within the viewport. Calendar headings follow the console language, and progress exposes its actual value and maximum to assistive technology. Motion follows the person's Motion preference.
+
 ## The browser never calls the backend
 
 Every request goes to `/api/*` on this app, which forwards to FastAPI with the

@@ -1,9 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
-import { useChatSidebarStore } from "@/stores";
 import { MobileHeader } from "./mobile-header";
 
 const pathname = vi.hoisted(() => ({ current: "/chat" }));
@@ -12,29 +11,23 @@ vi.mock("@/components/layout/brand-link", () => ({ BrandLink: () => null }));
 vi.mock("@/components/layout/notification-bell", () => ({ NotificationBell: () => null }));
 
 function mount() {
-  render(
+  return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <MobileHeader />
     </NextIntlClientProvider>,
   );
 }
 
-beforeEach(() => {
-  useChatSidebarStore.getState().close();
-});
-
 /**
- * On a phone the chat's conversation list is a slide-over, and this header is
- * the only way into it - so the button is there on the chat and nowhere else.
+ * The phone's top bar, everywhere but the chat: there the buttons float over
+ * the transcript instead (`PhoneChatBar`), the conversation list among them.
  */
 describe("MobileHeader", () => {
-  it("opens the conversation list from the chat", () => {
+  it("steps aside on the chat, which floats its own buttons over the transcript", () => {
     pathname.current = "/pl/chat";
-    mount();
+    const { container } = mount();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open conversations" }));
-
-    expect(useChatSidebarStore.getState().isOpen).toBe(true);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("offers no conversation list away from the chat", () => {

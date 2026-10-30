@@ -100,3 +100,69 @@ hand-back is reused by that person's later browses of the same site (#2129).
 Compose's browser is a full Chromium under Xvfb that sites read as a desktop
 one, and an agent's binding can send its browses through a proxy or run them in a
 hosted browser over CDP (`_route.py`, #2130).
+
+## Interactive browser lifetime and readiness
+
+Direct tools keep one preview stream open across model turns within the run.
+The stream stops before the tab closes or `browse_web` takes over its narration.
+Pages belong to the run and close at its end. Private conversations keep a
+user-sealed checkpoint in Redis for one hour, containing tab URLs, cookies and
+local storage. `browser_read` restores it into new isolated contexts with fresh
+element numbers; DOM state, unsaved forms and navigation history are not restored.
+Hosted browsers do not receive checkpoints. Explicit tools open, list, switch and
+close up to eight tabs. Native tabs retain their existing bounded lifecycle.
+`_preview.py` owns the stream and polls location independently of model calls.
+Only authenticated image-view sockets count as viewers; trace consumers and a
+resumable chat buffer do not. Images stop without a viewer and resume on return.
+Metadata updates preserve the latest JPEG for viewers opening the live view.
+A final image is kept even without a viewer; it does not enter the chat stream.
+DOM tools and DOM-only `browse_web` steps do not capture screenshots. The owned
+preview stream paints independently; teardown joins it before capturing one final
+image and sending completion. Vision decisions still await the image they consume.
+
+`WebBrowser.before_model_request` copies older direct-tool reports without their
+obsolete element tables. The latest table, page text, URLs and action outcomes
+remain intact; the persisted transcript is unchanged. Factory ordering puts this
+after compaction and before system reminders. MCP tool schemas are unchanged.
+
+Readiness tracks visible main content and dialogs, ignoring presentation-only
+attribute changes and activity outside the content. It retains bounded DOM quiet
+and load waits. A newly empty direct-tool read gets one bounded readiness retry
+before its result is returned, including when navigation replaces the document.
+
+The console opens a full-height browser side panel automatically, with compact
+transcript links to reopen it after closing.
+
+While a person holds the tab, input is consumed independently of preview capture.
+They can navigate, move through history and reload within `allowed_domains`.
+Navigation checks document identity rather than requiring a different URL;
+ordinary actions wait for bounded document readiness and DOM stability.
+A pending direct action is refused after a take-over so the model must read the
+page again before choosing an element.
+
+
+## Native conversation tabs
+
+Desktop local DOM browsing uses `_native.py` and the shell's `native_browser.rs`.
+The page is a real child WebView in the console panel, with no JPEG preview path.
+Only its paired app resolves the opaque handle. The backend derives the tab scope
+from organization, user, agent and conversation; a run holds an exclusive lease.
+An owned heartbeat renews the lease every 30 seconds; it expires after two
+minutes without renewal. Release preserves the private page, while explicit close, device disconnect or
+bounded idle eviction destroys it. `browser_read` reattaches on a later run.
+Changes to the domain policy require closing the old tab first.
+
+The native DOM adapter preserves the collector and stale-element checks. A
+context-local action marker guards DOM writes as well as input against a local
+takeover; reading remains available. The page has only a one-way pause capability.
+Console grants name their exact WebView rather than every child of their window.
+Disabling `prefer_native_browser` selects Chromium compatibility.
+Tasks with vision or locale/time-zone emulation retain the Chromium adapter,
+including its per-run disposable profile. Scripted native input is not identical
+to trusted CDP input, and remote viewers cannot render an owner's native page.
+
+Images are published on a separate Redis channel, so trace consumers do not
+receive or decode their base64 data. Remote preview delivery keeps one pending image and a bounded ordered narration
+queue. A socket write exceeding two seconds, or a full narration queue, ends that
+viewer with close code 1013. Reconnecting obtains a fresh snapshot. Images are
+not also copied into the resumable chat buffer when a live-view socket owns them.

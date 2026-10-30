@@ -8,6 +8,7 @@ from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Span
 from starlette.requests import HTTPConnection
 
+from app import __version__
 from app.core.config import settings
 from app.core.logging import SECRET_PATH_MARKER, SECRET_QUERY_PARAMS, redact_secret_paths
 from app.core.otel_compat import patch_route_details
@@ -38,6 +39,7 @@ def setup_logfire(*, service_name: str | None = None) -> None:
         token=settings.LOGFIRE_TOKEN,
         service_name=service_name or settings.LOGFIRE_SERVICE_NAME,
         environment=settings.LOGFIRE_ENVIRONMENT,
+        service_version=__version__,
         send_to_logfire="if-token-present",
         additional_span_processors=[SecretPathRedactionProcessor()],
         console=False if settings.ENVIRONMENT == "production" else None,

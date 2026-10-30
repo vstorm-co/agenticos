@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "2f33faf1a39b"
 ---
 
 # Context-Dateien { #context-files }
@@ -19,6 +19,8 @@ bearbeitbar, die die Antwort tatsächlich kennt.
 Sie ist die Antwort auf ein Problem, das jedes Unternehmen bei seinem dritten
 Agent trifft — dieselben drei Absätze, in drei Sätze von Instruktionen kopiert
 und dann in einem davon bearbeitet.
+
+Im Agent Builder erstellt **Context → New context file** eine Datei direkt im Fähigkeitspanel, ordnet sie dem aktuellen Entwurf zu und aktiviert Context. Anschließend lässt sich festlegen, wie dieser Agent die Datei nutzt. Das Veröffentlichen bleibt ein eigener Schritt. Zum Erstellen sind Bearbeitungsrechte für den Agenten und Kontextdateien erforderlich.
 
 ## Wo sie zwischen Skills und Wissen sitzt { #where-it-sits-between-skills-and-knowledge }
 
@@ -41,8 +43,7 @@ ganzen Inhalt.
 
 ## Zwei Modi, und der Unterschied sind die Kosten { #two-modes-and-the-difference-is-cost }
 
-Jede Context-Datei trägt einen Modus, und der entscheidet, wie die Datei das
-Modell erreicht.
+Jede angehängte Context-Datei hat einen Modus in den **Context**-Einstellungen des Agents. Dieselbe gemeinsame Datei kann bei einem Agent injiziert, bei einem anderen verlinkt und bei einem dritten deaktiviert sein.
 
 === "`inject` — immer da"
 
@@ -89,7 +90,9 @@ Das ist der ganze Sinn und zugleich das, womit man vorsichtig sein muss: Eine
 Änderung an einer injizierten Datei ist eine Änderung an jedem Agent, der sie
 trägt. Behandeln Sie sie als den gemeinsamen, tragenden Text, der sie ist.
 
-Die Capability hat eine Einstellung, die zu kennen lohnt. Das Lese-Tool
+Im Builder hat jede ausgewählte Datei einen Schalter **In diesem Agent verwenden** und eine Modusauswahl. Diese Einstellungen gehören zum Agent-Entwurf und gelten nach der Veröffentlichung. Der Bibliothekseditor ändert nur gemeinsamen Inhalt und Beschreibung; das Format folgt dem Dateinamen. Bestehende Agent-Versionen ohne individuelle Einstellungen behalten ihren bisherigen Modus und ihre Verfügbarkeit.
+
+Die Capability steuert außerdem das Lese-Tool. Das Lese-Tool
 **abzuschalten** heißt, dass nur injizierte Dateien das Modell erreichen und
 nichts auf Anforderung gelesen wird — eine vernünftige Wahl, wenn Sie die Eingaben
 eines Agents vollständig vorhersehbar haben wollen.

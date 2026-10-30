@@ -21,7 +21,6 @@ approval panel, `ask_user`. A frame that needs somebody to answer it needs a
 somebody, and only the surface knows whether it has one.
 """
 
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -36,18 +35,17 @@ from pydantic_ai import (
     TextPartDelta,
 )
 from pydantic_ai.messages import (
-    RetryPromptPart,
+    ERROR_OUTCOMES,
     TextPart,
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
 )
 
-from app.agents.deps import AgentDeps
 from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
-from app.services.transcript import tool_result_text, tool_retry_notice
+from app.services.transcript import tool_failure_notice, tool_result_text
 
 logger = logging.getLogger(__name__)
 
@@ -121,29 +119,7 @@ class RunFrames:
                 # had it ever been it would have dropped the frame carrying the
                 # answer without saying anything. Whatever made it false now
                 # raises instead, and reaches the client as `error`.
-                await self.next_steps(agent_run.ctx.deps)
                 await self.emit("final_result", {"output": display_output(agent_run.result.output)})
-
-    async def next_steps(self, deps: object) -> None:
-        """The next steps a model of their own wrote, as the agent's own call would be.
-
-        The follow-ups capability writes them after the answer rather than the agent
-        calling `suggest_next_steps` (#2301); sent and collected as that call, so the
-        console draws them and the transcript keeps them with nothing new to read.
-        """
-        written = deps.next_steps if isinstance(deps, AgentDeps) else None
-        if written is None:
-            return
-        call: dict[str, Any] = {
-            "tool_call_id": written.call_id,
-            "tool_name": "suggest_next_steps",
-            "args": {"steps": written.steps},
-        }
-        self.tool_calls.append(call)
-        self.timeline.add_tool(written.call_id)
-        await self.emit("tool_call", dict(call))
-        call["result"] = json.dumps({"steps": written.steps}, ensure_ascii=False)
-        await self.emit("tool_result", {"tool_call_id": written.call_id, "content": call["result"]})
 
     async def request(self, request_stream: Any, used: set[str]) -> None:
         """Forward model-request events: text, reasoning, tool deltas, final-result start.
@@ -236,13 +212,14 @@ class RunFrames:
                 # inside the stream, which reached the user as
                 # "❌ Error: 'FunctionToolResultEvent' object has no attribute
                 # 'result'" on every tool call in web chat.
-                if isinstance(tool_event.part, RetryPromptPart):
+                if tool_event.part.outcome in ERROR_OUTCOMES:
                     logger.warning(
-                        "Tool call %s asked the model to retry: %s",
+                        "Tool call %s returned %s: %s",
                         tool_event.tool_call_id,
+                        tool_event.part.outcome,
                         tool_event.part.content,
                     )
-                    content = tool_retry_notice(tool_event.part)
+                    content = tool_failure_notice(tool_event.part)
                 else:
                     content = tool_result_text(tool_event.part.content)
                 call = pending.get(tool_event.tool_call_id)

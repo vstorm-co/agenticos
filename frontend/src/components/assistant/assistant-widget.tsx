@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 import type { ChatPrompt } from "@/components/chat/chat-container";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useAssistant } from "@/hooks/use-assistant";
 import { useAssistantSignals } from "@/hooks/use-assistant-signals";
 import { pointAt, type ConsoleLink } from "@/lib/assistant-highlight";
@@ -107,6 +109,10 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // The page the bubble has waited out its moment on; on any other it is quiet.
   const [readyOn, setReadyOn] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(readPreferences);
+  const shell = useShell();
+  // Native Blobby already occupies the desktop corner. Keep the web assistant
+  // available at the edge without covering card actions in the console.
+  const docked = (isDesktopShell(shell) && shell.window === "main") || preferences.docked;
   // "Not now", or a bubble left to fade, on a page: quiet there for the rest
   // of this visit to the console.
   const [setAside, setSetAside] = useState<string | null>(null);
@@ -146,10 +152,10 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // Left alone with the window closed, the button steps into the edge of the
   // screen; it stays there across pages and visits until it is pulled out.
   useEffect(() => {
-    if (open || preferences.docked) return;
+    if (open || docked) return;
     const timer = setTimeout(() => dock(true), DOCK_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [open, preferences.docked, touched, dock]);
+  }, [open, docked, touched, dock]);
 
   const failedRun = signals.failedRunId !== preferences.seenRun ? signals.failedRunId : null;
   const bubble = bubbleFor(
@@ -178,7 +184,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     readyOn === pathname &&
     setAside !== pathname &&
     !open &&
-    !preferences.docked &&
+    !docked &&
     bubble !== null &&
     !preferences.off &&
     !preferences.silenced.includes(pageOf(pathname));
@@ -211,7 +217,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     // On a phone the full-screen window steps aside so the page can be seen.
     if (window.matchMedia(PHONE).matches) setOpen(false);
     router.push(link.path);
-    if (link.anchor) void pointAt(link.anchor);
+    if (link.anchor) void pointAt(link.anchor, link.path);
   };
 
   return (
@@ -270,13 +276,8 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         assistant={assistant}
         agentId={agentId}
         open={open}
-        docked={preferences.docked}
-        waiting={
-          (preferences.docked || phone) &&
-          bubble !== null &&
-          isProactive(bubble) &&
-          !preferences.off
-        }
+        docked={docked}
+        waiting={(docked || phone) && bubble !== null && isProactive(bubble) && !preferences.off}
         onToggle={() => (open ? setOpen(false) : openWindow())}
         onHover={touch}
         overComposer={overComposer}

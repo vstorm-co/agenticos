@@ -1,5 +1,5 @@
 ---
-source_sha: "bd642ed8004b"
+source_sha: "e91b7d8db539"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -216,9 +216,9 @@ La propia plantilla del Architect pide `writes` para el servidor
 de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
 vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
 con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
-Admin incluida. Una lectura espera como un cambio: `read_conversation`, que entrega
-al modelo una conversación pasada entera - una página que el agent leyó podría si
-no hacer que la pida y la envíe fuera.
+Admin incluida. Dos lecturas esperan como cambios: `read_conversation` revela una
+conversación pasada completa y `get_project` las instrucciones de un proyecto
+elegido. Una página leída no debe provocar ninguna de esas revelaciones sin aviso.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -1096,9 +1096,18 @@ permiso que faltaba.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | acceso al proyecto |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` y `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (los de quien llama) |
+
+La búsqueda con `list_projects` devuelve solo identificadores y nombres,
+omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un
+proyecto elegido con sus instrucciones y espera aprobación bajo `writes`, igual
+que `read_conversation`. Las instrucciones de otro proyecto compartido no deben
+llegar al modelo solo por buscar un espacio de trabajo.
 
 Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
 como borrador sin publicar con `test_agent_draft` - un run de prueba, con
@@ -1167,6 +1176,12 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
 rutina o cambia el idioma de la consola cuando se lo piden.
+
+### Escritorio, móvil y entornos locales { #desktop-mobile-and-local-environments }
+
+El servidor MCP explica las mismas distinciones que los agentes: Desktop puede usar una carpeta, navegador, modelo o servicio HTTP MCP local autorizado para la conversación. Mobile no ofrece ejecución de escritorio. La autorización nativa sigue siendo necesaria; MCP no elige carpetas ni concede acceso en nombre de la persona.
+
+`create_project` acepta `backend` (`auto`, `state`, `service`) y opcionalmente `sandbox_connection_id` para el espacio compartido del servidor. El backend devuelto no describe una elección personal de Computer. Las carpetas locales siguen separadas de las copias compartidas; las respuestas de chats compartidos pueden revelar contenido local. La guía de Architect incluye páginas Desktop, Mobile y Sandbox; cada ejecución recibe información de los recursos locales seleccionados tras validarlos.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 

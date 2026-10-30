@@ -1,5 +1,5 @@
 ---
-source_sha: "934f449b312e"
+source_sha: "f96ca8950f4c"
 ---
 
 # Begriffe { #concepts }
@@ -237,6 +237,12 @@ nicht kann — zu diesen Bedingungen:
 - **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
   jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
   Mitglied, als das es gehandelt hat.
+- **Er darf auf dem eigenen Computer des Erstellers arbeiten.** Mit Run as me kann
+  der Ersteller den Trigger unter **Arbeiten auf (Work on)** auf einen Ordner
+  seines Computers richten; jedes Auslösen arbeitet dann dort über die
+  [Desktop-App](desktop.md#work-on-this-computer). Run as me abzuschalten löscht
+  das, und ein Auslösen, das nicht als sein Ersteller handelt, bekommt den
+  Computer nicht.
 
 Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
 läuft:
@@ -655,7 +661,10 @@ Profil statt an vierzig Specs.
 
 Ein Profil ohne Credential dahinter ist überall, wo es erscheint, mit `no key`
 markiert, denn das ist die eine Tatsache, die darüber entscheidet, ob der Agent
-überhaupt laufen kann.
+überhaupt laufen kann. Die Auswahllisten bieten es nicht an, und das
+Veröffentlichen lehnt es ab, bis es wieder einen Schlüssel hat. Ein Profil, das
+Agents nutzen, lässt sich nicht löschen; siehe
+[Schlüssel oder Endpunkt eines Profils ändern](models.md#changing-a-profiles-key-or-endpoint).
 
 Die Preise kommen von
 [`genai-prices`](https://github.com/pydantic/genai-prices), das Pydantic pflegt,

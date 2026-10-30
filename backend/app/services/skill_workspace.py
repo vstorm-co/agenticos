@@ -264,10 +264,19 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
         logger.warning("skill_frontmatter_unparsable", extra={"skill": name})
         return None
 
+    description = str(frontmatter.get("description") or "")
+    if not 1 <= len(name) <= 64 or len(description) > 500:
+        # Keep the original file intact: shortening a directory could collide
+        # with another skill, and silently truncating metadata changes its meaning.
+        logger.warning(
+            "skill_change_metadata_out_of_bounds",
+            extra={"name_length": len(name), "description_length": len(description)},
+        )
+        return None
     return SkillChange(
         name=name,
         skill_id=skill_id,
-        description=str(frontmatter.get("description") or ""),
+        description=description,
         content=instructions.strip(),
         resources={
             path.rsplit("/", 1)[1]: content for path, content in files.items() if path != body_path

@@ -97,6 +97,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_logging.py::TestSecretPaths::test_an_address_with_nothing_secret_in_it_is_left_alone": "an address with no credential segment is left alone, the redaction's complement",
     "tests/integration/test_workflow_error_foreach.py::test_an_approval_inside_an_iteration_resumes_that_iteration": "an approval resuming a loop iteration, not a refusal",
     "tests/test_workflow_node_guards.py::TestHttpConfig::test_a_step_without_a_credential_has_no_secret_to_check": "no credential configured means nothing to check, not a refusal",
+    "tests/test_e2b_desktop.py::test_the_desktop_uses_the_tenants_key_and_releases_its_session": "explicit E2B key wiring and desktop cleanup, no caller refusal",
     "tests/test_platform_mcp_tools.py::TestConfiguredDrafts::test_an_explicit_null_clears_a_binding_secret_reference": "serializes a nullable UUID reference in a JSONB spec, no credential read or authorization refusal",
     "tests/test_generated_media.py::TestTheRetentionSweep::test_no_batch_starts_once_the_time_budget_is_spent": "the sweep's time budget, not a spending budget, no refusal",
     "tests/test_mcp_connections.py::TestStartingOutlooksConsent::test_the_consent_url_is_the_tenants_and_asks_for_mail_only": "'tenant' is the Azure tenant whose endpoints Outlook's consent uses, not tenancy",
@@ -220,6 +221,7 @@ EXEMPT: dict[str, str] = {
     "tests/integration/test_workflow_run_repo.py::TestStaleApprovalWaits::test_finds_a_node_run_whose_blocking_approval_was_decided": "the happy path - the backstop finds a decided approval to redispatch - not a refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_another_pending_approval_on_the_same_run_defers_the_outbox_insert": "'approval' names a parked agent run's decisions; waiting for the last one is sequencing, not a refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_the_decision_that_clears_the_last_pending_approval_enqueues_it": "'approval' names a parked agent run's decisions; the last decision enqueues the wake, the accepted path",
+    "tests/test_computer_use.py::TestTheTools::test_a_run_resumed_after_approval_acts_on_the_screen_it_was_shown": "an approved batch runs on the screen it was approved against, no refusal",
 }
 
 

@@ -1,3 +1,4 @@
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -157,7 +158,7 @@ describe("the conversation list", () => {
     vi.useRealTimers();
   });
 
-  it("marks a thread read at once, and puts the mark back if the server refuses", async () => {
+  it("marks a thread read and does not invent an unread badge after a later failure", async () => {
     serve({ items: [conversation("c-1", { unread: true })] });
     const result = await hook();
 
@@ -167,7 +168,7 @@ describe("the conversation list", () => {
 
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("offline"));
     await act(async () => result.current.markRead("c-1"));
-    await waitFor(() => expect(result.current.conversations[0]?.unread).toBe(true));
+    await waitFor(() => expect(result.current.conversations[0]?.unread).toBe(false));
   });
 
   it("counts what matches rather than what was fetched", async () => {
@@ -1430,8 +1431,8 @@ describe("a request that outlives the account that made it", () => {
 });
 
 describe("starting a new chat", () => {
-  it("reuses the conversation already open when it is empty", async () => {
-    // Otherwise every stray click leaves an untitled empty row in the sidebar.
+  it("leaves even an empty stored conversation so its project cannot leak into a new draft", async () => {
+    // A stored conversation has a fixed project identity, even before any messages.
     const result = await hook();
     useConversationStore.getState().setCurrentConversationId("c-1");
     useConversationStore.getState().setCurrentMessages([]);
@@ -1441,8 +1442,8 @@ describe("starting a new chat", () => {
       await result.current.startNewChat();
     });
 
-    expect(useConversationStore.getState().currentConversationId).toBe("c-1");
-    expect(window.location.search).toBe("?id=c-1");
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+    expect(window.location.search).toBe("");
   });
 
   it("starts outside the last chat's project", async () => {
@@ -1606,6 +1607,20 @@ describe("reading an open conversation again (#54)", () => {
   });
 });
 
+it("starts a project draft without reusing an unrelated empty conversation or folder", async () => {
+  const result = await hook();
+  useConversationStore.getState().setCurrentConversationId("empty-other-project");
+  useConversationStore.getState().setCurrentMessages([]);
+  useChatStore.setState({ messages: [] });
+  useWorkOnStore.getState().applyProject("old-project", { folder: "/old", mode: "read_only" });
+  await act(async () => {
+    await result.current.startNewChat("new-project");
+  });
+  expect(useConversationStore.getState().currentConversationId).toBeNull();
+  expect(useConversationStore.getState().pendingProjectId).toBe("new-project");
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+});
+
 describe("transcript request ownership", () => {
   it.each(["organization", "selection"])(
     "drops a late select after the %s changes",
@@ -1726,4 +1741,165 @@ it("drops an earlier page that arrives after another conversation was selected",
     await request;
   });
   expect(result.current.currentMessages).toEqual([]);
+});
+
+it("does not revive a read badge from a refresh started during the read write", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
+  function localWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const { result } = renderHook(() => useConversations({}), { wrapper: localWrapper });
+  await waitFor(() => expect(result.current.conversations).toHaveLength(1));
+  let saved: (() => void) | undefined;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        saved = resolve;
+      }),
+  );
+  let marking: Promise<void> | undefined;
+  act(() => {
+    marking = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(saved).toBeDefined());
+  let oldList: ((value: unknown) => void) | undefined;
+  vi.mocked(apiClient.get).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        oldList = resolve;
+      }),
+  );
+  let refreshing: Promise<void> | undefined;
+  act(() => {
+    refreshing = client.refetchQueries({ queryKey: qk.conversations.list() });
+  });
+  await waitFor(() => expect(oldList).toBeDefined());
+  await act(async () => {
+    saved?.();
+    await marking;
+  });
+  await act(async () => {
+    oldList?.({ items: [conversation("c-1", { unread: true })], total: 1 });
+    await refreshing;
+  });
+  expect(result.current.conversations[0]?.unread).toBe(false);
+});
+
+it("does not roll back a newer read when an older read fails late", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const result = await hook();
+  let fail: ((error: Error) => void) | undefined;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  let first: Promise<void> | undefined;
+  act(() => {
+    first = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(fail).toBeDefined());
+  await act(async () => {
+    await result.current.markRead("c-1");
+  });
+  await act(async () => {
+    fail?.(new Error("old request failed"));
+    await first;
+  });
+  expect(result.current.conversations[0]?.unread).toBe(false);
+});
+
+it("ignores an older successful read after a newer read has completed", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const result = await hook();
+  let finish: (() => void) | undefined;
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  let first: Promise<void> | undefined;
+  act(() => {
+    first = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(finish).toBeDefined());
+  await act(async () => {
+    await result.current.markRead("c-1");
+  });
+  await act(async () => {
+    finish?.();
+    await first;
+  });
+  expect(result.current.conversations[0]?.unread).toBe(false);
+});
+
+it("keeps the first list alive when a chat is marked read before it arrives", async () => {
+  let arrive: (value: unknown) => void = () => {
+    throw new Error("List not requested");
+  };
+  vi.mocked(apiClient.get).mockImplementation((path) =>
+    path.startsWith("/conversations?")
+      ? new Promise((resolve) => {
+          arrive = resolve;
+        })
+      : Promise.resolve({ items: [], total: 0 }),
+  );
+  vi.mocked(apiClient.post).mockResolvedValue(undefined);
+  const { result } = renderHook(() => useConversations(), { wrapper });
+  let marked: Promise<void> | undefined;
+  act(() => {
+    marked = result.current.markRead("c-1");
+  });
+  await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/read", {}));
+  await act(async () => {
+    arrive({
+      items: [
+        conversation("c-1", {
+          unread: true,
+          agents: [{ id: "writer", name: "Writer" }],
+          running_since: "2026-10-27T12:00:00Z",
+        }),
+      ],
+      total: 1,
+    });
+    await marked;
+  });
+  expect(result.current.conversations[0]).toMatchObject({
+    unread: false,
+    agents: [{ id: "writer", name: "Writer" }],
+    running_since: "2026-10-27T12:00:00Z",
+  });
+});
+
+it("does not send a read marker after the organization changes during query cancellation", async () => {
+  serve({ items: [conversation("c-1", { unread: true })] });
+  const result = await hook();
+  let finishCancellation: (() => void) | undefined;
+  const cancel = vi.spyOn(QueryClient.prototype, "cancelQueries").mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishCancellation = resolve;
+      }),
+  );
+  let marked: Promise<void> | undefined;
+  try {
+    act(() => {
+      marked = result.current.markRead("c-1");
+    });
+    await waitFor(() => expect(finishCancellation).toBeDefined());
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "another-organization" });
+    });
+    await act(async () => {
+      finishCancellation?.();
+      await marked;
+    });
+    expect(apiClient.post).not.toHaveBeenCalled();
+  } finally {
+    cancel.mockRestore();
+  }
 });

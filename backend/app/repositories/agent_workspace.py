@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, inspect, or_, select, update
+from sqlalchemy import String, and_, cast, func, inspect, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation, Message
+from app.db.models.project import Project
 
 
 async def get_by_key(
@@ -147,10 +148,21 @@ async def get_for_project(
     """A project's container, the most recently used where a moved project left two."""
     result = await db.execute(
         select(AgentWorkspace)
+        .join(Project, Project.id == AgentWorkspace.project_id)
         .where(
             AgentWorkspace.organization_id == organization_id,
             AgentWorkspace.project_id == project_id,
             AgentWorkspace.recovery_of_id.is_(None),
+            AgentWorkspace.backend == Project.backend,
+            or_(
+                Project.sandbox_connection_id.is_(None),
+                AgentWorkspace.connection_id == Project.sandbox_connection_id,
+            ),
+            AgentWorkspace.scope_key.endswith(
+                func.replace(
+                    cast(func.coalesce(Project.workspace_generation, Project.id), String), "-", ""
+                )
+            ),
         )
         .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
         .limit(1)
@@ -339,3 +351,21 @@ async def load_files(db: AsyncSession, rows: Sequence[AgentWorkspace]) -> None:
 async def delete(db: AsyncSession, *, workspace: AgentWorkspace) -> None:
     await db.delete(workspace)
     await db.flush()
+
+
+async def lock_project_files(db: AsyncSession, *, project_id: UUID, organization_id: UUID) -> None:
+    """Refresh and lock the stored snapshot before a person's file mutation.
+
+    Runs flush under the same row lock, so a rename/edit cannot pass its checks
+    against one snapshot then overwrite a newer committed document.
+    """
+    await db.execute(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.project_id == project_id,
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.scope == "project",
+        )
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )

@@ -26,9 +26,8 @@ const FILE: ContextFileSummary = {
 
 function renderCard(props: Partial<React.ComponentProps<typeof ContextCard>> = {}) {
   const onOpen = vi.fn();
-  const onDelete = vi.fn();
-  render(<ContextCard file={FILE} canEdit onOpen={onOpen} onDelete={onDelete} {...props} />);
-  return { onOpen, onDelete };
+  render(<ContextCard file={FILE} onOpen={onOpen} {...props} />);
+  return { onOpen };
 }
 
 describe("ContextCard", () => {
@@ -38,19 +37,19 @@ describe("ContextCard", () => {
     expect(screen.getByText(FILE.description!)).toBeInTheDocument();
   });
 
-  it("marks an injected file so the mode is never implicit", () => {
+  it("leaves per-agent injected mode out of the shared library", () => {
     renderCard();
-    expect(screen.getByText("injected")).toBeInTheDocument();
+    expect(screen.queryByText("injected")).not.toBeInTheDocument();
   });
 
-  it("marks a linked file", () => {
+  it("leaves per-agent linked mode out of the shared library", () => {
     renderCard({ file: { ...FILE, mode: "link" } });
-    expect(screen.getByText("linked")).toBeInTheDocument();
+    expect(screen.queryByText("linked")).not.toBeInTheDocument();
   });
 
-  it("marks a file agents are currently skipping", () => {
+  it("leaves legacy availability out of the shared library", () => {
     renderCard({ file: { ...FILE, enabled: false } });
-    expect(screen.getByText("disabled")).toBeInTheDocument();
+    expect(screen.queryByText("disabled")).not.toBeInTheDocument();
   });
 
   it("stays quiet about an enabled file", () => {
@@ -58,9 +57,10 @@ describe("ContextCard", () => {
     expect(screen.queryByText("disabled")).not.toBeInTheDocument();
   });
 
-  it("shows the format and size", () => {
+  it("does not repeat the file extension or size below the card", () => {
     renderCard();
-    expect(screen.getByText(/md · 2.0 KB/)).toBeInTheDocument();
+    expect(screen.queryByText("MD")).toBeNull();
+    expect(screen.queryByText(/KB/)).toBeNull();
   });
 
   it("renders without a description when there is none", () => {
@@ -70,25 +70,15 @@ describe("ContextCard", () => {
   });
 
   it("opens the file when its name is clicked", async () => {
-    const { onOpen, onDelete } = renderCard();
+    const { onOpen } = renderCard();
     await userEvent.click(screen.getByText("glossary"));
     expect(onOpen).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("keeps deleting separate from opening", async () => {
-    const { onOpen, onDelete } = renderCard();
-    await userEvent.click(screen.getByRole("button", { name: "Delete glossary" }));
-    expect(onDelete).toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it("offers a viewer no way to delete a file they can still read", async () => {
-    const { onOpen, onDelete } = renderCard({ canEdit: false });
-    expect(screen.queryByRole("button", { name: "Delete glossary" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByText("glossary"));
-    expect(onOpen).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
+  it("keeps destructive actions out of the preview card", () => {
+    renderCard();
+    expect(screen.queryByRole("button", { name: "Delete glossary" })).toBeNull();
+    expect(screen.queryByText("Details")).toBeNull();
   });
 
   it("reads a markdown body's opening as a page", () => {
@@ -102,9 +92,8 @@ describe("ContextCard", () => {
     const { rerender } = render(
       <ContextCard
         file={{ ...FILE, format: "csv", excerpt: "term,meaning\nARR,revenue" }}
-        canEdit={false}
+
         onOpen={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText(/term,meaning/)).toBeInTheDocument();
@@ -112,9 +101,8 @@ describe("ContextCard", () => {
     rerender(
       <ContextCard
         file={{ ...FILE, excerpt: "" }}
-        canEdit={false}
+
         onOpen={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
     expect(screen.queryByText(/term,meaning/)).toBeNull();
@@ -122,6 +110,27 @@ describe("ContextCard", () => {
   });
   it("offers to give the file to an agent", () => {
     renderCard();
-    expect(screen.getByText("add-to-agent context c1")).toBeInTheDocument();
+    expect(screen.getByText("add-to-agent context c1")).toBeVisible();
   });
+});
+
+it("shows agent usage immediately alongside concise metadata", () => {
+  renderCard({
+    file: {
+      ...FILE,
+      used_by: [
+        { id: "billing", name: "Billing" },
+        { id: "support", name: "Support" },
+      ],
+    },
+  });
+  const usage = screen.getByText("Used by Billing, Support");
+  expect(usage).toBeVisible();
+  expect(usage.closest("details")).toBeNull();
+  expect(screen.queryByText("Details")).toBeNull();
+});
+
+it("shows an unused resource's next step without opening Details", () => {
+  renderCard({ file: { ...FILE, used_by: [] } });
+  expect(screen.getByText("Not used by any agent yet")).toBeVisible();
 });

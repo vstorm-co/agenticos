@@ -37,9 +37,32 @@ export function Providers({ children }: ProvidersProps) {
       <ThemeProvider>
         <MotionProvider>
           <TooltipProvider>{children}</TooltipProvider>
-          {/* The bottom offset only moves `toastDone`'s bottom-center toasts, clear of
-              the canvas's multi-select and live-run bars (bottom-4, ~3rem tall). */}
-          <Toaster richColors position="top-right" offset={{ bottom: "5rem" }} />
+          <Toaster
+            className="console-toasts"
+            position="top-right"
+            gap={8}
+            offset={{
+              top: "calc(var(--shell-inset-top, 0px) + 1rem)",
+              right: "1rem",
+              bottom: "5rem",
+            }}
+            mobileOffset={{
+              top: "calc(var(--shell-inset-top, 0px) + 1rem)",
+              left: "1rem",
+              right: "1rem",
+              bottom: "5rem",
+            }}
+            toastOptions={{
+              style: {
+                borderRadius: "0.875rem",
+              },
+              classNames: {
+                success: "[&_[data-icon]]:text-success",
+                error: "[&_[data-icon]]:text-destructive",
+                warning: "[&_[data-icon]]:text-warning",
+              },
+            }}
+          />
         </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>

@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
+from pydantic import BaseModel, Field, ValidationError
+
 from app.agents.browser_sign_ins import (
     SignIn,
     bounded_storage,
@@ -44,6 +46,7 @@ from app.agents.capabilities.browser_use._elements import (
 )
 from app.agents.capabilities.browser_use._endpoint import (
     EndpointError,
+    check_navigation,
     domain_allowed,
     egress_refused,
     pin_host,
@@ -97,7 +100,35 @@ FRAME_QUALITY = 80
 whole point of the view; 80 keeps it legible for some more bytes a frame.
 """
 
-_SETTLE_MS = 400
+# A short DOM quiet window covers menus and hydration without sleeping after
+# every keystroke. Continuous mutations are bounded; readiness is not inferred
+# from network-idle (polling applications may never become idle).
+_READY_JS = r"""
+new Promise(resolve => {
+  const started = performance.now();
+  let changed = started;
+  let mutated = false;
+  const relevant = node => {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!element) return false;
+    const root = document.querySelector('main, [role="main"], article');
+    if (root && !root.contains(element) && !element.contains(root) && !element.closest('dialog, [role="dialog"], [role="menu"]')) return false;
+    const bounds = element.getBoundingClientRect();
+    return bounds.width > 0 && bounds.height > 0 && bounds.bottom >= 0 && bounds.top < innerHeight;
+  };
+  const observer = new MutationObserver(records => {
+    if (records.some(record => relevant(record.target))) { changed = performance.now(); mutated = true; }
+  });
+  observer.observe(document, {subtree: true, childList: true, characterData: true,
+    attributes: true, attributeFilter: ['aria-busy', 'aria-expanded', 'disabled', 'hidden', 'checked', 'selected']});
+  const finish = value => { observer.disconnect(); clearInterval(poll); clearTimeout(limit); resolve(value); };
+  const poll = setInterval(() => {
+    const content = location.href === 'about:blank' || (document.body && (document.body.innerText.trim() || document.body.querySelector('input, button, textarea, select, iframe, canvas, svg, img')));
+    if (document.readyState !== 'loading' && ((content && performance.now() - changed >= 80 && (mutated || performance.now() - started >= 400)) || performance.now() - started >= 1500)) finish(true);
+  }, 20);
+  const limit = setTimeout(() => finish(false), 5000);
+})
+"""
 _VIEWPORT_RATIO = 0.75
 """Viewport height as a fraction of its width - a 4:3 window, not a phone.
 
@@ -624,6 +655,16 @@ class StaleElement(RuntimeError):
     """
 
 
+class _HistoryEntry(BaseModel):
+    id: int
+    url: str
+
+
+class _History(BaseModel):
+    current_index: int = Field(alias="currentIndex")
+    entries: list[_HistoryEntry]
+
+
 class CdpPage:
     """A page driven over CDP, implementing the loop's `PageSession`.
 
@@ -633,6 +674,8 @@ class CdpPage:
     re-rendered between the snapshot and the click has renumbered everything, and
     clicking "element 7" after that is clicking whatever moved into seventh place.
     """
+
+    native_id: str | None = None
 
     def __init__(
         self, client: Any, session_id: str, policy: PagePolicy, *, context_id: str = ""
@@ -647,6 +690,7 @@ class CdpPage:
         self._width = policy.preview_width
         self._height = round(policy.preview_width * _VIEWPORT_RATIO)
         self._scale = 1
+        self._streaming = False
 
     async def _evaluate(  # pragma: no cover - needs a live browser
         self, expression: str, *, await_promise: bool = False
@@ -688,8 +732,15 @@ class CdpPage:
                     f"The browser stopped answering after {_COMMAND_TIMEOUT:.0f}s."
                 ) from exc
             except RuntimeError as exc:
-                if _CONTEXT_GONE not in str(exc) or attempt == _EVAL_ATTEMPTS - 1:
+                if not any(
+                    message in str(exc)
+                    for message in (_CONTEXT_GONE, "Inspected target navigated or closed")
+                ):
                     raise
+                if attempt == _EVAL_ATTEMPTS - 1:
+                    raise EndpointError(
+                        "The browser page was replaced or closed before it could be read."
+                    ) from exc
                 await asyncio.sleep(_EVAL_BACKOFF)
                 continue
             thrown = answer.get("exceptionDetails")
@@ -719,6 +770,7 @@ class CdpPage:
         }
         result = await self._evaluate(script)
         snapshot = parse_snapshot(result.get("value"), self._policy.candidate_cap)
+        check_navigation(snapshot.url)
         if not domain_allowed(snapshot.url, self._policy.allowed_domains):
             raise DomainRefused(
                 f"The browser navigated to {snapshot.url}, which this agent's "
@@ -884,42 +936,109 @@ class CdpPage:
         """
         if not domain_allowed(url, self._policy.allowed_domains):
             raise StaleElement(f"{url} is outside the addresses this agent may open.")
+        document = await self._document()
+        result = await self._client.send.Page.navigate(
+            params={"url": url}, session_id=self._session
+        )
+        if result.get("errorText"):
+            raise EndpointError("The browser could not load that address.")
+        await self._ready_after(document if result.get("loaderId") else None)
+
+    async def _document(self) -> str:
+        value = (await self._evaluate("String(performance.timeOrigin)")).get("value")
+        if not isinstance(value, str):
+            raise EndpointError("The browser did not identify its current document.")
+        return value
+
+    async def _ready_after(self, document: str | None) -> None:
+        if document is not None:
+            for _ in range(_READY_ATTEMPTS):
+                if await self._document() != document:
+                    break
+                await asyncio.sleep(_EVAL_BACKOFF)
+            else:
+                raise EndpointError("The browser did not finish navigating to a new document.")
+        await self.settle()
+
+    async def _history(self, offset: int) -> None:
+        try:
+            history = _History.model_validate(
+                await self._client.send.Page.getNavigationHistory(session_id=self._session)
+            )
+        except ValidationError as exc:
+            raise EndpointError("The browser returned invalid navigation history.") from exc
+        index = history.current_index + offset
+        entries = history.entries
+        if not 0 <= index < len(entries):
+            return
+        entry = entries[index]
+        if not domain_allowed(entry.url, self._policy.allowed_domains):
+            raise StaleElement("That history entry is outside the agent's allowed domains.")
+        document = await self._document()
         here = (await self._evaluate("location.href")).get("value")
-        await self._client.send.Page.navigate(params={"url": url}, session_id=self._session)
-        await self.settle(leaving=str(here or ""))
-
-    async def back(self) -> None:  # pragma: no cover - needs a live browser
-        """Return to the previous page in this tab's history."""
-        here = (await self._evaluate("location.href")).get("value")
-        await self._evaluate("history.back()")
-        await self.settle(leaving=str(here or ""))
-
-    async def settle(  # pragma: no cover - needs a live browser
-        self, *, leaving: str | None = None
-    ) -> None:
-        """Wait for whatever the last action started, then for the page to be ready.
-
-        Two halves, because the last action may or may not have navigated. The
-        pause gives a click that only changed the DOM time to finish; the
-        readiness poll is what covers a click that replaced the page, where the
-        context the pause ran in no longer exists.
-
-        Args:
-            leaving: A URL the page must no longer be on before this counts as
-                settled. Without it the poll is satisfied by the document it
-                started from - `about:blank` reports `readyState: "complete"`
-                the instant it is asked - so the first snapshot of a browse
-                could be taken before the navigation had replaced anything. With
-                an allowlist that blank snapshot is refused outright; without one
-                the model is asked to act on an empty page.
-        """
-        await self._evaluate(f"new Promise(r => setTimeout(r, {_SETTLE_MS}))", await_promise=True)
+        await self._client.send.Page.navigateToHistoryEntry(
+            params={"entryId": entry.id}, session_id=self._session
+        )
+        # History can move within the same document, including entries sharing
+        # a URL. Readiness then covers the history event rather than a new loader.
         for _ in range(_READY_ATTEMPTS):
-            here = (await self._evaluate("location.href")).get("value")
-            state = (await self._evaluate("document.readyState")).get("value")
-            if (leaving is None or here != leaving) and state in {"interactive", "complete"}:
-                return
+            if (
+                await self._document() != document
+                or (await self._evaluate("location.href")).get("value") != here
+            ):
+                break
+            if entry.url == here:
+                break
             await asyncio.sleep(_EVAL_BACKOFF)
+        else:
+            raise EndpointError("The browser did not finish moving through history.")
+        await self.settle()
+
+    async def back(self) -> None:
+        """Return to the previous permitted history entry, if one exists."""
+        await self._history(-1)
+
+    async def forward(self) -> None:
+        """Move to the next permitted history entry, if one exists."""
+        await self._history(1)
+
+    async def reload(self) -> None:
+        """Reload this page and wait for its new document, even at the same URL."""
+        here = (await self._evaluate("location.href")).get("value")
+        if not isinstance(here, str) or not domain_allowed(here, self._policy.allowed_domains):
+            raise StaleElement("This page is outside the agent's allowed domains.")
+        document = await self._document()
+        await self._client.send.Page.reload(session_id=self._session)
+        await self._ready_after(document)
+
+    async def settle(self) -> None:
+        """Wait for document readiness and bounded DOM stability.
+
+        Explicit navigation separately tracks document identity, so reloading
+        the same URL does not exhaust a URL-change timeout.
+        """
+        if (await self._evaluate(_READY_JS, await_promise=True)).get("value") is not True:
+            raise EndpointError("The browser document is still loading.")
+
+    @property
+    def streaming(self) -> bool:
+        return self._streaming
+
+    async def location(self) -> tuple[str, str]:
+        """Read navigation metadata without collecting the DOM or taking a screenshot."""
+        result = (await self._evaluate("({url: location.href, title: document.title})")).get(
+            "value"
+        )
+        if (
+            not isinstance(result, dict)
+            or not isinstance(result.get("url"), str)
+            or not isinstance(result.get("title"), str)
+        ):
+            raise EndpointError("The browser did not describe its current location.")
+        url, title = result["url"], result["title"]
+        if not domain_allowed(url, self._policy.allowed_domains):
+            raise DomainRefused("This page is outside the agent's allowed domains.")
+        return url, title
 
     async def screenshot(self) -> str | None:  # pragma: no cover - needs a live browser
         """The viewport as a JPEG `data:` URL, or `None` when the browser sent none.
@@ -982,6 +1101,7 @@ class CdpPage:
                     await deliver(f"data:image/jpeg;base64,{frame['data']}")
                     await asyncio.sleep(STREAM_GAP)
             except (RuntimeError, ConnectionError, OSError) as stopped:
+                self._streaming = False
                 logger.debug("browser stream stopped: %s", stopped)
 
         self._client.register.Page.screencastFrame(on_frame)
@@ -990,10 +1110,12 @@ class CdpPage:
             session_id=self._session,
         )
         task = asyncio.create_task(pump())
+        self._streaming = True
         try:
             yield
         finally:
             streaming = False
+            self._streaming = False
             task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
@@ -1374,10 +1496,7 @@ async def open_page(  # pragma: no cover - needs a live browser
                 params={"source": restore_script(list(sign_ins))}, session_id=session
             )
         page = CdpPage(client, session, policy, context_id=context_id or "")
-        await client.send.Page.navigate(params={"url": start_url}, session_id=session)
-        # `leaving` is what makes this a wait rather than a formality: the tab is
-        # on `about:blank`, which is ready the instant it is asked.
-        await page.settle(leaving="about:blank")
+        await page.navigate(start_url)
         yield page
     finally:
         if target is not None:

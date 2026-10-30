@@ -1,11 +1,11 @@
-import { RatingValue, type ChatMessageFile, type UserRating } from "./chat";
+import { RatingValue, type ChatMessageFile, type ConversationCost, type UserRating } from "./chat";
 import type { RatingsByDay } from "./stats";
 
 /**
  * An agent that answered in a conversation.
  *
  * A list, never one: the picker can be changed mid-thread, so a conversation
- * can have been had with several agents in turn.
+ * can have been had with several agents in turn. Listings order them by latest use, newest first.
  */
 export interface ConversationAgent {
   id: string;
@@ -141,6 +141,14 @@ export interface ConversationListResponse {
   total: number;
 }
 
+/** `GET /conversations/{id}/messages`: the thread, and what all of it cost. */
+export interface ConversationMessagesResponse {
+  items: ConversationMessage[];
+  total: number;
+  /** What the whole thread cost, summed server-side. Null when nothing was measured. */
+  cost: ConversationCost | null;
+}
+
 export interface ConversationWithMessages extends Conversation {
   messages: ConversationMessage[];
 }
@@ -151,7 +159,7 @@ export interface ConversationWithMessages extends Conversation {
 export interface MessageRating {
   id: string;
   message_id: string;
-  user_id: string;
+  user_id: string | null;
   rating: RatingValue;
   comment: string | null;
   created_at: string;

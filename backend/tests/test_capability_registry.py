@@ -182,6 +182,7 @@ class TestToolDeclarations:
         # for the same reason the delegate below is at its widest.
         "context_files": [
             SimpleNamespace(
+                id=uuid4(),
                 name="glossary",
                 description="What the words mean.",
                 content="SLA: service level agreement.",
@@ -226,6 +227,8 @@ class TestToolDeclarations:
 
     DECLARED_AND_NOT_OFFERED: dict[str, frozenset[str]] = {
         "subagents": frozenset({"answer_subagent"}),
+        # Stored synthetic calls retain their identity; no main model offers them.
+        "follow_ups": frozenset({"suggest_next_steps"}),
         # Pydantic AI contributes `load_capability` to any run carrying a
         # deferred capability, and every skill is one. `skills` declares it
         # because it is the call that opens a skill and therefore the only place
@@ -241,6 +244,9 @@ class TestToolDeclarations:
     declares `answer_subagent` for exactly that reason -
     `app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS` has the whole
     of it, including why agenticos#184 would not empty this table on its own.
+
+    Follow-ups also retains the recorded identity of synthetic next-step calls,
+    while no main model is allowed to offer the tool.
 
     Spelt out here rather than imported from the capability, and subtracted rather
     than skipped. An imported set would make the check below a tautology, and
@@ -1033,6 +1039,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
         "hand_off": {
             "sandbox",
             "browser_use",
+            "computer_use",
             "subagents",
             "background_tools",
             "coding_agent",

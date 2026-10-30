@@ -66,7 +66,7 @@ export default function TablesPage() {
   const router = useRouter();
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -80,6 +80,9 @@ export default function TablesPage() {
       />
 
       <ListCard
+        namedByPage
+        layout="grid"
+        fill
         title={t("catalog")}
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={

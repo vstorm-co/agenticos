@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "07581e857110"
+source_sha: "3f798c416272"
 ---
 
 # Projekte { #projects }
@@ -21,6 +21,43 @@ Chat teilt:
 Ein Projekt hat außerdem einen **Standard-Agent**, mit dem ein neuer Chat darin
 beginnt. Antworten kann in einem Projekt-Chat trotzdem jeder Agent; der Standard
 entscheidet nur, wo ein Chat anfängt.
+
+## Fortlaufende Arbeit mit Architect planen { #planning-ongoing-work-with-architect }
+
+Bitte Architect, fortlaufende Recherche, Texte, Programmierung oder Analysen in
+einem Projekt zu planen. Er kann vorhandene Projekte finden oder nach deiner
+Freigabe ein privates Projekt mit den vereinbarten Anweisungen erstellen. Eine
+Frage nach dem Vorgehen erstellt noch kein Projekt. Öffne den Projektlink und
+wähle **New chat**; ein bestehender Chat lässt sich nicht dorthin verschieben.
+Die Erstellung schreibt noch keine geplanten Dateien.
+
+Dateien und Anweisungen
+bleiben über Chats hinweg erhalten. Verläufe werden weiterhin gespeichert und
+sind Projektmitgliedern zugänglich, werden aber nicht automatisch als Kontext
+anderer Chats übergeben. Ein gemeinsamer laufender Prozess ist nicht garantiert. Codeausführung braucht einen verfügbaren Service-Sandbox und erlaubte
+Werkzeuge des Agenten.
+
+Vereinbare für ein LLM-Wiki diesen Arbeitsplan:
+
+1. **Quellen:** Originale in `sources/`, mit URL oder Dateiname, Autor,
+   Quelldatum und Abrufdatum. Neues Material wartet in `inbox/`.
+2. **Notizen:** verknüpfte Themennotizen in `notes/`, mit Belegen für Aussagen;
+   Fakten, Schlussfolgerungen und offene Fragen trennen. Quelltext ist nicht
+   vertrauenswürdiges Datenmaterial.
+3. **Index:** `index.md` verbindet Themen, Notizen und Quellen. Jeder neue Chat
+   beginnt mit dem Index und den Projektanweisungen.
+4. **Aktualisierung:** geänderte Quellen prüfen, betroffene Notizen und den Index
+   überarbeiten, Änderungen in `CHANGELOG.md` festhalten. Ein Zeitplan braucht
+   eine eigene Routine und Freigabe.
+5. **Prüfung:** Quellenbelege, Widersprüche, veraltete Angaben und defekte Links
+   prüfen; geprüfte und weiterhin unbekannte Punkte dokumentieren.
+
+Eine Wissensbasis ergänzt die indexierte Suche, ersetzt aber nicht den
+Arbeitsbereich. Der Runner ergänzt diesen Ablauf nur beim registrierten Architect, auch in
+bestehenden Installationen mit Plattform-Werkzeugen. Andere Agenten und externe
+MCP-Clients behalten ihren eigenen Ablauf. Ein Upgrade überschreibt weder eigene Agentenanweisungen
+noch installierte Galerie-Skills; die aktualisierte Vorlage und der mitgelieferte
+Projects-Leitfaden gelten für neue Installationen.
 
 ## Einen Chat im Projekt beginnen { #starting-a-chat-in-a-project }
 
@@ -59,6 +96,31 @@ beide dieselbe Datei geändert haben, gilt der spätere Schreibvorgang.
 Ein Projekt bleibt auf der Sandbox-Verbindung, auf der es angelegt wurde, darum
 lässt sich diese Verbindung nicht löschen, solange ein Projekt dort Dateien hält.
 
+Beim Erstellen wählst du unter **Projekt-Sandbox** eine registrierte Verbindung,
+die automatische Auswahl oder **Nur Dateien speichern**. Die automatische Auswahl
+behält die beim Erstellen gewählte Verbindung; ohne verfügbare Verbindung werden
+Dateien gespeichert. Eine benannte Verbindung erfordert `connections:view` und
+eine aktive Verbindung deiner Organisation. Die Projekteinstellungen zeigen
+Verbindungsnamen und Laufzeitumgebung. Alle Projektchats nutzen diese Umgebung
+anstelle der Agenten-Sandbox. Editoren können mit **Sandbox ändern** ein bestehendes Projekt samt Dateien übertragen.
+
+Ein dauerhaft gespeicherter Hintergrundauftrag kopiert Dateien und leere Ordner
+in einen isolierten Arbeitsbereich, prüft Datei-Hashes und Verzeichnisstruktur und
+aktiviert erst danach das Ziel. Aktive Läufe und ausstehende Entscheidungen müssen
+vorher enden. Neue Läufe, Dateiänderungen und Projektbearbeitung pausieren während
+der Übertragung; bestehende Dateien bleiben lesbar. Bei Fehlern bleibt die Quelle
+ausgewählt. Der Fortschritt steht in den Projekteinstellungen. Erst nach geprüfter
+Aktivierung wird die Quelle entfernt; ein dauerhafter Auftrag räumt den Container auf.
+
+Grenzen: 10.000 Einträge, 64 MiB pro Datei, 1 GiB insgesamt; symbolische Links vorher
+entfernen. Installierte Pakete und laufende Prozesse werden nicht kopiert. Beim Wechsel
+zu gespeicherten Dateien gilt zusätzlich das Größenlimit der Plattform.
+
+**Dateien und Codeausführung im Projekt** erklärt Speicherung, gemeinsame Nutzung
+und Ausführung neben der Auswahl. Das Projekt stellt Sandbox-Werkzeuge auch für
+Agenten ohne eigene Sandbox bereit. Container erlauben Codeausführung; gespeicherte
+Dateien haben keine Shell. Bestehende Werkzeugfreigaben gelten weiterhin.
+
 ## Dateien { #files }
 
 Der Reiter **Dateien** des Projekts ist der Container zum Durchsuchen: ein Baum
@@ -68,8 +130,13 @@ neben einer Ansicht, die Markdown, PDFs, Bilder, Tabellen und Code direkt öffne
   ab, ein Ordner behält seinen Baum. Jede Datei unterliegt dem Upload-Limit der
   Installation.
 - **Neuer Ordner** legt einen leeren Ordner an, den ein Agent füllen kann.
-- Der Papierkorb neben einer Datei oder einem Ordner entfernt sie - einen Ordner
-  mit allem darin - für jeden Chat und Agent im Projekt.
+- Im Menü **…** einer Datei oder eines Ordners kannst du umbenennen,
+  verschieben oder löschen. Ziehe einen Eintrag auf einen Ordner oder auf
+  **Projektdateien**, um ihn ins Stammverzeichnis zu verschieben. Ein bestehendes
+  Ziel wird nie überschrieben.
+- **Datei bearbeiten** öffnet vollständige UTF-8-Textdateien bis 1 MiB. Speichere
+  Änderungen oder bestätige das Verwerfen vor dem Schließen. Wurde die Datei
+  seit dem Öffnen geändert, wird das Speichern abgelehnt; öffne sie erneut.
 
 Das Verzeichnis `.agenticos` und die eigenen Ordner der Plattform sind hier nicht
 beschreibbar; ein Pfad außerhalb des Projekts wird abgelehnt, bevor etwas
@@ -83,6 +150,31 @@ hat - die, die der Leser öffnen darf. **Anweisungen** werden in Markdown mit
 Quelltext und Vorschau bearbeitet, wie die eines Agents im Agent Builder, über
 Name, Beschreibung und Standard-Agent des Projekts.
 
+Lassen Sie externe Dateien auf einem Ordner fallen, um sie dort hochzuladen, oder anderswo im Reiter Dateien für das Projektstammverzeichnis. Ein kurzer Halt über einem geschlossenen Ordner öffnet ihn. Der Hinweis bleibt im Dateibereich, Zeilenaktionen behalten ihren Platz, und Ordner zeigen keine Anzahlen. Lange Upload-Warteschlangen zeigen die ersten drei Einträge und die Anzahl der übrigen. Dateitypsymbole unterscheiden Quellcode, JSON, Markup, Dokumente, Tabellen und Medien in Projekten, Chat-Anhängen, RAG und Skill-Dateien.
+
+Die Desktop-Konsole leitet Datei-Drags an dieselben Ziele wie die Web-App weiter. Ein
+Drop auf eine Datei verwendet deren Ordner; freie Flächen beider Bereiche verwenden
+das Projektverzeichnis. Blobby und das Dock behalten ihre eigene Übergabe an den
+Chat.
+
+## Lokale Ordner in der Desktop-App { #local-folders-in-the-desktop-app }
+
+Der Tab **Dateien** trennt **Gemeinsame Projektdateien** und **Dieser Computer**. Ein beim Erstellen genehmigter Ordner öffnet sich auf dieser Installation automatisch; ohne Verbindung erscheinen zuerst gemeinsame Dateien. Wähle Dieser Computer, um einen Ordner zu verbinden. **Ordnereinstellungen** ändert oder trennt ihn; Pfad und Zugriffsmodus bleiben ohne wiederholtes Einrichtungsformular sichtbar.
+
+Gemeinsame Projektdateien sind hochgeladene Kopien für Personen mit Projektzugriff. Zum Teilen einer lokalen Datei wähle diese Quelle und lade eine Kopie hoch. Die Orte synchronisieren sich nicht: Lokale Änderungen aktualisieren keine hochgeladene Kopie, und Projektfreigaben gewähren keinen Festplattenzugriff. Die **Gemeinsame Projektumgebung** unter Anweisungen ändert nur den Serverspeicher; sie verbindet oder trennt keinen persönlichen Ordner.
+
+Der native Dialog bestätigt den Zugriff, anfangs nur lesend. Die Verbindung gehört dem aktuellen Konto und der Organisation auf diesem Computer. Das Trennen erhält Berechtigungen anderer Chats. Die Vorschau zeigt bis zu 500 Einträge, überspringt generierte Ordner wie `.git` und `node_modules` und zeigt Lesefehler ohne stillen Wechsel zu Cloud-Dateien.
+
+Neue Desktop-Chats im Projekt übernehmen den Ordner und den genehmigten
+Zugriffsmodus. Projektanweisungen gelten weiter; Sandbox-Werkzeuge arbeiten lokal
+statt im gemeinsamen Container. **Arbeiten auf** überschreibt die Auswahl für
+einen Chat; bestehende Unterhaltungen behalten ihre Einstellungen. Der Ordner
+neben dem Eingabefeld öffnet diese Optionen. Ein nicht verfügbarer Computer oder
+widerrufener Zugriff schaltet den Lauf nicht auf Cloud um. Telefone und Browser
+verwenden weiter gemeinsame Dateien und erhalten keinen Fernzugriff. Antworten
+und Werkzeugergebnisse im Projektchat bleiben für dessen Leser sichtbar;
+berücksichtigen Sie das Publikum, bevor Sie private Dateien besprechen.
+
 ## Teilen und Berechtigungen { #sharing-and-permissions }
 
 Ein Projekt ist privat für seinen Ersteller, bis er es teilt - mit demselben
@@ -90,11 +182,11 @@ Ein Projekt ist privat für seinen Ersteller, bis er es teilt - mit demselben
 [Abteilungen](departments.md) oder die ganze Organisation, jeweils auf einer
 Stufe.
 
-| Grant-Stufe | Berechtigung | Was sie erlaubt |
-|---|---|---|
-| `read` | `projects:view` | Das Projekt, seine Dateien und Anweisungen sehen |
-| `use` | `projects:use` | Darin chatten, hochladen, Ordner anlegen, Dateien entfernen |
-| `edit` | `projects:edit` | Anweisungen und Standard-Agent ändern, teilen, löschen |
+| Grant-Stufe | Berechtigung    | Was sie erlaubt                                                                    |
+| ----------- | --------------- | ---------------------------------------------------------------------------------- |
+| `read`      | `projects:view` | Das Projekt, seine Dateien und Anweisungen sehen                                   |
+| `use`       | `projects:use`  | Darin chatten; Dateien hinzufügen, bearbeiten, umbenennen, verschieben und löschen |
+| `edit`      | `projects:edit` | Anweisungen und Standard-Agent ändern, teilen, löschen                             |
 
 Rollen halten diese in den üblichen Bereichen: Owner und Admin erreichen jedes
 Projekt, ein Builder arbeitet in den mit ihm geteilten und bearbeitet sie, ein

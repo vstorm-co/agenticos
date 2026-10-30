@@ -54,6 +54,7 @@ export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {
   useAgent,
+  useAgentCeiling,
   useAgents,
   useAgentVersion,
   useAgentVersions,
@@ -178,3 +179,7 @@ export {
 export { useVoiceReadiness } from "./use-voice-readiness";
 export { useRealtimeModels } from "./use-realtime-models";
 export { useVoiceSession, type VoiceSession, type VoiceTarget } from "./use-voice-session";
+
+export { useReleaseUpdate } from "./use-release-update";
+
+export { useCurrentRelease } from "./use-current-release";

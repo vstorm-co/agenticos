@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,6 +34,7 @@ const MODEL_PROFILE = {
 };
 
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const validate = vi.hoisted(() => vi.fn());
 
 const state = {
   permissions: [] as Permission[],
@@ -72,7 +73,7 @@ vi.mock("@/hooks", async () => {
       },
       isLoading: false,
       saveDraft: { mutateAsync: vi.fn(), isPending: false },
-      validate: { mutateAsync: vi.fn() },
+      validate,
       publish: { mutateAsync: vi.fn(), isPending: false },
       rollback: { mutateAsync: vi.fn() },
       setAvatar: { mutateAsync: vi.fn(), isPending: false },
@@ -112,7 +113,7 @@ vi.mock("@/hooks", async () => {
       can: (permission: Permission) => state.permissions.includes(permission),
       isLoaded: state.permissionsLoaded,
     }),
-    useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+    useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
     useRuns: () => ({ runs: [] }),
     useSecretPurposes: () => ({ purposes: [] }),
     useSecrets: () => ({ secrets: [] }),
@@ -139,6 +140,8 @@ vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }))
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
+// The History tab is only somewhere other than Build to start from.
+vi.mock("@/components/agents/version-history", () => ({ VersionHistory: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
   MarkdownEditor: () => null,
   MarkdownModeToggle: () => null,
@@ -162,6 +165,7 @@ async function mount() {
 }
 
 beforeEach(() => {
+  validate.mockResolvedValue({ problems: [], fields: [] });
   state.permissions = [Perm.agentsEdit];
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
@@ -265,5 +269,75 @@ describe("the Builder's model panel", () => {
 
     expect(await screen.findByText(/organization has no models/)).toBeInTheDocument();
     expect(screen.queryByText(/no model yet/)).toBeNull();
+  });
+});
+
+describe("publish refused for having no model", () => {
+  const NO_MODEL = "No model selected - pick one under Build > Model before publishing";
+
+  it("takes its reader from another tab to the Model card", async () => {
+    // Publish marks the missing model on `model_profile_id` (#2483); the card
+    // that sets it is on Build, and the reader may be anywhere else.
+    validate.mockResolvedValue({
+      problems: ["Unknown capability: typo", NO_MODEL],
+      fields: [{ field: "model_profile_id", message: NO_MODEL }],
+    });
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
+    await mount();
+    await act(async () => {
+      fireEvent.mouseDown(screen.getByRole("tab", { name: /History/ }));
+    });
+    expect(screen.getByRole("tab", { name: /History/ })).toHaveAttribute("aria-selected", "true");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    });
+    const link = await screen.findByRole("button", { name: "Go to Model" });
+    // One link, beside the line about the model rather than the other one.
+    expect(screen.getAllByRole("button", { name: "Go to Model" })).toHaveLength(1);
+    expect(link.closest("li")).toHaveTextContent(NO_MODEL);
+
+    await act(async () => {
+      fireEvent.click(link);
+    });
+
+    expect(screen.getByRole("tab", { name: /Build/ })).toHaveAttribute("aria-selected", "true");
+    expect(scrolled).toHaveBeenCalled();
+    expect(scrolled.mock.contexts.at(-1)).toHaveAttribute("data-tour", "agent-model");
+    scrolled.mockRestore();
+  });
+
+  it("scrolls to the Model card when the reader is already on Build", async () => {
+    validate.mockResolvedValue({
+      problems: [NO_MODEL],
+      fields: [{ field: "model_profile_id", message: NO_MODEL }],
+    });
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+    state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
+    await mount();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Go to Model" }));
+    });
+
+    expect(scrolled.mock.contexts.at(-1)).toHaveAttribute("data-tour", "agent-model");
+    scrolled.mockRestore();
+  });
+
+  it("offers no link for a problem that is not the missing model", async () => {
+    validate.mockResolvedValue({ problems: ["Unknown capability: typo"], fields: [] });
+    state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
+    await mount();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    });
+
+    expect(await screen.findByText("Unknown capability: typo")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Go to Model" })).toBeNull();
   });
 });

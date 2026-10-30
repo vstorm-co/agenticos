@@ -1,5 +1,5 @@
 ---
-source_sha: "1174126e55b2"
+source_sha: "681f55f35546"
 ---
 
 # Konfiguracja { #configuration }
@@ -58,6 +58,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Ile dokumentów jeden worker parsuje naraz na potrzeby [usług ML](ml-services.md). Limit tempa liczy starty i nie widzi tego, co wciąż trwa, więc bez tego minutowy przydział wywołań OCR to tyle samo rozpoznawań w locie. Powyżej tej liczby wywołujący dostaje odmowę z `Retry-After`, a nie miejsce w kolejce |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — dokładnie ten kształt problemu, dla którego istnieje `MEM0_ALLOWED_HOSTS`, i powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
+| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent z [obsługą komputera](reference/capabilities.md#computer-use) może prowadzić pulpit `computerd`. `daemon_url` jest w specu agenta, a run wysyła token daemona pod adres, który on wskazuje, więc to ta sama lista dozwolonych co `BROWSER_CDP_ALLOWED_HOSTS`: dokładne dopasowanie bez rozróżniania wielkości liter, bez globów. Sprawdzana przy publikacji i ponownie za każdym razem, gdy run otwiera daemona, więc usunięcie hosta zatrzymuje agentów już opublikowanych. Token nie jest ustawieniem: należy do organizacji i leży w jej vaulcie, więc każda organizacja może wskazać dozwolony host, a wejdzie tylko ta, która ma token tego pulpitu. Pusta odmawia backendu daemon; pulpit w sandboksie agenta nie potrzebuje wpisu |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
 | `VISUAL_RENDER_CDP_URL` | `""` (puste) | Przeglądarka, którą [wizual](reference/capabilities.md#visuals) jest rysowany do obrazka tam, gdzie nie działa ramka - w odpowiedzi na Slacku, Telegramie czy Mattermoście i w miniaturze strony na dashboardzie. Serwis `browser` z compose to `http://browser:9222`; jego host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Rysunek niczego stamtąd nie osiąga: każde jego żądanie obsługuje wdrożenie albo je odrzuca. Puste wysyła do aplikacji czatu odpowiedź bez obrazka |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose ustawia `http://browser-egress:3128` | Proxy, przez które przeglądarka wdrożenia łączy się z każdą stroną. Usługa `browser-egress` z compose to `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): sama rozwiązuje każdy host, odrzuca adresy prywatne, loopback, link-local i metadanych i łączy się z adresem, który sprawdziła, więc ani przekierowanie, ani DNS rebinding nie wprowadzi strony do wnętrza sieci. Używane przez każde przeglądanie bez proxy organizacji i nie na przeglądarce hostowanej. Wewnętrzne narzędzie, które agent ma przeglądać, wymaga wyjątku w `docker/browser-egress/squid.conf`. Puste wypuszcza przeglądarkę bezpośrednio: ustaw `BROWSER_EGRESS_PROXY=` w głównym `.env` tylko dla przeglądarki spoza compose, która nie dosięgnie proxy. Bez proxy każda strona jest sprawdzana przy pierwszym żądaniu w karcie, a potem przeglądarka sama rozwiązuje jej nazwę, więc nazwa, która później w tej samej karcie wskaże adres prywatny, nie zostanie wychwycona |
@@ -77,6 +78,12 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Limit na plik dla sparsowanego tekstu wklejanego do promptu bez workspace'u |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Zbiorczy limit tekstu załączników w jednej turze |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
+
+Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
+
+Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Ustaw `browser_use.cdp_url` agenta na `http://browser:9222` i opublikuj jego szkic. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+
+Renderer nie publikuje portu i nie ma dostępu do internetu, obsługuje API i worker oraz ma limit 1 CPU i 1 GiB RAM. Publikowane obrazy backendu zawierają dodatek `browser`; własny obraz wymaga `EXTRAS="--extra browser"`. Jeżeli renderowanie zawiedzie, odpowiedź na kanale wyraźnie informuje, że nie udało się dołączyć grafiki. Każde renderowanie dopuszcza najwyżej 256 żądań i 32 oczekujące odpowiedzi; kafelki map podlegają też wspólnemu limitowi `RATE_LIMIT_MAP_TILES_PER_MINUTE`.
 
 ### Rozmiar żądania, a nie rozmiar pliku { #the-size-of-a-request-as-opposed-to-the-size-of-a-file }
 
@@ -957,10 +964,11 @@ sieci, a nie tutaj.
 
 ### O jakie środowiska agent może poprosić { #which-environments-an-agent-may-ask-for }
 
-Dostarczany jest jeden runtime — `workbench` (1,93 GB): Python 3.12, Node 24,
+Dostarczane są dwa runtime'y. `workbench` (1,93 GB) ma Pythona 3.12, Node 24,
 LibreOffice i biblioteki, których agent potrzebuje, żeby czytać, zapisywać,
-konwertować i wykreślać pliki, o których jest rozmowa, w tym liteparse z OCR. Jest
-zdefiniowany w `backend/app/core/catalog/sandbox_runtimes.json`. Dodanie kolejnego
+konwertować i wykreślać pliki, o których jest rozmowa, w tym liteparse z OCR.
+`desktop` to pulpit Linux, XFCE i Firefox, do obsługi komputera. Oba są
+zdefiniowane w `backend/app/core/catalog/sandbox_runtimes.json`. Dodanie kolejnego
 to edycja tam plus `make sandbox-runtimes`, które wpisuje `SANDBOXD_RUNTIMES` do
 wszystkich trzech plików compose; ta zmienna jest jedynym kanałem, którym usługa
 przyjmuje runtime'y, a `PUT /policy` celowo odrzuca zmianę składu tej listy.

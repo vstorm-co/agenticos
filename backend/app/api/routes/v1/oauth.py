@@ -34,6 +34,7 @@ from app.core.oauth import (
 )
 from app.core.security import create_access_token, create_refresh_token
 from app.schemas.token import OAuthExchangeRequest, Token
+from app.services.oauth_exchange import native_code_challenge
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ def _remember_client(
     request: Request, state: str, *, client: str | None, nonce: str | None
 ) -> None:
     """Record that this attempt was started by the desktop shell, and by which one."""
+    native_code_challenge(client, nonce)
     pending = dict(request.session.get(_CLIENT_KEY) or {})
     if client == _DESKTOP:
         pending[state] = {"client": _DESKTOP, "nonce": nonce or ""}
@@ -245,7 +247,14 @@ async def provider_callback(
         # A single-use code, not the tokens: a token in the redirect URL reaches
         # the address bar, the server access log, and the `Referer` of the next
         # same-origin request, and the refresh token is good for a week (#14).
-        code = await exchange_service.issue(access_token=access_token, refresh_token=refresh_token)
+        started = (request.session.get(_CLIENT_KEY) or {}).get(
+            request.query_params.get("state") or "", {}
+        )
+        code = await exchange_service.issue(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            code_challenge=native_code_challenge(started.get("client"), started.get("nonce")),
+        )
         await session_service.create_session(
             user_id=user.id,
             refresh_token=refresh_token,
@@ -274,7 +283,7 @@ async def provider_callback(
 @router.post("/exchange", response_model=Token)
 async def exchange_code(body: OAuthExchangeRequest, exchange_service: OAuthExchangeSvc) -> Any:
     """Swap a single-use OAuth code for its token pair, server to server."""
-    tokens = await exchange_service.redeem(body.code)
+    tokens = await exchange_service.redeem(body.code, code_verifier=body.code_verifier)
     if tokens is None:
         raise AuthenticationError(message="Invalid or expired exchange code")
     access_token, refresh_token = tokens

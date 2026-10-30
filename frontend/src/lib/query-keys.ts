@@ -14,6 +14,10 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  releases: {
+    latest: () => ["releases", "latest"] as const,
+    current: (version: string) => ["releases", "notes", version] as const,
+  },
   // The same document for everybody and every organization: it changes on a
   // redeploy, not while somebody reads it.
   publicApi: {
@@ -80,6 +84,11 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
+    // The agent limit and the count against it - its own key, not a list
+    // page's, so a filter change cannot unset it; under "agents" so whatever
+    // moves the list refreshes it.
+    ceiling: () => ["agents", "ceiling"] as const,
+    create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
@@ -239,7 +248,10 @@ export const qk = {
     // What one provider offers, for the model field's suggestions. Keyed per
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
-    models: (providerId: string) => ["providers", providerId, "models"] as const,
+    models: (providerId: string, baseUrl?: string) =>
+      baseUrl
+        ? (["providers", providerId, "models", baseUrl] as const)
+        : (["providers", providerId, "models"] as const),
     // Which providers can draw an image and what each may be asked to draw with.
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
@@ -499,6 +511,8 @@ export const qk = {
     syncSources: (id: string) => ["kb", id, "sync-sources"] as const,
     orgIntegrations: (id: string) => ["kb", id, "org-integrations"] as const,
     connectors: (id: string) => ["kb", id, "connectors"] as const,
+    // Whether the KB's documents are still indexing, from `/kb/{id}/ingestion`.
+    ingestion: (id: string) => ["kb", id, "ingestion"] as const,
     // One document's stored file, as the viewer reads it. Text and bytes keyed
     // apart because they are two different bodies for one download route, and a
     // viewer showing a PDF must not be handed a cached string for it.
@@ -708,6 +722,28 @@ export const qk = {
       ["admin", "background-jobs", "activity", window] as const,
     backgroundJobList: (filters: { status?: string; pool?: string }) =>
       ["admin", "background-jobs", "list", filters] as const,
+  },
+  mobile: {
+    settings: () => ["mobile", "settings"] as const,
+    push: (userId?: string, tenant?: string | null) => ["mobile", "push", userId, tenant] as const,
+    pushPreferences: (userId?: string, tenant?: string | null) =>
+      ["mobile", "push-preferences", userId, tenant] as const,
+  },
+  desktop: {
+    focus: () => ["desktop", "focus"] as const,
+    readiness: () => ["desktop", "readiness"] as const,
+    // What the desktop app holds for this person - blobby, the shortcuts, the
+    // window - read over IPC rather than HTTP, but the same kind of answer: a
+    // page reads it, a change writes it back and invalidates it.
+    state: () => ["desktop", "state"] as const,
+    /** This computer's own connection, which the shell reports and pushes. */
+    device: () => ["desktop", "device"] as const,
+    local: () => ["desktop", "local"] as const,
+    services: () => ["desktop", "services"] as const,
+    localFiles: (root: string) => ["desktop", "local", "files", root] as const,
+    localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,
+    /** The inbox's newest page as the desktop bridge reads it, once per unread count. */
+    inbox: (unread: number) => ["desktop", "inbox", unread] as const,
   },
   branding: {
     // The announcement banner. Not the public branding read - that one is

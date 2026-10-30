@@ -10,11 +10,14 @@ import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
+import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useCapabilityGuide } from "./use-capability-guide";
 import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
+  AgentCeiling,
   AgentDetail,
   AgentList,
   AgentSpec,
@@ -65,6 +68,35 @@ async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<A
   return { ...first, items };
 }
 
+/** The ceiling has its own route, so paging through the list never recounts it. */
+function fetchAgentCeiling(): Promise<AgentCeiling> {
+  return apiClient.get<AgentCeiling>("/agents/ceiling");
+}
+
+/**
+ * The organization's agent limit and whether it is reached, or null until read.
+ *
+ * `known` is false until the server has answered: an unknown ceiling is not
+ * "below the limit", so a create control waits for it. A failed read counts as
+ * known - the server still refuses past the limit - and so does a disabled one:
+ * the route needs `agents:edit`, so a caller without it is never asked and has
+ * no create to wait on. Kept fresher than the list, because another member's
+ * archive or an administrator's new limit reaches this caller through no event
+ * of theirs.
+ */
+export function useAgentCeiling({ enabled = true }: { enabled?: boolean } = {}) {
+  const { data, isSuccess, isError } = useQuery({
+    queryKey: qk.agents.ceiling(),
+    queryFn: fetchAgentCeiling,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    enabled,
+  });
+  // A failed refresh retains cached data, but an old refusal must not disable
+  // creation indefinitely. The server still enforces the actual ceiling.
+  return { ceiling: isError ? null : (data ?? null), known: !enabled || isSuccess || isError };
+}
+
 export function useAgents({
   includeArchived = false,
   enabled = true,
@@ -88,7 +120,14 @@ export function useAgents({
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
-    queryFn: () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags)),
+    queryFn: () => {
+      const ask = () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags));
+      // The unfiltered list - the chat's picker, an agent's name and face
+      // beside its answers - is kept on the device in the apps (#2097).
+      if (facetCategories.length > 0 || facetTags.length > 0) return ask();
+      return readThrough(includeArchived ? "agents:all" : "agents:active", ask);
+    },
+    networkMode: "offlineFirst",
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
@@ -96,6 +135,11 @@ export function useAgents({
 
   const invalidate = useCallback(
     () => queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+    [queryClient],
+  );
+  // A refused create may be the limit the cached ceiling did not know about yet.
+  const recount = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: qk.agents.ceiling() }),
     [queryClient],
   );
 
@@ -106,6 +150,7 @@ export function useAgents({
   // here would put the same message somewhere it cannot be acted on, and then
   // take it away again.
   const create = useMutation({
+    mutationKey: qk.agents.create(),
     // Visibility is not part of the spec and never has been: a spec is what the
     // agent *is*, and who can find it is a fact about the row - the same reason
     // its avatar and its colour live beside the spec rather than in it.
@@ -136,9 +181,33 @@ export function useAgents({
         tags,
         from_starter,
       }),
-    onSuccess: async (agent) => {
+    onMutate: () => {
+      const flow = useOnboardingStore.getState();
+      // Choices are reset for each flow. Their identity keeps a late create
+      // from attaching to a walk reopened while the request was in flight.
+      return flow.isOpen && flow.flowId === "create-agent" && flow.index === 0
+        ? flow.choices
+        : null;
+    },
+    onSuccess: async (agent, _variables, guidedFlow) => {
+      const flow = useOnboardingStore.getState();
+      if (
+        guidedFlow === flow.choices &&
+        flow.isOpen &&
+        flow.flowId === "create-agent" &&
+        flow.index === 0 &&
+        flow.flowAgentId === null
+      ) {
+        // Refreshing the ceiling may fill its last slot. Record our success
+        // first so the coach does not mistake it for another person's create.
+        flow.setFlowAgentId(agent.id);
+      }
       await invalidate();
       toast.success(t("created", { name: agent.name }));
+    },
+    // Not awaited: the dialog shows the refusal now, not after the recount.
+    onError: () => {
+      void recount();
     },
   });
 
@@ -155,7 +224,10 @@ export function useAgents({
       await invalidate();
       toast.success(t("createdDraft", { name: agent.name }));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      void recount();
+      toast.error(getErrorMessage(error, tErrors));
+    },
   });
 
   /**
@@ -175,6 +247,10 @@ export function useAgents({
       }),
     onSuccess: async () => {
       await invalidate();
+    },
+    // A promotion is a create, refused at the limit like any other.
+    onError: () => {
+      void recount();
     },
   });
 
@@ -197,7 +273,10 @@ export function useAgents({
           : t("backAsDraft", { name: agent.name }),
       );
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      void recount();
+      toast.error(getErrorMessage(error, tErrors));
+    },
   });
 
   const remove = useMutation({

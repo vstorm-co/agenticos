@@ -43,6 +43,7 @@ from app.db.models.artifact import Artifact
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
+from app.db.models.credential import ModelProfile
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.group import Group, GroupMember
@@ -55,6 +56,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
+from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
 from app.db.models.table_view import TableView
@@ -93,13 +95,16 @@ from app.schemas.mcp_connection import (
     PortalPollIntervalUpdate,
 )
 from app.schemas.memory import MemoryNoteUpdate
+from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
+from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.secret import SecretUpdate
+from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.table_view import TableViewUpdate
@@ -131,6 +136,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     ArtifactAutoConsentUpdate: Artifact,
     # Sets `owner_user_id` from `user_id` (`artifact_ownership.change_owner`).
     ArtifactOwnerUpdate: Artifact,
+    ApnsKeyUpdate: DeploymentSettings,
     ArtifactPublicLinkUpdate: Artifact,
     # The organization's assistant row; the agent itself is edited in the Builder.
     AssistantUpdate: OrganizationAssistant,
@@ -149,6 +155,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     LocalServiceUpdate: LocalService,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
+    ModelProfileUpdate: ModelProfile,
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,
     OrganizationMemberUpdate: OrganizationMember,
@@ -156,10 +163,15 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
     RecordUpdate: None,
+    # Both patch keys within Session.push_preferences JSONB, not columns by name.
+    PushFocusUpdate: None,
+    PushPreferencesUpdate: None,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SchemaUpdate: None,
     SecretUpdate: OrganizationSecret,
+    # The caller's own session row, labelled with the app it runs in (#2305).
+    SessionAppUpdate: Session,
     SkillResourceUpdate: SkillResource,
     SkillUpdate: Skill,
     SyncSourceUpdate: SyncSource,
@@ -262,6 +274,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "NotificationPreferenceUpdate",
             "RecordUpdate",
             "SchemaUpdate",
+            "PushFocusUpdate",
+            "PushPreferencesUpdate",
             "VisibilityUpdate",
             "WorkflowDraftUpdate",
             "WorkflowActiveUpdate",

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight, ShieldAlert } from "lucide-react";
+import { ChevronRight, ShieldAlert, SlidersHorizontal, Wrench } from "lucide-react";
 
 import { CODING_AGENT_ID, capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
@@ -322,6 +322,7 @@ export function CapabilityDetail({
 
       {definition.config_schema && !hideConfigForm && (
         <SchemaForm
+          hiddenFields={binding.id === "context" ? ["file_settings"] : undefined}
           idPrefix={binding.id}
           schema={definition.config_schema}
           value={binding.config}
@@ -344,6 +345,7 @@ export function CapabilityDetail({
             optional={!secretIsRequired(definition.requires_secret, keyed.config)}
             onChange={onChange}
             disabled={disabled}
+            schema={definition.config_schema}
           />
         )}
 
@@ -442,8 +444,16 @@ export function CapabilityDetail({
         <Tabs defaultValue={resources ? "resources" : "settings"}>
           <TabsList>
             {resources && <TabsTrigger value="resources">{resources.label}</TabsTrigger>}
-            <TabsTrigger value="settings">{t("capabilitySettingsTab")}</TabsTrigger>
-            {tools && <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>}
+            <TabsTrigger value="settings">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              {t("capabilitySettingsTab")}
+            </TabsTrigger>
+            {tools && (
+              <TabsTrigger value="tools">
+                <Wrench className="h-4 w-4" aria-hidden />
+                {t("capabilityToolsTab")}
+              </TabsTrigger>
+            )}
           </TabsList>
           {resources && (
             <TabsContent value="resources" className="mt-4">
@@ -531,15 +541,18 @@ interface SecretFieldProps {
   optional: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
+  /** The capability's config schema, for the defaults a binding does not store. */
+  schema: JsonSchema | null;
 }
 
 /**
  * What the key chosen here would be for - "tavily", "mem0" - or null when
  * nothing says.
  *
- * It is the same answer `InlineSecret` stores under `purpose`, read back. Two
- * sources, in this order, because they answer for different shapes of
- * capability. A capability offering several services gates its key on the choice,
+ * Where `purposesOf` has no mapping to read, it is the one service the slot
+ * narrows to, and what `inlinePurposeOf` stores a new key under. Two sources,
+ * in this order, because they answer for different shapes of capability. A
+ * capability offering several services gates its key on the choice,
  * so the conditional field *is* the service and the binding's own configuration
  * has the answer. A capability with one service needs its key unconditionally, so
  * there is no condition to read and the requirement names the service outright.
@@ -552,6 +565,44 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
   const chosen = field === undefined ? undefined : binding.config[field];
   if (typeof chosen === "string" && chosen !== "") return chosen;
   return requirement.purpose;
+}
+
+/**
+ * Which services a key in this slot may be for, or null when nothing says.
+ *
+ * The same order `SecretRequirement.purposes_for` reads on the server, so the
+ * list offers what publish accepts. A field whose values are not service ids
+ * maps each value to its purposes - the coding agent's harness, where Claude
+ * Code takes an Anthropic key and Codex an OpenAI key or a ChatGPT sign-in
+ * (#2485) - unless the endpoint field named for that value is set, when the key
+ * is the gateway's and any fits. Otherwise it is the one service `purposeOf`
+ * names.
+ */
+function purposesOf(
+  binding: CapabilityBindingSpec,
+  requirement: SecretRequirement,
+  schema: JsonSchema | null,
+): string[] | null {
+  const mapping = requirement.purposes_by;
+  if (mapping) {
+    // With the schema default, as the form shows it and as the server reads
+    // it: a binding only switched on stores no harness at all.
+    const value = String(
+      binding.config[mapping.field] ?? schema?.properties?.[mapping.field]?.default,
+    );
+    const endpoint = mapping.open_when_set[value];
+    if (endpoint !== undefined) {
+      const address =
+        binding.config[endpoint] === undefined
+          ? schema?.properties?.[endpoint]?.default
+          : binding.config[endpoint];
+      if (address) return null;
+    }
+    const mapped = mapping.purposes[value];
+    if (mapped !== undefined) return mapped;
+  }
+  const purpose = purposeOf(binding, requirement);
+  return purpose === null ? null : [purpose];
 }
 
 /**
@@ -568,10 +619,17 @@ function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequiremen
  * a selection vanishing from its own control, on a spec that was saved and is
  * still valid, looks like data loss whatever the reason.
  */
-function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string | null): boolean {
+function fitsPurpose(
+  secret: Secret,
+  purposes: string[] | null,
+  selectedId: string | null,
+): boolean {
   const declared = secret.purpose ?? "custom";
   return (
-    purpose === null || declared === purpose || declared === "custom" || secret.id === selectedId
+    purposes === null ||
+    purposes.includes(declared) ||
+    declared === "custom" ||
+    secret.id === selectedId
   );
 }
 
@@ -598,16 +656,29 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
 /** The picker's "no key" choice; Radix refuses an empty string as an item's value. */
 const NO_SECRET = "__none__";
 
-function SecretField({ binding, requirement, optional, onChange, disabled }: SecretFieldProps) {
+function SecretField({
+  binding,
+  requirement,
+  optional,
+  onChange,
+  disabled,
+  schema,
+}: SecretFieldProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
   const fieldId = `${binding.id}-secret`;
   const errorId = `${fieldId}-error`;
-  const purpose = purposeOf(binding, requirement);
+  const purposes = purposesOf(binding, requirement, schema);
+  const signIn = signInFor(binding);
+  // This additional refusal belongs to the coding agent alone. Other
+  // capabilities may accept ChatGPT credentials through `also_accepts`.
+  const rejectsChatGPT = binding.id === CODING_AGENT_ID && signIn !== "chatgpt";
   const usable = secrets.filter(
     (secret) =>
-      acceptsKind(requirement, secret.kind) && fitsPurpose(secret, purpose, binding.secret_id),
+      acceptsKind(requirement, secret.kind) &&
+      fitsPurpose(secret, purposes, binding.secret_id) &&
+      (secret.kind !== "openai_codex" || !rejectsChatGPT || secret.id === binding.secret_id),
   );
   const state = vaultState(isLoading, listError, usable.length);
   // Having selected nothing is a fact about the spec, so it is said whatever the
@@ -616,12 +687,19 @@ function SecretField({ binding, requirement, optional, onChange, disabled }: Sec
   // is what a full vault also looks like - a stored secret would otherwise read
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
-  const signIn = signInFor(binding);
+  const selected = secrets.find((secret) => secret.id === binding.secret_id);
+  // Retain the selection so switching harnesses never silently drops a key,
+  // but explain why publish would refuse it at the field that can fix it.
+  const incompatible =
+    selected !== undefined &&
+    (!fitsPurpose(selected, purposes, null) ||
+      (selected.kind === "openai_codex" && rejectsChatGPT));
   const problem =
     optional && binding.secret_id === null
       ? null
       : binding.secret_id === null || vaultWasRead
-        ? secretProblem(requirement, binding.secret_id, secrets, t)
+        ? (secretProblem(requirement, binding.secret_id, secrets, t) ??
+          (incompatible ? t("secretForDifferentService", { name: selected.name }) : null))
         : null;
 
   return (
@@ -697,7 +775,7 @@ function SecretField({ binding, requirement, optional, onChange, disabled }: Sec
           // The chosen method *is* the service the key is for - "tavily",
           // "brave". Recording it is what lets the select above offer only the
           // right keys next time instead of every API key in the vault.
-          purpose={purpose ?? "custom"}
+          purpose={inlinePurposeOf(purposes, signIn)}
           suggestedName={
             signIn === null ? secretNameFor(binding.id) : t("codingAgentKeyName", { signIn })
           }
@@ -769,6 +847,26 @@ const SECRET_HELP: Record<string, string | undefined> = {
 function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | null {
   if (binding.id !== CODING_AGENT_ID) return null;
   return binding.config.harness === "codex" ? "chatgpt" : "claudeToken";
+}
+
+/**
+ * What a key added through the inline form is stored as.
+ *
+ * The one API-key service this slot narrows to: web search's chosen method,
+ * mem0's own service, or Codex's `openai` - its other purpose is the ChatGPT
+ * sign-in, a kind of its own that this form does not make. Stored as `custom`,
+ * a Codex key was offered to Claude Code after a harness switch and published,
+ * to fail at run time (#2485). Claude Code's key stays `custom`: it may be a
+ * Claude subscription token, which stored as `anthropic` would be lent to model
+ * calls. So does a key behind a gateway, which nothing here can name.
+ */
+function inlinePurposeOf(
+  purposes: string[] | null,
+  signIn: "chatgpt" | "claudeToken" | null,
+): string {
+  if (purposes === null || signIn === "claudeToken") return "custom";
+  const [only, ...others] = purposes.filter((purpose) => purpose !== "openai_codex");
+  return only !== undefined && others.length === 0 ? only : "custom";
 }
 
 /** A name somebody would have typed anyway, so the field starts filled in. */

@@ -43,9 +43,16 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.computer_use import (
+    COMPUTER_USE_ID,
+    ComputerUseConfig,
+    validate_daemon_url,
+)
 from app.agents.capabilities.follow_ups import FollowUpsConfig
+from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
+from app.agents.model_resolver import lacks_key
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -68,12 +75,13 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import field_problems, refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import SecretKind
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
+from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill
 from app.repositories import (
     agent_environment_repo,
@@ -97,6 +105,7 @@ from app.repositories import workflow as workflow_repo
 from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
+    AgentCeiling,
     AgentRead,
     AgentTemplateCatalog,
     AgentTemplateRead,
@@ -137,9 +146,18 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.model_profile import (
+    MAX_FALLBACK_DEPTH,
+    choosable_for_others,
+    is_sign_in,
+    sign_in_person,
+    usable_for_agents,
+)
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
+from app.services.sandbox_runtimes import DESKTOP_RUNTIME
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
@@ -179,6 +197,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "tables:read",
         "tables:write",
         "workflows:run",
+        "computer:use",
     }
 )
 
@@ -186,6 +205,13 @@ DEFAULT_GRANTED_SCOPES = frozenset(
 # for the same reason `SANDBOX_CAPABILITY_ID` is: publish validation reads a
 # binding out of a spec, and an id is part of the spec format.
 DELEGATION_CAPABILITY_ID = "subagents"
+
+NO_MODEL = "No model selected - pick one under Build > Model before publishing"
+"""Publish's refusal of a spec with no `model_profile_id`.
+
+Marked on the field as well, so the console can take its reader to the Model
+section rather than leave them to find it (#2483).
+"""
 
 # How many pinned versions the cycle walk will follow before it stops and says
 # so. The visited set already makes the walk terminate on a graph that loops;
@@ -195,6 +221,7 @@ _MAX_DELEGATION_NODES = 200
 
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
+
 # `AgentSpec.name` is bounded, and a copy of a copy grows. Truncating the base
 # rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
@@ -228,6 +255,16 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
         return []
 
     problems: list[str] = []
+    if config.backend == "local":
+        if config.connection_id is not None or config.runtime is not None:
+            problems.append(
+                "A local computer has no sandbox connection or container runtime. Clear both fields."
+            )
+        if config.session_scope != "conversation":
+            problems.append(
+                "Local computer access is personal to a conversation. Choose conversation scope."
+            )
+        return problems
     if config.backend == "state":
         if config.runtime is not None:
             problems.append(
@@ -241,26 +278,18 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             )
         return problems
 
-    connection = None
-    if config.connection_id is not None:
-        connection = await sandbox_connection_repo.get(
-            db, config.connection_id, organization_id=ctx.organization_id
+    connection = await _sandbox_connection(db, ctx, config)
+    if connection is None and config.connection_id is not None:
+        problems.append(
+            "The sandbox connection this agent names does not exist in this "
+            "organization. Pick one that does, or leave it unset to use the default."
         )
-        if connection is None:
-            problems.append(
-                "The sandbox connection this agent names does not exist in this "
-                "organization. Pick one that does, or leave it unset to use the default."
-            )
-    else:
-        # The deployment's own sandbox service, set up here when it runs one and
-        # nobody has opened the Sandboxes page yet - the same row a run would set up.
-        connection = await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
-        if connection is None:
-            problems.append(
-                "This organization has registered no sandbox connection, so an agent "
-                "cannot be given a container-backed workspace. Register one, or use "
-                "the 'state' workspace, which needs nothing."
-            )
+    elif connection is None:
+        problems.append(
+            "This organization has registered no sandbox connection, so an agent "
+            "cannot be given a container-backed workspace. Register one, or use "
+            "the 'state' workspace, which needs nothing."
+        )
 
     if connection is not None and connection.secret_id is None:
         problems.append(
@@ -268,6 +297,19 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
+
+
+async def _sandbox_connection(
+    db: AsyncSession, ctx: AuthContext, config: SandboxConfig
+) -> SandboxConnection | None:
+    """The connection a container-backed workspace would open on, if there is one."""
+    if config.connection_id is not None:
+        return await sandbox_connection_repo.get(
+            db, config.connection_id, organization_id=ctx.organization_id
+        )
+    # The deployment's own sandbox service, set up here when it runs one and
+    # nobody has opened the Sandboxes page yet - the same row a run would set up.
+    return await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
 
 
 def _coding_agent_problems(spec: AgentSpec) -> list[str]:
@@ -281,12 +323,79 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
         return []
     config = sandbox_config(spec)
-    if config is None or config.backend != "service" or not config.include_execute:
+    if config is None or config.backend not in {"service", "local"} or not config.include_execute:
         return [
             "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
             "capability on a sandbox connection with shell commands allowed."
         ]
     return []
+
+
+async def _computer_use_sandbox_problems(
+    db: AsyncSession, ctx: AuthContext, spec: AgentSpec
+) -> list[str]:
+    """A desktop in the sandbox, on an agent with no desktop sandbox to put it in.
+
+    The desktop's clicks and screenshots are commands run in the agent's
+    workspace, the coding agent's arrangement, so it needs a container-backed
+    one. The shell tool is not required: the desktop runs its commands itself.
+    A configuration that does not validate is left to the binding's own check,
+    which names the field.
+
+    And the container has to be the `desktop` runtime, read the way a run reads
+    it: the spec's, else the connection's default. A sandbox where neither names
+    one is refused too, rather than assumed to be on the host's default: the
+    shipped default is `workbench`, which has no display, and a host with an
+    allowlist of its own is not something publish can see. A connection this organization does not
+    have is `_sandbox_problems`'s to name.
+    """
+    desktops: list[str] = []
+    for binding in spec.capabilities:
+        if binding.id == COMPUTER_USE_ID and binding.enabled:
+            try:
+                desktops.append(ComputerUseConfig.model_validate(binding.config).desktop)
+            except ValidationError:
+                continue
+    if "sandbox" not in desktops:
+        return []
+    config = sandbox_config(spec)
+    if config is None or config.backend != "service":
+        return [
+            "Computer use's desktop runs in the agent's sandbox, so it needs the "
+            "Sandbox capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+    connection = await _sandbox_connection(db, ctx, config)
+    if connection is None:
+        return []
+    if connection.kind == "daytona":
+        return [
+            f"Computer use's desktop needs the '{DESKTOP_RUNTIME}' runtime, and the Daytona "
+            f"connection '{connection.name}' runs no runtime of ours. Put the "
+            "sandbox on a sandbox service connection."
+        ]
+    runtime = config.runtime or connection.default_runtime
+    # On E2B the runtime is a template name, and E2B's own desktop template is
+    # called `desktop` too - with the same programs the sandbox desktop drives.
+    if runtime != DESKTOP_RUNTIME:
+        chosen = f"the '{runtime}' runtime" if runtime else "whichever runtime its host defaults to"
+        return [
+            f"Computer use's desktop needs the sandbox's '{DESKTOP_RUNTIME}' runtime, "
+            f"and this agent's sandbox would run on {chosen}. Set the Sandbox "
+            f"capability's runtime to '{DESKTOP_RUNTIME}'."
+        ]
+    return []
+
+
+def _inheriting(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> AgentSpec:
+    """A delegate's spec with the bindings its parent shares and it does not bind.
+
+    What the runtime runs it on (`agent_runner._with_shared`), so a dependency
+    between capabilities is checked against what the delegate will hold, not
+    only against what its own spec says.
+    """
+    own = {binding.id for binding in spec.capabilities}
+    inherited = [binding for binding in shared if binding.id not in own]
+    return spec.model_copy(update={"capabilities": [*spec.capabilities, *inherited]})
 
 
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
@@ -322,6 +431,21 @@ async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> li
     return []
 
 
+def _computer_use_problems(config: BaseModel | None) -> list[str]:
+    """A daemon desktop this deployment's operator has not vetted, or none at all.
+
+    The same exact-match allowlist as the browser's `cdp_url`, against
+    `COMPUTER_DAEMON_ALLOWED_HOSTS`; the sandbox's desktop has no URL to check.
+    """
+    if not isinstance(config, ComputerUseConfig):
+        return []
+    try:
+        validate_daemon_url(config)
+    except ValueError as exc:
+        return [f"Computer use's desktop cannot be used: {exc}."]
+    return []
+
+
 def _variable_problems(spec: AgentSpec) -> _SpecProblems:
     """Variables the instructions cannot fill, and custom ones that cannot be defined (#2065).
 
@@ -329,10 +453,7 @@ def _variable_problems(spec: AgentSpec) -> _SpecProblems:
     `{{custmer_name}}` reaching a customer is the typo nobody sees until then.
     """
     problems = _SpecProblems()
-
-    def refuse(field_name: str, message: str) -> None:
-        problems.messages.append(message)
-        problems.fields.append({"field": field_name, "message": message})
+    refuse = problems.refuse
 
     for name in prompt_variables.unknown_variables(spec):
         refuse("instructions", f"The instructions use {{{{{name}}}}}, which is not a variable")
@@ -442,9 +563,19 @@ class _SpecProblems:
     messages: list[str] = field(default_factory=list)
     fields: list[dict[str, str]] = field(default_factory=list)
 
+    @classmethod
+    def at(cls, field_name: str, message: str) -> _SpecProblems:
+        """One problem with an input to mark, said as a line too."""
+        return cls([message], [{"field": field_name, "message": message}])
+
     def add(self, messages: Sequence[str]) -> None:
-        """Problems with nothing to mark - a broken reference, a missing model."""
+        """Problems with nothing to mark - a broken reference."""
         self.messages.extend(messages)
+
+    def refuse(self, field_name: str, message: str) -> None:
+        """A problem with an input to mark: the line, and the same line on the field."""
+        self.messages.append(message)
+        self.fields.append({"field": field_name, "message": message})
 
     def merge(self, other: _SpecProblems) -> None:
         self.messages.extend(other.messages)
@@ -603,6 +734,107 @@ def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
         return SubagentsConfig.model_validate(binding.config)
     except ValidationError:
         return None
+
+
+@dataclass(frozen=True)
+class _ModelRef:
+    """One place a spec names a model it runs on, as a form addresses it."""
+
+    field: str
+    """The input's path - `model_profile_id`, `reviewers.0.model_profile_id`."""
+    says: str
+    """Who names it, in front of a refusal - empty for the agent's own model."""
+    profile_id: UUID
+    pinned: bool = False
+    """Named inside a pinned delegate's frozen version, which this publisher cannot
+    edit - so the remedy is another pin, not another model."""
+
+
+def _binding_model_refs(bindings: Sequence[CapabilityBindingSpec]) -> list[_ModelRef]:
+    """The models enabled capabilities run their own calls on: a browse's steps, follow-ups.
+
+    Only an enabled binding: the runner resolves neither model for one that is
+    switched off (`_browser_step_profile`, `follow_ups.model_profile`), and the
+    sign-in check refuses only what a run can spend. The field is the config's,
+    addressed the way `_config_problems` addresses one, so the capability's form
+    marks it.
+    """
+    refs: list[_ModelRef] = []
+    for binding in bindings:
+        if not binding.enabled:
+            continue
+        try:
+            config = get_capability(binding.id).validate_config(binding.config)
+        except BadRequestError:
+            # Reported by `_binding_problems`; a config that does not parse
+            # names no model anybody could run.
+            continue
+        if isinstance(config, WebBrowserConfig):
+            name, profile_id = "step_model_profile_id", config.step_model_profile_id
+        elif isinstance(config, FollowUpsConfig):
+            name, profile_id = "model_profile_id", config.model_profile_id
+        else:
+            continue
+        if profile_id is not None:
+            refs.append(
+                _ModelRef(
+                    f"capabilities.{binding.id}.config.{name}",
+                    f"Capability '{binding.id}': ",
+                    profile_id,
+                )
+            )
+    return refs
+
+
+def _model_refs(spec: AgentSpec, *, include_inline: bool = True) -> list[_ModelRef]:
+    """Every model a run of this spec can be handed to, and the input that names it.
+
+    Not `validate_spec`'s walk, on purpose: that one asks whether each named
+    profile *exists* and can run, wherever it is named; this one asks only about
+    the models a run reaches, because it is held to the runtime's spend rule -
+    and it also runs on its own when a version is promoted. So: the agent's
+    model, each reviewer's, the models its enabled capabilities run steps on,
+    and each inline specialist's own model, prefixed the way
+    `_SpecProblems.within_specialist` prefixes a specialist's fields. A
+    specialist's browse and follow-ups capabilities run on no model of their
+    own - the runner hands neither to a delegated run. `include_inline=False`
+    lets the pinned walk judge ordinary models before applying its depth bound
+    separately to inline specialists.
+    """
+    refs: list[_ModelRef] = []
+    if spec.model_profile_id is not None:
+        refs.append(_ModelRef("model_profile_id", "", spec.model_profile_id))
+    for index, reviewer in enumerate(spec.reviewers):
+        if reviewer.model_profile_id is not None:
+            refs.append(
+                _ModelRef(
+                    f"reviewers.{index}.model_profile_id",
+                    f"Reviewer '{reviewer.name}': ",
+                    reviewer.model_profile_id,
+                )
+            )
+    refs.extend(_binding_model_refs(spec.capabilities))
+    config = _subagents_config(spec)
+    for specialist in config.inline if include_inline and config is not None else ():
+        if specialist.model_profile_id is not None:
+            refs.append(
+                _ModelRef(
+                    f"specialists.{specialist.name}.model_profile_id",
+                    f"Specialist '{specialist.name}': ",
+                    specialist.model_profile_id,
+                )
+            )
+    return refs
+
+
+def models_a_run_reaches(spec: AgentSpec) -> frozenset[UUID]:
+    """The profiles this spec names for a run to reach - those `_model_refs` walks.
+
+    The models publish held the publisher to (#2546), so the ones its author
+    chose. A dynamic specialist may run on a ChatGPT sign-in only when it is one
+    of these (`AgentRunnerService._model_catalog`).
+    """
+    return frozenset(ref.profile_id for ref in _model_refs(spec))
 
 
 def _share_problems(spec: AgentSpec, config: SubagentsConfig) -> list[str]:
@@ -1034,6 +1266,9 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        published_capabilities = await agent_repo.published_capabilities(
+            self.db, version_ids=version_ids
+        )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -1075,6 +1310,9 @@ class AgentRegistryService:
                 context_window_tokens=(
                     windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
+                published_capabilities=published_capabilities.get(agent.current_version_id, [])
+                if agent.current_version_id
+                else [],
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
@@ -1253,7 +1491,8 @@ class AgentRegistryService:
         platform has no organization-wide default, because a model an agent did
         not choose is one somebody else's change can swap underneath it - and it
         cannot name a knowledge collection it has never seen. Publishing an agent
-        missing either would produce answers from nowhere, confidently.
+        missing either would produce answers from nowhere, confidently. `create`
+        does start it on the organization's model when there is only one.
 
         The skills it expects are installed first, from the gallery, and skipped
         where the organization already has them. A bundled skill is bound where
@@ -1319,6 +1558,7 @@ class AgentRegistryService:
         group_ids: list[UUID] | None = None,
         user_ids: list[UUID] | None = None,
         from_starter: bool = False,
+        choose_model: bool = True,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1328,6 +1568,13 @@ class AgentRegistryService:
         by hand, which meant the second person to look for it was told it did not
         exist. A draft cannot run and cannot be reached by an exposure either
         way, so what this decides is who can find it, not what it can do.
+
+        A spec that names no model starts on the organization's only model, when
+        it has exactly one an agent can run on (`_only_model`, #2483), so the
+        first publish does not stop at Model. With none or several it stays empty.
+        `choose_model=False` leaves it empty for a caller that picks the model
+        itself: the organization assistant, which reads a model in its draft as
+        one somebody chose for it.
 
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
@@ -1344,6 +1591,8 @@ class AgentRegistryService:
         elif not spec.instructions.strip():
             spec = _with_starter_instructions(spec)
         spec = _without_unselectable(spec)
+        if choose_model and spec.model_profile_id is None:
+            spec = spec.model_copy(update={"model_profile_id": await self._only_model(ctx)})
 
         slug = slugify(spec.name)
         if await agent_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
@@ -1391,6 +1640,45 @@ class AgentRegistryService:
                 user_ids=user_ids or [],
             )
         return agent
+
+    async def _only_model(self, ctx: AuthContext) -> UUID | None:
+        """The model a new agent starts on, when the organization has only one (#2483).
+
+        Only one: with two, which of them an agent runs on is a choice about cost
+        and quality that belongs to its author, so the draft stays empty and
+        publish asks for it. One means a profile `usable_for_agents` - a chat
+        model with a key, or a self-hosted one saved to run without one (#2478) -
+        that publish would also accept as it stands, fallback chain included, so
+        the agent publishes without anybody opening Model. Never one a run on
+        which can reach a ChatGPT sign-in, as the model or a fallback
+        (`choosable_for_others`, #2545): that is one person's subscription, not
+        the organization's to hand out. It still counts towards "only one",
+        because it is a model the author could deliberately pick.
+
+        Written into the draft, not resolved at run time: there is still no
+        organization-wide default, and the agent's own history says which model
+        it was published on.
+        """
+        # Before the read rather than at the insert, where `agent_repo.create`
+        # takes it too: a profile deleted in between would be written into the
+        # draft as a dangling id (#2478).
+        await hold_subject_shared(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
+        # Counted after publish's own check, so a broken profile beside a good
+        # one does not make two. A sign-in is counted without it: it is a model
+        # the author could pick, and whose it is to spend is decided at run time.
+        profiles = await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
+        candidates = [
+            profile
+            for profile in profiles
+            if usable_for_agents(profile)
+            and (is_sign_in(profile) or not await self.model_profile_problems(ctx, profile.id))
+        ]
+        if len(candidates) != 1:
+            return None
+        (only,) = candidates
+        if not choosable_for_others(only, {p.id: p for p in profiles}):
+            return None
+        return only.id
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:
         """Copy an agent's draft into a new agent, in draft.
@@ -1565,18 +1853,20 @@ class AgentRegistryService:
         # A model, named. There is no organization-wide default to fall back
         # on: a model an agent did not choose is one somebody else's change can
         # swap underneath it, and "why did this get more expensive" then has no
-        # answer in the agent's own history.
+        # answer in the agent's own history. A new agent is written onto the
+        # organization's only model when it has one (`_only_model`), which is
+        # still a named model in the spec.
         if spec.model_profile_id is None:
-            problems.add(["No model selected - pick one before publishing"])
+            problems.merge(_SpecProblems.at("model_profile_id", NO_MODEL))
         else:
-            problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
+            problems.add(await self.model_profile_problems(ctx, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
             if reviewer.model_profile_id is None:
                 problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
             else:
-                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, reviewer.model_profile_id))
             if not reviewer.instructions.strip():
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
@@ -1592,7 +1882,9 @@ class AgentRegistryService:
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.add(_coding_agent_problems(spec))
+        problems.add(await _computer_use_sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
+        problems.merge(await self._sign_in_problems(ctx, spec))
 
         if problems.messages:
             # `fields` only when there is one: an empty list is a claim that
@@ -1635,10 +1927,11 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
+            problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
-                problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
-                problems.add(await self._model_profile_problems(ctx, config.model_profile_id))
+                problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -1655,14 +1948,236 @@ class AgentRegistryService:
         problems.add(await self._secret_problems(ctx, binding, definition))
         return problems
 
-    async def _model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
-        """Whether a named model profile is still this organization's to run on."""
+    async def model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
+        """Whether a named model profile is still this organization's to run on.
+
+        And whether it is a model anything can run *on*: a profile can name a
+        text-to-speech or embedding model, and an agent on it fails on its first
+        turn (#2487). Refused only where the catalogs know what the model is - an
+        unknown model is allowed. Its fallbacks too: a provider failure hands the
+        run to the next one in the chain, and a speech model there turns an outage
+        into a run that fails anyway. The same for a profile with no key, the model
+        itself (#2478) and its fallbacks: a run skips such a fallback, so the
+        chain it was meant to be is shorter than it reads.
+        """
         profile = await credential_repo.get_profile(
             self.db, profile_id, organization_id=ctx.organization_id
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
-        return []
+        outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+        if not outputs.chat:
+            return [not_chat_refusal(profile.label, profile.model, outputs)]
+        if lacks_key(
+            profile.provider,
+            secret_id=profile.secret_id,
+            base_url=profile.base_url,
+            runs_without_key=profile.runs_without_key,
+        ):
+            # Its key was deleted from the vault, which leaves the profile in
+            # place with nothing to authenticate with (#2478). Every run on it
+            # would fail; say so here, while the author is looking.
+            return [
+                f"Model '{profile.label}' has no key - its key was deleted or never set. "
+                "Choose a key for it in the model panel"
+            ]
+        problems: list[str] = []
+        fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
+        fallbacks = await credential_repo.get_profiles_by_ids(
+            self.db, fallback_ids, organization_id=ctx.organization_id
+        )
+        # In the chain's order. One that no longer exists is skipped at run
+        # time, not refused here.
+        for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
+            found = model_outputs(fallback.provider, fallback.model, base_url=fallback.base_url)
+            if not found.chat:
+                problems.append(
+                    f"Model '{profile.label}' falls back to '{fallback.label}' "
+                    f"({fallback.model}), which is {found.kind}, not a chat model - "
+                    "remove it from the fallbacks"
+                )
+            elif lacks_key(
+                fallback.provider,
+                secret_id=fallback.secret_id,
+                base_url=fallback.base_url,
+                runs_without_key=fallback.runs_without_key,
+            ):
+                # A run would skip it, so an outage the chain exists for would
+                # find nothing to fall back on - said here rather than then.
+                problems.append(
+                    f"Model '{profile.label}' falls back to '{fallback.label}', which has "
+                    "no key - give it a key or remove it from the fallbacks"
+                )
+        return problems
+
+    async def _sign_in_problems(self, ctx: AuthContext, spec: AgentSpec) -> _SpecProblems:
+        """Models the spec runs on through a ChatGPT sign-in the publisher may not use (#2546).
+
+        A sign-in is one person's subscription, and a run reaches it only for
+        somebody who may see it in the vault (`ModelProfileService.resolve`). That
+        guard decides who *spends* it; this one decides who may *point an agent
+        at it*, with the same predicate - `secrets:view` on the secret, by role
+        scope or by grant - so a builder cannot publish on a colleague's private
+        sign-in for its owner and the admins to spend. The sign-in's owner, an
+        admin, or somebody it was shared with may.
+
+        Keyed on the secret's kind, as the runtime is, not on the profile's
+        provider; and on the first `MAX_FALLBACK_DEPTH` fallbacks, the ones a run
+        can reach. Phrased without the secret's name: the publisher cannot see it.
+
+        The models of the delegates the spec pins are judged too
+        (`_pinned_model_refs`): a run resolves them for its own caller, so a pin
+        reaches a sign-in as surely as naming it does. And a context with no
+        person behind it - an API key, whatever its issuer may see - may point an
+        agent at no sign-in, because a run under it may spend none
+        (`sign_in_person`).
+        """
+        refs = [*_model_refs(spec), *await self._pinned_model_refs(ctx, spec)]
+        if not refs:
+            return _SpecProblems()
+        org = ctx.organization_id
+        profiles = await credential_repo.get_profiles_by_ids(
+            self.db, list({ref.profile_id for ref in refs}), organization_id=org
+        )
+        chains = {
+            profile.id: [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
+            for profile in profiles.values()
+        }
+        missing = {pid for chain in chains.values() for pid in chain} - profiles.keys()
+        profiles.update(
+            await credential_repo.get_profiles_by_ids(self.db, list(missing), organization_id=org)
+        )
+        secrets = await organization_secret_repo.get_many(
+            self.db,
+            list({p.secret_id for p in profiles.values() if p.secret_id is not None}),
+            organization_id=org,
+        )
+        person = sign_in_person(ctx)
+        out_of_reach = {
+            secret.id
+            for secret in secrets.values()
+            if secret.kind == SecretKind.OPENAI_CODEX.value
+            and (
+                person is None
+                or not await resolve_access(
+                    self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+                )
+            )
+        }
+        problems = _SpecProblems()
+        if not out_of_reach:
+            return problems
+        who = "you" if person is not None else "an API key"
+        ask = ", or ask its owner to share the sign-in with you" if person is not None else ""
+        for ref in refs:
+            # A profile that is gone is `model_profile_problems`' to report.
+            profile = profiles.get(ref.profile_id)
+            if profile is None:
+                continue
+            if profile.secret_id in out_of_reach:
+                instead = "pin another delegate or version" if ref.pinned else "pick another model"
+                problems.refuse(
+                    ref.field,
+                    f"{ref.says}Model '{profile.label}' runs on somebody's own ChatGPT "
+                    f"sign-in, which {who} cannot use - {instead}{ask}",
+                )
+            for fallback_id in chains[profile.id]:
+                fallback = profiles.get(fallback_id)
+                if fallback is not None and fallback.secret_id in out_of_reach:
+                    instead = (
+                        "pin another delegate or version"
+                        if ref.pinned
+                        else "remove it from the fallbacks"
+                    )
+                    problems.refuse(
+                        ref.field,
+                        f"{ref.says}Model '{profile.label}' falls back to "
+                        f"'{fallback.label}', which runs on somebody's own ChatGPT sign-in "
+                        f"{who} cannot use - {instead}{ask}",
+                    )
+        return problems
+
+    async def _pinned_model_refs(self, ctx: AuthContext, spec: AgentSpec) -> list[_ModelRef]:
+        """The models a run of this spec reaches through the delegates it pins (#2546).
+
+        The runner resolves a pinned delegate's model for the run's own caller
+        (`AgentRunnerService._resolve_delegate`), so pinning a version on
+        somebody's sign-in reaches it for the owner's and the admins' runs as
+        surely as naming it does - including a version published before
+        publish judged sign-ins. Each pin is addressed by the input that names
+        it, `subagents.N.agent_version_id`, for whatever it reaches below.
+
+        Walked the way the runner walks the tree, from the frozen version each
+        pin names: a delegate's own model, reviewers and enabled capability models
+        always; and while the depth left
+        allows it to delegate (`min(left - 1, its own max_depth - 1)`, as the
+        runner computes it), its inline specialists' models, the delegates it
+        pins in turn, and - when it may invent specialists - every model its own
+        spec names, which is what its catalog may offer (`models_a_run_reaches`).
+        A pin that does not resolve is the pin check's to report. Bounded by
+        `_MAX_DELEGATION_NODES` like the cycle walk, which refuses a tree past
+        that bound on its own.
+        """
+        config = _subagents_config(spec)
+        if config is None or not spec.subagents:
+            return []
+        stack: list[tuple[str, tuple[str, ...], _PinnedDelegate, int]] = []
+        for index, ref in enumerate(spec.subagents):
+            pinned = await self._resolve_pin(ctx, ref)
+            if pinned is not None:
+                field = f"subagents.{index}.agent_version_id"
+                stack.append((field, (pinned.spec.name,), pinned, config.max_depth - 1))
+        refs: list[_ModelRef] = []
+        seen: set[tuple[str, str, UUID]] = set()
+        visited: set[tuple[str, UUID, int]] = set()
+        while stack and len(visited) < _MAX_DELEGATION_NODES:
+            field, chain, pinned, left = stack.pop()
+            node = (field, pinned.version_id, left)
+            if node in visited:
+                continue
+            visited.add(node)
+            delegate = pinned.spec
+            reached: list[UUID | None] = [
+                ref.profile_id for ref in _model_refs(delegate, include_inline=False)
+            ]
+            nested = _subagents_config(delegate)
+            if nested is not None and left > 0:
+                below = min(left - 1, nested.max_depth - 1)
+                reached.extend(specialist.model_profile_id for specialist in nested.inline)
+                if nested.allow_dynamic:
+                    reached.extend(models_a_run_reaches(delegate))
+                for ref in delegate.subagents:
+                    deeper = await self._resolve_pin(ctx, ref)
+                    if deeper is not None:
+                        stack.append((field, (*chain, deeper.spec.name), deeper, below))
+            says = f"Delegate '{' -> '.join(chain)}': "
+            for profile_id in reached:
+                if profile_id is not None and (field, says, profile_id) not in seen:
+                    seen.add((field, says, profile_id))
+                    refs.append(_ModelRef(field, says, profile_id, pinned=True))
+        return refs
+
+    async def refuse_borrowed_sign_ins(self, ctx: AuthContext, version: AgentVersion) -> None:
+        """Refuse to put a version in front of people on a sign-in the caller cannot use.
+
+        Promotion's half of `_sign_in_problems`: moving an environment onto a
+        version is choosing what its runs spend, so it is judged by the promoter's
+        access exactly as publishing the version was judged by the publisher's.
+        Only this check - a promotion is not a publish, and other references that
+        drifted since are the runtime's to refuse.
+
+        Raises:
+            BadRequestError: With a `problems` list, one per model on such a sign-in.
+        """
+        problems = await self._sign_in_problems(ctx, AgentSpec.model_validate(version.spec))
+        if problems.messages:
+            raise BadRequestError(
+                message=(
+                    f"Version {version.version} runs on somebody's own ChatGPT sign-in, "
+                    "which you cannot use"
+                ),
+                details={"problems": problems.messages, "version_id": version.id},
+            )
 
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]
@@ -1902,19 +2417,10 @@ class AgentRegistryService:
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
             ]
-        # Kind is not enough: an OpenAI key bound to a Google binding is the same
-        # `api_key`, and would be sent in Google's auth header at every call. A
-        # `custom` key - every key stored before purposes existed, and any for a
-        # service the deployment does not name - is the author's word, as in the
-        # Builder's picker (#2258).
-        purpose = requirement.purpose_for(config)
-        if purpose is not None and secret.purpose not in (purpose, "custom"):
-            return [
-                f"Capability '{binding.id}' is set to use {purpose}, but '{secret.name}' "
-                f"is a key for {secret.purpose}"
-            ]
         # A sign-in is accepted for the coding agent only because Codex runs on
         # one; switched to Claude Code, it would refuse every task at run time.
+        # Ahead of the purpose check, whose refusal would name the purpose rather
+        # than say what a sign-in is.
         if (
             isinstance(config, CodingAgentConfig)
             and secret.kind == SecretKind.OPENAI_CODEX.value
@@ -1923,6 +2429,17 @@ class AgentRegistryService:
             return [
                 f"'{secret.name}' is a ChatGPT sign-in, which only Codex runs on - pick an "
                 "Anthropic key or Claude subscription token for Claude Code"
+            ]
+        # Kind is not enough: an OpenAI key bound to a Google binding is the same
+        # `api_key`, and would be sent in Google's auth header at every call. A
+        # `custom` key - every key stored before purposes existed, and any for a
+        # service the deployment does not name - is the author's word, as in the
+        # Builder's picker (#2258, #2485).
+        purposes = requirement.purposes_for(config)
+        if purposes is not None and secret.purpose not in (*purposes, "custom"):
+            return [
+                f"Capability '{binding.id}' is set to use {' or '.join(purposes)}, but "
+                f"'{secret.name}' is a key for {secret.purpose}"
             ]
         return []
 
@@ -2103,13 +2620,33 @@ class AgentRegistryService:
 
         problems = _SpecProblems()
         names: list[str] = []
+        # What the runtime lends each specialist, chosen the way it chooses them.
+        share = set(config.share_with_delegates) - {DELEGATION_CAPABILITY_ID}
+        shared = [
+            binding for binding in spec.capabilities if binding.enabled and binding.id in share
+        ]
         for specialist in config.inline:
             names.append(specialist.name)
-            problems.merge(await self._specialist_problems(ctx, specialist))
+            problems.merge(await self._specialist_problems(ctx, specialist, shared=shared))
         problems.add(_share_problems(spec, config))
 
         pins = await self._resolve_pins(ctx, spec.subagents)
         problems.add(pins.problems)
+        # A pinned version passed this check at its own publish, on its own
+        # bindings; what it is lent here can still leave it a desktop and no
+        # desktop sandbox, and the fix is in this agent's share list.
+        for delegate in pins.delegates:
+            if await _computer_use_sandbox_problems(
+                self.db, ctx, _inheriting(delegate.spec, shared)
+            ):
+                problems.add(
+                    [
+                        f"Delegate '{delegate.spec.name}' would be lent computer use's "
+                        "desktop in the sandbox but no desktop sandbox to run it in. "
+                        "Share a 'sandbox' on the 'desktop' runtime with delegates "
+                        "too, or stop sharing 'computer_use'."
+                    ]
+                )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -2158,7 +2695,7 @@ class AgentRegistryService:
         return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
-        self, ctx: AuthContext, specialist: SpecialistSpec
+        self, ctx: AuthContext, specialist: SpecialistSpec, *, shared: list[CapabilityBindingSpec]
     ) -> _SpecProblems:
         """Everything wrong with a specialist defined inside this agent.
 
@@ -2172,7 +2709,9 @@ class AgentRegistryService:
         thinks of it as an agent.
 
         Every problem carries the specialist's name. A Builder form has one input
-        per specialist and cannot point at the right one otherwise.
+        per specialist and cannot point at the right one otherwise. `shared` is
+        the parent's bindings the specialist inherits, which is where a desktop
+        in the sandbox finds one when the specialist binds none itself.
         """
         problems = _SpecProblems()
         for binding in specialist.capabilities:
@@ -2184,10 +2723,14 @@ class AgentRegistryService:
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
-            problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
+            problems.add(await self.model_profile_problems(ctx, specialist.model_profile_id))
         # Its instructions are filled the way the parent's are, so a typo in a
         # variable is refused here too rather than sent to the model as braces.
-        problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))
+        as_agent = specialist.to_agent_spec(fallback_model_profile_id=None)
+        problems.merge(_variable_problems(as_agent))
+        problems.add(
+            await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
+        )
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:
@@ -3006,6 +3549,30 @@ class AgentRegistryService:
             walk.pins[cache_key] = await self._resolve_pin(ctx, ref)
         return walk.pins[cache_key]
 
+    async def ceiling(self, ctx: AuthContext) -> AgentCeiling:
+        """The organization's agent limit, and whether a create would be refused for it.
+
+        Counted as `_refuse_past_the_ceiling` counts, but without its lock - a
+        forecast; the refusal stays the guarantee. The route gates this on
+        `agents:edit`: a caller with no create has nothing to forecast.
+
+        The count is of every agent in the organization, so `held` goes only to
+        a caller whose `agents:view` already reaches all of them. Given to a
+        Member, who sees their own and what was shared, it minus their listing's
+        `total` would be how many agents are hidden from them, and polling it
+        would show when somebody else creates one. They get `at_limit` alone,
+        which a refused create would tell them anyway: at the limit the count is
+        the limit.
+        """
+        limit = (await DeploymentSettingsService(self.db).limits()).agents_per_organization
+        if limit is None:
+            return AgentCeiling(limit=None, held=None, at_limit=False)
+        held = await agent_repo.count_for_organization(self.db, organization_id=ctx.organization_id)
+        sees_every_agent = ctx.scope_for(Perm.AGENTS_VIEW) is Scope.ALL
+        return AgentCeiling(
+            limit=limit, held=held if sees_every_agent else None, at_limit=held >= limit
+        )
+
     async def _refuse_past_the_ceiling(self, ctx: AuthContext) -> None:
         """Refuse a transition that would put this organization over the limit.
 
@@ -3069,6 +3636,32 @@ class AgentRegistryService:
                 message="Agent version not found", details={"version_id": str(version_id)}
             )
         return agent, AgentSpec.model_validate(version.spec), version.id
+
+    async def with_assistant_guidance(self, agent: Agent, spec: AgentSpec) -> AgentSpec:
+        """Add current Projects guidance only to the registered Architect's runtime copy.
+
+        Existing installations keep their customized stored specs. Other agents
+        and external MCP clients keep their own workflow, even with platform tools.
+        """
+        platform = next(
+            (ref for ref in spec.mcp_servers if isinstance(ref, PlatformMcpServerRef)), None
+        )
+        if platform is None:
+            return spec
+        required = {"list_projects", "get_project", "create_project"}
+        if platform.allowed_tools is not None and not required.issubset(platform.allowed_tools):
+            return spec
+        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
+        if assistant is None or assistant.organization_id != agent.organization_id:
+            return spec
+        guidance = (
+            (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/PROJECTS.md")
+            .read_text()
+            .strip()
+        )
+        if guidance in spec.instructions:
+            return spec
+        return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{guidance}"})
 
     async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
         """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).

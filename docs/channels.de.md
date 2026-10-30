@@ -1,5 +1,5 @@
 ---
-source_sha: "f4452dd32ac7"
+source_sha: "2a964e170dca"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1745,11 +1745,18 @@ Bots schaltbar:
   oder Mattermost-Dialog; die Antwort wird als Kommentar der Bewertung gespeichert.
   Telegram nimmt die Daumen ohne die Frage.
 
-Eine Bewertung braucht ein verknüpftes Mitglied, wie ein Druck auf eine Freigabe;
-die Daumen einer nicht verknüpften Person zählen nicht. Die Karte *Answer quality*
-auf dem Dashboard teilt den Anteil guter Antworten nach Oberfläche auf, sobald auf
-mehr als einer bewertet wurde - ein Agent, der in der Konsole gut und in Slack
-schlecht abschneidet, zeigt es.
+**Bewertungen in Mattermost benötigen kein AgenticOS-Konto.** Die vom Server
+signierte Teilnehmeridentität ist der Autor. Jeder kann seine Stimme ändern;
+die Schaltflächen bleiben für andere verfügbar, die Bestätigung ist privat.
+Ein Kommentar zur negativen Bewertung gehört demselben Teilnehmer. Slack und
+Telegram verlangen weiterhin eine verknüpfte Mitgliedschaft; auch die Freigabe
+eines Werkzeugaufrufs erfordert sie. Kanalbewertungen liefern `user_id: null`
+in der API statt einer Zuordnung zum Bot-Eigentümer. Aktualisiere die Datenbank
+vor dem Start dieser Version. Ein Downgrade entfernt Kanalbewertungen und
+behält Kontobewertungen.
+
+Die Dashboard-Karte *Answer quality* zählt diese Stimmen und trennt sie nach
+Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben.
 
 ## Was jeder Kanal gemeinsam hat { #what-every-channel-shares }
 
@@ -2150,29 +2157,17 @@ schlecht abschneidet, zeigt es.
   anderer Prozess fragt den Token dieses Bots ab“. Dieser Prozess liegt außerhalb
   des Deployments, meist ein zweites Deployment oder ein Skript mit demselben
   Token, und nur sein Besitzer kann ihn stoppen.
-- **Die Instruktionen einer Bindung dürfen benennen, was nur die Plattform weiß.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die
-  die Channel-Abfragen verwenden, sodass Telegram alle fünf anbietet, obwohl es
-  zwei der vier Tools anbietet. Der Builder listet die, die diese Plattform
-  beantworten kann, unter dem Feld auf und fügt eine an der Cursorposition ein,
-  jeweils mit der echten Beschreibung des Tools - derjenigen, die das Modell
-  liest, bevor es sich entscheidet, es aufzurufen, nicht der verkürzten
-  Paraphrase aus dem Katalog, ohne die Auszeichnung, mit der das Modell selbst
-  die Zusammenfassung von der Form der Antwort unterscheidet.
+- **Channel-Kontext wird bei jedem Run automatisch ergänzt.** Runs aus Mattermost, Slack, Teams und Telegram erhalten Name, Zweck, Thema, Sichtbarkeit, gemeldete Mitgliederzahl und eine begrenzte sichtbare Mitgliederliste, auch bei bestehenden oder geleerten Bindungs-Prompts. `{channel_members}` benennt die Liste; `{member_list}` bleibt ein Alias. Weitere Platzhalter sind `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` und `{member_count}`.
 
-    Pro Run aufgelöst und nie zwischengespeichert: die Mitgliedschaft eines
-    Channels ändert sich, und eine veraltete Liste in einem Prompt ist schlimmer
-    als keine, denn der Agent gibt sie als Tatsache an. Es wird nur geholt, was der
-    Text verlangt, sodass eine Bindung, die keinen Platzhalter nennt, nichts
-    kostet. Ein Platzhalter, den die Plattform nicht beantworten konnte, wird zu
-    `(unavailable)`, statt jemanden seine Antwort zu kosten.
+    Jede Quelle wird einmal pro Run abgefragt, ohne Cache zwischen Runden: höchstens 50 sichtbare Mitglieder und 2000 Zeichen pro Wert. Telegram liefert Administratoren, nicht alle Mitglieder. Jede Quelle hat fünf Sekunden Zeit; nicht verfügbare Werte bleiben unbekannt. Werte werden abgeflacht und als nicht vertrauenswürdige Gesprächsdaten außerhalb der Systemanweisungen übergeben. Slack liefert Mitglieder-IDs ohne einzelne Profilabfragen. Der editierbare Bindungstext ergänzt diesen Laufzeitkontext.
 
-    Ein Prompt, der einen davon gefüllt hat, bekommt einen Satz hinzu, der sagt,
-    dass die eingesetzten Werte Informationen und keine Befehle sind, und bei jedem
-    Wert werden Zeilenumbrüche und geschweifte Klammern geglättet. Das `purpose`
-    eines Channels ist von jedem bearbeitbar, der den Channel bearbeiten kann, und
-    es wird in die Instruktionen eines Agents eingefügt.
+- **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
+
+    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
+
+- **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
+- **Alle MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe und Organisations- oder Plattformverbindungen.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.
+- **Der Agent kennt den Ort und das verfügbare Konto.** Laufzeitinstruktionen nennen Plattform und Deployment-Konsole, erklären den verwalteten Workspace und unterscheiden organisatorische MCP-Verbindungen von persönlichen Diensten. Persönliche Dienste benötigen eine verknüpfte Absenderidentität und deren autorisierte Dienstverbindung. Die Verknüpfung beginnt mit `link` ohne Schrägstrich in einer Direktnachricht; der private Verbindungslink gehört nicht in einen Channel. Der Agent nennt tatsächliche Tool-Ergebnisse und einen konkreten nächsten Schritt bei fehlender Anmeldung oder Funktion.
 - **Eine erneut zugestellte Nachricht wird einmal beantwortet.** Jede Plattform
   liefert mindestens einmal: die Webhook-Routen antworten mit 200, bevor
   irgendetwas getan wird, sodass ein langsamer Handler nie eine Wiederholung
@@ -2657,21 +2652,7 @@ wird gesendet, ob das gelungen ist oder nicht
 Eine Runde, die tatsächlich lief, behält ihre Dateien — sie haben sie gespeist, und
 der Run steht im Transkript.
 
-**Ausgehend** ist das, was der Agent in dieser Runde geschrieben hat, verglichen
-mit einem Schnappschuss, der beim Öffnen des Workspace genommen wurde. Kein Diff
-von allem: `/uploads` ist die eigene Datei des Nutzers — sie zurückzuposten hieße,
-jemandem seinen eigenen Anhang zu zitieren —, und `/skills` ist Know-how, das die
-Plattform materialisiert hat, nicht die Arbeit des Agents. Eine Datei, die er
-*überschrieben* hat, wird auch nicht gesendet: ein Skript neu zu schreiben, an dem
-er iteriert, ist gewöhnlich, und es jede Runde zu posten würde den Channel mit
-demselben Anhang füllen.
-
-**Wenn dieser Schnappschuss nicht genommen werden konnte, wird nichts gepostet.**
-Der Vergleich ist „alles jetzt, minus allem damals", also würde einen unlesbaren
-Workspace als leeren zu behandeln jede Datei, die schon darin ist, als Ausgabe
-dieser Runde lesen lassen — und unter dem Scope `agent` oder `channel` gehören
-diese Dateien anderen Leuten. Ein fehlender Anhang ist der Fehlschlag, den man
-haben will; die Tabelle eines Kollegen in einem geteilten Channel ist es nicht.
+**Ausgehend** werden Dateien nur über `send_channel_file` gesendet, wenn der Nutzer die Datei erhalten oder herunterladen möchte. Erstellen, Lesen oder Bearbeiten hängt keine Datei an. Gewähren Sie das Tool pro Bot-Bindung unter *Wo dieser Agent verfügbar ist*. Bestehende Bindungen behalten ihre Auswahl; aktivieren Sie diese Aktion nach dem Upgrade ausdrücklich. Das Tool hat Seiteneffekte und folgt der üblichen Freigaberichtlinie. Es sendet nur die benannte Workspace-Datei, verweigert interne Pfade und Dateien über 8 MB und erlaubt höchstens drei Versuche pro Runde. Plattformfehler werden gemeldet statt als Zustellung ausgegeben. Teams kann die Annahme im persönlichen Chat verlangen. Diagramme und angeforderte Visualisierungen behalten ihre separate Bildzustellung.
 
 Jede Datei trägt den Typ, den ihr Name nahelegt, statt eines flachen
 `application/octet-stream`, sodass ein Diagramm, das ein Agent geschrieben hat, auf
@@ -2804,7 +2785,14 @@ Vier Tools ändern das, und jedes wird **pro Bindung** gewährt, unter
 | `get_channel_info` | Name, Zweck, Thema, Größe | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Wer hier ist | ✅ | nur Admins | ✅ | ✅ |
 | `search_channels` | Welche anderen Channels es gibt | ✅ | — | ✅ | — |
-| `read_channel_history` | Was zuletzt gesagt wurde, **in dem Thread, in dem er antwortet** | ✅ | — | ✅ | — |
+| `read_channel_history` | Aktuelle Channel-Nachrichten oder dieser Thread mit `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Angeforderte Workspace-Datei senden | ✅ | ✅ | ✅ | ✅ |
+
+Verbinden Sie das Konto mit einer direkten Nachricht an den Bot: nur `link` ohne Schrägstrich. Öffnen Sie den privaten Verbindungslink nach der Anmeldung bei AgenticOS und kehren Sie zum Channel zurück. Benötigen frühere Thread-Dateien eine Kontoverbindung, erklärt der Bot dies ohne Download und versucht es nach der Verbindung erneut. Channel-Bilder verwenden die doppelte CSS-Auflösung; sehr breite horizontale Mermaid-Flussdiagramme erhalten nur für das PNG eine vertikale Anordnung.
+
+Über `generate_image` angeforderte Bilder werden auf allen vier Chatplattformen an Antworten angehängt, zusätzlich zu Diagrammen. Gespeicherte Bilder werden innerhalb der Organisation des Laufs gelesen, auf 8 MiB und 16 Megapixel begrenzt und in PNG konvertiert; fehlende, ungültige oder zu große Bilder führen zu einem Zustellhinweis. Teams passt Inline-Bilder zusätzlich an seine eigenen Grenzen an. Eine gewöhnliche Workspace-Datei wird durch ihre Erstellung weiterhin nicht gesendet: Dafür ist `send_channel_file` erforderlich. Der Thread-Kontext behält die ursprünglichen Zeitstempel bei; relative Zeitangaben beziehen sich darauf und nicht auf den Zeitpunkt, an dem der Agent dem Thread beitritt.
+
+Angehängt werden nur Dateien, die von den eigenen Tools des Laufs als erzeugt erfasst wurden. Ein Toolname oder Ergebnistext berechtigt nicht zum Zugriff auf Medien anderer Gespräche. Das Ablehnen der Bilderzeugung löst keinen Hinweis auf ein fehlendes Bild aus. Bestehende Threads aktualisieren den Text einmal, ohne frühere Anhänge erneut herunterzuladen.
 
 Pro Bindung statt pro Agent, denn eine Organisation kann einen Agent an zwei
 Mattermost-Server und drei Slack-Workspaces binden — und *„darf er lesen, was in
@@ -2827,25 +2815,13 @@ Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
   geht über das eigene Token des Bots, also sieht der Agent genau das, was der Bot
   sieht. Es gibt keine Allow-Liste von uns, die mit der der Plattform aus dem Tritt
   geraten könnte.
-- **Das Modell benennt nie einen Channel oder einen Thread.** Die Tools sind
-  serverseitig an den Channel gebunden, in dem die Nachricht ankam, und
-  `read_channel_history` zusätzlich an den Thread: ein Thread und sein Channel sind
-  zwei Transkripte, und dasjenige, in dem der Agent angesprochen wurde, ist der
-  Thread. Allein an den Channel gebunden fasste *„fasse zusammen, was wir oben
-  entschieden haben"* zusammen, was der Raum sonst so gesagt hatte. Ein Argument
-  für eines von beidem würde *„wer ist in diesem Channel"* in *„lies jeden Channel,
-  in dem dieser Bot ist"* verwandeln, gefragt aus einer Unterhaltung irgendwo
-  anders.
+- **Das Modell benennt keine Channel- oder Thread-ID.** `read_channel_history` verwendet standardmäßig `scope="channel"` für aktuelle Nachrichten dieses Channels; `scope="thread"` liest nur den gebundenen Thread. Kein Modus erreicht einen anderen Channel. Das Ergebnis ist ein begrenztes aktuelles Fenster, kein Beleg dafür, dass ältere Nachrichten fehlen. Die automatische Kontextergänzung bleibt auf den Thread begrenzt.
 - **`read_channel_history` ist das eine, das eine Freigabe verdient.** Es ist ein
   Lesevorgang, also fragt es nicht standardmäßig nach, aber es setzt die Nachrichten
   anderer Leute in ein Run-Transkript, das jemand Wochen später liest. Ein
   `tool_approval`-Override an der Bindung ist, wie Sie es nachfragen lassen.
 
-Das ist bewusst *nicht* dasselbe wie die Mitgliederliste und den Zweck des Channels
-in jeden System-Prompt zu setzen. Das ist ein anderes Feature mit einem anderen
-Fehlermodus — ein `purpose`, geschrieben von jedem, der den Channel bearbeiten
-kann, eingefügt in die Instruktionen, ist eine Prompt Injection mit einer
-öffentlichen Bearbeiten-Schaltfläche.
+Der automatische Channel-Kontext enthält Name, Zweck und eine begrenzte sichtbare Mitgliederliste, als Daten statt Instruktionen markiert. Die pro Bindung gewährten Tools erlauben weitere Abfragen und explizite Dateizustellung; das Entziehen eines Tools entfernt nicht den automatischen Kontext.
 
 ## Ein Bot, dessen Nachrichten einen Workflow starten { #a-bot-whose-messages-start-a-workflow }
 
@@ -2900,3 +2876,5 @@ flowchart TD
 - Eine **Delegation ist ein Panel**, keine Pause — und einen Handler daran zu
   hängen ändert den Transport, also wird er nur dort angehängt, wo eine Senke
   existiert.
+
+Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nach dem Entfernen der Erwähnung ignoriert, bevor die Zustellung beansprucht oder ein Lauf gestartet wird. So erhält die Modell-API keine leere Nutzernachricht, deren Weglassen die vorherige Assistentenantwort als unzulässiges Prefill erscheinen lässt. Nachrichten mit ausschließlich Anhängen durchlaufen weiterhin die Anhangverarbeitung.

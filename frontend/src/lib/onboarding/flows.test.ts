@@ -29,6 +29,7 @@ const EMPTY: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  hasRoomForAgent: true,
 };
 const HAS_MODEL: OrgState = {
   hasRunnableModel: true,
@@ -37,6 +38,7 @@ const HAS_MODEL: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  hasRoomForAgent: true,
 };
 const STOCKED: OrgState = {
   hasRunnableModel: true,
@@ -45,6 +47,7 @@ const STOCKED: OrgState = {
   hasOrgMcp: true,
   hasPublishedAgent: true,
   hasRunnableAgent: true,
+  hasRoomForAgent: true,
 };
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
@@ -286,6 +289,12 @@ describe("explore-chat", () => {
     expect(fork?.permission).toBe(Perm.agentsEdit);
     expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: true }, allow)).toBe(false);
     expect(fork?.include?.({ ...EMPTY, hasPublishedAgent: false }, allow)).toBe(true);
+  });
+
+  it("does not hand off to create-agent at the organization's agent limit", () => {
+    // New agent is disabled there, and the create-agent coach waits on it.
+    const fork = FLOWS["explore-chat"].steps[0];
+    expect(fork?.include?.({ ...EMPTY, hasRoomForAgent: false }, allow)).toBe(false);
   });
 
   it("does not hand off to create-agent a reader who could not publish one", () => {

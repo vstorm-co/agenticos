@@ -1,3 +1,4 @@
+import { useWorkOnStore } from "./work-on-store";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { resetSessionState, resetTenantState } from "./session-reset";
@@ -67,4 +68,15 @@ describe("resetSessionState", () => {
     expect(useOrgStore.getState().activeOrgId).toBeNull();
     expect(useOrgStore.getState().refusedOrgIds).toEqual([]);
   });
+});
+
+it("drops a project's unsent local choice when switching account or organization", () => {
+  const work = useWorkOnStore.getState();
+  work.applyProject("alice:org:project", { folder: "/alice/private", mode: "read_only" });
+  resetTenantState();
+  expect(work.targetFor(null)).toBeNull();
+  expect(useWorkOnStore.getState().draftProjectKey).toBeNull();
+  work.applyProject("alice:org:project", { folder: "/alice/private", mode: "read_only" });
+  resetSessionState();
+  expect(work.targetFor(null)).toBeNull();
 });

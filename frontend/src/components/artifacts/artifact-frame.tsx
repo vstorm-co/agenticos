@@ -15,6 +15,7 @@ import {
   type PausedRun,
 } from "@/hooks/use-artifact-actions";
 import { useArtifactData, useArtifactReasons, useArtifactView } from "@/hooks/use-artifacts";
+import type { ArtifactTheme } from "@/types/artifact";
 import { cn } from "@/lib/utils";
 import type {
   AnyBindingData,
@@ -225,6 +226,8 @@ export function useLinkRequests(
 }
 
 interface ArtifactFrameViewProps {
+  /** App preference, independent of the console; authored CSS stays in control. */
+  theme?: ArtifactTheme;
   /** A signed content address the server minted for this viewer. */
   url: string;
   title: string;
@@ -243,7 +246,13 @@ interface ArtifactFrameViewProps {
 }
 
 /** The page itself, in its sandbox. Shared by the console and the public link. */
-export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFrameViewProps) {
+export function ArtifactFrameView({
+  url,
+  title,
+  className,
+  bridge,
+  theme = "light",
+}: ArtifactFrameViewProps) {
   const own = useRef<HTMLIFrameElement>(null);
   const frame = bridge?.frame ?? own;
   const ownAsking = useAskingGate();
@@ -255,6 +264,7 @@ export function ArtifactFrameView({ url, title, className, bridge }: ArtifactFra
         ref={frame}
         onLoad={bridge?.onLoad}
         src={url}
+        style={{ colorScheme: theme }}
         title={title}
         sandbox={ARTIFACT_SANDBOX}
         referrerPolicy="no-referrer"
@@ -339,6 +349,7 @@ export function LinkRequestDialog({
 }
 
 interface ArtifactFrameProps {
+  theme?: ArtifactTheme;
   artifactId: string;
   /** A kept version to show, or null for the current one. */
   versionId: string | null;
@@ -383,6 +394,7 @@ export function ArtifactFrame({
   className,
   onBridge,
   fetchReasons = false,
+  theme,
 }: ArtifactFrameProps) {
   const t = useTranslations("artifacts");
   const ts = useTranslations("states");
@@ -515,6 +527,7 @@ export function ArtifactFrame({
         title={title}
         className={className}
         bridge={{ frame, onLoad: loaded, asking }}
+        theme={theme}
       />
       <ArtifactRunDialog
         pending={run.pending}

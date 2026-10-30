@@ -8,6 +8,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   virtual_tables: 200,
   workflows: 270,
   text_to_speech: 28,
+  computer_use: 200,
   video_generation: 300,
   follow_ups: 172,
 };
@@ -78,6 +79,32 @@ const BACKGROUND_TOOLS =
   '<g transform="matrix(0.9 0.5 0 1.04 144.8 73)"><path class="ln w2 draw" pathLength="100" style="animation-delay:1.2s" d="M3 1.5l2.5 2.5 5-5"/></g>' +
   '<g class="bob"><g transform="translate(70.8 20)"><rect x="-23" y="-9" width="46" height="16" rx="8" class="pp" />' +
   '<text x="0" y="2.4" class="tx mono s7 mid b" >running…</text></g></g>' +
+  "</svg>";
+
+/** Computer use: a screen standing on the base, a window on it and a pointer clicking, `click()` above. */
+const COMPUTER_USE =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
+  '<polygon class="int" points="91.2,10 148.8,42 146.6,43 89.4,11"/>' +
+  '<polygon class="inr" points="148.8,42 148.8,92 146.6,93 146.6,43"/>' +
+  '<polygon class="inl" points="89.4,61 146.6,93 146.6,43 89.4,11"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 89.4 11)">' +
+  '<rect x="6" y="6" width="40" height="28" rx="2" class="ict" />' +
+  '<rect x="6" y="6" width="40" height="5" rx="2" class="mu" />' +
+  '<rect x="10" y="15" width="22" height="2" rx="1" class="mu" />' +
+  '<rect x="10" y="20" width="16" height="2" rx="1" class="mu" />' +
+  '<g class="breathe" style="animation-delay:-0.6s"><rect x="30" y="26" width="12" height="5" rx="1.5" class="ac" /></g>' +
+  '<g class="bob"><path class="dk" d="M37 27l0 9 2.4-2.3 1.8 3.8 1.6-0.8-1.8-3.7 3.3-0.2z"/></g>' +
+  "</g>" +
+  '<g class="bob"><g transform="translate(172 30)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >click()</text></g></g>' +
   "</svg>";
 
 /** Text to speech: a speaker standing on the base, sound leaving it, and `speak()` above. */
@@ -212,6 +239,7 @@ export const DRAWN_ART: Readonly<Record<string, string>> = {
   virtual_tables: VIRTUAL_TABLES,
   workflows: WORKFLOWS,
   text_to_speech: TEXT_TO_SPEECH,
+  computer_use: COMPUTER_USE,
   video_generation: VIDEO_GENERATION,
   follow_ups: FOLLOW_UPS,
 };

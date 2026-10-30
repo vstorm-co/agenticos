@@ -325,12 +325,12 @@ const ME_SECTIONS: SectionDef[] = [
       // Then what a person acts on: the calls waiting on them beside the
       // conversations they left open. The queue sat at the foot of the page,
       // under three cards of history, which is the wrong way round.
-      { widget: "approvals", span: "s6", rows: "r3" },
-      { widget: "conversations", span: "s6", rows: "r3" },
+      { widget: "approvals", span: "s6", rows: "r2" },
+      { widget: "conversations", span: "s6", rows: "r2" },
       // Where their ongoing work is, a row of tiles under what they left open.
       { widget: "projects", span: "s12", rows: "r2" },
-      { widget: "my-agents", span: "s6", rows: "r3" },
-      { widget: "my-top-agents", span: "s6", rows: "r3" },
+      { widget: "my-agents", span: "s6", rows: "r2" },
+      { widget: "my-top-agents", span: "s6", rows: "r2" },
       // Three rows like the pair above: two left the quality chart a sliver
       // under its figure and legend, which said nothing either.
       { widget: "my-quality", span: "s6", rows: "r3" },

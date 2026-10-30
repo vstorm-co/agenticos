@@ -1,5 +1,5 @@
 ---
-source_sha: "0c20a47827a4"
+source_sha: "7bd15584abde"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -176,6 +176,13 @@ tagu:
     ściągnął to, co działało wczoraj, a nie cokolwiek wydano dziś rano.
     `scripts/deploy.sh` przypina za ciebie - do tagu `sha-` commita, który wdraża -
     dokładnie na czas trwania wdrożenia.
+
+    Przypinaj je z checkoutu tego wydania: `git checkout v0.0.380` obok zmiennej.
+    Obraz usługi sandboksa jest przypięty w pliku compose, w wersji, którą mówi
+    backend z tego samego commita, więc starszy backend uruchomiony z nowszego
+    checkoutu trafia na nowszy `sandboxd` - a `latest` ze starego checkoutu to ta
+    sama niezgodność w drugą stronę. `scripts/deploy.sh` robi checkout commita,
+    który wdraża, więc skryptowe wdrożenie albo wycofanie trzyma oba razem.
 
 Oba pakiety ściągają się anonimowo. Jeśli pobranie odpowiada `unauthorized`,
 pakiet został ustawiony jako prywatny albo stare `docker login ghcr.io` stoi na
@@ -445,6 +452,19 @@ deploymentu.
     token, zamiast przyjmować flagę.
 
 ## Wdrażanie zmiany { #deploying-a-change }
+
+### Granica formatu historii w 1.25.0 { #retry-history-upgrade }
+
+Wersja 1.25.0 przechodzi na wyniki narzędzi `retried` i osobne wiadomości
+`retry-feedback` z Pydantic AI 2.61. Istniejące historie i checkpointy przebiegów
+są odczytywane bez migracji bazy ani ponownej publikacji agentów. Historie zawierające te części
+wymagają nowego czytnika: starszy backend nie odtworzy tych formatów wiadomości.
+
+Aktualizuj wszystkie procesy API i workery razem, kończąc pracę lub zatrzymując
+stare procesy, zanim nowe zaczną przyjmować zadania. Nie łącz starszych i nowszych
+replik backendu z tą samą bazą. Po zapisaniu nowego formatu retry wycofanie samego kodu
+przez tę granicę nie jest obsługiwane; trzeba zachować nowy czytnik albo odtworzyć
+snapshot bazy sprzed aktualizacji.
 
 ### Ręcznie { #by-hand }
 

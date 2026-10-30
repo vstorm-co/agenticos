@@ -52,6 +52,7 @@ from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
     AgentA2ARequest,
     AgentAvatarColorRequest,
+    AgentCeiling,
     AgentClone,
     AgentCreate,
     AgentDetail,
@@ -175,8 +176,9 @@ async def install_agent_template(
     """Create a draft agent from a template, installing the skills it expects.
 
     A draft, not a published agent: the template names no model - there is no
-    organization-wide default here - and may name no collection. The result says
-    what is still to attach.
+    organization-wide default here, so the draft starts on the organization's
+    model only when it has exactly one an agent can run on - and may name no
+    collection. The result says what is still to attach.
     """
     return await service.install_template(ctx, data.key)
 
@@ -303,6 +305,24 @@ async def list_agents(
         ctx, shared_with_me=shared_with_me, include_archived=include_archived
     )
     return AgentList(items=items, total=total, categories=categories, tags=tags)
+
+
+@router.get(
+    "/ceiling",
+    response_model=AgentCeiling,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def get_agent_ceiling(service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """The deployment's agents-per-organization limit, and whether a create would hit it.
+
+    So a console can say a create would be refused before a form is filled in;
+    the create itself stays the guarantee. `limit` is null where the deployment
+    sets no limit. `held`, the organization's count of agents that are not
+    archived, is given only to a caller whose `agents:view` reaches every agent
+    in the organization - to anyone else it would reveal how many are hidden
+    from them - and `at_limit` to every caller.
+    """
+    return await service.ceiling(ctx)
 
 
 @router.post(

@@ -49,6 +49,7 @@ from app.core.retention import (
     known_periods,
     policy_conflicts,
 )
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     deployment_settings_repo,
     generated_media_repo,
@@ -165,14 +166,15 @@ class SweepResult:
 #: `max_connections` exhaustion in #948 that put it there). A sweep constructed
 #: without one cannot purge documents and says so, which is better than a class
 #: that silently does nothing on every surface but the flow.
-#: Removes one document's vectors: collection, vector document id, tenant.
+#: Removes one document's vectors: collection, vector document id, scope.
 #:
-#: The tenant is the tag the chunks were stamped with at ingest, which is the
-#: collection's rather than the sweeping organization's - `None` for an
-#: app-scoped base whose rows are deployment-wide (#1684). Passed explicitly
-#: because the ingester this sweep builds is bound to no tenant of its own: it
-#: exists to delete by id across every organization.
-VectorRemover = Callable[[str, str, UUID | None], Awaitable[bool]]
+#: The scope is the tags the chunks were stamped with at ingest, which are the
+#: knowledge base's rather than the sweeping organization's - its tenant, `None`
+#: for an app-scoped base whose rows are deployment-wide (#1684), and the base
+#: itself (#2537). Passed explicitly because the ingester this sweep builds is
+#: bound to no base of its own: it exists to delete by id across every
+#: organization.
+VectorRemover = Callable[[str, str, VectorScope], Awaitable[bool]]
 
 
 class RetentionService:
@@ -477,14 +479,14 @@ class RetentionService:
         if self.remove_vectors is None:
             raise RuntimeError("retention sweep has no vector remover; cannot purge documents")
 
-        for _, collection, vector_document_id, _, tenant in expiring:
+        for _, collection, vector_document_id, _, scope in expiring:
             if not vector_document_id:
                 continue
             # `IngestionService.remove_document` catches its own store failures
             # and answers False rather than raising, so discarding the answer
             # would delete the only handle to content that is still searchable -
             # with no row left for a later sweep to retry (#992's shape again).
-            if not await self.remove_vectors(collection, vector_document_id, tenant):
+            if not await self.remove_vectors(collection, vector_document_id, scope):
                 raise RuntimeError("the vector store did not confirm the removal")
         await self._queue_unlink(
             [row[3] for row in expiring if row[3]], organization_id=organization_id

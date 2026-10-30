@@ -93,6 +93,14 @@
     "description": "Cloud sandboxes an agent works in, billed to this organization's own Daytona account."
   },
   {
+    "id": "e2b",
+    "label": "E2B",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://e2b.dev/dashboard?tab=keys",
+    "description": "Cloud sandboxes and desktops an agent works in, billed to this organization's own E2B account."
+  },
+  {
     "id": "github_oauth_app",
     "label": "GitHub OAuth App",
     "category": "other",

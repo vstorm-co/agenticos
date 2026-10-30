@@ -103,10 +103,11 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
+            loading={loading}
             disabled={!canConfirm}
             onClick={() => void onConfirm()}
           >
-            {loading ? "…" : confirmWords}
+            {confirmWords}
           </Button>
         </DialogFooter>
       </DialogContent>

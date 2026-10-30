@@ -1,9 +1,11 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
 import { Copy, Plug, Trash2 } from "lucide-react";
 
 import { ConnectorIcon } from "@/components/rag/connector-icon";
+import { ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
 import {
   AlertDialog,
@@ -30,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
+  Skeleton,
 } from "@/components/ui";
 import { usePermissions, useReusableIntegrations } from "@/hooks";
 import { useOrgStore } from "@/stores";
@@ -90,11 +93,13 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
   };
 
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">{t("configuredOnceUsedAs")}</p>
+    <section className="border-border bg-card flex min-w-0 flex-col overflow-hidden rounded-xl border">
+      <div className="border-border flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
+            <ContextHelp>{t("configuredOnceUsedAs")}</ContextHelp>
+          </div>
         </div>
         {connectors.length > 0 && (
           <Button
@@ -110,15 +115,30 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
       </div>
 
       {error ? (
-        <p className="text-destructive text-xs">{error}</p>
+        <ErrorState description={error} className="m-4 border-0 py-8" />
       ) : isLoading ? (
-        <p className="text-muted-foreground text-xs">{t("loadingIntegrations")}</p>
+        <div role="status" aria-label={t("loadingIntegrations")} className="space-y-4 p-4">
+          {[0, 1].map((index) => (
+            <div key={index} className="flex items-center gap-3" aria-hidden>
+              <Skeleton className="size-8 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : integrations.length === 0 ? (
-        <p className="text-muted-foreground border-border rounded-xl border border-dashed px-4 py-3 text-xs">
-          {t("nothingHereYetAdd")}
-        </p>
+        <div className="flex items-start gap-3 px-5 py-6">
+          <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <Plug className="size-5" aria-hidden />
+          </span>
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
+            {t(connectors.length > 0 ? "nothingHereYetAdd" : "noConnectorsAvailable")}
+          </p>
+        </div>
       ) : (
-        <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
+        <ul className="divide-border divide-y">
           {integrations.map((source) => (
             <IntegrationRow
               key={source.id}
@@ -171,7 +191,7 @@ function IntegrationRow({
       <ConnectorIcon type={source.connector_type} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
-        <p className="text-muted-foreground mt-0.5 font-mono text-xs tracking-wider uppercase">
+        <p className="text-muted-foreground mt-0.5 text-xs">
           {source.connector_type}
           {source.schedule_minutes
             ? ` · ${t("everyMinutes", { minutes: source.schedule_minutes })}`

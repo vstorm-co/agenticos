@@ -39,7 +39,7 @@ from app.schemas.background_job import (
     JobStatus,
     KindActivityRead,
 )
-from app.worker.jobs import TASKS, Payload, Priority, Task
+from app.worker.jobs import MOVE_PROJECT_WORKSPACE, TASKS, Payload, Priority, Task
 
 
 async def enqueue[P: Payload](
@@ -218,6 +218,11 @@ class BackgroundJobService:
                 and two queued copies of one dedupe key cannot exist.
         """
         job = await background_job_repo.get(self.db, job_id)
+        if job is not None and job.kind == MOVE_PROJECT_WORKSPACE.kind:
+            raise BadRequestError(
+                message="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
+                details={"job_id": str(job_id)},
+            )
         if (
             job is not None
             and job.dedupe_key is not None

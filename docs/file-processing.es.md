@@ -1,5 +1,5 @@
 ---
-source_sha: "42ba4dae462d"
+source_sha: "759491a1f3dc"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -7,6 +7,12 @@ source_sha: "42ba4dae462d"
 Este documento cubre cómo se tratan los archivos en dos contextos: las subidas
 de archivos en el chat, que pertenecen a la persona que las hizo, y la ingesta
 de documentos RAG, que pertenece a una colección y depende de
+Al eliminar una base se desvinculan y desactivan las fuentes de sincronización cuyo destino
+era esa base. Conservan la configuración del conector, pero requieren una reasignación
+explícita antes de sincronizar de nuevo; otra base del mismo nombre no las hereda. Vaciar
+una base predeterminada conserva sus fuentes porque la fila de destino permanece. La
+ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
+
 [quién puede llegar a ella](#who-may-reach-a-collection).
 
 ## Subidas de archivos en el chat { #chat-file-uploads }
@@ -138,6 +144,38 @@ que todavía sabe que el archivo existe. Una imagen se nombra en ese historial e
 lugar de enviarse de nuevo; un agent que necesita volver a mirarla la pide, o la
 abre desde `uploads/` si tiene workspace.
 
+**El archivo de un turno interrumpido lo repone el siguiente.** Un archivo queda
+ligado al mensaje con el que llegó antes de que empiece el run, así que no se puede
+adjuntar de nuevo. Si el run que respondía a ese mensaje terminó sin completarse
+— con un fallo, cancelado o detenido por un presupuesto o el guardián de bucles —,
+el siguiente turno del mismo agente para esa persona en esa conversación vuelve a
+escribir el archivo en `uploads/` (con su texto extraído, donde el workspace no
+puede leer el original, y solo ese texto si es lo único que falta) antes de usar el
+workspace por primera vez: enseguida en un workspace almacenado, en el primer uso en
+un sandbox. Al run se le indica que liste `uploads/` antes de decir que falta un
+archivo, y que diga que no se pudo reponer si sigue sin estar.
+
+Solo se reponen los archivos de la propia persona, solo de los turnos interrumpidos
+de ese agente, como mucho los 50 más recientes, y solo hasta que ese agente complete
+para la misma persona un turno que empezó después de que terminara el interrumpido y comprobó
+la preparación de los archivos anteriores dentro del workspace. Un turno completado sin workspace o sin usar su sandbox deja abierto este plazo.
+Un turno ejecutado con una clave de API, para un visitante del widget o liberado de
+una aprobación por otra persona no cierra ese plazo. Un archivo eliminado después
+sigue eliminado.
+
+Algunos archivos no se reponen: los de un turno que bloqueó un guardrail, porque el
+guardrail de entrada rechazó lo que llevaba; los de un prompt cuyo run nunca se
+abrió, que no pertenece a ningún agente; los de un turno ejecutado con una clave de
+API o para un visitante del widget.
+
+Cuando el agente tiene un guardrail de entrada, cada archivo se revisa además antes
+de reponerlo, sobre lo que el guardrail leería de él: su nombre, su ruta y sus
+primeras líneas. Un turno puede detenerse antes de que el guardrail lea su entrada,
+por ejemplo por un presupuesto, así que un archivo que el guardrail rechaza no se
+escribe, y el registro solo indica su identificador. Si se rechazan todos los
+archivos, al run no se le dice que alguno pueda estar de vuelta. Sin un guardrail
+de entrada, nada cambia.
+
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,
 con el razonamiento de que un shell no tiene librería para ninguno de ellos —
@@ -187,6 +225,12 @@ fallo como un problema con el comando que acababa de escribir y siguió
 intentándolo — `ls`, luego un `curl` de una URI `data:`, luego tres soluciones
 propuestas a la persona, a lo largo de dos turnos. Ahora una sola frase dice que
 el workspace no está disponible y que otro intento fallará igual.
+
+**Un turno que el guardrail de entrada bloquea no escribe nada.** La referencia y
+su cabecera las revisa el borde de entrada del agent antes de escribir el archivo,
+así que un archivo de un turno bloqueado nunca llega a `uploads/` y un turno
+posterior no puede abrirlo. Consulta
+[Reglas de protección](reference/capabilities.md#guardrails).
 
 La referencia es lo que el modelo lee de verdad:
 
@@ -395,6 +439,23 @@ Una de las dos omitía la clave en lugar de enviarla nula, así que un cliente q
 normalizara la respuesta recibía una forma distinta de cada una
 ([#560](https://github.com/vstorm-co/agenticos/issues/560)).
 
+**Espera a `complete`, no a los vectores.** `GET /rag/collections/{name}/info`
+deriva `indexing_status` de los documentos registrados de la colección:
+`indexing` mientras alguno siga en `processing` - en cola o en ingesta - y
+`complete` cuando ya no queda ninguno. `processing_count`, `indexed_count` y
+`failed_count` indican cuántos documentos hay en cada estado. Un documento
+fallido está en un estado final, así que no mantiene la colección en
+`indexing`; aparece en `failed_count`. El campo era antes la constante
+`complete`, y `total_vectors` crece mientras el worker procesa un lote, así que
+un script que esperara cualquiera de los dos consultaba una colección a medio
+construir ([#2486](https://github.com/vstorm-co/agenticos/issues/2486)).
+`GET /kb/{kb_id}/ingestion` responde lo mismo para una base de conocimiento y
+cuenta los documentos que lista su página, no todo lo que hay bajo su nombre de
+colección, que otra base puede compartir; la página de la base de conocimiento
+muestra ese estado junto al número de documentos. Un documento que se queda en
+`processing` mantiene ambas respuestas en `indexing` hasta que se elimine o, si
+es un documento sincronizado, hasta que su fuente vuelva a sincronizarse.
+
 !!! danger "La tarea se inicia después de que la transacción de la petición haga commit"
 
     Se entrega con `spawn_after_commit`, **no** con `spawn`, y la inicia la
@@ -584,6 +645,22 @@ organización pasa por ella
 resuelve así la configuración de cada una, cayendo a una colección de ámbito app,
 nunca a la de un tercero.
 
+El recurso es solo una base de ámbito app: una base personal fuera de toda
+organización tampoco tiene organización, pero es de una sola persona
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Una fuente de sincronización registra una organización y un nombre de colección,
+no una base de conocimiento, así que su sincronización escribe en la base que elige
+esa resolución - la base más antigua de la organización con ese nombre - y solo esa
+base la lista y la ejecuta. Cada ruta de la API que dirige una fuente a una
+colección comprueba el permiso de escritura sobre esa base, y añadir una fuente a
+otra base del mismo nombre se rechaza con 400.
+
+Cuando la base personal de un miembro es más antigua que la base de la organización
+del mismo nombre, las sincronizaciones de la organización con ese nombre acaban en
+la base personal, y la base de la organización no admite fuentes: créala con un
+nombre propio.
+
 !!! warning "Un nombre de colección es un espacio de embeddings"
 
     Resolver por organización solo es seguro porque todas las filas con un mismo
@@ -605,6 +682,22 @@ a la dirección de otro. El catálogo es además con lo que responde
 que un provider puede servir de verdad — antes ofrecía todos los modelos de los
 que este build conocía la *anchura*, tres de ellos pesos de sentence-transformers
 que aquí nada puede llamar.
+
+Una colección en OpenRouter puede indicar su propio **endpoint**
+(`embedding_base_url`), como el regional `https://eu.openrouter.ai/api/v1`. Un
+endpoint regional sirve solo una parte del catálogo, y solo él sabe cuál, así que
+`GET /rag/embedding-models/openrouter?base_url=…` se lo pregunta y responde con
+los modelos del catálogo que lista. La anchura sigue saliendo del catálogo,
+porque la lista no la indica. El formulario de creación ofrece esa lista más
+corta, y el servicio rechaza una colección cuyo modelo el endpoint no sirve: en
+`embedding_model` al crearla y en `embedding_base_url` al mover una existente.
+
+Un endpoint al que no se puede preguntar no se toma como un rechazo: el formulario
+muestra todo el catálogo e indica que no está confirmado. Antes se aceptaba un
+modelo que el endpoint no sirve, y luego cada subida fallaba con "No endpoints
+found supporting your data region" de OpenRouter, guardado como una indicación
+genérica de revisar la clave. Ahora un 404 de un endpoint de embeddings se guarda
+como el modelo que no sirve.
 
 La clave se valida al crear. Una clave que tiene otra organización, una de
 propósito equivocado o una que quien elige no puede ver se rechaza ahí, donde la
@@ -779,7 +872,23 @@ que los documentos borrados con ella dejan de ser buscables en vez de quedarse e
 una tabla que nada lista (#1361). Una búsqueda lee la tabla ausente como vacía y
 la siguiente subida la recrea. La tabla se salva únicamente cuando una base
 hermana sigue teniendo el mismo nombre, ya que el espacio de nombres de vectores
-no es único por tenant y eliminarla se llevaría también sus fragmentos (#913).
+no es único por tenant y eliminarla se llevaría también sus fragmentos (#913). Entonces
+solo se van las filas de documentos y los archivos de la base eliminada, y sus
+fragmentos se quitan de la tabla conservada, como para una base borrada más abajo.
+Las filas de documentos sin asignar de la organización de la base (subidas de antes de
+que los documentos registraran su base) también se van, con sus archivos y fragmentos,
+salvo que otra base de esa organización tenga el nombre y aún las liste. Eliminar una
+colección borraba antes todas las filas de documentos con ese nombre, también las de
+otra organización (#2560).
+
+`rag-drop <name>` pasa por el mismo teardown. Antes borraba la tabla de vectores
+directamente, sin comprobar referencias, sin bloqueo ni reserva, y dejaba las filas de
+documentos, así que podía destruir una tabla que otra base aún usaba. Ahora vacía la
+única base que tiene el nombre, o elimina un nombre que ninguna base tiene (uno que
+llenó `rag-ingest`) con sus filas de documentos. Si varias bases tienen el nombre, lo
+rechaza y lista sus ids; `--knowledge-base <id>` indica la base que vaciar, y la tabla
+se queda para las demás. Un worker borra la tabla y los archivos después del commit
+del comando (#2560).
 
 `documents` era además la colección **predeterminada**, así que el inicio rápido
 de la CLI apuntaba a la tabla de seguimiento; ahora el predeterminado es
@@ -867,6 +976,51 @@ de modo que un filtro selectivo no puede sacar una fila de fuera del ámbito. Un
 colección app-scoped, de todo el deployment, se casa por *no llevar tenant sellado* en
 vez de por una igualdad que toda organización incumpliría — y eso es lo que permite
 que todos lean la base compartida sin que nadie lea la de los demás.
+
+**Un filtro tampoco llega a otra base de conocimiento del mismo nombre.** El tenant
+por sí solo no distingue cada par: una base de ámbito app y una base personal fuera de
+toda organización no tienen ninguno, y la base de una organización y la base personal
+de un miembro en ella tienen la misma organización. Por eso cada fragmento registra
+también la base de conocimiento para la que se indexó, y la búsqueda, el recuento de
+vectores, la búsqueda al reemplazar y el borrado leen solo los fragmentos de la propia
+base; borrar un documento también elimina sus propios fragmentos que no registran
+base. Un fragmento escrito antes de que los fragmentos registraran su base, y que la
+actualización no asignó, coincide por su tenant como antes, salvo para una base
+personal fuera de toda organización, cuya búsqueda y recuento no toman ninguno
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Borrar una base de conocimiento cuyo nombre de colección aún tiene otra base conserva
+la tabla compartida, y el trabajo de limpieza encolado con el borrado elimina los
+fragmentos asignados a la base borrada. Borrar una organización y borrar una cuenta
+hacen lo mismo con las bases que eliminan, y también eliminar una colección
+(`DELETE /rag/collections/{name}`), que además borra solo las filas de documentos de
+esa base; en una base predeterminada conservada quita solo los fragmentos de los
+documentos borrados, así que una subida hecha después conserva los suyos, y un
+fragmento sin fila de documento se queda
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Borrar una base de conocimiento (`DELETE /kb/{id}`) mientras otra base tiene su
+nombre también borra las filas de documentos sin asignar de su organización, con sus
+archivos y fragmentos, salvo que otra base de esa organización tenga el nombre y aún
+las liste: la misma regla que al eliminar una colección ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). En los demás casos,
+los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
+documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Una subida o una sincronización que aún indexa un archivo para la base cuando se
+borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que
+choca con el del borrado, en la transacción que inserta los fragmentos: una escritura que llega segunda no
+encuentra la base, no escribe nada y falla en el paso de indexación, y una escritura
+que llega primera se confirma antes del borrado, cuya limpieza elimina después sus
+fragmentos
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Una sincronización local encolada para una base borrada antes de ejecutarse
+termina con un error y no escribe nada
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Un agente busca en las bases de conocimiento a las que está vinculado con su propio
+ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el
+mismo nombre busca en su ámbito combinado, excluyendo otras bases del mismo nombre.
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.
@@ -1482,8 +1636,10 @@ de ingesta de la base de conocimiento y elige un perfil de modelo con visión. E
 selector es el del builder de agents: un provider, un modelo y su clave se
 definen sin salir del diálogo — un deployment sin perfiles de modelo no es un
 callejón sin salida. Lo que no ofrece es borrar un perfil: eso va donde se
-gestionan los modelos de una organización, porque cada agent apuntado a uno lo
-pierde. Las descripciones generadas se incluyen en el texto del documento, para
+gestionan los modelos de una organización, y un perfil que usan agents no se
+puede borrar.
+
+Las descripciones generadas se incluyen en el texto del documento, para
 mejor búsqueda semántica.
 
 ## Desde un canal { #from-a-channel }

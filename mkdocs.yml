@@ -339,6 +339,7 @@ nav:
           - voice.md
           - artifacts.md
           - desktop.md
+          - mobile.md
           - rollout.md
           - deployment.md
           - deploy.md

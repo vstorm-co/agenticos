@@ -302,3 +302,56 @@ describe("DataTable with a fixed row height", () => {
     expect(screen.getByText("Row 0")).toBeInTheDocument();
   });
 });
+
+it("opens a focused row with Enter or Space without hijacking its controls", async () => {
+  const open = vi.fn();
+  const action = vi.fn();
+  renderTable({
+    rows: [{ id: "1", name: "Billing clerk" }],
+    onRowClick: open,
+    columns: [
+      { key: "name", header: "Name", cell: (row) => row.name },
+      {
+        key: "action",
+        header: "Action",
+        cell: () => (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              action();
+            }}
+          >
+            Inspect
+          </button>
+        ),
+      },
+    ],
+  });
+  const user = userEvent.setup();
+  await user.tab();
+  expect(screen.getByRole("row", { name: "Billing clerk Inspect" })).toHaveFocus();
+  await user.keyboard("{Enter} ");
+  expect(open).toHaveBeenCalledTimes(2);
+  await user.tab();
+  expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
+  await user.keyboard("{Enter}");
+  expect(action).toHaveBeenCalledOnce();
+  expect(open).toHaveBeenCalledTimes(2);
+});
+
+it("leaves a read-only row out of the keyboard action order", () => {
+  renderTable({ rows: [{ id: "1", name: "Billing clerk" }] });
+  expect(screen.getByRole("row", { name: "Billing clerk" })).not.toHaveAttribute("tabindex");
+});
+
+it("keeps an empty or failed full-height table inside its row scrollport", () => {
+  const view = renderTable({ fillHeight: true, rows: [], empty: "No ratings" });
+  const scroller = view.container.querySelector(".overflow-y-auto");
+  expect(scroller).toHaveClass("min-h-0", "flex-1");
+  expect(scroller).toContainElement(screen.getByText("No ratings"));
+  view.unmount();
+  const failed = renderTable({ fillHeight: true, error: "Read failed" });
+  expect(failed.container.querySelector(".overflow-y-auto")).toContainElement(
+    screen.getByRole("alert"),
+  );
+});

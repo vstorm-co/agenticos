@@ -37,13 +37,15 @@ not be able to write it unseen. `app.agents.mcp` names the same set as
 """
 
 
-HELD = frozenset({"read_conversation"})
+HELD = frozenset({"read_conversation", "get_project"})
 """Reads held for a person's approval under a binding's `writes` policy, like a write.
 
 Reading a whole past conversation releases what somebody said before, to a model
 that may also be reading a web page written to make it fetch that conversation
 and send it on - `list_runs` names the conversations, this returns them. The
-person sees which conversation before it is read (Codex on #2324).
+person sees which conversation before it is read (Codex on #2324). Project
+instructions also require an explicit read: discovery must not load arbitrary
+shared instructions into the model (Codex on #2507).
 """
 
 _TOOL_FIELDS = frozenset({"last_tools", "allowed_tools"})
@@ -97,6 +99,81 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def whoami() -> dict[str, Any]:
         """Which organization this connection acts in, and the permissions it holds there."""
         return await api.request("GET", "/me/permissions")
+
+    async def list_projects(q: str | None = None, limit: int = 50, skip: int = 0) -> dict[str, Any]:
+        """Find visible projects for ongoing work. Needs `projects:view`.
+
+        Search by name or description before creating another project. Pages
+        contain at most 100 projects; follow pagination when checking for a match.
+        Only ids and names are returned; read a chosen project explicitly with get_project.
+        """
+        params: dict[str, str | int] = {"limit": limit, "skip": skip}
+        if q is not None:
+            params["q"] = q
+        listing = await api.request("GET", "/projects", params=params)
+        return {
+            **listing,
+            "items": [
+                {field: item[field] for field in ("id", "name")} for item in listing["items"]
+            ],
+        }
+
+    async def get_project(project_id: UUID) -> dict[str, Any]:
+        """Read a project's instructions, default agent and workspace backend.
+
+        Needs access to that project; waits for approval like reading a conversation.
+        `state` stores shared files only; `service`
+        provides a shared sandbox host. A personal Desktop folder is separate and is not
+        represented by this backend or shared by project membership. Check the actual runtime and agent's execution
+        settings before promising code execution. Chats keep separate histories.
+        """
+        return await api.request("GET", f"/projects/{project_id}")
+
+    async def create_project(
+        name: str,
+        instructions: str = "",
+        description: str | None = None,
+        default_agent_id: UUID | None = None,
+        backend: Literal["auto", "state", "service"] | None = None,
+        sandbox_connection_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Create a private home for ongoing work. Needs `projects:edit`; waits for approval.
+
+        Propose Projects for work continued across chats: research, a wiki,
+        writing, coding or recurring analysis. Save the agreed objective, file
+        plan and verification rules in instructions (at most 20000 characters).
+        Name is at most 120 characters; description at most 500. Use only a real
+        agent id the caller may run, or leave the default unset.
+
+        This creates a project, not its files, a new agent or a scheduled job.
+        Open `/projects/<returned id>` and start New chat there: an existing
+        conversation cannot be moved into it. Files and instructions are shared,
+        not full conversation histories. Inspect the returned backend; files-only
+        workspaces do not execute code. `backend` selects the shared server
+        workspace: auto follows deployment defaults, state stores files, service
+        provides a shell; choose a real connection from list_sandbox_connections.
+        For Computer work, the person connects an approved folder in Desktop;
+        this tool cannot select a native folder or grant local access. Local files
+        stay personal; uploading a copy to Shared project files shares that copy.
+        Sharing project membership never shares a computer.
+        """
+        return await api.request(
+            "POST",
+            "/projects",
+            json={
+                "name": name,
+                "instructions": instructions,
+                "description": description,
+                "default_agent_id": str(default_agent_id) if default_agent_id else None,
+                "visibility": "private",
+                **({"backend": backend} if backend is not None else {}),
+                **(
+                    {"sandbox_connection_id": str(sandbox_connection_id)}
+                    if sandbox_connection_id is not None
+                    else {}
+                ),
+            },
+        )
 
     async def list_agents(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The agents this caller can see. Needs `agents:view`."""
@@ -615,6 +692,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
     operations = (
         (whoami, False),
+        (list_projects, False),
+        (get_project, False),
+        (create_project, True),
         (list_agents, False),
         (get_agent, False),
         (create_agent_draft, True),

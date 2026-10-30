@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import {
+  queryOptions,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
+import { modelInUse, runsAgents } from "@/lib/model-profiles";
 import { qk } from "@/lib/query-keys";
 import type { ModelApi, ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
 export interface NewModelProfile {
@@ -29,6 +36,17 @@ export interface NewModelProfile {
    * Which API the requests go to. Accepted only for providers whose catalog entry
    * lists `apis`; omitted, the service stores the default for the endpoint.
    */
+  api?: ModelApi | null;
+}
+
+/**
+ * A change to a saved model, applied in place: the profile keeps its id, so
+ * every agent on it moves with it (#2478). Only the fields sent change; `null`
+ * clears a key, an endpoint or an API choice where the server allows it.
+ */
+export interface ModelProfileChanges {
+  secret_id?: string | null;
+  base_url?: string | null;
   api?: ModelApi | null;
 }
 
@@ -101,6 +119,30 @@ export function useModelProviders() {
     queryFn: () => apiClient.get<ModelProfileList>("/providers/model-profiles"),
   });
 
+  const providerIds = useMemo(
+    () => [...new Set(profiles.data?.items.map((profile) => profile.provider) ?? [])],
+    [profiles.data?.items],
+  );
+  // Observe listings already fetched by model forms, without making requests.
+  // A profile may have arrived before its listing, or from another API replica
+  // that has not cached it; saved-model pickers must still honor the answer.
+  const listings = useQueries({
+    // Disabled subscriptions share the active form's fetcher and retry policy.
+    queries: providerIds.map((provider) => ({ ...providerModelsQuery(provider), enabled: false })),
+    combine: (queries) => queries.map((query) => query.data),
+  });
+  const classifiedProfiles = useMemo(
+    () =>
+      (profiles.data?.items ?? []).map((profile) => {
+        const listing = listings[providerIds.indexOf(profile.provider)];
+        const refused = listing?.items.some(
+          (model) => model.id === profile.model && !runsAgents(model),
+        );
+        return !profile.base_url && refused ? { ...profile, chat_capable: false } : profile;
+      }),
+    [profiles.data?.items, providerIds, listings],
+  );
+
   const invalidate = useCallback(
     // Not `providers.all()`: that prefix covers the catalog, which no mutation
     // can change and which every dialog on the page needs to stay open. Speech
@@ -124,18 +166,48 @@ export function useModelProviders() {
     },
   });
 
+  // Like `createProfile`, the form that sent the fields shows the refusal.
+  const updateProfile = useMutation({
+    mutationFn: ({ id, changes }: { id: string; changes: ModelProfileChanges }) =>
+      apiClient.patch<ModelProfile>(`/providers/model-profiles/${id}`, changes),
+    onSuccess: async (profile) => {
+      await invalidate();
+      toast.success(t("modelUpdated", { label: profile.label }));
+    },
+  });
+
   const deleteProfile = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(`/providers/model-profiles/${id}`),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("modelRemoved"));
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error, id) => {
+      // Agents still run on it: say which, so the reader knows what to move.
+      const inUse = modelInUse(error);
+      const label = profiles.data?.items.find((profile) => profile.id === id)?.label;
+      // The server's own sentence when this list no longer holds the model: it
+      // names the model and the agents too, only in English.
+      if (inUse === null || label === undefined) {
+        toast.error(getErrorMessage(error, tErrors));
+        return;
+      }
+      toast.error(
+        inUse.names.length > 0
+          ? t("modelInUse", {
+              label,
+              names: inUse.names.join(", "),
+              hidden: inUse.hidden,
+              archived: inUse.archived,
+            })
+          : t("modelInUseHidden", { label, count: inUse.hidden }),
+      );
+    },
   });
 
   return {
     catalog: catalog.data?.items ?? [],
-    profiles: profiles.data?.items ?? [],
+    profiles: classifiedProfiles,
     /**
      * What `profiles` currently is: the organization's answer, a placeholder
      * while the read is in flight, or a read that failed.
@@ -152,6 +224,7 @@ export function useModelProviders() {
     isLoading: catalog.isLoading || profiles.isLoading,
     isFetching: catalog.isFetching || profiles.isFetching,
     createProfile,
+    updateProfile,
     deleteProfile,
   };
 }
@@ -162,6 +235,8 @@ export interface ProviderModel {
   name: string;
   /** Tokens the model accepts, when the provider says. */
   context_length?: number | null;
+  /** False for a model the platform knows an agent cannot run on (#2487). */
+  chat_capable?: boolean;
 }
 
 interface ProviderModelList {
@@ -173,6 +248,20 @@ interface ProviderModelList {
    * could not be reached.
    */
   source: "live" | "curated" | "unlisted";
+}
+
+function providerModelsQuery(providerId: string, baseUrl?: string) {
+  return queryOptions({
+    queryKey: qk.providers.models(providerId, baseUrl),
+    queryFn: () =>
+      apiClient.get<ProviderModelList>(
+        `/providers/${providerId}/models${baseUrl ? `?base_url=${encodeURIComponent(baseUrl)}` : ""}`,
+      ),
+    staleTime: 60 * 60 * 1000,
+    // An empty dropdown is the fallback the field is built for, so a provider
+    // that cannot be reached must not retry three times behind an open form.
+    retry: false,
+  });
 }
 
 /**
@@ -187,18 +276,19 @@ interface ProviderModelList {
  * ships something, which is on the order of weeks, but a deployment that added
  * its first key should not have to reload to see a list.
  */
-export function useProviderModels(providerId: string) {
-  const { data, isLoading } = useQuery({
-    queryKey: qk.providers.models(providerId),
-    queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models`),
+export function useProviderModels(providerId: string, baseUrl?: string) {
+  const { data, isFetching } = useQuery({
+    ...providerModelsQuery(providerId, baseUrl),
     enabled: providerId !== "",
-    staleTime: 60 * 60 * 1000,
-    // An empty dropdown is the fallback the field is built for, so a provider
-    // that cannot be reached must not retry three times behind an open form.
-    retry: false,
   });
 
-  return { models: data?.items ?? [], source: data?.source ?? null, isLoading };
+  // Both fields this fills choose a model to talk to, so a speech or embedding
+  // model is not a suggestion (#2487). The field stays free text, so the ids
+  // left out are returned too, for a form to refuse one typed in.
+  const items = data?.items ?? [];
+  const models = items.filter(runsAgents);
+  const refused = items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
+  return { models, refused, source: data?.source ?? null, isLoading: isFetching };
 }
 
 /** One model that draws. */

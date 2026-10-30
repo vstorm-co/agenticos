@@ -1,5 +1,5 @@
 ---
-source_sha: "4d3610509a70"
+source_sha: "eb6562d37c82"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -127,6 +127,12 @@ beider abgelehnt, und ein Schlüssel, der danach privat wird, wird nicht mehr
 benutzt. Anders als `github_oauth_app` werden diese Schlüssel per ID benannt,
 sodass mehrere nebeneinander gespeichert sein dürfen.
 
+Die Schlüsselauswahl nennt sichtbare Schlüssel, die privat oder nur für
+ausgewählte Personen freigegeben sind, und erklärt die nötige Freigabe für
+die Organisation. Eine ChatGPT-Anmeldung wird gesondert gekennzeichnet:
+Sie ermöglicht den Modellzugriff über ein ChatGPT-Abonnement und ersetzt keinen
+OpenAI-API-Schlüssel für Sprachfunktionen. Die Auswahl ändert niemals automatisch den Zugriff.
+
 `git_token` trägt seinen Host, weil eine Git-Sync-Quelle das Token an eine URL
 sendet, die wählt, wer die Quelle bearbeitet. An den Host gebunden, mit dem es
 abgelegt wurde, lässt sich das Token durch Bearbeiten der Quelle nicht auf einen
@@ -187,7 +193,13 @@ außerdem eine abgeschnittene Einfügung ab, solange das Formular noch offen ist
 
 **Model-Provider.** Benannt von einem [Model-Profil](models.md). Ausgaben werden
 dem Secret zugerechnet, auf das der Run aufgelöst hat, und so bekommt "welcher
-Key kostet am meisten" eine Antwort.
+Key kostet am meisten" eine Antwort. Ein Profil mit einem Key zu versehen, leiht
+den Key allen, die darauf laufen. Ein Profil anzulegen oder zu bearbeiten - seinen
+Key oder seinen Endpunkt - braucht daher `secrets:view` auf diesem Key. Ein
+gelöschter Key hinterlässt seine Profile mit `missing_key`, bis sie einen anderen
+bekommen, auch eines vor einem Gateway. Ohne Key läuft nur ein Profil weiter, das
+absichtlich ohne Key gespeichert wurde
+([Ein Profil ohne Schlüssel](models.md#a-profile-without-a-key)).
 
 **Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
 neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:

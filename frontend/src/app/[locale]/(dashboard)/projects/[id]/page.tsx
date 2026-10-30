@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { FolderKanban, Plus } from "lucide-react";
+import { FolderKanban, Plus, Files, MessageSquare, AppWindow, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -44,9 +44,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pb-4">
       <PageHeader
-        className="mb-0 md:mb-0"
+        className="mb-0 shrink-0 md:mb-0"
         breadcrumbs={[
           { label: t("title"), href: ROUTES.PROJECTS },
           { label: project?.name ?? t("title") },
@@ -81,14 +81,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 name={project.name}
                 canManage={project.can_edit}
               />
-              {project.can_use && (
-                <Button asChild>
-                  <Link href={ROUTES.PROJECT_CHAT(project.id)}>
-                    <Plus className="h-4 w-4" />
-                    {t("newChat")}
-                  </Link>
-                </Button>
-              )}
+              {project.can_use &&
+                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
+                  <Button asChild>
+                    <Link href={ROUTES.PROJECT_CHAT(project.id)}>
+                      <Plus className="h-4 w-4" />
+                      {t("newChat")}
+                    </Link>
+                  </Button>
+                )}
             </>
           ) : (
             <Skeleton className="h-9 w-28" />
@@ -101,35 +102,39 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         onValueChange={(value) => setTabParam(value === "files" ? null : value)}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <TabsList data-tour="project-tabs">
+        <TabsList data-tour="project-tabs" className="shrink-0">
           <TabsTrigger disabled={isLoading} value="files">
+            <Files className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("files")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="chats">
+            <MessageSquare className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("chats")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="apps">
+            <AppWindow className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("apps")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="instructions">
+            <FileText className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("instructions")}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="files" className="flex min-h-0 flex-1 flex-col">
+        <TabsContent value="files" className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {project ? (
             <ProjectFiles project={project} />
           ) : (
             <FileExplorer source={{ kind: "project", id }} files={null} isLoading error={null} />
           )}
         </TabsContent>
-        <TabsContent value="chats">
+        <TabsContent value="chats" className="flex min-h-0 flex-1 flex-col overflow-auto">
           {project ? (
             <ProjectChats project={project} />
           ) : (
             <LoadingState variant="skeleton-list" rows={3} />
           )}
         </TabsContent>
-        <TabsContent value="apps">
+        <TabsContent value="apps" className="flex min-h-0 flex-1 flex-col overflow-auto">
           {project ? (
             <ProjectApps project={project} />
           ) : (
@@ -139,7 +144,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             />
           )}
         </TabsContent>
-        <TabsContent value="instructions">
+        <TabsContent value="instructions" className="min-h-0 flex-1 overflow-auto">
           {/* Keyed on the saved row, so a save that comes back re-seeds the form. */}
           {project ? (
             <ProjectSettings key={project.updated_at ?? project.id} project={project} />

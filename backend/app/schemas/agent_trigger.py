@@ -12,6 +12,7 @@ from pydantic import ConfigDict, Field, computed_field, field_validator, model_v
 from app.core.config import settings
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.local_target import LocalTarget
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -456,6 +457,14 @@ class TriggerCreate(BaseSchema):
             "and conversation search stays closed either way (#2027)"
         ),
     )
+    local_target: LocalTarget | None = Field(
+        default=None,
+        description=(
+            "Work in a folder on the creator's own computer, through their desktop "
+            "app, instead of the agent's sandbox: the folder and the mode they "
+            "granted there. Only with runs_as_creator, set by the creator (#2305)"
+        ),
+    )
 
     # Schedule fields.
     schedule_kind: Literal["interval", "cron"] = "interval"
@@ -658,6 +667,15 @@ class TriggerUpdate(BaseSchema):
             "destination turns it off"
         ),
     )
+    local_target: LocalTarget | None = Field(
+        default=None,
+        description=(
+            "Work in a folder on the creator's own computer, through their desktop "
+            "app, instead of the agent's sandbox: the folder and the mode they "
+            "granted there, or null for the sandbox. Only the creator may set one, "
+            "and turning runs_as_creator off clears it (#2305)"
+        ),
+    )
     # An event trigger's filter. Re-validated against its source's typed model in
     # the service (which owns `event_source`), so an unknown key is refused there
     # rather than stored to match nothing; a schedule has no filter and one sent
@@ -709,6 +727,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     environment_id: UUID | None = None
     teams_conversation_id: UUID | None = None
     runs_as_creator: bool = False
+    local_target: LocalTarget | None = None
     trigger_type: Literal["schedule", "event"]
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None

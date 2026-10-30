@@ -52,7 +52,7 @@ export function MembersWidget({ title, hint, options }: DashboardWidgetProps) {
       seeAll={activeOrgId ? ROUTES.ORG_MEMBERS(activeOrgId) : undefined}
     >
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : total <= 1 ? (

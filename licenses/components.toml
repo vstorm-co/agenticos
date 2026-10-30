@@ -281,7 +281,7 @@ fulfilled_by = "Pulled by the operator from Docker Hub and run unmodified beside
 
 [[component]]
 name = "ghcr.io/vstorm-co/sandboxd"
-version = "0.2"
+version = "0.2.39"
 kind = "service image, deployment (optional agent sandbox)"
 license = "MIT (pydantic-ai-backend, Vstorm)"
 source = "https://github.com/vstorm-co/pydantic-ai-backend"

@@ -1579,10 +1579,17 @@ settings:
   asks **what was wrong?** in a Slack modal or a Mattermost dialog; the reply is
   kept as the rating's comment. Telegram takes the thumbs without the question.
 
-A rating needs a linked member, as a press on an approval does; an unlinked
-person's thumbs are not counted. The dashboard's *Answer quality* card splits
-the share of good answers by surface once more than one has been rated, so an
-agent that does well in the console and badly in Slack shows it.
+**Mattermost does not require an AgenticOS account to rate.** The server-signed
+participant identity owns the vote. Each participant can change their vote;
+buttons stay available to everybody, and confirmation is private. A thumbs-down
+comment belongs to the same participant. Slack and Telegram retain their
+linked-member requirement; approving a tool call still requires membership.
+Channel-authored ratings have a null `user_id` in API responses, rather than
+being attributed to the bot owner. Upgrade the database before enabling this
+version. A downgrade removes channel-authored ratings and keeps account votes.
+
+The dashboard's *Answer quality* card includes these votes and splits them by
+surface, so a difference between the console and Mattermost remains visible.
 
 ## What every channel shares
 
@@ -1936,26 +1943,17 @@ agent that does well in the console and badly in Slack shows it.
   marks the bot down on the channels page: "another process is polling this
   bot's token". That process is outside the deployment, usually a second
   deployment or a script with the same token, and only its owner can stop it.
-- **A binding's instructions may name what only the platform knows.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` - filled in when a run starts, from the same calls the channel
-  lookups use, so Telegram offers all five even though it offers two of the four
-  tools. The Builder lists the ones this platform can answer under the box and
-  inserts one at the cursor, each with the tool's real description - what the
-  model reads before deciding to call it, not the catalog's shortened
-  paraphrase, minus the markup the model itself uses to tell the summary from
-  the answer's shape.
+- **Channel context is supplied automatically on every run.** Mattermost, Slack, Teams and Telegram runs receive the channel's name, purpose, topic, visibility, reported member count and a bounded visible roster, including on existing or cleared binding prompts. `{channel_members}` is the readable name for the roster; `{member_list}` remains an alias. The other placeholders are `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` and `{member_count}`.
 
-    Resolved per run and never cached: a channel's membership changes, and a
-    stale list in a prompt is worse than none because the agent states it as
-    fact. Only what the prose asks for is fetched, so a binding that names no
-    placeholder costs nothing. A placeholder the platform could not answer
-    becomes `(unavailable)` rather than costing somebody their reply.
+    Context is resolved once per source per run, not cached between turns: at most 50 visible members and 2000 characters per value. Telegram returns administrators, not the whole membership. Each source has a five-second timeout; unavailable values stay unknown. Values are flattened and delivered as untrusted conversation data, outside system instructions. Slack supplies native member IDs without per-person profile requests. The binding's editable text adds guidance alongside this runtime context.
 
-    A prompt that filled any of them gains a sentence saying the substituted
-    values are information rather than orders, and every value has its line
-    breaks and braces flattened. A channel's `purpose` is editable by whoever
-    can edit the channel, and it is being pasted into an agent's instructions.
+- **Choose whether group mentions start a run.** In the bot's create or edit dialog, *Respond to group mentions* is off by default. Direct invocations continue to work. Enabling it also admits Mattermost `@all`, `@here` and `@channel`, Slack's native room mentions, and structured Teams channel/team mentions. Sender identity, access checks and rate limits still apply. Quoted code and unrelated users' mentions do not count.
+
+    Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity.
+
+- **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
+- **All MCP calls require approval in chat apps, including reads and organization or platform connections.** A linked account identifies whose connection is used; it does not grant automatic permission to publish personal results to a conversation. The same rule applies to delegated agents and resumed calls.
+- **The agent is told where it is answering and whose account is available.** Runtime guidance identifies the communicator and deployment console, explains that tools use a managed workspace, and distinguishes organization MCP connections from personal services. Personal services require both a linked sender identity and that person's authorized connection. Linking uses plain `link` in a direct message; the private connection URL never belongs in a channel. The agent reports actual tool results and gives one concrete next step when authentication or a capability is missing.
 - **A redelivered message is answered once.** Every platform delivers
   at-least-once: the webhook routes answer 200 before any work so a slow handler
   never triggers a retry, but a 200 lost on the wire — a proxy drops it, the pod
@@ -2373,18 +2371,7 @@ not that succeeded
 A turn that actually ran keeps its files — they fed it, and the run is in the
 transcript.
 
-**Outbound** is what the agent wrote this turn, compared against a snapshot taken
-when the workspace opened. Not a diff of everything: `/uploads` is the user's own
-file — posting it back is quoting somebody their own attachment — and `/skills` is
-know-how the platform materialised, not the agent's work. A file it *overwrote* is
-not sent either: rewriting a script it is iterating on is ordinary, and posting it
-every turn would fill the channel with the same attachment.
-
-**If that snapshot could not be taken, nothing is posted.** The comparison is
-"everything now, minus everything then", so treating an unreadable workspace as an
-empty one would make every file already in it read as this turn's output — and under
-`agent` or `channel` scope those files belong to other people. A missing attachment
-is the failure worth having; a colleague's spreadsheet in a shared channel is not.
+**Outbound** files are sent only through `send_channel_file`, when the user asks to receive or download a file. Creating, reading or editing a workspace file does not attach it. Grant the tool per bot binding under *Where this agent is available*. Existing bindings keep their chosen tools; enable this action explicitly after upgrading. The tool is side-effecting and follows the normal approval policy. It sends only the named workspace file, refuses internal paths and files over 8 MB, and permits at most three attempts per turn. Platform failures are reported instead of claiming delivery. Teams may require acceptance in a personal chat. Charts and requested visuals keep their separate picture delivery.
 
 Each file carries the type its name implies rather than a flat
 `application/octet-stream`, so a chart an agent wrote arrives as a picture on the
@@ -2500,7 +2487,7 @@ up for, or what was said in it ten minutes ago — so *"who should I ask about
 billing?"* and *"summarise what we decided above"* are questions it can only
 answer by guessing.
 
-Four tools change that, and each is granted **per binding**, under
+Five tools change that, and each is granted **per binding**, under
 *Where this agent is available*:
 
 | Tool | Answers | Slack | Telegram | Mattermost | Teams |
@@ -2508,7 +2495,14 @@ Four tools change that, and each is granted **per binding**, under
 | `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Who is here | ✅ | admins only | ✅ | ✅ |
 | `search_channels` | Which other channels exist | ✅ | — | ✅ | — |
-| `read_channel_history` | What was said recently, **in the thread it is answering in** | ✅ | — | ✅ | — |
+| `read_channel_history` | Recent messages in this channel, or `scope="thread"` for this thread | ✅ | — | ✅ | — |
+| `send_channel_file` | Send a requested workspace file | ✅ | ✅ | ✅ | ✅ |
+
+Use a direct message containing plain `link` (without a slash) to connect an account. Open the private connection link while signed in to AgenticOS, then return to the channel. When earlier thread files require linking, the bot explains this without downloading them and retries after connection. Channel pictures use twice the CSS resolution; very wide horizontal Mermaid flowcharts receive a vertical layout for the PNG only.
+
+Images requested through `generate_image` are attached to replies on all four chat platforms, alongside the existing chart and diagram support. Stored images are read within the run's organization, limited to 8 MiB and 16 megapixels, and converted to PNG; missing, invalid or oversized images produce a delivery notice. Teams additionally fits inline pictures to its own limits. Creating an ordinary workspace file still does not send it: that requires `send_channel_file`. Thread context preserves the original message timestamps; relative times refer to those timestamps, not to when the agent joins the thread.
+
+Only files recorded as generated by the run's own tools are attached. A tool name or result text cannot authorize access to another conversation's media. Rejecting image generation approval does not trigger a missing-image notice. Existing threads refresh text once without downloading earlier attachments again.
 
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
@@ -2528,22 +2522,13 @@ Three things worth knowing before granting them:
 - **The bot's membership is the whole permission boundary.** Every call goes
   through the bot's own token, so the agent sees exactly what the bot sees. There
   is no allow-list of ours to get out of step with the platform's own.
-- **The model never names a channel, or a thread.** The tools are bound
-  server-side to the channel the message arrived in, and `read_channel_history`
-  to the thread as well: a thread and its channel are two transcripts, and the
-  one the agent was spoken to in is the thread. Bound to the channel alone,
-  *"summarise what we decided above"* summarised whatever else the room had been
-  saying. An argument for either would turn *"who is in this channel"* into
-  *"read any channel this bot is in"*, asked from a conversation somewhere else.
+- **The model never names a channel or thread ID.** `read_channel_history` defaults to `scope="channel"` for recent messages in the current channel; `scope="thread"` reads only the bound thread. Neither can read a different channel. Results are a bounded recent window, not evidence that older messages do not exist. Automatic context backfill remains thread-only.
 - **`read_channel_history` is the one worth gating.** It is a read, so it does
   not ask by default, but it puts other people's messages into a run transcript
   somebody reads weeks later. A `tool_approval` override on the binding is how
   you make it ask.
 
-This is deliberately *not* the same thing as putting the channel's member list
-and purpose into every system prompt. That is a different feature with a
-different failure mode — a `purpose` written by whoever can edit the channel,
-pasted into the instructions, is a prompt injection with a public edit button.
+Automatic channel context includes the name, purpose and a bounded visible roster, marked as data rather than instructions. These per-binding tools grant additional lookups and explicit file delivery; clearing a tool grant does not remove the automatic context.
 
 ## A bot whose messages start a workflow { #a-bot-whose-messages-start-a-workflow }
 
@@ -2596,3 +2581,5 @@ flowchart TD
 - What is recorded is **what the person wrote**, not the prompt assembled around it.
 - A **delegation is a panel**, not a pause — and attaching a handler to one changes
   the transport, so it is attached only where a sink exists.
+
+A channel post containing only the bot mention or whitespace is ignored after mention removal, before claiming delivery or starting a run. This avoids sending an empty user message to model APIs that drop it and then reject the preceding assistant answer as prefill. A post containing only attachments still follows the attachment pipeline.

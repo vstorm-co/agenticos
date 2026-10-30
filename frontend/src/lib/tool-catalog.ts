@@ -64,6 +64,7 @@ export type ToolRenderer =
   | "generated-image"
   | "generated-speech"
   | "generated-video"
+  | "desktop-screenshot"
   | "web-search"
   | "rag"
   | "run-python"
@@ -264,6 +265,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "openingPage",
     displayNameKey: "openPage",
   },
+  browser_new_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "openingPage",
+    displayNameKey: "openPage",
+  },
+  browser_tabs: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_switch_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_close_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
   browser_read: {
     kind: "web",
     render: "generic",
@@ -301,6 +326,37 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "goBack",
   },
 
+  // computer_use - a desktop worked through screenshots. Like `browse_web`, the live
+  // view is the browse panel, fed by frames rather than by these calls; what comes
+  // back to the model is a screenshot plus a line, so the generic renderer serves.
+  computer_screenshot: {
+    kind: "web",
+    render: "generic",
+    captionKey: "lookingAtScreen",
+    displayNameKey: "takeScreenshot",
+  },
+  computer_act: {
+    kind: "web",
+    render: "generic",
+    captionKey: "usingComputer",
+    displayNameKey: "useComputer",
+  },
+  computer_apps: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingApps",
+    displayNameKey: "listApps",
+  },
+  // The screenshot kept for the user rather than looked at: the picture is the answer.
+  computer_save_screenshot: {
+    kind: "image",
+    render: "desktop-screenshot",
+    captionKey: "savingScreenshot",
+    displayNameKey: "savedScreenshot",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
   // steps are read back in the run timeline rather than watched live in the dashboard.
   get_channel_info: {
@@ -320,6 +376,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "lookingForChannel",
     displayNameKey: "channelSearch",
+  },
+  send_channel_file: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sendingChannelFile",
+    displayNameKey: "sendChannelFile",
   },
   read_channel_history: {
     kind: "read",

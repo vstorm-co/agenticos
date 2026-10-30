@@ -21,8 +21,7 @@ from app.repositories import (
     rag_document_repo,
     resource_grant_repo,
 )
-from app.repositories import sync_source as sync_source_repo
-from app.repositories.rag_document import CollectionCounts
+from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseList,
@@ -37,9 +36,11 @@ from app.services.ingestion_config import (
     chosen_embedding,
     deployment_defaults,
 )
+from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
+from app.worker.jobs import BasePurge
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,10 @@ def _with_counts(kb: KnowledgeBase, counts: CollectionCounts | None) -> Knowledg
     )
 
 
+# The deleted documents one `BasePurge` of a kept base names.
+_PURGE_IDS_PER_ENTRY = 500
+
+
 class KnowledgeBaseService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -170,7 +175,7 @@ class KnowledgeBaseService:
         )
         return KnowledgeBaseList(
             items=[
-                _with_counts(kb, counts.get(kb.collection_name)).model_copy(
+                _with_counts(kb, counts.get(kb.id)).model_copy(
                     update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
                 )
                 for kb in items
@@ -214,16 +219,17 @@ class KnowledgeBaseService:
             shared_with_me=shared_with_me,
         )
 
-    async def counts_for(self, bases: list[KnowledgeBase]) -> dict[str, CollectionCounts]:
-        """What each of these collections holds, keyed by collection name.
+    async def counts_for(self, bases: list[KnowledgeBase]) -> dict[UUID, CollectionCounts]:
+        """What each of these knowledge bases holds, keyed by base id.
 
         Takes the rows the caller already resolved rather than re-deriving them:
         this is the second half of a listing whose first half already answered
         "which of these may they see", and asking that question twice is how the
-        two answers drift.
+        two answers drift. Keyed by base rather than by collection name, because
+        bases share a name and each holds its own rows (#2486).
         """
-        return await rag_document_repo.counts_by_collection(
-            self.db, collections=[kb.collection_name for kb in bases]
+        return await rag_document_repo.counts_by_scope(
+            self.db, scopes=[CollectionScope.of(kb) for kb in bases]
         )
 
     async def create_for_rag_collection(
@@ -273,14 +279,13 @@ class KnowledgeBaseService:
         )
 
     async def delete_for_rag_collection(self, kb: KnowledgeBase) -> None:
-        """Clear a dropped collection: sync its KB row, and drop its vector table.
+        """Clear a dropped collection: its documents, its KB row and its vectors.
 
-        Keeps the KB table in sync when a collection is dropped via
-        `DELETE /rag/collections/{name}`. A default KB keeps its **row** so the org
-        keeps a usable knowledge base, but its vector **table** is dropped all the
-        same - so a cleared default stops returning the documents deleted with it, the
-        stale-searchable-chunks bug a kept table left behind (#1361, #1364). A search
-        reads an absent table as empty and the next upload recreates it
+        Serves `DELETE /rag/collections/{name}`. A default KB keeps its **row** so
+        the org keeps a usable knowledge base, but its documents and vectors go all
+        the same - so a cleared default stops returning the documents deleted with
+        it, the stale-searchable-chunks bug a kept table left behind (#1361, #1364).
+        A search reads an absent table as empty and the next upload recreates it
         (`_ensure_collection`); a non-default KB's row goes too.
 
         Takes the row rather than the name: the caller has already resolved
@@ -288,38 +293,178 @@ class KnowledgeBaseService:
         again would find whichever row the database returned first - possibly
         another organization's, where two of them share a collection name.
 
-        The table is dropped only when no base *other than this one* still references
-        the name. The vector namespace is not tenant-unique, so a name a sibling - or
-        another org - still holds backs a table their chunks live in too, and dropping
-        it would destroy theirs (#913). The drop is a cleanup job queued in this
-        transaction (`queue_external_state_cleanup`), not run in the request, so it
-        happens only once the delete has committed: an in-request drop stranded a
-        rolled-back delete on a dropped table, lost it to a worker restart, and
-        raced a concurrent claim (#1347, #1349, #1355). The name is held against a claim while the reference check and the
-        reservation are made, and reserved in `collection_teardowns` until the drop
-        runs, so neither a create (`claim`) nor an upload (`dispatch_upload`) can slip
-        onto the name and have this drop destroy its table (#1362, #1364).
+        The name is not tenant-unique (#913), so what goes depends on whether a
+        base *other than this one* still holds it. If one does, the table backs
+        its chunks too and stays; only this base's document rows are deleted, by
+        its id, and the chunks filed under it are purged from the kept table by
+        the cleanup job (#2537) - for a kept default, only the deleted documents'
+        chunks, since it takes uploads again under the same id. Deleting by name
+        reached every base's rows under it, another organization's included, and
+        queued their files for unlinking (#2560). The unfiled rows the base takes
+        - its tenant's - go with it unless another base of that tenant on the
+        name takes them too, and their chunks with the purge: a kept default
+        would otherwise go on listing and serving them. If no other base holds
+        the name, every row under it goes - unfiled ones included, since nothing
+        could read them once the table is dropped - and so does the table.
+
+        The stored files, the purge and the drop are a cleanup job queued in this
+        transaction (`queue_external_state_cleanup`), not run in the request, so
+        they happen only once the delete has committed: an in-request drop stranded
+        a rolled-back delete on a dropped table, lost it to a worker restart, and
+        raced a concurrent claim (#1347, #1349, #1355). The name is held against a
+        claim while the reference check and the reservation are made, and reserved
+        in `collection_teardowns` until the drop runs, so neither a create (`claim`)
+        nor an upload (`dispatch_upload`) can slip onto the name and have this drop
+        destroy its table (#1362, #1364).
         """
         collection = kb.collection_name
-        # The teardown lock comes before the KB row delete, one order across every
-        # path that takes both, so a concurrent purge cannot invert into a deadlock
-        # (#1387).
+        # The teardown lock comes before the document and KB rows, one order across
+        # every path that takes both, so a concurrent purge cannot invert into a
+        # deadlock (#1387).
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
-        if not kb.is_default:
-            await knowledge_base_repo.delete(self.db, kb.id)
-        # A default keeps its own row, so filter it out by id: the table is dropped
-        # only when no base *other* than the one being cleared still references the
-        # name, so a shared name a sibling holds is not dropped from under it (#913).
+        # Lock the base before enumerating its documents, so a concurrent upload or
+        # sync inserting a row cannot slip in between the delete and the commit and
+        # survive detached under `ON DELETE SET NULL` (#1266).
+        await knowledge_base_repo.lock(self.db, kb.id)
+        # A default keeps its own row, so it is filtered out by id.
         others = [
             ref
             for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
             if ref.id != kb.id
         ]
-        if not others:
+        collections_to_drop: list[str] = []
+        base_purges: list[BasePurge] = []
+        # The documents go before the KB row: `ON DELETE SET NULL` would unfile
+        # them first, and a delete by the base's id would then find nothing.
+        if others:
+            storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
+        else:
+            storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
+            collections_to_drop = [collection]
+            await collection_teardown_repo.reserve(self.db, collection)
+        if not kb.is_default:
+            await CollectionAccessService(self.db).detach_sources_targeting(kb)
+            await knowledge_base_repo.delete(self.db, kb.id)
+        # Always a job: a kept table has the base's chunks to purge, and an
+        # unreferenced one is dropped.
+        from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
+
+        await queue_external_state_cleanup(
+            self.db, storage_paths, collections_to_drop, base_purges=base_purges
+        )
+
+    async def drop_collection_by_name(
+        self, collection: str, *, knowledge_base_id: UUID | None = None
+    ) -> KnowledgeBase | None:
+        """Drop a collection by its name, for `rag-drop`, which has no caller to scope by.
+
+        Goes through the same teardown as `DELETE /rag/collections/{name}`: the
+        base holding the name is cleared by `delete_for_rag_collection`, so its
+        documents go, a table another base still holds stays, and the drop is a
+        cleanup job queued in this transaction under the teardown lock and a
+        reservation (#1359, #1362). The command used to drop the vector table
+        straight away, with no reference check, and left the document rows behind
+        - destroying a table another base, possibly another organization's, still
+        used (#2560).
+
+        The name is not tenant-unique (#913), so when several bases hold it the
+        operator names one by `knowledge_base_id`; without one this refuses rather
+        than pick. A name no base holds - a collection `rag-ingest` filled from
+        the command line - is dropped whole, its document rows with it.
+
+        Returns the base cleared, or `None` for a name no base holds.
+        """
+        # The teardown lock before the lookup, so the holders read here are the
+        # ones the drop decides on; `delete_for_rag_collection` takes it again,
+        # which a transaction-level advisory lock allows.
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+        holders = await knowledge_base_repo.list_by_collection_name(self.db, collection)
+        if knowledge_base_id is not None:
+            kb = next((holder for holder in holders if holder.id == knowledge_base_id), None)
+            if kb is None:
+                raise NotFoundError(
+                    message="No knowledge base with this id holds the collection",
+                    details={"collection": collection, "knowledge_base_id": knowledge_base_id},
+                )
+        elif len(holders) > 1:
+            raise BadRequestError(
+                message="Several knowledge bases hold this collection name; name one by its id",
+                details={
+                    "collection": collection,
+                    "knowledge_base_ids": [holder.id for holder in holders],
+                },
+            )
+        elif holders:
+            kb = holders[0]
+        else:
+            storage_paths = await rag_document_repo.delete_by_collection(self.db, collection)
             await collection_teardown_repo.reserve(self.db, collection)
             from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            await queue_external_state_cleanup(self.db, [], [collection])
+            await queue_external_state_cleanup(self.db, storage_paths, [collection])
+            return None
+        await self.delete_for_rag_collection(kb)
+        return kb
+
+    async def _delete_documents_from_kept_table(
+        self, kb: KnowledgeBase, others: list[KnowledgeBase]
+    ) -> tuple[list[str], list[BasePurge]]:
+        """Delete a base's document rows from a table `others` still hold.
+
+        Returns the stored files to unlink and the purges of the base's chunks
+        from the kept table. Its own rows go by its id; a kept default's purge
+        snapshots committed vector ids while holding the base lock, including
+        inserts not yet settled onto tracking rows, since it takes uploads again
+        under the same id. The unfiled rows the base takes - its tenant's - go
+        with it, unless another base of that tenant on the name takes them too
+        and still reads them: a kept default would otherwise go on listing them,
+        and a deleted base would hand them to its tenant's next base on the name
+        (#2560). Their chunks are purged by document id within the tenant.
+
+        Runs before the KB row is deleted: `ON DELETE SET NULL` would unfile the
+        base's rows first, and a delete by its id would then find nothing.
+        """
+        collection = kb.collection_name
+        scope = CollectionScope.of(kb)
+        takes_unfiled = scope.takes_unfiled and not any(
+            other.vector_scope.takes_unfiled and other.vector_scope.tenant == scope.tenant
+            for other in others
+        )
+        unfiled = (
+            await rag_document_repo.delete_unfiled_with_vectors(self.db, scope)
+            if takes_unfiled
+            else rag_document_repo.DeletedDocuments(storage_paths=[], vector_document_ids=[])
+        )
+        base_purges: list[BasePurge] = []
+        if kb.is_default:
+            stored = await rag_document_repo.stored_vector_ids_at_clear(
+                self.db, kb, takes_unfiled=takes_unfiled
+            )
+            deleted = await rag_document_repo.delete_by_knowledge_base_with_vectors(self.db, kb.id)
+            storage_paths = deleted.storage_paths + unfiled.storage_paths
+            named = list(
+                dict.fromkeys([*deleted.vector_document_ids, *stored, *unfiled.vector_document_ids])
+            )
+        else:
+            storage_paths = (
+                await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
+                + unfiled.storage_paths
+            )
+            named = unfiled.vector_document_ids
+            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        # Split, so a large purge spreads across entries and jobs rather than
+        # one payload and one array holding every document.
+        base_purges += [
+            BasePurge(
+                collection=collection,
+                knowledge_base_id=kb.id,
+                vector_document_ids=named[i : i + _PURGE_IDS_PER_ENTRY],
+                takes_unfiled=takes_unfiled,
+                tenant=scope.tenant if takes_unfiled else None,
+            )
+            for i in range(0, len(named), _PURGE_IDS_PER_ENTRY)
+        ]
+        return storage_paths, base_purges
 
     async def get(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, or "not found" - for absent and out-of-reach alike."""
@@ -426,6 +571,7 @@ class KnowledgeBaseService:
             )
             embedding_secret_id = shared.embedding_secret_id
             embedding_endpoint_id = shared.embedding_endpoint_id
+            embedding_base_url = shared.embedding_base_url
         else:
             embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
             if data.embedding_provider is None:
@@ -440,6 +586,13 @@ class KnowledgeBaseService:
             _check_provider_fits_scope(provider, organization_id=org_id)
             embedding_secret_id = data.embedding_secret_id
             embedding_endpoint_id = data.embedding_endpoint_id
+            embedding_base_url = await self._embedding_url(
+                ctx, provider.provider, data.embedding_base_url
+            )
+            if embedding_base_url is not None:
+                await embedding_providers.require_served_at(
+                    provider, embedding_base_url, model=embedding_model, field="embedding_model"
+                )
             if provider.keyless:
                 _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
                 if embedding_endpoint_id is None:
@@ -479,6 +632,7 @@ class KnowledgeBaseService:
             embedding_provider=provider.provider,
             embedding_secret_id=embedding_secret_id,
             embedding_endpoint_id=embedding_endpoint_id,
+            embedding_base_url=embedding_base_url,
         )
         if (data.group_ids or data.user_ids) and data.scope == KBScope.ORG.value:
             await SharingService(self.db).restrict_to(
@@ -525,6 +679,7 @@ class KnowledgeBaseService:
             "embedding_provider": (data.embedding_provider, held.embedding_provider),
             "embedding_secret_id": (data.embedding_secret_id, held.embedding_secret_id),
             "embedding_endpoint_id": (data.embedding_endpoint_id, held.embedding_endpoint_id),
+            "embedding_base_url": (data.embedding_base_url, held.embedding_base_url),
         }
         for field, (wanted, existing) in asked.items():
             if wanted is not None and wanted != existing:
@@ -535,6 +690,22 @@ class KnowledgeBaseService:
                     f"shares its embedding configuration.",
                 )
         return held
+
+    async def _embedding_url(self, ctx: AuthContext, provider: str, url: str | None) -> str | None:
+        if url is not None and not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise AuthorizationError(
+                message="Managing connections is required for a custom embedding endpoint"
+            )
+        if url is None:
+            return None
+        if provider != "openrouter":
+            raise refused_field(
+                "embedding_base_url", "A custom embedding endpoint is supported only for OpenRouter"
+            )
+        try:
+            return (await validate_endpoint_url(url.strip())).rstrip("/")
+        except BadRequestError as error:
+            raise refused_field("embedding_base_url", error.message) from error
 
     async def _check_embedding_secret(
         self,
@@ -606,6 +777,48 @@ class KnowledgeBaseService:
             model=kb.embedding_model,
             dim=kb.embedding_dim,
         )
+        url_named = "embedding_base_url" in data.model_fields_set
+        wanted_url = data.embedding_base_url if url_named else kb.embedding_base_url
+        if wanted_url is not None and provider.provider != "openrouter":
+            if url_named:
+                raise refused_field(
+                    "embedding_base_url",
+                    "A custom embedding endpoint is supported only for OpenRouter",
+                )
+            wanted_url = None
+            url_named = True
+        if url_named and wanted_url != kb.embedding_base_url:
+            if not ctx.has(Perm.CONNECTIONS_MANAGE):
+                raise AuthorizationError(
+                    message="Managing connections is required to change an embedding endpoint"
+                )
+            # Changing the destination lends the retained key to that host just
+            # as choosing a new key does. Managing connections alone is not
+            # authority to send a colleague's private credential elsewhere.
+            if (
+                kb.embedding_secret_id is not None
+                and data.embedding_secret_id is None
+                and not provider.keyless
+            ):
+                await self._check_embedding_secret(
+                    kb.embedding_secret_id,
+                    ctx=ctx,
+                    organization_id=kb.organization_id,
+                    provider=provider,
+                )
+            wanted_url = await self._embedding_url(ctx, provider.provider, wanted_url)
+            if wanted_url is not None:
+                # The model is the collection's own and cannot follow the move,
+                # so an endpoint that does not serve it is the wrong endpoint.
+                await embedding_providers.require_served_at(
+                    provider, wanted_url, model=kb.embedding_model, field="embedding_base_url"
+                )
+            shared = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+            if any(row.id != kb.id and row.embedding_base_url != wanted_url for row in shared):
+                raise refused_field(
+                    "embedding_base_url",
+                    "This collection shares its embedding configuration with another knowledge base",
+                )
         if data.embedding_provider is not None:
             _check_provider_fits_scope(provider, organization_id=kb.organization_id)
         if provider.keyless:
@@ -641,6 +854,8 @@ class KnowledgeBaseService:
             embedding_provider=data.embedding_provider,
             embedding_secret_id=data.embedding_secret_id,
             embedding_endpoint_id=data.embedding_endpoint_id,
+            embedding_base_url=wanted_url,
+            set_embedding_base_url=url_named,
         )
 
     async def _check_embedding_endpoint(
@@ -756,6 +971,12 @@ class KnowledgeBaseService:
         before dropping, because the name is not tenant-unique and a second org can
         reclaim it in the window between the commit and the drop (#913), and it
         builds its own vector engine - which is why this no longer takes a store.
+        When another base still holds the name, the table stays and the same job
+        deletes the chunks filed under this base instead (#2537). The unfiled rows
+        the base takes - its tenant's legacy uploads - go with it then, files and
+        chunks included, unless another base of the same tenant on the name still
+        takes them: left, they would come back with the tenant's next base on the
+        name (#2560). `delete_for_rag_collection` applies the same rule.
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for
@@ -779,25 +1000,33 @@ class KnowledgeBaseService:
         # or sync inserting a row cannot slip in between the enumeration and the
         # base delete and survive detached under `ON DELETE SET NULL` (#1266).
         await knowledge_base_repo.lock(self.db, kb.id)
-        storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
-        await knowledge_base_repo.delete(self.db, kb.id)
+        others = [
+            ref
+            for ref in await knowledge_base_repo.list_by_collection_name(self.db, collection)
+            if ref.id != kb.id
+        ]
         collections_to_drop: list[str] = []
-        if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
-            # No base references the name any more, so any sync source still
-            # pointing at it is dangling: `get_due_for_sync` would re-select it
-            # and `_run_source_sync` would recreate the very table this drops
-            # (#1266). Deactivate rather than delete - the source keeps its
-            # connector and vault credential, but stops being scheduled.
-            for source in await sync_source_repo.get_all(self.db, collection_name=collection):
-                await sync_source_repo.update(self.db, source.id, is_active=False)
+        base_purges: list[BasePurge] = []
+        if others:
+            # Another base keeps the shared table, so the deleted base's chunks
+            # stay in it, filed under an id no scope reads. Removed by that id
+            # after the commit, in the same durable job (#2537) - with the
+            # unfiled rows the base took, and their chunks (#2560).
+            storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
+        else:
+            storage_paths = await rag_document_repo.delete_by_knowledge_base(self.db, kb.id)
             collections_to_drop = [collection]
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or collections_to_drop:
+        await CollectionAccessService(self.db).detach_sources_targeting(kb)
+        await knowledge_base_repo.delete(self.db, kb.id)
+        if storage_paths or collections_to_drop or base_purges:
             from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
-            await queue_external_state_cleanup(self.db, storage_paths, collections_to_drop)
+            await queue_external_state_cleanup(
+                self.db, storage_paths, collections_to_drop, base_purges=base_purges
+            )
 
     def _check_create_permission(self, *, scope: str, ctx: AuthContext) -> None:
         if scope == KBScope.APP.value and not ctx.is_app_admin:

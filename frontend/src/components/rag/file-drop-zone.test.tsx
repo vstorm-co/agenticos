@@ -55,4 +55,56 @@ describe("the file drop zone", () => {
     expect(over.defaultPrevented).toBe(false);
     expect(onFiles).not.toHaveBeenCalled();
   });
+  it("keeps the hint across child boundaries and clears a cancelled drag", () => {
+    const { target } = zone();
+    const wrapper = target.parentElement;
+    if (!wrapper) throw new Error("Missing zone");
+    const sibling = document.createElement("span");
+    wrapper.append(sibling);
+    const dataTransfer = { types: ["Files"], files: [] };
+    fireEvent.dragEnter(target, { dataTransfer });
+    const leave = createEvent.dragLeave(target, { dataTransfer });
+    Object.defineProperty(leave, "relatedTarget", { value: sibling });
+    fireEvent(target, leave);
+    expect(screen.getByTestId("project-file-drop-overlay")).toBeInTheDocument();
+    vi.spyOn(wrapper, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 10, 200, 100));
+    const webkitLeave = createEvent.dragLeave(target, { dataTransfer });
+    Object.defineProperties(webkitLeave, {
+      relatedTarget: { value: null },
+      clientX: { value: 50 },
+      clientY: { value: 60 },
+    });
+    fireEvent(target, webkitLeave);
+    expect(screen.getByTestId("project-file-drop-overlay")).toBeInTheDocument();
+    fireEvent(window, new Event("dragend"));
+    expect(screen.queryByTestId("project-file-drop-overlay")).not.toBeInTheDocument();
+    fireEvent.dragEnter(target, { dataTransfer });
+    fireEvent.blur(window);
+    expect(screen.queryByTestId("project-file-drop-overlay")).not.toBeInTheDocument();
+  });
+
+  it("uses copy feedback for external files and leaves internal moves alone", () => {
+    const { target } = zone();
+    const files = { types: ["Files"], dropEffect: "" };
+    fireEvent.dragOver(target, { dataTransfer: files });
+    expect(files.dropEffect).toBe("copy");
+    const internal = { types: ["application/x-agenticos-project-path"], dropEffect: "move" };
+    const over = createEvent.dragOver(target, { dataTransfer: internal });
+    fireEvent(target, over);
+    expect(over.defaultPrevented).toBe(false);
+    expect(internal.dropEffect).toBe("move");
+  });
+});
+
+it("does not navigate away when a file misses the project drop area", () => {
+  const { onFiles } = zone();
+  const drop = createEvent.drop(window, {
+    dataTransfer: { types: ["Files"], files: [new File(["x"], "missed.pdf")] },
+  });
+  fireEvent(window, drop);
+  expect(drop.defaultPrevented).toBe(true);
+  expect(onFiles).not.toHaveBeenCalled();
+  const text = createEvent.drop(window, { dataTransfer: { types: ["text/plain"], files: [] } });
+  fireEvent(window, text);
+  expect(text.defaultPrevented).toBe(false);
 });

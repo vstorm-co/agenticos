@@ -128,6 +128,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "provider_webhook_id": None,
         "provider_target": None,
         "runs_as_creator": False,
+        "local_target": None,
         "overlap": "skip",
     }
     defaults.update(overrides)
@@ -3824,6 +3825,14 @@ class TestListingPortalTargets:
 
 class TestRunningAsTheCreator:
     """A trigger that acts as the person who made it (#2027): their decision, on their terms."""
+
+    @pytest.mark.security
+    async def test_creation_cannot_name_a_computer_without_standing_authority(self) -> None:
+        from app.schemas.local_target import LocalTarget
+
+        data = _interval().model_copy(update={"local_target": LocalTarget(folder="/approved")})
+        with pytest.raises(BadRequestError, match="acts as you"):
+            await _service().create(_ctx(), uuid.uuid4(), data)
 
     @staticmethod
     async def _fire(trigger: MagicMock) -> tuple[AuthContext, MagicMock, MagicMock]:

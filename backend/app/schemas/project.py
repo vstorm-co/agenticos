@@ -29,6 +29,13 @@ class ProjectCreate(AudienceChoice):
             "keeps it private and shares it with them."
         ),
     )
+    backend: Literal["auto", "service", "state"] = Field(
+        default="auto",
+        description="Automatic sandbox selection, a service container, or stored files without a shell",
+    )
+    sandbox_connection_id: UUID | None = Field(
+        default=None, description="The organization's sandbox connection; omitted uses its default"
+    )
     name: str = Field(min_length=1, max_length=120, description="What the project is called")
     description: str | None = Field(
         default=None, max_length=500, description="One line on what the project is for"
@@ -55,7 +62,30 @@ class ProjectUpdate(BaseSchema):
     )
 
 
+class ProjectWorkspaceMoveRequest(BaseSchema):
+    backend: Literal["service", "state"]
+    sandbox_connection_id: UUID | None = None
+
+
+class ProjectWorkspaceMoveRead(BaseSchema):
+    job_id: UUID
+    status: Literal["queued", "running", "succeeded", "dead", "cancelled"]
+    target_name: str
+    copied_files: int = 0
+    total_files: int = 0
+    copied_bytes: int = 0
+
+
+class ProjectWorkspaceProgress(BaseSchema):
+    copied_files: int = 0
+    total_files: int = 0
+    copied_bytes: int = 0
+
+
 class ProjectRead(BaseSchema):
+    workspace_move: ProjectWorkspaceMoveRead | None = None
+    sandbox_connection_id: UUID | None = None
+    sandbox_connection_name: str | None = None
     id: UUID
     name: str
     description: str | None = None
@@ -95,3 +125,21 @@ class ProjectList(BaseSchema):
 
 class ProjectFolderCreate(BaseSchema):
     path: str = Field(min_length=1, max_length=500, description="The folder to create")
+
+
+class ProjectPathMove(BaseSchema):
+    source: str = Field(min_length=1, max_length=500)
+    destination: str = Field(min_length=1, max_length=500)
+
+
+class ProjectFileText(BaseSchema):
+    model_config = {"str_strip_whitespace": False}
+    content: str
+    revision: str
+
+
+class ProjectFileEdit(BaseSchema):
+    # Preserve leading/trailing whitespace: it is the file, not a form label.
+    model_config = {"str_strip_whitespace": False}
+    content: str = Field(max_length=1_048_576)
+    revision: str = Field(pattern=r"^[a-f0-9]{64}$")

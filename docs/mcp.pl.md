@@ -1,5 +1,5 @@
 ---
-source_sha: "bd642ed8004b"
+source_sha: "e91b7d8db539"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -212,9 +212,9 @@ Własny szablon Architekta prosi
 o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
 imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
 `writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora. Jeden odczyt czeka jak zmiana: `read_conversation`,
-który oddaje modelowi całą wcześniejszą rozmowę - strona przeczytana przez agenta
-mogłaby inaczej kazać mu ją pobrać i wysłać dalej.
+pyta, również administratora. Dwa odczyty czekają jak zmiany: `read_conversation`
+udostępnia całą wcześniejszą rozmowę, a `get_project` instrukcje wybranego projektu.
+Przeczytana strona nie może po cichu wywołać żadnego z tych ujawnień.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1067,9 +1067,18 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | dostęp do projektu |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
+
+Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
+pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
+przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
+jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
+trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.
 
 Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
 wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,
@@ -1135,6 +1144,12 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
 konsoli, gdy się go o to poprosi.
+
+### Desktop, mobile i lokalne środowiska { #desktop-mobile-and-local-environments }
+
+Serwer MCP wyjaśnia te same rozróżnienia co instrukcje agentów: Desktop może korzystać z zatwierdzonego folderu, przeglądarki, modelu lub usługi HTTP MCP wybranych dla rozmowy. Mobile nie udostępnia wykonania desktopowego. Nadal potrzebna jest natywna zgoda; MCP nie wybiera folderu ani nie nadaje dostępu za użytkownika.
+
+`create_project` przyjmuje `backend` (`auto`, `state`, `service`) i opcjonalne `sandbox_connection_id` wspólnego środowiska serwerowego. Zwrócony backend nie opisuje osobistego wyboru Komputer. Lokalne foldery i wspólne kopie pozostają osobne, a odpowiedzi we wspólnym czacie mogą ujawniać lokalną treść. Przewodnik Architecta zawiera strony Desktop, Mobile i Sandbox; każde uruchomienie otrzymuje opis faktycznie wybranych lokalnych zasobów po ich walidacji.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 

@@ -33,6 +33,7 @@ from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
@@ -53,7 +54,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.agents.voice import VoiceOptions
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus
@@ -84,6 +85,15 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 RUNNER = "app.services.agent_runner"
+
+
+@pytest.fixture(autouse=True)
+def _no_registered_architect(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These hand-built delegates are ordinary agents, not the organization assistant."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_assistant_repo.for_agent",
+        AsyncMock(return_value=None),
+    )
 
 
 def _ctx() -> AuthContext:
@@ -171,10 +181,27 @@ def _slug(name: str) -> str:
 UNUSABLE_PROFILE = "unusable"
 """The label of a model profile whose key has been deleted since it was stored."""
 
+REFUSED_PROFILE = "refused"
+"""The label of a model profile the person running the agent may not spend.
 
-def _profile(label: str) -> MagicMock:
-    """One row of the organization's model catalog."""
-    return MagicMock(id=uuid.uuid4(), label=label)
+What `ModelProfileService.resolve` says about somebody's ChatGPT sign-in to a
+caller who cannot see it - an API key's holder, a widget visitor, a member it was
+not shared with."""
+
+
+def _profile(
+    label: str, *, provider: str = "openai", fallbacks: tuple[MagicMock, ...] = ()
+) -> MagicMock:
+    """One row of the organization's model catalog, on an API key unless told otherwise."""
+    profile = MagicMock(id=uuid.uuid4(), label=label, provider=provider, base_url=None)
+    profile.model = "gpt-5.1-codex" if provider == "openai_codex" else "gpt-4.1"
+    profile.fallback_profile_ids = [str(fallback.id) for fallback in fallbacks]
+    return profile
+
+
+def _sign_in(label: str = "ada's codex") -> MagicMock:
+    """A profile on somebody's ChatGPT sign-in - one person's subscription."""
+    return _profile(label, provider="openai_codex")
 
 
 def _collection(organization_id: uuid.UUID, name: str) -> MagicMock:
@@ -190,11 +217,13 @@ class _Prepared:
         build: MagicMock,
         get_version: AsyncMock,
         list_profiles: AsyncMock,
+        resolved: AsyncMock,
     ) -> None:
         self.prepared = prepared
         self.build = build
         self.get_version = get_version
         self.list_profiles = list_profiles
+        self.resolved = resolved
 
     @property
     def resources(self) -> dict[str, Any]:
@@ -270,7 +299,8 @@ async def _prepare(
     `profiles` is the organization's model catalog, read only by an agent that may
     invent specialists. One usable profile by default, because that is the state a
     run is always in: the delegating agent's own model resolved before any of this.
-    A profile whose label is `unusable` is one whose key has gone.
+    A profile whose label is `unusable` is one whose key has gone, and one labelled
+    `refused` is one the caller may not spend.
     """
     ctx = ctx or _ctx()
     service = AgentRunnerService(_db())
@@ -305,6 +335,8 @@ async def _prepare(
         profile = by_id.get(profile_id)
         if profile is not None and profile.label == UNUSABLE_PROFILE:
             raise BadRequestError(message="That model has no key configured")
+        if profile is not None and profile.label == REFUSED_PROFILE:
+            raise AuthorizationError(message="That model runs on somebody's own sign-in")
         label = f"model-{profile_id}" if profile is None else profile.label
         return MagicMock(
             profile_id=profile_id,
@@ -320,7 +352,9 @@ async def _prepare(
             "get_runnable_spec",
             new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
         ),
-        patch.object(service.models, "resolve", new=AsyncMock(side_effect=resolve_model)),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(side_effect=resolve_model)
+        ) as resolved,
         patch.object(
             service.models, "list_profiles", new=AsyncMock(return_value=catalog)
         ) as list_profiles,
@@ -346,7 +380,7 @@ async def _prepare(
     ):
         prepared = await service.prepare(ctx, agent.id, voice=voice)
 
-    return _Prepared(prepared, build, fetch_version, list_profiles)
+    return _Prepared(prepared, build, fetch_version, list_profiles, resolved)
 
 
 class TestAnAgentThatDoesNotDelegate:
@@ -465,6 +499,8 @@ class TestWhatAnInlineSpecialistCanReach:
         assert prepared.resources["kb_collection_names"] == ["kb_parent"]
         specialist_resources = prepared.built("summariser")["resources"]
         assert specialist_resources["kb_collection_names"] == ["kb_specialist"]
+        # The bound base behind the name, not a name to resolve again (#2537).
+        assert list(specialist_resources["kb_vector_scopes"]) == ["kb_specialist"]
         assert specialist_resources is not prepared.resources
 
     async def test_a_specialist_with_no_model_of_its_own_runs_on_its_callers(self):
@@ -693,7 +729,10 @@ class TestAPublishedDelegate:
 
         [entry] = prepared.runtime.subagents
         assert (entry.agent_id, entry.agent_version_id) == (delegate_id, pinned.id)
-        assert prepared.built("research-bot")["spec"].instructions == "Cite."
+        instructions = prepared.built("research-bot")["spec"].instructions
+        assert instructions.startswith("Cite.\n\n")
+        assert "## AgenticOS apps and execution environments" in instructions
+        assert "### Selected for this run" not in instructions
 
     async def test_the_model_addresses_it_by_the_handle_the_row_owns(self):
         """`agents.slug`, not a slug of the pinned name. The row's handle is what
@@ -1102,6 +1141,177 @@ class TestASpecialistTheModelInvents:
         assert dynamic is not None
         assert dynamic.allowed_models == ("fast",)
 
+    async def test_a_profile_the_caller_may_not_spend_is_left_out_and_the_run_goes_on(self):
+        """`resolve` refuses a sign-in to whoever cannot see it with an
+        `AuthorizationError`. Uncaught, it failed every run of the agent for every
+        API key, widget visitor and member who cannot see one sign-in somewhere in
+        the organization - an agent that names none of it."""
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True),
+            profiles=[_profile("fast"), _profile(REFUSED_PROFILE)],
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast",)
+
+    @pytest.mark.security
+    async def test_a_sign_in_the_spec_does_not_name_is_not_offered(self):
+        """A ChatGPT sign-in is one person's subscription. Offered to the model, a
+        specialist it invents spends that subscription on the run of anybody who
+        may see it - its owner, an owner, an admin, a grantee - for an agent whose
+        author never chose it. A profile that falls back to one is the same spend
+        one refusal later, since `resolve` follows the fallbacks."""
+        sign_in = _sign_in()
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True),
+            profiles=[
+                _profile("fast"),
+                sign_in,
+                _profile("fast, then codex", fallbacks=(sign_in,)),
+            ],
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast",)
+        resolved = {call.kwargs["profile_id"] for call in prepared.resolved.await_args_list}
+        assert sign_in.id not in resolved
+
+    @pytest.mark.security
+    async def test_a_sign_in_the_spec_names_is_still_offered(self):
+        """Its author chose it, and publish held them to being allowed to (#2546).
+        The agent's own model, a pinned specialist's, and a profile whose fallback
+        is a sign-in when the spec names that profile - though not the sign-in it
+        falls back to."""
+        own, pinned = _sign_in("own codex"), _sign_in("pinned codex")
+        elsewhere = _sign_in("somebody else's")
+        chained = _profile("fast, then codex", fallbacks=(elsewhere,))
+        prepared = await _prepare(
+            _delegating(
+                inline=[_specialist(model_profile_id=pinned.id)],
+                allow_dynamic=True,
+                model_profile_id=own.id,
+                reviewers=[{"name": "checker", "model_profile_id": str(chained.id)}],
+            ),
+            profiles=[_profile("fast"), own, pinned, chained, elsewhere],
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast", "own codex", "pinned codex", "fast, then codex")
+
+    async def test_with_no_model_left_to_offer_it_invents_none(self):
+        """The delegation library reads an empty list of allowed models as "any
+        model at all", and the builder then has nothing to build one on."""
+        prepared = await _prepare(_delegating(allow_dynamic=True), profiles=[_sign_in()])
+
+        assert prepared.runtime.dynamic is None
+
+    @pytest.mark.security
+    async def test_each_level_offers_the_sign_ins_its_own_author_named(self):
+        """A published delegate's own model is its author's choice, not its
+        caller's - and a profile resolved for one level is not unsealed again
+        for the next."""
+        fast, own_sign_in = _profile("fast"), _sign_in("child's codex")
+        child_id = uuid.uuid4()
+        child = _version(
+            child_id,
+            _delegating(name="Research Bot", allow_dynamic=True, model_profile_id=own_sign_in.id),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            allow_dynamic=True,
+            max_depth=2,
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child}, profiles=[fast, own_sign_in])
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert prepared.runtime.dynamic is not None
+        assert prepared.runtime.dynamic.allowed_models == ("fast",)
+        assert nested.dynamic is not None
+        assert nested.dynamic.allowed_models == ("fast", "child's codex")
+        resolved = [call.kwargs["profile_id"] for call in prepared.resolved.await_args_list]
+        assert resolved.count(fast.id) == 1
+
+    @pytest.mark.security
+    async def test_a_sign_in_its_caller_shares_a_binding_on_is_not_the_delegates_choice(self):
+        """A shared browse binding lends the delegate its parent's step model,
+        which no delegated run reaches - and which nobody publishing the delegate
+        chose for a specialist to spend."""
+        step = _sign_in("parent's step codex")
+        child_id = uuid.uuid4()
+        child = _version(child_id, _delegating(name="Research Bot", allow_dynamic=True))
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            max_depth=2,
+            share=["browser_use"],
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {
+                        "cdp_url": "http://cdp:9222",
+                        "step_model_profile_id": str(step.id),
+                    },
+                }
+            ],
+        )
+
+        prepared = await _prepare(
+            parent, versions={child.id: child}, profiles=[_profile("fast"), step]
+        )
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert nested.dynamic is not None
+        assert nested.dynamic.allowed_models == ("fast",)
+
+    @pytest.mark.security
+    async def test_on_a_resume_every_model_in_the_tree_is_resolved_for_the_runs_own_person(
+        self,
+    ):
+        """On a resume `ctx` is the approver's. Resolving the delegates' models,
+        or the catalog, for them would lend a parked run the approver's ChatGPT
+        sign-in - or refuse it the owner's - as `_assemble` already avoids for the
+        run's own model."""
+        owner_id = uuid.uuid4()
+        child_id = uuid.uuid4()
+        child = _version(child_id, AgentSpec(name="Fact Checker"))
+        assemble = AgentRunnerService._assemble
+
+        async def resumed(self: AgentRunnerService, ctx: AuthContext, **kwargs: Any) -> Any:
+            return await assemble(
+                self, ctx, **{**kwargs, "restored_audience": RunAudience(user_id=owner_id)}
+            )
+
+        with patch.object(AgentRunnerService, "_assemble", new=resumed):
+            prepared = await _prepare(
+                _delegating(
+                    inline=[_specialist()],
+                    subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+                    allow_dynamic=True,
+                ),
+                versions={child.id: child},
+                profiles=[_profile("fast")],
+            )
+
+        assert prepared.runtime.dynamic is not None
+        whose = {call.args[0].user_id for call in prepared.resolved.await_args_list}
+        assert whose == {owner_id}
+
+    async def test_a_speech_model_is_not_one_a_specialist_can_be_invented_on(self):
+        """A text-to-speech profile is for text to speech; a model offered it as a
+        specialist's model would invent one that fails on its first turn (#2487)."""
+        speech = _profile("voice")
+        speech.provider, speech.model, speech.base_url = "openai", "gpt-4o-mini-tts", None
+        prepared = await _prepare(
+            _delegating(allow_dynamic=True), profiles=[_profile("fast"), speech]
+        )
+
+        dynamic = prepared.runtime.dynamic
+        assert dynamic is not None
+        assert dynamic.allowed_models == ("fast",)
+
     async def test_one_the_model_invents_inherits_the_refusal_to_trace_content(self):
         """A specialist nobody reviewed is the last place a run's prompts should
         start leaving from. `_dynamic_builder` assembles a bare `AgentSpec`, so
@@ -1225,7 +1435,9 @@ class TestASpecialistTheModelInvents:
         built = prepared.invented(model="fast")
 
         assert built["shared_budget"] is prepared.prepared.built.budget
-        assert built["spec"].instructions == "Be brief."
+        assert built["spec"].instructions.startswith("Be brief.\n\n")
+        assert "## AgenticOS apps and execution environments" in built["spec"].instructions
+        assert "### Selected for this run" not in built["spec"].instructions
         assert built["model"].label == "fast"
 
     async def test_one_reaches_nothing_the_agent_that_invented_it_was_granted(self):
@@ -1249,6 +1461,7 @@ class TestASpecialistTheModelInvents:
         )
         assert built["resources"] == {
             "kb_collection_names": [],
+            "kb_vector_scopes": {},
             "skills": [],
             "context_files": [],
         }
@@ -1648,7 +1861,7 @@ class TestWritingTheQueuedRows:
 
     @staticmethod
     def _prepared(delegations: list[Any]) -> MagicMock:
-        prepared = MagicMock()
+        prepared = MagicMock(earlier_attachments_checked=False)
         prepared.run = _parent_run()
         prepared.built.ledger = SpendLedger()
         prepared.delegations = delegations

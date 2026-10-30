@@ -102,3 +102,11 @@ export function draftFromFilename(
   if (format === null) return null;
   return { name: stem.toLowerCase().replace(/\s+/g, "-").slice(0, 64), format };
 }
+
+/** Infer a new file's renderer from its name, preserving a dropped file's known format. */
+export function inferContextFormat(
+  name: string,
+  fallback: ContextFormat = DEFAULT_FORMAT,
+): ContextFormat {
+  return recognized(name.split(".").at(-1) ?? "") ?? fallback;
+}

@@ -22,6 +22,8 @@ import {
   SEEDED_EMBEDDING_KEY_LABEL,
   SEEDED_EMBEDDING_KEY_SECRET,
   SEEDED_KB_NAME,
+  SEEDED_PROJECT_NAME,
+  SEEDED_CONTEXT_NAME,
   SEEDED_LLAMAPARSE_KEY_LABEL,
   SEEDED_LLAMAPARSE_KEY_SECRET,
   SEEDED_AWS_SECRET_NAME,
@@ -610,3 +612,37 @@ async function acceptAsColleague(
     await context.close();
   }
 }
+
+setup("a project exists for the phone file actions", async ({ page }) => {
+  if (await alreadyThere(page.request, "/api/projects", "name", SEEDED_PROJECT_NAME)) return;
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "New project", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name", { exact: true }).fill(SEEDED_PROJECT_NAME);
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/projects",
+  });
+  await nowThere(page, "/api/projects", "name", SEEDED_PROJECT_NAME);
+});
+
+setup("a context file exists for the catalog", async ({ page }) => {
+  if (await alreadyThere(page.request, "/api/context", "name", SEEDED_CONTEXT_NAME)) return;
+  await page.goto("/context");
+  await page.getByRole("button", { name: "New context file", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name", { exact: true }).fill(SEEDED_CONTEXT_NAME);
+  await dialog
+    .getByLabel("Description", { exact: true })
+    .fill("Company facts used by the E2E catalog.");
+  await dialog
+    .getByRole("textbox", { name: /e2e-company-guide\.md source/ })
+    .fill("# Company guide\n\nUse the customer-facing company name.");
+  await submitDialog(page, {
+    dialog,
+    submit: dialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/context",
+  });
+  await nowThere(page, "/api/context", "name", SEEDED_CONTEXT_NAME);
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "1174126e55b2"
+source_sha: "681f55f35546"
 ---
 
 # Konfiguration { #configuration }
@@ -59,6 +59,7 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
+| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein Agent mit [Computer-Bedienung](reference/capabilities.md#computer-use) einen `computerd`-Desktop steuern darf. `daemon_url` steht im Spec des Agents, und ein Run sendet das Token des Daemons an die dort genannte Adresse, daher ist das dieselbe Allowlist wie `BROWSER_CDP_ALLOWED_HOSTS`: exakt und ohne Beachtung der Groß- und Kleinschreibung, ohne Globs. Geprüft beim Veröffentlichen und erneut, wann immer ein Run den Daemon öffnet, sodass das Entfernen eines Hosts auch bereits veröffentlichte Agents stoppt. Das Token ist keine Einstellung: Es gehört der Organisation und liegt in ihrem Vault, sodass jede Organisation einen erlaubten Host nennen kann und nur die hineinkommt, die das Token dieses Desktops hat. Leer verweigert das Daemon-Backend; ein Desktop in der Sandbox des Agents braucht keinen Eintrag |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
 | `VISUAL_RENDER_CDP_URL` | `""` (leer) | Der Browser, mit dem ein [Visual](reference/capabilities.md#visuals) zu einem Bild gezeichnet wird, wo kein Rahmen es ausführen kann - eine Antwort in Slack, Telegram oder Mattermost und das Dashboard-Vorschaubild einer Seite. Der compose-Dienst `browser` ist `http://browser:9222`; sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Zeichnung erreicht von dort nichts: Jede ihrer Anfragen beantwortet das Deployment oder lehnt sie ab. Leer schickt einer Chat-App die Antwort ohne Bild |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose setzt `http://browser-egress:3128` | Der Proxy, über den der Browser der Installation jede Website erreicht. Der compose-Dienst `browser-egress` ist `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): Er löst jeden Host selbst auf, lehnt private, Loopback-, Link-Local- und Metadaten-Adressen ab und verbindet sich mit der geprüften Adresse, sodass weder eine Weiterleitung noch DNS-Rebinding eine Seite ins Netz bringt. Genutzt von jedem Durchlauf ohne Proxy der Organisation und nicht auf einem gehosteten Browser. Ein internes Werkzeug, das ein Agent besuchen soll, braucht eine Ausnahme in `docker/browser-egress/squid.conf`. Leer schickt den Browser direkt hinaus: Setze `BROWSER_EGRESS_PROXY=` in der Root-`.env` nur für einen Browser außerhalb von compose, der den Proxy nicht erreicht. Ohne Proxy wird jede Website bei ihrer ersten Anfrage in einem Tab geprüft, danach löst der Browser ihren Namen selbst auf; ein Name, der später im selben Tab auf eine private Adresse zeigt, wird also nicht erkannt |
@@ -78,6 +79,12 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Obergrenze pro Datei für den in einen Prompt ohne Workspace eingefügten geparsten Text |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Gesamtobergrenze für Anhangstext über eine Runde |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Die monatliche Ausgabenobergrenze, mit der eine **neue** Organisation startet, in USD, damit sie nicht einen entlaufenen Agent von einer überraschenden Rechnung entfernt ist. Gilt nur bei der Erstellung; bestehende Organisationen bleiben unberührt, und jede Organisation lässt sich danach wieder auf kein Cap zurücksetzen. Muss positiv sein; lassen Sie den Wert **leer**, damit Organisationen ohne Cap starten (die ältere Opt-in-Haltung) |
+
+Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
+
+Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Setzen Sie `browser_use.cdp_url` des Agents auf `http://browser:9222` und veröffentlichen Sie seinen Entwurf. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+
+Der Renderer veröffentlicht keinen Port, hat keinen Internetzugang, bedient API und Worker und ist auf 1 CPU und 1 GiB RAM begrenzt. Veröffentlichte Backend-Images enthalten das Extra `browser`; eigene Images benötigen `EXTRAS="--extra browser"`. Schlägt das Rendern fehl, erklärt die Kanalantwort ausdrücklich, dass das Bild nicht angehängt werden konnte. Jeder Rendervorgang erlaubt höchstens 256 Anfragen und 32 ausstehende Antworten; Kartenkacheln teilen zusätzlich `RATE_LIMIT_MAP_TILES_PER_MINUTE` zwischen Renderern.
 
 ### Die Größe einer Anfrage, im Unterschied zur Größe einer Datei { #the-size-of-a-request-as-opposed-to-the-size-of-a-file }
 
@@ -1012,10 +1019,11 @@ unauthentifizierten internen APIs sollte das im Netz sagen und nicht hier.
 
 ### Welche Umgebungen ein Agent anfordern darf { #which-environments-an-agent-may-ask-for }
 
-Eine Runtime wird ausgeliefert — `workbench` (1,93 GB): Python 3.12, Node 24,
+Zwei Runtimes werden ausgeliefert. `workbench` (1,93 GB) hat Python 3.12, Node 24,
 LibreOffice und die Bibliotheken, die ein Agent braucht, um die Dateien zu lesen,
 zu schreiben, zu konvertieren und zu plotten, um die es in einer Unterhaltung
-geht, liteparse mit OCR eingeschlossen. Sie ist in
+geht, liteparse mit OCR eingeschlossen. `desktop` ist ein Linux-Desktop, XFCE und
+Firefox, für die Computer-Bedienung. Beide sind in
 `backend/app/core/catalog/sandbox_runtimes.json` definiert. Eine hinzuzufügen ist
 eine Änderung dort plus `make sandbox-runtimes`, was `SANDBOXD_RUNTIMES` in alle
 drei Compose-Dateien schreibt; diese Variable ist der einzige Kanal, über den der

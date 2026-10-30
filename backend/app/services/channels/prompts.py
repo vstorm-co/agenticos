@@ -17,15 +17,18 @@ presser is told to link, like an unlinked sender.
 
 import logging
 import re
+from dataclasses import replace
 from functools import cache
 from uuid import UUID
 
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import all_capabilities
+from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent_run import AgentRun, ApprovalStatus
+from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION, ChannelPrompt
 from app.repositories import (
@@ -47,6 +50,10 @@ from app.services.channels.base import (
     press_value,
     read_press,
 )
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.mentions import drawn_picture
+from app.services.channels.next_steps import offer_after_resume
+from app.services.transcript import RecordedToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +61,7 @@ APPROVE = "Approve"
 REJECT = "Reject"
 SKIP = "Skip"
 DONE = "Done"
-LINK_FIRST = "Link your account first - send /link to this bot - and press again."
+LINK_FIRST = LINK_ACCOUNT_INSTRUCTION
 ALREADY = "That has already been answered."
 NOT_YOURS = "Only somebody who may approve tool calls can decide this one."
 NOT_ASKED = "This question was asked of somebody else."
@@ -334,13 +341,14 @@ class ChannelPrompts:
             return
         if segment is not None:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
-            await say(segment.output or "Done.")
+            await self._send_segment(bot, press.platform, prompt.platform_chat_id, segment)
             await self.offer(
                 bot,
                 platform=press.platform,
                 platform_chat_id=prompt.platform_chat_id,
                 run_id=prompt.run_id,
             )
+            self._follow_ups(bot, segment, prompt.platform_chat_id)
         else:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
 
@@ -390,11 +398,52 @@ class ChannelPrompts:
             # The call has more questions still open; this one is taken.
             await say(self._chosen(prompt))
             return True
-        await say(segment.output or "Done.")
+        await self._send_segment(bot, platform, platform_chat_id, segment)
         await self.offer(
             bot, platform=platform, platform_chat_id=platform_chat_id, run_id=prompt.run_id
         )
+        self._follow_ups(bot, segment, platform_chat_id)
         return True
+
+    async def _send_segment(
+        self, bot: ChannelBot, platform: str, platform_chat_id: str, segment: RunSegment
+    ) -> None:
+        """A resumed answer carries its new picture just like the initial turn."""
+        notices: list[str] = []
+        picture = await drawn_picture(
+            segment.tool_calls,
+            organization_id=bot.organization_id,
+            conversation_id=segment.run.conversation_id,
+            notices=notices,
+            generated_files=segment.generated_files,
+        )
+        adapter = get_adapter(platform)
+        token = unseal_bot_token(bot)
+        message = OutgoingMessage(
+            platform_chat_id=platform_chat_id,
+            text="\n\n".join([segment.output or "Done.", *notices]),
+            image_png=picture,
+            api_base_url=bot.api_base_url,
+        )
+        try:
+            await adapter.send_message(token, message)
+        except Exception:
+            if picture is None:
+                raise
+            logger.exception("Could not confirm resumed channel picture delivery: bot=%s", bot.id)
+            await adapter.send_message(
+                token, replace(message, text=PICTURE_DELIVERY_UNCONFIRMED, image_png=None)
+            )
+
+    def _follow_ups(self, bot: ChannelBot, segment: RunSegment, platform_chat_id: str) -> None:
+        run = segment.run
+        if run.status != RunStatus.COMPLETED.value or run.channel_identity_id is None:
+            return
+        spawn_after_commit(
+            self.db,
+            offer_after_resume(bot.organization_id, run.id, bot.id, platform_chat_id),
+            name=f"channel-next-steps:{run.id}",
+        )
 
     async def _settle(
         self,
@@ -417,9 +466,23 @@ class ChannelPrompts:
         # questions (or two approvals) of one run each lock only their own prompt,
         # and both could read the other as unanswered and neither continue the
         # run. Held, the second waits and then sees the first's answer.
-        await agent_run_repo.claim_parked_run(
+        parked = await agent_run_repo.claim_parked_run(
             self.db, prompt.run_id, organization_id=ctx.organization_id
         )
+        previous_calls: list[RecordedToolCall] = []
+        if parked is not None and parked.paused_state is not None:
+            state = PausedRunState.model_validate(parked.paused_state)
+            pending_ids = set(state.tool_call_ids.values()) | set(state.questions)
+            previous_calls = [
+                RecordedToolCall(
+                    tool_call_id=part.tool_call_id,
+                    tool_name=part.tool_name,
+                    args=part.args_as_dict(raise_if_invalid=False),
+                )
+                for message in ModelMessagesTypeAdapter.validate_python(state.messages)
+                for part in message.parts
+                if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
+            ]
         savepoint = await self.db.begin_nested()
         try:
             segment = await (
@@ -433,6 +496,16 @@ class ChannelPrompts:
             raise
         if savepoint.is_active:
             await savepoint.commit()
+        if segment is not None:
+            # A return from an approved call has no new ToolCallPart: recover its
+            # trusted name from the paused transcript, not from the result body.
+            completed = [
+                replace(call, result=segment.settled[call.tool_call_id])
+                for call in previous_calls
+                if call.tool_call_id in segment.settled
+            ]
+            if completed:
+                segment = replace(segment, tool_calls=[*completed, *segment.tool_calls])
         return segment
 
     async def _decide(

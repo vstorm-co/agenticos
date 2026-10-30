@@ -525,6 +525,8 @@ export interface Agent {
    * profile has been deleted. Listing only.
    */
   published_model?: PublishedModel | null;
+  /** Enabled bindings from the frozen version; absent on older servers. */
+  published_capabilities?: string[] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   created_at?: string;
@@ -539,6 +541,23 @@ export interface Agent {
 
 export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
+}
+
+/**
+ * The deployment's agents-per-organization limit, and whether this organization
+ * is at it - from `GET /agents/ceiling`. Mirrors the backend `AgentCeiling`.
+ */
+export interface AgentCeiling {
+  /** Agents the deployment allows per organization; null is no limit. */
+  limit: number | null;
+  /**
+   * Agents the organization holds, archived ones excluded - including ones the
+   * caller cannot see, which is why it is null unless the caller sees every
+   * agent in the organization. Null too when there is no limit.
+   */
+  held: number | null;
+  /** Whether a new agent would be refused for the limit. */
+  at_limit: boolean;
 }
 
 export interface AgentList {
@@ -785,6 +804,8 @@ export interface JsonSchemaProperty {
    * side outlives the value it was written for without anyone noticing.
    */
   "x-enum-labels"?: Record<string, string>;
+  /** Help for the selected option, kept out of the menu label. */
+  "x-enum-descriptions"?: Record<string, string>;
   /**
    * Whether this string is paragraphs rather than a value.
    *
@@ -837,7 +858,7 @@ export interface JsonSchemaProperty {
    * `model-profile` is one of the organization's model profiles, chosen from
    * the same picker the Builder uses for the agent's own model.
    */
-  "x-widget"?: "model-profile";
+  "x-widget"?: "model-profile" | "browser-connection" | "computer-environment";
   /**
    * The choices an enum offers for each value of another field of the form -
    * the coding agent's models, which depend on its harness. A choice the other
@@ -862,6 +883,8 @@ export interface JsonSchemaProperty {
     format?: string;
     items?: { type?: string; enum?: unknown[] };
     "x-enum-labels"?: Record<string, string>;
+    /** Help for the selected option, kept out of the menu label. */
+    "x-enum-descriptions"?: Record<string, string>;
   }[];
 }
 
@@ -869,4 +892,7 @@ export interface JsonSchemaProperty {
 export interface AgentUsage {
   id: string;
   name: string;
+  slug?: string;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
 }

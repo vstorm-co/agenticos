@@ -5,6 +5,7 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import replace
 from urllib.parse import urlparse
 from uuid import UUID
@@ -19,16 +20,18 @@ from app.agents.model_resolver import (
     ProviderSpec,
     ResolvedCredential,
     get_provider,
+    lacks_key,
 )
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    InUseError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
     NoSecret,
     OpenAICodexSecret,
@@ -36,9 +39,19 @@ from app.core.secret_kinds import (
     unseal_secret,
 )
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, hold_subject
+from app.db.models.agent import AgentStatus
 from app.db.models.credential import ModelProfile
-from app.repositories import credential_repo, organization_repo, organization_secret_repo
+from app.repositories import (
+    agent_repo,
+    credential_repo,
+    organization_repo,
+    organization_secret_repo,
+)
+from app.schemas.model_profile import ModelProfileUpdate
+from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
 from app.services.model_catalog import models_for
+from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
 
@@ -112,6 +125,110 @@ async def validate_endpoint_url(url: str) -> str:
     return url
 
 
+def usable_for_agents(profile: ModelProfile) -> bool:
+    """Whether an agent can run on this profile at all.
+
+    A chat model (#2487) with something to authenticate with (#2478). Publish
+    refuses a profile that fails either half, so anything choosing a model on
+    somebody's behalf - the organization assistant's first publish, a new
+    agent's only model (#2483) - takes only the ones this answers true for, and
+    only those `choosable_for_others` also accepts. It cannot see a fallback
+    chain, which publish checks.
+    """
+    if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+        return False
+    return not lacks_key(
+        profile.provider,
+        secret_id=profile.secret_id,
+        base_url=profile.base_url,
+        runs_without_key=profile.runs_without_key,
+    )
+
+
+def is_sign_in(profile: ModelProfile) -> bool:
+    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
+    provider = PROVIDERS.get(profile.provider)
+    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+
+
+def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether the platform may put this profile in an agent nobody chose it for.
+
+    `usable_for_agents`, and no run on it can reach a ChatGPT sign-in, one
+    person's subscription: the profile is not one (#2535), and neither is any
+    of its first `MAX_FALLBACK_DEPTH` fallbacks, all a run tries
+    (`ModelProfileService.resolve`, #2545). A run on a sign-in spends it when
+    the person who started the run may see it in the vault - its owner, anybody
+    it is shared with, and the organization's owners and admins - and is refused
+    otherwise (`_may_spend`). `profiles` is the organization's own, by id, so an
+    id from elsewhere or one since deleted is not a fallback: the run skips both.
+
+    The one rule for every model the platform picks rather than an author: a new
+    agent's only model (#2483) and the organization assistant's publish. An
+    author may still pick such a model deliberately and publish it themselves.
+    """
+    return usable_for_agents(profile) and not reaches_a_sign_in(profile, profiles)
+
+
+def reaches_a_sign_in(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether a run on this profile can spend a ChatGPT sign-in (#2545).
+
+    The profile itself, or one of the first `MAX_FALLBACK_DEPTH` fallbacks - all
+    a run tries (`ModelProfileService.resolve`). `profiles` is the organization's
+    own, by id, so an id from elsewhere or one since deleted is not a fallback:
+    the run skips both. Anything choosing a model on somebody's behalf refuses
+    such a profile, because the run of anybody who may see the sign-in - its
+    owner, whoever it is shared with, the organization's owners and admins -
+    spends that one person's subscription.
+    """
+    return is_sign_in(profile) or any(
+        (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
+        for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
+    )
+
+
+async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
+    """An endpoint this provider can be pointed at, or the refusal naming the field."""
+    if not spec.supports_base_url:
+        raise refused_field(
+            "base_url",
+            f"{spec.name} has no endpoint setting - its SDK always talks to the "
+            "provider's own API, so a custom URL here would be ignored",
+            provider=spec.id,
+        )
+    return await validate_endpoint_url(base_url)
+
+
+def _check_shape(
+    spec: ProviderSpec, *, secret_id: UUID | None, base_url: str | None, api: ModelApi | None
+) -> None:
+    """The rules a profile's key, endpoint and API obey together, wherever it is written.
+
+    Shared by creation and by an edit, because an edit is the same profile
+    arriving at a new combination: a key removed from an OpenAI profile with no
+    endpoint is the same unrunnable model creation refuses.
+    """
+    if base_url is None and spec.keyless and secret_id is None:
+        raise refused_field(
+            "base_url",
+            f"{spec.name} runs without a key, so it needs an endpoint to reach - "
+            "there is no public API to fall back on",
+            provider=spec.id,
+        )
+    if api is not None and api not in spec.apis:
+        raise refused_field(
+            "api",
+            f"{spec.name} serves one API, so there is nothing to choose",
+            provider=spec.id,
+        )
+    if secret_id is None and not spec.keyless:
+        raise refused_field(
+            "secret_id",
+            f"{spec.name} needs a key. Store one in the vault, then add the model",
+            provider=spec.id,
+        )
+
+
 def provider_catalog() -> list[ProviderSpec]:
     """Every provider a key can be stored for, ordered for a stable picker.
 
@@ -163,7 +280,8 @@ class ModelProfileService:
         the platform to fall back on.
 
         Raises:
-            BadRequestError: If the key is not this organization's, or is for a
+            BadRequestError: If the key is not this organization's, is not one the
+                caller can see in the vault, or is for a
                 different provider than the profile claims - a mismatch that
                 would otherwise surface as an authentication error from the
                 provider, days later and far from its cause. Also on an endpoint
@@ -176,68 +294,14 @@ class ModelProfileService:
         """
         spec = get_provider(provider)
         _validate_model_id(provider, model)
-
         if base_url is not None:
-            if not spec.supports_base_url:
-                raise refused_field(
-                    "base_url",
-                    f"{spec.name} has no endpoint setting - its SDK always talks to the "
-                    "provider's own API, so a custom URL here would be ignored",
-                    provider=provider,
-                )
-            base_url = await validate_endpoint_url(base_url)
-        elif spec.keyless and secret_id is None:
-            raise refused_field(
-                "base_url",
-                f"{spec.name} runs without a key, so it needs an endpoint to reach - "
-                "there is no public API to fall back on",
-                provider=provider,
-            )
-
+            base_url = await _checked_endpoint(spec, base_url)
         if api is None:
             api = spec.default_api(base_url)
-        elif api not in spec.apis:
-            raise refused_field(
-                "api",
-                f"{spec.name} serves one API, so there is nothing to choose",
-                provider=provider,
-            )
-
-        if secret_id is None and not spec.keyless:
-            raise refused_field(
-                "secret_id",
-                f"{spec.name} needs a key. Store one in the vault, then add the model",
-                provider=provider,
-            )
-
-        if await credential_repo.get_profile_by_label(
-            self.db, label, organization_id=ctx.organization_id
-        ):
-            raise AlreadyExistsError(
-                message=(
-                    f"A model named '{label}' already exists. Agents pick a model by this name, "
-                    "so it has to be unique - name this one for what makes it different, or "
-                    "delete the existing model if you meant to replace it."
-                ),
-                details={"label": label},
-            )
-
-        # The key has to exist and be for the provider the model claims: a
-        # Tavily key behind an OpenAI model authenticates against nothing.
+        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
+        await self._check_label_free(ctx, label)
         if secret_id is not None:
-            secret = await organization_secret_repo.get(
-                self.db, secret_id, organization_id=ctx.organization_id
-            )
-            if secret is None:
-                raise BadRequestError(
-                    message="That key is not in this organization's vault",
-                    details={"secret_id": str(secret_id)},
-                )
-            if secret.purpose != provider:
-                raise BadRequestError(
-                    message=f"That key is for {secret.purpose}, not {provider}",
-                    details={"secret_purpose": secret.purpose, "provider": provider},
-                )
+            await self._check_key(ctx, secret_id, provider=provider)
 
         profile = await credential_repo.create_profile(
             self.db,
@@ -251,6 +315,7 @@ class ModelProfileService:
             params=params,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
             context_length=await self._context_length(ctx, provider, model),
+            runs_without_key=secret_id is None,
         )
         await record_audit(
             self.db,
@@ -285,7 +350,212 @@ class ModelProfileService:
         models, _ = await models_for(provider, api_key=api_key)
         return next((entry.context_length for entry in models if entry.id == model), None)
 
+    async def _check_label_free(self, ctx: AuthContext, label: str) -> None:
+        """Refuse a label another profile in this organization already carries."""
+        if await credential_repo.get_profile_by_label(
+            self.db, label, organization_id=ctx.organization_id
+        ):
+            raise AlreadyExistsError(
+                message=(
+                    f"A model named '{label}' already exists. Agents pick a model by this name, "
+                    "so it has to be unique - name this one for what makes it different, or "
+                    "change the existing model's key or endpoint instead of adding another."
+                ),
+                details={"label": label},
+            )
+
+    async def _check_key(self, ctx: AuthContext, secret_id: UUID, *, provider: str) -> None:
+        """The key has to be this organization's, the caller's to lend, and for this provider.
+
+        A Tavily key behind an OpenAI model authenticates against nothing. And a
+        model is shared with everyone who can pick it, so keying one with a secret
+        lends that secret: whoever does it has to be able to see the key in the
+        vault themselves. The picker only offers what they can see, but the API
+        takes an id. A key they cannot see is refused in the same words as one
+        that does not exist, so the refusal cannot be used to map the vault.
+        """
+        secret = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=ctx.organization_id
+        )
+        if secret is None or not await resolve_access(
+            self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"secret_id": str(secret_id)},
+            )
+        if secret.purpose != provider:
+            raise BadRequestError(
+                message=f"That key is for {secret.purpose}, not {provider}",
+                details={"secret_purpose": secret.purpose, "provider": provider},
+            )
+
+    async def _get_profile(self, ctx: AuthContext, profile_id: UUID) -> ModelProfile:
+        """The profile, locked until this transaction ends: every caller writes it."""
+        profile = await credential_repo.get_profile(
+            self.db, profile_id, organization_id=ctx.organization_id, for_update=True
+        )
+        if profile is None:
+            raise NotFoundError(
+                message="Model profile not found", details={"profile_id": str(profile_id)}
+            )
+        return profile
+
+    async def update_profile(
+        self, ctx: AuthContext, profile_id: UUID, changes: ModelProfileUpdate
+    ) -> ModelProfile:
+        """Change a model's key, endpoint, API, settings or name, keeping its id (#2478).
+
+        The id is what every agent names, so an edit moves all of them at once:
+        rotating a key or pointing a model at a gateway is one write, not a new
+        profile and a republish of every agent. The provider and the model id stay;
+        a different model is a different profile.
+
+        The result is validated as a whole, by the rules creation applies, because
+        an edit is the same profile arriving at a new combination. The key is
+        checked against the vault - the caller has to be able to see it - when it
+        changes *and* when the endpoint does: the endpoint is where the key is sent,
+        so moving a model keyed by a colleague's private key to another host lends
+        that key as surely as choosing it. A label, params or API change sends the
+        key nowhere new and is not checked again.
+
+        An endpoint change without an API keeps an API that was chosen on purpose,
+        and moves one that was only the old endpoint's default to the new one's -
+        the rule creation applies to an omitted API. Clearing a gateway therefore
+        returns a profile on Chat Completions to the provider's own Responses.
+
+        Audited with the names of the fields that changed and never their values -
+        a URL can carry more than a host, and a key id says which secret moved.
+        An edit that changes nothing writes nothing and records nothing.
+
+        Raises:
+            NotFoundError: If the profile is not this organization's.
+            BadRequestError: On the combinations creation refuses, or a key that is
+                not this organization's, not the caller's to see, or for another
+                provider.
+            AlreadyExistsError: If the new label is taken.
+        """
+        profile = await self._get_profile(ctx, profile_id)
+        spec = get_provider(profile.provider)
+        sent = changes.model_fields_set
+
+        secret_id = changes.secret_id if "secret_id" in sent else profile.secret_id
+        base_url = profile.base_url
+        if "base_url" in sent:
+            base_url = (
+                None
+                if changes.base_url is None
+                else await _checked_endpoint(spec, changes.base_url)
+            )
+        api: ModelApi | None = _stored_api(profile.api)
+        if "api" in sent:
+            api = changes.api if changes.api is not None else spec.default_api(base_url)
+        elif api == spec.default_api(profile.base_url):
+            api = spec.default_api(base_url)
+        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
+
+        wanted: dict[str, object] = {
+            "secret_id": secret_id,
+            "base_url": base_url,
+            "api": api,
+            # Saved with no key means meant to run with none (`_check_shape` has
+            # just allowed it); saved with one means it needs one, so a later
+            # delete of that key reads as "no key" rather than as self-hosted.
+            # An edit that leaves the key alone keeps the intent stored: renaming
+            # a gateway profile whose key was deleted does not make it keyless.
+            "runs_without_key": secret_id is None
+            and ("secret_id" in sent or profile.runs_without_key),
+        }
+        if changes.label is not None:
+            wanted["label"] = changes.label
+        if changes.params is not None:
+            wanted["params"] = changes.params
+        update_data = {
+            field: value for field, value in wanted.items() if getattr(profile, field) != value
+        }
+        if not update_data:
+            return profile
+
+        if changes.label is not None and "label" in update_data:
+            await self._check_label_free(ctx, changes.label)
+        if secret_id is not None and ("secret_id" in update_data or "base_url" in update_data):
+            await self._check_key(ctx, secret_id, provider=profile.provider)
+
+        updated = await credential_repo.update_profile(
+            self.db, organization_id=ctx.organization_id, profile=profile, update_data=update_data
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="model_profile.updated",
+            target_type="model_profile",
+            target_id=str(profile.id),
+            details={"fields": sorted(update_data)},
+        )
+        return updated
+
     async def delete_profile(self, ctx: AuthContext, profile_id: UUID) -> None:
+        """Delete a model profile no agent uses.
+
+        Refused while an agent's draft, the version it serves or a version an
+        environment pins names the profile anywhere - as its model, a reviewer's,
+        a specialist's or a capability's (#2478) - archived agents included, since
+        unarchiving one restores the version it served. The id is what those
+        agents run on, so deleting it would leave each without a model until
+        somebody edits and republishes it. The refusal names the agents the caller can see
+        and counts the rest; to replace a model's key, edit the profile instead.
+
+        Raises:
+            NotFoundError: If the profile is not this organization's.
+            InUseError: If an agent still names it.
+        """
+        # Exclusive against every write that can name a profile - a draft save,
+        # a publish, a promotion - which take it shared: the check below and the
+        # delete are then one step as far as those writes can see (#2478).
+        await hold_subject(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
+        profile = await self._get_profile(ctx, profile_id)
+        users = await agent_repo.naming_model_profile(
+            self.db, organization_id=ctx.organization_id, profile_id=profile_id
+        )
+        if users:
+            visible = await accessible_ids(
+                self.db, ctx, users, Perm.AGENTS_VIEW, resource_type=AGENT
+            )
+            named = [agent for agent in users if agent.id in visible]
+            hidden = len(users) - len(named)
+            names = ", ".join(agent.name for agent in named)
+            # An archived agent cannot publish, so "move it" is not something it
+            # can do where it is: it is deleted, or restored and moved.
+            archived = sum(agent.status == AgentStatus.ARCHIVED.value for agent in named)
+            raise InUseError(
+                message=(
+                    f"Model '{profile.label}' is used by {len(users)} "
+                    f"agent{'' if len(users) == 1 else 's'}"
+                    + (f": {names}" if names else "")
+                    + (f" and {hidden} you cannot see" if named and hidden else "")
+                    + ". Move them to another model first, or change this model's key "
+                    "in place instead of deleting it."
+                    + (
+                        f" {archived} of them {'is' if archived == 1 else 'are'} archived: "
+                        "delete those, or restore and move them."
+                        if archived
+                        else ""
+                    )
+                ),
+                details={
+                    "profile_id": str(profile_id),
+                    "agents": [
+                        {
+                            "id": agent.id,
+                            "name": agent.name,
+                            "archived": agent.status == AgentStatus.ARCHIVED.value,
+                        }
+                        for agent in named
+                    ],
+                    "hidden_agents": hidden,
+                },
+            )
         # The organization's proactive work may run on this model. Its column
         # clears itself on delete, and on without a model is off in practice - so
         # it is switched off here, in the same transaction, rather than left
@@ -293,13 +563,9 @@ class ModelProfileService:
         await organization_repo.stop_proactivity_on(
             self.db, organization_id=ctx.organization_id, model_profile_id=profile_id
         )
-        deleted = await credential_repo.delete_profile(
-            self.db, profile_id, organization_id=ctx.organization_id
+        await credential_repo.delete_profile(
+            self.db, profile.id, organization_id=ctx.organization_id
         )
-        if not deleted:
-            raise NotFoundError(
-                message="Model profile not found", details={"profile_id": str(profile_id)}
-            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -336,8 +602,12 @@ class ModelProfileService:
         the request, and the honest answer is the same refusal as before.
         """
         if profile.secret_id is None:
-            spec = get_provider(profile.provider)
-            if spec.keyless and profile.base_url:
+            if not lacks_key(
+                profile.provider,
+                secret_id=None,
+                base_url=profile.base_url,
+                runs_without_key=profile.runs_without_key,
+            ):
                 return ResolvedCredential(
                     provider=profile.provider,
                     secret=NoSecret(),
@@ -345,7 +615,10 @@ class ModelProfileService:
                     api=_stored_api(profile.api),
                 )
             raise BadRequestError(
-                message=f"Model '{profile.label}' has no key configured - add one in the vault",
+                message=(
+                    f"Model '{profile.label}' has no key configured - its key was deleted "
+                    "or never set. Choose a key for it in the Builder's model panel"
+                ),
                 details={"profile_id": str(profile.id)},
             )
         secret = await organization_secret_repo.get(
@@ -399,12 +672,7 @@ class ModelProfileService:
                 caller may not use.
         """
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
-        # Only somebody actually asking: a publisher standing in for a visitor,
-        # and a key's issuer standing behind whoever holds it, are an account to
-        # bill, not the person whose subscription it is.
-        person = (
-            None if ctx.subject_is_publisher_fallback or ctx.api_key_id is not None else ctx.user_id
-        )
+        person = sign_in_person(ctx)
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
                 message=(
@@ -444,29 +712,13 @@ class ModelProfileService:
         usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], None)]
         return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
 
-    async def _resolve_in(
-        self,
-        organization_id: UUID,
-        *,
-        profile_id: UUID | None = None,
-    ) -> ModelRequestSpec:
-        """The profile and its fallbacks with their credentials, whoever is asking.
+    async def profile_for_organization(
+        self, organization_id: UUID, *, profile_id: UUID | None
+    ) -> ModelProfile:
+        """Read the tenant's model identity without opening its credentials.
 
-        Which model an organization runs on is a fact about that organization,
-        not a permission decision - nothing here consults a role, and the
-        request that *was* authorized may have finished hours ago. Background
-        ingestion is the case: a document is parsed by a worker long after the
-        upload that was allowed, and it still has to reach the same profile and
-        unseal the same key. Taking the organization directly says that plainly,
-        instead of inventing a caller for the sake of a signature.
-
-        Precedence, most specific first: the profile that was asked for, then
-        the organization's default. There is deliberately no environment
-        fallback - a deployment serving several tenants must never quietly bill
-        one organization's run to a platform-wide key.
-
-        Raises:
-            NotFoundError: If neither a named profile nor a default exists.
+        A paired-device model uses this identity for attribution while replacing
+        inference; it must not require a usable cloud credential first.
         """
         profile = None
         if profile_id is not None:
@@ -487,6 +739,40 @@ class ModelProfileService:
                 message="This agent has no model selected",
             )
 
+        return profile
+
+    async def _resolve_in(
+        self,
+        organization_id: UUID,
+        *,
+        profile_id: UUID | None = None,
+    ) -> ModelRequestSpec:
+        """The profile and its fallbacks with their credentials, whoever is asking.
+
+        Which model an organization runs on is a fact about that organization,
+        not a permission decision - nothing here consults a role, and the
+        request that *was* authorized may have finished hours ago. Background
+        ingestion is the case: a document is parsed by a worker long after the
+        upload that was allowed, and it still has to reach the same profile and
+        unseal the same key. Taking the organization directly says that plainly,
+        instead of inventing a caller for the sake of a signature.
+
+        An explicit profile is required. There is no organization or environment
+        default: a deployment serving several tenants must never quietly swap
+        the model somebody chose or bill a platform-wide key.
+
+        Raises:
+            NotFoundError: If the named profile is missing or none was selected.
+            BadRequestError: If the profile names a known non-chat model.
+        """
+        profile = await self.profile_for_organization(organization_id, profile_id=profile_id)
+
+        outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
+        if not outputs.chat:
+            raise BadRequestError(
+                message=not_chat_refusal(profile.label, profile.model, outputs),
+                details={"profile_id": str(profile.id)},
+            )
         credential = await self.resolve_credential(organization_id, profile)
 
         fallbacks: list[tuple[ResolvedCredential, str]] = []
@@ -501,6 +787,18 @@ class ModelProfileService:
                     # A deleted fallback should degrade the chain, not the run.
                     logger.warning(
                         "Model profile %s lists missing fallback %s", profile.id, fallback_id
+                    )
+                    continue
+                if not model_outputs(
+                    fallback.provider, fallback.model, base_url=fallback.base_url
+                ).chat:
+                    # A speech or embedding model cannot take over a conversation
+                    # (#2487): publish refuses one, and a fallback added to the
+                    # profile afterwards degrades the chain the same way.
+                    logger.warning(
+                        "Model profile %s lists fallback %s, which is not a chat model; skipping",
+                        profile.id,
+                        fallback.id,
                     )
                     continue
                 try:
@@ -537,3 +835,23 @@ async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bo
     if not isinstance(source, VaultCodexCredentials):
         return True
     return user_id is not None and await source.visible_to(user_id)
+
+
+def sign_in_person(ctx: AuthContext) -> UUID | None:
+    """The person whose ChatGPT sign-ins this context may reach, or None for nobody.
+
+    Only somebody actually asking: a publisher standing in for a visitor, and a
+    key's issuer standing behind whoever holds it, are an account to bill, not
+    the person whose subscription it is. Persisted run contexts retain a key's
+    scope ceiling even without its live credential object; losing that object
+    must never turn a key holder into a signed-in person. A run asks this
+    (`ModelProfileService.resolve`), and so does publish (#2546): a context that
+    may not spend a sign-in may not point an agent at one either.
+    """
+    if (
+        ctx.subject_is_publisher_fallback
+        or ctx.api_key_id is not None
+        or ctx.key_scopes is not None
+    ):
+        return None
+    return ctx.user_id

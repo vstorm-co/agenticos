@@ -13,6 +13,7 @@ answer first, which is not the one the operator chose.
 """
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -193,3 +194,25 @@ def test_a_connection_says_what_it_is_without_its_credential():
 
     assert "Local Docker" in text
     assert "docker" in text
+
+
+async def test_project_readers_receive_only_connection_names_from_their_organization() -> None:
+    organization, connection = uuid.uuid4(), uuid.uuid4()
+    db = _RecordingSession(
+        MagicMock(
+            all=MagicMock(return_value=[SimpleNamespace(id=connection, name="Local sandbox")])
+        )
+    )
+    assert await sandbox_connection_repo.names_for_ids(
+        db, organization_id=organization, ids=[connection]
+    ) == {connection: "Local sandbox"}
+    compiled = db.statements[0].compile(dialect=postgresql.dialect())
+    assert organization in compiled.params.values()
+    assert "base_url" not in str(compiled)
+    assert "secret_id" not in str(compiled)
+    empty = _RecordingSession()
+    assert (
+        await sandbox_connection_repo.names_for_ids(empty, organization_id=organization, ids=[])
+        == {}
+    )
+    assert not empty.statements

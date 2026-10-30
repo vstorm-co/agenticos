@@ -1,8 +1,8 @@
+import { ContextHelp } from "@/components/ui/context-help";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { PageIcon } from "@/components/dashboard/page-icon";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -15,6 +15,8 @@ export interface Crumb {
 interface PageHeaderProps {
   title: ReactNode;
   description?: ReactNode;
+  /** Live summaries remain visible; explanatory introductions live in contextual help. */
+  descriptionMode?: "help" | "summary";
   /** Breadcrumb trail (last item is the current page; omit href on it). */
   breadcrumbs?: Crumb[];
   /** Right-aligned actions (buttons, etc.). */
@@ -31,6 +33,7 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   description,
+  descriptionMode = "help",
   breadcrumbs,
   actions,
   badges,
@@ -38,7 +41,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const t = useTranslations("dashboard");
   return (
-    <div className={cn("mb-6 md:mb-8", className)}>
+    <div className={cn("mb-6", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label={t("breadcrumb")} className="mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
@@ -47,7 +50,10 @@ export function PageHeader({
               return (
                 <li key={`${c.label}-${i}`} className="flex items-center gap-1.5">
                   {c.href && !last ? (
-                    <Link href={c.href} className="hover:text-foreground transition-colors">
+                    <Link
+                      href={c.href}
+                      className="hover:text-foreground touch:min-h-11 focus-visible:outline-ring inline-flex items-center rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
                       {c.label}
                     </Link>
                   ) : (
@@ -58,7 +64,7 @@ export function PageHeader({
                       {c.label}
                     </span>
                   )}
-                  {!last && <ChevronRight className="h-3 w-3 opacity-50" />}
+                  {!last && <ChevronRight className="h-3 w-3 shrink-0 opacity-50" aria-hidden />}
                 </li>
               );
             })}
@@ -66,22 +72,14 @@ export function PageHeader({
         </nav>
       )}
 
-      {/* Wrapping rather than squeezing. With the actions fixed and the text
-          column shrinking to fit beside them, a page with five buttons broke
-          its own title over two lines and every pill in it over two more. The
-          text column claims 20rem before anything else, and when that and the
-          actions do not fit on one line the actions move under the title - the
-          description's length plays no part, since the basis, not the text,
-          decides the line. The actions sit level with the title rather than
-          with the description's last line: a four-line description used to
-          leave the page's primary button floating halfway down the header. */}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+      {/* Keep the primary actions beside the title; wrap naturally on a narrow screen. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 basis-80">
-          <div className="flex items-center gap-3">
-            <PageIcon />
-            <h1 className="text-foreground min-w-0 flex-1 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
+          <div className="flex min-h-9 items-center gap-3">
+            <h1 className="text-foreground min-w-0 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
               {title}
             </h1>
+            {description && descriptionMode === "help" && <ContextHelp>{description}</ContextHelp>}
             {/* On a phone the help sits with the title it explains, rather than
                 alone on a row under the wrapped actions. */}
             <span className="md:hidden">
@@ -100,17 +98,15 @@ export function PageHeader({
               {badges}
             </div>
           )}
-          {description && (
-            // Two lines on a phone: a paragraph above the content pushed the
-            // page's first card below the fold before anything could be read.
-            <p className="text-muted-foreground mt-1.5 line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty md:line-clamp-none">
-              {description}
-            </p>
-          )}
         </div>
+        {description && descriptionMode === "summary" && (
+          <p className="text-muted-foreground order-1 basis-full text-sm leading-relaxed md:order-2">
+            {description}
+          </p>
+        )}
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}
-        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 md:justify-end">
+        <div className="order-2 flex max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:justify-end">
           {actions}
           <span className="hidden md:inline-flex">
             <RestartTourButton />

@@ -21,7 +21,7 @@ function group(name: string) {
 beforeEach(() => {
   env.reduced = false;
   env.mounted = true;
-  useThemeStore.setState({ theme: "system" });
+  useThemeStore.setState({ theme: "system", look: "standard" });
   useVoiceGlowStore.setState({ style: "subtle" });
   useMotionStore.setState({ motion: "system" });
   useWorkflowNodeStyleStore.setState({ style: "colour" });
@@ -96,5 +96,11 @@ describe("AppearanceSettings", () => {
     render(<AppearanceSettings />);
 
     for (const radio of screen.getAllByRole("radio")) expect(radio).not.toBeChecked();
+  });
+
+  it("picks the console's style, which applies at once", async () => {
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Style")).getByRole("radio", { name: /Midnight/ }));
+    expect(useThemeStore.getState().look).toBe("midnight");
   });
 });

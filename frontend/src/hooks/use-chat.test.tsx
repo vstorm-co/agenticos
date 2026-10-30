@@ -1,10 +1,13 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
+import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { useChat } from "./use-chat";
 import { useVisualImagesStore, useVisualStreamStore } from "@/stores/visual-stream-store";
 import { ApiError } from "@/lib/api-error";
@@ -26,8 +29,23 @@ import {
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
 const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+  // The real error class: `usePermissions` reads a refusal by it.
+  ApiError: (await importOriginal<typeof import("@/lib/api-client")>()).ApiError,
+  apiClient: { post, get },
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The outbox's copy on the device is `device-cache`'s to test; here, what the
+// hook hands it and what it does with what comes back.
+const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
+  keepOutbox: vi.fn(() => Promise.resolve()),
+  keptOutbox: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+}));
+vi.mock("@/lib/offline/device-cache", () => ({
+  keepOutbox,
+  keptOutbox,
+  readThrough: (_key: string, fetch: () => Promise<unknown>) => fetch(),
+}));
 
 const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   sent: vi.fn(),
@@ -54,7 +72,10 @@ const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
  * caller's permissions the same way, for whether a reloaded parked run may have
  * its approval panel rebuilt.
  */
-function makeWrapper(permissions: string[] = []) {
+function makeWrapper(
+  permissions: string[] = [],
+  organizations: { id: string; chat_may_waive_approvals: boolean }[] = [],
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -62,13 +83,16 @@ function makeWrapper(permissions: string[] = []) {
     // Seeded rather than fetched: these tests count requests, and an
     // organizations or permissions query going out would be a request none of
     // them made.
-    client.setQueryData(qk.organizations.list(), []);
-    client.setQueryData(qk.organizations.permissions("current"), {
-      organization_id: "org-1",
-      role: "member",
-      is_app_admin: false,
-      permissions: permissions.map((permission) => ({ permission, scope: "all" })),
-    });
+    client.setQueryData(qk.organizations.list(), organizations);
+    client.setQueryData(
+      qk.organizations.permissions(useOrgStore.getState().activeOrgId ?? "current"),
+      {
+        organization_id: "org-1",
+        role: "member",
+        is_app_admin: false,
+        permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+      },
+    );
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   };
 }
@@ -141,6 +165,7 @@ function parkedTurn() {
 }
 
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   vi.clearAllMocks();
   socket.isConnected = true;
   socket.getProtocols = null;
@@ -3494,6 +3519,7 @@ describe("useChat - watching a browse", () => {
 
     browserFrame("browser_opened", { step: 0, goal: "g", max_steps: 25 });
     browserFrame("browser_frame", { step: 1, image: "data:image/jpeg;base64,AAA" });
+    browserFrame("browser_control_error", { step: 1, detail: "Outside allowed domains" });
     browserFrame("browser_step", {
       step: 1,
       operation: "CLICK",
@@ -3505,6 +3531,7 @@ describe("useChat - watching a browse", () => {
     expect(result.current.browses[0]).toMatchObject({
       image: "data:image/jpeg;base64,AAA",
       imageStep: 1,
+      controlError: "Outside allowed domains",
       outcome: "blocked",
       detail: "Sign in first",
     });
@@ -4344,6 +4371,268 @@ describe("useChat - coming back to a turn still being written", () => {
   });
 });
 
+describe("useChat - the outbox (#2097)", () => {
+  // A failed expectation skips a test's own `useRealTimers`; the next test's
+  // `waitFor` would wait on a clock nobody advances.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Ask, queue `queued` behind it, and let the first turn end so the queue drains. */
+  async function drainOne(result: { current: ReturnType<typeof useChat> }, queued: string) {
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage(queued));
+    receive("complete", {});
+    receive("session_ready", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+  }
+
+  it("keeps what is queued under its conversation, and lets it go once it is sent", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+
+    await drainOne(result, "second");
+
+    expect(keepOutbox).toHaveBeenCalledWith("c-1", [
+      expect.objectContaining({ content: "second" }),
+    ]);
+    expect(keepOutbox).toHaveBeenLastCalledWith("c-1", []);
+    expect(frame(1).message).toBe("second");
+    vi.useRealTimers();
+  });
+
+  it("brings a conversation's outbox back when it is opened, and sends it", async () => {
+    vi.useFakeTimers();
+    keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(keptOutbox).toHaveBeenCalledWith("c-1");
+    expect(lastFrame().message).toBe("written on the train");
+    vi.useRealTimers();
+  });
+
+  it("holds a kept message while the network is gone, saying it waits", async () => {
+    socket.isConnected = false;
+    keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(1));
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("puts what was kept ahead of what was typed while it was being read", async () => {
+    socket.isConnected = false;
+    let answer!: (kept: unknown[]) => void;
+    keptOutbox.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("typed just now"));
+
+    await act(async () => {
+      answer([
+        { id: "q-1", content: "written on the train" },
+        { id: result.current.queuedMessages[0]!.id, content: "typed just now" },
+      ]);
+    });
+
+    expect(result.current.queuedMessages.map((q) => q.content)).toEqual([
+      "written on the train",
+      "typed just now",
+    ]);
+  });
+
+  it("takes a new chat's queue along when the chat gets its id", async () => {
+    socket.isConnected = false;
+    let conversationId: string | null = null;
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    await act(async () => {});
+    act(() => result.current.sendMessage("the first question"));
+    expect(keepOutbox).toHaveBeenLastCalledWith(null, [
+      expect.objectContaining({ content: "the first question" }),
+    ]);
+
+    receive("conversation_created", { conversation_id: "c-new" });
+    conversationId = "c-new";
+    rerender();
+
+    expect(keepOutbox).toHaveBeenCalledWith(null, []);
+    expect(keepOutbox).toHaveBeenLastCalledWith("c-new", [
+      expect.objectContaining({ content: "the first question" }),
+    ]);
+  });
+
+  it("puts a queued message the server refused back, saying why, instead of a dead question", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await drainOne(result, "second");
+    act(() => result.current.sendMessage("third"));
+
+    receive("error", { message: "The monthly budget is spent." });
+    receive("session_ready", {});
+
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ content: "second", refused: "The monthly budget is spent." }),
+      expect.objectContaining({ content: "third" }),
+    ]);
+    const texts = useChatStore.getState().messages.map((message) => message.content);
+    expect(texts).not.toContain("second");
+    expect(texts.join(" ")).not.toContain("budget");
+
+    // Held: the refused one is at the head, and the queue is the order they go in.
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(sent).toHaveBeenCalledTimes(2);
+
+    const refused = result.current.queuedMessages[0]!;
+    act(() => result.current.retryQueued(refused.id));
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(frame(2).message).toBe("second");
+    expect(result.current.queuedMessages).toEqual([expect.objectContaining({ content: "third" })]);
+    vi.useRealTimers();
+  });
+
+  it("leaves a refusal after the message was saved where it was", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await drainOne(result, "second");
+
+    receive("user_prompt", { content: "second" });
+    receive("error", { message: "The model failed." });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    const texts = useChatStore.getState().messages.map((message) => message.content);
+    expect(texts).toContain("second");
+    vi.useRealTimers();
+  });
+
+  it("does not take a message typed straight in for a queued one", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("typed"));
+
+    receive("error", { message: "Pick an agent." });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Pick an agent.");
+  });
+
+  it("takes the queue off the screen on a switch without dropping it from the device", () => {
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("later"));
+    keepOutbox.mockClear();
+
+    act(() => result.current.clearQueued());
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(keepOutbox).not.toHaveBeenCalled();
+  });
+});
+
+it("sends the chosen folder, browser, model and MCP grants with a new turn", () => {
+  const target = {
+    folder: "/approved",
+    mode: "read_only" as const,
+    browser: true,
+    model_service: "model-grant",
+    mcp_services: ["mcp-grant"],
+  };
+  useWorkOnStore.getState().set(null, target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("read the project"));
+    expect(lastFrame().local).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});
+
+it("files the local target when the conversation is created with settings closed", () => {
+  const target = { folder: "/approved", mode: "full_access" as const };
+  useWorkOnStore.getState().set(null, target);
+  try {
+    const initialProps: { conversationId?: string } = {};
+    const { result, rerender } = renderHook(
+      ({ conversationId }: { conversationId?: string }) => useChat({ conversationId }),
+      { wrapper, initialProps },
+    );
+    act(() => result.current.sendMessage("read local files"));
+    expect(lastFrame().local).toEqual(target);
+    receive("conversation_created", { conversation_id: "created-local" });
+    expect(useWorkOnStore.getState().targetFor(null)).toEqual(target);
+    expect(useWorkOnStore.getState().targetFor("created-local")).toEqual(target);
+    receive("complete", {});
+    receive("session_ready", {});
+    rerender({ conversationId: "created-local" });
+    sent.mockClear();
+    act(() => result.current.sendMessage("and now?"));
+    expect(lastFrame().conversation_id).toBe("created-local");
+    expect(lastFrame().local).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});
+
+it("sends the inherited local project target on the first frame and keeps it after creation", () => {
+  const target = { folder: "/approved/project", mode: "read_only" as const };
+  useConversationStore.getState().setPendingProjectId("p-local");
+  useWorkOnStore.getState().applyProject("alice:org:p-local", target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("read my project files"));
+    expect(lastFrame().project_id).toBe("p-local");
+    expect(lastFrame().local).toEqual(target);
+    receive("conversation_created", { conversation_id: "project-created" });
+    expect(useWorkOnStore.getState().targetFor("project-created")).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
+    useConversationStore.getState().setPendingProjectId(null);
+  }
+});
+
+it("resolves the project folder even when sending beats project metadata rendering", () => {
+  const target = { folder: "/approved/instant", mode: "read_only" as const };
+  const key = projectFolderKey("u-1", "org-a", "p-instant");
+  if (!key) throw new Error("Expected authenticated project key");
+  useAuthStore.setState({
+    user: {
+      id: "u-1",
+      email: "test@example.com",
+      is_active: true,
+      created_at: "2026-10-25T00:00:00Z",
+    },
+  });
+  useOrgStore.setState({ activeOrgId: "org-a" });
+  useConversationStore.getState().setPendingProjectId("p-instant");
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: false,
+  };
+  useProjectFoldersStore.getState().bind(key, target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("inspect local project"));
+    expect(lastFrame().local).toEqual(target);
+    expect(lastFrame().project_id).toBe("p-instant");
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+    useProjectFoldersStore.setState({ byProject: {} });
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
+  }
+});
+
 it("adopts the persisted prompt id before reconciling a live transcript", () => {
   const { result } = renderHook(() => useChat(), { wrapper });
   act(() => result.current.sendMessage("A question"));
@@ -4449,4 +4738,262 @@ it("sends the prompt correlation retained beside its authenticated author", () =
   expect(prompt?.clientMessageId).toEqual(expect.any(String));
   expect(lastFrame().client_message_id).toBe(prompt?.clientMessageId);
   expect(prompt?.sender).toEqual({ user_id: "me", name: "Me", has_avatar: true, avatar_color: 1 });
+});
+
+describe("useChat - next steps arrive after the answer", () => {
+  function saved(id = "answer-1", conversationId = "c-1") {
+    return {
+      id,
+      conversationId,
+      role: "assistant" as const,
+      content: "Original answer",
+      timestamp: new Date(),
+      isStreaming: false,
+    };
+  }
+  it("updates only the saved answer while another answer is streaming", () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    useChatStore.setState({
+      messages: [saved(), { ...saved("answer-2"), isStreaming: true, content: "Still writing" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    const before = useChatStore.getState().messages[1];
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: "answer-1",
+      steps: ["Make a table"],
+    });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.args.steps).toEqual([
+      "Make a table",
+    ]);
+    expect(useChatStore.getState().messages[1]).toBe(before);
+    expect(result.current.isProcessing).toBe(false);
+  });
+  it("keeps a very fast result until message_saved renames its bubble", async () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Answer" });
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: "saved-1",
+      steps: ["Make a table"],
+    });
+    receive("message_saved", { message_id: "saved-1", conversation_id: "c-1" });
+    await waitFor(() =>
+      expect(
+        useChatStore.getState().messages.find((m) => m.id === "saved-1")?.toolCalls?.[0]?.args
+          .steps,
+      ).toEqual(["Make a table"]),
+    );
+  });
+  it("drops another conversation's late result and malformed events", () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    useChatStore.setState({ messages: [saved()] });
+    renderHook(() => useChat(), { wrapper });
+    const before = useChatStore.getState().messages[0];
+    receive("next_steps", {
+      conversation_id: "c-2",
+      message_id: "answer-1",
+      steps: ["Make a table"],
+    });
+    receive("next_steps", { conversation_id: "c-1", message_id: "answer-1", steps: [1] });
+    expect(useChatStore.getState().messages[0]).toBe(before);
+  });
+});
+
+it("bounds suggestions waiting for a saved bubble", async () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  renderHook(() => useChat(), { wrapper });
+  for (let i = 0; i <= 20; i++)
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: `saved-${i}`,
+      steps: ["Make a table"],
+    });
+  receive("model_request_start", {});
+  receive("message_saved", { message_id: "saved-20", conversation_id: "c-1" });
+  await waitFor(() =>
+    expect(
+      useChatStore.getState().messages.find((m) => m.id === "saved-20")?.toolCalls,
+    ).toHaveLength(1),
+  );
+  act(() =>
+    useChatStore.getState().addMessage({
+      id: "saved-0",
+      conversationId: "c-1",
+      role: "assistant",
+      content: "Older",
+      timestamp: new Date(),
+    }),
+  );
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === "saved-0")?.toolCalls,
+  ).toBeUndefined();
+});
+
+it("discards pending suggestions when the conversation changes", () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  renderHook(() => useChat(), { wrapper });
+  receive("next_steps", {
+    conversation_id: "c-1",
+    message_id: "old-answer",
+    steps: ["Make a table"],
+  });
+  act(() => useConversationStore.setState({ currentConversationId: "c-2" }));
+  act(() => useConversationStore.setState({ currentConversationId: "c-1" }));
+  act(() =>
+    useChatStore.getState().addMessage({
+      id: "old-answer",
+      conversationId: "c-1",
+      role: "assistant",
+      content: "Old answer",
+      timestamp: new Date(),
+    }),
+  );
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === "old-answer")?.toolCalls,
+  ).toBeUndefined();
+});
+
+it("refreshes the conversation bill even when the helper offers no buttons", async () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  get.mockResolvedValue({ cost: null });
+  renderHook(() => useChat(), { wrapper });
+  receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
+  await waitFor(() =>
+    expect(get).toHaveBeenCalledWith("/conversations/c-1/messages?skip=0&limit=1"),
+  );
+  expect(useChatStore.getState().messages).toHaveLength(0);
+});
+
+it.each(["account", "organization"])(
+  "does not apply a late helper bill after changing %s",
+  async (changed) => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    const bill = { input_tokens: 10, output_tokens: 20, cost_usd: "0.25", cost_is_partial: false };
+    let resolve!: (value: { cost: typeof bill }) => void;
+    const pendingBill = new Promise<{ cost: typeof bill }>((done) => {
+      resolve = done;
+    });
+    get.mockImplementation((path: string) => {
+      if (path === "/me/permissions") {
+        return Promise.resolve({
+          organization_id: "new-org",
+          role: "member",
+          is_app_admin: false,
+          permissions: [],
+        });
+      }
+      if (path === "/conversations/c-1/messages?skip=0&limit=1") return pendingBill;
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderHook(() => useChat(), { wrapper });
+    receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
+    act(() => {
+      if (changed === "organization") useOrgStore.setState({ activeOrgId: "new-org" });
+      else
+        useAuthStore.setState({
+          user: {
+            id: "new-account",
+            email: "new@example.com",
+            full_name: "New",
+            is_active: true,
+            created_at: "2026-10-01",
+          },
+        });
+      resolve({ cost: bill });
+    });
+    await act(async () => {});
+    expect(useConversationStore.getState().currentCost).not.toEqual(bill);
+  },
+);
+
+it("sends a browser-only override without a folder or sandbox target", () => {
+  const store = useWorkOnStore.getState();
+  store.setBrowser(null, true);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("open the local browser"));
+    expect(lastFrame().local).toEqual({ browser: true });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("keeps a finished browser preview through a follow-up turn", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("browser_opened", {
+    kind: "browser_opened",
+    call_id: "c1",
+    step: 0,
+    goal: "first",
+    navigable: true,
+    tab_id: "main",
+  });
+  receive("browser_finished", {
+    kind: "browser_finished",
+    call_id: "c1",
+    step: 1,
+    outcome: "done",
+  });
+  act(() => result.current.sendMessage("continue on that page"));
+  expect(result.current.browses).toHaveLength(1);
+  expect(result.current.browses[0]).toMatchObject({ tabId: "main", outcome: "done" });
+});
+
+it("sends a screen-only override without giving the agent a local folder", () => {
+  const store = useWorkOnStore.getState();
+  store.setComputer(null, true);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("use my computer"));
+    expect(lastFrame().local).toEqual({ computer: true });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("reads approval-waiver policy for the active organization", () => {
+  useOrgStore.setState({ activeOrgId: "org-1" });
+  const { result } = renderHook(() => useChat(), {
+    wrapper: makeWrapper(
+      ["approvals:decide"],
+      [
+        { id: "elsewhere", chat_may_waive_approvals: false },
+        { id: "org-1", chat_may_waive_approvals: true },
+      ],
+    ),
+  });
+  act(() => result.current.sendMessage("hello"));
+  expect(lastFrame()).not.toHaveProperty("approval_mode");
+});
+
+const nativeStop = vi.hoisted(() => ({ handler: (_payload: unknown) => {} }));
+vi.mock("./use-desktop", async (original) => {
+  const real = await original<typeof import("./use-desktop")>();
+  return {
+    ...real,
+    useShellEvent: (...args: Parameters<typeof real.useShellEvent>) => {
+      if (args[0] === "desktop:stop-conversation") nativeStop.handler = args[1];
+      real.useShellEvent(...args);
+    },
+  };
+});
+it("stops the originating live conversation from the desktop activity command", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: false,
+  };
+  useConversationStore.getState().setCurrentConversationId("native-chat");
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Keep working"));
+  expect(result.current.isProcessing).toBe(true);
+  act(() => nativeStop.handler("native-chat"));
+  expect(sent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "stop" }));
+  delete window.__AGENTICOS_SHELL__;
 });
