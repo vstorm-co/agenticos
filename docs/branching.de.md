@@ -1,5 +1,5 @@
 ---
-source_sha: "f89434252ef2"
+source_sha: "f82996cb48c3"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -203,13 +203,14 @@ dabei aussieht, steht weiter unten.
 | `lint` | 10 | 22s |
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
-| `test-frontend` | 20 | 5m08s |
-| `docker` | 20 | 2m30s |
-| `test` | 25 | 7m43s |
+| `test-frontend` | 45 | 20m07s |
+| `test` | 90 | 22m25s |
 | `e2e` | 25 | 8m01s |
 
-Die gemessenen Zeiten stammen aus Lauf 31116003994, einer vollen Matrix auf
-`main`. Jede Grenze liegt beim Mehrfachen ihres Jobs statt knapp darüber: das
+Die meisten Zeiten stammen aus Lauf 31116003994, einer vollen Matrix auf
+`main`. Die Backend-Zeit stammt aus Lauf 41102882122, die Frontend-Zeit aus
+41108431368, beide vom 30. Oktober 2026. Images werden separat in `images.yml`
+gebaut. Jede Grenze liegt beim Mehrfachen ihres Jobs statt knapp darüber: das
 Timeout existiert, um einen Hänger zu beenden, und eines, das eng genug ist, um
 einen berechtigt kalten Cache zu kappen, ist ein roter Build aus einem Grund, der
 nichts mit dem Diff zu tun hat.

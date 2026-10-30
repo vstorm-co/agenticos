@@ -23,6 +23,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A long document indexes against a local Ollama server. Its chunks now go to
   `/embeddings` in requests of at most 64 instead of one oversized request.
+- Give frontend CI 45 minutes to complete coverage and its production build; align the operational timeout table in all four documentation languages with the current jobs.
+
+## [1.31.1] - 2026-10-30
+
+### Fixed
+
 - Keep frontend test files out of the production Docker build context so desktop UI regression imports do not break the standalone console image. CI still checks and runs those tests in the full repository.
 - Stop release preparation immediately when either updater signing key is missing.
 
