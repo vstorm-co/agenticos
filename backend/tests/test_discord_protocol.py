@@ -11,6 +11,7 @@ from app.services.channels.discord_protocol import (
     MESSAGE_LIMIT,
     VIEW_CHANNEL,
     Recent,
+    attachment_type,
     can_view,
     chunks,
     close_refusal,
@@ -110,6 +111,24 @@ class TestThreadName:
 
 def test_only_the_bot_s_own_mention_is_taken_out():
     assert without_mention("<@42> ask <@!42> <@7> about it", "42") == "ask <@7> about it"
+
+
+@pytest.mark.parametrize(
+    ("content_type", "filename", "expected"),
+    [
+        ("image/webp", "image.png", "image/png"),
+        ("image/png", "photo.jpeg", "image/jpeg"),
+        ("image/png", "image.png", "image/png"),
+        ("image/webp", "photo", "image/webp"),
+        ("image/png", "notes.txt", "image/png"),
+        ("application/pdf", "image.png", "application/pdf"),
+        (None, "image.png", "application/octet-stream"),
+    ],
+)
+def test_only_an_image_type_contradicting_an_image_name_takes_the_name_s(
+    content_type: str | None, filename: str, expected: str
+):
+    assert attachment_type(content_type, filename) == expected
 
 
 class TestComponents:

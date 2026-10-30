@@ -11,6 +11,7 @@ from collections import OrderedDict
 from typing import Any
 
 from app.services.channels.base import CHANNEL_COMMANDS, ChannelChoice
+from app.services.file_storage import IMAGE_MIME_TYPES, canonical_mime
 
 API_BASE = "https://discord.com/api/v10"
 GATEWAY_QUERY = "?v=10&encoding=json"
@@ -212,6 +213,23 @@ def thread_name(text: str) -> str:
 def without_mention(text: str, user_id: str) -> str:
     """The message with the bot's own mention taken out - it is the envelope, not the question."""
     return " ".join(re.sub(rf"<@!?{re.escape(user_id)}>", " ", text).split())
+
+
+def attachment_type(content_type: str | None, filename: str) -> str:
+    """The MIME type an attachment is checked and stored under.
+
+    Discord's own `content_type`, except when it names one image format and the
+    file's name another: an image pasted from the clipboard arrives as
+    `image.png` with PNG bytes and `image/webp` on it. Upload validation refuses
+    a type that contradicts the extension, so the picture never reached the
+    agent. The name's type is taken instead; the byte check after the download
+    still refuses a file whose header is neither.
+    """
+    claimed = content_type or "application/octet-stream"
+    named = canonical_mime(None, filename)
+    if claimed.split(";", 1)[0].strip().lower() in IMAGE_MIME_TYPES and named in IMAGE_MIME_TYPES:
+        return named
+    return claimed
 
 
 def _clip(label: str, limit: int) -> str:

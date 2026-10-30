@@ -65,6 +65,7 @@ from app.services.channels.discord_protocol import (
     NO_MENTIONS,
     THREAD_TYPES,
     Recent,
+    attachment_type,
     can_view,
     chunks,
     close_refusal,
@@ -762,7 +763,9 @@ class DiscordAdapter(ChannelAdapter):
         attachments = [
             IncomingAttachment(
                 filename=str(item.get("filename") or "file"),
-                mime_type=str(item.get("content_type") or "application/octet-stream"),
+                mime_type=attachment_type(
+                    item.get("content_type"), str(item.get("filename") or "file")
+                ),
                 size=int(item.get("size") or 0),
                 handle=str(item.get("url") or ""),
             )

@@ -32,6 +32,7 @@ from app.services.channels.discord import DiscordAdapter, _Channel, _Reply, _Ses
 from app.services.channels.discord_protocol import VIEW_CHANNEL
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.live_reply import LiveReply, channel_stream
+from app.services.file_upload import FileUploadService
 from tests.test_guardrails_capability import _KEY_IN_PIECES, SECRET, _agent, _streams
 
 pytestmark = pytest.mark.anyio
@@ -200,6 +201,36 @@ class TestReading:
         )
         assert incoming is not None
         assert [item.filename for item in incoming.attachments] == ["q.pdf"]
+
+    def test_a_pasted_image_discord_mislabels_is_typed_by_its_name(self, adapter: DiscordAdapter):
+        """A clipboard paste arrives as `image.png`, PNG bytes, `image/webp`.
+
+        Upload validation refused that pairing as a type contradicting its
+        extension, so every pasted screenshot was turned away.
+        """
+        incoming = adapter.parse_incoming(
+            _message(
+                attachments=[
+                    {
+                        "filename": "image.png",
+                        "content_type": "image/webp",
+                        "size": 1324,
+                        "url": "https://cdn.discordapp.com/image.png",
+                    }
+                ]
+            ),
+            BOT,
+        )
+
+        assert incoming is not None
+        (pasted,) = incoming.attachments
+        assert pasted.mime_type == "image/png"
+        assert FileUploadService.validate_upload(
+            pasted.mime_type, pasted.size, pasted.filename
+        ) == (
+            True,
+            None,
+        )
 
 
 class TestPosting:
