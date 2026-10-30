@@ -1,5 +1,5 @@
 ---
-source_sha: "681f55f35546"
+source_sha: "179427bfaa16"
 ---
 
 # Konfiguracja { #configuration }
@@ -874,7 +874,7 @@ wewnętrznej, do której dołączają tylko API i worker. Na każde żądanie,
 które wysyła render, odpowiada API - stroną, jej plikami bibliotek i dokumentem
 hosta - albo je odrzuca, więc przeglądarka nie potrzebuje drogi na zewnątrz. A
 ponieważ renderuje rekordy ludzi, nie może być przeglądarką, którą steruje
-[agent przeglądający strony](reference/capabilities.md#browser-automation-choose).
+[agent przeglądający strony](reference/capabilities.md#browser-automation).
 Uruchom go przez `docker compose --profile artifact-render up -d`, a potem ustaw
 `ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Nie dodawaj
 `artifact-render` do `BROWSER_CDP_ALLOWED_HOSTS`: ta lista jest dla agentów

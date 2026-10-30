@@ -1235,6 +1235,7 @@ async def test_call_admission_refuses_a_parent_that_disappeared_or_stopped(paren
 
 
 @pytest.mark.parametrize("hold", [None, Decimal("0")])
+@pytest.mark.security
 async def test_call_admission_with_nothing_free_waits_instead_of_admitting_without_budget(hold):
     """No try of the calling step to move a hold from (or one holding nothing): refused."""
     service = WorkflowExecutionService(MagicMock())

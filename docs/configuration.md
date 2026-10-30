@@ -860,7 +860,7 @@ opt-in `artifact-render` profile: a pinned headless Chromium on an internal
 network that only the API and the worker join. Every request a render
 makes is answered by the API - the page, its library files and a host document -
 or refused, so the browser needs no route out, and it renders people's records,
-so it must not be the browser a [browsing agent](reference/capabilities.md#browser-automation-choose)
+so it must not be the browser a [browsing agent](reference/capabilities.md#browser-automation)
 drives. Start it with `docker compose --profile artifact-render up -d`, then set
 `ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Do not add
 `artifact-render` to `BROWSER_CDP_ALLOWED_HOSTS`: that list is for browsing

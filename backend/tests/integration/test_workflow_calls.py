@@ -1097,6 +1097,7 @@ async def test_two_uncapped_calls_run_one_after_the_other_and_the_second_does_no
     assert (await drive(caller)).status == "succeeded"
 
 
+@pytest.mark.security
 async def test_a_call_with_nothing_free_waits_instead_of_admitting_a_run_with_no_budget(
     engine: AsyncEngine,
 ) -> None:

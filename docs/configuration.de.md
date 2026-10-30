@@ -1,5 +1,5 @@
 ---
-source_sha: "681f55f35546"
+source_sha: "179427bfaa16"
 ---
 
 # Konfiguration { #configuration }
@@ -921,7 +921,7 @@ Anfrage eines Renderings beantwortet die API - mit der Seite, ihren
 Bibliotheksdateien und einem Host-Dokument - oder lehnt sie ab, der Browser
 braucht also keinen Weg nach draußen. Und weil er die Datensätze von Personen
 rendert, darf er nicht der Browser sein, den ein
-[browsender Agent](reference/capabilities.md#browser-automation-choose) steuert.
+[browsender Agent](reference/capabilities.md#browser-automation) steuert.
 Starten Sie ihn mit `docker compose --profile artifact-render up -d` und setzen
 Sie dann `ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Nehmen Sie
 `artifact-render` nicht in `BROWSER_CDP_ALLOWED_HOSTS` auf: Diese Liste ist für

@@ -1,5 +1,5 @@
 ---
-source_sha: "681f55f35546"
+source_sha: "179427bfaa16"
 ---
 
 # Configuración { #configuration }
@@ -898,7 +898,7 @@ red interna a la que solo se unen la API y el worker. Cada petición
 que hace un renderizado la responde la API (la página, sus archivos de
 biblioteca y un documento anfitrión) o se rechaza, así que el navegador no
 necesita salida a ninguna parte; y como dibuja los registros de las personas, no
-debe ser el navegador que maneja un [agent que navega](reference/capabilities.md#browser-automation-choose).
+debe ser el navegador que maneja un [agent que navega](reference/capabilities.md#browser-automation).
 Arráncalo con `docker compose --profile artifact-render up -d` y después fija
 `ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. No añadas
 `artifact-render` a `BROWSER_CDP_ALLOWED_HOSTS`: esa lista es para los agents que

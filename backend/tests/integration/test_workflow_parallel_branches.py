@@ -625,6 +625,7 @@ async def test_a_failure_withdraws_a_siblings_queued_backoff_job(
     assert await _live_outbox(seeded, retrying) == []
 
 
+@pytest.mark.security
 async def test_cancel_withdraws_a_siblings_pending_approval_and_stops_its_parked_agent_run(
     engine: AsyncEngine, synthetic_nodes: None
 ):
@@ -708,6 +709,7 @@ async def test_a_failure_stops_two_parked_agent_steps_and_audits_each(
     assert (await run_row(seeded)).status == WorkflowRunStatus.FAILED.value
 
 
+@pytest.mark.security
 async def test_a_late_sibling_parking_after_the_run_ended_withdraws_its_approval(
     engine: AsyncEngine, synthetic_nodes: None
 ):
@@ -740,6 +742,7 @@ async def test_a_late_sibling_parking_after_the_run_ended_withdraws_its_approval
     assert statuses[ask.id] == statuses[parks.id] == NodeRunStatus.CANCELLED.value
 
 
+@pytest.mark.security
 async def test_a_cancelled_sibling_parking_late_leaves_another_branchs_approval_alone(
     engine: AsyncEngine, synthetic_nodes: None
 ):

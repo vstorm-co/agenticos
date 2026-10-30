@@ -170,6 +170,7 @@ async def test_direct_provider_limits_handle_a_missing_organization_without_maki
         (Decimal("0.60"), None, Decimal("0.60")),
     ],
 )
+@pytest.mark.security
 def test_reservation_is_the_smaller_of_free_and_the_steps_own_cap(free, cap, expected):
     assert budget.reservation(free, cap) == expected
 
@@ -192,6 +193,7 @@ class TestUnreserved:
     async def test_a_run_without_a_cap_has_nothing_to_reserve_against(self):
         assert await budget.unreserved(MagicMock(), _run(budget_limit=None)) is None
 
+    @pytest.mark.security
     async def test_what_is_held_by_attempts_and_children_is_not_free(self):
         run = _run(budget_limit=Decimal("1"), spent_cost=Decimal("0.2"), child_cost=Decimal("0.1"))
         with (
@@ -208,6 +210,7 @@ class TestUnreserved:
         ):
             assert await budget.unreserved(MagicMock(), run) == Decimal("0.2")
 
+    @pytest.mark.security
     async def test_more_held_than_the_cap_leaves_nothing_never_less(self):
         run = _run(budget_limit=Decimal("1"))
         with (

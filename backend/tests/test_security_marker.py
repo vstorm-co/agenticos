@@ -222,6 +222,18 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_another_pending_approval_on_the_same_run_defers_the_outbox_insert": "'approval' names a parked agent run's decisions; waiting for the last one is sequencing, not a refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_the_decision_that_clears_the_last_pending_approval_enqueues_it": "'approval' names a parked agent run's decisions; the last decision enqueues the wake, the accepted path",
     "tests/test_computer_use.py::TestTheTools::test_a_run_resumed_after_approval_acts_on_the_screen_it_was_shown": "an approved batch runs on the screen it was approved against, no refusal",
+    "tests/integration/test_workflow_budget_reservations.py::test_a_run_without_a_budget_reserves_nothing": "An uncapped run needs no spend reservation; configuration, no refusal.",
+    "tests/integration/test_workflow_budget_reservations.py::test_a_step_that_spends_nothing_neither_reserves_nor_waits": "A free step does not enter spend admission; configuration, no refusal.",
+    "tests/integration/test_workflow_budget_reservations.py::test_the_model_and_knowledge_steps_are_the_spenders": "The node catalog declares which steps spend; registry configuration, no refusal.",
+    "tests/integration/test_workflow_parallel_branches.py::test_a_sibling_dispatching_does_not_hide_an_approval_wait": "Run status prioritizes a human wait over a running branch; reporting, no refusal.",
+    "tests/integration/test_workflow_run_repo.py::TestWaitingOnPeople::test_a_run_waiting_for_approval_beside_a_running_branch_is_counted_once": "Counts each waiting run once for the queue; reporting, no refusal.",
+    "tests/test_workflow_execution_budget.py::test_own_cap_reads_max_cost_usd_and_nothing_else": "Reads a step cap from configuration; parsing, no refusal.",
+    "tests/test_workflow_execution_budget.py::TestUnreserved::test_a_run_without_a_cap_has_nothing_to_reserve_against": "An uncapped run has no remaining-cap calculation; configuration, no refusal.",
+    "tests/test_workflow_joins.py::test_conditions_are_unknown_once_the_build_budget_is_spent": "Budget names the bounded graph-analysis work, not a financial spend cap.",
+    "tests/test_workflow_joins.py::test_questions_fall_back_once_the_question_budget_is_spent": "Budget names the bounded graph-analysis work, not a financial spend cap.",
+    "tests/test_workflow_joins.py::test_a_condition_comparison_without_a_budget_is_exact": "Budget names the bounded graph-analysis work, not a financial spend cap.",
+    "tests/test_workflow_run_status.py::test_an_approval_wait_outranks_a_running_sibling": "Approval names the run status being prioritized; reporting, no refusal.",
+    "tests/test_workflow_run_status.py::test_a_retry_wait_outranks_a_running_sibling_but_not_an_approval": "Approval names the run status being prioritized; reporting, no refusal.",
 }
 
 

@@ -242,6 +242,7 @@ async def _wait_began_ago(seeded: SeededRun, node: NodeInstance, ago: timedelta)
         await db.commit()
 
 
+@pytest.mark.security
 async def test_a_waiting_spender_backs_off_with_how_long_it_has_waited_and_logs_once(
     engine: AsyncEngine, spenders: None
 ):
@@ -281,6 +282,7 @@ async def test_a_waiting_spender_backs_off_with_how_long_it_has_waited_and_logs_
     assert len(logged) == 1
 
 
+@pytest.mark.security
 async def test_a_spender_is_handed_its_own_cap_when_it_is_below_what_is_free(
     engine: AsyncEngine, spenders: None
 ):
@@ -294,6 +296,7 @@ async def test_a_spender_is_handed_its_own_cap_when_it_is_below_what_is_free(
     assert [attempt.reserved_usd for attempt in await _attempts(seeded, first)] == [Decimal("0.25")]
 
 
+@pytest.mark.security
 async def test_two_parallel_spenders_never_hold_more_than_the_budget(
     engine: AsyncEngine, spenders: None
 ):
@@ -325,6 +328,7 @@ async def test_two_parallel_spenders_never_hold_more_than_the_budget(
     assert held.attempt_no == 1
 
 
+@pytest.mark.security
 async def test_a_waiting_spender_starts_once_the_first_settles(engine: AsyncEngine, spenders: None):
     seeded, _entry, first, second = await _two_spenders(engine, limit="1.00")
     costs[first.id] = Decimal("0.40")
@@ -339,6 +343,7 @@ async def test_a_waiting_spender_starts_once_the_first_settles(engine: AsyncEngi
     assert seen[second.id] == [Decimal("0.60")]
 
 
+@pytest.mark.security
 async def test_a_parked_step_releases_its_reservation(engine: AsyncEngine, spenders: None):
     seeded, _entry, first, second = await _two_spenders(engine, limit="1.00")
     parks.add(first.id)
@@ -351,6 +356,7 @@ async def test_a_parked_step_releases_its_reservation(engine: AsyncEngine, spend
     assert parked.status == NodeAttemptStatus.COMPLETED.value
 
 
+@pytest.mark.security
 async def test_an_orphaned_attempts_reservation_is_released_once_resolved(
     engine: AsyncEngine, spenders: None
 ):

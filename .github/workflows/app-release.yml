@@ -69,7 +69,8 @@ jobs:
           UPDATE_PUBLIC_KEY: ${{ vars.AGENTICOS_UPDATER_PUBLIC_KEY }}
         run: |
           set -euo pipefail
-          test -n "$UPDATE_KEY" && test -n "$UPDATE_PUBLIC_KEY"
+          test -n "$UPDATE_KEY"
+          test -n "$UPDATE_PUBLIC_KEY"
           python3 scripts/prepare_app_release.py "$TAG"
           rustup target add '${{ matrix.target }}'
           cd desktop && bun install --frozen-lockfile

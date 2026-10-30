@@ -200,3 +200,47 @@ def test_desktop_smoke_packages_omit_debug_symbols_without_skipping_formats() ->
     assert next(
         step for step in job["steps"] if step.get("name") == "Install and remove desktop packages"
     )
+
+
+@pytest.mark.parametrize(
+    ("private", "public", "allowed"),
+    [("", "public", False), ("private", "", False), ("", "", False), ("private", "public", True)],
+)
+def test_release_requires_both_updater_keys_before_preparing_assets(
+    tmp_path: Path, private: str, public: str, allowed: bool
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Prepare version and signing"
+    )
+    bash = shutil.which("bash")
+    assert bash is not None
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    (tmp_path / "desktop").mkdir()
+    marker = tmp_path / "prepared"
+    for command in ("python3", "rustup", "bun"):
+        script = binaries / command
+        script.write_text(
+            "#!/bin/sh\n"
+            + ('printf prepared > "$PREPARED"\n' if command == "python3" else "")
+            + "exit 0\n"
+        )
+        script.chmod(0o755)
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env={
+            "PATH": str(binaries),
+            "UPDATE_KEY": private,
+            "UPDATE_PUBLIC_KEY": public,
+            "TAG": "v1.31.1",
+            "PREPARED": str(marker),
+        },
+    )
+    assert (result.returncode == 0) is allowed, result.stderr
+    assert marker.exists() is allowed
