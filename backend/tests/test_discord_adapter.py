@@ -5,6 +5,7 @@ is asserted is the request Discord would receive: the channel or thread it goes
 to, whether it can ping anybody, and what a button or a thread looks like.
 """
 
+import asyncio
 import json
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -740,7 +741,7 @@ class TestInteractions:
         [keeping] = spawned
         kept = AsyncMock(return_value=True)
         with patch.object(discord, "process_feedback_comment", kept):
-            await keeping
+            await asyncio.wait_for(keeping, timeout=5)
         [comment] = kept.await_args.args
         assert (comment.run_id, comment.text, comment.platform_user_id) == (
             "run-1",
