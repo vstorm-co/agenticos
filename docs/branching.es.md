@@ -1,5 +1,5 @@
 ---
-source_sha: "f89434252ef2"
+source_sha: "f82996cb48c3"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -199,13 +199,14 @@ un job cuando lo hace está más abajo.
 | `lint` | 10 | 22s |
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
-| `test-frontend` | 20 | 5m08s |
-| `docker` | 20 | 2m30s |
-| `test` | 25 | 7m43s |
+| `test-frontend` | 45 | 20m07s |
+| `test` | 90 | 22m25s |
 | `e2e` | 25 | 8m01s |
 
-Los tiempos observados vienen de la ejecución 31116003994, una matriz completa
-sobre `main`. Cada límite es varias veces su job en vez de quedar justo por
+La mayoría de los tiempos vienen de la ejecución 31116003994, una matriz completa
+sobre `main`. El tiempo del backend viene de 41102882122 y el del frontend de
+41108431368, ambas del 30 de octubre de 2026. Las imágenes se construyen por
+separado en `images.yml`. Cada límite es varias veces su job en vez de quedar justo por
 encima: el timeout existe para terminar un atasco, y uno tan ajustado como para
 cortar una caché legítimamente fría es un build en rojo por una razón ajena al
 diff.

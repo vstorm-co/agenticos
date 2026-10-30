@@ -79,6 +79,7 @@ permissions:
 # every step green. The native-client branch's 18,711-test suite reached only
 # 72% at 45 minutes on two workers. Its two passes now get a bounded 90-minute
 # budget and explicitly use the existing four-worker cap on hosted runners.
+# `test-frontend` took 20m07s with its build on 30 October; it gets 45 minutes.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -370,7 +371,7 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
     # The 11,339-test coverage pass took 19m39s before the production build.
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

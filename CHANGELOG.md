@@ -61,6 +61,19 @@ Two things are versioned separately from this file and worth knowing about:
   require approval for every MCP call. Writes and tools without a read-only hint
   still require approval; an explicit all-tools policy continues to include reads.
 
+## [1.31.3] - 2026-10-30
+
+### Fixed
+
+- A long document indexes against a local Ollama server. Its chunks now go to
+  `/embeddings` in requests of at most 64 instead of one oversized request.
+
+## [1.31.2] - 2026-10-30
+
+### Fixed
+
+- Give frontend CI 45 minutes to complete coverage and its production build; align the operational timeout table in all four documentation languages with the current jobs.
+
 ## [1.31.1] - 2026-10-30
 
 ### Fixed
