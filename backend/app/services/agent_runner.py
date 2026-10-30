@@ -1431,7 +1431,9 @@ class PreparedRun:
     def deps(self) -> AgentDeps:
         return self.built.deps
 
-    def _channel_references(self, history: Sequence[ModelMessage] | None) -> list[ChannelReference]:
+    def _channel_references(
+        self, history: Sequence[ModelMessage] | None, *, has_current_prompt: bool
+    ) -> list[ChannelReference]:
         # A restored map is authoritative: normalization can merge requests
         # and replace their metadata while retaining the individual user parts.
         if not self.channel_authors:
@@ -1449,6 +1451,7 @@ class PreparedRun:
                 author_context=self.channel_author_context,
                 author_identity_id=self.run.channel_identity_id,
                 screen=input_screen_for(self.spec),
+                has_current_prompt=has_current_prompt,
                 authors_by_timestamp=self.channel_authors,
             )
         ]
@@ -1473,7 +1476,9 @@ class PreparedRun:
                 deferred_tool_results=deferred_tool_results,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
-                capabilities=self._channel_references(message_history),
+                capabilities=self._channel_references(
+                    message_history, has_current_prompt=user_prompt is not None
+                ),
             )
 
     @asynccontextmanager
@@ -1513,7 +1518,9 @@ class PreparedRun:
                 message_history=message_history,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
-                capabilities=self._channel_references(message_history),
+                capabilities=self._channel_references(
+                    message_history, has_current_prompt=user_prompt is not None
+                ),
             ) as iteration:
                 yield iteration
 

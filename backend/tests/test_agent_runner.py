@@ -7087,3 +7087,14 @@ async def test_streaming_channel_context_stays_outside_the_user_prompt() -> None
     assert prepared.built.agent.iter.call_args.args[0] == "hello"
     (reference,) = prepared.built.agent.iter.call_args.kwargs["capabilities"]
     assert reference.text == "Author: Ada"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("prompt", ["New question", None])
+async def test_channel_reference_knows_whether_dispatch_adds_a_user_prompt(prompt: str | None):
+    prepared = _prepared()
+    prepared.channel_context = "Name: Support"
+    prepared.built.agent.run = AsyncMock()
+    await prepared.execute(prompt, message_history=None, deferred_tool_results=None)
+    (reference,) = prepared.built.agent.run.await_args.kwargs["capabilities"]
+    assert reference.has_current_prompt is (prompt is not None)

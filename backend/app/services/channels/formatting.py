@@ -297,6 +297,8 @@ class ChannelReference(AbstractCapability[AgentDeps]):
     author_context: str = ""
     author_identity_id: UUID | None = None
     screen: TextDetector | None = None
+    # Resumes append no new user part: every saved prompt needs screening.
+    has_current_prompt: bool = True
     authors_by_timestamp: dict[str, UUID] = field(default_factory=dict)
     lookup_authors: Callable[[list[UUID]], Awaitable[dict[UUID, ChannelIdentity]]] = _lookup_authors
 
@@ -310,15 +312,20 @@ class ChannelReference(AbstractCapability[AgentDeps]):
         messages = request_context.messages
         if not messages or not isinstance(messages[-1], ModelRequest):
             return await handler(request_context)
-        current_prompt = next(
-            (
-                part
-                for message in reversed(messages)
-                if isinstance(message, ModelRequest)
-                for part in reversed(message.parts)
-                if isinstance(part, UserPromptPart) and not isinstance(part, ChannelReferencePart)
-            ),
-            None,
+        current_prompt = (
+            next(
+                (
+                    part
+                    for message in reversed(messages)
+                    if isinstance(message, ModelRequest)
+                    for part in reversed(message.parts)
+                    if isinstance(part, UserPromptPart)
+                    and not isinstance(part, ChannelReferencePart)
+                ),
+                None,
+            )
+            if self.has_current_prompt
+            else None
         )
         ids = set(self.authors_by_timestamp.values())
         if self.author_identity_id is not None and not self.author_context:

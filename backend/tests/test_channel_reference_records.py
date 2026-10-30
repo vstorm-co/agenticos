@@ -356,3 +356,36 @@ async def test_replayed_channel_history_is_screened_only_for_dispatch(adjacent: 
     assert any(isinstance(part.content, list) and image in part.content for part in user_parts)
     assert blocked.content == "classified"
     assert redacted.content == ["alice@example.com", image, "safe"]
+
+
+@pytest.mark.parametrize(
+    "saved_text", ["alice@example.com", "sk-ant-api03-ABCDEFGHIJKLMNOPQR", "classified"]
+)
+async def test_resumed_channel_dispatch_screens_the_last_saved_user_prompt(saved_text: str) -> None:
+    from pydantic_ai.messages import UserPromptPart
+    from pydantic_ai.models.function import AgentInfo
+
+    from app.agents.deps import AgentDeps
+
+    saved = UserPromptPart(content=saved_text)
+    history = [ModelRequest(parts=[saved])]
+    observed: list[ModelMessage] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        observed.extend(messages)
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    reference = ChannelReference(
+        "- Name: room",
+        screen=input_screen(
+            GuardrailsConfig(
+                redact_pii_in=True, redact_secrets_in=True, blocked_keywords_in="classified"
+            )
+        ),
+        has_current_prompt=False,
+    )
+    await Agent(FunctionModel(respond), deps_type=AgentDeps, capabilities=[reference]).run(
+        None, message_history=history
+    )
+    assert saved_text not in str(observed)
+    assert saved.content == saved_text
