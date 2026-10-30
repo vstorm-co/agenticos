@@ -1,5 +1,5 @@
 ---
-source_sha: "ec4d3995b98f"
+source_sha: "e092a27ddd9d"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2121,16 +2121,14 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
   [Ausgabe-Guardrail](reference/capabilities.md#guardrails) wird die Antwort
   stattdessen Schritt für Schritt umgeschrieben, und jeder Schritt wird erst gepostet, nachdem
   er geprüft wurde.
-- **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die den
-  Instruktionen des Agents allein auf dieser Oberfläche hinzugefügt werden. Eine
-  neue öffnet sich mit dem, was dieser Client tatsächlich rendert: Slack zeichnet
-  kein Markdown und schreibt einen Link als `<url|text>`, Mattermost rendert
-  Überschriften und Tabellen, Telegram weist eine Nachricht zurück, deren `*`
-  nicht geschlossen ist — dazu, wie man dort einen Link angibt, angeführt von
-  einem Emoji, wenn es eine Aktion oder ein Ziel ist. Von da an ist es der Text
-  der Bindung: ändern Sie ihn, ergänzen Sie ihn, oder leeren Sie ihn. Er formt,
-  wie eine Antwort geliefert wird, und kann nie ersetzen, wofür der Agent da ist —
-  das gehört zur veröffentlichten Version.
+- **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die nur auf
+  dieser Oberfläche hinzugefügt werden. Aktuelle Formatierungsvorgaben kommen
+  aus dem Deployment: Slack schreibt Links als `<url|text>`, Mattermost rendert
+  Überschriften und Tabellen, und Telegram weist ungeschlossene Formatierung
+  zurück. Eine neue Bindung speichert keine Kopie dieser Vorgaben. Eigene
+  Anweisungen lassen sich ergänzen, bearbeiten oder leeren, ohne Plattformregeln
+  auf dem Stand des Installationstags einzufrieren. Sie gestalten die Ausgabe;
+  der Zweck des Agents gehört zu seiner veröffentlichten Version.
 - **Ein Bot antwortet, sobald er registriert ist.** Ein Polling-Bot -
   Telegram-Long-Polling, Slack Socket Mode, ein Mattermost-Event-Stream - wird
   über eine Verbindung erreicht, die der API-Prozess hält, und diese Verbindung

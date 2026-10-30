@@ -1,5 +1,5 @@
 ---
-source_sha: "ec4d3995b98f"
+source_sha: "e092a27ddd9d"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2016,14 +2016,14 @@ para mostrar diferencias entre la consola y Mattermost.
   simplemente la respuesta terminada, como antes. La respuesta de un agent con un
   [guardrail de salida](reference/capabilities.md#guardrails) se reescribe en
   cambio paso a paso, y cada paso se publica solo después de comprobarse.
-- **Cada vinculación lleva sus propias instrucciones extra**, añadidas a las del
-  agent solo en esa superficie. Una nueva se abre con lo que ese cliente renderiza
-  de verdad: Slack no dibuja Markdown y escribe un enlace como `<url|text>`,
-  Mattermost renderiza encabezados y tablas, Telegram rechaza un mensaje con un `*`
-  sin cerrar — más cómo dar un enlace allí, encabezado con un emoji cuando es una
-  acción o un destino. A partir de ahí es el texto de la vinculación: cámbialo,
-  añádele o bórralo. Da forma a cómo se entrega una respuesta y nunca puede
-  sustituir a para qué sirve el agent — eso pertenece a la versión publicada.
+- **Cada vinculación lleva sus propias instrucciones extra**, añadidas solo en
+  esa superficie. Las pautas actuales de formato proceden del despliegue: Slack
+  escribe enlaces como `<url|text>`, Mattermost renderiza encabezados y tablas,
+  y Telegram rechaza el formato sin cerrar. Un vínculo nuevo no guarda una copia
+  de esas pautas. Puedes añadir, editar o vaciar instrucciones propias sin
+  congelar las pautas de la plataforma en la versión del día de instalación.
+  Esto configura la entrega; el propósito del agente pertenece a su versión
+  publicada.
 - **Un bot responde en cuanto se registra.** Un bot de polling - long-polling de
   Telegram, Socket Mode de Slack, un stream de events de Mattermost - se alcanza
   por una conexión que mantiene el proceso de la API, y esa conexión se abre cuando

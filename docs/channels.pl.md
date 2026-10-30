@@ -1,5 +1,5 @@
 ---
-source_sha: "ec4d3995b98f"
+source_sha: "e092a27ddd9d"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1980,14 +1980,13 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
   przepisywana krok po kroku, a każdy krok trafia na kanał dopiero po
   sprawdzeniu.
 - **Każde powiązanie niesie własne dodatkowe instrukcje**, dopisywane do
-  instrukcji agenta wyłącznie na tej powierzchni. Nowe otwiera się z tym, co ten
-  klient faktycznie renderuje: Slack nie rysuje Markdowna i zapisuje link jako
-  `<url|text>`, Mattermost renderuje nagłówki i tabele, Telegram odrzuca
-  wiadomość z niedomkniętą `*` — plus to, jak podać tam link, poprzedzony emoji,
-  gdy jest akcją albo miejscem docelowym. Od tej pory jest to tekst powiązania:
-  zmień go, dopisz do niego albo go wyczyść. Kształtuje sposób dostarczenia
-  odpowiedzi i nigdy nie może zastąpić tego, do czego agent służy — to należy do
-  opublikowanej wersji.
+  instrukcji agenta tylko na tej powierzchni. Aktualne domyślne formatowanie
+  pochodzi z wdrożenia: Slack zapisuje linki jako `<url|text>`, Mattermost
+  renderuje nagłówki i tabele, a Telegram odrzuca niedomknięte formatowanie.
+  Nowe powiązanie nie zapisuje kopii tych zasad. Własne instrukcje można dodać,
+  edytować lub wyczyścić bez zatrzymywania domyślnych zasad na wersji z dnia
+  instalacji. Kształtują sposób dostarczenia odpowiedzi; przeznaczenie agenta
+  należy do jego opublikowanej wersji.
 - **Bot odpowiada, gdy tylko zostanie zarejestrowany.** Bot pollujący — Telegram
   na long-pollingu, Socket Mode Slacka, strumień eventów Mattermosta — jest
   osiągalny przez połączenie, które trzyma proces API, a to połączenie jest

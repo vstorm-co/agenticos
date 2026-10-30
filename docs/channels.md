@@ -1914,13 +1914,12 @@ surface, so a difference between the console and Mattermost remains visible.
   rewritten one step at a time instead, and each step is posted only after it
   has been checked.
 - **Every binding carries its own extra instructions**, added to the agent's on
-  that surface alone. A new one opens holding what that client actually renders:
-  Slack draws no Markdown and writes a link as `<url|text>`, Mattermost renders
-  headings and tables, Telegram rejects a message whose `*` is unclosed — plus
-  how to give a link there, led with an emoji when it is an action or a
-  destination. It is the binding's text from then on: change it, add to it, or
-  clear it. It shapes how an answer is delivered and can never replace what the
-  agent is for — that belongs to the published version.
+  that surface alone. Current formatting defaults come from the deployment:
+  Slack writes links as `<url|text>`, Mattermost renders headings and tables,
+  and Telegram rejects messages with unclosed formatting. A new binding stores
+  no copy of those defaults. Add, edit or clear custom instructions without
+  freezing the platform guidance at the version installed that day. This
+  shapes delivery; the agent's purpose belongs to its published version.
 - **A bot answers as soon as it is registered.** A polling bot - Telegram
   long-polling, Slack Socket Mode, a Mattermost event stream - is reached over a
   connection the API process holds, and that connection is opened when the row

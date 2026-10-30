@@ -10,7 +10,7 @@ from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, text
 
-from app.services.assistant import _template, instructions_fingerprint
+from app.services.assistant import instructions_fingerprint
 
 pytestmark = pytest.mark.anyio
 
@@ -45,7 +45,15 @@ def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(data
             connection.exec_driver_sql(
                 "CREATE TABLE agent_exposures (id uuid PRIMARY KEY, surface text, prompt text)"
             )
-            shipped = _template().instructions
+            shipped = (
+                (
+                    Path(__file__).resolve().parents[1]
+                    / "fixtures"
+                    / "architect-instructions-before-refresh.md"
+                )
+                .read_text()
+                .strip()
+            )
             ids = []
             for draft, published in [
                 (shipped, shipped),
