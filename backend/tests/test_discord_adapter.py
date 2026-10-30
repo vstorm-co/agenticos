@@ -141,6 +141,19 @@ class TestReading:
         assert incoming is not None
         assert incoming.addressed is True
 
+    @pytest.mark.parametrize("pinged", [True, False])
+    def test_an_everyone_ping_is_a_broadcast_only_when_discord_sent_it(
+        self, adapter: DiscordAdapter, pinged: bool
+    ):
+        """Whether it starts a run is the bot's `respond_to_broadcasts`, decided by the router."""
+        incoming = adapter.parse_incoming(
+            _message(content="@everyone standup moved", mentions=[], mention_everyone=pinged),
+            BOT,
+        )
+        assert incoming is not None
+        assert incoming.broadcast_mention is pinged
+        assert incoming.addressed is False
+
     def test_a_message_in_a_thread_the_bot_opened_continues_it(self, adapter: DiscordAdapter):
         adapter._channels.put(THREAD, _Channel(kind=11, parent_id=CHANNEL, owner_id=OWN))
         incoming = adapter.parse_incoming(

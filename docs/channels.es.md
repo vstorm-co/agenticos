@@ -1,5 +1,5 @@
 ---
-source_sha: "873d97c32ad0"
+source_sha: "1821fee02ec2"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2110,7 +2110,7 @@ para mostrar diferencias entre la consola y Mattermost.
 
 - **Elija si las menciones de grupo inician un run.** Al crear o editar un bot, *Responder a menciones de grupo* está desactivado por defecto. Las invocaciones directas siguen funcionando. Al activarlo admite también `@all`, `@here` y `@channel` de Mattermost, menciones nativas de Slack y menciones estructuradas de canales o equipos de Teams. Se mantienen las comprobaciones de identidad, acceso y límites. El código citado y las menciones a otras personas no cuentan.
 
-    Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
+    Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram. Discord cuenta `@everyone` y `@here` solo cuando el remitente tiene permiso para usarlos, es decir, cuando Discord notifica de verdad a la sala.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
 - **Todas las llamadas MCP requieren aprobación en apps de chat, incluidas las lecturas y conexiones de organización o plataforma.** Vincular una cuenta identifica la conexión utilizada; no autoriza publicar automáticamente resultados personales. La misma regla se aplica a agentes delegados y llamadas reanudadas.

@@ -786,6 +786,10 @@ class DiscordAdapter(ChannelAdapter):
             platform_username=author.get("username"),
             platform_display_name=member.get("nick") or author.get("global_name"),
             message_id=raw_payload.get("id"),
+            # Set by Discord only when the sender's ping went out, so text that
+            # merely reads "@everyone" from somebody without the permission is
+            # not a broadcast here either.
+            broadcast_mention=bool(raw_payload.get("mention_everyone")),
             addressed=addressed,
             attachments=attachments,
         )

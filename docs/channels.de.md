@@ -1,5 +1,5 @@
 ---
-source_sha: "873d97c32ad0"
+source_sha: "1821fee02ec2"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2223,7 +2223,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 
 - **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
 
-    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
+    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft. Discord zählt `@everyone` und `@here` nur, wenn der Absender sie verwenden darf, also wenn Discord den Raum tatsächlich benachrichtigt.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
 - **Alle MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe und Organisations- oder Plattformverbindungen.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.

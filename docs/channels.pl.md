@@ -1,5 +1,5 @@
 ---
-source_sha: "873d97c32ad0"
+source_sha: "1821fee02ec2"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2072,7 +2072,7 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
 - **Wybierz, czy wzmianki grupowe uruchamiają run.** W tworzeniu i edycji bota przełącznik *Reaguj na wzmianki grupowe* jest domyślnie wyłączony. Bezpośrednie wywołania nadal działają. Po włączeniu reaguje też na `@all`, `@here` i `@channel` w Mattermoście, natywne wzmianki grupowe Slacka oraz strukturalne wzmianki o kanale lub zespole Teams. Nadal obowiązują tożsamość nadawcy, reguły dostępu i limity. Wzmianki w kodzie i o innych osobach nie wystarczają.
 
-    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
+    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama. Discord liczy `@everyone` i `@here` tylko wtedy, gdy nadawca ma prawo ich użyć, czyli gdy Discord rzeczywiście powiadamia kanał.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
 - **Wszystkie narzędzia MCP wymagają zatwierdzenia w komunikatorach, także odczyty oraz połączenia organizacyjne i platformowe.** Powiązanie konta wskazuje, czyje połączenie jest używane; nie daje automatycznej zgody na publikowanie prywatnych wyników w rozmowie. Reguła obejmuje też delegatów i wznowione wywołania.
