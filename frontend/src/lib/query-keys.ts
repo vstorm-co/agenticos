@@ -13,6 +13,10 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  releases: {
+    latest: () => ["releases", "latest"] as const,
+    current: (version: string) => ["releases", "notes", version] as const,
+  },
   // The same document for everybody and every organization: it changes on a
   // redeploy, not while somebody reads it.
   publicApi: {
@@ -642,6 +646,28 @@ export const qk = {
       ["admin", "background-jobs", "activity", window] as const,
     backgroundJobList: (filters: { status?: string; pool?: string }) =>
       ["admin", "background-jobs", "list", filters] as const,
+  },
+  mobile: {
+    settings: () => ["mobile", "settings"] as const,
+    push: (userId?: string, tenant?: string | null) => ["mobile", "push", userId, tenant] as const,
+    pushPreferences: (userId?: string, tenant?: string | null) =>
+      ["mobile", "push-preferences", userId, tenant] as const,
+  },
+  desktop: {
+    focus: () => ["desktop", "focus"] as const,
+    readiness: () => ["desktop", "readiness"] as const,
+    // What the desktop app holds for this person - blobby, the shortcuts, the
+    // window - read over IPC rather than HTTP, but the same kind of answer: a
+    // page reads it, a change writes it back and invalidates it.
+    state: () => ["desktop", "state"] as const,
+    /** This computer's own connection, which the shell reports and pushes. */
+    device: () => ["desktop", "device"] as const,
+    local: () => ["desktop", "local"] as const,
+    services: () => ["desktop", "services"] as const,
+    localFiles: (root: string) => ["desktop", "local", "files", root] as const,
+    localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,
+    /** The inbox's newest page as the desktop bridge reads it, once per unread count. */
+    inbox: (unread: number) => ["desktop", "inbox", unread] as const,
   },
   branding: {
     // The announcement banner. Not the public branding read - that one is

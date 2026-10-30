@@ -1,5 +1,5 @@
 ---
-source_sha: "5afb693c7c13"
+source_sha: "524eb90cfc8c"
 ---
 
 # Koncepcje { #concepts }
@@ -210,6 +210,11 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
 - **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
   audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
   działało.
+- **Może pracować na własnym komputerze twórcy.** Z włączonym Run as me twórca
+  może wskazać triggerowi folder na swoim komputerze, w polu **Pracuj na (Work
+  on)**; każde odpalenie pracuje wtedy tam przez
+  [aplikację desktopową](desktop.md#work-on-this-computer). Wyłączenie Run as me to
+  czyści, a odpalenie, które nie działa jako twórca, nie dostaje komputera.
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 

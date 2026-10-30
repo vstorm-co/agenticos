@@ -1,0 +1,687 @@
+# The sandbox
+
+A container an agent can write files in and run commands in.
+
+It is how a run reads the spreadsheet somebody attached, plots something, clones a
+repository, or keeps notes between messages.
+
+!!! danger "This is the one part of the platform that runs code nobody here wrote"
+
+    Which is why this page spends as much time on what *contains* a sandbox as on
+    what is in one.
+
+This page is the whole picture: what runs where, what a session is, which
+environments an agent may ask for and how to change them, what isolates one
+organization from another, and how long any of it survives.
+
+[Configuration](configuration.md#the-services-own-settings) is the
+variable-by-variable reference.
+
+## What runs where
+
+Three processes, and the arrangement is the security model:
+
+```mermaid
+flowchart LR
+    B["app - the API<br/><i>no docker.sock</i>"] -->|HTTP + SANDBOXD_TOKEN| S["sandboxd<br/><i>holds /var/run/docker.sock</i>"]
+    S -->|start a container| D[["the host's Docker daemon"]]
+    D --> C["a session's container<br/><i>a sibling of sandboxd, not a child</i>"]
+```
+
+- **The API container holds no Docker socket.** That is the whole reason
+  `sandboxd` is a separate service rather than a library call: running a container
+  requires the daemon, and reaching the daemon is equivalent to root on the host.
+- **`sandboxd` holds the socket and asks the *host's* daemon** to start a
+  container. So a sandbox is a **sibling** of `sandboxd`, not a container inside
+  it. There is no Docker-in-Docker here, nothing is `--privileged`, and no nested
+  daemon runs.
+- Which is why the workspace directory is bind-mounted **at the same path on both
+  sides**: `sandboxd` creates it, then asks the daemon to mount it, and the daemon
+  resolves that path on the host. A named volume, or a path existing only inside
+  the `sandboxd` container, is refused with `mounts denied`.
+
+`sandboxd` is the server from [`pydantic-ai-backend`](https://github.com/vstorm-co/pydantic-ai-backend),
+shipped as `ghcr.io/vstorm-co/sandboxd`; the backend talks to it over HTTP with
+the token in `SANDBOXD_TOKEN`. The other sandbox backends — `daytona` and `e2b`
+connections, and `state` — are hosted services and a document in Postgres, and
+none of them involves any of the above; neither does the person's own computer
+(see [Beyond sandboxd](#beyond-sandboxd)).
+
+### The service and the backend move together
+
+The service and the backend's client come from the same `pydantic-ai-backend`
+release, and a client calls routes that only its own release serves. So every
+compose file pins the image at exactly the version in `backend/uv.lock`, and a
+backend test fails when the compose files or the licence inventory name another.
+Bump the lock, the compose files and the inventory in one change. A new pin is
+a tag the host does not have yet, so `make dev` and `scripts/deploy.sh` pull it
+on the next start.
+
+The pin lives in the checkout, not in `AGENTICOS_VERSION`, so a host that pins
+or rolls back the backend by hand checks out that release's tag as well
+([Pin a release](deploy.md#the-images)). An install without a checkout, as
+`scripts/quickstart.sh` sets one up, downloads that release's `docker-compose.yml`
+instead ([Install](install.md)).
+
+A moving tag broke this before (#2484). A cached `sandboxd:0.2` served an older
+API than the client spoke, and every command failed as `sandboxd session '…' is
+gone`, although the session was alive. The platform now tells the two apart. When
+a 404 carries FastAPI's bare `{"detail":"Not Found"}` rather than the service's
+own `No such session`, it reads the service's index at `/`. If the index lacks a
+route the client needs, the tool call fails and the agent is told:
+
+```text
+The sandbox service does not serve /sessions/{session_id}/run,
+/sessions/{session_id}/runs/{run_id}/stop - its version does not match this
+platform (expected <version>). Run ghcr.io/vstorm-co/sandboxd:<version> and
+redeploy it
+```
+
+The same check handles a `409` while attaching a session reference saved before
+the upgrade: an old service may reject that reference even though the session
+still exists. Only a confirmed missing endpoint turns the conflict into a version
+mismatch; ordinary conflicts and unavailable indexes keep their original error.
+
+The message leaves out the service's address, which members and the model may
+not be allowed to see; the backend logs it as `sandboxd_version_mismatch`. The
+session is not reported as lost, but the conversation forgets its recorded
+reference to it: an older service refuses to attach to a live session by
+reference. The next turn opens the session by name, so after the upgrade the
+conversation picks up the same session if the service kept it.
+
+`agenticos cmd doctor` makes the same check against every registered
+connection, and names the image to run. Redeploy the stack that runs the
+service: `scripts/deploy.sh` in production (it starts the `sandbox` profile when
+`SANDBOXD_TOKEN` is set), `make dev` on a laptop. `make prod` leaves the service
+alone, because it does not start that profile; on a stack started that way,
+pull and recreate it yourself:
+
+```bash
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox pull sandboxd
+docker compose --env-file backend/.env -f docker-compose-prod.yml --profile sandbox up -d sandboxd
+```
+
+!!! danger "The token is root-equivalent"
+
+    Whoever holds it can start containers on that host. Treat it as the Docker
+    socket it sits in front of.
+
+`make sandbox-token` generates one into `backend/.env` once and leaves it
+alone afterwards, because regenerating it orphans every workspace the service is
+currently holding. That is also why the service's own dashboard is off (`SANDBOXD_UI_ENABLED: 0`): that page
+asks a human to paste the token into a browser.
+
+## A session, and what shares one
+
+!!! abstract "One container per session, never one for everybody"
+
+    What a session's key folds in — scope, organization, backend kind and host —
+    is exactly what decides which runs share a container and a directory.
+
+A session is identified by a key the backend derives, and that key is what decides
+what is shared:
+
+```
+xc-4f2a91c8-7b3e5d10-9c1f…      backend · scope · organization · host · subject
+^^                              `x` a container service, `d` a document; `c` the conversation scope
+```
+
+The **scope** is a field of the agent's spec — `run`, `conversation`, `channel`,
+`user` or `agent`. So `conversation`, the usual choice, means one container and one
+directory per chat; `agent` means every run of that agent shares one.
+
+`user` is the signed-in person's own, so a run standing in for somebody has none:
+a widget's visitor and a trigger's fire are refused rather than handed the
+publisher's or the creator's workspace — unless the trigger
+[runs as its creator](concepts.md#unless-its-creator-lets-it-run-as-them).
+
+The key is also the session's **name** on the host — a `sandboxd` session's id, a
+Daytona sandbox's name — so every run of a scope opens it by that name: the first
+creates it and the others attach, concurrent ones included, and nothing has to
+record a provider's own id before the second run can find it.
+
+**Once a session has been opened, a later run only attaches to it.** The workspace
+row records it when the run that opened it ends, and the next run asks the host for
+that session rather than for the name. A session whose files were purged — swept by
+`SANDBOXD_WORKSPACE_TTL`, a host rebuilt — is then reported to the agent as gone,
+instead of being quietly replaced by an empty one it would carry on in. The row
+forgets it at the end of that run, so the turn after starts a fresh session.
+
+Folded into the key as well: which **backend kind** and which **host** the
+workspace lives on. A `state` document and a container's volume are not the same
+thing wearing different names, and neither are two `sandboxd` installations —
+registering a second host and marking it the organization's default used to move
+every existing workspace without anybody editing a spec.
+
+What separates one tenant from another:
+
+- a **container of its own** and a **host directory of its own** per session;
+- session keys are `uuid4`-derived, so they are unguessable — the readable
+  organization prefix is for reading a dashboard, **not** the boundary;
+- the organization check on every row that produces those keys, which is what the
+  boundary actually is;
+- `tenant` (the organization id) sent when the session opens, which the service
+  counts against `SANDBOXD_MAX_SESSIONS_PER_TENANT` (10) inside a pool of
+  `SANDBOXD_MAX_SESSIONS` (20) — so one organization cannot take the installation.
+  Over the ceiling the service refuses with `already holds 10 of 10`.
+
+## Which environments an agent may ask for
+
+**Two runtimes ship, and they are defined in this repository** —
+`backend/app/core/catalog/sandbox_runtimes.json`:
+
+| | `workbench` — 1.93 GB, built in about 65 s on a warm host |
+|---|---|
+| Built on | `python:3.12-slim` |
+| Languages | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript |
+| Coding agents | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](reference/capabilities.md#coding-agent) |
+| Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
+| Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
+| Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats |
+| Data | `pandas`, `duckdb`, `tabulate` |
+| Charts and images | `matplotlib` (Agg), `pillow` |
+| Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
+| Other | `pyyaml` |
+| Memory | 2 GiB |
+| Network | yes |
+
+| | `desktop` — for [computer use](reference/capabilities.md#computer-use) |
+|---|---|
+| Built on | `python:3.12-slim` |
+| Desktop | Xvfb on display `:0`, XFCE, Firefox ESR; `xdotool` and `scrot`, which drive and photograph it |
+| Tools | `git`, `curl`, `jq`, `procps`, `unzip` |
+| Memory | 2 GiB |
+| Network | yes, so the browser on it can open a page |
+
+Two rather than eight, and the reason is `prewarm`: the service builds **every**
+entry of its allowlist when it starts, so eight aliases is eight `pip install`s in
+a start-up nobody is watching, eight images cached on the host, and an agent asked
+to read a PDF getting whichever alias its spec happened to name. `workbench` is
+built to be the answer to *write and run some code, read what the user attached,
+plot it, fetch a page*, and it is first, so it is what an agent naming no runtime
+gets.
+
+`desktop` is the one thing `workbench` cannot be: a screen for an agent
+with `computer_use` to look at and click on. Its desktop starts on the run's first
+screenshot, not with the container.
+
+Until #1040 this catalogue was `BUILTIN_RUNTIMES` from the sandbox library:
+fifteen recipes, of which a `sandboxd` started by this project allowed three. It
+also meant that adding a package to one image was a release of a dependency, a
+version bump and a pin.
+
+### What is in it, and what is deliberately not
+
+Measured on `python:3.12-slim` (205 MB), arm64:
+
+- **liteparse comes from `pip`, and that is the whole answer.** The wheel is
+  13.8 MB, carries the Rust binary and the `lit` CLI, has **no Python
+  dependencies**, and bundles OCR — measured at 1.3 s for a one-page PDF with OCR
+  and 79 ms for a PNG. So `cargo install` (a Rust toolchain), the npm package (a
+  second copy of the same binary) and the WASM build (for browsers) all buy
+  nothing here.
+- **LibreOffice, at +683 MB, and it is worth it.** It buys three things nothing
+  else here does: `lit` can read the legacy `.doc`, `.xls` and `.ppt` formats,
+  which is what a business user actually attaches; `soffice --headless
+  --convert-to pdf deck.pptx` renders a deck the agent built with `python-pptx`,
+  which is how a presentation becomes something a person can open; and
+  `--convert-to png` turns a slide into an image the agent can read back and
+  *look at*, since `read_file` is multimodal here. About a second per document
+  after the first. Writer and Calc are +135 MB of that 683 and are in for one
+  reason: office conversion that worked for presentations and not for documents
+  would be an exception in the product and an exception in the prompt.
+- **It only works because the runtime is *built*.** LibreOffice creates a user
+  profile on first run, so it needs a real account with a writable home — which
+  the builder makes when `SANDBOXD_SANDBOX_UID` is set (`useradd --uid 10001
+  --create-home`). Run the same image as a bare uid with no passwd entry and
+  every conversion fails with `User installation could not be completed`. That is
+  also why a ready-made `image` runtime cannot simply add LibreOffice: the two
+  decisions are one decision.
+- **Node from nodejs.org, not from apt.** Debian's `nodejs npm` is +398 MB and
+  ships npm 9; the official tarball is +239 MB *and* current — and Node 20, which
+  this recipe first pinned, has been end-of-life since April 2026. The arch is
+  detected in the command, because the same catalogue builds on amd64 and arm64.
+- **`poppler-utils` (+67 MB) beside liteparse, not instead of it.** `lit` is the
+  better reader — layout, tables, markdown — and `pdftotext` is the faster one on a
+  PDF that already has text: a 120-page book in under a second. `pdfinfo` is why it
+  is really here, because a page count in milliseconds is what turns "extract this
+  book" into a plan.
+- **OCR is the cost that matters, and it is measured.** `lit` OCRs only pages with
+  no text layer, so 120 generated pages cost a fraction of a second — but a
+  *scanned* page costs **8.8 s**, so a 300-page scan is about 44 minutes against a
+  300-second command ceiling: killed, with nothing to show. `--target-pages 1-40`
+  bounds it (three scanned pages in 1.6 s), and `--no-ocr` on a scan **succeeds and
+  returns 179 bytes** — a silent near-empty answer, which is the worse of the two
+  failures. Both are in the briefing below, because this is exactly the request a
+  user makes: "summarise this book".
+- **No `build-essential` (+94 MB) and no `scikit-learn`/`scipy` (~200 MB).** Both
+  are `uv pip install` away on a runtime that has a network. The cost of leaving
+  them out is a first-time install; the cost of baking them in is paid by every
+  host at every start-up.
+- **`requests` beside `httpx`, and `tabulate` beside `pandas`**, at half a
+  megabyte between them: a model writes `import requests` and `df.to_markdown()`
+  from muscle memory, and neither is worth a failed script and a retry.
+- **`tzdata` and `fonts-dejavu-core`** are in the apt layer because `python:slim`
+  has neither, so `zoneinfo` raises and `PIL.ImageDraw.text` cannot load a font —
+  both verified before and after.
+- **`env_vars` rather than a habit.** `MPLBACKEND=Agg`, `PYTHONUTF8=1`,
+  `PYTHONUNBUFFERED=1`, `PYTHONDONTWRITEBYTECODE=1` are properties of the image;
+  a run that has to remember them is a run that will not.
+
+### The model is told all of this
+
+A container is useless to an agent that does not know what is in it.
+
+Before #1040 an agent asked for a chart would `import plotly`, and one handed a PDF
+would write its own extractor beside the `lit` that reads it — each learning
+otherwise by failing inside somebody's request.
+
+**And it is told how to work, not only what is installed.**
+
+The instruction that earns its place is the one nothing else can teach: *do not
+read a large file to look through it*. Extract it once to a text file, `rg -n` for
+the places that matter, `sed -n '400,460p'` to read one.
+
+A book is thousands of lines and an answer needs tens of them. A model that pulls
+the whole thing into its own context spends the run's budget on pages nobody asked
+about. The same paragraph carries the two OCR traps above, because a scanned book
+is where both of them land at once.
+
+So every run on a runtime this deployment ships has a paragraph appended to its
+instructions: which runtime it got, the package list, the `lit` line, what
+`soffice` converts, the one gap (no C compiler), and whether it has a network.
+
+It is **composed from the catalogue**, not written beside it. `runtime_briefing`
+reads the package list off the definition, so a package added to the file reaches
+the prompt in the same edit that reaches the image. Only what cannot be derived is
+prose, in the entry's `briefing` list.
+
+Two consequences worth knowing:
+
+- It is appended **per run**, the way a channel binding's prompt is, because which
+  runtime a run gets is resolved from the spec, the connection and the host as the
+  run starts. The published spec is left alone.
+- An alias this deployment does **not** ship gets no paragraph. A host started with
+  an allowlist of its own is not one whose images we can honestly describe, and a
+  prompt that guesses is worse than a prompt that is silent.
+
+### Changing it
+
+```bash
+$EDITOR backend/app/core/catalog/sandbox_runtimes.json
+make sandbox-runtimes          # writes SANDBOXD_RUNTIMES into all three compose files
+docker compose up -d sandboxd  # prewarm rebuilds what the list now names
+```
+
+An entry is one of two shapes, never both:
+
+```json
+{
+  "alias": "workbench",
+  "description": "What it is for - shown in the connection dialog",
+  "base_image": "python:3.12-slim",
+  "setup_commands": ["apt-get update && apt-get install -y --no-install-recommends git"],
+  "packages": ["pillow"],
+  "mem_limit": "2g",
+  "needs_network": true
+}
+```
+
+| Field | |
+|---|---|
+| `alias` | What a spec names. Lower case, `[a-z][a-z0-9-]*` |
+| `description` | Shown in the connection dialog's `Default runtime`. Say what it is *for* |
+| `image` | A ready-made image. Starts in the time a pull takes, and installs nothing |
+| `base_image` | Built once on first use and cached after — the shape that can install |
+| `setup_commands` | Shell at build time, before the packages: an apt layer, an installer |
+| `packages` | `pip`, installed at build time. Needs a `base_image` |
+| `env_vars` | Set in every container on this runtime — `MPLBACKEND`, `PYTHONUTF8` |
+| `briefing` | Sentences the model is told that cannot be derived from the fields above |
+| `mem_limit` | Docker's own syntax (`2g`). Absent, `SANDBOXD_MEM_LIMIT` applies |
+| `needs_network` | Whether a **session** on it gets a network. A build always has one |
+
+Four things the file will not let you get wrong, or that will bite if you skip
+this section:
+
+- **`image` and `base_image` are exclusive**, and a `packages` or
+  `setup_commands` list on an `image` entry is refused at import. Accepted, it
+  would be a runtime whose packages are in the catalogue, in the compose file, and
+  not in the container.
+- **The first entry is the default** for an agent whose spec names no runtime, so
+  the order of the file is load-bearing.
+- **`network_mode` is not inherited.** `SANDBOXD_NETWORK_MODE` is service-wide and
+  every shipped compose file sets it to `none`, so an entry that installs anything
+  at run time needs a network of its own. `needs_network` is that decision, made
+  once where the packages are rather than remembered per compose file; missed, the
+  failure is an agent whose `uv pip install` times out.
+- **A malformed entry stops the deployment**, deliberately — the catalogue is
+  validated at import rather than at first use, because a picker with a hole in it
+  is discovered by a user.
+
+### Why the value is also in the compose files
+
+`SANDBOXD_RUNTIMES` is the **only** channel the service accepts runtimes on. A
+compose file cannot call a command, so the value there is a generated copy, and
+the only question worth answering is whether it can drift:
+`backend/tests/test_sandbox_runtime_catalog.py` fails when one has, naming the
+file and telling you to run `make sandbox-runtimes`.
+
+Generated *into* a tracked file rather than read from a side file at start-up,
+because `docker compose up` has to work without generating anything first — the
+alternative is a deployment silently taking the library's own default allowlist.
+
+And it is not a form in the product. `PUT /policy` changes ceilings and lifetimes
+at run time and deliberately refuses the *membership* of this list, along with
+`network_mode`, `oci_runtime`, `sandbox_uid`, `work_dir` and `persist_containers`:
+naming an image is a decision about isolation, and the service token is held by an
+application rather than by whoever runs the host. Changing the list is a restart.
+
+### Two lists in the product, answering different questions
+
+The **connection dialog's** `Default runtime` offers this catalogue — what the
+compose files gave the service — populated before any host has been asked, and
+marked once one has answered. The **agent Builder's** `Runtime` offers what the
+service on that connection *actually* allows, read live from it, so an alias it
+names is one the next tool call will accept. Where the two disagree the second is
+right: a host can have been started with a different allowlist, and a deployment
+that generated its own is exactly the case worth not dropping.
+
+**Which is why the host is asked before the connection is saved, and why the service
+`make dev` starts can be asked with no key at all.**
+
+Adding that one is the commonest path through the dialog, and it names no vault key
+until submission — so there was nothing to test with, and an outdated local service
+could be registered with a default runtime its first tool call refuses.
+
+!!! danger "A probe with no key falls back to `SANDBOXD_TOKEN` for two addresses only"
+
+    The two this project's own compose file uses. That token starts containers on
+    whatever host accepts it, and a probe must never be a way to send it somewhere
+    new.
+
+Every other address is asked with a key from the vault, and only when an operator
+presses the button.
+
+## When a container appears
+
+**On the first workspace operation: a tool the agent calls there, or a file
+somebody attached being staged into it.** The agent's skills are written into the
+workspace at that moment, just before the operation runs, and not while the run is
+prepared, so a turn that never uses the sandbox opens no session and starts no
+container. A turn that does use it finds the skills on disk already. A session
+list can still show a sandbox whose activity log holds only writes: one that had a
+file attached and then sat unused.
+
+## What was done in one, and where that record lives
+
+**In this platform's own table, `sandbox_operations` — not in the service.**
+
+The service keeps an activity log of its own, and it is a 200-entry ring buffer in
+that process's memory. What it dropped could not be asked for, a conversation
+worked in all day had lost its morning, and restarting `sandboxd` lost every log on
+the host. Nothing outside that process ever saw the entries (#1061).
+
+Every workspace call already passes through this application — the run calls us, we
+call the service — so the record is ours to make.
+
+`RecordingWorkspace` wraps the workspace the run works in, which is why adding a
+ninth tool cannot forget to record. It records what reached the sandbox — `read`,
+`write`, `ls_info`, `mkdir`, `remove` and `execute` — so a tool that is several
+operations shows as each of them: an `edit_file` is a `read` and a `write`, a
+`glob` or a `grep` the `execute` of the `find` or `grep` it ran. `exists` and
+`stat` are questions rather than operations, and a log full of them would bury the
+writes somebody came to read.
+
+It carries two facts the service never could, and they are the two an audit
+actually asks for: **which agent, and which run**. Both are `SET NULL` on delete,
+because the record of what happened has to outlive the agent that was deleted
+afterwards.
+
+!!! warning "A path, never a payload"
+
+    `write` records the path and that it succeeded. `execute` records the command
+    and never its output — a nonzero exit is recorded as a failure with its numeric
+    status (`exit 2`), the one safe fact about a failed command. `read` records the
+    path and a byte count.
+
+    These rows are readable by everyone who can see the sandbox, so a log carrying
+    contents would be a way to *read* an agent's work rather than an audit of it —
+    the same line the service draws, drawn again here.
+
+    The one line about the outcome is written by us, never quoted from below: a
+    shell's message *is* the command's output (#423).
+
+Rows land when the run's transaction commits, because they are written into the
+run's own session rather than a connection per tool call. So a turn's operations
+appear together, a second or so after the turn ends.
+
+The dashboard row's live ticker still reads the service's buffer for exactly that
+reason: it answers mid-turn, where the record answers a week later.
+
+`GET /api/v1/sandbox-connections/operations` pages it, and its filters narrow the
+**query**: the dialog's search, its operation filter and its failed-only switch are
+requests, so a pager over three hundred operations has something to page to.
+
+## When a build is paid for
+
+`prewarm` is on, so the allowlist is pulled and built in the background **as the
+service starts** rather than inside somebody's first request — a build is ten
+seconds and upwards. Images are cached, so a host pays once.
+
+A deploy builds them even earlier. `scripts/deploy.sh` runs the library's
+`python -m pydantic_ai_backends.remote.prepare` in a one-off container of the new
+sandboxd image, before the old service is replaced. A release that changes a
+runtime therefore pays for the build while the old service is still serving.
+Before this, on 2026-10-18 the first sandboxed chat after such a release waited
+minutes, and every session request answered 409 until the build was done. A
+build that fails is tried three times there and twice at start-up. A runtime
+still not built is built on demand, as before, and the deploy log names it.
+
+While a session waits on such a build, the chat says so above the composer:
+"Preparing the sandbox". Opening waits up to ten minutes for it, not the 30
+seconds of an ordinary request.
+
+What is left to wait for: a runtime the deploy could not prepare, and a host
+whose image cache was cleared. `SANDBOXD_PERSIST_CONTAINERS: true` then removes
+most of the rest — a closed session keeps its container, so the next session on
+that workspace starts without a build and with whatever the agent installed last
+time still installed.
+
+## Isolation, plainly
+
+What holds:
+
+- the sandbox cannot see the Docker socket; only `sandboxd` can;
+- no network at all unless the runtime asks for one, and both shipped runtimes do;
+- 2 CPUs, 512 processes and a 64 MiB `tmpfs` at `/tmp` per sandbox, plus
+  `SANDBOXD_EXECUTE_TIMEOUT` (300 s) on every command and
+  `SANDBOXD_MAX_READ_BYTES` (8 MiB) on every read;
+- `SANDBOXD_SANDBOX_UID: 10001` — a sandbox runs as an unprivileged user rather
+  than as root, and every file an agent writes is owned by that uid on the host. It
+  **has to be the service's own uid**: opening a session `chown`s the workspace to
+  this user, and an unprivileged `sandboxd` can only do that for itself, so a
+  different number fails at the first session rather than at start-up. It applies
+  to a runtime this deployment *builds* — a ready-made image has no such account
+  and no virtualenv, so an agent inside one could install nothing.
+
+What remains, stated rather than implied:
+
+1. **The service token is root-equivalent.** See above.
+2. **Escaping the container is escaping to the host.** Ordinary `runc`;
+   `oci_runtime` can name a sandboxed one (gVisor's `runsc`) where a deployment
+   wants that trade.
+3. **A runtime with a network can reach ports published on the host.**
+   `docker-compose.yml` publishes Postgres and Redis for local development, with
+   `postgres/postgres`; `docker-compose-prod.yml` publishes neither.
+
+!!! warning "A laptop caveat, but check it before copying the local compose file"
+
+    `docker-compose.yml` publishes Postgres and Redis with `postgres/postgres`,
+    and both shipped runtimes have a network. On a shared host that is
+    reachable from inside a sandbox; `docker-compose-prod.yml` publishes neither.
+
+## What the file browser shows, and what it leaves out
+
+**Documents** (`/documents`) lists what an agent is keeping **for a person**, which is not the
+same set as what is on the volume. Three prefixes are dropped from every listing a
+person reads - the list of every file, one folder's files, a conversation's panel,
+and the file counts:
+
+- `skills/` — a skill's body and its resources, written at the start of every run
+  that has both skills and a workspace. They are needed there: a resource is a
+  script the shell runs, and `collect_changes` diffs these files into a proposal
+  somebody accepts. They were removed once because the listing was mostly them,
+  which was the right complaint about the wrong thing (#1064).
+- the spill directory — where a tool's overflowing output was written.
+- `.agenticos/` — a coding task's events and the session the next one continues.
+
+So are the folders a toolchain fills, wherever they sit: `.venv`, `venv`,
+`node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+`.tox`, `.git`, `.next` and `.cache`. A coding agent that set up one FastAPI app
+put a thousand of them on the page, among the dozen files it wrote.
+
+A count has to drop them too, or a workspace reporting four files where one is
+visible is a count nobody can check.
+**All files** groups what is left by the workspace that holds it, newest first,
+under the conversation it belongs to: loose files and attachments as rows, each
+top-level folder as one row naming its first files, and a link to the folder for
+the rest. The newest files are previewed above the groups, and a search lists its
+matches flat.
+
+### Whose workspace it is, and who else can see it
+
+Two answers, and the table carries both.
+
+`access_label` is the **scope** in words — "everybody who talks to this agent",
+"whoever is in that conversation". It names nobody, which is exactly the question
+an operator has about an agent-scoped workspace six people share.
+
+So the row also carries `owner_name`: an account's email, or the platform id of an
+owner who arrived through a channel and has no account here. It is drawn as words
+and never as a link, because half of them are not accounts to link to. And it is
+null for every scope but `user`, which is the only one that records an owner at all
+— three of the four honestly have none, and the column says so rather than
+repeating the scope.
+
+### A file says who put it there
+
+`uploads/` is where an attachment lands, so a path under it is a file **a person
+attached**, and anything else is the agent's own work. It is offered as a filter
+and said on the tile.
+
+It is the only signal available: a host records no author, and neither does the
+state document. Its limit follows from that — an agent writing into `uploads/`
+itself is indistinguishable from a person, and nothing stops it.
+
+### Listing a container costs round trips, so two things are bounded
+
+The archive's `ls` reads one directory, so the listing asks the host for its
+`tree` instead: one request, walked breadth-first on the host's own disk, six
+levels deep at most, stopping at 2,000 entries — because a host holding a
+`node_modules` must not turn one workspace into ten thousand rows.
+
+**Both bounds are reported.** A workspace's page says plainly that this is not
+every file, because a tree that stops without saying so is one somebody reads as
+everything the agent is keeping.
+
+A directory that will not answer is skipped, and the listing reports itself
+incomplete. Only the *root* refusing makes the workspace unreadable, because one folder the agent chmod'ed away is not a
+host nobody can read.
+
+And an image's thumbnail is a `read_bytes` for that file: the suffix and the size
+are checked off the listing entry before anything is fetched, and one request draws
+at most 24. Past that a tile keeps the glyph.
+
+A *stored* workspace pays neither — its files and their bytes are a column of the
+row the listing already read.
+
+The chat's **Files** panel and a workspace's own listing draw their tiles the
+way **All files** does: the first lines of a stored text file, and an image as a
+thumbnail within the same bound.
+
+## How long anything survives
+
+Files live on the host, at `{SANDBOXD_WORKSPACE_ROOT}/{session_id}/workspace` —
+`/tmp/agenticos-sandbox-workspaces` locally, `/var/lib/agenticos/sandbox-workspaces`
+on the dev server and in production. That bind mount is also what makes the
+product's Files panel possible: reading a workspace never starts a container.
+
+| | Setting | What happens |
+|---|---|---|
+| An idle session | `SANDBOXD_IDLE_TIMEOUT` 1800 s | The container is closed and reaped. **The files stay** |
+| A stopped container | `SANDBOXD_CONTAINER_TTL` 86400 s | What the session installed — the build, the wheels, `node_modules` — is reclaimed. The workspace is untouched |
+| The workspace directory | `SANDBOXD_WORKSPACE_TTL` **unset** | Kept **indefinitely** |
+| The record of what was done | `OPERATION_RETENTION_DAYS` 30 | The daily `sandbox-log-sweep` deletes the rows. The files are untouched |
+
+The last row is the library's default and it is deliberate — the notes and scripts
+are the work, and an agent's user expects them next week.
+
+!!! info "Disk use only grows"
+
+    Nothing sweeps a workspace whose conversation nobody will open again. Set
+    `SANDBOXD_WORKSPACE_TTL` to whatever your retention policy says and the files
+    older than it go.
+
+`/tmp` is cleared by a reboot on a laptop; `/var/lib` is not.
+
+Deleting a conversation purges its workspace through the product, so this is about
+what nobody deletes rather than about what they do.
+
+That purge does not depend on the provider answering at that moment. The
+deletion writes a tombstone naming each remote sandbox in the same transaction,
+and a destroy removes the tombstone once the provider confirms it. When the
+sandbox host is down, a Daytona key is rejected, or the worker restarts in
+between, the worker's `sandbox-destroy-retry` sweep tries again. The pause
+doubles each time, from 2 minutes up to 6 hours, until the destroy succeeds. A
+Daytona sandbox has no TTL behind it, so this is the only thing that ends one.
+
+A connection that is switched off still has its sandboxes destroyed, because
+off stops new work and not the bill. A connection with tombstones left cannot
+be deleted: the tombstones would go with it, and they are the only record of
+what is still running on the provider. When the sweep can never succeed - the
+connection's credential was deleted or revoked - delete the sandboxes in the
+provider's console. Then delete the connection again and confirm that you did:
+its tombstones are forgotten, and how many goes in the audit log.
+
+## Beyond sandboxd { #beyond-sandboxd }
+
+Two more places a run's sandbox tools can work, each with the same tools and
+none of the containment above.
+
+**An E2B connection.** A sandbox connection of kind `e2b` runs sandboxes on the
+organization's own [E2B](https://e2b.dev) account: its API key is the
+connection's vault secret, and the connection's default runtime names an E2B
+template - empty for E2B's default, `desktop` for the template computer use
+drives. Every create, attach and destroy is made with that key, never with an
+`E2B_API_KEY` the deployment's process happens to have, so each organization's
+sandboxes run, and are billed, on its own account. A sandbox is paused at the end
+of its hour rather than killed, so a longer-scoped workspace keeps its files, and
+the destroy sweep ends it as it ends a Daytona one.
+
+**The person's own computer.** In the [desktop app](desktop.md#work-on-this-computer)
+a chat can work in a folder on the computer it runs on. The tools reach it
+through the app's connection to the server, and the app - not this server -
+refuses any folder or mode the person did not grant; writes run under Seatbelt on
+macOS or bubblewrap on Linux. Only a person's own chats, and triggers that act as
+their creator, reach their computer; a run waits up to ten minutes for it to
+connect. Nothing of it is kept here: there is no workspace row and no session to
+reap.
+
+## Recap
+
+- The API container **holds no Docker socket**. `sandboxd` does, and a sandbox is
+  its sibling rather than a container inside it.
+- A **session key** folds in scope, organization, backend kind and host — which is
+  precisely what decides who shares a container.
+- **Two runtimes ship**, `workbench` and `desktop`, and the model is told what is in
+  the one it runs on, composed from the same catalogue that built it.
+- The record of what an agent did lives in **this platform's table**, holds a path
+  and never a payload, and outlives the agent.
+- **E2B and the person's own computer** are sandboxes too: one on the
+  organization's own key, the other held to what the person granted on it.
+- **Files are kept indefinitely** unless you set `SANDBOXD_WORKSPACE_TTL`. Disk use
+  only grows.
+
+The `state` backend counts files and empty directories against its storage ceiling, including the final concurrent merge. If individually accepted snapshots cannot fit together, the shared document stays unchanged and the later snapshot is committed as a recovery copy in **Documents**. The run records a failure with the recovery workspace ID; a project mutation returns a conflict instead of success. Project copies require both view and use access. A source foreign key removes each copy when its source is deleted, including concurrent erasure. Lowering the setting below an existing document still allows that document to shrink.
+
+The workbench briefing tells agents that commands run under POSIX `/bin/sh`, not Bash. For example, `mkdir -p sources inbox notes` creates three folders; `{sources,inbox,notes}` is not expanded by this shell. Project files belong under `/workspace`; the user home (`~`) is outside the shared files. Each command starts a new process, so shell variables and changes of directory do not carry into the next call. Agents are instructed to inspect failures and verify files before reporting success.

@@ -1,0 +1,38 @@
+{
+  "en": {
+    "widget.ask": "Quick Ask",
+    "widget.chat": "Chat",
+    "widget.inbox": "Inbox",
+    "widget.activity": "Activity",
+    "widget.subtitle": "Type, dictate or call your agent.",
+    "widget.name": "AgenticOS shortcuts",
+    "widget.description": "Your agents, one click away."
+  },
+  "pl": {
+    "widget.ask": "Quick Ask",
+    "widget.chat": "Chat",
+    "widget.inbox": "Skrzynka",
+    "widget.activity": "Aktywność",
+    "widget.subtitle": "Napisz, podyktuj lub zadzwoń do agenta.",
+    "widget.name": "Skróty AgenticOS",
+    "widget.description": "Twoi agenci pod ręką."
+  },
+  "de": {
+    "widget.ask": "Quick Ask",
+    "widget.chat": "Chat",
+    "widget.inbox": "Postfach",
+    "widget.activity": "Aktivität",
+    "widget.subtitle": "Schreibe, diktiere oder rufe deinen Agenten an.",
+    "widget.name": "AgenticOS-Kurzbefehle",
+    "widget.description": "Deine Agenten, einen Klick entfernt."
+  },
+  "es": {
+    "widget.ask": "Quick Ask",
+    "widget.chat": "Chat",
+    "widget.inbox": "Bandeja",
+    "widget.activity": "Actividad",
+    "widget.subtitle": "Escribe, dicta o llama a tu agente.",
+    "widget.name": "Atajos de AgenticOS",
+    "widget.description": "Tus agentes, a un clic."
+  }
+}

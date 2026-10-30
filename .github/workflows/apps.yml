@@ -1,0 +1,133 @@
+name: Apps
+on:
+  pull_request:
+    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
+  push:
+    branches: [main]
+    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    # Smoke packages exercise installation, not debugger symbols. The Linux RPM
+    # step stalled for 32 minutes; avoid its unnecessary debug-symbol payload.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - name: Linux native libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
+      # Ubuntu's hosted runner restricts unprivileged user namespaces. Exercise
+      # the actual bubblewrap boundary instead of skipping its confinement test.
+      - name: Allow sandbox namespaces on the ephemeral Linux runner
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Rust toolchain
+        run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy
+      - name: Native contracts and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for crate in desktop/core desktop/src-tauri mobile/src-tauri; do
+            cargo fmt --manifest-path "$crate/Cargo.toml" --check
+            cargo clippy --locked --manifest-path "$crate/Cargo.toml" --all-targets -- -D warnings
+            cargo test --locked --manifest-path "$crate/Cargo.toml"
+          done
+      - name: Native browser engine smoke
+        timeout-minutes: 3
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
+          else
+            cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
+          fi
+      - name: Persistent console session smoke
+        timeout-minutes: 3
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          set -euo pipefail
+          for mode in write read; do
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              xvfb-run -a cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example session_profile_smoke -- "$mode"
+            else
+              cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example session_profile_smoke -- "$mode"
+            fi
+          done
+      - name: Build desktop installer packages
+        env:
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd desktop
+          bun install --frozen-lockfile
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            bunx tauri build --debug --ci --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}' -- --locked
+          else
+            bunx tauri build --debug --ci -- --locked
+          fi
+      - name: Install and remove desktop packages
+        run: python scripts/check_desktop_installation.py desktop/src-tauri/target/debug/bundle
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-installers-${{ runner.os }}
+          path: |
+            desktop/src-tauri/target/debug/bundle/**/*.dmg
+            desktop/src-tauri/target/debug/bundle/**/*.exe
+            desktop/src-tauri/target/debug/bundle/**/*.msi
+            desktop/src-tauri/target/debug/bundle/**/*.deb
+            desktop/src-tauri/target/debug/bundle/**/*.rpm
+            desktop/src-tauri/target/debug/bundle/**/*.AppImage
+          if-no-files-found: error
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Android toolchain
+        run: |
+          rustup target add aarch64-linux-android
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+      - name: Build debug APK
+        working-directory: mobile
+        run: bun install --frozen-lockfile && bunx tauri android build --debug --target aarch64 --apk --ci -- --locked
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-debug
+          path: mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Simulator toolchain
+        run: rustup target add aarch64-apple-ios-sim
+      - name: Build iOS simulator with extensions
+        working-directory: mobile
+        run: bun install --frozen-lockfile && bunx tauri ios build --target aarch64-sim --no-sign --archive-only --ci -- --locked

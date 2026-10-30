@@ -44,6 +44,13 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
   test: "all",
 };
 
+/** How many filters are narrowing the list - what a phone's Filters button counts. */
+export function activeFilterCount(filters: RunFilters): number {
+  return (Object.keys(DEFAULT_RUN_FILTERS) as (keyof RunFilters)[]).filter(
+    (key) => filters[key] !== DEFAULT_RUN_FILTERS[key],
+  ).length;
+}
+
 /** The URL name of each filter. `person` reads better in a pasted link than `userId`. */
 const PARAM: Record<keyof RunFilters, string> = {
   status: "status",

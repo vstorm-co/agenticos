@@ -101,7 +101,8 @@ export function ConversationFilters({
         <button
           type="button"
           aria-label={t("filters")}
-          className="text-muted-foreground hover:text-foreground hover:bg-accent relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+          title={t("filters")}
+          className="text-foreground/85 hover:text-foreground hover:bg-accent touch:min-h-11 touch:min-w-11 relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden />
           {narrowed && (

@@ -123,7 +123,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Needs access to that project; waits for approval like reading a conversation.
         `state` stores shared files only; `service`
-        provides a sandbox host. Check the actual runtime and agent's execution
+        provides a shared sandbox host. A personal Desktop folder is separate and is not
+        represented by this backend or shared by project membership. Check the actual runtime and agent's execution
         settings before promising code execution. Chats keep separate histories.
         """
         return await api.request("GET", f"/projects/{project_id}")
@@ -133,6 +134,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         instructions: str = "",
         description: str | None = None,
         default_agent_id: UUID | None = None,
+        backend: Literal["auto", "state", "service"] | None = None,
+        sandbox_connection_id: UUID | None = None,
     ) -> dict[str, Any]:
         """Create a private home for ongoing work. Needs `projects:edit`; waits for approval.
 
@@ -146,7 +149,13 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Open `/projects/<returned id>` and start New chat there: an existing
         conversation cannot be moved into it. Files and instructions are shared,
         not full conversation histories. Inspect the returned backend; files-only
-        workspaces do not execute code. Sharing remains the caller's choice.
+        workspaces do not execute code. `backend` selects the shared server
+        workspace: auto follows deployment defaults, state stores files, service
+        provides a shell; choose a real connection from list_sandbox_connections.
+        For Computer work, the person connects an approved folder in Desktop;
+        this tool cannot select a native folder or grant local access. Local files
+        stay personal; uploading a copy to Shared project files shares that copy.
+        Sharing project membership never shares a computer.
         """
         return await api.request(
             "POST",
@@ -157,6 +166,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "description": description,
                 "default_agent_id": str(default_agent_id) if default_agent_id else None,
                 "visibility": "private",
+                **({"backend": backend} if backend is not None else {}),
+                **(
+                    {"sandbox_connection_id": str(sandbox_connection_id)}
+                    if sandbox_connection_id is not None
+                    else {}
+                ),
             },
         )
 

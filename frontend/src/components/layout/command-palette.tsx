@@ -26,6 +26,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { useSidebarStore } from "@/stores/sidebar-store";
 import { qk } from "@/lib/query-keys";
 import { isAppAdmin } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
@@ -116,6 +117,7 @@ export function CommandPalette() {
   const conversationItems = conversations.data?.items ?? [];
 
   const go = (href: string) => {
+    useSidebarStore.getState().close();
     setOpen(false);
     router.push(href);
   };
@@ -147,8 +149,8 @@ export function CommandPalette() {
       onOpenChange={setOpen}
       label={t("commandPalette")}
       shouldFilter
-      overlayClassName="bg-background/50 fixed inset-0 z-[60] backdrop-blur-sm"
-      contentClassName="panel text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl"
+      overlayClassName="fixed inset-0 z-[60] bg-black/40"
+      contentClassName="panel text-foreground fixed left-1/2 top-[calc(var(--shell-inset-top,0px)+1rem)] z-[61] flex max-h-[var(--dialog-available-height)] w-[min(92vw,640px)] -translate-x-1/2 flex-col overflow-hidden rounded-2xl"
     >
       <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-3">
         <Search className="text-muted-foreground h-4 w-4" />
@@ -164,7 +166,7 @@ export function CommandPalette() {
         </kbd>
       </div>
 
-      <Command.List className="max-h-[60vh] scrollbar-thin overflow-y-auto px-2 py-2">
+      <Command.List className="max-h-[60dvh] min-h-0 scrollbar-thin overflow-y-auto overscroll-contain px-2 py-2">
         <Command.Empty className="text-muted-foreground px-4 py-10 text-center text-sm">
           {t("noMatches")}
         </Command.Empty>
@@ -292,7 +294,7 @@ function PaletteItem({
   return (
     <Command.Item
       onSelect={onSelect}
-      className="text-foreground/85 hover:bg-foreground/5 data-[selected=true]:bg-foreground/8 data-[selected=true]:text-foreground flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
+      className="text-foreground/85 hover:bg-foreground/5 data-[selected=true]:bg-foreground/8 data-[selected=true]:text-foreground touch:min-h-11 flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
     >
       <Icon className="h-4 w-4 shrink-0 opacity-70" />
       <span className="flex-1 truncate">{label}</span>

@@ -170,7 +170,7 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ListCard
         fill
         namedByPage
@@ -182,6 +182,7 @@ export default function AdminUsersPage() {
         contentClassName="p-0"
       >
         <DataTable<AdminUser>
+          fillHeight
           columns={columns}
           rows={users}
           getRowKey={(u) => u.id}

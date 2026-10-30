@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useProject } from "@/hooks/use-projects";
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Folder, Server } from "lucide-react";
+import { Cloud, Folder, Server, Laptop } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -25,6 +25,8 @@ import { listSandboxConnections } from "@/lib/sandbox-connections-api";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import type { Project } from "@/types/projects";
+import type { LocalTarget } from "@/lib/desktop/commands";
+import { ProjectFolderChoice } from "./project-folder-choice";
 
 export function ProjectSandboxChoice({
   value,
@@ -32,12 +34,18 @@ export function ProjectSandboxChoice({
   enabled,
   error,
   allowAutomatic = true,
+  computer,
 }: {
   value: string;
   onChange: (value: string) => void;
   enabled: boolean;
   error?: string;
   allowAutomatic?: boolean;
+  computer?: {
+    target: LocalTarget | null;
+    onChange: (target: LocalTarget | null) => void;
+    disabled?: boolean;
+  };
 }) {
   const t = useTranslations("projects.sandbox");
   const { can } = usePermissions();
@@ -69,6 +77,14 @@ export function ProjectSandboxChoice({
                 </span>
               </SelectItem>
             )}
+            {computer && (
+              <SelectItem value="computer">
+                <span className="flex items-center gap-2">
+                  <Laptop className="h-4 w-4" aria-hidden />
+                  {t("computer")}
+                </span>
+              </SelectItem>
+            )}
             {connections.map((connection) => (
               <SelectItem key={connection.id} value={connection.id}>
                 <span className="flex items-center gap-2">
@@ -91,9 +107,21 @@ export function ProjectSandboxChoice({
         </Select>
       </FormField>
       <p className="text-muted-foreground text-xs leading-relaxed">
-        {value === "state" ? t("storedHint") : t("sharedHint")}
+        {value === "computer"
+          ? t("computerHint")
+          : value === "state"
+            ? t("storedHint")
+            : t("sharedHint")}
       </p>
-      <ProjectSandboxExplanation />
+      {value === "computer" && computer ? (
+        <ProjectFolderChoice
+          value={computer.target}
+          onChange={computer.onChange}
+          disabled={computer.disabled}
+        />
+      ) : (
+        <ProjectSandboxExplanation />
+      )}
       {isError && (
         <p role="alert" className="text-destructive text-xs">
           {t("failed")}
@@ -118,7 +146,7 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
   return (
     <Card data-tour="project-workspace">
       <CardHeader>
-        <CardTitle>{t("label")}</CardTitle>
+        <CardTitle>{t("sharedWorkspace")}</CardTitle>
         <CardDescription>{t("sharedHint")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -162,7 +190,9 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setChanging(!changing)}
+            onClick={() => {
+              setChanging(!changing);
+            }}
             aria-expanded={changing}
           >
             {t("change")}
@@ -176,18 +206,22 @@ export function ProjectSandboxSummary({ project }: { project: Project }) {
               enabled
               allowAutomatic={false}
             />
-            <p className="text-muted-foreground text-xs leading-relaxed">{t("transferHint")}</p>
-            <Button
-              variant="outline"
-              disabled={
-                !target ||
-                moveWorkspace.isPending ||
-                target === (stored ? "state" : project.sandbox_connection_id)
-              }
-              onClick={() => setConfirm(true)}
-            >
-              {t("move")}
-            </Button>
+            {target !== "computer" && (
+              <>
+                <p className="text-muted-foreground text-xs leading-relaxed">{t("transferHint")}</p>
+                <Button
+                  variant="outline"
+                  disabled={
+                    !target ||
+                    moveWorkspace.isPending ||
+                    target === (stored ? "state" : project.sandbox_connection_id)
+                  }
+                  onClick={() => setConfirm(true)}
+                >
+                  {t("move")}
+                </Button>
+              </>
+            )}
           </div>
         )}
         <ConfirmDialog

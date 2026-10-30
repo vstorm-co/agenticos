@@ -9,7 +9,10 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("bg-card text-card-foreground shadow-card rounded-xl border", className)}
+      className={cn(
+        "bg-card text-card-foreground shadow-card min-w-0 rounded-xl border",
+        className,
+      )}
       {...props}
     />
   ),
@@ -20,7 +23,7 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex flex-col space-y-1.5 p-(--card-pad)", className)}
+      className={cn("flex min-w-0 flex-col space-y-1.5 p-(--card-pad)", className)}
       {...props}
     />
   ),
@@ -67,8 +70,8 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
       <div
         ref={ref}
         className={cn(
-          "text-muted-foreground text-sm",
-          !open && "flex items-baseline gap-2",
+          "text-foreground/85 text-sm leading-relaxed",
+          !open && "flex min-w-0 items-center gap-2",
           className,
         )}
         {...props}
@@ -81,9 +84,10 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
             type="button"
             onClick={() => setOpen((shown) => !shown)}
             className={cn(
-              "text-foreground/70 hover:text-foreground shrink-0 text-xs underline-offset-2 hover:underline",
+              "text-foreground/70 hover:text-foreground touch:min-h-11 focus-visible:outline-ring shrink-0 rounded-md text-xs underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2",
               open && "mt-0.5",
             )}
+            aria-expanded={open}
           >
             {open ? t("showLess") : t("showMore")}
           </button>

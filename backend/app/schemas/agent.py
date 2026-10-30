@@ -214,6 +214,10 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    published_capabilities: list[str] | None = Field(
+        default=None,
+        description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(

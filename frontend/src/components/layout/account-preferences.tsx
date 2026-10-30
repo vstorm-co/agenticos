@@ -5,14 +5,19 @@ import { useLocale, useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
 import {
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useChooseLocale } from "@/hooks/use-choose-locale";
 import { useMounted } from "@/hooks/use-mounted";
+import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import { LookPreview } from "@/components/settings/look-preview";
+import { isLook, LOOKS } from "@/lib/appearance";
 import { getLocaleFlag, getLocaleLabel, locales, type Locale } from "@/i18n";
 import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-store";
 
@@ -56,10 +61,12 @@ const THEME_LABEL: Record<Theme, string> = {
   system: "system",
 };
 
-/** Light, dark, or whatever the machine says - as a named submenu. */
+/** Theme and style share the same preferences as the full Appearance settings. */
 export function AppearanceMenu() {
   const t = useTranslations("theme");
-  const { theme, setTheme } = useThemeStore();
+  const ta = useTranslations("appearance");
+  const { theme, setTheme, look, setLook } = useThemeStore();
+  const resolved = useResolvedTheme();
   // `false` on the server, `true` once hydrated - `useMounted` says why.
   const mounted = useMounted();
 
@@ -74,13 +81,18 @@ export function AppearanceMenu() {
         <TriggerIcon className="h-4 w-4 shrink-0" aria-hidden />
         <span className="flex-1">{t("appearance")}</span>
         {mounted ? (
-          <span className="text-muted-foreground text-xs">{t(THEME_LABEL[current])}</span>
+          <span className="text-muted-foreground text-xs">{ta(`looks.${look}.name`)}</span>
         ) : null}
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="w-40">
+      <DropdownMenuSubContent className="w-56">
+        <DropdownMenuLabel className="text-muted-foreground text-xs">
+          {ta("theme")}
+        </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={mounted ? current : undefined}
-          onValueChange={(next) => setTheme(next as Theme)}
+          onValueChange={(next) => {
+            if (next === "light" || next === "dark" || next === "system") setTheme(next);
+          }}
         >
           {(["light", "dark", "system"] as const).map((option) => {
             const Icon = THEME_ICON[option];
@@ -91,6 +103,23 @@ export function AppearanceMenu() {
               </DropdownMenuRadioItem>
             );
           })}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-muted-foreground text-xs">
+          {ta("look")}
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={mounted ? look : undefined}
+          onValueChange={(next) => {
+            if (isLook(next)) setLook(next);
+          }}
+        >
+          {LOOKS.map((option) => (
+            <DropdownMenuRadioItem key={option} value={option} className="gap-3 py-2">
+              <LookPreview look={option} dark={resolved === "dark"} className="h-8 w-12 shrink-0" />
+              {ta(`looks.${option}.name`)}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>

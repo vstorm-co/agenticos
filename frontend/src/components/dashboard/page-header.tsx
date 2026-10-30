@@ -1,3 +1,4 @@
+import { ContextHelp } from "@/components/ui/context-help";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
@@ -14,6 +15,8 @@ export interface Crumb {
 interface PageHeaderProps {
   title: ReactNode;
   description?: ReactNode;
+  /** Live summaries remain visible; explanatory introductions live in contextual help. */
+  descriptionMode?: "help" | "summary";
   /** Breadcrumb trail (last item is the current page; omit href on it). */
   breadcrumbs?: Crumb[];
   /** Right-aligned actions (buttons, etc.). */
@@ -30,6 +33,7 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   description,
+  descriptionMode = "help",
   breadcrumbs,
   actions,
   badges,
@@ -46,7 +50,10 @@ export function PageHeader({
               return (
                 <li key={`${c.label}-${i}`} className="flex items-center gap-1.5">
                   {c.href && !last ? (
-                    <Link href={c.href} className="hover:text-foreground transition-colors">
+                    <Link
+                      href={c.href}
+                      className="hover:text-foreground touch:min-h-11 focus-visible:outline-ring inline-flex items-center rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
                       {c.label}
                     </Link>
                   ) : (
@@ -57,7 +64,7 @@ export function PageHeader({
                       {c.label}
                     </span>
                   )}
-                  {!last && <ChevronRight className="h-3 w-3 opacity-50" />}
+                  {!last && <ChevronRight className="h-3 w-3 shrink-0 opacity-50" aria-hidden />}
                 </li>
               );
             })}
@@ -65,15 +72,14 @@ export function PageHeader({
         </nav>
       )}
 
-      {/* Keep actions beside the title when they fit, and wrap them otherwise.
-          The introduction owns its row so a long toolbar cannot squeeze it.
-          On phones it stays before the actions, in the document's reading order. */}
+      {/* Keep the primary actions beside the title; wrap naturally on a narrow screen. */}
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 basis-80">
           <div className="flex min-h-9 items-center gap-3">
-            <h1 className="text-foreground min-w-0 flex-1 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
+            <h1 className="text-foreground min-w-0 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
               {title}
             </h1>
+            {description && descriptionMode === "help" && <ContextHelp>{description}</ContextHelp>}
             {/* On a phone the help sits with the title it explains, rather than
                 alone on a row under the wrapped actions. */}
             <span className="md:hidden">
@@ -93,12 +99,10 @@ export function PageHeader({
             </div>
           )}
         </div>
-        {description && (
-          <div className="order-1 basis-full md:order-2">
-            <p className="text-muted-foreground line-clamp-2 max-w-2xl text-sm leading-relaxed text-pretty">
-              {description}
-            </p>
-          </div>
+        {description && descriptionMode === "summary" && (
+          <p className="text-muted-foreground order-1 basis-full text-sm leading-relaxed md:order-2">
+            {description}
+          </p>
         )}
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}

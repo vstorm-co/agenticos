@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { bytesKey, documentName, readFileBytes, readFileText, textKey } from "./workspace-files";
 import { apiClient } from "./api-client";
+import { readLocalFile } from "./desktop/commands";
+
+vi.mock("./desktop/commands", () => ({ readLocalFile: vi.fn() }));
 
 vi.mock("./api-client", () => ({
   apiClient: { get: vi.fn().mockResolvedValue({}), raw: vi.fn().mockResolvedValue(new Response()) },
@@ -80,5 +83,25 @@ describe("documentName - a file as a person calls it", () => {
 
   it("keeps a name that is nothing but the prefix", () => {
     expect(documentName("/uploads/0d7d5756-", true)).toBe("0d7d5756-");
+  });
+});
+
+describe("native file source", () => {
+  it("reads only the selected root through IPC and bounds text previews", async () => {
+    const source = { kind: "local", root: "/approved" } as const;
+    vi.mocked(readLocalFile).mockResolvedValue(new TextEncoder().encode("hello"));
+    await expect(readFileText(source, "a.txt")).resolves.toEqual({
+      content: "hello",
+      truncated: false,
+    });
+    expect(readLocalFile).toHaveBeenLastCalledWith("/approved", "a.txt");
+    vi.mocked(readLocalFile).mockResolvedValue(new Uint8Array(512 * 1024 + 1).fill(97));
+    const text = await readFileText(source, "large.txt");
+    expect(text.truncated).toBe(true);
+    expect(text.content).toHaveLength(512 * 1024);
+    const blob = await readFileBytes(source, "large.txt");
+    expect(blob.size).toBe(512 * 1024 + 1);
+    expect(textKey(source, "a")).not.toEqual(textKey({ kind: "local", root: "/other" }, "a"));
+    expect(bytesKey(source, "a")).not.toEqual(textKey(source, "a"));
   });
 });

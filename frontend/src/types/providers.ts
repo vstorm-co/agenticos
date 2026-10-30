@@ -127,7 +127,6 @@ export interface Skill {
   content: string;
   /** A grouping label for people ("marketing", "devops"); null is uncategorized. */
   category: string | null;
-  enabled: boolean;
   version: number;
   visibility: string;
   owner_user_id: string | null;
@@ -146,7 +145,6 @@ export interface SkillSummary {
   name: string;
   description: string;
   category: string | null;
-  enabled: boolean;
   /** `org` is everyone; `private` is its owner and whoever it is shared with. */
   visibility: string;
   /** How many files the skill carries beyond its body. */

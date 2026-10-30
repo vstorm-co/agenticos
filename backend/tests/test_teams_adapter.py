@@ -168,7 +168,7 @@ class TestReadingAnActivity:
     @pytest.mark.parametrize(
         "flood",
         ["<" * 50_000, "<at" * 50_000, "<at>a" * 50_000],
-        ids=["bare-angle", "open-tag", "open-mention"],
+        ids=["opening-brackets", "unclosed-tags", "unclosed-mentions"],
     )
     def test_markup_nobody_closes_is_read_in_linear_time(self, flood: str) -> None:
         """CodeQL on #2324: each scan used to run to the end of the text from every

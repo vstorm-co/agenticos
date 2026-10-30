@@ -1,5 +1,5 @@
 ---
-source_sha: "5538880e71c7"
+source_sha: "3b553bcc7ca4"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -37,6 +37,8 @@ Personen und Organisationen verwenden `EntityAvatar`: Fotos werden kreisförmig
 zugeschnitten; Initialen auf einer stabilen Farbe dienen als Ersatz. Agenten
 behalten ihre generierten Gesichter. Katalogbeschreibungen belegen zwei Zeilen;
 beim Öffnen eines Eintrags erscheint die vollständige Beschreibung.
+
+Asynchrone Aktionen verwenden `Button loading`, damit Beschriftung und Abmessungen erhalten bleiben und wiederholtes Absenden verhindert wird. Dieser Zustand endet erst nach allen Schritten, einschließlich Uploads. Linkbasierte Schaltflächen behalten ein einzelnes Kind und blockieren die Aktivierung, solange sie nicht verfügbar sind. Steuerelemente teilen einen einheitlichen Tastaturfokus und kompakte Desktop-Größen; bei ausreichend Platz sind Touch-Ziele 44px groß. Overlays animieren von ihrem Anker aus; Tooltips umbrechen innerhalb des Fensters. Kalenderüberschriften folgen der Konsolensprache, und Fortschrittsanzeigen melden tatsächlichen Wert und Höchstwert an assistive Technologien. Animationen beachten die Motion-Einstellung der Person.
 
 ## Der Browser ruft nie das Backend auf { #the-browser-never-calls-the-backend }
 

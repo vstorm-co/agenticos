@@ -212,7 +212,7 @@ export function AddToGroupDialog({
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={submit} disabled={picked.size === 0 || share.isPending}>
+          <Button onClick={submit} loading={share.isPending} disabled={picked.size === 0}>
             {t("addToGroupShare", { count: picked.size })}
           </Button>
         </DialogFooter>

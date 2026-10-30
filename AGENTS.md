@@ -240,7 +240,8 @@ retranslated is how a stale translation stops being visible.
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
-| The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
+| The desktop app: the console, blobby, quick ask, local work and the screen | `docs/desktop.md` |
+| The phone app: live activities, widgets, push, offline | `docs/mobile.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
 | Every module, screenshotted in both themes | `docs/screens.md` |

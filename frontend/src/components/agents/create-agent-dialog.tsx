@@ -250,7 +250,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={!name.trim() || create.isPending || catalogLoading}
+            loading={create.isPending}
+            disabled={!name.trim() || catalogLoading}
           >
             {t("create")}
           </Button>

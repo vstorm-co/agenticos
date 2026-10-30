@@ -551,6 +551,10 @@ class TestPinningTheBrowserToItsAddress:
 BROWSER_TOOLS = (
     "browse_web",
     "browser_open",
+    "browser_new_tab",
+    "browser_tabs",
+    "browser_switch_tab",
+    "browser_close_tab",
     "browser_read",
     "browser_click",
     "browser_type",
@@ -678,6 +682,8 @@ class TestOneStep:
 
 
 class _FakePage:
+    native_id: str | None = None
+
     """A page the loop can be driven against, with no browser behind it.
 
     Answers a scripted list of snapshots, one per `snapshot()` call, repeating the
@@ -700,6 +706,7 @@ class _FakePage:
         self._refuse = refuse
         self.done: list[str] = []
         self.shots = 0
+        self.streaming = False
         self.sign_in: SignIn | None = SignIn(site="example.test", origin="https://example.test")
 
     async def snapshot(self) -> Snapshot:
@@ -728,8 +735,18 @@ class _FakePage:
     async def back(self) -> None:
         self.done.append("back")
 
-    async def settle(self, *, leaving: str | None = None) -> None:
+    async def forward(self) -> None:
+        self.done.append("forward")
+
+    async def reload(self) -> None:
+        self.done.append("reload")
+
+    async def settle(self) -> None:
         self.done.append("settle")
+
+    async def location(self) -> tuple[str, str]:
+        snapshot = self._snapshots[0]
+        return snapshot.url, snapshot.title
 
     async def screenshot(self) -> str | None:
         self.shots += 1
@@ -738,12 +755,14 @@ class _FakePage:
     @asynccontextmanager
     async def stream(self, deliver: Any) -> AsyncGenerator[None]:
         """Paints `painted` as the stream opens - a page loading while watched."""
+        self.streaming = True
         self.done.append("stream:on")
         for image in self._painted:
             await deliver(image)
         try:
             yield
         finally:
+            self.streaming = False
             self.done.append("stream:off")
 
     async def read(self) -> str:
@@ -1013,8 +1032,8 @@ class TestAPersonTakesTheBrowserOver:
         assert page.done == ["click_at:10,20", "insert:hunter2", "press:Enter", "wheel:-300"]
         assert frames.of("browser_held")[0].by == "Ada"
         assert len(frames.of("browser_released")) == 1
-        # A picture after each thing the person did, so they act on the page as it is.
-        assert len(frames.of("browser_frame")) >= 4
+        # Input never waits for a screenshot per keystroke.
+        assert page.shots <= 2
         # The model is told somebody was in the tab, and never what they typed.
         [(_, history, _, _)] = seen
         assert "a person took the browser over" in history[-1]
@@ -1054,7 +1073,7 @@ class TestAPersonTakesTheBrowserOver:
 
         assert result.outcome == "done"
         assert len(frames.of("browser_released")) == 1
-        assert frames.of("browser_frame") == []
+        assert all(frame.image is None for frame in frames.of("browser_frame"))
 
 
 class TestThePageIsTheSizeOfTheWindowWatchingIt:
@@ -1466,7 +1485,9 @@ class TestWhatASurfaceIsShown:
     async def test_previews_are_a_separate_frame_from_the_narration(self):
         frames = _Frames()
         await _browse(_FakePage(), _decider(DONE), sink=frames, preview=True)
-        assert frames.of("browser_frame")[0].image == "data:image/jpeg;base64,AAAA"
+        assert any(
+            frame.image == "data:image/jpeg;base64,AAAA" for frame in frames.of("browser_frame")
+        )
 
     async def test_a_reader_who_left_stops_the_pictures_and_not_the_browse(self):
         page = _FakePage(*[_snapshot(scroll_y=float(i)) for i in range(5)])
@@ -1481,9 +1502,12 @@ class TestWhatASurfaceIsShown:
         await _browse(page, _decider(DONE), preview=False)
         assert page.shots == 0
 
-    async def test_vision_shows_the_model_the_screenshot_even_with_no_preview(self):
+    @pytest.mark.parametrize("preview", [False, True])
+    async def test_vision_shows_the_model_the_screenshot_with_or_without_preview(
+        self, preview: bool
+    ):
         seen: list[Any] = []
-        await _browse(_FakePage(), _decider(DONE, seen=seen), preview=False, vision=True)
+        await _browse(_FakePage(), _decider(DONE, seen=seen), preview=preview, vision=True)
         assert seen[0][3] == "data:image/jpeg;base64,AAAA"
 
     async def test_without_vision_the_model_is_sent_no_picture(self):
@@ -1498,7 +1522,7 @@ class TestWhatASurfaceIsShown:
 
         await _browse(page, _decider(DONE), sink=frames, preview=True)
 
-        images = [frame.image for frame in frames.of("browser_frame")]
+        images = [frame.image for frame in frames.of("browser_frame") if frame.image is not None]
         assert images[:2] == ["data:image/jpeg;base64,PAINT1", "data:image/jpeg;base64,PAINT2"]
         # Open for the whole browse and closed when it ends, whatever the outcome.
         assert page.done[0] == "stream:on"
@@ -1518,16 +1542,15 @@ class TestWhatASurfaceIsShown:
         result = await _browse(page, _decider(DONE), sink=frames, preview=True)
 
         assert result.outcome == "done"
-        # The first paint found nobody; neither the second nor a step's picture is sent.
-        assert [frame.image for frame in frames.of("browser_frame")] == [
-            "data:image/jpeg;base64,P1"
-        ]
-        assert page.shots == 0
+        # No live capture without a viewer; one final picture remains for reopening.
+        assert sum(frame.image is not None for frame in frames.of("browser_frame")) == 1
+        assert "stream:on" not in page.done
+        assert page.shots == 1
 
     async def test_a_page_with_no_picture_sends_no_frame(self):
         frames = _Frames()
         await _browse(_FakePage(image=None), _decider(DONE), sink=frames, preview=True)
-        assert frames.of("browser_frame") == []
+        assert all(frame.image is None for frame in frames.of("browser_frame"))
 
 
 def _browsing_model(*steps: dict[str, Any], seen: list[Any] | None = None) -> FunctionModel:
@@ -1581,7 +1604,7 @@ class _Opener:
             self.closed += 1
 
 
-def _toolset(opener: _Opener, *, cdp_url: str = "http://browser:9222", **policy: Any):
+def _toolset(opener: _Opener | None, *, cdp_url: str = "http://browser:9222", **policy: Any):
     return build_toolset(
         cdp_url=cdp_url,
         page_policy=PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024),
@@ -1659,7 +1682,7 @@ class TestTheToolEndToEnd:
         assert answer.startswith("Paused after 2 steps without finishing.")
 
     async def test_no_endpoint_is_said_rather_than_dialled(self):
-        assert "no browser endpoint" in await _call(_toolset(_Opener(), cdp_url=""))
+        assert "no browser endpoint" in await _call(_toolset(None, cdp_url=""))
 
     async def test_a_first_call_with_no_start_url_says_what_is_missing(self):
         answer = await _call(_toolset(_Opener()), {"task": "carry on"})
@@ -2320,7 +2343,7 @@ class TestTheAgentDrivingTheBrowserItself:
         assert await _direct(_toolset(_Opener()), tool, args) == NO_TAB
 
     async def test_no_endpoint_is_said_rather_than_dialled(self):
-        toolset = _toolset(_Opener(), cdp_url="")
+        toolset = _toolset(None, cdp_url="")
         assert await _direct(toolset, "browser_open", {"url": "https://x.test/"}) == NO_ENDPOINT
 
     async def test_a_browser_that_does_not_answer_is_said_once(self):
@@ -2403,7 +2426,8 @@ class TestADirectActionAndThePerson:
         )
 
         assert frames.of("browser_held")[0].by == "Ada"
-        assert page.done.index("click:0") > 0
+        assert "click:0" not in page.done
+        assert session.last is not None
 
     async def test_unwatched_it_draws_nothing_and_finds_no_pointer(self):
         frames = _Frames()
@@ -2458,9 +2482,9 @@ class TestADirectActionAndThePerson:
             self._view(frames), BrowseSession(page=page), Click(action="click", index=0)
         )
 
-        assert "data:image/jpeg;base64,BBBB" in [
-            frame.image for frame in frames.of("browser_frame")
-        ]
+        # Continuous painting belongs to the toolset; tools only read the DOM.
+        assert "stream:on" not in page.done
+        assert page.shots == 0
 
     async def test_a_page_with_no_picture_paints_nothing_after_the_action(self):
         frames = _Frames()
@@ -2837,6 +2861,319 @@ async def _routed(
     )
     async with toolset:
         yield toolset
+
+
+class TestSeveralBrowserTabs:
+    async def test_switching_reads_fresh_elements_and_closing_releases_every_page(self):
+        opener = _Opener()
+        frames = _Frames()
+        async with _toolset(opener) as toolset:
+            await _direct(toolset, "browser_open", {"url": "https://x.test/"}, sink=frames)
+            first = toolset.session
+            await _direct(
+                toolset,
+                "browser_new_tab",
+                {"url": "https://y.test/"},
+                sink=frames,
+                call_id="second",
+            )
+            second_id = toolset.tab_id
+            assert second_id != "main" and len(toolset.sessions()) == 2
+            assert "main" in await _direct(toolset, "browser_tabs")
+            assert "PAGE:" in await _direct(
+                toolset, "browser_switch_tab", {"tab_id": "main"}, sink=frames, call_id="again"
+            )
+            assert toolset.session is first and first.last is not None
+            assert await toolset.select("main")
+            assert "not open" in await _direct(toolset, "browser_switch_tab", {"tab_id": "missing"})
+            assert "not open" in await _direct(toolset, "browser_close_tab", {"tab_id": "missing"})
+            assert "Closed" in await _direct(toolset, "browser_close_tab", {"tab_id": second_id})
+            assert opener.closed == 1
+            assert "Closed" in await _direct(toolset, "browser_close_tab", {"tab_id": "main"})
+            assert opener.closed == 2 and not toolset.sessions()
+        assert opener.closed == 2
+        assert [frame.tab_id for frame in frames.of("browser_opened")] == [
+            "main",
+            second_id,
+            "main",
+        ]
+
+    async def test_limit_and_teardown_of_parked_tabs(self):
+        opener = _Opener()
+        async with _toolset(opener) as toolset:
+            for i in range(8):
+                await _direct(
+                    toolset, "browser_new_tab", {"url": f"https://x.test/{i}"}, call_id=f"tab-{i}"
+                )
+            assert "Eight tabs" in await _direct(
+                toolset, "browser_new_tab", {"url": "https://x.test/9"}
+            )
+            assert len(opener.opened) == 8
+        assert opener.closed == 8
+
+    async def test_checkpoint_failure_still_closes_all_tabs(self):
+        opener = _Opener()
+        with pytest.raises(RuntimeError, match="checkpoint"):
+            async with _toolset(opener) as toolset:
+                await _direct(toolset, "browser_new_tab", {"url": "https://x.test/"})
+                toolset.checkpoint = AsyncMock(side_effect=RuntimeError("checkpoint"))
+        assert opener.closed == 1
+
+    async def test_private_conversation_restores_cookies_and_tabs(self, monkeypatch):
+        from app.agents.capabilities.browser_use import _sessions
+
+        owner, org, conversation, agent = uuid4(), uuid4(), uuid4(), uuid4()
+        deps = AgentDeps(
+            user_id=str(owner),
+            organization_id=org,
+            agent_id=agent,
+            conversation_id=conversation,
+            audience=RunAudience(user_id=owner, browses_signed_in=True),
+        )
+        monkeypatch.setattr(browser_sign_in, "load_for", AsyncMock(return_value=[]))
+        saved: dict[str, str] = {}
+
+        async def keep(scope: str, sealed: str) -> None:
+            saved[scope] = sealed
+
+        async def read(scope: str) -> str | None:
+            return saved.get(scope)
+
+        monkeypatch.setattr(live_browse, "save_session", keep)
+        monkeypatch.setattr(live_browse, "load_session", read)
+
+        async def invoke(toolset, name, args=None, call_id="view"):
+            ctx = RunContext(
+                deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id=call_id
+            )
+            tools = await toolset.get_tools(ctx)
+            return await toolset.call_tool(name, args or {}, ctx, tools[name])
+
+        page = _FakePage()
+        page.sign_in = SignIn(
+            site="example.test",
+            origin="https://example.test",
+            cookies=[{"name": "auth", "value": "secret-cookie"}],
+        )
+        opener = _Opener(page)
+        async with _toolset(opener) as toolset:
+            await invoke(toolset, "browser_open", {"url": "https://example.test"})
+            await invoke(toolset, "browser_new_tab", {"url": "https://example.test/two"}, "second")
+            selected = toolset.tab_id
+        assert opener.closed == 2
+        assert "secret-cookie" not in next(iter(saved.values()))
+        restored = _Opener()
+        async with _toolset(restored) as toolset:
+            assert "PAGE:" in await invoke(toolset, "browser_read")
+            assert len(toolset.sessions()) == 2 and toolset.tab_id == selected
+            assert restored.opened[0]["sign_ins"] == [page.sign_in]
+            assert len(restored.opened) == 2
+            await invoke(toolset, "browser_read")
+            assert len(restored.opened) == 2
+        assert restored.closed == 2
+        scope = next(iter(saved))
+        assert await _sessions.load("other-conversation", owner) is None
+        monkeypatch.setattr(live_browse, "load_session", AsyncMock(return_value=saved[scope]))
+        assert await _sessions.load("other-conversation", owner) is None
+        from app.core.exceptions import BadRequestError
+
+        with pytest.raises(BadRequestError):
+            await _sessions.load(scope, uuid4())
+
+    async def test_missing_checkpoint_is_an_explicit_no_tab(self, monkeypatch):
+        from app.agents.capabilities.browser_use import _sessions
+
+        monkeypatch.setattr(_sessions, "load", AsyncMock(return_value=None))
+        async with _toolset(_Opener()) as toolset:
+            assert await _direct(toolset, "browser_tabs") == NO_TAB
+            assert await _direct(toolset, "browser_read") == NO_TAB
+
+
+async def test_completed_live_view_keeps_one_final_image_even_without_viewers(monkeypatch):
+    from app.agents.capabilities.browser_use._toolset import _live
+
+    monkeypatch.setattr(live_browse, "available", lambda: True)
+    monkeypatch.setattr(live_browse, "open_view", AsyncMock())
+    monkeypatch.setattr(live_browse, "has_viewers", AsyncMock(return_value=False))
+    publish = AsyncMock()
+    monkeypatch.setattr(live_browse, "publish", publish)
+    chat = _Frames()
+    sink, _, _ = await _live(
+        AgentDeps(run_id=uuid4(), organization_id=uuid4(), browser_events=chat), "view", "task"
+    )
+    assert sink is not None
+    image = BrowserEvent(kind="browser_frame", call_id="view", step=1, image="final")
+    assert not await sink(image)
+    publish.assert_not_awaited()
+    finished = BrowserEvent(kind="browser_finished", call_id="view", step=1, outcome="done")
+    await sink(finished)
+    assert [call.args[-1] for call in publish.await_args_list] == [image, finished]
+    assert [frame.kind for frame in chat.frames] == ["browser_finished"]
+
+
+@pytest.mark.parametrize("failure", [DomainRefused("gone"), None])
+async def test_final_paint_refusal_does_not_prevent_completion(failure):
+    page = _FakePage(image=None)
+    if failure:
+        page.screenshot = AsyncMock(side_effect=failure)
+    frames = _Frames()
+    await close_view(DirectView("view", frames, None, None, None, True), BrowseSession(page=page))
+    assert frames.frames[-1].kind == "browser_finished"
+
+
+@pytest.mark.parametrize(
+    "tool, checkpoint",
+    [
+        ("browser_read", "missing"),
+        ("browser_read", "unreachable"),
+        ("browser_tabs", "unreachable"),
+        ("browser_read", "blank"),
+        ("browser_read", "closed"),
+    ],
+)
+async def test_private_checkpoint_failure_modes(tool, checkpoint, monkeypatch):
+    from app.agents.capabilities.browser_use import _sessions
+
+    owner = uuid4()
+    deps = AgentDeps(
+        user_id=str(owner),
+        organization_id=uuid4(),
+        agent_id=uuid4(),
+        conversation_id=uuid4(),
+        audience=RunAudience(user_id=owner, browses_signed_in=True),
+    )
+    state = _sessions.SavedBrowser(
+        scope="scope",
+        tabs=[_sessions.SavedTab(id="main", url="https://example.test/")],
+        active="main",
+    )
+    monkeypatch.setattr(
+        _sessions, "load", AsyncMock(return_value=None if checkpoint == "missing" else state)
+    )
+    save = AsyncMock()
+    monkeypatch.setattr(_sessions, "save", save)
+    monkeypatch.setattr(browser_sign_in, "load_for", AsyncMock(return_value=[]))
+    opener = _Opener(fails=OSError("closed") if checkpoint == "unreachable" else None)
+    async with _toolset(opener) as ts:
+        ctx = RunContext(
+            deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id="view"
+        )
+        tools = await ts.get_tools(ctx)
+        result = await ts.call_tool(tool, {}, ctx, tools[tool])
+        if checkpoint == "missing":
+            assert result == NO_TAB
+        elif checkpoint == "unreachable":
+            assert result == UNREACHABLE
+        else:
+            assert "PAGE:" in str(result)
+            opener.page.location = AsyncMock(
+                return_value=("about:blank", ""),
+                side_effect=EndpointError("closed") if checkpoint == "closed" else None,
+            )
+    if checkpoint in ("blank", "closed"):
+        assert save.call_args.args[2] == []
+
+
+@pytest.mark.parametrize(
+    "message", ["Execution context was destroyed", "Inspected target navigated or closed"]
+)
+async def test_a_navigation_replacing_the_evaluation_context_is_retried_then_refused_if_closed(
+    message, monkeypatch
+):
+    from app.agents.capabilities.browser_use import _page
+
+    monkeypatch.setattr(_page, "_EVAL_BACKOFF", 0)
+    client = MagicMock()
+    evaluate = AsyncMock(side_effect=[RuntimeError(message), {"result": {"value": "ready"}}])
+    client.send.Runtime.evaluate = evaluate
+    page = CdpPage(
+        client, "session", PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024)
+    )
+    assert (await page._evaluate("document.readyState"))["value"] == "ready"
+    assert evaluate.await_count == 2
+    evaluate.side_effect = RuntimeError(message)
+    with pytest.raises(EndpointError, match="replaced or closed"):
+        await page._evaluate("document.readyState")
+
+
+async def test_a_direct_action_never_waits_for_a_screenshot() -> None:
+    from app.agents.capabilities.browser_use._direct import DirectView
+
+    page = _FakePage(_snapshot(_element(0), text="Loaded article"))
+    page.screenshot = AsyncMock(side_effect=AssertionError("A tool must not capture a preview"))
+    frames = _Frames()
+    view = DirectView(
+        call_id="call", sink=frames, control=None, run_id="run", remember=None, preview=True
+    )
+    result = await act_directly(view, BrowseSession(page=page), Scroll(action="scroll"))
+    assert "Loaded article" in result
+    page.screenshot.assert_not_awaited()
+
+
+async def test_a_replacing_empty_document_is_read_again_before_returning_to_the_model() -> None:
+    from app.agents.capabilities.browser_use._direct import DirectView
+
+    page = _FakePage(_snapshot(_element(0)), _snapshot(text=""), _snapshot(text="Loaded article"))
+    view = DirectView(
+        call_id="call", sink=None, control=None, run_id=None, remember=None, preview=False
+    )
+    result = await act_directly(view, BrowseSession(page=page), Scroll(action="scroll"))
+    assert "Loaded article" in result
+    assert page.done.count("settle") == 2
+
+
+@pytest.mark.parametrize("url,expected", [("https://example.test/empty", 2), ("about:blank", 1)])
+async def test_an_intentionally_empty_page_has_bounded_readiness_retries(
+    url: str, expected: int
+) -> None:
+    from app.agents.capabilities.browser_use._direct import DirectView, open_view
+
+    page = _FakePage(_snapshot(url=url, text=""))
+    page.snapshot = AsyncMock(return_value=_snapshot(url=url, text=""))
+    view = DirectView(
+        call_id="call", sink=None, control=None, run_id=None, remember=None, preview=False
+    )
+    await open_view(view, BrowseSession(page=page), "Read")
+    assert page.snapshot.await_count == expected
+
+
+async def test_direct_tools_capture_only_one_final_frame_after_the_preview_stops() -> None:
+    page = _two_buttons()
+    frames = _Frames()
+    toolset = _toolset(_Opener(page), preview=True)
+    async with toolset:
+        await _direct(toolset, "browser_open", {"url": "https://example.test/"}, sink=frames)
+        await _direct(toolset, "browser_click", {"element": 0}, sink=frames)
+        await _direct(toolset, "browser_scroll", {"direction": "down"}, sink=frames)
+        assert page.shots == 0
+    assert page.shots == 1
+    kinds = [event.kind for event in frames.frames]
+    assert kinds[-2:] == ["browser_frame", "browser_finished"]
+
+
+async def test_dom_browse_loop_only_captures_a_final_picture() -> None:
+    page = _FakePage(*[_snapshot(scroll_y=float(index)) for index in range(4)])
+    frames = _Frames()
+    await _browse(
+        page, _decider(_step(Scroll(action="scroll"))), sink=frames, preview=True, max_steps=2
+    )
+    assert page.shots == 1
+    assert [event.kind for event in frames.frames][-2:] == ["browser_frame", "browser_finished"]
+
+
+@pytest.mark.parametrize(
+    "failure", [DomainRefused("Left allowed domains"), EndpointError("Closed page")]
+)
+async def test_a_missing_final_loop_picture_still_completes_and_closes_the_stream(
+    failure: Exception,
+) -> None:
+    page = _FakePage()
+    page.screenshot = AsyncMock(side_effect=failure)
+    frames = _Frames()
+    result = await _browse(page, _decider(DONE), sink=frames, preview=True)
+    assert result.outcome == "done"
+    assert frames.frames[-1].kind == "browser_finished"
+    assert page.done[-1] == "stream:off"
 
 
 @pytest.mark.parametrize("url", ["https://example.com", "http://example.org", "about:blank"])

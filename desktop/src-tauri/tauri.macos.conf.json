@@ -1,0 +1,12 @@
+{
+  "build": {
+    "beforeBundleCommand": "python3 ../scripts/build_desktop_widget.py"
+  },
+  "bundle": {
+    "macOS": {
+      "files": {
+        "PlugIns/AgenticOSWidgets.appex": "../.widget-build/AgenticOSWidgets.appex"
+      }
+    }
+  }
+}

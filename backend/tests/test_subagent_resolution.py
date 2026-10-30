@@ -729,7 +729,10 @@ class TestAPublishedDelegate:
 
         [entry] = prepared.runtime.subagents
         assert (entry.agent_id, entry.agent_version_id) == (delegate_id, pinned.id)
-        assert prepared.built("research-bot")["spec"].instructions == "Cite."
+        instructions = prepared.built("research-bot")["spec"].instructions
+        assert instructions.startswith("Cite.\n\n")
+        assert "## AgenticOS apps and execution environments" in instructions
+        assert "### Selected for this run" not in instructions
 
     async def test_the_model_addresses_it_by_the_handle_the_row_owns(self):
         """`agents.slug`, not a slug of the pinned name. The row's handle is what
@@ -1432,7 +1435,9 @@ class TestASpecialistTheModelInvents:
         built = prepared.invented(model="fast")
 
         assert built["shared_budget"] is prepared.prepared.built.budget
-        assert built["spec"].instructions == "Be brief."
+        assert built["spec"].instructions.startswith("Be brief.\n\n")
+        assert "## AgenticOS apps and execution environments" in built["spec"].instructions
+        assert "### Selected for this run" not in built["spec"].instructions
         assert built["model"].label == "fast"
 
     async def test_one_reaches_nothing_the_agent_that_invented_it_was_granted(self):

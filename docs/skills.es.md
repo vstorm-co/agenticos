@@ -1,5 +1,5 @@
 ---
-source_sha: "aaecb17bca0b"
+source_sha: "45b8ddef8277"
 ---
 
 # Skills { #skills }
@@ -49,6 +49,8 @@ request, sin ingeniero.
     permanente — corto, siempre relevante, inyectado o leído bajo demanda. Una
     [colección de conocimiento](file-processing.md) es un corpus demasiado
     grande para leerlo, al que se llega por búsqueda.
+
+En Agent Builder, **Skills → New skill** permite escribir un skill sin salir del panel de capacidades. Al guardar se crea la entrada de biblioteca, se vincula al borrador actual y se activa la capacidad Skills. La publicación sigue siendo un paso separado. La acción requiere permisos para editar tanto el agente como los skills.
 
 ## La forma { #the-shape }
 
@@ -218,7 +220,7 @@ cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
 eligen — llegan solos, una vez, al crear la organización.
 
 **Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
-se edita, se deshabilita o se borra. Nada devuelve uno borrado.
+se edita o se borra. Nada devuelve uno borrado.
 
 Esto es un cambio. El listado se rellenaba solo — copiaba dentro cualquier nombre
 incluido que la organización no tuviera, cada vez que alguien abría la página —,
@@ -380,8 +382,10 @@ La alternativa es peor de dos maneras concretas:
   —cuyo rol solo alcanza los skills compartidos— instrucciones más pobres que las
   que le da a un builder, con la diferencia visible en ninguna parte.
 
-Un skill borrado o deshabilitado después de publicar se omite con un aviso en
-lugar de hacer fallar el run. El agent es menos capaz, no está roto.
+Los skills no tienen un interruptor de activación propio: un agente puede usar
+los skills que tiene vinculados. Elimina el vínculo y publica el agente para
+dejar de usar ese skill. Un skill borrado después de publicar se omite con un
+aviso en lugar de interrumpir el run.
 
 ## Recapitulación { #recap }
 

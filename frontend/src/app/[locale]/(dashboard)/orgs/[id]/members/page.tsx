@@ -4,6 +4,10 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Camera,
+  Building2,
+  Mic,
+  Sparkles,
+  Radar,
   Link2,
   Loader2,
   MailPlus,
@@ -122,22 +126,25 @@ export default function OrgMembersPage({ params }: PageProps) {
   const tenantId = useTenantId();
   const [tabParam, setTabParam] = useUrlState("tab");
   const sections = [
-    { id: "members", label: "members", visible: true },
-    { id: "profile", label: "tabProfile", visible: true },
+    { id: "members", label: "members", icon: Users, visible: true },
+    { id: "profile", label: "tabProfile", icon: Building2, visible: true },
     {
       id: "governance",
       label: "tabGovernance",
+      icon: ShieldCheck,
       visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide),
     },
     {
       id: "proactivity",
       label: "tabProactivity",
+      icon: Radar,
       visible: tenantId !== id || can(Perm.budgetsManage) || canSettings,
     },
-    { id: "voice", label: "tabVoice", visible: canSettings },
+    { id: "voice", label: "tabVoice", icon: Mic, visible: canSettings },
     {
       id: "assistant",
       label: "tabAssistant",
+      icon: Sparkles,
       visible: activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id,
     },
   ].filter((section) => section.visible);
@@ -421,6 +428,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         <TabsList data-tour="org-tabs">
           {sections.map((section) => (
             <TabsTrigger key={section.id} value={section.id} data-tour={`org-tab-${section.id}`}>
+              <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t(section.label)}
             </TabsTrigger>
           ))}

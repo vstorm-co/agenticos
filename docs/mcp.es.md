@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf6eb0fde8e"
+source_sha: "c8ff8031efa5"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1129,6 +1129,12 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
 rutina o cambia el idioma de la consola cuando se lo piden.
+
+### Escritorio, móvil y entornos locales { #desktop-mobile-and-local-environments }
+
+El servidor MCP explica las mismas distinciones que los agentes: Desktop puede usar una carpeta, navegador, modelo o servicio HTTP MCP local autorizado para la conversación. Mobile no ofrece ejecución de escritorio. La autorización nativa sigue siendo necesaria; MCP no elige carpetas ni concede acceso en nombre de la persona.
+
+`create_project` acepta `backend` (`auto`, `state`, `service`) y opcionalmente `sandbox_connection_id` para el espacio compartido del servidor. El backend devuelto no describe una elección personal de Computer. Las carpetas locales siguen separadas de las copias compartidas; las respuestas de chats compartidos pueden revelar contenido local. La guía de Architect incluye páginas Desktop, Mobile y Sandbox; cada ejecución recibe información de los recursos locales seleccionados tras validarlos.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 

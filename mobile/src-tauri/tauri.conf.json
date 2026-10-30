@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AgenticOS",
+  "version": "0.1.0",
+  "identifier": "co.vstorm.agenticos",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "The AgenticOS console, on your phone",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "iOS": {
+      "minimumSystemVersion": "16.0"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "mobile": [{ "scheme": ["agenticos"], "appLink": false }]
+    }
+  }
+}

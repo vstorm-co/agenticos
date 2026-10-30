@@ -70,7 +70,7 @@ export function ViewSwitcher({
               aria-pressed={active}
               onClick={() => onViewChange(option)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 border-b-2 px-0.5 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+                "touch:min-h-11 flex shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-0.5 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
                 active
                   ? "border-foreground text-foreground"
                   : "text-muted-foreground hover:text-foreground border-transparent",

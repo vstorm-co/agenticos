@@ -76,7 +76,9 @@ permissions:
 # since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
 # the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
 # `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
-# every step green. It has 45.
+# every step green. The native-client branch's 18,711-test suite reached only
+# 72% at 45 minutes on two workers. Its two passes now get a bounded 90-minute
+# budget and explicitly use the existing four-worker cap on hosted runners.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -233,7 +235,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -266,6 +268,7 @@ jobs:
     # On the job rather than repeated under each step, which is how the `e2e` job
     # below already does it. Four identical copies is four places to forget one.
     env:
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -366,7 +369,8 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The 11,339-test coverage pass took 19m39s before the production build.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
