@@ -1,5 +1,5 @@
 ---
-source_sha: "a216e1026281"
+source_sha: "5132f2298d1b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -111,8 +111,21 @@ ejecutarse. Es un modelo de chat con clave, o uno autoalojado guardado para
 ejecutarse sin clave, que la publicación acepta tal como está, fallbacks incluidos.
 Se aplica a todas las formas de crear un agent: **New agent** en la consola, `POST
 /agents` sin `model_profile_id`, una plantilla, una copia de un borrador sin modelo
-y un especialista promovido. El Architect, el asistente de la organización, elige su
-propio modelo al publicarse.
+y un especialista promovido.
+
+El Architect, el asistente de la organización, elige su propio modelo al publicarse:
+el primer modelo de chat que la publicación acepta, y nunca un modelo con un [inicio
+de sesión de ChatGPT](#running-on-a-chatgpt-subscription). El Architect sirve a toda
+la organización, y un inicio de sesión es la suscripción de una persona: las
+ejecuciones de los miembros que no pueden verlo en el vault se rechazan, y las de
+quienes sí pueden, como los propietarios y administradores de la organización, la
+gastan. Con solo un inicio de sesión, el Architect espera a otro modelo.
+
+Un inicio de sesión que alguien elige en su borrador, o un modelo con un fallback
+a uno, se queda ahí, pero solo se publica cuando alguien que puede cambiar la configuración de la organización lo
+publica en el Builder. Un Architect ya publicado con un inicio de sesión conserva
+ese modelo hasta que alguien que puede cambiar la configuración de la organización
+elige otro en **Build > Model** y lo publica.
 
 El modelo se escribe en el borrador, así que el agent se publica sin que nadie abra
 **Model**, y su historial muestra con qué modelo se publicó. Un spec que nombra un
@@ -132,7 +145,7 @@ nombre de nadie, porque es la suscripción de una persona, pero cuenta como mode
 Tampoco se elige un modelo cuyos fallbacks incluyen un inicio de sesión entre los
 tres primeros, los que prueba un run: cuando el modelo falla, el run de cualquiera
 que pueda ver el inicio de sesión pasaría a esa suscripción. El Architect tampoco
-elige un modelo así ni un inicio de sesión. Un autor todavía puede elegirlo a
+elige un modelo así. Un autor todavía puede elegirlo a
 propósito y publicarlo.
 
 La publicación rechaza entonces el borrador con *No model selected - pick one under

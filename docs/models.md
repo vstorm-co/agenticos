@@ -95,8 +95,22 @@ organization has exactly one model an agent can run on. That is a chat model wit
 key, or a self-hosted one saved to run without a key, which publish accepts as it
 stands, fallbacks included. It applies to every way of creating an agent: **New
 agent** in the console, `POST /agents` without a `model_profile_id`, a template, a
-copy of a draft that has no model, and a promoted specialist. The Architect, the
-organization's assistant, chooses its own model when it publishes.
+copy of a draft that has no model, and a promoted specialist.
+
+The Architect, the organization's assistant, chooses its own model when it
+publishes: the first chat model that publish accepts, and never a model on a
+[ChatGPT sign-in](#running-on-a-chatgpt-subscription). The Architect serves the
+whole organization, and a sign-in is one person's subscription: runs by members who
+may not see it in the vault are refused, and runs by those who may, such as the
+organization's owners and admins, spend it. With only a sign-in, the Architect waits
+for another model.
+
+A sign-in somebody picks in its draft, or a model that falls back to one, stays
+there, but is published only when somebody who may change the organization's
+settings publishes it in the Builder. An
+Architect already published on a sign-in keeps that model until somebody who may
+change the organization's settings picks another under **Build > Model** and
+publishes it.
 
 The model is written into the draft, so the agent publishes without anybody opening
 **Model**, and its history shows which model it was published on. A spec that names
@@ -115,8 +129,8 @@ somebody, because it is one person's subscription, but it counts as a model.
 
 Nor is a new agent started on a model whose fallbacks include a sign-in among
 the first three, the ones a run tries: when the model fails, the run of anybody
-who may see the sign-in would fall back onto that subscription. The Architect does not choose
-such a model, or a sign-in, either. An author may still pick one deliberately
+who may see the sign-in would fall back onto that subscription. The Architect
+does not choose such a model either. An author may still pick one deliberately
 and publish it.
 
 Publish then refuses the draft with *No model selected - pick one under Build >

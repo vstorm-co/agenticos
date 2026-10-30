@@ -77,6 +77,22 @@ async def _model(
     return profile
 
 
+async def _sign_in(db: AsyncSession, organization: Organization, owner: User) -> ModelProfile:
+    """A model on the owner's own ChatGPT sign-in: private, and publishable by them."""
+    profile = ModelProfile(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        # First in the listing, ahead of any `_model`.
+        label="A my ChatGPT",
+        provider="openai_codex",
+        model="gpt-5.4",
+        secret_id=await chatgpt_sign_in(db, organization.id, owner_id=owner.id),
+    )
+    db.add(profile)
+    await db.flush()
+    return profile
+
+
 async def test_its_draft_is_not_held_to_the_only_model_it_was_installed_beside(
     db: AsyncSession,
 ) -> None:
@@ -160,6 +176,85 @@ async def test_a_speech_model_is_not_one_it_publishes_on(db: AsyncSession) -> No
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chat.id
 
 
+async def test_a_chatgpt_sign_in_is_not_one_it_publishes_on(db: AsyncSession) -> None:
+    """One person's subscription: every member's run of the assistant would spend
+    it (#2535). Its owner installing the assistant, who could publish on it, does
+    not change that; the first model the organization can share is chosen."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    await _sign_in(db, organization, owner)
+
+    waiting = await service.state(ctx)
+
+    assert waiting.status == "needs_model"
+    agent = (await db.execute(select(Agent).where(Agent.id == waiting.agent_id))).scalar_one()
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id is None
+
+    keyed = await _model(db, organization)
+    ready = await service.state(ctx)
+
+    assert ready.status == "ready"
+    await db.refresh(agent)
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == keyed.id
+
+
+@pytest.mark.parametrize("beside_a_shared_model", [False, True])
+async def test_a_chatgpt_sign_in_picked_for_it_waits_for_its_author_to_publish(
+    db: AsyncSession, beside_a_shared_model: bool
+) -> None:
+    """The draft keeps the sign-in somebody chose, but the next person to open the
+    console does not publish it for them (#2535) - whether or not the organization
+    has a model it could share."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    sign_in = await _sign_in(db, organization, owner)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": sign_in.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+    if beside_a_shared_model:
+        await _model(db, organization)
+
+    state = await service.state(ctx)
+
+    assert state.status == "needs_model"
+    await db.refresh(agent)
+    assert agent.current_version_id is None
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == sign_in.id
+
+
+@pytest.mark.security
+async def test_a_drafted_model_that_falls_back_to_a_sign_in_waits_for_its_author(
+    db: AsyncSession,
+) -> None:
+    """Somebody's choice stays in the draft, but the next person to open the console
+    does not publish a chain that reaches one person's subscription (#2545)."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    chosen = await _model(db, organization)
+    chosen.fallback_profile_ids = [str((await _sign_in(db, organization, owner)).id)]
+    await db.flush()
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": chosen.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+    await _model(db, organization)
+
+    state = await service.state(ctx)
+
+    assert state.status == "needs_model"
+    await db.refresh(agent)
+    assert agent.current_version_id is None
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
+
+
 @pytest.mark.parametrize("has_valid_model", [False, True])
 async def test_architect_skips_a_chat_profile_with_an_incompatible_fallback(
     db: AsyncSession, has_valid_model: bool
@@ -191,19 +286,12 @@ async def test_it_is_not_published_on_a_model_that_falls_back_to_a_chatgpt_sign_
     (#2545); a chain with no sign-in in it is published on as before."""
     organization, owner = await _organization(db)
     viewer = await _member(db, organization, OrgRoleName.VIEWER)
-    if onto_a_sign_in:
-        fallback = ModelProfile(
-            id=uuid.uuid4(),
-            organization_id=organization.id,
-            label="Z my ChatGPT",
-            provider="openai_codex",
-            model="gpt-5.4",
-            secret_id=await chatgpt_sign_in(db, organization.id, owner_id=owner.id),
-        )
-        db.add(fallback)
-    else:
-        fallback = await _model(db, organization)
-        fallback.label = "Z backup"
+    fallback = (
+        await _sign_in(db, organization, owner)
+        if onto_a_sign_in
+        else await _model(db, organization)
+    )
+    fallback.label = "Z fallback"
     primary = await _model(db, organization)
     primary.label = "A primary"
     primary.fallback_profile_ids = [str(fallback.id)]
@@ -239,6 +327,60 @@ async def test_an_explicit_architect_draft_model_is_preserved(
     await db.flush()
     state = await service.state(ctx)
     assert state.status == ("ready" if compatible else "needs_model")
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
+
+
+async def test_a_sign_in_picked_while_it_looked_is_not_published_from_a_stale_read(
+    db: AsyncSession,
+) -> None:
+    """The draft is read again under the lock: a sign-in saved after the caller
+    read an empty draft is not published on the shared model it found (#2535)."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.update(ctx, AssistantUpdate(enabled=False))
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    stale = Agent(
+        id=agent.id,
+        organization_id=organization.id,
+        name=agent.name,
+        slug=agent.slug,
+        draft_spec=dict(agent.draft_spec),
+    )
+    await _model(db, organization)
+    sign_in = await _sign_in(db, organization, owner)
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": sign_in.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+
+    result = await service._publish_when_possible(organization.id, stale)
+
+    assert result.current_version_id is None
+    assert AgentSpec.model_validate(result.draft_spec).model_profile_id == sign_in.id
+
+
+async def test_a_drafted_model_publish_would_refuse_is_kept_unpublished(
+    db: AsyncSession,
+) -> None:
+    """A chat model whose fallback is a speech model is one it could choose, but
+    publish refuses the chain, so the author's choice waits rather than being swapped."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    installed = await service.state(ctx)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    speech = await _model(db, organization, model="gpt-4o-mini-tts")
+    chosen = await _model(db, organization)
+    chosen.fallback_profile_ids = [str(speech.id)]
+    await db.flush()
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"model_profile_id": chosen.id}
+    )
+    await AgentRegistryService(db).save_draft(ctx, agent.id, spec)
+
+    assert (await service.state(ctx)).status == "needs_model"
+    await db.refresh(agent)
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
 
 

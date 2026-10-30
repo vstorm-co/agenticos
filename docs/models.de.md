@@ -1,5 +1,5 @@
 ---
-source_sha: "a216e1026281"
+source_sha: "5132f2298d1b"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -114,8 +114,23 @@ ein Chat-Modell mit Schlüssel oder ein selbst gehostetes Modell, das ohne Schl�
 gespeichert wurde, und die Veröffentlichung akzeptiert es so, wie es ist, Fallbacks
 eingeschlossen. Das gilt für jeden Weg, einen Agent anzulegen: **Neuer Agent** in
 der Konsole, `POST /agents` ohne `model_profile_id`, eine Vorlage, eine Kopie eines
-Entwurfs ohne Modell und ein beförderter Spezialist. Der Architekt, der Assistent
-der Organisation, wählt sein Modell beim Veröffentlichen selbst.
+Entwurfs ohne Modell und ein beförderter Spezialist.
+
+Der Architekt, der Assistent der Organisation, wählt sein Modell beim
+Veröffentlichen selbst: das erste Chat-Modell, das die Veröffentlichung akzeptiert,
+und nie ein Modell auf einer
+[ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription). Der Architekt dient der
+ganzen Organisation, und eine Anmeldung ist das Abonnement einer Person: Läufe von
+Mitgliedern, die sie im Vault nicht sehen dürfen, werden abgelehnt, und Läufe derer,
+die es dürfen, etwa der Eigentümer und Administratoren der Organisation, verbrauchen
+es. Gibt es nur eine Anmeldung, wartet der Architekt auf ein anderes Modell.
+
+Eine Anmeldung, die jemand im Entwurf des Architekten wählt, oder ein Modell mit
+einer Anmeldung als Fallback bleibt dort, wird aber erst veröffentlicht, wenn jemand, der die Einstellungen der Organisation ändern
+darf, es im Builder veröffentlicht. Ein Architekt, der bereits auf einer Anmeldung
+veröffentlicht ist, behält dieses Modell, bis jemand, der die Einstellungen der
+Organisation ändern darf, unter **Bauen > Modell** (Build > Model) ein anderes wählt
+und es veröffentlicht.
 
 Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
 ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er
@@ -139,7 +154,7 @@ Modell.
 Ebenso wenig ein Modell, unter dessen ersten drei Fallbacks, die ein Run
 versucht, eine Anmeldung ist: Fällt das Modell aus, wiche der Run jedes
 Menschen, der die Anmeldung sehen darf, auf dieses Abonnement aus. Auch der
-Architekt wählt weder ein solches Modell noch eine Anmeldung. Ein Autor kann ein
+Architekt wählt kein solches Modell. Ein Autor kann ein
 solches Modell weiterhin bewusst wählen und veröffentlichen.
 
 Die Veröffentlichung lehnt den Entwurf dann mit *No model selected - pick one under

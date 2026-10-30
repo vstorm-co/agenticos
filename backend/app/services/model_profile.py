@@ -131,9 +131,9 @@ def usable_for_agents(profile: ModelProfile) -> bool:
     A chat model (#2487) with something to authenticate with (#2478). Publish
     refuses a profile that fails either half, so anything choosing a model on
     somebody's behalf - the organization assistant's first publish, a new
-    agent's only model (#2483) - takes only the ones this answers true for. It
-    cannot see a fallback chain or whether a ChatGPT sign-in is the caller's;
-    publish checks those.
+    agent's only model (#2483) - takes only the ones this answers true for, and
+    only those `choosable_for_others` also accepts. It cannot see a fallback
+    chain, which publish checks.
     """
     if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
         return False
@@ -151,20 +151,29 @@ def is_sign_in(profile: ModelProfile) -> bool:
     return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
 
 
-def reaches_a_sign_in(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
-    """Whether a run on this profile can spend a ChatGPT sign-in (#2545).
+def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether the platform may put this profile in an agent nobody chose it for.
 
-    The profile itself, or one of the first `MAX_FALLBACK_DEPTH` fallbacks - all
-    a run tries (`ModelProfileService.resolve`). `profiles` is the organization's
-    own, by id, so an id from elsewhere or one since deleted is not a fallback:
-    the run skips both. Anything choosing a model on somebody's behalf refuses
-    such a profile, because the run of anybody who may see the sign-in - its
-    owner, whoever it is shared with, the organization's owners and admins -
-    spends that one person's subscription.
+    `usable_for_agents`, and no run on it can reach a ChatGPT sign-in, one
+    person's subscription: the profile is not one (#2535), and neither is any
+    of its first `MAX_FALLBACK_DEPTH` fallbacks, all a run tries
+    (`ModelProfileService.resolve`, #2545). A run on a sign-in spends it when
+    the person who started the run may see it in the vault - its owner, anybody
+    it is shared with, and the organization's owners and admins - and is refused
+    otherwise (`_may_spend`). `profiles` is the organization's own, by id, so an
+    id from elsewhere or one since deleted is not a fallback: the run skips both.
+
+    The one rule for every model the platform picks rather than an author: a new
+    agent's only model (#2483) and the organization assistant's publish. An
+    author may still pick such a model deliberately and publish it themselves.
     """
-    return is_sign_in(profile) or any(
-        (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
-        for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
+    return (
+        usable_for_agents(profile)
+        and not is_sign_in(profile)
+        and not any(
+            (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
+            for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
+        )
     )
 
 

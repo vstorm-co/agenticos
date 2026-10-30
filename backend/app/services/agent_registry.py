@@ -140,8 +140,8 @@ from app.services.file_storage import (
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
+    choosable_for_others,
     is_sign_in,
-    reaches_a_sign_in,
     usable_for_agents,
 )
 from app.services.notifications import NotificationService
@@ -1392,13 +1392,12 @@ class AgentRegistryService:
         and quality that belongs to its author, so the draft stays empty and
         publish asks for it. One means a profile `usable_for_agents` - a chat
         model with a key, or a self-hosted one saved to run without one (#2478) -
-        that publish would also accept as it stands,
-        fallback chain included, so the agent publishes without anybody opening
-        Model. Never one a run on which can reach a ChatGPT sign-in, as the
-        model or a fallback (`reaches_a_sign_in`, #2545): that is one person's
-        subscription, and nobody else's run may spend it. It still counts
-        towards "only one", because it is a model the author could deliberately
-        pick.
+        that publish would also accept as it stands, fallback chain included, so
+        the agent publishes without anybody opening Model. Never one a run on
+        which can reach a ChatGPT sign-in, as the model or a fallback
+        (`choosable_for_others`, #2545): that is one person's subscription, not
+        the organization's to hand out. It still counts towards "only one",
+        because it is a model the author could deliberately pick.
 
         Written into the draft, not resolved at run time: there is still no
         organization-wide default, and the agent's own history says which model
@@ -1409,8 +1408,8 @@ class AgentRegistryService:
         # draft as a dangling id (#2478).
         await hold_subject_shared(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
         # Counted after publish's own check, so a broken profile beside a good
-        # one does not make two. A sign-in is counted without it: whether it is
-        # the caller's is publish's question, not whether it is a model.
+        # one does not make two. A sign-in is counted without it: it is a model
+        # the author could pick, and whose it is to spend is decided at run time.
         profiles = await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
         candidates = [
             profile
@@ -1421,7 +1420,7 @@ class AgentRegistryService:
         if len(candidates) != 1:
             return None
         (only,) = candidates
-        if reaches_a_sign_in(only, {p.id: p for p in profiles}):
+        if not choosable_for_others(only, {p.id: p for p in profiles}):
             return None
         return only.id
 

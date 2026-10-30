@@ -1,5 +1,5 @@
 ---
-source_sha: "a216e1026281"
+source_sha: "5132f2298d1b"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -103,8 +103,21 @@ organizacja ma dokładnie jeden model, na którym agent może działać. To mode
 z kluczem albo model self-hosted zapisany do działania bez klucza, który publikacja
 przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu
 tworzenia agenta: **Nowy agent** w konsoli, `POST /agents` bez `model_profile_id`,
-szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty. Architekt,
-asystent organizacji, sam wybiera swój model przy publikacji.
+szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty.
+
+Architekt, asystent organizacji, sam wybiera swój model przy publikacji: pierwszy
+model czatu, który publikacja przyjmuje, i nigdy model na [logowaniu do
+ChatGPT](#running-on-a-chatgpt-subscription). Architekt służy całej organizacji, a
+logowanie to subskrypcja jednej osoby: uruchomienia członków, którzy nie widzą go w
+vault, są odrzucane, a uruchomienia tych, którzy je widzą, na przykład właścicieli i
+administratorów organizacji, zużywają tę subskrypcję. Gdy jest tylko logowanie,
+Architekt czeka na inny model.
+
+Logowanie wybrane przez kogoś w szkicu Architekta, albo model z fallbackiem na
+logowanie, zostaje w nim, ale jest publikowane dopiero wtedy, gdy opublikuje je w Builderze ktoś, kto może zmieniać
+ustawienia organizacji. Architekt opublikowany już wcześniej na logowaniu zachowuje
+ten model, dopóki ktoś, kto może zmieniać ustawienia organizacji, nie wybierze
+innego w **Budowa > Model** (Build > Model) i go nie opublikuje.
 
 Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
 **Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
@@ -125,7 +138,7 @@ to subskrypcja jednej osoby, ale jest liczony jako model.
 Nie jest też wybierany model, którego fallbacki zawierają logowanie wśród
 pierwszych trzech, czyli tych, których próbuje run: gdy model zawiedzie, run
 każdego, kto widzi to logowanie, przeszedłby na tę subskrypcję. Architekt też
-nie wybiera takiego modelu ani logowania. Autor nadal może świadomie wybrać taki
+nie wybiera takiego modelu. Autor nadal może świadomie wybrać taki
 model i go opublikować.
 
 Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
