@@ -1621,6 +1621,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # and the single-use, one-minute code is the credential, as a magic
         # link's token is.
         ("POST", f"{V1}/auth/pairing-codes/redeem"),
+        # Preview uses the same short-lived code without creating a session.
+        ("POST", f"{V1}/auth/pairing-codes/preview"),
         # Confirming a staged email address (#1772). The link is followed from
         # the *new* address, routinely in a different browser from the one that
         # asked for the change, so there is no session to carry - the token is
