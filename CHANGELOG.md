@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Keep frontend test files out of the production Docker build context so desktop UI regression imports do not break the standalone console image. CI still checks and runs those tests in the full repository.
+- Stop release preparation immediately when either updater signing key is missing.
 
 ## [1.31.0] - 2026-10-30
 
