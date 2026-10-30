@@ -310,6 +310,16 @@ describe("pointAt", () => {
     expect(ringed("org-proactivity-model")).toBe(true);
   });
 
+  it("rings the shown copy of a control when a hidden one comes first", async () => {
+    document.body.innerHTML = `
+      <div hidden><button data-tour="agents-new">Hidden</button></div>
+      <button data-tour="agents-new">Shown</button>`;
+
+    await expect(pointAt("agents-new", "/")).resolves.toBe(true);
+    expect(document.querySelectorAll(".assistant-highlight")).toHaveLength(1);
+    expect(document.querySelector(".assistant-highlight")).toHaveTextContent("Shown");
+  });
+
   it("does not ring a control it cannot reveal", async () => {
     // Hidden, and no tab of the walk opens it: nothing the reader could see.
     document.body.innerHTML = `<div hidden><button data-tour="agents-new">New</button></div>`;

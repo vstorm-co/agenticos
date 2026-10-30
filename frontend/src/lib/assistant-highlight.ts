@@ -50,15 +50,20 @@ function find(anchor: string): HTMLElement | null {
 }
 
 /**
- * An anchor the reader can see, or `null`. A control behind another tab can
- * already be in the document: Radix keeps an inactive panel as an empty,
- * `hidden` element (the Activity page's anchors are its panels), and the
- * organization page keeps every panel mounted. Counting such a control as found
- * rang an invisible element and never switched its tab.
+ * The first copy of an anchor outside a `hidden` element and an inactive tab
+ * panel, or `null`. A control behind another tab can already be in the
+ * document: Radix keeps an inactive panel as an empty, `hidden` element (the
+ * Activity page's anchors are its panels), and the organization page keeps
+ * every panel mounted. Counting such a control as found rang an invisible
+ * element and never switched its tab. Hiding by a CSS class is not detected.
  */
 function findShown(anchor: string): HTMLElement | null {
-  const element = find(anchor);
-  return element?.closest('[hidden], [role="tabpanel"][data-state="inactive"]') ? null : element;
+  const copies = document.querySelectorAll<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
+  return (
+    Array.from(copies).find(
+      (copy) => !copy.closest('[hidden], [role="tabpanel"][data-state="inactive"]'),
+    ) ?? null
+  );
 }
 
 /** A path without its locale prefix, read in any case as the middleware reads it. */
