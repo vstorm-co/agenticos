@@ -547,8 +547,12 @@ async def _run_sync(
             # Deleted while the job waited. Falling through would write its files
             # under the deployment-wide scope below, unfiled where any same-named
             # app-scoped base reads them and no base's purge removes them (#2561).
+            # Settled in this session, as the budget refusal below is: a write
+            # that fails raises into a retry rather than leaving the log running.
             reason = "The knowledge base was deleted before this sync ran"
-            await _update_sync_log(sync_log_id, "error", error_message=reason)
+            await RAGSyncService(db).complete_sync(
+                sync_log_id, status="error", error_message=reason
+            )
             return {"status": "error", "message": reason}
         organization_id = None if kb is None else kb.organization_id
         scope = VectorScope(tenant=None) if kb is None else kb.vector_scope
@@ -894,26 +898,31 @@ async def _settle_document_row(
     """
     from app.services.rag_document import RAGDocumentService
 
-    async with get_worker_db_context() as db:
-        documents = RAGDocumentService(db)
-        # A sync's row is opened fresh per file, every run (#992) - there is
-        # no `retry_ingestion` on this path, so `attempt` is always `1`, the
-        # column's own default; re-syncing the same source another night
-        # opens another row rather than resubmitting this one.
-        if result.status is IngestionStatus.DONE and result.document_id:
-            await documents.complete_ingestion(
-                row_id,
-                vector_document_id=result.document_id,
-                chunk_count=result.chunk_count,
-                replaced_document_id=result.replaced_document_id,
-                attempt=1,
-            )
-        else:
-            await documents.fail_ingestion(
-                row_id, result.error_message or "Ingestion failed", attempt=1
-            )
-        if inherited:
-            await documents.add_claims(row_id, sync_source_ids=set(inherited))
+    try:
+        async with get_worker_db_context() as db:
+            documents = RAGDocumentService(db)
+            # A sync's row is opened fresh per file, every run (#992) - there is
+            # no `retry_ingestion` on this path, so `attempt` is always `1`, the
+            # column's own default; re-syncing the same source another night
+            # opens another row rather than resubmitting this one.
+            if result.status is IngestionStatus.DONE and result.document_id:
+                await documents.complete_ingestion(
+                    row_id,
+                    vector_document_id=result.document_id,
+                    chunk_count=result.chunk_count,
+                    replaced_document_id=result.replaced_document_id,
+                    attempt=1,
+                )
+            else:
+                await documents.fail_ingestion(
+                    row_id, result.error_message or "Ingestion failed", attempt=1
+                )
+            if inherited:
+                await documents.add_claims(row_id, sync_source_ids=set(inherited))
+    except NotFoundError:
+        # The base was deleted mid-sync and took the row with it (#2561). Raising
+        # here escaped the per-file loop's own handler and failed the whole run.
+        logger.info("Document %s is gone; nothing to settle", row_id)
 
 
 async def _notify_sync_start_failure(

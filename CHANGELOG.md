@@ -42,6 +42,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Architect highlighting follows locale-cookie redirects and skips controls
+  hidden by a responsive stylesheet.
+
 - Deleting a knowledge base detaches its selected sync sources instead of silently
   moving them into a same-named base. Queued syncs recheck their assignment;
   CLI ingestion refuses names reserved for a pending collection drop.
@@ -122,8 +125,9 @@ Two things are versioned separately from this file and worth knowing about:
   while another base keeps its collection name no longer writes chunks after the
   cleanup job has removed the base's chunks. The write checks that the base
   exists under a row lock that conflicts with the delete's, in the transaction
-  that inserts the chunks; the file fails at the index step and an upload is not
-  retried. A local directory sync queued for a base deleted before it runs now
+  that inserts the chunks; the file fails at the index step, an upload is not
+  retried, and a connector sync continues with its other files. A local directory
+  sync queued for a base deleted before it runs now
   ends with an error instead of writing its files into the deployment-wide
   scope (#2561).
 - A file attached to a turn that the input guardrail blocks is no longer written
