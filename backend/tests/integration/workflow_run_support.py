@@ -202,6 +202,41 @@ async def tick(seeded: SeededRun, node_run_id: uuid.UUID) -> None:
         await db.commit()
 
 
+async def start_attempt(seeded: SeededRun, node_run_id: uuid.UUID) -> dispatcher.BegunAttempt:
+    """Claim a step and commit its `in_flight` attempt, leaving the handler uncalled."""
+    async with seeded.factory() as db:
+        claim = await dispatcher.claim(db, node_run_id=node_run_id)
+        await db.commit()
+    assert claim is not None and claim.claimed_by is not None
+    async with seeded.factory() as db:
+        begun = await dispatcher.begin_attempt(
+            db, workflow_run_id=seeded.run.id, node_run_id=node_run_id, token=claim.claimed_by
+        )
+        await db.commit()
+    assert begun is not None
+    return begun
+
+
+async def begin(
+    seeded: SeededRun, node_run_id: uuid.UUID
+) -> tuple[dispatcher.BegunAttempt, dispatcher.HandlerOutcome]:
+    """The first three phases of a tick - claim, begin, call - leaving `settle` to the test.
+
+    For a test that needs two steps of one run in flight at once.
+    """
+    begun = await start_attempt(seeded, node_run_id)
+    return begun, await dispatcher.call_handler(begun)
+
+
+async def settle(
+    seeded: SeededRun, begun: dispatcher.BegunAttempt, outcome: dispatcher.HandlerOutcome
+) -> None:
+    """Settle one attempt `begin` left in flight, in a transaction of its own."""
+    async with seeded.factory() as db:
+        await dispatcher.settle(db, begun=begun, outcome=outcome)
+        await db.commit()
+
+
 async def drive(seeded: SeededRun, *, max_ticks: int = 200) -> WorkflowRun:
     """Tick every node that is due until none is left, and return the run as it stands.
 

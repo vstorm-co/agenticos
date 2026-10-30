@@ -44,16 +44,25 @@ from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, NodeHandler, Port, RetryGuarantee
 from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.contracts.policy import NodePolicy, RetryPolicy
-from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
+from app.workflows.contracts.results import (
+    Completed,
+    Failed,
+    NodeResult,
+    Uncertain,
+    Waiting,
+    WorkflowError,
+)
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from app.workflows.graph.validate import validate_graph
 from tests.integration.workflow_run_support import (
     SeededRun,
+    begin,
     drive,
     node_statuses,
     run_row,
     seed_member,
     seed_run,
+    settle,
     tick,
 )
 
@@ -153,6 +162,14 @@ async def _revoked(config: BaseModel | None, node_input: BaseModel | None) -> No
     )
 
 
+async def _fails(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+    return Failed(error=WorkflowError(code="LEG_FAILED", message="This leg failed"))
+
+
+async def _unsure(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
+    return Uncertain(detail="Cannot tell whether the write landed")
+
+
 async def _slow(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     await asyncio.sleep(5)
     return Completed[_Empty](output=_Empty())  # pragma: no cover - always cut off first
@@ -200,6 +217,8 @@ def synthetic_nodes() -> Iterator[None]:
         _synthetic("test.slow_read", _slow),
         _synthetic("test.slow_write", _slow, effect="write", guarantee="at_least_once"),
         _synthetic("test.flaky", _flaky),
+        _synthetic("test.fails", _fails),
+        _synthetic("test.unsure", _unsure, effect="write", guarantee="none"),
         replace(
             _synthetic("test.asks_approval", _asks_approval, effect="write"),
             output_schema=_Resumed,
@@ -1051,3 +1070,382 @@ async def test_loop_outputs_share_the_inline_result_allowance(engine, monkeypatc
     assert refused.status == "failed"
     assert refused.error["code"] == "WORKFLOW_INLINE_RESULT_LIMIT"
     assert refused.error["bypassable"] is False
+
+
+# Loops whose iteration runs side by side
+
+
+class _Parallel:
+    """input -> foreach(items) -body-> item -> (first, second); second -> yield.
+
+    `first` and `second` are each a step that fails (`error.raise`) or one that succeeds.
+    """
+
+    def __init__(
+        self,
+        *,
+        policy: str,
+        first_fails: bool = True,
+        second_fails: bool = False,
+        second_unsure: bool = False,
+        routed_loop: bool = False,
+    ) -> None:
+        self.entry = _node("core.input")
+        self.loop = _node(
+            "control.foreach",
+            {"item_error_policy": policy},
+            policy=ROUTE if routed_loop else None,
+        )
+        self.item = _node("loop.item")
+        self.first = (
+            _node("error.raise", {"code": "FIRST_FAILED", "message": "First"})
+            if first_fails
+            else _node("data.map", {"mappings": [{"target_field": "f", "source_path": "'1'"}]})
+        )
+        separate = second_fails or second_unsure
+        if second_unsure:
+            self.second = _node("test.unsure")
+        elif second_fails:
+            self.second = _node("error.raise", {"code": "SECOND_FAILED", "message": "Second"})
+        else:
+            self.second = _node(
+                "data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]}
+            )
+        # What feeds the yield: the second leg, or a third when the second fails.
+        self.feeder = (
+            _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]})
+            if separate
+            else self.second
+        )
+        self.yield_ = _node("loop.yield")
+        self.out = _node("core.output")
+        self.rescued = _node("core.output")
+        nodes = [
+            self.entry,
+            self.loop,
+            self.item,
+            self.first,
+            self.second,
+            self.yield_,
+            self.out,
+        ]
+        if separate:
+            nodes.append(self.feeder)
+        edges = [
+            _edge(self.entry, self.loop),
+            _edge(self.loop, self.item, "body"),
+            _edge(self.loop, self.out, "done"),
+            _edge(self.item, self.first),
+            _edge(self.item, self.second),
+            _edge(self.feeder, self.yield_),
+        ]
+        if separate:
+            edges.append(_edge(self.item, self.feeder))
+        bindings = [
+            _bind(self.loop, "items", self.entry, "out", "payload", "items"),
+            _bind(self.yield_, "value", self.feeder, "out", "values"),
+            _bind(self.out, "structured", self.loop, "done"),
+        ]
+        if routed_loop:
+            nodes.append(self.rescued)
+            edges.append(_edge(self.loop, self.rescued, "error"))
+        self.graph = WorkflowGraph(
+            entry_node_id=self.entry.id,
+            nodes=tuple(nodes),
+            edges=tuple(edges),
+            bindings=tuple(bindings),
+        )
+
+
+async def _row(seeded: SeededRun, node: NodeInstance, index: int) -> NodeRun | None:
+    return next(
+        (row for row in await _body_rows(seeded, node.id) if row.scope_path[0]["index"] == index),
+        None,
+    )
+
+
+async def _into_the_first_iteration(seeded: SeededRun, parallel: _Parallel) -> None:
+    """Tick the entry and the loop: iteration 0 is open with both legs queued."""
+    for node in (parallel.entry, parallel.loop):
+        async with seeded.factory() as db:
+            row = (
+                await db.execute(
+                    select(NodeRun).where(
+                        NodeRun.workflow_run_id == seeded.run.id,
+                        NodeRun.node_instance_id == node.id,
+                    )
+                )
+            ).scalar_one()
+        await tick(seeded, row.id)
+
+
+async def test_an_iteration_with_parallel_legs_ends_when_both_legs_settle(engine: AsyncEngine):
+    parallel = _Parallel(policy="stop", first_fails=False)
+    seeded = await _run(engine, parallel.graph, {"items": ["a", "b"]})
+    await _into_the_first_iteration(seeded, parallel)
+
+    # One leg settling does not end the iteration: its sibling is still queued.
+    first = await _row(seeded, parallel.first, 0)
+    assert first is not None
+    await tick(seeded, first.id)
+    assert await _row(seeded, parallel.item, 1) is None
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    assert run.output["structured"]["results"] == [{"s": "2"}, {"s": "2"}]
+
+
+async def test_under_collect_a_failed_legs_sibling_runs_to_the_end_of_its_iteration(
+    engine: AsyncEngine,
+):
+    parallel = _Parallel(policy="collect")
+    seeded = await _run(engine, parallel.graph, {"items": ["a", "b"]})
+    await _into_the_first_iteration(seeded, parallel)
+
+    failing = await _row(seeded, parallel.first, 0)
+    assert failing is not None
+    await tick(seeded, failing.id)
+
+    # The failed leg's sibling has not run yet, so the iteration is still open.
+    assert await _row(seeded, parallel.item, 1) is None
+    second = await _row(seeded, parallel.second, 0)
+    assert second is not None and second.status == NodeRunStatus.PENDING.value
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    structured = run.output["structured"]
+    assert structured["results"] == [{"s": "2"}, {"s": "2"}]
+    assert [error["index"] for error in structured["errors"]] == [0, 1]
+
+
+async def test_under_collect_two_failed_legs_record_one_error_for_their_index(
+    engine: AsyncEngine,
+):
+    parallel = _Parallel(policy="collect", second_fails=True)
+    seeded = await _run(engine, parallel.graph, {"items": ["a"]})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    (error,) = run.output["structured"]["errors"]
+    rows = [await _row(seeded, parallel.first, 0), await _row(seeded, parallel.second, 0)]
+    earliest = min((row for row in rows if row is not None), key=lambda row: row.ended_at)
+    assert error["code"] == (
+        "FIRST_FAILED" if earliest.node_instance_id == parallel.first.id else "SECOND_FAILED"
+    )
+
+
+@pytest.mark.parametrize("routed_loop", [False, True])
+async def test_under_stop_a_failed_leg_cancels_its_sibling_and_fails_the_loop(
+    engine: AsyncEngine, routed_loop: bool
+):
+    parallel = _Parallel(policy="stop", routed_loop=routed_loop)
+    seeded = await _run(engine, parallel.graph, {"items": ["a", "b"]})
+    await _into_the_first_iteration(seeded, parallel)
+
+    failing = await _row(seeded, parallel.first, 0)
+    assert failing is not None
+    await tick(seeded, failing.id)
+
+    sibling = await _row(seeded, parallel.second, 0)
+    assert sibling is not None and sibling.status == NodeRunStatus.CANCELLED.value
+    async with seeded.factory() as db:
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(DispatchOutbox)
+                .where(
+                    DispatchOutbox.node_run_id == sibling.id, DispatchOutbox.status == "cancelled"
+                )
+            )
+            == 1
+        )
+    assert (await node_statuses(seeded))[parallel.loop.id] == NodeRunStatus.FAILED.value
+    assert await _row(seeded, parallel.item, 1) is None
+    # A loop that routes its errors hands the run on to its handler; otherwise the run ends.
+    final = await drive(seeded)
+    expected = WorkflowRunStatus.SUCCEEDED if routed_loop else WorkflowRunStatus.FAILED
+    assert final.status == expected.value
+
+
+async def test_a_late_settle_in_a_failed_loop_starts_no_next_iteration(engine: AsyncEngine):
+    parallel = _Parallel(policy="stop", routed_loop=True)
+    seeded = await _run(engine, parallel.graph, {"items": ["a", "b"]})
+    await _into_the_first_iteration(seeded, parallel)
+    legs = {}
+    for leg in (parallel.first, parallel.second):
+        row = await _row(seeded, leg, 0)
+        assert row is not None
+        legs[leg.id] = await begin(seeded, row.id)
+
+    await settle(seeded, *legs[parallel.first.id])
+    await settle(seeded, *legs[parallel.second.id])
+
+    assert await _row(seeded, parallel.item, 1) is None
+    # The sibling's work is recorded as it happened, and nothing follows from it.
+    second = await _row(seeded, parallel.second, 0)
+    assert second is not None and second.status == NodeRunStatus.SUCCEEDED.value
+    assert await _row(seeded, parallel.yield_, 0) is None
+    assert (await node_statuses(seeded))[parallel.loop.id] == NodeRunStatus.FAILED.value
+
+
+async def test_a_loop_whose_iteration_skips_a_step_still_ends(engine: AsyncEngine):
+    entry, loop, item = _node("core.input"), _node("control.foreach"), _node("loop.item")
+    decide = _node("logic.if", {"condition": "value.item"})
+    keep = _node("data.map", {"mappings": [{"target_field": "k", "source_path": "'kept'"}]})
+    yield_, out = _node("loop.yield"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, loop, item, decide, keep, yield_, out),
+        edges=(
+            _edge(entry, loop),
+            _edge(loop, item, "body"),
+            _edge(loop, out, "done"),
+            _edge(item, decide),
+            _edge(decide, keep, "true"),
+            _edge(keep, yield_),
+        ),
+        bindings=(
+            _bind(loop, "items", entry, "out", "payload", "items"),
+            _bind(decide, "value", item, "out"),
+            _bind(yield_, "value", keep, "out", "values"),
+            _bind(out, "structured", loop, "done"),
+        ),
+    )
+    seeded = await _run(engine, graph, {"items": [True, False, True]})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    assert run.output["structured"]["results"] == [{"k": "kept"}, None, {"k": "kept"}]
+
+
+async def test_under_collect_a_join_after_a_failed_leg_is_skipped_and_the_iteration_ends(
+    engine: AsyncEngine, synthetic_nodes: None
+):
+    entry, item = _node("core.input"), _node("loop.item")
+    loop = _node("control.foreach", {"item_error_policy": "collect"})
+    broken = _node("test.fails")
+    ok = _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]})
+    join = _node("data.map", {"mappings": [{"target_field": "j", "source_path": "'3'"}]})
+    yield_, out = _node("loop.yield"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, loop, item, broken, ok, join, yield_, out),
+        edges=(
+            _edge(entry, loop),
+            _edge(loop, item, "body"),
+            _edge(loop, out, "done"),
+            _edge(item, broken),
+            _edge(item, ok),
+            _edge(broken, join),
+            _edge(ok, join),
+            _edge(ok, yield_),
+        ),
+        bindings=(
+            _bind(loop, "items", entry, "out", "payload", "items"),
+            _bind(yield_, "value", ok, "out", "values"),
+            _bind(out, "structured", loop, "done"),
+        ),
+    )
+    seeded = await _run(engine, graph, {"items": ["a", "b"]})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.output is not None
+    structured = run.output["structured"]
+    assert structured["results"] == [{"s": "2"}, {"s": "2"}]
+    assert [error["index"] for error in structured["errors"]] == [0, 1]
+    joined = await _body_rows(seeded, join.id)
+    assert [row.status for row in joined] == [NodeRunStatus.SKIPPED.value] * 2
+
+
+async def test_under_stop_a_sibling_needing_attention_is_cancelled_and_the_run_stops_reading_so(
+    engine: AsyncEngine, synthetic_nodes: None
+):
+    parallel = _Parallel(policy="stop", second_unsure=True, routed_loop=True)
+    seeded = await seed_run(engine, parallel.graph, run_input={"items": ["a"]})
+    await _into_the_first_iteration(seeded, parallel)
+    unsure = await _row(seeded, parallel.second, 0)
+    failing = await _row(seeded, parallel.first, 0)
+    assert unsure is not None and failing is not None
+    await tick(seeded, unsure.id)
+    assert (await run_row(seeded)).status == WorkflowRunStatus.NEEDS_ATTENTION.value
+
+    await tick(seeded, failing.id)
+
+    stopped = await _row(seeded, parallel.second, 0)
+    assert stopped is not None and stopped.status == NodeRunStatus.CANCELLED.value
+    assert (await run_row(seeded)).status != WorkflowRunStatus.NEEDS_ATTENTION.value
+
+
+@pytest.mark.parametrize("inner_policy", ["collect", "stop"])
+async def test_a_loop_inside_a_loop_follows_its_own_policy_for_its_failed_legs(
+    engine: AsyncEngine, synthetic_nodes: None, inner_policy: str
+):
+    entry, outer, outer_item = _node("core.input"), _node("control.foreach"), _node("loop.item")
+    inner = _node("control.foreach", {"item_error_policy": inner_policy})
+    inner_item, broken = _node("loop.item"), _node("test.fails")
+    ok = _node("data.map", {"mappings": [{"target_field": "s", "source_path": "'2'"}]})
+    inner_yield, outer_yield, out = _node("loop.yield"), _node("loop.yield"), _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(
+            entry,
+            outer,
+            outer_item,
+            inner,
+            inner_item,
+            broken,
+            ok,
+            inner_yield,
+            outer_yield,
+            out,
+        ),
+        edges=(
+            _edge(entry, outer),
+            _edge(outer, outer_item, "body"),
+            _edge(outer, out, "done"),
+            _edge(outer_item, inner),
+            _edge(inner, inner_item, "body"),
+            _edge(inner, outer_yield, "done"),
+            _edge(inner_item, broken),
+            _edge(inner_item, ok),
+            _edge(ok, inner_yield),
+        ),
+        bindings=(
+            _bind(outer, "items", entry, "out", "payload", "rows"),
+            _bind(inner, "items", outer_item, "out", "item"),
+            _bind(inner_yield, "value", ok, "out", "values"),
+            _bind(outer_yield, "value", inner, "done", "results"),
+            _bind(out, "structured", outer, "done"),
+        ),
+    )
+    seeded = await _run(engine, graph, {"rows": [["a", "b"], ["c"]]})
+
+    run = await drive(seeded)
+
+    if inner_policy == "collect":
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        assert run.output is not None
+        assert run.output["structured"]["results"] == [
+            [{"s": "2"}, {"s": "2"}],
+            [{"s": "2"}],
+        ]
+        # Every inner iteration ended; none was left open by its failed leg.
+        assert len(await _body_rows(seeded, inner_item.id)) == 3
+    else:
+        assert run.status == WorkflowRunStatus.FAILED.value
+        assert run.error is not None and run.error["code"] == "LEG_FAILED"
+        statuses = {row.status for row in await _body_rows(seeded, ok.id)}
+        assert NodeRunStatus.CANCELLED.value in statuses
+        # The second item of the inner list, and the second outer row, never started.
+        assert len(await _body_rows(seeded, inner_item.id)) == 1
+        assert len(await _body_rows(seeded, outer_item.id)) == 1

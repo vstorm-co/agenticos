@@ -15,6 +15,7 @@ from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    ColumnElement,
     Interval,
     Select,
     String,
@@ -333,19 +334,44 @@ async def create_node_run(
 # the admission reservation durable: a wide graph holds its whole count the moment
 # it is admitted, long before its downstream nodes exist.
 #
-# `needs_attention` is excluded though it is not terminal: it is a dead end a
-# person resolves by cancelling (there is no resume path), so a run parked there
-# will never schedule the rest of its graph, and charging its whole `node_count`
-# forever would let a few failed wide runs exhaust the quota and 429 every later
-# start until each is cancelled by hand. Whatever nodes such a run still had
-# queued or running drain through the runner regardless - bounded by
-# the workflow pool's `WORKER_WORKFLOW_CONCURRENCY` per worker, never re-grown, since a
-# parked run enqueues no successors.
+# `needs_attention` is not in this set though it is not terminal: it is a dead end a
+# person resolves by retrying or cancelling, so a run parked there will not schedule
+# the rest of its graph, and charging its whole `node_count` for ever would let a few
+# stuck wide runs exhaust the quota and 429 every later start until each is
+# resolved by hand. It holds quota only while it still has live node work: a step
+# of it executing (an `in_flight` attempt) or a claimed dispatch row - a sibling
+# branch that is still finishing. A dispatch row that is only `pending` is not held
+# work: nothing is executing, and a person is not waiting on a worker. `_holds_quota`
+# is the whole rule.
 _LIVE_RUN_STATUSES = tuple(
     status.value
     for status in WorkflowRunStatus
     if not status.is_terminal and status is not WorkflowRunStatus.NEEDS_ATTENTION
 )
+
+# A step of the run executes, or a worker holds a step's dispatch row.
+_HAS_LIVE_NODE_WORK = or_(
+    exists().where(
+        NodeAttempt.node_run_id == NodeRun.id,
+        NodeRun.workflow_run_id == WorkflowRun.id,
+        NodeAttempt.status == NodeAttemptStatus.IN_FLIGHT.value,
+    ),
+    exists().where(
+        DispatchOutbox.workflow_run_id == WorkflowRun.id,
+        DispatchOutbox.status == DispatchOutboxStatus.CLAIMED.value,
+    ),
+)
+
+
+def _holds_quota() -> ColumnElement[bool]:
+    """Whether a run still reserves node work: live status, or needing attention with work in hand."""
+    return or_(
+        WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
+        and_(
+            WorkflowRun.status == WorkflowRunStatus.NEEDS_ATTENTION.value,
+            _HAS_LIVE_NODE_WORK,
+        ),
+    )
 
 
 async def count_unfinished_runs(
@@ -412,7 +438,7 @@ async def count_live_runs(
                 WorkflowRun.organization_id == organization_id,
                 WorkflowRun.workflow_id == workflow_id,
                 WorkflowRun.mode == mode,
-                WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
+                _holds_quota(),
             )
         )
         or 0
@@ -425,17 +451,17 @@ async def count_live_runs_with_status(
     organization_id: UUID,
     workflow_id: UUID,
     mode: str,
-    status: WorkflowRunStatus,
+    statuses: Sequence[WorkflowRunStatus],
 ) -> int:
-    """How many of one workflow's live runs in `mode` are in `status`."""
+    """How many of one workflow's runs in `mode` that hold quota are in one of `statuses`."""
     return int(
         await db.scalar(
             select(func.count()).where(
                 WorkflowRun.organization_id == organization_id,
                 WorkflowRun.workflow_id == workflow_id,
                 WorkflowRun.mode == mode,
-                WorkflowRun.status == status.value,
-                WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
+                WorkflowRun.status.in_([status.value for status in statuses]),
+                _holds_quota(),
             )
         )
         or 0
@@ -644,7 +670,11 @@ async def runs_by_workflow(
 async def count_waiting_on_people(
     db: AsyncSession, *, organization_id: UUID, user_id: UUID, see_all: bool, shared_ids: list[UUID]
 ) -> int:
-    """All visible workflows' real runs currently waiting for a person."""
+    """All visible workflows' real runs currently waiting for a person.
+
+    A run is counted once, by its derived status (`run_status.derive_status`): an approval
+    wait beside a branch that is still running is one run waiting for approval.
+    """
     visible = _visible_workflows(
         organization_id=organization_id, user_id=user_id, see_all=see_all, shared_ids=shared_ids
     )
@@ -677,9 +707,7 @@ async def sum_reserved_node_work(
     the principal ceiling reads it across every organization, so a caller who can
     create organizations cannot get a fresh allowance in each.
     """
-    stmt = select(func.coalesce(func.sum(WorkflowRun.node_count), 0)).where(
-        WorkflowRun.status.in_(_LIVE_RUN_STATUSES),
-    )
+    stmt = select(func.coalesce(func.sum(WorkflowRun.node_count), 0)).where(_holds_quota())
     if organization_id is not None:
         stmt = stmt.where(WorkflowRun.organization_id == organization_id)
     if principal_user_id is not None:
@@ -785,7 +813,10 @@ async def list_attempts_of(db: AsyncSession, *, node_run_ids: Sequence[UUID]) ->
 
 
 async def list_live_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> list[NodeRun]:
-    """A run's `NodeRun`s not yet ended - what ending the run has to close."""
+    """A run's `NodeRun`s not yet ended - what ending the run has to close.
+
+    A step needing attention is open work too: nothing will resolve it once the run ends.
+    """
     result = await db.execute(
         select(NodeRun).where(
             NodeRun.workflow_run_id == workflow_run_id,
@@ -794,11 +825,37 @@ async def list_live_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> lis
                     NodeRunStatus.PENDING.value,
                     NodeRunStatus.RUNNING.value,
                     NodeRunStatus.WAITING.value,
+                    NodeRunStatus.NEEDS_ATTENTION.value,
                 ]
             ),
         )
     )
     return list(result.scalars().all())
+
+
+LiveNodeState = tuple[NodeRunStatus, WaitingReason | None]
+"""A live step's status and, if it waits, what for - all a run's derived status reads."""
+
+
+async def list_live_node_states(db: AsyncSession, *, workflow_run_id: UUID) -> list[LiveNodeState]:
+    """The status and wait reason of every live step of a run, needing attention included."""
+    result = await db.execute(
+        select(NodeRun.status, NodeRun.waiting_reason).where(
+            NodeRun.workflow_run_id == workflow_run_id,
+            NodeRun.status.in_(
+                [
+                    NodeRunStatus.PENDING.value,
+                    NodeRunStatus.RUNNING.value,
+                    NodeRunStatus.WAITING.value,
+                    NodeRunStatus.NEEDS_ATTENTION.value,
+                ]
+            ),
+        )
+    )
+    return [
+        (NodeRunStatus(status), None if reason is None else WaitingReason(reason))
+        for status, reason in result.all()
+    ]
 
 
 async def count_node_runs(db: AsyncSession, *, workflow_run_id: UUID) -> int:
@@ -1433,6 +1490,24 @@ async def cancel_live_outbox_for_run(db: AsyncSession, *, workflow_run_id: UUID)
         sql_update(DispatchOutbox)
         .where(
             DispatchOutbox.workflow_run_id == workflow_run_id,
+            DispatchOutbox.status.in_(
+                [DispatchOutboxStatus.PENDING.value, DispatchOutboxStatus.CLAIMED.value]
+            ),
+        )
+        .values(status=DispatchOutboxStatus.CANCELLED.value)
+        .returning(DispatchOutbox.id)
+    )
+    return result.scalars().all()
+
+
+async def cancel_live_outbox_for_node_runs(
+    db: AsyncSession, *, node_run_ids: Sequence[UUID]
+) -> Sequence[UUID]:
+    """Cancel every `pending` or `claimed` outbox row of these node runs. Returns the ids touched."""
+    result = await db.execute(
+        sql_update(DispatchOutbox)
+        .where(
+            DispatchOutbox.node_run_id.in_(node_run_ids),
             DispatchOutbox.status.in_(
                 [DispatchOutboxStatus.PENDING.value, DispatchOutboxStatus.CLAIMED.value]
             ),

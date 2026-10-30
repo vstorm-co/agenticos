@@ -31,12 +31,15 @@ from app.workflows.contracts.results import Completed, Failed, NodeResult, Workf
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import (
     SeededRun,
+    begin,
     drive,
     node_statuses,
     run_people,
     seed_agent,
     seed_member,
     seed_run,
+    settle,
+    tick,
 )
 
 pytestmark = pytest.mark.anyio
@@ -465,3 +468,137 @@ async def test_a_retry_imports_nested_file_outputs_without_granting_unrelated_fi
         await db.flush()
         with pytest.raises(InvalidBindingError):
             await dispatcher._reused_output(db, run=retry.run, node_run=step)
+
+
+# A run that failed on one leg while its sibling was still executing
+
+
+def _node(definition_id: str, config: dict | None = None) -> NodeInstance:
+    return NodeInstance(
+        id=uuid.uuid4(),
+        definition_id=definition_id,
+        definition_version=1,
+        config=config or {},
+        layout=NodePosition(x=0, y=0),
+    )
+
+
+async def _failed_beside_a_finishing_leg(
+    engine: AsyncEngine, flaky: str, late: NodeInstance, *, bindings: tuple[Binding, ...] = ()
+) -> SeededRun:
+    """entry -> flaky, late. `flaky` fails the run, then `late` finishes after it ended."""
+    entry, failing = _node("core.input"), _node(flaky)
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, failing, late),
+        edges=tuple(
+            Edge(
+                id=uuid.uuid4(),
+                source_node_id=entry.id,
+                source_port="out",
+                target_node_id=target.id,
+                target_port="in",
+            )
+            for target in (failing, late)
+        ),
+        bindings=bindings,
+    )
+    seeded = await seed_run(engine, graph)
+    async with seeded.factory() as db:
+        rows = {
+            node.id: row
+            for node in graph.nodes
+            if (
+                row := await workflow_run_repo.get_node_run_by_identity(
+                    db, workflow_run_id=seeded.run.id, node_instance_id=node.id, scope_path=[]
+                )
+            )
+        }
+    await tick(seeded, rows[entry.id].id)
+    async with seeded.factory() as db:
+        legs = {
+            node.id: (
+                await workflow_run_repo.get_node_run_by_identity(
+                    db, workflow_run_id=seeded.run.id, node_instance_id=node.id, scope_path=[]
+                )
+            ).id
+            for node in (failing, late)
+        }
+    in_flight = {node_id: await begin(seeded, row_id) for node_id, row_id in legs.items()}
+    await settle(seeded, *in_flight[failing.id])
+    await settle(seeded, *in_flight[late.id])
+    return seeded
+
+
+async def _retried(seeded: SeededRun) -> SeededRun:
+    async with seeded.factory() as db:
+        retried = await WorkflowExecutionService(db).retry(seeded.ctx, seeded.run.id)
+        await db.commit()
+        run = await workflow_run_repo.get_run(db, retried.id, organization_id=seeded.org.id)
+    return SeededRun(
+        run=run,
+        graph=seeded.graph,
+        principal=seeded.principal,
+        org=seeded.org,
+        factory=seeded.factory,
+    )
+
+
+async def test_a_retry_reuses_a_leg_that_finished_after_the_run_failed(engine: AsyncEngine, kinds):
+    steady, flaky = kinds
+    seeded = await _failed_beside_a_finishing_leg(engine, flaky, _node(steady))
+    assert (await drive(seeded)).status == WorkflowRunStatus.FAILED.value
+    assert calls == {"flaky": 1, "steady": 1}
+
+    finished = await drive(await _retried(seeded))
+
+    assert finished.status == WorkflowRunStatus.SUCCEEDED.value
+    # The leg's write really happened the first time; it is not made again.
+    assert calls == {"flaky": 2, "steady": 1}
+
+
+async def test_a_retry_that_reuses_an_output_step_keeps_the_runs_answer(engine: AsyncEngine, kinds):
+    _steady, flaky = kinds
+    out = _node("core.output")
+    seeded = await _failed_beside_a_finishing_leg(
+        engine,
+        flaky,
+        out,
+        bindings=(
+            Binding(target_node_id=out.id, target_field="text", source=LiteralValue(value="Done")),
+        ),
+    )
+    failed = await drive(seeded)
+    assert failed.status == WorkflowRunStatus.FAILED.value
+    assert failed.output is None
+
+    finished = await drive(await _retried(seeded))
+
+    assert finished.status == WorkflowRunStatus.SUCCEEDED.value
+    assert finished.output is not None and finished.output["text"] == "Done"
+
+
+async def test_a_retry_that_reuses_a_respond_step_keeps_the_webhook_answer(
+    engine: AsyncEngine, kinds
+):
+    _steady, flaky = kinds
+    respond = _node("webhook.respond", {"status_code": 202})
+    seeded = await _failed_beside_a_finishing_leg(
+        engine,
+        flaky,
+        respond,
+        bindings=(
+            Binding(
+                target_node_id=respond.id, target_field="body", source=LiteralValue(value="ok")
+            ),
+        ),
+    )
+    failed = await drive(seeded)
+    assert failed.status == WorkflowRunStatus.FAILED.value
+    assert failed.webhook_response is None
+
+    finished = await drive(await _retried(seeded))
+
+    assert finished.webhook_response is not None
+    assert finished.webhook_response["status_code"] == 202
+    assert finished.webhook_response["body"] == "ok"

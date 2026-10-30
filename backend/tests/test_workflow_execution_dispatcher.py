@@ -7,6 +7,7 @@ thing most worth proving wrong.
 """
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -600,6 +601,8 @@ def repo():
     mocked.count_failed_attempts.return_value = 1
     # Nothing else is live, and no loop is iterating, unless a test says so.
     mocked.list_live_node_runs.return_value = []
+    # No other step is live, so a run reads as running, unless a test says so.
+    mocked.list_live_node_states.return_value = []
     mocked.list_node_runs_at.return_value = []
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}
@@ -613,10 +616,41 @@ def repo():
         patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.admission.workflow_run_repo", new=mocked),
         patch(f"{DISPATCHER_PATH}.failure.start_error_workflow", new=AsyncMock()),
+        patch("app.services.workflow_execution.cleanup.workflow_run_repo", new=mocked),
+        patch("app.services.workflow_execution.run_status.workflow_run_repo", new=mocked),
+        patch(
+            "app.services.workflow_execution.cleanup.background_job_repo",
+            new=MagicMock(cancel_queued_for_payload=AsyncMock()),
+        ),
+        patch(
+            "app.services.workflow_execution.cleanup.workflow_approval_repo",
+            new=MagicMock(
+                cancel_pending_for_run=AsyncMock(), cancel_pending_for_node_runs=AsyncMock()
+            ),
+        ),
         patch("app.services.workflow_execution.dispatch_queue.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatch_queue.enqueue", new=AsyncMock()),
     ):
         yield mocked
+
+
+def _live_states_of(*node_runs: NodeRun):
+    """What `list_live_node_states` reads from rows a test holds: their status and wait."""
+
+    def read(_db, *, workflow_run_id):
+        return [
+            (
+                NodeRunStatus(row.status),
+                WaitingReason(row.waiting_reason) if row.waiting_reason else None,
+            )
+            for row in node_runs
+            if row.status in _LIVE_NODE_STATUSES
+        ]
+
+    return read
+
+
+_LIVE_NODE_STATUSES = {"pending", "running", "waiting", "needs_attention"}
 
 
 @pytest.fixture
@@ -1496,6 +1530,68 @@ class TestSettleBooksCost:
 
 
 class TestSettleShortCircuits:
+    async def _late_completion(self, repo, test_node, *, definition=None, stands_in=None):
+        """A step that completes after its run was cancelled: returns the step's row."""
+        node = _node_instance(test_node)
+        definition = definition or REGISTRY[test_node][1]
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=_graph(node).model_dump(mode="json"),
+            status=WorkflowRunStatus.CANCELLED.value,
+        )
+        node_run = _node_run(
+            workflow_run_id=run.id, node_instance_id=node.id, status=NodeRunStatus.RUNNING.value
+        )
+        attempt = _attempt(node_run_id=node_run.id)
+        begun = replace(
+            _begun(
+                node,
+                definition,
+                attempt_id=attempt.id,
+                node_run_id=node_run.id,
+                workflow_run_id=run.id,
+            ),
+            stands_in=stands_in,
+        )
+        repo.get_run_by_id_for_update.return_value = run
+        repo.get_node_run_by_id_for_update.return_value = node_run
+        repo.get_attempt.return_value = attempt
+        repo.get_outbox_for_node_run_for_update.return_value = _outbox(
+            node_run_id=node_run.id, status=DispatchOutboxStatus.CANCELLED.value
+        )
+        repo.settle_attempt.side_effect = _settle_effect
+        repo.update_node_run.side_effect = lambda _db, *, node_run, update_data: _apply(
+            node_run, update_data
+        )
+        await dispatcher.settle(
+            object(),
+            begun=begun,
+            outcome=dispatcher.HandlerOutcome(
+                result=Completed[_EchoOutput](output=_EchoOutput(echoed="late")),
+                waiting_agent_run_id=None,
+            ),
+        )
+        return node_run
+
+    async def test_a_step_a_retry_reused_writes_no_log_line_when_it_completes_late(
+        self, repo, event_log, test_node
+    ):
+        with patch(f"{DISPATCHER_PATH}.quick_log.log_completed", new=AsyncMock()) as logged:
+            node_run = await self._late_completion(repo, test_node, stands_in="reused")
+
+        assert node_run.status == NodeRunStatus.SUCCEEDED.value
+        logged.assert_not_awaited()
+
+    async def test_a_loop_that_froze_its_list_after_the_run_ended_is_closed_not_succeeded(
+        self, repo, event_log, test_node
+    ):
+        node_run = await self._late_completion(
+            repo, test_node, definition=REGISTRY["control.foreach"][1]
+        )
+
+        assert node_run.status == NodeRunStatus.CANCELLED.value
+
     async def test_a_settle_for_an_attempt_no_longer_in_flight_is_a_no_op(
         self, repo, event_log, test_node
     ):
@@ -1543,8 +1639,8 @@ class TestSettleShortCircuits:
 
         handler call that was already in flight when it was cancelled - the
         attempt still settles honestly (what happened is worth recording),
-        but as a terminal, cancelled `NodeRun` with no run-status transition
-        and no `_advance` (`cancel()` already closed every outbox row).
+        but as a `succeeded` `NodeRun` (its effect is real) with no run-status
+        transition and no `_advance` (`cancel()` already closed every outbox row).
         """
         node = _node_instance(test_node)
         definition = REGISTRY[test_node][1]
@@ -1581,8 +1677,8 @@ class TestSettleShortCircuits:
 
         # The attempt itself honestly records what happened...
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
-        # ...but the node run and run stay cancelled, not succeeded.
-        assert node_run.status == NodeRunStatus.CANCELLED.value
+        # ...the step is recorded as it happened, and the run stays cancelled.
+        assert node_run.status == NodeRunStatus.SUCCEEDED.value
         assert run.status == WorkflowRunStatus.CANCELLED.value
         repo.mark_outbox_done.assert_awaited_once_with(ANY, outbox=outbox)
         repo.update_run.assert_awaited_once()
@@ -1727,7 +1823,7 @@ class TestSettleShortCircuits:
         )
 
         assert attempt.status == NodeAttemptStatus.COMPLETED.value
-        assert node_run.status == NodeRunStatus.CANCELLED.value
+        assert node_run.status == NodeRunStatus.SUCCEEDED.value
         repo.mark_outbox_done.assert_not_called()
 
     async def test_a_settle_after_the_outbox_row_was_reclaimed_is_a_no_op(
@@ -1813,6 +1909,7 @@ class TestSettleWaiting:
 
         agent_run_id = uuid.uuid4()
         result = Waiting(reason="approval", resume_token="whatever-the-handler-sent")
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
         await dispatcher.settle(
             object(),
             begun=begun,
@@ -1858,6 +1955,7 @@ class TestSettleWaiting:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         result = Waiting(reason="retry_backoff", resume_token="x")
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
         await dispatcher.settle(
             object(),
             begun=begun,
@@ -1898,6 +1996,7 @@ class TestSettleWaiting:
         )
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
         await dispatcher.settle(
             object(),
             begun=begun,
@@ -1959,6 +2058,7 @@ class TestSettleWaiting:
             f"{DISPATCHER_PATH}.workflow_approval_repo.has_pending",
             new=AsyncMock(return_value=asks_a_person),
         ):
+            repo.list_live_node_states.side_effect = _live_states_of(node_run)
             await dispatcher.settle(
                 object(),
                 begun=begun,
@@ -2015,6 +2115,7 @@ class TestSettleFailed:
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
         error = WorkflowError(code="TRANSIENT", message="try again", retryable=True)
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
         await dispatcher.settle(
             object(),
             begun=begun,
@@ -2152,6 +2253,7 @@ class TestSettleUncertain:
         )
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
         await dispatcher.settle(
             object(),
             begun=begun,
@@ -2463,6 +2565,7 @@ class TestResolveOrphanedAttempt:
         )
         repo.update_run.side_effect = lambda _db, *, run, update_data: _apply(run, update_data)
 
+        repo.list_live_node_states.side_effect = _live_states_of(node_run)
         await dispatcher.resolve_orphaned_attempt(
             object(), run=run, node_run=node_run, attempt=attempt, outbox=None
         )
@@ -2887,6 +2990,57 @@ class TestLoopsWithoutADatabase:
         assert failing.status == NodeRunStatus.FAILED.value
         assert loop.status == NodeRunStatus.CANCELLED.value
         assert run.status == WorkflowRunStatus.FAILED.value
+
+    async def test_only_the_live_wires_into_a_join_arrive_with_what_they_carried(self, repo):
+        live, dead, join = (
+            _node_instance("core.output"),
+            _node_instance("core.output"),
+            _node_instance("logic.merge"),
+        )
+        graph = WorkflowGraph(
+            entry_node_id=live.id,
+            nodes=(live, dead, join),
+            edges=(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=live.id,
+                    source_port="out",
+                    target_node_id=join.id,
+                    target_port="in",
+                ),
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=dead.id,
+                    source_port="out",
+                    target_node_id=join.id,
+                    target_port="in",
+                ),
+            ),
+        )
+        state = dispatcher._AdvanceState(MagicMock(), run=_run(), graph=graph, scope_path=[])
+        state.remember(
+            live.id,
+            _node_run(
+                workflow_run_id=uuid.uuid4(),
+                node_instance_id=live.id,
+                status=NodeRunStatus.SUCCEEDED.value,
+            ),
+        )
+        state.remember(
+            dead.id,
+            _node_run(
+                workflow_run_id=uuid.uuid4(),
+                node_instance_id=dead.id,
+                status=NodeRunStatus.SKIPPED.value,
+            ),
+        )
+        repo.get_latest_attempt.return_value = MagicMock(result={"output": {"a": 1}})
+
+        arrived = await state.arrived_by_wire(join.id)
+
+        assert [(edge.source_node_id, carried) for edge, carried in arrived] == [
+            (live.id, {"a": 1})
+        ]
 
     async def test_what_a_node_with_no_stored_result_carries_is_nothing(self, repo):
         graph, nodes = self._loop_graph()

@@ -105,6 +105,43 @@ class TestRunsAtOnce:
         await _start(db, owner, workflow)
 
 
+class TestWhatAStuckRunHolds:
+    """A run needing attention holds its place only while one of its steps still executes."""
+
+    async def _stuck(self, db, owner, *, in_flight: bool) -> Workflow:
+        workflow = await _published(db, owner, max_concurrent_runs=1)
+        first = await _start(db, owner, workflow)
+        await db.execute(
+            update(WorkflowRun).where(WorkflowRun.id == first.id).values(status="needs_attention")
+        )
+        if in_flight:
+            step = (
+                await db.execute(select(NodeRun).where(NodeRun.workflow_run_id == first.id))
+            ).scalar_one()
+            await workflow_run_repo.create_attempt(
+                db,
+                organization_id=owner.organization_id,
+                node_run_id=step.id,
+                attempt_no=1,
+                idempotency_key="k",
+                retry_guarantee="idempotent",
+                started_at=datetime.now(UTC),
+            )
+        return workflow
+
+    async def test_a_needs_attention_run_holds_quota_while_a_sibling_is_in_flight(self, db, owner):
+        workflow = await self._stuck(db, owner, in_flight=True)
+
+        with pytest.raises(WorkflowAdmissionQuotaError) as refused:
+            await _start(db, owner, workflow)
+        assert refused.value.details["scope"] == "workflow"
+
+    async def test_a_needs_attention_run_with_nothing_in_flight_frees_its_quota(self, db, owner):
+        workflow = await self._stuck(db, owner, in_flight=False)
+
+        assert (await _start(db, owner, workflow)).id
+
+
 class TestWhatARunMaySpend:
     @pytest.mark.security
     async def test_a_run_gets_the_tighter_of_the_setting_and_the_versions_budget(self, db, owner):

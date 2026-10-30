@@ -1158,16 +1158,25 @@ class WorkflowExposureService:
             # read again, as for the organization's. Runs waiting for a person can
             # hold it for hours: holding the poll's cursor that long would stall every
             # other reader of the mailbox and fire the agent triggers again, so the
-            # message is skipped for this workflow, logged and audited.
+            # message is skipped for this workflow, logged and audited. A run needing
+            # attention holds the ceiling only while one of its branches is still
+            # executing, and waits for a person just as long.
             waiting = await workflow_run_repo.count_live_runs_with_status(
                 self.db,
                 organization_id=exposure.organization_id,
                 workflow_id=exposure.workflow_id,
                 mode=WorkflowRunMode.REAL.value,
-                status=WorkflowRunStatus.WAITING_APPROVAL,
+                statuses=(WorkflowRunStatus.WAITING_APPROVAL, WorkflowRunStatus.NEEDS_ATTENTION),
             )
             if not waiting:
                 return False
+            approving = await workflow_run_repo.count_live_runs_with_status(
+                self.db,
+                organization_id=exposure.organization_id,
+                workflow_id=exposure.workflow_id,
+                mode=WorkflowRunMode.REAL.value,
+                statuses=(WorkflowRunStatus.WAITING_APPROVAL,),
+            )
             self._log_mail_refusal(exposure, source, exc)
             await record_audit(
                 self.db,
@@ -1176,7 +1185,12 @@ class WorkflowExposureService:
                 action="workflow.mail_message_skipped",
                 target_type="workflow",
                 target_id=str(exposure.workflow_id),
-                details={"exposure_id": str(exposure.id), "reason": "runs_waiting_for_approval"},
+                details={
+                    "exposure_id": str(exposure.id),
+                    "reason": "runs_waiting_for_approval"
+                    if approving
+                    else "runs_needing_attention",
+                },
             )
             return True
         except WorkflowInlineStorageLimitError:

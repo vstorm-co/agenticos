@@ -36,9 +36,7 @@ from app.db.models.workflow_run import (
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
-from app.repositories import background_job as background_job_repo
 from app.repositories import workflow as workflow_repo
-from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -69,6 +67,7 @@ from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution import (
     admission,
     budget,
+    cleanup,
     delivery,
     dispatch_queue,
     dispatcher,
@@ -87,7 +86,6 @@ from app.services.workflow_execution.exceptions import (
     WorkflowRunNotRetryableError,
     WorkflowTriggerMismatchError,
 )
-from app.worker.jobs import WORKFLOW_DISPATCH_NODE
 from app.workflows.contracts.io import TableIORef
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
@@ -602,14 +600,11 @@ class WorkflowExecutionService:
         organization-visible workflow, a `use` grant - lets a caller start
         their own runs, not stop a colleague's.
 
-        Cancels every `pending` or `claimed` `DispatchOutbox` row. What the
-        design also calls for - cancelling a live linked `agent_runs` row
-        through its existing path - has no existing path today: this codebase
-        has no agent-run cancellation mechanism to call. Inventing one is a
-        different subsystem's scope, not #1788's; a `NodeRun` still
-        `waiting`/`approval` when its workflow is cancelled is left exactly as
-        it was, and whichever issue adds agent-run cancellation should close
-        this gap in the same change.
+        Closes everything the run had under way (`cleanup.stop_run_work`): every
+        dispatch row and queued job, every pending approval request, the agent
+        run each parked step waits on, and every live step, which becomes
+        `cancelled`. A step whose attempt is executing at that moment finishes
+        on its own; its result is recorded and nothing follows from it.
 
         Raises:
             WorkflowRunNotFoundError: No such run, or this caller may not see
@@ -648,37 +643,8 @@ class WorkflowExecutionService:
         if WorkflowRunStatus(run.status).is_terminal:
             raise WorkflowRunAlreadyTerminalError(run_id=run.id, status=run.status)
 
-        await workflow_run_repo.cancel_live_outbox_for_run(self.db, workflow_run_id=run.id)
-        # Their jobs are the timers of a wait or a retry's backoff: left queued they
-        # would sit in the background-jobs panel until due, to find nothing to do.
-        await background_job_repo.cancel_queued_for_payload(
-            self.db,
-            kind=WORKFLOW_DISPATCH_NODE.kind,
-            organization_id=run.organization_id,
-            payload_key="workflow_run_id",
-            payload_value=run.id,
-        )
-        # A `human.approval` request left pending would sit in the queue asking
-        # for a decision that can no longer decide anything.
-        await workflow_approval_repo.cancel_pending_for_run(self.db, run.id)
-        # A loop mid-iteration has no outbox row of its own to cancel - its row
-        # is `running` until its last iteration ends - so it is ended here, with
-        # every other row nothing will now settle.
         ended_at = datetime.now(UTC)
-        for live in await workflow_run_repo.list_live_node_runs(self.db, workflow_run_id=run.id):
-            await workflow_run_repo.update_node_run(
-                self.db,
-                node_run=live,
-                update_data={
-                    "status": NodeRunStatus.CANCELLED.value,
-                    "ended_at": ended_at,
-                    "waiting_reason": None,
-                    "waiting_agent_run_id": None,
-                },
-            )
-            await events.append(
-                self.db, run=run, kind=events.EventKind.NODE_CANCELLED, node_run_id=live.id
-            )
+        await cleanup.stop_run_work(self.db, run=run, now=ended_at)
         run = await workflow_run_repo.update_run(
             self.db,
             run=run,

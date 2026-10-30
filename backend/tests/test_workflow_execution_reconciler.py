@@ -49,7 +49,9 @@ def repo():
     mocked = create_autospec(workflow_run_repo_module, instance=False)
     # This attempt is the node's first failure unless a test says otherwise.
     mocked.count_failed_attempts.return_value = 1
+    mocked.list_live_node_states.return_value = []
     with (
+        patch("app.services.workflow_execution.run_status.workflow_run_repo", new=mocked),
         patch(f"{RECONCILER_PATH}.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatcher.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.dispatch_queue.workflow_run_repo", new=mocked),

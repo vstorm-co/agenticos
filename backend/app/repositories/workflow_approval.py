@@ -1,5 +1,6 @@
 """The decisions workflow runs wait on (`human.approval`), and the steps parked on them."""
 
+from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Literal, NamedTuple
 from uuid import UUID
@@ -161,6 +162,18 @@ async def cancel_pending_for_run(db: AsyncSession, workflow_run_id: UUID) -> Non
         sql_update(WorkflowApproval)
         .where(
             WorkflowApproval.workflow_run_id == workflow_run_id,
+            WorkflowApproval.status == WorkflowApprovalStatus.PENDING.value,
+        )
+        .values(status=WorkflowApprovalStatus.CANCELLED.value)
+    )
+
+
+async def cancel_pending_for_node_runs(db: AsyncSession, node_run_ids: Sequence[UUID]) -> None:
+    """Close the requests of steps that were stopped, so none is decided for nothing."""
+    await db.execute(
+        sql_update(WorkflowApproval)
+        .where(
+            WorkflowApproval.node_run_id.in_(node_run_ids),
             WorkflowApproval.status == WorkflowApprovalStatus.PENDING.value,
         )
         .values(status=WorkflowApprovalStatus.CANCELLED.value)

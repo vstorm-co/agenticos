@@ -31,6 +31,7 @@ from app.db.models.workflow_run import (
     NodeRunStatus,
     ResourceRef,
     RetryGuarantee,
+    WaitingReason,
     WorkflowRunMode,
     WorkflowRunStatus,
 )
@@ -1345,6 +1346,42 @@ class TestSumReservedNodeWork:
         assert await workflow_run_repo.sum_reserved_node_work(db, principal_user_id=other.id) == 8
         # The organization ceiling still reads one organization only.
         assert await workflow_run_repo.sum_reserved_node_work(db, organization_id=org_a.id) == 108
+
+
+class TestWaitingOnPeople:
+    async def test_a_run_waiting_for_approval_beside_a_running_branch_is_counted_once(
+        self, db: AsyncSession
+    ):
+        user = await _user(db)
+        org = await _org(db)
+        workflow = await _workflow(db, org, owner_user_id=user.id)
+        run = await _run(
+            db,
+            org,
+            workflow,
+            mode=WorkflowRunMode.REAL.value,
+            status=WorkflowRunStatus.WAITING_APPROVAL.value,
+        )
+        await _node_run(db, run, status=NodeRunStatus.RUNNING.value)
+        await _node_run(
+            db,
+            run,
+            status=NodeRunStatus.WAITING.value,
+            waiting_reason=WaitingReason.APPROVAL.value,
+        )
+
+        assert (
+            await workflow_run_repo.count_waiting_on_people(
+                db, organization_id=org.id, user_id=user.id, see_all=True, shared_ids=[]
+            )
+            == 1
+        )
+        assert sorted(
+            await workflow_run_repo.list_live_node_states(db, workflow_run_id=run.id), key=str
+        ) == sorted(
+            [(NodeRunStatus.RUNNING, None), (NodeRunStatus.WAITING, WaitingReason.APPROVAL)],
+            key=str,
+        )
 
 
 class TestLoopScopes:

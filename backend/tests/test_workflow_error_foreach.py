@@ -8,6 +8,7 @@ publishing makes before a graph with a loop or an error route can run.
 
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -579,3 +580,54 @@ async def test_error_workflow_refuses_a_principal_lost_after_the_membership_read
         error=WorkflowError(code="FAILED", message="Failed"),
     )
     access.assert_not_called()
+
+
+# A loop that already ended takes no more iterations
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled"])
+async def test_a_loop_that_failed_or_was_cancelled_starts_no_iteration(status: str):
+    loop_run = MagicMock(status=status)
+
+    started = await dispatcher._start_iteration(
+        MagicMock(), run=MagicMock(), graph=MagicMock(), loop_run=loop_run, index=1, items=[1, 2]
+    )
+
+    assert started == []
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled"])
+async def test_a_late_settle_in_a_loop_that_ended_ends_no_iteration(status: str):
+    scope = [{"loop_node_id": str(uuid.uuid4()), "index": 0}]
+    with patch.object(
+        dispatcher, "_loop_run", new=AsyncMock(return_value=MagicMock(status=status))
+    ):
+        ended = await dispatcher._iteration_ended(
+            MagicMock(), run=MagicMock(), graph=MagicMock(), scope_path=scope
+        )
+
+    assert ended == []
+
+
+def test_an_item_keeps_the_error_of_the_leg_that_failed_first_and_ties_go_by_step():
+    when = datetime(2026, 10, 30, tzinfo=UTC)
+
+    def failed(node_id: str, at: datetime, index: int = 0) -> MagicMock:
+        return MagicMock(
+            status="failed",
+            ended_at=at,
+            created_at=at,
+            node_instance_id=uuid.UUID(node_id),
+            scope_path=[{"index": index}],
+        )
+
+    later = failed("00000000-0000-0000-0000-000000000001", when + timedelta(seconds=1))
+    first = failed("00000000-0000-0000-0000-000000000009", when)
+    tied = failed("00000000-0000-0000-0000-000000000005", when)
+    other_item = failed("00000000-0000-0000-0000-000000000002", when + timedelta(seconds=5), 1)
+    yielded = MagicMock(status="succeeded", scope_path=[{"index": 0}])
+
+    kept = dispatcher._one_error_per_index([later, first, tied, other_item, yielded])
+
+    assert kept == [tied, other_item, yielded]
+    assert first not in kept and later not in kept

@@ -851,6 +851,15 @@ class PausedRunState(BaseModel):
 
 
 @dataclass(frozen=True)
+class ParkedStop:
+    """A parked run a workflow's end stopped, whose audit entry is still to be written."""
+
+    run_id: UUID
+    organization_id: UUID
+    previous_status: str
+
+
+@dataclass(frozen=True)
 class ParkedApproval:
     """One tool call waiting for a person, and everything its row will hold.
 
@@ -5574,6 +5583,69 @@ class AgentRunnerService:
                 message="This run is not waiting for a response",
                 details={"run_id": run_id, "status": run.status},
             )
+        return await self._stop_parked(run, actor_user_id=ctx.subject_id)
+
+    async def stop_parked_for_workflow(
+        self, run_ids: Sequence[UUID], *, organization_id: UUID
+    ) -> list[ParkedStop]:
+        """Stop the parked runs workflow steps wait on, because that workflow run ended.
+
+        No person and no permission check: the workflow run's own end is the reason.
+        A run that is not parked any more - resumed, ended, or gone - is left alone.
+
+        Row work only: the runs are claimed in id order, so two workflow runs ending
+        together lock the same rows in the same order, and nothing here takes the
+        audit chain lock, which must come after every row lock
+        (`app.core.audit.record_audit`). The caller finishes its own row work, then
+        passes what this returns to `record_parked_stops`.
+        """
+        stops: list[ParkedStop] = []
+        for run_id in sorted(set(run_ids)):
+            run = await agent_run_repo.claim_parked_run(
+                self.db, run_id, organization_id=organization_id
+            )
+            if run is None or run.status not in (
+                RunStatus.AWAITING_ANSWER.value,
+                RunStatus.AWAITING_APPROVAL.value,
+            ):
+                continue
+            previous_status = await self._close_parked(run, actor_user_id=None)
+            stops.append(ParkedStop(run.id, run.organization_id, previous_status))
+        return stops
+
+    async def record_parked_stops(self, stops: Sequence[ParkedStop]) -> None:
+        """Audit the runs `stop_parked_for_workflow` stopped, after every row lock."""
+        for stop in stops:
+            await record_audit(
+                self.db,
+                actor_user_id=None,
+                organization_id=stop.organization_id,
+                action="run.cancelled",
+                target_type="agent_run",
+                target_id=str(stop.run_id),
+                details={"previous_status": stop.previous_status, "by": "workflow_run"},
+            )
+
+    async def _stop_parked(self, run: AgentRun, *, actor_user_id: UUID) -> str:
+        """Stop a parked run on a person's request: close it, then audit who did it."""
+        previous_status = await self._close_parked(run, actor_user_id=actor_user_id)
+        await record_audit(
+            self.db,
+            actor_user_id=actor_user_id,
+            organization_id=run.organization_id,
+            action="run.cancelled",
+            target_type="agent_run",
+            target_id=str(run.id),
+            details={"previous_status": previous_status},
+        )
+        return STOPPED_TOOL_RESULT
+
+    async def _close_parked(self, run: AgentRun, *, actor_user_id: UUID | None) -> str:
+        """Close a parked run the caller has locked and checked, keeping its spend.
+
+        Returns the status it was parked in. Writes no audit entry: see
+        `stop_parked_for_workflow`.
+        """
         previous_status = run.status
         state = (
             PausedRunState.model_validate(run.paused_state)
@@ -5605,19 +5677,12 @@ class AgentRunnerService:
             cost_usd=run.cost_usd,
             cost_is_partial=run.cost_is_partial,
             ended_at=at,
-            error="Stopped by user",
+            error="Stopped by user"
+            if actor_user_id is not None
+            else "Stopped: its workflow run ended",
             paused_state=None,
         )
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            action="run.cancelled",
-            target_type="agent_run",
-            target_id=str(run.id),
-            details={"previous_status": previous_status},
-        )
-        return STOPPED_TOOL_RESULT
+        return previous_status
 
     async def _cancel_delegations(
         self, run: AgentRun, frames: Sequence[DelegationFrame], *, at: datetime

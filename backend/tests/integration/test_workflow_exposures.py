@@ -46,12 +46,14 @@ from app.db.models.user import User
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_exposure import WorkflowExposure, WorkflowWebhookDelivery
 from app.db.models.workflow_run import (
+    NodeRun,
     WorkflowRun,
     WorkflowRunMode,
     WorkflowRunStatus,
     WorkflowRunTrigger,
 )
 from app.main import app
+from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.conversation import MessageRead
 from app.schemas.workflow import WorkflowPublish, WorkflowPublished, WorkflowSettings
@@ -1156,8 +1158,24 @@ class TestAnsweringTheSender:
 
     async def test_only_the_first_respond_step_answers(self, engine, db, tenant):
         owner, org, workflow = tenant
-        graph = _answering(_respond(201), _respond(202))
-        exposure_id, secret = await _webhook(db, _ctx(owner, org), workflow, graph)
+        # Publishing refuses two Respond steps that can both run, so the version is
+        # published with one and holds both afterwards - as a graph stored before the
+        # rule does.
+        both = _answering(_respond(201), _respond(202))
+        one = both.model_copy(
+            update={
+                "nodes": both.nodes[:-1],
+                "edges": both.edges[:-1],
+                "bindings": both.bindings[:-1],
+            }
+        )
+        published = await _publish(db, _ctx(owner, org), workflow, one)
+        assert published.exposure is not None and published.webhook_secret is not None
+        exposure_id, secret = published.exposure.id, published.webhook_secret
+        pinned = await db.get(WorkflowVersion, published.id)
+        assert pinned is not None
+        pinned.graph = both.model_dump(mode="json")
+        await db.flush()
         factory = async_sessionmaker(engine, expire_on_commit=False)
         body = b'{"lead": 2}'
 
@@ -2820,6 +2838,49 @@ class TestOutlook:
             "exposure_id": str(await _exposure_id(db, workflow)),
             "reason": "runs_waiting_for_approval",
         }
+
+    async def test_mail_is_skipped_when_runs_needing_attention_hold_the_ceiling(self, db, tenant):
+        org, workflow = await self._limited_to_one_run(db, tenant)
+        service = WorkflowExposureService(db)
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m1")]
+        )
+        (first,) = await _runs(db)
+        await db.execute(
+            update(WorkflowRun)
+            .where(WorkflowRun.id == first.id)
+            .values(status=WorkflowRunStatus.NEEDS_ATTENTION.value)
+        )
+        # A branch of the run is still executing, so the run still holds its place.
+        step = (
+            (await db.execute(select(NodeRun).where(NodeRun.workflow_run_id == first.id)))
+            .scalars()
+            .first()
+        )
+        assert step is not None
+        await workflow_run_repo.create_attempt(
+            db,
+            organization_id=org.id,
+            node_run_id=step.id,
+            attempt_no=1,
+            idempotency_key="k",
+            retry_guarantee="idempotent",
+            started_at=datetime.now(UTC),
+        )
+
+        assert await service.receive_polled_email(
+            organization_id=org.id, source="outlook", events=[_outlook_mail("m2")]
+        )
+
+        assert len(await _runs(db)) == 1
+        audit = (
+            await db.execute(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "workflow.mail_message_skipped"
+                )
+            )
+        ).scalar_one()
+        assert audit.details["reason"] == "runs_needing_attention"
 
     async def test_a_full_storage_allowance_keeps_the_cursor(self, db, tenant):
         owner, org, workflow = tenant

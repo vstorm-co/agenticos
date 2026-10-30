@@ -87,10 +87,13 @@ class WorkflowRunTrigger(enum.StrEnum):
 class WorkflowRunStatus(enum.StrEnum):
     """Where a run is, coarser than any one node's status.
 
-    Several `NodeRun`s can be `waiting` in different ways at once - notably
-    inside a `foreach` body - so the run's status is the most severe of its
-    live nodes', ranked `needs_attention` > `budget_exceeded` > `failed` >
-    `waiting_approval` > `waiting_retry` > `running`.
+    Several `NodeRun`s can be live in different ways at once - side by side after
+    a fork, or inside a `foreach` body - so a live run's status is derived from
+    its live nodes by `run_status.derive_status`, never written by one node's
+    transition alone: the most severe of them, ranked `needs_attention` >
+    `waiting_approval` > `waiting_retry` > `running`. The ending statuses
+    (`budget_exceeded`, `failed`, `cancelled`, `succeeded`) are written by the
+    paths that end a run.
     """
 
     QUEUED = "queued"

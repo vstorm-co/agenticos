@@ -90,6 +90,30 @@ class TestPinnedData:
         assert run.status == WorkflowRunStatus.SUCCEEDED.value
         assert run.output["text"] == "pinned"
 
+    async def test_a_pinned_output_step_still_names_the_runs_answer(self, engine: AsyncEngine):
+        pinned = {"text": "pinned answer", "sources": [], "artifacts": [], "structured": None}
+        entry, out = _node("core.input"), _node("core.output", pinned_output=pinned)
+        graph = WorkflowGraph(
+            entry_node_id=entry.id, nodes=(entry, out), edges=(_edge(entry, out),)
+        )
+
+        run = await drive(await seed_run(engine, graph))
+
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        assert run.output == pinned
+
+    async def test_a_pinned_respond_step_still_answers_the_webhook(self, engine: AsyncEngine):
+        pinned = {"status_code": 201, "headers": {}, "body": "pinned body"}
+        entry, respond = _node("core.input"), _node("webhook.respond", pinned_output=pinned)
+        graph = WorkflowGraph(
+            entry_node_id=entry.id, nodes=(entry, respond), edges=(_edge(entry, respond),)
+        )
+
+        run = await drive(await seed_run(engine, graph))
+
+        assert run.status == WorkflowRunStatus.SUCCEEDED.value
+        assert run.webhook_response == pinned
+
     async def test_a_real_run_runs_the_step_whatever_is_pinned(self, engine: AsyncEngine):
         line = _Line(pinned_output=PINNED)
         seeded = await seed_run(engine, line.graph)
