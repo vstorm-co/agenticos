@@ -1,8 +1,10 @@
 ---
-source_sha: "39d07d6f0165"
+source_sha: "4cb7704db561"
 ---
 
 # La app del móvil { #the-phone-app }
+
+Las cubiertas nativas de privacidad ocultan el contenido de la cuenta antes de que iOS y Android capturen la vista del selector de aplicaciones, incluso sin bloqueo biométrico. Al volver se sigue aplicando la política biométrica. Las notificaciones y otros enlaces ajenos a la autenticación no cancelan un inicio de sesión OAuth pendiente en el navegador del sistema.
 
 El inicio de sesión OAuth nativo utiliza PKCE S256. La aplicación conserva un verificador privado; el callback solo contiene su desafío público. El verificador se envía en el cuerpo de la solicitud de intercambio, nunca en una URL. Cerrar sesión elimina las vistas previas nativas de las notificaciones del teléfono.
 

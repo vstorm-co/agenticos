@@ -556,6 +556,30 @@ describe("signing in", () => {
 });
 
 describe("signing out", () => {
+  it("reports native cleanup failure without claiming success", async () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "ios",
+      version: "1.31.0",
+      window: "main",
+      vibrancy: false,
+    };
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    vi.mocked(invokeShell).mockRejectedValueOnce(new Error("native unavailable"));
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.mocked(toast.success).mockClear();
+    await act(async () => {
+      await result.current.logout();
+    });
+    expect(toast.error).toHaveBeenCalledWith(
+      "Signed out, but the app could not clear local access.",
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(push).toHaveBeenCalledWith(ROUTES.LOGIN);
+    warning.mockRestore();
+  });
+
   it.each([
     ["ios", "clear_push_session"],
     ["android", "clear_push_session"],

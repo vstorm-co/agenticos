@@ -1,5 +1,5 @@
 ---
-source_sha: "66166a4481ba"
+source_sha: "515d60086c9f"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -311,8 +311,9 @@ ajustes y cuando un chat nuevo recibe su ID.
 Los comandos pueden leer la carpeta autorizada y los archivos de ejecución del
 sistema, pero no otros archivos personales ni credenciales heredadas de la
 aplicación. Las herramientas que los necesiten requieren permiso separado para
-todo el ordenador. Las lecturas directas de archivos locales tienen un límite de
-10 MiB para que un resultado grande no desconecte el dispositivo.
+todo el ordenador. Las lecturas y escrituras directas de archivos locales tienen un límite de
+10 MiB para que las transferencias grandes no desconecten el dispositivo. Las
+escrituras mayores se rechazan antes de codificar o enviar los datos del archivo.
 
 Windows ofrece solo lectura y acceso completo. Linux ofrece escribir en la carpeta
 solo cuando `bwrap` está instalado.

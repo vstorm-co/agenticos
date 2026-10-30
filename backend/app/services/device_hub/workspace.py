@@ -10,6 +10,7 @@ server asked.
 """
 
 import base64
+import errno
 from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
@@ -36,6 +37,9 @@ PROVIDER = "agenticos-device"
 
 FILE_TIMEOUT_SECONDS = 30.0
 """How long a file operation may take on the computer - a large read over Wi-Fi."""
+
+FILE_WRITE_LIMIT = 10 * 1024 * 1024
+"""Leave room for base64 and the envelope inside the device's 16 MiB message limit."""
 
 RECONNECT_SECONDS = 300.0
 """How long an operation waits for a computer that dropped mid-run - a lid closed,
@@ -143,6 +147,8 @@ class DeviceWorkspace:
         return base64.b64decode(str(value.get("data", "")))
 
     async def write_bytes(self, path: str, data: bytes) -> None:
+        if len(data) > FILE_WRITE_LIMIT:
+            raise OSError(errno.EFBIG, "Local file writes are limited to 10 MiB", path)
         await self._call(
             "fs.write",
             {"path": path, "data": base64.b64encode(data).decode()},

@@ -322,6 +322,15 @@ pub fn external_sign_in_url(url: &Url, nonce: &str) -> Url {
 #[derive(Default)]
 pub struct PendingSignIn(pub Mutex<Option<String>>);
 
+impl PendingSignIn {
+    /// Unrelated links and invalid callbacks cannot cancel a pending sign-in.
+    pub fn finish(&self, server: Option<&Url>, link: &str) -> Option<(Url, String)> {
+        let mut pending = self.0.lock().ok()?;
+        let destination = deep_link_return(server, pending.as_deref(), link)?;
+        Some((destination, pending.take()?))
+    }
+}
+
 /// S256 proof challenge; the verifier itself never leaves app memory in a URL.
 pub fn sign_in_challenge(verifier: &str) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
@@ -448,11 +457,37 @@ mod tests {
     use super::{
         activity_link, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
         mint_nonce, pairing_link, parse_server_url, parse_server_url_with, sign_in_challenge,
-        ActivityAction, ManagedPolicy, Mode, SignInProof,
+        ActivityAction, ManagedPolicy, Mode, PendingSignIn, SignInProof,
     };
 
     fn url(spelled: &str) -> Url {
         Url::parse(spelled).expect("a test URL")
+    }
+
+    #[test]
+    fn unrelated_links_preserve_the_pending_sign_in_until_a_valid_callback() {
+        let pending = PendingSignIn::default();
+        let verifier = mint_nonce();
+        *pending.0.lock().unwrap() = Some(verifier.clone());
+        let server = url("https://acme.example/");
+        for link in [
+            "agenticos://chat/new",
+            "agenticos://activity/inbox",
+            "agenticos://auth/callback?code=wrong&desktop_nonce=wrong",
+        ] {
+            assert!(pending.finish(Some(&server), link).is_none());
+        }
+        let callback = format!(
+            "agenticos://auth/callback?code=mine&desktop_nonce={}",
+            sign_in_challenge(&verifier)
+        );
+        let (destination, returned) = pending.finish(Some(&server), &callback).unwrap();
+        assert_eq!(returned, verifier);
+        assert_eq!(
+            destination.as_str(),
+            "https://acme.example/auth/callback?code=mine"
+        );
+        assert!(pending.finish(Some(&server), &callback).is_none());
     }
 
     #[test]

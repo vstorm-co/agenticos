@@ -1,5 +1,5 @@
 ---
-source_sha: "66166a4481ba"
+source_sha: "515d60086c9f"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -318,8 +318,9 @@ wenn die Einstellungen geschlossen werden und ein neuer Chat seine ID erhält.
 Ordnerbefehle dürfen den freigegebenen Ordner und System-Laufzeitdateien lesen,
 aber keine anderen Dateien im Home-Verzeichnis oder geerbte Anmeldedaten der
 Anwendung. Dafür ist eine separate Freigabe des ganzen Computers nötig. Direkte
-lokale Dateizugriffe sind auf 10 MiB begrenzt, damit große Ergebnisse die
-Geräteverbindung nicht trennen.
+lokale Lese- und Schreibzugriffe sind auf 10 MiB begrenzt, damit große Transfers
+die Geräteverbindung nicht trennen. Größere Schreibvorgänge werden vor der
+Kodierung und Übertragung der Dateidaten abgelehnt.
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
 wenn `bwrap` installiert ist.

@@ -1,5 +1,5 @@
 ---
-source_sha: "66166a4481ba"
+source_sha: "515d60086c9f"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -301,8 +301,9 @@ nowemu czatowi identyfikatora.
 Polecenia w folderze mogą czytać wybrany folder i systemowe pliki środowiska
 uruchomieniowego, ale nie pozostałe pliki katalogu domowego ani odziedziczone
 sekrety aplikacji. Narzędzia potrzebujące tych danych wymagają osobnej zgody na
-cały komputer. Bezpośredni odczyt plików lokalnych ma limit 10 MiB, aby zbyt duży
-wynik nie rozłączał urządzenia.
+cały komputer. Bezpośredni odczyt i zapis plików lokalnych mają limit 10 MiB, aby zbyt duży
+transfer nie rozłączał urządzenia. Większy zapis jest odrzucany przed kodowaniem
+i wysłaniem danych pliku.
 
 Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
 wtedy, gdy jest zainstalowany `bwrap`.

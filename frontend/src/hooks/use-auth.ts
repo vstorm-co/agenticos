@@ -14,13 +14,7 @@ import { ROUTES } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 import { isNetworkFailure, offlineAvailable } from "@/lib/offline/device-cache";
 
-import {
-  invokeShell,
-  isDesktopShell,
-  isMobileShell,
-  readShellInfo,
-  reportShellFailure,
-} from "@/lib/desktop/shell";
+import { clearNativeAccount } from "@/lib/desktop/account-cleanup";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
@@ -362,21 +356,12 @@ export function useAuth() {
       queryClient.clear();
       resetSessionState();
       logout();
-      const shell = readShellInfo();
-      const cleanup = isDesktopShell(shell)
-        ? "device_unlink"
-        : isMobileShell(shell)
-          ? "clear_push_session"
-          : null;
       let cleanupFailed = false;
-      if (cleanup) {
-        try {
-          await invokeShell(cleanup);
-        } catch (error) {
-          cleanupFailed = true;
-          reportShellFailure("sign out", error);
-          toast.error(t("nativeLogoutFailed"));
-        }
+      try {
+        await clearNativeAccount();
+      } catch {
+        cleanupFailed = true;
+        toast.error(t("nativeLogoutFailed"));
       }
       if (!cleanupFailed) toast.success(t("loggedOut"));
       router.push(ROUTES.LOGIN);

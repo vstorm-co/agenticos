@@ -1,8 +1,10 @@
 ---
-source_sha: "39d07d6f0165"
+source_sha: "4cb7704db561"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
+
+Natywne osłony prywatności ukrywają dane konta, zanim iOS i Android wykonają podgląd do przełącznika aplikacji, także przy wyłączonej blokadzie biometrycznej. Powrót nadal podlega ustawieniom biometrii. Powiadomienia i inne linki niezwiązane z logowaniem nie anulują rozpoczętego logowania OAuth w przeglądarce systemowej.
 
 Natywne logowanie OAuth korzysta z PKCE S256. Aplikacja zachowuje prywatny weryfikator, a callback przenosi tylko jego publiczny skrót. Weryfikator jest wysyłany w treści żądania wymiany, nigdy w adresie URL. Wylogowanie usuwa natywne podglądy powiadomień telefonu.
 

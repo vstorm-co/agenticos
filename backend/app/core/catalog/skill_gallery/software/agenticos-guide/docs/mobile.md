@@ -1,5 +1,7 @@
 # The phone app
 
+Native privacy covers hide account content before iOS and Android capture app-switcher previews, including when biometric locking is off. Returning to the app still follows its biometric policy. Notifications and other non-authentication links do not cancel an OAuth sign-in already waiting in the system browser.
+
 Native OAuth uses S256 PKCE. The app retains a private verifier; the callback carries only its public challenge. The verifier is sent in the exchange request body, never a URL. Signing out clears native phone notification previews.
 
 The console works in a phone's browser, and it can be added to a home screen as an

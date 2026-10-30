@@ -1,8 +1,9 @@
 """The same workspace tools operate on only the resolved paired device."""
 
 import base64
+import errno
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -24,6 +25,33 @@ from app.services.device_hub.exceptions import (
 )
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_large_writes_are_refused_before_encoding_or_contacting_the_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/work"))
+    call = AsyncMock(return_value={})
+    monkeypatch.setattr(module._hub, "call", call)
+    encode = Mock()
+    monkeypatch.setattr(module.base64, "b64encode", encode)
+    with pytest.raises(OSError, match="10 MiB") as error:
+        await workspace.write_bytes("large.bin", bytes(module.FILE_WRITE_LIMIT + 1))
+    assert error.value.errno == errno.EFBIG
+    call.assert_not_awaited()
+    encode.assert_not_called()
+
+
+async def test_write_at_the_limit_fits_the_native_message_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), LocalTarget(folder="/work"))
+    call = AsyncMock(return_value={})
+    monkeypatch.setattr(module._hub, "call", call)
+    await workspace.write_bytes("large.bin", bytes(module.FILE_WRITE_LIMIT))
+    payload = call.call_args.args[2]
+    assert len(payload["data"]) < 16 * 1024 * 1024
+    assert len(base64.b64decode(payload["data"])) == module.FILE_WRITE_LIMIT
 
 
 async def test_file_and_shell_operations_keep_the_native_root_and_mode(

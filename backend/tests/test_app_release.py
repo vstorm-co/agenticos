@@ -112,6 +112,14 @@ def test_mobile_publication_is_opt_in_without_disabling_ci_builds() -> None:
             assert "--target aarch64-sim --no-sign" in commands
 
 
+def test_desktop_updater_manifest_has_only_one_writer() -> None:
+    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    desktop = release["jobs"]["desktop"]
+    assert desktop["strategy"]["max-parallel"] == 1
+    action = next(step for step in desktop["steps"] if "includeUpdaterJson" in step.get("with", {}))
+    assert action["with"]["includeUpdaterJson"] is True
+
+
 def test_release_jobs_build_the_verified_commit_even_if_the_tag_moves(tmp_path: Path) -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
     resolver = next(

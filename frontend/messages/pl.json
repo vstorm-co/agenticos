@@ -1076,7 +1076,7 @@
     "directorySignIn": "Zaloguj się przez {provider}",
     "directoryUsername": "Nazwa użytkownika {provider}",
     "useEmailInstead": "Użyj e-maila i hasła",
-    "nativeLogoutFailed": "Wylogowano, ale aplikacja nie mogła wyczyścić dostępu lokalnego. Zamknij aplikację, zanim zaloguje się inna osoba."
+    "nativeLogoutFailed": "Wylogowano, ale aplikacja nie mogła wyczyścić dostępu lokalnego."
   },
   "billing": {
     "description": "Zarządzaj subskrypcją dla {org}.",

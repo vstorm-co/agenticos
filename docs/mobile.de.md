@@ -1,8 +1,10 @@
 ---
-source_sha: "39d07d6f0165"
+source_sha: "4cb7704db561"
 ---
 
 # Die Telefon-App { #the-phone-app }
+
+Native Datenschutzabdeckungen verbergen Kontoinhalte, bevor iOS und Android eine Vorschau für den App-Umschalter erfassen, auch ohne biometrische Sperre. Bei der Rückkehr gilt weiterhin die Biometrie-Einstellung. Benachrichtigungen und andere Links ohne Anmeldebezug brechen eine laufende OAuth-Anmeldung im Systembrowser nicht ab.
 
 Die native OAuth-Anmeldung verwendet S256 PKCE. Die App behält einen privaten Verifier; der Callback enthält nur dessen öffentliche Challenge. Der Verifier wird im Inhalt der Austauschanfrage gesendet, niemals in einer URL. Abmelden entfernt native Benachrichtigungsvorschauen auf dem Telefon.
 

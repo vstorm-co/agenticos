@@ -1,7 +1,12 @@
 package co.vstorm.agenticos
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
+import android.os.Build
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -13,11 +18,15 @@ class MainActivity : TauriActivity() {
   /** The status bar's and the gesture bar's heights, in the page's CSS pixels. */
   @Volatile private var insetTop = 0f
   @Volatile private var insetBottom = 0f
+  private var privacyCover: View? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     if (!acceptsPush(intent)) setIntent(Intent(this, MainActivity::class.java))
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      setRecentsScreenshotEnabled(false)
+    }
   }
 
   // The page runs edge to edge, under the status bar and over the gesture bar,
@@ -66,7 +75,27 @@ class MainActivity : TauriActivity() {
   // it does to any app, at any time - came back signed out. Flushed whenever
   // the app leaves the front, the session survives it.
   override fun onPause() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+    // Cover synchronously, before Android captures the task-switcher preview.
+    if (privacyCover == null) {
+      val cover = View(this).apply { setBackgroundColor(Color.rgb(28, 28, 30)) }
+      addContentView(cover, ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+      ))
+      privacyCover = cover
+    }
     CookieManager.getInstance().flush()
     super.onPause()
+  }
+
+  override fun onResume() {
+    super.onResume()
+    privacyCover?.let { (it.parent as? ViewGroup)?.removeView(it) }
+    privacyCover = null
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
   }
 }

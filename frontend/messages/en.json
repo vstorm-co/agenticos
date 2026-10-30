@@ -1076,7 +1076,7 @@
     "directorySignIn": "Sign in with {provider}",
     "directoryUsername": "{provider} username",
     "useEmailInstead": "Use email and password instead",
-    "nativeLogoutFailed": "Signed out, but the app could not clear local access. Quit the app before another person signs in."
+    "nativeLogoutFailed": "Signed out, but the app could not clear local access."
   },
   "billing": {
     "description": "Manage your subscription for {org}.",

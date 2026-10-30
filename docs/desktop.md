@@ -292,7 +292,8 @@ The folder and mode stay selected when settings close and when a new chat gets i
 Folder commands can read the approved folder and system runtime files, but not
 unrelated home-directory files or inherited application credentials. Tools that
 need those files require separate whole-computer consent. Direct local file reads
-are limited to 10 MiB so an oversized result cannot disconnect the device.
+and writes are limited to 10 MiB so oversized transfers cannot disconnect the device.
+Larger writes are refused before encoding or sending any file bytes.
 
 Windows offers read only and full access. Linux offers writing in the folder only
 when `bwrap` is installed.

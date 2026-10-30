@@ -19,6 +19,7 @@ mod live;
 mod managed;
 mod navigation;
 mod pin;
+mod privacy;
 mod push;
 mod settings;
 mod share;
@@ -32,9 +33,9 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use agenticos_shell_core::{
-    activity_link, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
-    pairing_link, parse_server_url_with, ActivityAction, ManagedPolicy, Mode, Pairing,
-    PendingSignIn, SignInProof,
+    activity_link, external_sign_in_url, is_oauth_start, mint_nonce, pairing_link,
+    parse_server_url_with, ActivityAction, ManagedPolicy, Mode, Pairing, PendingSignIn,
+    SignInProof,
 };
 use serde::Serialize;
 use tauri::webview::PageLoadEvent;
@@ -771,12 +772,6 @@ fn should_lock(lock_enabled: bool, unlocked_at: Option<Instant>, now: Instant) -
 
 fn on_deep_link(app: &AppHandle, links: Vec<Url>) {
     let stored = settings(app);
-    let expected = app
-        .state::<PendingSignIn>()
-        .0
-        .lock()
-        .ok()
-        .and_then(|mut slot| slot.take());
     for link in links {
         if let Some(action) = activity_link(link.as_str()) {
             on_activity(app, action);
@@ -788,16 +783,13 @@ fn on_deep_link(app: &AppHandle, links: Vec<Url>) {
             }
             return;
         }
-        if let Some(destination) = deep_link_return(
-            stored.server_url.as_ref(),
-            expected.as_deref(),
-            link.as_str(),
-        ) {
-            if let Some(verifier) = expected.as_deref() {
-                if let Err(error) = app.state::<SignInProof>().remember(&destination, verifier) {
-                    eprintln!("Could not finish signing in: {error}");
-                    return;
-                }
+        if let Some((destination, verifier)) = app
+            .state::<PendingSignIn>()
+            .finish(stored.server_url.as_ref(), link.as_str())
+        {
+            if let Err(error) = app.state::<SignInProof>().remember(&destination, &verifier) {
+                eprintln!("Could not finish signing in: {error}");
+                return;
             }
             if let Err(e) = navigate_console(app, destination) {
                 eprintln!("Could not finish signing in: {e}");
@@ -813,6 +805,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_biometric::init())
+        .plugin(privacy::init())
         .plugin(tauri_plugin_haptics::init())
         .plugin(apns::init())
         .plugin(live::init())

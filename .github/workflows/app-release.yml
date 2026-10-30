@@ -43,6 +43,8 @@ jobs:
     environment: apps-release
     strategy:
       fail-fast: false
+      # Each action updates the same latest.json release asset.
+      max-parallel: 1
       matrix:
         include:
           - {os: macos-latest, target: aarch64-apple-darwin}

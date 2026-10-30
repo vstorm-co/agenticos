@@ -51,7 +51,7 @@ use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use agenticos_shell_core::{
-    deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
+    external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
 };
 use base64::Engine;
 
@@ -1487,24 +1487,17 @@ pub fn run() {
                     }
                 }
                 let chosen = settings::load(&deep_link_handle).ok().and_then(|s| s.server_url);
-                // The nonce this shell minted when it opened the browser. Taken
-                // out of the slot whether the link matches or not: a sign-in is
-                // answered once, so a second link carrying the same nonce is a
-                // replay and finds nothing.
-                let expected = deep_link_handle
-                    .state::<PendingSignIn>()
-                    .0
-                    .lock()
-                    .ok()
-                    .and_then(|mut slot| slot.take());
                 for link in links {
-                    if let Some(destination) = deep_link_return(chosen.as_ref(), expected.as_deref(), link.as_str()) {
-                        if let Some(verifier) = expected.as_deref() {
-                            if let Err(error) = deep_link_handle.state::<SignInProof>().remember(&destination, verifier)
-                            {
-                                eprintln!("Could not finish signing in: {error}");
-                                return;
-                            }
+                    if let Some((destination, verifier)) = deep_link_handle
+                        .state::<PendingSignIn>()
+                        .finish(chosen.as_ref(), link.as_str())
+                    {
+                        if let Err(error) = deep_link_handle
+                            .state::<SignInProof>()
+                            .remember(&destination, &verifier)
+                        {
+                            eprintln!("Could not finish signing in: {error}");
+                            return;
                         }
                         if let Some(console) = deep_link_handle.get_webview_window(WINDOW) {
                             if let Err(e) = console.navigate(destination) {

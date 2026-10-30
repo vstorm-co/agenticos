@@ -1076,7 +1076,7 @@
     "directorySignIn": "Mit {provider} anmelden",
     "directoryUsername": "{provider}-Benutzername",
     "useEmailInstead": "Stattdessen E-Mail und Passwort verwenden",
-    "nativeLogoutFailed": "Abgemeldet, aber die App konnte den lokalen Zugriff nicht löschen. Beende die App, bevor sich eine andere Person anmeldet."
+    "nativeLogoutFailed": "Abgemeldet, aber die App konnte den lokalen Zugriff nicht löschen."
   },
   "billing": {
     "description": "Verwalten Sie das Abonnement von {org}.",
