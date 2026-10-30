@@ -44,6 +44,8 @@ def test_release_versions_include_apple_extensions(
             "MARKETING_VERSION = 0.1.0;\nCURRENT_PROJECT_VERSION = 0.1.0;"
         )
     (apple / "app/app.entitlements").write_bytes(plistlib.dumps({"aps-environment": "development"}))
+    app_entitlements = apple / "app/agenticos-mobile_iOS.entitlements"
+    app_entitlements.write_bytes(plistlib.dumps({}))
     monkeypatch.setenv("BUILD_NUMBER", "412")
     module.prepare(tmp_path, "v1.8.3")
     assert (
@@ -57,6 +59,14 @@ def test_release_versions_include_apple_extensions(
     assert (
         plistlib.loads((apple / "app/app.entitlements").read_bytes())["aps-environment"]
         == "production"
+    )
+    assert plistlib.loads(app_entitlements.read_bytes())["aps-environment"] == "production"
+    actual_apple = ROOT / "mobile/src-tauri/gen/apple"
+    actual_entitlements = actual_apple / "agenticos-mobile_iOS/agenticos-mobile_iOS.entitlements"
+    assert plistlib.loads(actual_entitlements.read_bytes())["aps-environment"] == "development"
+    assert (
+        "agenticos-mobile_iOS/agenticos-mobile_iOS.entitlements"
+        in (actual_apple / "agenticos-mobile.xcodeproj/project.pbxproj").read_text()
     )
     with pytest.raises(ValueError, match="stable"):
         module.prepare(tmp_path, "v1.8.3-beta.1")

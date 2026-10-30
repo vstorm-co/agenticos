@@ -6,6 +6,8 @@ The notification sweep and the settings page's test go through here, so a
 notification reaches every kind of device and a test proves all of them.
 """
 
+import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -17,6 +19,8 @@ from app.repositories import session as session_repo
 from app.schemas.push import PushPreferencesRead, PushPreferencesUpdate
 from app.services.apns import ApnsService
 from app.services.web_push import PushMessage, PushOutcome, WebPushService
+
+logger = logging.getLogger(__name__)
 
 
 class PushService:
@@ -31,9 +35,32 @@ class PushService:
         self.web = web or WebPushService(db)
         self.apple = apple or ApnsService(db)
 
-    async def send(self, user_id: uuid.UUID, message: PushMessage) -> PushOutcome:
-        """Every browser and every iPhone, outcomes added up."""
-        return await self.web.send(user_id, message) + await self.apple.send(user_id, message)
+    async def send(
+        self, user_id: uuid.UUID, message: PushMessage, *, timeout: float | None = None
+    ) -> PushOutcome:
+        """Every browser and iPhone, retaining completed recipients at the deadline.
+
+        A timed-out attempt counts as failed, but never erases an earlier
+        acceptance: the delivery sweep must not retry devices already notified.
+        External cancellation still propagates to the task owner.
+        """
+        partial = PushOutcome(sent=0, gone=0, failed=0)
+
+        def record(outcome: PushOutcome) -> None:
+            nonlocal partial
+            partial += outcome
+
+        deadline = asyncio.timeout(timeout)
+        try:
+            async with deadline:
+                web = await self.web.send(user_id, message, on_result=record)
+                apple = await self.apple.send(user_id, message, on_result=record)
+                return web + apple
+        except TimeoutError:
+            if not deadline.expired():
+                raise
+            logger.warning("push_delivery_timed_out", extra={"user_id": str(user_id)})
+            return partial + PushOutcome(sent=0, gone=0, failed=1)
 
     async def subscribed(self, user_ids: list[uuid.UUID]) -> set[uuid.UUID]:
         """Who of these people has anything to push to."""

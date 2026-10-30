@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Preserve accepted push deliveries when fan-out times out, bound APNs previews by encoded payload size, retain device registrations on configuration mismatches and include the iOS push entitlement in generated builds.
+
 - Pin signed app release builds to the verified commit SHA instead of re-resolving a mutable release tag.
 
 - Chain the desktop/mobile migrations after the latest channel-history migration so fresh installs and upgrades resolve a single Alembic head.

@@ -3,6 +3,7 @@ sweep settles one, and the two writes whose correctness is SQL - the signing
 key claimed once, and a browser's subscription following whoever is signed in.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
@@ -218,6 +219,33 @@ class TestTheSweepSettlesAPush:
         assert delivery.status == status.value
         message = send.await_args.args[1]
         assert (message.body, message.url) == ("Your run finished", "/runs?run=r1")
+
+    async def test_a_deadline_after_one_acceptance_settles_without_retry(self, db) -> None:
+        org, member = await _org_with_member(db)
+        delivery, now = await _queued_push(db, member, org)
+        await _subscribe(db, member)
+        deadline = asyncio.timeout(None)
+        calls = 0
+
+        async def send(**kwargs: object) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                deadline.reschedule(asyncio.get_running_loop().time())
+                await asyncio.Event().wait()
+
+        with (
+            patch("app.services.web_push.webpush_async", new=send),
+            patch("app.services.push.asyncio.timeout", return_value=deadline),
+        ):
+            assert (
+                await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
+                == "sent"
+            )
+        await db.refresh(delivery)
+        assert delivery.status == DeliveryStatus.SENT.value
+        assert delivery.last_error is None
+        assert calls == 2
 
     async def test_a_push_service_that_raises_is_retried_with_a_safe_reason(self, db):
         org, member = await _org_with_member(db)

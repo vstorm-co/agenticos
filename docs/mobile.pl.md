@@ -1,5 +1,5 @@
 ---
-source_sha: "444cec63e6e1"
+source_sha: "4efca0168725"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -134,6 +134,13 @@ Push zarejestrowany przez sesję przestaje być wysyłany po jej odwołaniu lub
 wygaśnięciu. Powiązany token działa tylko wtedy, gdy sesja należy do tego samego
 użytkownika. Starsze subskrypcje bez zapisanej sesji zachowują dotychczasową
 zgodę; usuń je i zarejestruj ponownie, aby przypisać je do bieżącego urządzenia.
+
+Podgląd APNs jest skracany tak, aby cała wiadomość mieściła się w 4 KiB; zbyt
+długi adres docelowy otwiera dashboard. Błąd tematu lub środowiska APNs nie usuwa
+rejestracji urządzenia, dzięki czemu administrator może poprawić konfigurację.
+Jeśli choć jedno urządzenie przyjęło push przed upływem limitu czasu, dostawa jest
+uznawana za wysłaną, bez ponawiania na już powiadomionych urządzeniach.
+
 
 ## Poza aplikacją { #outside-the-app }
 

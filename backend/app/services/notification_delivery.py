@@ -274,9 +274,8 @@ class NotificationDeliveryService:
             tag=str(notification.id),
         )
         try:
-            outcome = await asyncio.wait_for(
-                PushService(self.db).send(notification.recipient_user_id, message),
-                timeout=SEND_TIMEOUT_SECONDS,
+            outcome = await PushService(self.db).send(
+                notification.recipient_user_id, message, timeout=SEND_TIMEOUT_SECONDS
             )
         except Exception as exc:
             logger.warning(

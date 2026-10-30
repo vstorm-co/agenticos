@@ -67,7 +67,7 @@ def prepare(root: Path, tag: str) -> None:
         path.write_bytes(plistlib.dumps(value))
     for path in apple.rglob("*.entitlements"):
         value = plistlib.loads(path.read_bytes())
-        if "aps-environment" in value:
+        if "aps-environment" in value or path.name == "agenticos-mobile_iOS.entitlements":
             value["aps-environment"] = "production"
             path.write_bytes(plistlib.dumps(value))
 

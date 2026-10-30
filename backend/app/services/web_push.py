@@ -16,6 +16,7 @@ import json
 import logging
 import socket
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -224,7 +225,13 @@ class WebPushService:
         if not await push_repo.delete_for_user(self.db, user_id=user_id, endpoint=endpoint):
             raise NotFoundError(message="This browser is not subscribed.")
 
-    async def send(self, user_id: uuid.UUID, message: PushMessage) -> PushOutcome:
+    async def send(
+        self,
+        user_id: uuid.UUID,
+        message: PushMessage,
+        *,
+        on_result: Callable[[PushOutcome], None] | None = None,
+    ) -> PushOutcome:
         """Push to every browser, and every phone, the person subscribed.
 
         A browser the push service says is gone is forgotten; any other refusal
@@ -268,6 +275,14 @@ class WebPushService:
                     gone += 1
                 else:
                     failed += 1
+                if on_result is not None:
+                    on_result(
+                        PushOutcome(
+                            sent=int(outcome == "sent"),
+                            gone=int(outcome == "gone"),
+                            failed=int(outcome == "failed"),
+                        )
+                    )
         return PushOutcome(sent=sent, gone=gone, failed=failed)
 
     async def _send_one(

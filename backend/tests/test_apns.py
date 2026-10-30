@@ -1,6 +1,7 @@
 """Push to iPhones (#2097): the organization's APNs key - what is accepted, how it
 is kept and audited - and a send, with every answer Apple gives."""
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -290,20 +291,61 @@ class TestSending:
         assert apple.posts == []
 
     async def test_each_answer_is_counted_and_a_gone_iphone_forgotten(self) -> None:
-        devices = [_device() for _ in range(6)]
+        devices = [_device() for _ in range(7)]
         apple = _Apple(
             ApnsAnswer(200, None),
             ApnsAnswer(410, "Unregistered"),
             ApnsAnswer(400, "BadDeviceToken"),
+            ApnsAnswer(400, "DeviceTokenNotForTopic"),
             ApnsAnswer(429, "TooManyRequests"),
             ApnsAnswer(403, "ExpiredProviderToken"),
             httpx.ConnectError("no route"),
         )
         outcome, mark, delete = await self._send(apple, devices)
-        assert outcome == PushOutcome(sent=1, gone=2, failed=3)
+        assert outcome == PushOutcome(sent=1, gone=1, failed=5)
         assert mark.await_args.args[1] == devices[0].id
         assert isinstance(mark.await_args.args[2], datetime)
-        assert [call.args[1] for call in delete.await_args_list] == [devices[1].id, devices[2].id]
+        assert [call.args[1] for call in delete.await_args_list] == [devices[1].id]
+
+    async def test_the_delivery_deadline_keeps_an_earlier_iphone_acceptance(self) -> None:
+        apple = _Apple(ApnsAnswer(200, None))
+        deadline = asyncio.timeout(None)
+        original_post = apple.post
+
+        async def post(url: str, *, headers: dict[str, str], body: bytes) -> ApnsAnswer:
+            if apple.posts:
+                deadline.reschedule(asyncio.get_running_loop().time())
+                await asyncio.Event().wait()
+            return await original_post(url, headers=headers, body=body)
+
+        db = AsyncMock()
+        with (
+            patch.object(apple, "post", new=post),
+            patch(
+                f"{MODULE}.device_repo.list_for_user",
+                new=AsyncMock(return_value=[_device(), _device()]),
+            ),
+            patch(f"{MODULE}.deployment_repo.get", new=AsyncMock(return_value=_row())),
+            patch(f"{MODULE}.device_repo.mark_sent", new=AsyncMock()),
+            patch("app.services.web_push.push_repo.list_for_user", new=AsyncMock(return_value=[])),
+            patch("app.services.push.asyncio.timeout", return_value=deadline),
+        ):
+            service = PushService(db, apple=ApnsService(db, connect=apple.connect))
+            assert await service.send(uuid4(), MESSAGE, timeout=30) == PushOutcome(
+                sent=1, gone=0, failed=1
+            )
+
+    async def test_cancellation_from_the_worker_is_not_a_partial_success(self) -> None:
+        db = AsyncMock()
+        web = MagicMock(send=AsyncMock(side_effect=asyncio.CancelledError))
+        with pytest.raises(asyncio.CancelledError):
+            await PushService(db, web=web).send(uuid4(), MESSAGE, timeout=30)
+
+    async def test_a_provider_timeout_outside_the_deadline_is_not_hidden(self) -> None:
+        db = AsyncMock()
+        web = MagicMock(send=AsyncMock(side_effect=TimeoutError))
+        with pytest.raises(TimeoutError):
+            await PushService(db, web=web).send(uuid4(), MESSAGE, timeout=30)
 
     async def test_the_message_is_apples_shape_signed_by_the_organizations_key(self) -> None:
         apple = _Apple(ApnsAnswer(200, None))
@@ -441,3 +483,24 @@ async def test_a_muted_conversation_never_leaves_for_apple() -> None:
         )
     assert outcome == PushOutcome(sent=0, gone=0, failed=0)
     assert apple.posts == []
+
+
+@pytest.mark.parametrize("text", ["a" * 5000, "Zażółć 🦊" * 1000, '"\\' * 3000])
+def test_apns_preview_fits_the_encoded_byte_limit(text: str) -> None:
+    message = PushMessage(title="AgenticOS", body=text, url="/chat?id=123", tag="notice")
+    raw = apns._payload(message, None)
+    assert len(raw) <= apns.MAX_PAYLOAD_BYTES
+    value = json.loads(raw)
+    assert value["url"] == message.url
+    assert value["aps"]["alert"]["title"] == message.title
+    assert text.startswith(value["aps"]["alert"]["body"])
+    assert len(value["aps"]["alert"]["body"]) > 0
+
+
+@pytest.mark.parametrize("url", ["/" + "🦊" * 5000, "/" + '"' * 2048])
+def test_apns_bounds_a_long_title_and_routing_url_too(url: str) -> None:
+    raw = apns._payload(PushMessage(title="🦊" * 5000, body="long", url=url, tag="notice"), uuid4())
+    assert len(raw) <= apns.MAX_PAYLOAD_BYTES
+    value = json.loads(raw)
+    assert value["url"] == "/dashboard"
+    assert value["aps"]["alert"]["title"]

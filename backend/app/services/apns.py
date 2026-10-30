@@ -53,9 +53,10 @@ TTL_SECONDS = 24 * 60 * 60
 # Apple refuses a provider token older than an hour and one renewed more often
 # than every twenty minutes; fifty minutes sits inside both.
 PROVIDER_TOKEN_SECONDS = 50 * 60
-# Apple saying this token is no use: the app was removed (410), or the token is
-# not one of this topic's or this environment's (400). Nothing to retry.
-GONE_REASONS = frozenset({"BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered"})
+# Topic/environment mismatches can be repaired by the administrator; only
+# an inactive registration is safe to forget.
+GONE_REASONS = frozenset({"Unregistered"})
+MAX_PAYLOAD_BYTES = 4096
 STALE_PROVIDER_TOKEN = frozenset({"ExpiredProviderToken", "InvalidProviderToken"})
 
 
@@ -142,6 +143,53 @@ def check_key(pem: str) -> None:
         raise BadRequestError(message="An APNs key is an EC P-256 key (a .p8 file).")
 
 
+def _payload(message: PushMessage, session_id: uuid.UUID | None) -> bytes:
+    """Fit the full JSON envelope within APNs' 4 KiB alert limit.
+
+    Shorten preview text first, retaining complete Unicode characters. If the
+    routing URL alone cannot fit, open the dashboard instead of an invalid URL.
+    """
+    title, body, url = message.title, message.body, message.url
+
+    def encode(title: str, body: str, url: str) -> bytes:
+        return json.dumps(
+            {
+                "aps": {
+                    "alert": {"title": title, "body": body},
+                    "sound": "default",
+                    "thread-id": "agenticos",
+                },
+                "url": url,
+                "session_id": str(session_id) if session_id else None,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+
+    if len(encode("", "", url)) > MAX_PAYLOAD_BYTES:
+        url = "/dashboard"
+    for field in ("body", "title"):
+        if len(encode(title, body, url)) <= MAX_PAYLOAD_BYTES:
+            break
+        original = body if field == "body" else title
+        low, high = 0, len(original)
+        while low < high:
+            middle = (low + high + 1) // 2
+            if field == "body":
+                body = original[:middle]
+            else:
+                title = original[:middle]
+            if len(encode(title, body, url)) <= MAX_PAYLOAD_BYTES:
+                low = middle
+            else:
+                high = middle - 1
+        if field == "body":
+            body = original[:low]
+        else:
+            title = original[:low]
+    return encode(title, body, url)
+
+
 class ApnsService:
     def __init__(
         self,
@@ -209,7 +257,13 @@ class ApnsService:
             return set()
         return await device_repo.subscribed(self.db, user_ids)
 
-    async def send(self, user_id: uuid.UUID, message: PushMessage) -> PushOutcome:
+    async def send(
+        self,
+        user_id: uuid.UUID,
+        message: PushMessage,
+        *,
+        on_result: Callable[[PushOutcome], None] | None = None,
+    ) -> PushOutcome:
         """Push to every iPhone the person registered; none without a key."""
         devices = await device_repo.list_for_user(self.db, user_id)
         if not devices:
@@ -230,17 +284,7 @@ class ApnsService:
                 )
                 if visible is None:
                     continue
-                body = json.dumps(
-                    {
-                        "aps": {
-                            "alert": {"title": visible.title, "body": visible.body},
-                            "sound": "default",
-                            "thread-id": "agenticos",
-                        },
-                        "url": visible.url,
-                        "session_id": str(device.session_id) if device.session_id else None,
-                    }
-                ).encode()
+                body = _payload(visible, device.session_id)
                 outcome = await self._send_one(transport, key, device, message.tag, body)
                 if outcome == "sent":
                     sent += 1
@@ -248,6 +292,14 @@ class ApnsService:
                     gone += 1
                 else:
                     failed += 1
+                if on_result is not None:
+                    on_result(
+                        PushOutcome(
+                            sent=int(outcome == "sent"),
+                            gone=int(outcome == "gone"),
+                            failed=int(outcome == "failed"),
+                        )
+                    )
         return PushOutcome(sent=sent, gone=gone, failed=failed)
 
     async def _send_one(

@@ -129,6 +129,13 @@ linked token is delivered to only when its session belongs to the same user.
 Older subscriptions with no recorded session retain their standing permission;
 remove and register them again to bind them to the current device.
 
+APNs previews are shortened to fit the complete 4 KiB payload; an oversized
+routing URL opens the dashboard instead. An APNs topic or environment mismatch
+keeps the device registration so an administrator can repair the configuration.
+If at least one device accepted a push before the delivery deadline, the sweep
+marks it sent rather than retrying devices already notified.
+
+
 ## Outside the app
 
 **Live activities** - the lock screen and the Dynamic Island on iOS, an ongoing

@@ -1,5 +1,5 @@
 ---
-source_sha: "444cec63e6e1"
+source_sha: "4efca0168725"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -138,6 +138,13 @@ Ein verknüpftes Token wird nur verwendet, wenn seine Sitzung demselben Benutzer
 gehört. Ältere Abonnements ohne gespeicherte Sitzung behalten ihre bestehende
 Erlaubnis; entferne und registriere sie erneut, um sie dem aktuellen Gerät
 zuzuordnen.
+
+APNs-Vorschauen werden so gekürzt, dass die gesamte Nachricht in 4 KiB passt;
+eine zu lange Ziel-URL öffnet das Dashboard. Ein falsches APNs-Topic oder eine
+falsche Umgebung löscht die Geräteregistrierung nicht, damit die Konfiguration
+korrigiert werden kann. Akzeptiert mindestens ein Gerät den Push vor Ablauf der
+Frist, gilt der Versand als erfolgt und wird nicht erneut versucht.
+
 
 ## Außerhalb der App { #outside-the-app }
 

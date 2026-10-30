@@ -1,6 +1,7 @@
 """Web Push (#2097): the endpoint's shape and where it may point, the
 deployment's signing key, and a send."""
 
+import asyncio
 import base64
 import socket
 from collections.abc import Iterator
@@ -19,7 +20,8 @@ from app.core.sanitize import SSRFBlockedError, UrlRefusedError
 from app.core.vault import VaultScope, seal, unseal
 from app.schemas.push import PushSubscriptionCreate, push_endpoint
 from app.services import web_push
-from app.services.web_push import PushMessage, WebPushService
+from app.services.push import PushService
+from app.services.web_push import PushMessage, PushOutcome, WebPushService
 
 pytestmark = pytest.mark.anyio
 
@@ -199,6 +201,34 @@ class TestSending:
         assert '"url": "/runs"' in first["data"]
         assert first["ttl"] == web_push.TTL_SECONDS
         assert isinstance(first["aiohttp_session"], aiohttp.ClientSession)
+
+    async def test_the_delivery_deadline_keeps_an_earlier_browser_acceptance(
+        self, service: WebPushService
+    ) -> None:
+        deadline = asyncio.timeout(None)
+        calls = 0
+
+        async def send(**kwargs: object) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                deadline.reschedule(asyncio.get_running_loop().time())
+                await asyncio.Event().wait()
+
+        with (
+            patch(
+                f"{MODULE}.push_repo.list_for_user",
+                new=AsyncMock(return_value=[_subscription(), _subscription()]),
+            ),
+            patch(f"{MODULE}.webpush_async", new=send),
+            patch(f"{MODULE}.push_repo.mark_sent", new=AsyncMock()),
+            patch("app.services.push.asyncio.timeout", return_value=deadline),
+        ):
+            outcome = await PushService(service.db, web=service).send(
+                uuid4(), PushMessage("t", "b", "/runs", "notice"), timeout=30
+            )
+        assert outcome == PushOutcome(sent=1, gone=0, failed=1)
+        assert calls == 2
 
     async def test_it_says_whether_the_person_has_a_browser(self, service: WebPushService) -> None:
         with patch(f"{MODULE}.push_repo.list_for_user", new=AsyncMock(return_value=[])):

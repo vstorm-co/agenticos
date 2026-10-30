@@ -1,5 +1,5 @@
 ---
-source_sha: "444cec63e6e1"
+source_sha: "4efca0168725"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -136,6 +136,13 @@ o caduca. Un token vinculado solo recibe mensajes si su sesión pertenece al
 mismo usuario. Las suscripciones antiguas sin sesión registrada conservan su
 permiso; elimínalas y regístralas de nuevo para vincularlas al dispositivo
 actual.
+
+Las vistas previas de APNs se acortan para que el mensaje completo quepa en
+4 KiB; una URL de destino demasiado larga abre el dashboard. Un error de tema o
+entorno APNs conserva el registro del dispositivo para poder corregir la
+configuración. Si al menos un dispositivo acepta el push antes del límite de
+tiempo, el envío se considera realizado y no se repite en los ya notificados.
+
 
 ## Fuera de la app { #outside-the-app }
 
