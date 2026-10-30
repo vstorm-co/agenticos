@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-30
+
 ### Added
 
 - A new agent starts on the organization's model when the organization has
