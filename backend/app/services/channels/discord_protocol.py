@@ -8,6 +8,7 @@ that says whether somebody can see a channel. Kept apart from
 
 import re
 from collections import OrderedDict
+from collections.abc import Collection
 from typing import Any
 
 from app.services.channels.base import CHANNEL_COMMANDS, ChannelChoice
@@ -235,13 +236,16 @@ def thread_name(text: str) -> str:
     return name[: THREAD_NAME_LIMIT - 1].rstrip() + "…"
 
 
-def without_mention(text: str, user_id: str) -> str:
+def without_mention(text: str, user_id: str, roles: Collection[str] = ()) -> str:
     """The message with the bot's own mention taken out - it is the envelope, not the question.
 
-    Only the mention and the spaces beside it: line breaks, indentation and a
-    code block in the question reach the agent as they were written.
+    The bot's managed `roles` too: Discord offers the role beside the user when
+    somebody types the bot's name. Only the mention and the spaces beside it:
+    line breaks, indentation and a code block in the question reach the agent
+    as they were written.
     """
-    return re.sub(rf"[ \t]*<@!?{re.escape(user_id)}>[ \t]*", " ", text).strip()
+    names = [rf"@!?{re.escape(user_id)}", *(rf"@&{re.escape(role)}" for role in roles)]
+    return re.sub(rf"[ \t]*<(?:{'|'.join(names)})>[ \t]*", " ", text).strip()
 
 
 def attachment_type(content_type: str | None, filename: str) -> str:
@@ -376,6 +380,9 @@ class Recent[V]:
 
     def get(self, key: str) -> V | None:
         return self._items.get(key)
+
+    def pop(self, key: str) -> V | None:
+        return self._items.pop(key, None)
 
     def put(self, key: str, value: V) -> None:
         self._items[key] = value

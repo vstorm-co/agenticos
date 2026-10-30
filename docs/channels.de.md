@@ -1,5 +1,5 @@
 ---
-source_sha: "178ebb248edf"
+source_sha: "6c3d5f80e3c5"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1630,12 +1630,16 @@ Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
    unter **Installation** den **Install Link** auf *None* und schalten Sie dann
    unter **Bot** **Public Bot** aus. Einen öffentlichen Bot kann jeder zu seinem
    eigenen Server hinzufügen und dort mit dem Agenten sprechen, deshalb verweigert
-   der Bot die Verbindung, solange er öffentlich ist.
+   der Bot die Verbindung, solange er öffentlich ist. Ein Bot, der während der
+   Verbindung öffentlich wird, hält an, sobald er das nächste Mal einem Server
+   hinzugefügt wird.
 2. Kreuzen Sie unter **OAuth2 → URL Generator** die Scopes `bot` und
    `applications.commands` an sowie die Berechtigungen **View Channels**, **Send
-   Messages**, **Send Messages in Threads**, **Create Public Threads** und **Read
-   Message History**, und öffnen Sie dann die URL, um den Bot einem Server
-   hinzuzufügen.
+   Messages**, **Send Messages in Threads**, **Create Public Threads**, **Read
+   Message History** und **Attach Files**, und öffnen Sie dann die URL, um den Bot
+   einem Server hinzuzufügen. Ohne **Attach Files** wird eine Datei oder ein
+   Diagramm des Agenten abgelehnt, und der Text, der damit gesendet wurde, geht
+   ebenfalls verloren.
 3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `discord`,
    mit dem Token.
 
@@ -1653,7 +1657,9 @@ erscheinen.
 | *Apps → Ask the agent* | Auf jeder Nachricht: der Agent wird zu dieser Nachricht gefragt, in einem Thread darauf |
 
 `/agents`, `/link` und die anderen Befehle antworten privat, nur dem, der sie
-ausgeführt hat. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
+ausgeführt hat. `/new` beginnt die Unterhaltung eines Threads neu; in einem
+Server-Kanal, in dem jede Erwähnung ohnehin eine neue beginnt, sagt es das
+stattdessen. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
 Antwort stattdessen eine Antwort auf die Frage, und wer darauf antwortet, setzt
 dieses Gespräch fort.
 

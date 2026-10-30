@@ -1,5 +1,5 @@
 ---
-source_sha: "178ebb248edf"
+source_sha: "6c3d5f80e3c5"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1548,11 +1548,14 @@ dirección pública para Discord**, y un bot de Discord no tiene modo webhook.
    interruptor activar. En **Installation**, pon **Install Link** en *None* y
    luego desactiva **Public Bot** en **Bot**. Cualquiera puede añadir un bot
    público a su propio servidor y hablar allí con el agente, así que el bot se
-   niega a conectarse mientras sea público.
+   niega a conectarse mientras sea público. Uno que se vuelve público mientras
+   está conectado se detiene la próxima vez que se añade a un servidor.
 2. En **OAuth2 → URL Generator**, marca los scopes `bot` y `applications.commands`
    y los permisos **View Channels**, **Send Messages**, **Send Messages in
-   Threads**, **Create Public Threads** y **Read Message History**, y abre la URL
-   para añadir el bot a un servidor.
+   Threads**, **Create Public Threads**, **Read Message History** y **Attach
+   Files**, y abre la URL para añadir el bot a un servidor. Sin **Attach Files**,
+   un archivo o un gráfico que envía el agente se rechaza, y el texto enviado con
+   él también se pierde.
 3. Regístralo: **Canales → Añadir canal**, plataforma `discord`, con el token.
 
 El bot registra sus comandos al conectarse: `/ask`, `/agents`, `/new`, `/link`,
@@ -1568,7 +1571,8 @@ puede tardar un rato en mostrar los comandos nuevos en todos los servidores.
 | *Apps → Ask the agent* | Sobre cualquier mensaje: se pregunta al agent por ese mensaje, en un hilo sobre él |
 
 `/agents`, `/link` y los demás comandos responden en privado, solo a quien los
-ejecutó. En un canal donde el bot no puede abrir hilos, la respuesta es en cambio
+ejecutó. `/new` empieza de nuevo la conversación de un hilo; en un canal del
+servidor, donde cada mención ya empieza una nueva, lo dice en su lugar. En un canal donde el bot no puede abrir hilos, la respuesta es en cambio
 una respuesta a la pregunta, y responder a ella continúa esa conversación.
 
 **La respuesta se escribe en su sitio.** El bot publica un mensaje y lo edita a

@@ -1,5 +1,5 @@
 ---
-source_sha: "178ebb248edf"
+source_sha: "6c3d5f80e3c5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1519,11 +1519,14 @@ bot Discorda nie ma trybu webhooka.
    który przełącznik włączyć. W sekcji **Installation** ustaw **Install Link** na
    *None*, a potem w sekcji **Bot** wyłącz **Public Bot**. Bota publicznego każdy
    może dodać do własnego serwera i rozmawiać tam z agentem, więc bot odmawia
-   połączenia, dopóki jest publiczny.
+   połączenia, dopóki jest publiczny. Bot, który stał się publiczny w trakcie
+   połączenia, zatrzymuje się, gdy następnym razem zostanie dodany do serwera.
 2. W **OAuth2 → URL Generator** zaznacz scope'y `bot` i `applications.commands`
    oraz uprawnienia **View Channels**, **Send Messages**, **Send Messages in
-   Threads**, **Create Public Threads** i **Read Message History**, a potem otwórz
-   ten URL, żeby dodać bota do serwera.
+   Threads**, **Create Public Threads**, **Read Message History** i **Attach
+   Files**, a potem otwórz ten URL, żeby dodać bota do serwera. Bez **Attach
+   Files** plik albo wykres wysłany przez agenta zostaje odrzucony, a wraz z nim
+   przepada tekst wysłany razem z nim.
 3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `discord`, z tokenem.
 
 Bot rejestruje swoje komendy, gdy się łączy: `/ask`, `/agents`, `/new`, `/link`,
@@ -1539,7 +1542,8 @@ Discord potrafi chwilę zwlekać, zanim pokaże nowe komendy na każdym serwerze
 | *Apps → Ask the agent* | Na każdej wiadomości: agent jest pytany o tę wiadomość, w wątku na niej |
 
 `/agents`, `/link` i pozostałe komendy odpowiadają prywatnie, tylko temu, kto je
-wywołał. Na kanale, gdzie bot nie może otwierać wątków, odpowiedź jest zamiast tego
+wywołał. `/new` zaczyna od nowa rozmowę w wątku; na kanale serwera, gdzie każda
+wzmianka i tak zaczyna nową, mówi to zamiast tego. Na kanale, gdzie bot nie może otwierać wątków, odpowiedź jest zamiast tego
 odpowiedzią na pytanie, a odpowiedź na nią kontynuuje tę samą rozmowę.
 
 **Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją w

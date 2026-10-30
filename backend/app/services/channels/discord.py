@@ -35,6 +35,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+import logfire
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
@@ -104,6 +105,15 @@ _ROUTED_COMMANDS = frozenset(name for name, _ in CHANNEL_COMMANDS)
 _MESSAGE_TYPES = frozenset({0, 19})
 """A message somebody typed (0) or a reply (19); joins, pins and the rest are not."""
 _REGISTER_BACKOFF = (5.0, 30.0, 120.0, 600.0)
+NEW_OUTSIDE_THREAD: dict[str, Any] = {
+    "type": 4,
+    "data": {
+        "content": "Every mention in this channel already starts a new conversation, in a "
+        "thread of its own. Run /new inside a thread to start that one over.",
+        "flags": 64,
+    },
+}
+"""The answer to `/new` in a server channel, where there is nothing to start over."""
 """Seconds between attempts to register the commands after the first fails."""
 
 
@@ -124,6 +134,10 @@ class _Session:
     resume_url: str | None = None
     seq: int | None = None
     acked: bool = True
+    guilds: set[str] = field(default_factory=set)
+    """The servers the bot was in when it identified, and those checked since."""
+    refusal: str | None = None
+    """Why the connection was closed from this side and must not be reopened."""
 
 
 @dataclass
@@ -133,6 +147,8 @@ class _Reply:
     channel_id: str
     ids: list[str]
     shown: list[str] = field(default_factory=list)
+    reference: str | None = None
+    """The question each message replies to, where the bot could not open a thread."""
 
 
 def _channel_of(payload: dict[str, Any]) -> _Channel:
@@ -157,6 +173,9 @@ class DiscordAdapter(ChannelAdapter):
         self._own_ids: dict[str, str] = {}
         self._app_ids: dict[str, str] = {}
         self._registered: set[str] = set()
+        # Each bot's managed roles, one per server it is in: mentioning the role
+        # addresses the bot as mentioning the bot does.
+        self._own_roles: dict[str, set[str]] = {}
         # Channel ids are global, so one cache serves every bot.
         self._channels: Recent[_Channel] = Recent(_CACHE_SIZE)
         self._threads: Recent[bool] = Recent(_CACHE_SIZE)
@@ -184,31 +203,37 @@ class DiscordAdapter(ChannelAdapter):
         A streamed answer edits once a second, which Discord's per-channel limit
         allows but a busy channel can tip over; the 429 says how long to wait.
         Interaction callbacks and webhooks authenticate by their own token and
-        are sent without the bot's.
+        are sent without the bot's, and are not traced.
         """
         headers = {"Authorization": f"Bot {bot_token}"} if bot_token else {}
         attempt = 0
-        while True:
-            if files:
-                response = await self._http.request(
-                    method,
-                    f"{API_BASE}{path}",
-                    headers=headers,
-                    data={"payload_json": json.dumps(body or {})},
-                    files=[
-                        (f"files[{index}]", (name, content, mime))
-                        for index, (name, content, mime) in enumerate(files)
-                    ],
-                )
-            else:
-                response = await self._http.request(
-                    method, f"{API_BASE}{path}", headers=headers, json=body
-                )
-            if response.status_code != 429 or attempt == _RATE_LIMIT_RETRIES:
-                return response
-            attempt += 1
-            wait = float(response.json().get("retry_after", 1.0))
-            await asyncio.sleep(min(wait, _RATE_LIMIT_CEILING))
+        # Without the bot's token the credential is the interaction's, and it is
+        # in the URL: kept out of tracing, which exports a request's URL whole.
+        tracing = (
+            logfire.suppress_instrumentation() if bot_token is None else contextlib.nullcontext()
+        )
+        with tracing:
+            while True:
+                if files:
+                    response = await self._http.request(
+                        method,
+                        f"{API_BASE}{path}",
+                        headers=headers,
+                        data={"payload_json": json.dumps(body or {})},
+                        files=[
+                            (f"files[{index}]", (name, content, mime))
+                            for index, (name, content, mime) in enumerate(files)
+                        ],
+                    )
+                else:
+                    response = await self._http.request(
+                        method, f"{API_BASE}{path}", headers=headers, json=body
+                    )
+                if response.status_code != 429 or attempt == _RATE_LIMIT_RETRIES:
+                    return response
+                attempt += 1
+                wait = float(response.json().get("retry_after", 1.0))
+                await asyncio.sleep(min(wait, _RATE_LIMIT_CEILING))
 
     async def _destination(self, bot_token: str, chat_key: str) -> tuple[str, str | None]:
         """Where a message for `chat_key` goes: a channel, and a message to reply to.
@@ -342,17 +367,24 @@ class DiscordAdapter(ChannelAdapter):
                 bot_token,
                 channel_id,
                 piece,
-                reference=reference if index == 0 else None,
+                # Every message, not the first alone: where no thread could be
+                # opened, a reply to any of them must find the question.
+                reference=reference,
                 files=files if last and files else None,
             )
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message the answer will be written into, and return its id."""
+        if msg.reply_to_message_id:
+            # *Ask the agent* answers in a thread from here on, files included;
+            # only what refused it beforehand went to the asker alone.
+            self._interactions.pop(msg.reply_to_message_id)
         channel_id, reference = await self._destination(bot_token, msg.platform_chat_id)
         shown = chunks(msg.text)[0] or "…"
         message_id = await self._post(bot_token, channel_id, shown, reference=reference)
         self._replies.put(
-            message_id, _Reply(channel_id=channel_id, ids=[message_id], shown=[shown])
+            message_id,
+            _Reply(channel_id=channel_id, ids=[message_id], shown=[shown], reference=reference),
         )
         return message_id
 
@@ -366,8 +398,8 @@ class DiscordAdapter(ChannelAdapter):
         reply = self._replies.get(handle)
         if reply is None:
             # Another worker opened it, or this one restarted.
-            channel_id, _ = await self._destination(bot_token, msg.platform_chat_id)
-            reply = _Reply(channel_id=channel_id, ids=[handle], shown=[""])
+            channel_id, reference = await self._destination(bot_token, msg.platform_chat_id)
+            reply = _Reply(channel_id=channel_id, ids=[handle], shown=[""], reference=reference)
             self._replies.put(handle, reply)
         pieces = [piece or "…" for piece in chunks(msg.text)]
         for index, piece in enumerate(pieces):
@@ -378,7 +410,9 @@ class DiscordAdapter(ChannelAdapter):
                     )
                     reply.shown[index] = piece
             else:
-                reply.ids.append(await self._post(bot_token, reply.channel_id, piece))
+                reply.ids.append(
+                    await self._post(bot_token, reply.channel_id, piece, reference=reply.reference)
+                )
                 reply.shown.append(piece)
         while len(reply.ids) > len(pieces):
             stale = reply.ids.pop()
@@ -590,11 +624,15 @@ class DiscordAdapter(ChannelAdapter):
                 details={"bot_id": bot_id},
             )
         response.raise_for_status()
-        application = await self._call("GET", "/applications/@me", bot_token)
-        application.raise_for_status()
-        if application.json().get("bot_public"):
+        if await self._is_public(bot_token):
             raise ChannelNotConfigured(message=PUBLIC_BOT, details={"bot_id": bot_id})
         return str(response.json()["url"])
+
+    async def _is_public(self, bot_token: str) -> bool:
+        """Whether anyone may add this bot to their server - see :data:`PUBLIC_BOT`."""
+        application = await self._call("GET", "/applications/@me", bot_token)
+        application.raise_for_status()
+        return bool(application.json().get("bot_public"))
 
     async def _run_stream(self, bot_id: str, bot_token: str) -> None:
         """One Gateway connection: hello, identify or resume, then events until it closes."""
@@ -624,9 +662,14 @@ class DiscordAdapter(ChannelAdapter):
             finally:
                 for task in (beat, alive):
                     task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
+                    # A beat sent as the socket closed has already failed with
+                    # the close; it must not stand in for the code read below.
+                    with contextlib.suppress(asyncio.CancelledError, ConnectionClosed):
                         await task
             code = socket.close_code
+        if session.refusal is not None:
+            self._sessions.pop(bot_id, None)
+            raise ChannelNotConfigured(message=session.refusal, details={"bot_id": bot_id})
         refusal = close_refusal(code)
         if refusal is not None:
             self._sessions.pop(bot_id, None)
@@ -678,6 +721,8 @@ class DiscordAdapter(ChannelAdapter):
                 )
             except Exception:
                 logger.exception("discord_event_failed", extra={"event": str(payload.get("t"))})
+            if session.refusal is not None:
+                await socket.close(1000, "refused")
 
     async def _on_dispatch(
         self, event: str, data: dict[str, Any], bot_id: str, bot_token: str, session: _Session
@@ -687,6 +732,7 @@ class DiscordAdapter(ChannelAdapter):
             session.resume_url = data.get("resume_gateway_url")
             self._own_ids[bot_id] = str((data.get("user") or {}).get("id") or "")
             self._app_ids[bot_id] = str((data.get("application") or {}).get("id") or "")
+            session.guilds = {str(guild.get("id")) for guild in data.get("guilds") or []}
             await connection_state.record_up(bot_id)
             spawn(self._register_commands(bot_id, bot_token), name=f"discord-commands:{bot_id}")
         elif event == "RESUMED":
@@ -694,6 +740,21 @@ class DiscordAdapter(ChannelAdapter):
         elif event == "GUILD_CREATE":
             for channel in [*(data.get("channels") or []), *(data.get("threads") or [])]:
                 self._channels.put(str(channel["id"]), _channel_of(channel))
+            # A server the bot was added to since it identified, which the check
+            # before connecting never saw - and a resumed connection never repeats
+            # it. Asked here, on the receive loop, so nothing from that server is
+            # read before the answer.
+            own = self._own_ids.get(bot_id)
+            self._own_roles.setdefault(bot_id, set()).update(
+                str(role["id"])
+                for role in data.get("roles") or []
+                if own and (role.get("tags") or {}).get("bot_id") == own
+            )
+            guild = str(data.get("id") or "")
+            if guild not in session.guilds:
+                session.guilds.add(guild)
+                if await self._is_public(bot_token):
+                    session.refusal = PUBLIC_BOT
         elif event in ("CHANNEL_CREATE", "CHANNEL_UPDATE", "THREAD_CREATE", "THREAD_UPDATE"):
             self._channels.put(str(data["id"]), _channel_of(data))
         elif event == "THREAD_LIST_SYNC":
@@ -797,6 +858,7 @@ class DiscordAdapter(ChannelAdapter):
         key = self._chat_key(
             channel_id, guild=guild, message_id=_conversation_root(raw_payload, own)
         )
+        roles = self._own_roles.get(bot_id, set())
         addressed: bool | None = True
         if guild:
             if own is None:
@@ -808,13 +870,14 @@ class DiscordAdapter(ChannelAdapter):
                 channel = self._channels.get(channel_id)
                 addressed = (
                     any(user.get("id") == own for user in raw_payload.get("mentions") or [])
+                    or not roles.isdisjoint(raw_payload.get("mention_roles") or [])
                     or replied == own
                     or (channel is not None and channel.owner_id == own)
                 )
             if ":" in key and key.endswith(f":{raw_payload.get('id')}"):
                 self._thread_names.put(key, thread_name(text))
         if own:
-            text = without_mention(text, own)
+            text = without_mention(text, own, roles)
         attachments = _attachments(raw_payload)
         if not text and not attachments:
             return None
@@ -864,7 +927,7 @@ class DiscordAdapter(ChannelAdapter):
             run_id, text = parsed
             spawn(
                 self._keep_comment(
-                    self._app_ids.get(bot_id) or str(data.get("application_id") or ""),
+                    self._app_id(data, bot_id),
                     token,
                     FeedbackComment(
                         platform=self.platform,
@@ -893,6 +956,10 @@ class DiscordAdapter(ChannelAdapter):
             },
         )
         response.raise_for_status()
+
+    def _app_id(self, data: dict[str, Any], bot_id: str) -> str:
+        """The application an interaction's follow-ups are written under."""
+        return self._app_ids.get(bot_id) or str(data.get("application_id") or "")
 
     def _interaction_key(self, data: dict[str, Any], *, message_id: str | None) -> tuple[str, bool]:
         """The conversation an interaction belongs to, and whether it is in a server."""
@@ -925,6 +992,9 @@ class DiscordAdapter(ChannelAdapter):
                 token,
                 {"type": 4, "data": {"content": "On it.", "flags": 64}},
             )
+            # Until the answer begins, a reply - a refusal - replaces "On it."
+            # rather than opening a thread on somebody else's message.
+            self._interactions.put(interaction_id, (self._app_id(data, bot_id), token))
             text = f"Help me with this message:\n{quoted}"
             attachments = _attachments(target)
         elif name == ASK:
@@ -946,13 +1016,19 @@ class DiscordAdapter(ChannelAdapter):
                 self._thread_names.put(key, thread_name(question))
             text = question
         elif name in _ROUTED_COMMANDS:
+            key, guild = self._interaction_key(data, message_id=None)
+            if name == "new" and guild and key == str(data.get("channel_id") or ""):
+                channel = self._channels.get(key)
+                if channel is None or channel.kind not in THREAD_TYPES:
+                    # A server channel holds no conversation to start over: each
+                    # mention there opens its own thread.
+                    await self._answer_interaction(interaction_id, token, NEW_OUTSIDE_THREAD)
+                    return
             # Deferred and private: the router's reply is written into it.
             await self._answer_interaction(
                 interaction_id, token, {"type": 5, "data": {"flags": 64}}
             )
-            app_id = self._app_ids.get(bot_id) or str(data.get("application_id") or "")
-            self._interactions.put(interaction_id, (app_id, token))
-            key, guild = self._interaction_key(data, message_id=None)
+            self._interactions.put(interaction_id, (self._app_id(data, bot_id), token))
             text = f"/{name}"
         else:
             return

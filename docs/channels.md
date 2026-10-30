@@ -1474,11 +1474,14 @@ Discord bot has no webhook mode.
    bot's row says which switch to turn on. Under **Installation**, set **Install
    Link** to *None*, then switch off **Public Bot** under **Bot**. Anyone can add
    a public bot to their own server and talk to the agent there, so the bot
-   refuses to connect while it is public.
+   refuses to connect while it is public. One made public while connected stops
+   the next time it is added to a server.
 2. Under **OAuth2 → URL Generator**, tick the `bot` and `applications.commands`
    scopes and the permissions **View Channels**, **Send Messages**, **Send
-   Messages in Threads**, **Create Public Threads** and **Read Message History**,
-   then open the URL to add the bot to a server.
+   Messages in Threads**, **Create Public Threads**, **Read Message History** and
+   **Attach Files**, then open the URL to add the bot to a server. Without
+   **Attach Files** a file or chart the agent sends is refused, and the text
+   posted with it is lost too.
 3. Register it: **Channels → Add channel**, platform `discord`, with the token.
 
 The bot registers its commands when it connects: `/ask`, `/agents`, `/new`,
@@ -1494,6 +1497,8 @@ Discord can take a while to show new commands in every server.
 | *Apps → Ask the agent* | On any message: the agent is asked about that message, in a thread on it |
 
 `/agents`, `/link` and the other commands answer privately, to whoever ran them.
+`/new` starts a thread's conversation over; in a server channel, where every
+mention already starts a new one, it says so instead.
 In a channel where the bot may not open threads, the answer is a reply to the
 question instead, and replying to the answer continues that conversation.
 

@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from opentelemetry.instrumentation.utils import is_instrumentation_enabled
 from pydantic_ai import Agent
 from websockets.exceptions import ConnectionClosedError
 from websockets.frames import Close
@@ -56,6 +57,7 @@ class _Discord:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, Any]] = []
+        self.traced: list[tuple[str, bool]] = []
         self.routes: dict[tuple[str, str], list[httpx.Response]] = {}
         self._next = 1000
 
@@ -71,6 +73,7 @@ class _Discord:
             else:
                 body = json.loads(request.content)
         self.calls.append((request.method, path, body))
+        self.traced.append((path, is_instrumentation_enabled()))
         queued = self.routes.get((request.method, path))
         if queued:
             return queued.pop(0) if len(queued) > 1 else queued[0]
@@ -134,6 +137,26 @@ class TestReading:
         incoming = adapter.parse_incoming(_message(content="lunch?", mentions=[]), BOT)
         assert incoming is not None
         assert incoming.addressed is False
+
+    @pytest.mark.parametrize(("role", "addressed"), [("r1", True), ("r2", False)])
+    async def test_mentioning_the_bot_s_own_role_addresses_it(
+        self, adapter: DiscordAdapter, role: str, addressed: bool
+    ):
+        """Discord offers the bot's managed role beside the bot when its name is typed."""
+        await adapter._on_dispatch(
+            "GUILD_CREATE",
+            {"id": GUILD, "roles": [{"id": "r1", "tags": {"bot_id": OWN}}, {"id": "r2"}]},
+            BOT,
+            "tok",
+            _Session(guilds={GUILD}),
+        )
+        incoming = adapter.parse_incoming(
+            _message(content=f"<@&{role}> refund window?", mentions=[], mention_roles=[role]),
+            BOT,
+        )
+        assert incoming is not None
+        assert incoming.addressed is addressed
+        assert (incoming.text == "refund window?") is addressed
 
     def test_a_reply_to_the_bot_addresses_it(self, adapter: DiscordAdapter):
         incoming = adapter.parse_incoming(
@@ -339,6 +362,26 @@ class TestPosting:
         first, second = api.posted(f"/channels/{CHANNEL}/messages")
         assert first["message_reference"]["message_id"] == MESSAGE
         assert second["message_reference"]["message_id"] == MESSAGE
+
+    async def test_where_no_thread_may_be_opened_every_part_of_a_long_answer_names_the_question(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "POST",
+            f"/channels/{CHANNEL}/messages/{MESSAGE}/threads",
+            httpx.Response(403, text="no"),
+        )
+        chat = f"{CHANNEL}:{MESSAGE}"
+        await adapter.send_message("tok", OutgoingMessage(chat, "a" * 2500))
+        handle = await adapter.begin_reply("tok", OutgoingMessage(chat, ""))
+        assert handle is not None
+        await adapter.update_reply("tok", OutgoingMessage(chat, "b" * 2500), handle)
+        adapter._replies = discord.Recent(10)
+        await adapter.update_reply("tok", OutgoingMessage(chat, "c" * 4500), handle)
+
+        posted = api.posted(f"/channels/{CHANNEL}/messages")
+        assert len(posted) == 6
+        assert {body["message_reference"]["message_id"] for body in posted} == {MESSAGE}
 
     async def test_a_long_answer_is_several_messages_with_files_on_the_last(
         self, adapter: DiscordAdapter, api: _Discord
@@ -644,6 +687,77 @@ class TestInteractions:
         assert adapter._thread_names.get(f"{CHANNEL}:{MESSAGE}") == "deploy failed"
         assert incoming.attachments == []
 
+    async def test_ask_about_a_message_is_refused_privately_and_answered_in_a_thread(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
+    ):
+        """A refusal must not open a public thread on a colleague's message."""
+        ask = {
+            "type": 2,
+            "id": "i3",
+            "token": "itok",
+            "guild_id": GUILD,
+            "channel_id": CHANNEL,
+            "member": {"user": {"id": USER}},
+            "data": {
+                "name": "Ask the agent",
+                "type": 3,
+                "target_id": MESSAGE,
+                "resolved": {"messages": {MESSAGE: {"content": "deploy failed"}}},
+            },
+        }
+        await adapter._on_interaction(ask, BOT)
+        chat = f"{CHANNEL}:{MESSAGE}"
+        await adapter.send_message(
+            "tok", OutgoingMessage(chat, "You are not authorised.", reply_to_message_id="i3")
+        )
+        assert [(m, p) for m, p, _ in api.calls[1:]] == [
+            ("PATCH", f"/webhooks/{APP}/itok/messages/@original")
+        ]
+
+        api.calls.clear()
+        await adapter.begin_reply("tok", OutgoingMessage(chat, "…", reply_to_message_id="i3"))
+        await adapter.send_message("tok", OutgoingMessage(chat, "", reply_to_message_id="i3"))
+        assert f"/channels/{CHANNEL}/messages/{MESSAGE}/threads" in [p for _, p, _ in api.calls]
+        assert not [p for _, p, _ in api.calls if p.startswith("/webhooks/")]
+
+    @pytest.mark.parametrize(
+        ("channel", "key"),
+        [
+            ({"id": CHANNEL, "type": 0}, None),
+            ({"id": THREAD, "type": 11, "parent_id": CHANNEL}, f"{CHANNEL}:{THREAD}"),
+            ({"id": THREAD, "type": 12, "parent_id": CHANNEL}, THREAD),
+        ],
+    )
+    async def test_new_starts_over_a_thread_and_explains_itself_in_a_channel(
+        self,
+        adapter: DiscordAdapter,
+        api: _Discord,
+        spawned: list[Any],
+        channel: dict[str, Any],
+        key: str | None,
+    ):
+        await adapter._on_interaction(
+            {
+                "type": 2,
+                "id": "i4",
+                "token": "itok",
+                "guild_id": GUILD,
+                "channel_id": channel["id"],
+                "channel": channel,
+                "member": {"user": {"id": USER}},
+                "data": {"name": "new", "type": 1},
+            },
+            BOT,
+        )
+        [answer] = api.posted("/interactions/i4/itok/callback")
+        if key is None:
+            assert spawned == []
+            assert answer == discord.NEW_OUTSIDE_THREAD
+        else:
+            [incoming] = spawned
+            assert incoming.platform_chat_id == key
+            assert answer == {"type": 5, "data": {"flags": 64}}
+
     async def test_ask_about_a_message_with_only_a_file_hands_over_the_file(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
     ):
@@ -740,6 +854,18 @@ class TestInteractions:
             {"type": 3, "id": "i", "token": "t", "data": {"component_type": 3, "values": []}}, BOT
         )
         assert spawned == []
+
+    async def test_an_interaction_token_never_reaches_a_trace(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
+    ):
+        await adapter._on_interaction(
+            {"type": 3, "id": "i9", "token": "itok", "data": {"custom_id": "aos:p:0"}}, BOT
+        )
+        await adapter._learn_channel("tok", CHANNEL)
+        assert api.traced == [
+            ("/interactions/i9/itok/callback", False),
+            (f"/channels/{CHANNEL}", True),
+        ]
 
     async def test_a_submitted_form_is_kept_as_a_comment(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
@@ -857,7 +983,7 @@ class TestGateway:
         assert socket.sent[0]["op"] == 2
         assert adapter._own_ids[BOT] == OWN
         [registering] = spawned
-        await registering
+        await asyncio.wait_for(registering, timeout=5)
         assert [p for m, p, _ in api.calls if m == "PUT"] == [f"/applications/{APP}/commands"]
         state.assert_awaited()
         session = adapter._sessions[BOT]
@@ -911,6 +1037,68 @@ class TestGateway:
             await adapter._run_stream(BOT, "tok")
         connect.assert_not_called()
 
+    async def test_a_bot_made_public_stops_when_it_is_added_to_a_server(
+        self, adapter: DiscordAdapter, api: _Discord, state: AsyncMock
+    ):
+        """The check before connecting cannot see a switch flipped afterwards."""
+        api.answer("GET", "/gateway/bot", httpx.Response(200, json={"url": "wss://gw"}))
+        api.answer(
+            "GET",
+            "/applications/@me",
+            httpx.Response(200, json={"bot_public": False}),
+            httpx.Response(200, json={"bot_public": True}),
+        )
+        ready = {
+            "op": 0,
+            "s": 1,
+            "t": "READY",
+            "d": {"session_id": "s1", "guilds": [{"id": GUILD}]},
+        }
+        known = {"op": 0, "s": 2, "t": "GUILD_CREATE", "d": {"id": GUILD}}
+        added = {"op": 0, "s": 3, "t": "GUILD_CREATE", "d": {"id": "g2"}}
+        socket = _Socket([ready, known, added], close_code=None)
+        with (
+            patch.object(discord, "connect", _connect(socket)),
+            pytest.raises(ChannelNotConfigured, match="Public Bot"),
+        ):
+            await adapter._run_stream(BOT, "tok")
+        assert [p for _, p, _ in api.calls].count("/applications/@me") == 2
+        assert socket.closed == [1000]
+        assert BOT not in adapter._sessions
+
+    async def test_a_private_bot_added_to_a_server_stays_connected(
+        self, adapter: DiscordAdapter, api: _Discord, state: AsyncMock
+    ):
+        api.answer("GET", "/gateway/bot", httpx.Response(200, json={"url": "wss://gw"}))
+        added = {"op": 0, "s": 1, "t": "GUILD_CREATE", "d": {"id": "g2"}}
+        socket = _Socket([added], close_code=None)
+        with patch.object(discord, "connect", _connect(socket)):
+            await adapter._run_stream(BOT, "tok")
+        assert socket.closed == []
+        assert adapter._sessions[BOT].guilds == {"g2"}
+
+    async def test_a_beat_lost_to_a_closing_socket_leaves_the_close_code_to_decide(
+        self, adapter: DiscordAdapter, api: _Discord, state: AsyncMock
+    ):
+        """A beat sent as Discord closed fails too; 4004 must still stop the bot."""
+
+        class _Closing(_Socket):
+            async def _iterate(self) -> AsyncIterator[str]:
+                await asyncio.sleep(0)
+                raise ConnectionClosedError(Close(4004, ""), None)
+                yield ""
+
+        async def beat(*_: Any) -> None:
+            raise ConnectionClosedError(Close(4004, ""), None)
+
+        api.answer("GET", "/gateway/bot", httpx.Response(200, json={"url": "wss://gw"}))
+        with (
+            patch.object(adapter, "_heartbeat", beat),
+            patch.object(discord, "connect", _connect(_Closing([], close_code=4004))),
+            pytest.raises(ChannelNotConfigured),
+        ):
+            await adapter._run_stream(BOT, "tok")
+
     async def test_a_rejected_token_stops_before_connecting(
         self, adapter: DiscordAdapter, api: _Discord
     ):
@@ -963,10 +1151,11 @@ class TestGateway:
     async def test_channels_are_learned_from_the_gateway_and_looked_up_once(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any], state: AsyncMock
     ):
-        session = _Session()
+        session = _Session(guilds={GUILD})
         await adapter._on_dispatch(
             "GUILD_CREATE",
             {
+                "id": GUILD,
                 "channels": [{"id": CHANNEL, "type": 0}],
                 "threads": [{"id": THREAD, "type": 11, "parent_id": CHANNEL}],
             },

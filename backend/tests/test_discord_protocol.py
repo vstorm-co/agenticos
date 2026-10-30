@@ -115,6 +115,7 @@ class TestThreadName:
 
 def test_only_the_bot_s_own_mention_is_taken_out():
     assert without_mention("<@42> ask <@!42> <@7> about it", "42") == "ask <@7> about it"
+    assert without_mention("<@&9> ask <@&8> about it", "42", {"9"}) == "ask <@&8> about it"
 
 
 def test_taking_the_mention_out_keeps_the_lines_and_the_code():
