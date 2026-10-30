@@ -1,5 +1,8 @@
 import { version } from "../package.json";
 import { test, expect } from "./fixtures";
+import { AUTH_STATE } from "./helpers";
+
+test.use({ storageState: AUTH_STATE });
 
 test("release notes appear after sign-in and stay dismissed on this device", async ({ page }) => {
   await page.route("**/api/releases/current", (route) =>

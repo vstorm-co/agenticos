@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import type { ArtifactDetail } from "../src/types/artifact";
 
 import { expect, test } from "./fixtures";
 import { OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
@@ -256,11 +257,72 @@ for (const platform of ["ios", "android"] as const) {
     test("gives app preview actions vertical breathing room and equal touch targets", async ({
       page,
     }) => {
-      await page.goto("/apps");
-      const app = page.locator("main a[href*='/apps/']").first();
-      await expect(app).toBeVisible();
-      const href = await app.getAttribute("href");
-      if (!href) throw new Error("Expected an app detail link");
+      // This is a toolbar-layout contract. Publishing apps requires an agent
+      // run, so use a typed display fixture rather than a live model call.
+      const id = "00000000-0000-4000-8000-000000000001";
+      const version = {
+        id: "00000000-0000-4000-8000-000000000002",
+        number: 1,
+        media_type: "text/html" as const,
+        size_bytes: 48,
+        run_id: null,
+        created_at: new Date().toISOString(),
+      };
+      const artifact: ArtifactDetail = {
+        id,
+        name: "layout-report",
+        title: "Layout report",
+        visibility: "private",
+        owner_user_id: null,
+        agent_id: null,
+        environment_id: null,
+        environment_name: null,
+        public_url: null,
+        published_at: version.created_at,
+        created_at: version.created_at,
+        updated_at: null,
+        current_version: version,
+        can_edit: false,
+        following: false,
+        public_link: {
+          expires_at: null,
+          pinned_version_id: null,
+          pinned_version: null,
+          password_protected: false,
+          view_count: 0,
+          last_viewed_at: null,
+          embed_origins: [],
+          embed_url: null,
+        },
+      };
+      await page.route(`**/api/apps/${id}`, (route) => route.fulfill({ json: artifact }));
+      await page.route(`**/api/apps/${id}/versions`, (route) =>
+        route.fulfill({ json: { items: [version], total: 1 } }),
+      );
+      await page.route(`**/api/apps/${id}/view*`, (route) =>
+        route.fulfill({
+          json: {
+            url: new URL("/e2e-app.html", page.url()).href,
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            version,
+          },
+        }),
+      );
+      await page.route("**/e2e-app.html", (route) =>
+        route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Layout report</h1>" }),
+      );
+      await page.route(`**/api/apps/${id}/sharing`, (route) =>
+        route.fulfill({
+          json: {
+            resource_type: "artifact",
+            resource_id: id,
+            owner_user_id: null,
+            visibility: "private",
+            grants: [],
+          },
+        }),
+      );
+      const href = `/apps/${id}`;
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(href);

@@ -55,7 +55,9 @@ test.describe("Skills", () => {
     // then loads. Asserting the stored values rather than the fields' presence
     // is what makes this a test of the fetch behind the dialog — the gallery
     // only ever had the summary, so the body proves the detail request landed.
-    await expect(dialog.getByLabel("Description")).toHaveValue(SEEDED_SKILL_DESCRIPTION);
+    await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(
+      SEEDED_SKILL_DESCRIPTION,
+    );
 
     // The body is `SKILL.md` in a file tree now rather than a "Content" box, and
     // the dialog opens on Source - the model's own copy, which is what this
@@ -73,7 +75,9 @@ test.describe("Skills", () => {
     const dialog = page.getByRole("dialog");
     // The editor loads the full skill after the dialog opens; wait for it before
     // counting anything, or an unloaded editor reads as an unprivileged one.
-    await expect(dialog.getByLabel("Description")).toHaveValue(SEEDED_SKILL_DESCRIPTION);
+    await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(
+      SEEDED_SKILL_DESCRIPTION,
+    );
 
     const save = dialog.getByRole("button", { name: "Save" });
     await expect(save).toBeVisible();
@@ -84,7 +88,7 @@ test.describe("Skills", () => {
     const blastRadius = dialog.getByRole("alert");
     await expect(blastRadius).toHaveCount(0);
 
-    await dialog.getByLabel("Description").fill("Edited by the E2E suite.");
+    await dialog.getByLabel("Description", { exact: true }).fill("Edited by the E2E suite.");
 
     // A skill has no draft and no publish step, so this warning is the only
     // moment anyone is told that every agent bound to the skill changes too.
@@ -105,13 +109,15 @@ test.describe("Skills", () => {
     await page.getByRole("button", { name: "New skill" }).first().click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Name").fill(name);
-    await dialog.getByLabel("Description").fill("Written by the E2E suite.");
+    await dialog.getByLabel("Description", { exact: true }).fill("Written by the E2E suite.");
     await dialog.getByRole("button", { name: "Create" }).click();
     await expect(skillCard(page, name)).toBeVisible();
 
     await skillCard(page, name).click();
-    await expect(dialog.getByLabel("Description")).toHaveValue("Written by the E2E suite.");
-    await dialog.getByLabel("Description").fill(edited);
+    await expect(dialog.getByLabel("Description", { exact: true })).toHaveValue(
+      "Written by the E2E suite.",
+    );
+    await dialog.getByLabel("Description", { exact: true }).fill(edited);
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(dialog).toBeHidden();
 
@@ -121,7 +127,9 @@ test.describe("Skills", () => {
     await page.reload();
     await expect(skillCard(page, name)).toContainText(edited);
 
-    await page.getByRole("button", { name: `Delete ${name}` }).click();
+    await skillCard(page, name).click();
+    await dialog.getByRole("button", { name: `More actions for ${name}`, exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(skillCard(page, name)).toHaveCount(0);
   });
