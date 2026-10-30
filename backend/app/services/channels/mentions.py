@@ -39,13 +39,14 @@ handle typed into a public channel is a name, not a key.
 import asyncio
 import logging
 import re
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Set
 from dataclasses import dataclass, field
 from decimal import Decimal
 from io import BytesIO
 from typing import Any
 from uuid import UUID
 
+from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -143,12 +144,9 @@ def _photo_png(content: bytes) -> bytes:
     return png
 
 
-async def _generated_picture(result: str, organization_id: UUID) -> bytes | None:
+async def _generated_picture(filename: str, organization_id: UUID) -> bytes | None:
     """Read only the tenant's stored generation receipt, never its URL or workspace path."""
-    image = parse_generated_image(result)
-    if image is None or image.filename is None:
-        return None
-    stored = await generated_media.open_generated_media(organization_id, image.filename)
+    stored = await generated_media.open_generated_media(organization_id, filename)
     if not 0 < stored.size <= MAX_OUTBOUND_BYTES:
         return None
     # The range also bounds a file replaced between the size check and the read.
@@ -171,6 +169,7 @@ async def drawn_picture(
     organization_id: UUID,
     conversation_id: UUID | None,
     notices: list[str] | None = None,
+    generated_files: Set[str] = frozenset(),
 ) -> bytes | None:
     """The last picture this turn made: a generated photo, chart, or visual the deployment's browser drew.
 
@@ -182,10 +181,24 @@ async def drawn_picture(
         if call.result is None:
             continue
         if call.tool_name == "generate_image":
+            image = parse_generated_image(call.result)
+            if image is None:
+                continue
             try:
-                async with asyncio.timeout(15):
-                    picture = await _generated_picture(call.result, organization_id)
-            except NotFoundError, OSError, ValueError, Image.DecompressionBombError:
+                # MCP tools can reuse this name and forge a receipt. Only the
+                # runner's store-generated provenance may authorize an embed.
+                picture = None
+                if image.filename is not None and image.filename in generated_files:
+                    async with asyncio.timeout(15):
+                        picture = await _generated_picture(image.filename, organization_id)
+            except (
+                NotFoundError,
+                OSError,
+                ValueError,
+                Image.DecompressionBombError,
+                BotoCoreError,
+                ClientError,
+            ):
                 logger.warning(
                     "Could not prepare a generated picture for a channel reply", exc_info=True
                 )
@@ -467,6 +480,7 @@ class ChannelAgentRouter:
         refused: list[str] = []
         notices: list[str] = []
         called: list[RecordedToolCall] = []
+        generated_files: set[str] = set()
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
@@ -475,6 +489,7 @@ class ChannelAgentRouter:
             outbound=produced,
             outbound_refused=refused,
             tool_calls=called,
+            generated_files=generated_files,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
@@ -518,6 +533,7 @@ class ChannelAgentRouter:
                 organization_id=run.organization_id,
                 conversation_id=run.conversation_id,
                 notices=notices,
+                generated_files=generated_files,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
@@ -592,6 +608,7 @@ class ChannelAgentRouter:
         refused: list[str] = []
         notices: list[str] = []
         called: list[RecordedToolCall] = []
+        generated_files: set[str] = set()
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
@@ -600,6 +617,7 @@ class ChannelAgentRouter:
             outbound=produced,
             outbound_refused=refused,
             tool_calls=called,
+            generated_files=generated_files,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
@@ -637,6 +655,7 @@ class ChannelAgentRouter:
                 organization_id=run.organization_id,
                 conversation_id=run.conversation_id,
                 notices=notices,
+                generated_files=generated_files,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None

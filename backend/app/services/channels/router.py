@@ -19,6 +19,9 @@ from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_session import ChannelSession
+from app.db.models.chat_file import ChatFile
 from app.repositories import (
     agent_exposure_repo,
     agent_repo,
@@ -534,27 +537,11 @@ class ChannelMessageRouter:
         # brought into an existing thread got neither the transcript nor the
         # earlier files - and because the session was never stamped, every later
         # message to it skipped the backfill too.
-        thread_history: list[ModelMessage] = []
-        if session.thread_backfilled_at is None:
-            thread_history, read_transcript = await self._thread_backfill(
-                db, incoming, directory, bot
-            )
-            earlier, earlier_refusals, read_files = await self._thread_files(
-                db, bot, incoming, identity, handled=recordings
-            )
-            files += earlier
-            file_refusals += earlier_refusals
-            # Stamped only when both reads answered. A transient platform failure
-            # used to be recorded as "backfilled", so every later turn skipped
-            # the read permanently and the conversation never got its context. An
-            # empty *successful* read is still a stamp: a thread with nothing
-            # above it must not be asked about on every turn.
-            if read_transcript and read_files:
-                await channel_session_repo.update(
-                    db,
-                    db_session=session,
-                    update_data={"thread_backfilled_at": datetime.now(UTC)},
-                )
+        thread_history, earlier, earlier_refusals = await self._thread_context(
+            db, bot, incoming, identity, session, directory, recordings
+        )
+        files += earlier
+        file_refusals += earlier_refusals
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
@@ -1863,6 +1850,37 @@ class ChannelMessageRouter:
                 # outcome using a separate, text-only reply.
                 await self._send_reply(bot, incoming, PICTURE_DELIVERY_UNCONFIRMED)
 
+    async def _thread_context(
+        self,
+        db: AsyncSession,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        session: ChannelSession,
+        directory: BoundChannelDirectory | None,
+        handled: Sequence[IncomingAttachment],
+    ) -> tuple[list[ModelMessage], list[ChatFile], list[str]]:
+        """Refresh timestamped text without refetching files from an already read thread."""
+        needs_files = session.thread_backfilled_at is None
+        if not needs_files and session.thread_history_version != 0:
+            return [], [], []
+        history, read_transcript = await self._thread_backfill(db, incoming, directory, bot)
+        files: list[ChatFile] = []
+        refusals: list[str] = []
+        read_files = True
+        if needs_files:
+            files, refusals, read_files = await self._thread_files(
+                db, bot, incoming, identity, handled=handled
+            )
+        updates: dict[str, object] = {}
+        if read_transcript:
+            updates["thread_history_version"] = 1
+        if needs_files and read_files:
+            updates["thread_backfilled_at"] = datetime.now(UTC)
+        if updates:
+            await channel_session_repo.update(db, db_session=session, update_data=updates)
+        return history, files, refusals
+
     async def _thread_files(
         self,
         db: AsyncSession,
@@ -1870,7 +1888,7 @@ class ChannelMessageRouter:
         incoming: IncomingMessage,
         identity: ChannelIdentity,
         handled: Sequence[IncomingAttachment] = (),
-    ) -> tuple[list[Any], list[str], bool]:
+    ) -> tuple[list[ChatFile], list[str], bool]:
         """The files posted in this thread before we were brought into it.
 
         The transcript alone was not enough, and the bot said so accurately: asked

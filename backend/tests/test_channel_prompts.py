@@ -151,7 +151,7 @@ class _Patched:
 
 
 def _segment(output: str = "Sent.") -> MagicMock:
-    return MagicMock(output=output, tool_calls=[], settled={})
+    return MagicMock(output=output, tool_calls=[], settled={}, generated_files=frozenset())
 
 
 class TestPressValues:
@@ -868,6 +868,7 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
         output="Sent.",
         tool_calls=[],
         settled={},
+        generated_files=frozenset(),
         run=SimpleNamespace(
             conversation_id=None,
             id=RUN,

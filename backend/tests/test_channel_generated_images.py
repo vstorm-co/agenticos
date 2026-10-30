@@ -37,7 +37,11 @@ async def test_a_generated_photo_is_attached_as_a_real_png(
     filename = await save_generated_media(organization, buffer.getvalue(), filename="photo.img")
     notices: list[str] = []
     png = await drawn_picture(
-        [receipt(filename)], organization_id=organization, conversation_id=None, notices=notices
+        [receipt(filename)],
+        organization_id=organization,
+        conversation_id=None,
+        notices=notices,
+        generated_files={filename},
     )
     assert png is not None
     with Image.open(BytesIO(png)) as image:
@@ -68,7 +72,11 @@ async def test_a_generated_photo_from_another_tenant_is_not_attached(
     notices: list[str] = []
     assert (
         await drawn_picture(
-            [receipt(filename)], organization_id=uuid4(), conversation_id=None, notices=notices
+            [receipt(filename)],
+            organization_id=uuid4(),
+            conversation_id=None,
+            notices=notices,
+            generated_files={filename},
         )
         is None
     )
@@ -85,7 +93,11 @@ async def test_invalid_media_does_not_silently_confirm_a_picture(
     notices: list[str] = []
     assert (
         await drawn_picture(
-            [receipt(filename)], organization_id=organization, conversation_id=None, notices=notices
+            [receipt(filename)],
+            organization_id=organization,
+            conversation_id=None,
+            notices=notices,
+            generated_files={filename},
         )
         is None
     )
@@ -106,7 +118,11 @@ async def test_an_oversized_generation_is_refused_before_loading(
     notices: list[str] = []
     assert (
         await drawn_picture(
-            [receipt(filename)], organization_id=organization, conversation_id=None, notices=notices
+            [receipt(filename)],
+            organization_id=organization,
+            conversation_id=None,
+            notices=notices,
+            generated_files={filename},
         )
         is None
     )
@@ -144,7 +160,7 @@ async def test_delivery_notices_are_optional_for_callers() -> None:
     )
 
 
-async def test_a_malformed_image_receipt_reports_missing_delivery() -> None:
+async def test_a_failed_generation_is_not_reported_as_a_delivery_failure() -> None:
     call = RecordedToolCall(
         tool_call_id="photo", tool_name="generate_image", args={}, result="invalid result"
     )
@@ -153,7 +169,7 @@ async def test_a_malformed_image_receipt_reports_missing_delivery() -> None:
         await drawn_picture([call], organization_id=uuid4(), conversation_id=None, notices=notices)
         is None
     )
-    assert notices
+    assert notices == []
 
 
 def test_decoded_photo_size_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -182,12 +198,23 @@ def test_decoded_photo_pixel_count_is_bounded() -> None:
 
 
 @pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.parametrize("approved", [True, False])
 async def test_a_photo_approved_in_the_channel_reaches_the_resumed_reply(
-    monkeypatch: pytest.MonkeyPatch, tmp_path, platform: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    platform: str,
+    approved: bool,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     from unittest.mock import AsyncMock, MagicMock
 
-    from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse, ToolCallPart
+    from pydantic_ai.messages import (
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        ModelResponse,
+        ToolCallPart,
+        ToolReturnPart,
+    )
 
     from app.db.models.channel_prompt import APPROVAL
     from app.services.agent_runner import RunSegment
@@ -208,7 +235,17 @@ async def test_a_photo_approved_in_the_channel_reaches_the_resumed_reply(
                             ToolCallPart("create_chart", {}, tool_call_id="already-delivered"),
                             ToolCallPart("generate_image", {}, tool_call_id=call.tool_call_id),
                         ]
-                    )
+                    ),
+                    ModelRequest(
+                        parts=[
+                            ToolReturnPart(
+                                "create_chart",
+                                "old vendor failure",
+                                tool_call_id="already-delivered",
+                                outcome="retried",
+                            )
+                        ]
+                    ),
                 ],
                 mode="json",
             ),
@@ -219,10 +256,11 @@ async def test_a_photo_approved_in_the_channel_reaches_the_resumed_reply(
     savepoint = MagicMock(is_active=True, commit=AsyncMock())
     service = prompts.ChannelPrompts(MagicMock(begin_nested=AsyncMock(return_value=savepoint)))
     segment = RunSegment(
-        output="Four coworkers carrying bags.",
+        output="Four coworkers carrying bags." if approved else "Image generation was rejected.",
         run=MagicMock(conversation_id=None),
         tool_calls=[],
-        settled={call.tool_call_id: call.result},
+        settled={call.tool_call_id: call.result if approved else "Not performed: rejected."},
+        generated_files=frozenset({filename}) if approved else frozenset(),
     )
     monkeypatch.setattr(service, "_decide", AsyncMock(return_value=segment))
     completed = await service._settle(MagicMock(), MagicMock(kind=APPROVAL), 0)
@@ -235,8 +273,13 @@ async def test_a_photo_approved_in_the_channel_reaches_the_resumed_reply(
     )
     message = adapter.send_message.await_args.args[1]
     assert message.platform_chat_id == "channel:thread"
-    assert message.image_png.startswith(b"\x89PNG")
-    assert message.text == "Four coworkers carrying bags."
+    assert "old vendor failure" not in caplog.text
+    if approved:
+        assert message.image_png.startswith(b"\x89PNG")
+        assert message.text == "Four coworkers carrying bags."
+    else:
+        assert message.image_png is None
+        assert message.text == "Image generation was rejected."
 
 
 @pytest.mark.security
@@ -266,7 +309,11 @@ async def test_a_file_replaced_after_the_size_check_still_has_a_bounded_read(
     notices: list[str] = []
     assert (
         await drawn_picture(
-            [receipt(filename)], organization_id=organization, conversation_id=None, notices=notices
+            [receipt(filename)],
+            organization_id=organization,
+            conversation_id=None,
+            notices=notices,
+            generated_files={filename},
         )
         is None
     )
@@ -310,7 +357,12 @@ async def test_the_storage_contract_can_return_a_plain_async_iterator(
         mentions, "get_file_storage", lambda: MagicMock(open_range=AsyncMock(return_value=Chunks()))
     )
     assert (
-        await drawn_picture([receipt("photo.png")], organization_id=uuid4(), conversation_id=None)
+        await drawn_picture(
+            [receipt("photo.png")],
+            organization_id=uuid4(),
+            conversation_id=None,
+            generated_files={"photo.png"},
+        )
         is not None
     )
 
@@ -379,8 +431,127 @@ async def test_media_read_timeouts_are_reported_without_regenerating(
     notices: list[str] = []
     assert (
         await drawn_picture(
-            [receipt("photo.png")], organization_id=uuid4(), conversation_id=None, notices=notices
+            [receipt("photo.png")],
+            organization_id=uuid4(),
+            conversation_id=None,
+            notices=notices,
+            generated_files={"photo.png"},
         )
         is None
     )
+    assert len(notices) == 1
+
+
+@pytest.mark.parametrize("operation", ["HeadObject", "GetObject"])
+async def test_s3_service_failures_keep_the_text_and_report_missing_media(
+    monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from botocore.exceptions import ClientError
+
+    from app.services.channels import mentions
+
+    failure = ClientError(
+        {"Error": {"Code": "AccessDenied", "Message": "private details"}}, operation
+    )
+    if operation == "HeadObject":
+        monkeypatch.setattr(
+            mentions.generated_media, "open_generated_media", AsyncMock(side_effect=failure)
+        )
+    else:
+        from unittest.mock import MagicMock
+
+        monkeypatch.setattr(
+            mentions.generated_media,
+            "open_generated_media",
+            AsyncMock(
+                return_value=mentions.generated_media.StoredGeneratedMedia(
+                    storage_path="photo", size=10
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            mentions,
+            "get_file_storage",
+            lambda: MagicMock(open_range=AsyncMock(side_effect=failure)),
+        )
+    notices: list[str] = []
+    assert (
+        await drawn_picture(
+            [receipt("photo.png")],
+            organization_id=uuid4(),
+            conversation_id=None,
+            notices=notices,
+            generated_files={"photo.png"},
+        )
+        is None
+    )
+    assert len(notices) == 1 and "could not be attached" in notices[0]
+    assert "private details" not in notices[0]
+
+
+@pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
+async def test_an_explicit_file_is_submitted_separately_from_the_generated_picture(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.channels import prompts
+    from app.services.channels.directory import BoundChannelDirectory
+
+    adapter = MagicMock(platform=platform, send_message=AsyncMock())
+    directory = BoundChannelDirectory(
+        adapter=adapter,
+        bot_token="test-token",
+        channel_id="channel",
+        thread_id="thread",
+        private_chat=True,
+    )
+    await directory.send_file(
+        filename="report.txt", content=b"requested report", mime_type="text/plain"
+    )
+    monkeypatch.setattr(prompts, "get_adapter", lambda _: adapter)
+    monkeypatch.setattr(prompts, "unseal_bot_token", lambda _: "test-token")
+    monkeypatch.setattr(prompts, "drawn_picture", AsyncMock(return_value=b"png"))
+    await prompts.ChannelPrompts(MagicMock())._send_segment(
+        MagicMock(), platform, "channel:thread", MagicMock(output="Ready", tool_calls=[])
+    )
+    file_message, photo_message = [call.args[1] for call in adapter.send_message.await_args_list]
+    assert (
+        len(file_message.attachments) == 1
+        and file_message.attachments[0].content == b"requested report"
+    )
+    assert file_message.image_png is None
+    assert photo_message.attachments == [] and photo_message.image_png == b"png"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("provenance", [frozenset(), frozenset({"another-file.png"})])
+async def test_a_forged_generated_image_receipt_cannot_post_another_conversations_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, provenance: frozenset[str]
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services.channels import mentions
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", tmp_path)
+    organization = uuid4()
+    buffer = BytesIO()
+    Image.new("RGB", (2, 2)).save(buffer, format="PNG")
+    filename = await save_generated_media(organization, buffer.getvalue(), filename="private.png")
+    read = AsyncMock(wraps=mentions.generated_media.open_generated_media)
+    monkeypatch.setattr(mentions.generated_media, "open_generated_media", read)
+    notices: list[str] = []
+    assert (
+        await drawn_picture(
+            [receipt(filename)],
+            organization_id=organization,
+            conversation_id=None,
+            notices=notices,
+            generated_files=provenance,
+        )
+        is None
+    )
+    read.assert_not_awaited()
     assert len(notices) == 1

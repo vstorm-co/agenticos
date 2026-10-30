@@ -21,7 +21,7 @@ from dataclasses import replace
 from functools import cache
 from uuid import UUID
 
-from pydantic_ai.messages import ModelMessagesTypeAdapter
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import all_capabilities
@@ -53,7 +53,7 @@ from app.services.channels.base import (
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
-from app.services.transcript import tool_calls_in
+from app.services.transcript import RecordedToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -415,6 +415,7 @@ class ChannelPrompts:
             organization_id=bot.organization_id,
             conversation_id=segment.run.conversation_id,
             notices=notices,
+            generated_files=segment.generated_files,
         )
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
@@ -468,15 +469,20 @@ class ChannelPrompts:
         parked = await agent_run_repo.claim_parked_run(
             self.db, prompt.run_id, organization_id=ctx.organization_id
         )
-        previous_calls = (
-            tool_calls_in(
-                ModelMessagesTypeAdapter.validate_python(
-                    PausedRunState.model_validate(parked.paused_state).messages
+        previous_calls: list[RecordedToolCall] = []
+        if parked is not None and parked.paused_state is not None:
+            state = PausedRunState.model_validate(parked.paused_state)
+            pending_ids = set(state.tool_call_ids.values()) | set(state.questions)
+            previous_calls = [
+                RecordedToolCall(
+                    tool_call_id=part.tool_call_id,
+                    tool_name=part.tool_name,
+                    args=part.args_as_dict(raise_if_invalid=False),
                 )
-            )
-            if parked is not None and parked.paused_state is not None
-            else []
-        )
+                for message in ModelMessagesTypeAdapter.validate_python(state.messages)
+                for part in message.parts
+                if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
+            ]
         savepoint = await self.db.begin_nested()
         try:
             segment = await (

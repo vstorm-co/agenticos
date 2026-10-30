@@ -248,12 +248,19 @@ class TestTheReplyAChannelTurnBuilds:
         self, path: str, platform: str, rendered: bytes | None, kind: str
     ) -> None:
         async def execute(
-            *args: object, tool_calls: list[RecordedToolCall], **kwargs: object
+            *args: object,
+            tool_calls: list[RecordedToolCall],
+            generated_files: set[str],
+            **kwargs: object,
         ) -> tuple[str, MagicMock]:
+            generated_files.add("photo.png")
             tool_calls.append(
                 _call("Drew 'Flow' as visual `v`.", name="draw")
                 if kind == "visual"
-                else _call("{}", name="generate_image")
+                else _call(
+                    '{"kind":"generated_image","filename":"photo.png","media_type":"image/png","prompt":"photo"}',
+                    name="generate_image",
+                )
             )
             return "The diagram is ready.", MagicMock()
 
