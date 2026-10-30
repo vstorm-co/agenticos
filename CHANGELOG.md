@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Upgrade the sandbox client and `sandboxd` image together to 0.2.39. Runtime
+  images using `run_as_uid` now build on Debian and Ubuntu Python installations
+  without `ensurepip`; the library's built-in Node runtimes use Node 24 and
+  build with current npm packages.
+
 ## [1.29.1] - 2026-10-30
 
 ### Fixed
