@@ -2490,6 +2490,8 @@ class RunSegment:
     run: AgentRun
     tool_calls: list[RecordedToolCall]
     settled: dict[str, str]
+    generated_files: frozenset[str] = frozenset()
+    """Leaf names actually stored by this run, never inferred from tool result text."""
 
 
 def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
@@ -5113,6 +5115,7 @@ class AgentRunnerService:
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
         tool_calls: list[RecordedToolCall] | None = None,
+        generated_files: set[str] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
         parks_questions: bool = False,
@@ -5162,6 +5165,9 @@ class AgentRunnerService:
 
         `draft` runs the unpublished draft as a test, as `prepare` documents - the
         HTTP API's way of trying an agent before it is published (#2301).
+
+        `generated_files` receives only names recorded by this run's own media
+        storage, so a surface need not trust a filename in a tool result.
 
         `reports_failure` is for the HTTP API: a run that fails once started raises
         :class:`RunFailedError` naming it - :class:`ModelCallFailedError` when the
@@ -5231,6 +5237,8 @@ class AgentRunnerService:
             if not reports_failure or isinstance(exc, (AppException, SQLAlchemyError)):
                 raise
             raise failed_run_error(prepared.run, exc) from exc
+        if generated_files is not None:
+            generated_files.update(segment.generated_files)
         if outbound is not None:
             outbound.extend(prepared.outbound)
         if outbound_refused is not None:
@@ -6124,7 +6132,13 @@ class AgentRunnerService:
                     raise
                 logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
-        return RunSegment(output=output, run=prepared.run, tool_calls=called, settled=settled)
+        return RunSegment(
+            output=output,
+            run=prepared.run,
+            tool_calls=called,
+            settled=settled,
+            generated_files=frozenset(prepared.built.deps.generated_files),
+        )
 
     async def list_runs(
         self,

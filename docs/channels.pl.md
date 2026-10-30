@@ -1,5 +1,5 @@
 ---
-source_sha: "aa20fd56e2b8"
+source_sha: "968f30d76fa2"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2613,6 +2613,10 @@ Zmieniają to cztery narzędzia i każde jest przyznawane **per powiązanie**, p
 | `send_channel_file` | Wyślij zamówiony plik z workspace | ✅ | ✅ | ✅ | ✅ |
 
 Aby połączyć konto, wyślij botowi w wiadomości prywatnej samo `link` (bez ukośnika). Otwórz prywatny link po zalogowaniu do AgenticOS, a następnie wróć na kanał. Jeśli wcześniejsze pliki wątku wymagają połączenia konta, bot wyjaśnia to bez pobierania plików i ponawia odczyt po połączeniu. Obrazy kanałów mają dwukrotną rozdzielczość CSS; bardzo szerokie poziome diagramy Mermaid otrzymują układ pionowy tylko w PNG.
+
+Obrazy zamówione przez `generate_image` są dołączane do odpowiedzi na wszystkich czterech platformach, obok wykresów i diagramów. Zapisane obrazy są odczytywane w obrębie organizacji uruchomienia, ograniczone do 8 MiB i 16 megapikseli oraz konwertowane na PNG; brakujące, nieprawidłowe lub zbyt duże obrazy powodują komunikat o niedostarczeniu. Teams dodatkowo dopasowuje obrazy do własnych limitów. Utworzenie zwykłego pliku w przestrzeni roboczej nadal go nie wysyła: wymaga to `send_channel_file`. Kontekst wątku zachowuje oryginalne daty wiadomości; czas względny odnosi się do nich, a nie do chwili dołączenia agenta.
+
+Dołączane są wyłącznie pliki zapisane jako wygenerowane przez narzędzia danego uruchomienia. Nazwa narzędzia ani tekst wyniku nie upoważniają do odczytu obrazów z innej rozmowy. Odrzucenie zgody na generowanie nie powoduje komunikatu o niedostarczeniu obrazu. Istniejące wątki odświeżają tekst raz, bez ponownego pobierania wcześniejszych załączników.
 
 Per powiązanie, a nie per agent, bo organizacja może podpiąć jednego agenta do
 dwóch serwerów Mattermosta i trzech workspace'ów Slacka — a *„czy może czytać to,
