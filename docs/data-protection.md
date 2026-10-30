@@ -244,6 +244,8 @@ retention is [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit | Nothing, once the flow has run; `sync_logs` counts remain |
 | Deleting an organization | Everything scoped to it, with the same deferred teardown - its generated media by prefix, including files written before they were recorded | Personal collections that merely carried the id |
 
+Account deletion also removes automatically inserted channel author envelopes from the linked person’s user turns in conversations that survive. It preserves the actual message text and other participants’ turns. Identity rows are locked before scrubbing, so a concurrent message cannot insert another envelope between cleanup and deletion of its author reference.
+
 None of these reach a backup. A restore brings back what was erased, so the
 backup expiry is part of the retention policy and is written down with it.
 

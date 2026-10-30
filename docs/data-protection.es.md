@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "e1b10c5747f0"
 ---
 
 # Protección de datos { #data-protection }
@@ -255,6 +255,8 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y ficheros, por teardown explícito; conversaciones fuera de un proyecto y ficheros de chat por cascada; sus bytes, desvinculados tras el commit; las imágenes, la voz y los vídeos que generaron los agents en esas conversaciones, las filas en el borrado y los bytes mediante una tarea encolada con él; y lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella (`owner_key` es una cadena, no una clave foránea), sus identidades de plataforma y sus workspaces de usuario | Entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo: se conservan a propósito, porque una entrada sin su actor es peor que una que nombra una cuenta borrada. Mensajes en conversaciones de otra persona, y los chats de proyecto que empezó, que se conservan para el equipo sin autor, con los medios generados en ellos; sus mensajes ahí se muestran como de un antiguo miembro. Los medios que la persona generó sin conversación - vistas previas y ejecuciones de prueba, incisos `/btw` en canales, runs de la API que no nombraron conversación -, que ninguna fila vincula con ella; se van a los 7 días |
 | Borrar un documento o una colección | Las filas, la tabla vectorial y el archivo almacenado, mediante un flow duradero tras el commit | Nada, una vez que el flow ha corrido; los recuentos de `sync_logs` permanecen |
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido - sus medios generados por prefijo, incluidos los archivos escritos antes de que se registraran | Las colecciones personales que solo llevaban el id |
+
+Al eliminar una cuenta, también se borran los metadatos de autor añadidos automáticamente a los mensajes de la persona vinculada en conversaciones de canal que se conservan. El texto original y los mensajes de otras personas permanecen intactos. Las identidades se bloquean antes de limpiarlas, para impedir que un mensaje concurrente guarde metadatos entre la limpieza y la eliminación de la referencia al autor.
 
 Ninguno de estos alcanza una copia de seguridad. Una restauración devuelve lo
 que se había borrado, así que la caducidad de las copias forma parte de la

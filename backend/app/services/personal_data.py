@@ -291,7 +291,9 @@ class PersonalDataService:
           account left behind entirely;
         - `channel_identities`, whose key is `SET NULL` - so the row survives
           holding a Slack user id, a username and a display name about somebody
-          whose account is gone, linked to nobody;
+          whose account is gone, linked to nobody. Its automatically inserted
+          author envelopes in retained channel turns are scrubbed first, while
+          the user's actual message text stays intact;
         - `agent_workspaces` with `scope='user'`, whose `owner_ref` is a string
           for the same reason `owner_key` is - a workspace can belong to a
           conversation, an agent or a person - so no cascade follows it, and a

@@ -30,6 +30,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Account deletion removes automatically inserted channel author metadata from
+  the person's retained turns before deleting their linked channel identities,
+  preserving message bodies and other participants' messages. Concurrent turns
+  cannot insert an author snapshot between cleanup and identity deletion.
+
+
 - Rolling back the channel prompt migration restores the preceding release's
   defaults while retaining custom additions, including bindings created after
   upgrade.

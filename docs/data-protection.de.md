@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "e1b10c5747f0"
 ---
 
 # Datenschutz { #data-protection }
@@ -258,6 +258,8 @@ Aufbewahrung ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | `DELETE /users/{id}` | Das Konto, seine Sessions, seine persönliche Organisation und persönliche Collections samt Vektortabellen und Dateien per ausdrücklichem Teardown; Conversations außerhalb eines Projekts und Chat-Dateien per Kaskade; deren Bytes, nach dem Commit gelöst; die von Agenten in diesen Conversations erzeugten Bilder, Sprachclips und Videos - die Zeilen beim Löschen, die Bytes über einen mit ihm eingereihten Job; und was keine Kaskade erreicht - die Notizen, die Agents über die Person geschrieben haben (`owner_key` ist ein String, kein Fremdschlüssel), ihre Plattform-Identitäten und ihre nutzergebundenen Workspaces | Audit-Einträge, die die Actor-Id und bei manchen Aktionen die E-Mail nennen - bewusst aufbewahrt, denn ein Eintrag ohne seinen Actor ist schlimmer als einer, der ein gelöschtes Konto nennt. Nachrichten in Conversations, die jemand anderem gehören, und die Projekt-Chats, die die Person begonnen hat - für das Team behalten, ohne Urheber, mit den darin erzeugten Medien; ihre Nachrichten darin erscheinen als die eines ehemaligen Mitglieds. Die Medien, die die Person ohne Conversation erzeugt hat - Vorschauen und Testläufe, `/btw`-Einschübe in Kanälen, API-Runs ohne Conversation -, die keine Zeile mit ihr verknüpft; sie gehen nach 7 Tagen |
 | Ein Dokument oder eine Collection löschen | Die Zeilen, die Vektortabelle und die gespeicherte Datei, über einen dauerhaften Flow nach dem Commit | Nichts, sobald der Flow gelaufen ist; die Zählstände in `sync_logs` bleiben |
 | Eine Organisation löschen | Alles, was auf sie gescoped ist, mit demselben aufgeschobenen Abbau - ihre erzeugten Medien per Präfix, einschließlich der Dateien, die geschrieben wurden, bevor sie erfasst wurden | Persönliche Collections, die die Id lediglich mitführten |
+
+Beim Löschen eines Kontos werden automatisch eingefügte Autorenmetadaten aus den Kanalnachrichten der verknüpften Person in erhaltenen Gesprächen entfernt. Der eigentliche Nachrichtentext und Beiträge anderer Personen bleiben erhalten. Die Identitätszeilen werden vorher gesperrt, damit keine gleichzeitige Nachricht zwischen Bereinigung und Löschung des Autorenverweises neue Metadaten speichern kann.
 
 Keines davon erreicht ein Backup. Eine Wiederherstellung bringt zurück, was
 gelöscht wurde, der Backup-Ablauf gehört also zur Aufbewahrungsrichtlinie und
