@@ -1198,3 +1198,25 @@ async def test_attachment_attempt_budget_survives_sender_reassembly():
         budget = ChannelFileBudget(budget.attempts)
     assert "limit" in await channel_file_sender(workspace, directory, budget)("main.py")
     assert directory.send_file.await_count == 3
+
+
+@pytest.mark.parametrize("text", ["@support improve the map", "improve the map"])
+async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(text: str) -> None:
+    from pydantic_ai.messages import ModelRequest, UserPromptPart
+
+    earlier = ModelRequest(parts=[UserPromptPart(content="Alice asked for the town-hall app.")])
+    backfill = ModelRequest(parts=[UserPromptPart(content="Earlier channel discussion.")])
+    with (
+        patch.object(
+            ChannelMessageRouter, "_load_history", new=AsyncMock(return_value=[earlier])
+        ) as load,
+        patch.object(
+            ChannelMessageRouter,
+            "_thread_context",
+            new=AsyncMock(return_value=([backfill], [], [])),
+        ),
+    ):
+        _, agents, _ = await _route_one_file(text)
+    answer = agents.answer if text.startswith("@") else agents.answer_default
+    assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
+    load.assert_awaited_once()

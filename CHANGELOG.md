@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Explicit `@slug` channel invocations retain saved conversation history, just
+  like default bot replies, so follow-up requests keep earlier results and App
+  references after the initial thread backfill.
 - Channel replies retain each message's author, answer the current request without
   reviving unrelated tasks, and explain how to revise a published App when its
   original sandbox is unavailable. Existing channel prompts receive the updated

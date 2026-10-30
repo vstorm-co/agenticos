@@ -400,6 +400,8 @@ class ChannelAgentRouter:
         Args:
             text: The raw incoming message, handle included.
             platform: Which channel it arrived on, for the run's surface.
+            incoming: Normalized platform event for author labels in the saved prompt;
+                authorization still uses the separately resolved channel identity.
             organization_id: The bot's organization; the slug is resolved here
                 and nowhere else, so one workspace cannot reach another's agents.
             bot_id: The bot the message arrived on. An agent answers through it
@@ -579,10 +581,10 @@ class ChannelAgentRouter:
 
         Args:
             text: The whole incoming message; there is no handle to strip.
+            incoming: Normalized platform event for this turn's author labels.
             message_history: The channel thread so far, in Pydantic AI's format.
-                A direct-message bot is a conversation, not a sequence of
-                one-shot prompts, and the mention path's statelessness is about
-                shared channels, not about this one.
+                Both routes receive saved turns and the initial thread backfill
+                so follow-ups retain earlier authors and tool results.
 
         Raises:
             BadRequestError: If the bot exposes no agent. The message says what

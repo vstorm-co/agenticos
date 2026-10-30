@@ -1956,6 +1956,8 @@ surface, so a difference between the console and Mattermost remains visible.
 
 Each incoming message carries its platform author ID, username, display name and message ID in the saved user prompt, outside system instructions. Missing names remain unknown. The author labels do not authorize tool access. The agent answers the current sender, keeps participants' requests separate and writes announcements directly to their audience.
 
+Both explicit `@slug` invocations and default replies receive the saved conversation history together with the initial channel thread context.
+
 Published Apps can be revised from another conversation without the original sandbox. Use `read_artifact` to recover the stored source and `publish_artifact` with the same name and edits or replacement content. The app keeps its link and version history. Viewing an app does not grant editing access; the existing permission checks still apply.
 
 - **The agent is told where it is answering and whose account is available.** Runtime guidance identifies the communicator and deployment console, explains that tools use a managed workspace, and distinguishes organization MCP connections from personal services. Personal services require both a linked sender identity and that person's authorized connection. Linking uses plain `link` in a direct message; the private connection URL never belongs in a channel. The agent reports actual tool results and gives one concrete next step when authentication or a capability is missing.

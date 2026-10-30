@@ -1,5 +1,5 @@
 ---
-source_sha: "4a73f274580f"
+source_sha: "d2221cd84fea"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2169,6 +2169,8 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 - **MCP-Lesezugriffe folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
 
 Jede Nachricht enthält die Plattform-ID des Autors, Benutzername, Anzeigename und Nachrichten-ID im gespeicherten Benutzerprompt außerhalb der Systemanweisungen. Fehlende Namen bleiben unbekannt. Autorenbezeichnungen erteilen keinen Werkzeugzugriff. Der Agent antwortet dem aktuellen Absender, hält die Anliegen der Teilnehmer getrennt und richtet Ankündigungen direkt an ihr Publikum.
+
+Sowohl ausdrückliche `@slug`-Aufrufe als auch Standardantworten erhalten den gespeicherten Gesprächsverlauf zusammen mit dem anfänglichen Kontext des Kanal-Threads.
 
 Veröffentlichte Apps lassen sich aus einer anderen Unterhaltung ohne die ursprüngliche Sandbox ändern. `read_artifact` liest den gespeicherten Quelltext; `publish_artifact` mit demselben Namen und Änderungen oder neuem Inhalt aktualisiert die App. Link und Versionshistorie bleiben erhalten. Lesezugriff erteilt keine Bearbeitungsrechte; die bestehenden Berechtigungsprüfungen gelten weiterhin.
 

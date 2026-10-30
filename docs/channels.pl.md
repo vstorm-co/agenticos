@@ -1,5 +1,5 @@
 ---
-source_sha: "4a73f274580f"
+source_sha: "d2221cd84fea"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2024,6 +2024,8 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 - **Odczyty MCP podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
 
 Każda wiadomość przenosi identyfikator autora na platformie, nazwę użytkownika, nazwę wyświetlaną i identyfikator wiadomości w zapisanym prompcie użytkownika, poza instrukcjami systemowymi. Brakujące nazwy pozostają nieznane. Etykiety autora nie nadają dostępu do narzędzi. Agent odpowiada bieżącemu nadawcy, rozdziela prośby uczestników i pisze ogłoszenia bezpośrednio do odbiorców.
+
+Zarówno jawne wywołania `@slug`, jak i odpowiedzi domyślne dostają zapisaną historię rozmowy wraz z początkowym kontekstem wątku kanału.
 
 Opublikowaną aplikację można zmienić z innej rozmowy bez pierwotnego sandboxa. `read_artifact` odzyskuje zapisane źródło, a `publish_artifact` z tą samą nazwą oraz poprawkami lub nową treścią aktualizuje aplikację. Link i historia wersji pozostają wspólne. Dostęp do odczytu nie nadaje prawa edycji; dotychczasowe kontrole uprawnień nadal obowiązują.
 

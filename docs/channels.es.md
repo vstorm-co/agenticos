@@ -1,5 +1,5 @@
 ---
-source_sha: "4a73f274580f"
+source_sha: "d2221cd84fea"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2059,6 +2059,8 @@ para mostrar diferencias entre la consola y Mattermost.
 - **Las lecturas MCP siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
 
 Cada mensaje incluye el ID del autor en la plataforma, nombre de usuario, nombre visible e ID del mensaje en el prompt de usuario guardado, fuera de las instrucciones del sistema. Los nombres ausentes siguen siendo desconocidos. Las etiquetas del autor no autorizan herramientas. El agente responde al remitente actual, separa las peticiones de los participantes y dirige los anuncios directamente a su audiencia.
+
+Tanto las invocaciones explícitas `@slug` como las respuestas predeterminadas reciben el historial guardado de la conversación junto con el contexto inicial del hilo del canal.
 
 Las Apps publicadas se pueden editar desde otra conversación sin el sandbox original. `read_artifact` recupera el código guardado y `publish_artifact` con el mismo nombre y cambios o contenido de reemplazo actualiza la app. Conserva su enlace e historial de versiones. Poder verla no concede permiso de edición; siguen aplicándose los controles existentes.
 
