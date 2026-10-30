@@ -96,6 +96,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
+from app.db.vector_tables import VectorScope
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -488,6 +489,7 @@ def a_delegate(
     agent_id: UUID | None = None,
     agent_version_id: UUID | None = None,
     collection_names: tuple[str, ...] = (),
+    collection_scopes: tuple[tuple[str, VectorScope], ...] = (),
     seen: list[AgentDeps] | None = None,
     gated: bool = False,
     on_call: Callable[[RunContext[AgentDeps]], str] | None = None,
@@ -508,6 +510,7 @@ def a_delegate(
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         collection_names=collection_names,
+        collection_scopes=collection_scopes,
     )
 
 
@@ -2512,6 +2515,28 @@ class TestDelegateDeps:
         await delegate_to(capability, ctx)
 
         assert [deps.kb_collection_names for deps in seen] == [["kb_the_delegate_may_read"]]
+
+    @pytest.mark.security
+    async def test_a_delegate_searches_the_bases_its_own_spec_bound(self):
+        """The bound base behind each name travels with it, so the delegate's
+        search reads that base and not a same-named one of the organization
+        that resolves first (#2537)."""
+        bound = VectorScope(tenant=uuid4(), knowledge_base_id=uuid4())
+        seen: list[AgentDeps] = []
+        capability = a_capability(
+            a_runtime(
+                a_delegate(
+                    model=one_tool_call(),
+                    collection_names=("kb_the_delegate_may_read",),
+                    collection_scopes=(("kb_the_delegate_may_read", bound),),
+                    seen=seen,
+                )
+            )
+        )
+
+        await delegate_to(capability, a_context())
+
+        assert [deps.kb_vector_scopes for deps in seen] == [{"kb_the_delegate_may_read": bound}]
 
     async def test_a_delegate_does_not_inherit_the_parent_s_collections(self):
         """The other half, and the reason the clone drops them: handing a

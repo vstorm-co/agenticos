@@ -27,8 +27,10 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KBScope
 from app.db.session import get_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
+from app.services.knowledge_base import KnowledgeBaseService
 from app.services.rag.citation import citation_locator
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
@@ -94,7 +96,7 @@ async def list_collections_async(vector_store: BaseVectorStore) -> None:
 
     for name in collection_names:
         try:
-            info_obj = await vector_store.get_collection_info(name)
+            info_obj = await vector_store.get_collection_info(name, VectorScope(tenant=None))
             click.echo(f"  {name}")
             click.echo(f"    Vectors: {info_obj.total_vectors:,}")
             click.echo(f"    Dimension: {info_obj.dim}")
@@ -201,24 +203,32 @@ async def ingest_path_async(
                         skipped_count += 1
                         continue
 
-            async with get_db_context() as db:
-                rag_doc = await RAGDocumentService(db).create_document(
-                    collection_name=collection,
-                    filename=filepath.name,
-                    filesize=filepath.stat().st_size,
-                    filetype=filepath.suffix.lstrip(".").lower(),
-                    # The address this command already looks documents up by, a
-                    # few lines above. Omitted, the row got `NULL` and a repeated
-                    # failure here kept inflating the collection's count - the
-                    # defect #996 fixed for the two worker flows and not for this
-                    # one.
-                    source_path=source_path,
-                )
-                doc_id = str(rag_doc.id)
+            try:
+                async with get_db_context() as db:
+                    documents = RAGDocumentService(db)
+                    await documents.hold_ingestion_name(collection)
+                    rag_doc = await documents.create_document(
+                        collection_name=collection,
+                        filename=filepath.name,
+                        filesize=filepath.stat().st_size,
+                        filetype=filepath.suffix.lstrip(".").lower(),
+                        # The address this command already looks documents up by, a
+                        # few lines above. Omitted, the row got `NULL` and a repeated
+                        # failure here kept inflating the collection's count - the
+                        # defect #996 fixed for the two worker flows and not for this
+                        # one.
+                        source_path=source_path,
+                    )
+                    doc_id = str(rag_doc.id)
+            except AppException as exc:
+                error_count += 1
+                tqdm.write(f"  ✗ {filepath.name}: {exc.message}")
+                continue
 
             try:
                 result = await ingestion.ingest_file(
                     filepath=filepath,
+                    rag_document_id=rag_doc.id,
                     collection_name=collection,
                     replace=replace,
                     # So the stored document identifies itself the way this
@@ -409,13 +419,25 @@ def rag_search(query: str, collection: str, top_k: int) -> None:
     asyncio.run(search_async(query, collection, top_k, retrieval))
 
 
-async def drop_collection_async(collection: str, yes: bool, vector_store: BaseVectorStore) -> None:
-    """Drop a collection.
+async def drop_collection_async(
+    collection: str, yes: bool, knowledge_base_id: UUID | None = None
+) -> bool:
+    """Drop a collection through the knowledge-base teardown.
+
+    `KnowledgeBaseService.drop_collection_by_name` decides what goes: the base
+    holding the name is cleared as `DELETE /rag/collections/{name}` clears it, and
+    a table another base still holds stays. The table and the stored files go in
+    a cleanup job a worker runs once this commits. The command used to drop the
+    table directly, whoever else still used it, and leave the document rows
+    behind (#2560).
 
     Args:
         collection: Name of the collection to drop.
         yes: Whether to skip confirmation prompt.
-        vector_store: The Milvus vector store.
+        knowledge_base_id: The base to clear, when several hold the name.
+
+    Returns:
+        Whether the drop was queued.
     """
     if not yes:
         click.confirm(
@@ -424,32 +446,56 @@ async def drop_collection_async(collection: str, yes: bool, vector_store: BaseVe
         )
 
     try:
-        await vector_store.delete_collection(collection)
-        success(f"Collection '{collection}' dropped successfully.")
-    except Exception as e:
-        error(f"Failed to drop collection: {e}")
+        async with get_db_context() as db:
+            kb = await KnowledgeBaseService(db).drop_collection_by_name(
+                collection, knowledge_base_id=knowledge_base_id
+            )
+    except AppException as e:
+        error(f"Failed to drop collection '{collection}': {e.message}")
+        if ids := (e.details or {}).get("knowledge_base_ids"):
+            info("Name one with --knowledge-base: " + ", ".join(str(i) for i in ids))
+        return False
+    if kb is None:
+        success(f"Collection '{collection}' queued for dropping; a worker removes its table.")
+    elif kb.is_default:
+        success(f"Collection '{collection}' cleared; its default knowledge base {kb.id} is kept.")
+    else:
+        success(f"Collection '{collection}' dropped with its knowledge base {kb.id}.")
+    return True
 
 
 @command("rag-drop", help="Drop a collection")
 @click.argument("collection")
+@click.option(
+    "--knowledge-base",
+    "knowledge_base_id",
+    type=click.UUID,
+    default=None,
+    help="The knowledge base to clear, when several hold the collection name",
+)
 @click.option(
     "--yes",
     "-y",
     is_flag=True,
     help="Skip confirmation prompt",
 )
-def rag_drop(collection: str, yes: bool) -> None:
+def rag_drop(collection: str, knowledge_base_id: UUID | None, yes: bool) -> None:
     """
     Drop a collection and all its data.
 
     COLLECTION: Name of the collection to drop.
 
+    The name is not unique across organizations. When several knowledge bases
+    hold it, name the one to clear with --knowledge-base; its documents go, and
+    the vector table stays for the others.
+
     Example:
         project cmd rag-drop my_collection
         project cmd rag-drop my_collection --yes
+        project cmd rag-drop docs --knowledge-base 6f1c... --yes
     """
-    _, vector_store, _, _, _ = get_rag_services()
-    asyncio.run(drop_collection_async(collection, yes, vector_store))
+    if not asyncio.run(drop_collection_async(collection, yes, knowledge_base_id)):
+        raise SystemExit(1)
 
 
 @command("rag-stats", help="Show overall RAG system statistics")
@@ -489,7 +535,7 @@ async def stats_async(settings: RAGSettings, vector_store: BaseVectorStore) -> N
         total_vectors = 0
         for name in collection_names:
             try:
-                info_obj = await vector_store.get_collection_info(name)
+                info_obj = await vector_store.get_collection_info(name, VectorScope(tenant=None))
                 click.echo(f"  {name}:")
                 click.echo(f"    Vectors: {info_obj.total_vectors:,}")
                 total_vectors += info_obj.total_vectors

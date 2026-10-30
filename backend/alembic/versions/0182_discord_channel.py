@@ -1,7 +1,7 @@
 """A Discord bot can be an agent's exposure surface (#2079).
 
-Revision ID: 0180_discord_channel
-Revises: 0179_channel_history_version
+Revision ID: 0182_discord_channel
+Revises: 0181_attachment_lookup_marker
 Create Date: 2026-10-29
 """
 
@@ -9,8 +9,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0180_discord_channel"
-down_revision: str | None = "0179_channel_history_version"
+revision: str = "0182_discord_channel"
+down_revision: str | None = "0181_attachment_lookup_marker"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

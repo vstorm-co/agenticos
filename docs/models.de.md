@@ -1,5 +1,5 @@
 ---
-source_sha: "64867ca52c0e"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -102,6 +102,65 @@ Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
 weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
 Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
 Basismodell-IDs des Katalogs klassifiziert.
+
+### Das Modell, mit dem ein neuer Agent startet { #the-model-a-new-agent-starts-on }
+
+Es gibt kein organisationsweites Standardmodell. Der Spec eines Agents nennt sein
+Modell, und die Veröffentlichung lehnt einen Spec ab, der keines nennt.
+
+Ein neuer Agent, der kein Modell nennt, startet mit dem Modell der Organisation,
+wenn die Organisation genau ein Modell hat, auf dem ein Agent laufen kann. Das ist
+ein Chat-Modell mit Schlüssel oder ein selbst gehostetes Modell, das ohne Schlüssel
+gespeichert wurde, und die Veröffentlichung akzeptiert es so, wie es ist, Fallbacks
+eingeschlossen. Das gilt für jeden Weg, einen Agent anzulegen: **Neuer Agent** in
+der Konsole, `POST /agents` ohne `model_profile_id`, eine Vorlage, eine Kopie eines
+Entwurfs ohne Modell und ein beförderter Spezialist.
+
+Der Architekt, der Assistent der Organisation, wählt sein Modell beim
+Veröffentlichen selbst: das erste Chat-Modell, das die Veröffentlichung akzeptiert,
+und nie ein Modell auf einer
+[ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription). Der Architekt dient der
+ganzen Organisation, und eine Anmeldung ist das Abonnement einer Person: Läufe von
+Mitgliedern, die sie im Vault nicht sehen dürfen, werden abgelehnt, und Läufe derer,
+die es dürfen, etwa der Eigentümer und Administratoren der Organisation, verbrauchen
+es. Gibt es nur eine Anmeldung, wartet der Architekt auf ein anderes Modell.
+
+Eine Anmeldung, die jemand im Entwurf des Architekten wählt, oder ein Modell mit
+einer Anmeldung als Fallback bleibt dort, wird aber erst veröffentlicht, wenn jemand, der die Einstellungen der Organisation ändern
+darf, es im Builder veröffentlicht. Ein Architekt, der bereits auf einer Anmeldung
+veröffentlicht ist, behält dieses Modell, bis jemand, der die Einstellungen der
+Organisation ändern darf, unter **Bauen > Modell** (Build > Model) ein anderes wählt
+und es veröffentlicht.
+
+Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
+ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er
+veröffentlicht wurde. Ein Spec, der ein Modell nennt, behält es. Der Entwurf gilt
+dann als Nutzer des Modells: Das Modell lässt sich erst löschen, wenn der Agent auf
+ein anderes Modell wechselt oder gelöscht wird; Archivieren genügt nicht. Um nur den
+Schlüssel oder den Endpunkt des Modells zu ändern, bearbeiten Sie es an Ort und
+Stelle ([Schlüssel oder Endpunkt eines Profils
+ändern](#changing-a-profiles-key-or-endpoint)).
+
+Der Entwurf bleibt ohne Modell, wenn die Organisation keines oder mehr als eines
+hat. Profile, auf denen kein Agent laufen kann, zählen nicht: ein Profil ohne
+Schlüssel, ein Text-to-Speech-Modell und die anderen Modelle aus [Ein Profil, auf
+dem kein Agent laufen kann](#a-profile-an-agent-cannot-run-on), und ebenso wenig ein
+Profil, das die Veröffentlichung ablehnen würde, etwa eines mit einem solchen Modell
+als Fallback. Ein Modell auf einer
+[ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription) wird nie für jemanden
+gewählt, weil es das Abonnement einer einzelnen Person ist, aber es zählt als
+Modell.
+
+Ebenso wenig ein Modell, unter dessen ersten drei Fallbacks, die ein Run
+versucht, eine Anmeldung ist: Fällt das Modell aus, wiche der Run jedes
+Menschen, der die Anmeldung sehen darf, auf dieses Abonnement aus. Auch der
+Architekt wählt kein solches Modell. Ein Autor kann ein
+solches Modell weiterhin bewusst wählen und veröffentlichen.
+
+Die Veröffentlichung lehnt den Entwurf dann mit *No model selected - pick one under
+Build > Model before publishing* ab. Die Ablehnung markiert auch das Feld
+(`model_profile_id` in `details.fields`), und die Konsole zeigt daneben **Zum
+Abschnitt Modell**, das den Tab **Bauen** an der Karte **Modell** öffnet.
 
 ### Schlüssel oder Endpunkt eines Profils ändern { #changing-a-profiles-key-or-endpoint }
 
@@ -403,6 +462,25 @@ ohne seine Id zu ändern.
       und für Arbeit im Hintergrund, etwa das Beschreiben der Bilder eines
       Dokuments, wird das Modell abgelehnt, und ein Fallback darauf wird
       übersprungen.
+    - **Nicht jeder darf darauf veröffentlichen.** Das Veröffentlichen, das
+      Zurückrollen auf oder das Promoten einer Version eines Agenten wird für
+      jemanden abgelehnt, der die Anmeldung im Vault nicht sehen kann, wenn ein
+      Modell, das seine Runs erreichen, darauf läuft: das Modell des Agenten,
+      eines Reviewers, eines Inline-Spezialisten oder einer eingeschalteten
+      Capability, das Modell eines
+      [angehefteten Delegaten](reference/capabilities.md#delegation) und dessen,
+      was dieser wiederum erreicht, oder einer der ersten drei Fallbacks eines
+      dieser Modelle. Der Inhaber der Anmeldung, Owner und Admins sowie alle,
+      mit denen sie geteilt wurde, dürfen es. Ein API-Schlüssel darf es nicht,
+      was auch immer sein Aussteller sehen kann, denn ein Run unter einem
+      Schlüssel verbraucht nie eine Anmeldung. Eine früher darauf
+      veröffentlichte Version läuft weiter.
+    - **Sie wird keinem Spezialisten angeboten, den das Modell erfindet.** Unter
+      [`allow_dynamic`](reference/capabilities.md#delegation) darf das Modell
+      eines Runs das Modell eines Spezialisten aus den Profilen der Organisation
+      wählen. Ein Profil auf einer Anmeldung, oder eines, dessen erste drei
+      Fallbacks eine erreichen, steht nur dann auf dieser Liste, wenn der Spec
+      des Agents genau dieses Profil als eines der oben genannten Modelle nennt.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
       OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
       [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet

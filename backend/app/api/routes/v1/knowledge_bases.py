@@ -376,14 +376,19 @@ async def create_kb_sync_source(
     data: SyncSourceCreate,
     service: KnowledgeBaseSvc,
     sync_source_svc: SyncSourceSvc,
+    access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
     """Wire up a sync source (Google Drive, S3, …) feeding this KB.
 
     The `collection_name` field on the request body is overridden with the
-    KB's own collection - clients should not need to know that detail.
+    KB's own collection - clients should not need to know that detail. A KB
+    that shares its collection name with an older base of the organization is
+    refused with 400: a source names a collection, not a KB, so its sync would
+    write into that other base.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
+    await access.new_source_feeds(ctx, kb)
     payload = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.create_source(payload, ctx=ctx)
 
@@ -413,6 +418,7 @@ async def clone_kb_sync_source(
     another tenant's Google Drive at their own collection and sync it.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
+    await access.new_source_feeds(ctx, kb)
     source = await access.sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.clone_source(str(source.id), clone_data, ctx=ctx)

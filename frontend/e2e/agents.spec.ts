@@ -627,8 +627,9 @@ test.describe("Agents", () => {
       "true",
     );
 
-    // The seeded draft is created with a name and nothing else, so the first
-    // thing publish refuses it for is having no model - which says nothing about
+    // The seeded draft starts with a model only while the organization has
+    // exactly one (#2483), and other specs add more - so without one the first
+    // thing publish refuses it for is having no model, which says nothing about
     // the MCP binding this test is about. Naming one is what makes the assertion
     // below a statement about the server rather than about the fixture.
     await openBuilderTab(page, "Build");

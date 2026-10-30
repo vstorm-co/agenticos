@@ -523,7 +523,7 @@ describe("a console link an agent wrote", () => {
     link.click();
 
     expect(navigation.push).toHaveBeenCalledWith("/mcp-servers");
-    expect(navigation.pointAt).toHaveBeenCalledWith("mcp-add");
+    expect(navigation.pointAt).toHaveBeenCalledWith("mcp-add", "/mcp-servers");
   });
 
   it("leaves a link to anywhere else to the browser", () => {

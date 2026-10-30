@@ -7,7 +7,7 @@ that the default - the publish contract - cannot be renamed or removed here.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -83,6 +83,8 @@ def _service(agent: MagicMock) -> AgentEnvironmentService:
     service = AgentEnvironmentService(MagicMock())
     service.agents = MagicMock()
     service.agents.get = AsyncMock(return_value=agent)
+    # No version here runs on a ChatGPT sign-in; `test_publish_sign_ins` has one.
+    service.agents.refuse_borrowed_sign_ins = AsyncMock(return_value=None)
     return service
 
 
@@ -170,6 +172,30 @@ class TestCreate:
         assert versions.call_args.args[1] == version.id
         assert environments.create.call_args.kwargs["version_id"] == version.id
 
+    @pytest.mark.security
+    async def test_an_environment_on_a_sign_in_the_caller_cannot_use_is_not_created(self):
+        """Pinning a new environment to a version is promoting it there (#2546)."""
+        agent = _agent()
+        version = _version(agent_id=agent.id)
+        service = _service(agent)
+        service.agents.refuse_borrowed_sign_ins = AsyncMock(
+            side_effect=BadRequestError(message="Version 3 runs on somebody's own ChatGPT sign-in")
+        )
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.get_version", new=AsyncMock(return_value=version)),
+            patch(_AUDIT, new=AsyncMock()) as audit,
+            pytest.raises(BadRequestError),
+        ):
+            environments.get_by_name = AsyncMock(return_value=None)
+            environments.create = AsyncMock()
+            await service.create(_ctx(), agent.id, EnvironmentCreate(name="staging"))
+
+        service.agents.refuse_borrowed_sign_ins.assert_awaited_once_with(ANY, version)
+        environments.create.assert_not_awaited()
+        audit.assert_not_awaited()
+
     async def test_another_agents_version_is_reported_as_missing(self):
         """A version id is data; the agent it belongs to is not negotiable."""
         agent = _agent()
@@ -219,6 +245,43 @@ class TestPromoteAndRename:
         assert agents.await_args.kwargs["update_data"] == {
             "current_version_id": environment.version_id
         }
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("follow", [False, True])
+    async def test_a_version_on_a_sign_in_the_promoter_cannot_use_is_not_promoted(
+        self, follow: bool
+    ):
+        """Promoting picks what an environment's runs spend, the way publishing
+        does (#2546) - whether a version is named or adopted by following."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="production", is_default=True)
+        version = _version(agent_id=agent.id, number=12)
+        service = _service(agent)
+        refusal = BadRequestError(message="Version 12 runs on somebody's own ChatGPT sign-in")
+        service.agents.refuse_borrowed_sign_ins = AsyncMock(side_effect=refusal)
+        data = (
+            EnvironmentUpdate(tracks_latest=True)
+            if follow
+            else EnvironmentUpdate(version_id=version.id)
+        )
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{_AGENTS}.newest_version", new=AsyncMock(return_value=version)),
+            patch(f"{_AGENTS}.update", new=AsyncMock()) as agents,
+            patch(_AUDIT, new=AsyncMock()) as audit,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock(return_value=environment)
+            await service.update(_ctx(), agent.id, environment.id, data)
+
+        assert refused.value is refusal
+        service.agents.refuse_borrowed_sign_ins.assert_awaited_once_with(ANY, version)
+        environments.update.assert_not_awaited()
+        agents.assert_not_awaited()
+        audit.assert_not_awaited()
 
     @pytest.mark.security
     @pytest.mark.parametrize("delegated", ["key", "impersonation"])

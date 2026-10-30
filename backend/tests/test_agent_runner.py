@@ -80,6 +80,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
+from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
 from app.services.agent_runner import (
     ASIDE_PREFIX,
@@ -462,6 +463,37 @@ class TestPrepare:
             await service.prepare(ctx, agent.id)
 
         assert build.call_args.kwargs["resources"]["kb_collection_names"] == ["kb_live"]
+        # The bound base itself travels beside its name, so the search reads that
+        # base and never a same-named one the name resolves to first (#2537).
+        assert build.call_args.kwargs["resources"]["kb_vector_scopes"] == {
+            "kb_live": collections[live_id].vector_scope
+        }
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_same_named_bound_bases_keep_both_scopes(self):
+        ctx = _ctx()
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        collections = {
+            cid: SimpleNamespace(
+                id=cid,
+                organization_id=ctx.organization_id,
+                collection_name="shared",
+                vector_scope=VectorScope(tenant=ctx.organization_id, knowledge_base_id=cid),
+            )
+            for cid in ids
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=collections),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(name="Both", collection_ids=ids), ctx
+            )
+        assert resources["kb_collection_names"] == ["shared"]
+        scope = resources["kb_vector_scopes"]["shared"]
+        assert scope.knowledge_base_id == ids[0]
+        assert scope.additional_knowledge_base_ids == (ids[1],)
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
@@ -1992,6 +2024,247 @@ class TestASandboxIsSetUpOnFirstUse:
         assert [file.filename for file in prepared.outbound] == ["chart.png"]
 
 
+class TestAThreadsEarlierAttachmentsAreBroughtBack:
+    """A file whose turn failed before it reached the workspace (#2481).
+
+    Linked to its message, so it cannot be attached again; nothing wrote it later,
+    and the next turn's model reported it missing. A later turn puts it back.
+    """
+
+    @staticmethod
+    async def _prepare(
+        workspace: OpenWorkspace,
+        earlier: object | None,
+        ctx: AuthContext | None = None,
+        *,
+        resumed: MagicMock | None = None,
+        spec: AgentSpec | None = None,
+        use_workspace: bool = True,
+    ):
+        """`prepare`, or with `resumed` the same assembly continuing that parked run."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        restored: list[str] = []
+        assemble = service._assemble
+
+        async def continuing(*args, **kwargs):
+            if resumed is not None:
+                kwargs["existing_run"] = resumed
+            return await assemble(*args, **kwargs)
+
+        async def restore(target, found, *, can_parse: bool) -> None:
+            restored.append("restored")
+            await target.write_text("uploads/0000-report.csv", "month,total")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(
+                        agent,
+                        spec or AgentSpec(name="Books"),
+                        agent.current_version_id,
+                    )
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.agent_runner.find_earlier_attachments",
+                new=AsyncMock(return_value=earlier),
+            ) as find,
+            patch("app.services.agent_runner.restore_earlier_attachments", new=restore),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch.object(service, "_assemble", new=continuing),
+        ):
+            ctx = ctx or _ctx()
+            conversation_id = uuid.uuid4()
+            prepared = await service.prepare(ctx, agent.id, conversation_id=conversation_id)
+            prepared_only = list(restored)
+            # The run's first operation in the workspace, inside the patches: a
+            # sandbox's set-up waits for it.
+            if use_workspace:
+                await workspace.workspace.exists("anything")
+
+        if find.await_count:
+            assert prepared.earlier_attachments_checked is use_workspace
+            kwargs = dict(find.await_args.kwargs)
+            screen = kwargs.pop("screen")
+            # Without a guardrail, nothing is screened.
+            assert (screen is None) == (spec is None)
+            assert kwargs == {
+                "conversation_id": conversation_id,
+                "organization_id": ctx.organization_id,
+                "user_id": ctx.user_id,
+                "agent_id": agent.id,
+                "can_parse": workspace.parses_documents,
+            }
+        return prepared, build.call_args.args[0].instructions, prepared_only, restored, find
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_untouched_sandbox_leaves_restoration_open(self):
+        prepared, _, _, restored, _ = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), use_workspace=False
+        )
+        assert prepared.earlier_attachments_checked is False
+        assert restored == []
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_they_are_looked_for_with_the_agents_input_edge(self):
+        """A turn the edge would refuse can still end interrupted, so what is put
+        back is screened with the same guardrail the edge runs."""
+        guarded = AgentSpec(
+            name="Books",
+            capabilities=[
+                CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": "salary"})
+            ],
+        )
+
+        *_, find = await self._prepare(_sandbox(StateBackend()), earlier=None, spec=guarded)
+
+        screen = find.await_args.kwargs["screen"]
+        with pytest.raises(GuardrailBlocked):
+            screen("the salary table")
+        assert screen("the sales table").action != "block"
+
+    @pytest.mark.anyio
+    async def test_a_sandbox_puts_them_back_on_first_use_before_its_snapshot(self):
+        """Not while preparing - that would open a container for a turn that may
+        never use it - and before the snapshot, so a file put back is not posted
+        as something this turn made."""
+        sandbox = _sandbox(StateBackend())
+
+        prepared, instructions, while_preparing, restored, _ = await self._prepare(
+            sandbox, earlier=MagicMock()
+        )
+
+        assert while_preparing == []
+        assert "stopped before it finished" in instructions
+        assert restored == ["restored"]
+        assert prepared.workspace_at_start is not None
+        assert any(path.endswith("0000-report.csv") for path in prepared.workspace_at_start)
+
+    @pytest.mark.anyio
+    async def test_a_stored_workspace_puts_them_back_while_the_run_is_prepared(self):
+        stored = OpenWorkspace(
+            workspace=document_workspace(StateBackend()),
+            kind="state",
+            scope="conversation",
+            scope_key="c-1",
+            row_id=None,
+        )
+
+        prepared, instructions, while_preparing, _, _ = await self._prepare(
+            stored, earlier=MagicMock()
+        )
+
+        assert while_preparing == ["restored"]
+        assert "stopped before it finished" in instructions
+        assert prepared.workspace_at_start is not None
+        assert any(path.endswith("0000-report.csv") for path in prepared.workspace_at_start)
+
+    @pytest.mark.anyio
+    async def test_a_thread_without_any_is_told_nothing(self):
+        _, instructions, _, restored, _ = await self._prepare(
+            _sandbox(StateBackend()), earlier=None
+        )
+
+        assert restored == []
+        assert "stopped before it finished" not in instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "ctx",
+        [
+            replace(_ctx(), api_key_id=uuid.uuid4()),
+            replace(_ctx(), subject_is_publisher_fallback=True),
+            replace(_ctx(), user_id=None),
+        ],
+        ids=["api-key", "publisher-for-a-visitor", "nobody-signed-in"],
+    )
+    async def test_a_caller_who_did_not_attach_the_files_puts_nothing_back(self, ctx: AuthContext):
+        """A key's holder, or a publisher standing in for a visitor, is not the
+        person whose attachments these are - the workspace identity refuses both
+        subjects for the same reason (#2027)."""
+        _, instructions, _, restored, find = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx
+        )
+
+        find.assert_not_awaited()
+        assert restored == []
+        assert "stopped before it finished" not in instructions
+
+    @pytest.mark.anyio
+    async def test_the_briefing_does_not_claim_the_files_are_back(self):
+        """On a sandbox it is said before the writes run, and a write can be refused -
+        so it says where to look and what to say if a file is not there."""
+        _, instructions, _, _, _ = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock()
+        )
+
+        assert "is written back" not in instructions
+        assert "if it is still not there, say it could not be put back" in instructions
+
+    @pytest.mark.anyio
+    async def test_a_run_its_own_person_resumes_looks_again(self):
+        """Its sandbox may first be used after the park, when the fresh half's
+        first-use set-up never ran - and the run then completes, closing the window
+        on files it never put back."""
+        ctx = _ctx()
+        resumed = MagicMock(
+            user_id=ctx.user_id, key_scopes=None, initiated_by_publisher_fallback=False
+        )
+
+        _, instructions, _, restored, find = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx, resumed=resumed
+        )
+
+        find.assert_awaited_once()
+        assert restored == ["restored"]
+        assert "stopped before it finished" in instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "resumed",
+        [
+            MagicMock(user_id=uuid.uuid4(), key_scopes=None, initiated_by_publisher_fallback=False),
+            MagicMock(key_scopes=["agents:run"], initiated_by_publisher_fallback=False),
+        ],
+        ids=["released-by-another-approver", "started-by-a-key"],
+    )
+    async def test_a_resume_for_somebody_else_puts_nothing_back(self, resumed: MagicMock):
+        """An approver's resume opens the approver's workspace, and a key's run never
+        looked in the first place."""
+        ctx = _ctx()
+        if resumed.key_scopes is not None:
+            resumed.user_id = ctx.user_id
+
+        _, _, _, restored, find = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), ctx=ctx, resumed=resumed
+        )
+
+        find.assert_not_awaited()
+        assert restored == []
+
+
 class TestSkillChangesARunProposed:
     """What an agent wrote to its skills, on the way out of the run.
 
@@ -2190,12 +2463,14 @@ class TestRunAccounting:
         ledger = SpendLedger()
         ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
         prepared = _prepared(ledger)
+        prepared.earlier_attachments_checked = True
 
         with patch(
             "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
         ) as finish:
             await service.finish(prepared, status=RunStatus.FAILED, error="boom")
 
+        assert prepared.run.earlier_attachments_checked is True
         recorded = finish.call_args.kwargs
         assert recorded["status"] == RunStatus.FAILED.value
         assert recorded["cost_usd"] == Decimal("2.00")
@@ -4721,6 +4996,11 @@ class TestTheWorkspaceReachesTheAgent:
             patch(
                 "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
                 new=AsyncMock(return_value=shares),
+            ),
+            # What the thread already holds of the person's attachments (#2481).
+            patch(
+                "app.services.agent_runner.find_earlier_attachments",
+                new=AsyncMock(return_value=None),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):

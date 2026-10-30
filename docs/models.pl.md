@@ -1,5 +1,5 @@
 ---
-source_sha: "64867ca52c0e"
+source_sha: "8dff2cdc1c17"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -92,6 +92,59 @@ działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do z
 konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
 Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
 na podstawie identyfikatorów modeli bazowych z katalogu.
+
+### Model, na którym startuje nowy agent { #the-model-a-new-agent-starts-on }
+
+Nie ma domyślnego modelu dla całej organizacji. Spec agenta wskazuje jego model, a
+publikacja odrzuca spec, który żadnego nie wskazuje.
+
+Nowy agent, który nie wskazuje modelu, startuje na modelu organizacji, gdy
+organizacja ma dokładnie jeden model, na którym agent może działać. To model czatowy
+z kluczem albo model self-hosted zapisany do działania bez klucza, który publikacja
+przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu
+tworzenia agenta: **Nowy agent** w konsoli, `POST /agents` bez `model_profile_id`,
+szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty.
+
+Architekt, asystent organizacji, sam wybiera swój model przy publikacji: pierwszy
+model czatu, który publikacja przyjmuje, i nigdy model na [logowaniu do
+ChatGPT](#running-on-a-chatgpt-subscription). Architekt służy całej organizacji, a
+logowanie to subskrypcja jednej osoby: uruchomienia członków, którzy nie widzą go w
+vault, są odrzucane, a uruchomienia tych, którzy je widzą, na przykład właścicieli i
+administratorów organizacji, zużywają tę subskrypcję. Gdy jest tylko logowanie,
+Architekt czeka na inny model.
+
+Logowanie wybrane przez kogoś w szkicu Architekta, albo model z fallbackiem na
+logowanie, zostaje w nim, ale jest publikowane dopiero wtedy, gdy opublikuje je w Builderze ktoś, kto może zmieniać
+ustawienia organizacji. Architekt opublikowany już wcześniej na logowaniu zachowuje
+ten model, dopóki ktoś, kto może zmieniać ustawienia organizacji, nie wybierze
+innego w **Budowa > Model** (Build > Model) i go nie opublikuje.
+
+Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
+**Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
+który wskazuje model, zachowuje go. Szkic liczy się wtedy jako użycie modelu: modelu
+nie da się usunąć, dopóki agent nie przejdzie na inny model albo nie zostanie
+usunięty; archiwizacja nie wystarczy. Aby zmienić tylko klucz lub endpoint modelu,
+edytuj go w miejscu ([Zmiana klucza lub endpointu
+profilu](#changing-a-profiles-key-or-endpoint)).
+
+Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
+jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
+klucza, model text-to-speech i pozostałe modele z sekcji [Profil, na którym agent
+nie może działać](#a-profile-an-agent-cannot-run-on), ani profil, który publikacja by
+odrzuciła, na przykład taki z fallbackiem na taki model. Model na [logowaniu
+ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
+to subskrypcja jednej osoby, ale jest liczony jako model.
+
+Nie jest też wybierany model, którego fallbacki zawierają logowanie wśród
+pierwszych trzech, czyli tych, których próbuje run: gdy model zawiedzie, run
+każdego, kto widzi to logowanie, przeszedłby na tę subskrypcję. Architekt też
+nie wybiera takiego modelu. Autor nadal może świadomie wybrać taki
+model i go opublikować.
+
+Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
+Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w
+`details.fields`), a konsola pokazuje obok niej **Przejdź do sekcji Model**, co
+otwiera zakładkę **Budowa** na karcie **Model**.
 
 ### Zmiana klucza lub endpointu profilu { #changing-a-profiles-key-or-endpoint }
 
@@ -375,6 +428,23 @@ jego id.
       stronę lub embed, wywołującego z kluczem API - i dla pracy w tle, jak
       opisywanie obrazów z dokumentu, model jest odrzucany, a fallback na nim
       pomijany.
+    - **Nie każdy może na nim publikować.** Publikacja, rollback do wersji lub
+      promocja wersji agenta jest odrzucana dla kogoś, kto nie widzi logowania w
+      vault, gdy działa na nim model, do którego docierają runy agenta: model
+      agenta, recenzenta, wbudowanego specjalisty albo włączonej capability,
+      model [przypiętego delegata](reference/capabilities.md#delegation) i tego,
+      do czego ten delegat dociera dalej, lub jeden z pierwszych trzech
+      fallbacków któregokolwiek z nich. Mogą to zrobić osoba, do której należy
+      logowanie, właściciele (owner) i administratorzy (admin) organizacji oraz
+      każdy, komu je udostępniono. Klucz API nie może, niezależnie od tego, co
+      widzi jego wystawca, bo run pod kluczem nigdy nie wydaje logowania.
+      Wersja opublikowana na nim wcześniej działa dalej.
+    - **Nie jest oferowane specjaliście, którego wymyśla model.** Przy
+      [`allow_dynamic`](reference/capabilities.md#delegation) model runu może
+      wybrać model specjalisty spośród profili organizacji. Profil na logowaniu
+      albo taki, którego pierwsze trzy fallbacki do niego docierają, jest na tej
+      liście tylko wtedy, gdy spec agenta nazywa dokładnie ten profil jako jeden
+      z modeli wymienionych wyżej.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według
