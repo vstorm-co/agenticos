@@ -758,7 +758,7 @@ async def test_a_merges_common_dominator_that_is_not_logic_if_is_refused(
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "logic.if" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}" and "single way out" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 

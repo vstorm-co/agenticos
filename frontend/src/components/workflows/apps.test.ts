@@ -5,23 +5,72 @@ import {
   appForCatalogKey,
   appToolLabel,
   humanizeTool,
+  serverGroupId,
   suggestedBindingsFor,
   WORKFLOW_APPS,
 } from "./apps";
 
 describe("the apps registry", () => {
-  it("maps an MCP catalog entry to the app its connections provide", () => {
-    expect(appForCatalogKey("google-workspace")?.id).toBe("gmail");
-    expect(appForCatalogKey("ms-365")?.id).toBe("outlook");
-    expect(appForCatalogKey("hubspot")).toBeNull();
-    expect(appForCatalogKey(null)).toBeNull();
+  it.each([
+    ["google-workspace", "draft_gmail_message", "gmail"],
+    ["google-workspace", "get_events", "google_calendar"],
+    ["google-workspace", "manage_event", "google_calendar"],
+    ["google-workspace", "query_freebusy", "google_calendar"],
+    ["google-workspace", "list_calendars", "google_calendar"],
+    ["google-workspace", "search_drive_files", "google_drive"],
+    ["google-workspace", "get_drive_file_content", "google_drive"],
+    ["google-workspace", "append_table_rows", "google_sheets"],
+    ["google-workspace", "read_sheet_values", "google_sheets"],
+    ["google-workspace", "create_spreadsheet", "google_sheets"],
+    ["google-workspace", "get_doc_content", "google_docs"],
+    ["google-workspace", "search_custom", "google_workspace"],
+    ["ms-365", "create-reply-draft", "outlook"],
+    ["ms-365", "send-shared-mailbox-draft", "outlook"],
+    ["ms-365", "list-mail-folders", "outlook"],
+    ["ms-365", "list-calendar-events", "outlook_calendar"],
+    ["ms-365", "create-calendar-event", "outlook_calendar"],
+    ["ms-365", "list-excel-worksheets", "excel"],
+    ["ms-365", "list-folder-files", "onedrive"],
+    ["ms-365", "list-planner-tasks", "microsoft_365"],
+    ["ms-365", "constructor", "microsoft_365"],
+    ["google-workspace", "toString", "google_workspace"],
+  ])("puts %s's %s under %s", (key, tool, app) => {
+    expect(appForCatalogKey(key, tool)?.id).toBe(app);
   });
 
+  it("gives a connection with no tool named its server's own group, and nothing to another server", () => {
+    expect(appForCatalogKey("google-workspace")?.id).toBe("google_workspace");
+    expect(appForCatalogKey("ms-365", "")?.id).toBe("microsoft_365");
+    expect(appForCatalogKey("hubspot", "x")).toBeNull();
+    expect(appForCatalogKey(null, "get_events")).toBeNull();
+  });
+
+  it.each(["start_google_auth", "login", "verify-login"])(
+    "offers no group for the sign-in tool %s",
+    (tool) => {
+      expect(appForCatalogKey("google-workspace", tool)).toBeNull();
+      expect(appForCatalogKey("ms-365", tool)).toBeNull();
+    },
+  );
+
   it("pairs each app with its trigger and holds each tool's label key once", () => {
-    expect(WORKFLOW_APPS.map((app) => app.triggers)).toEqual([
-      ["trigger.gmail"],
-      ["trigger.outlook"],
+    expect(WORKFLOW_APPS.map((app) => [app.id, app.triggers])).toEqual([
+      ["gmail", ["trigger.gmail"]],
+      ["google_calendar", []],
+      ["google_drive", []],
+      ["google_docs", []],
+      ["google_sheets", []],
+      ["google_workspace", []],
+      ["outlook", ["trigger.outlook"]],
+      ["outlook_calendar", []],
+      ["onedrive", []],
+      ["excel", []],
+      ["microsoft_365", []],
     ]);
+    for (const key of ["google-workspace", "ms-365"]) {
+      const own = WORKFLOW_APPS.filter((app) => app.catalogKeys.includes(key));
+      expect(own.filter((app) => app.fallback)).toHaveLength(1);
+    }
     const keys = WORKFLOW_APPS.flatMap((app) => Object.values(app.tools));
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -45,7 +94,6 @@ describe("the apps registry", () => {
       batch_modify_gmail_message_labels: "Change labels on several",
       draft_gmail_message: "Create draft",
       send_gmail_message: "Send message",
-      start_google_auth: "Start Google sign-in",
     };
     for (const [tool, label] of Object.entries(labels)) {
       expect(appToolLabel(gmail, tool, t)).toBe(label);
@@ -75,5 +123,14 @@ describe("suggestedBindingsFor", () => {
 
   it("has nothing for a tool that does not act on the delivered mail", () => {
     expect(suggestedBindingsFor("list_gmail_labels")).toBeNull();
+  });
+});
+
+describe("serverGroupId", () => {
+  it("names the server's own group, and throws for an app no server group covers", () => {
+    const sheets = WORKFLOW_APPS.find((app) => app.id === "google_sheets");
+    expect(sheets && serverGroupId(sheets)).toBe("google_workspace");
+    const orphan = { ...WORKFLOW_APPS[0]!, catalogKeys: ["nowhere"] as const };
+    expect(() => serverGroupId(orphan)).toThrow(/nowhere|server group/);
   });
 });

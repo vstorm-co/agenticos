@@ -12,7 +12,7 @@ register(
         version=1,
         name="Merge",
         category="logic",
-        description="Rejoin the two branches of an if / else into one path.",
+        description="Join branches back into one path.",
         kind="control",
         config_schema=None,
         input_schema=None,

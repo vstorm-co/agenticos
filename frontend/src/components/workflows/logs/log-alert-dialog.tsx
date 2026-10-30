@@ -53,6 +53,11 @@ export interface LogAlertChoices {
   stepPorts: Map<string, string[]>;
   /** A port's label by id. */
   labels: Map<string, string>;
+  /**
+   * Per step the live version logs, the outcomes its quick log writes - what an alert
+   * rule is judged against; null when the workflow has no live version.
+   */
+  livePorts: Map<string, string[]> | null;
 }
 
 /**

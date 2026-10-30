@@ -8,7 +8,7 @@ text. See `app.workflows.nodes._channels`.
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.channels.base import ChannelAdapter, OutgoingMessage
+from app.services.channels.base import ChannelAdapter, OutgoingMessage, thread_key
 from app.workflows.contracts.results import Completed, NodeResult
 from app.workflows.nodes._channels import (
     ChannelBotConfig,
@@ -32,7 +32,10 @@ class ChannelSendInput(BaseModel):
         default=None,
         max_length=255,
         title="Thread",
-        description="Answer inside this thread instead",
+        description=(
+            "The thread to answer in: a Slack thread's timestamp, a Mattermost root post's id, "
+            "a Telegram forum topic"
+        ),
     )
 
 
@@ -53,13 +56,38 @@ def handler_on(platform: Platform) -> NodeHandler:
         if not isinstance(config, ChannelBotConfig) or not isinstance(node_input, ChannelSendInput):
             return failed("CHANNEL_NOT_CONFIGURED", "This step needs a bot, a channel and a text")
 
+        thread_id = node_input.thread_id or ""
+        if ":" in node_input.channel_id:
+            return failed(
+                "CHANNEL_TARGET_INVALID",
+                "A channel id has no ':' in it - bind the trigger's channel_id",
+                platform=platform,
+            )
+        if ":" in thread_id:
+            return failed(
+                "CHANNEL_TARGET_INVALID",
+                "A thread id has no ':' in it - bind the trigger's thread_id",
+                platform=platform,
+            )
+        if (
+            platform == "telegram"
+            and thread_id
+            and not (thread_id.isascii() and thread_id.isdigit())
+        ):
+            return failed(
+                "CHANNEL_TARGET_INVALID",
+                "A Telegram thread is a forum topic's number - bind the trigger's thread_id",
+                platform=platform,
+            )
+
         async def send(adapter: ChannelAdapter, token: str, base_url: str | None) -> NodeResult:
             await adapter.send_message(
                 token,
                 OutgoingMessage(
-                    platform_chat_id=node_input.channel_id,
+                    platform_chat_id=thread_key(
+                        node_input.channel_id, thread_id=thread_id, message_id=None
+                    ),
                     text=node_input.text,
-                    reply_to_message_id=node_input.thread_id,
                     api_base_url=base_url,
                 ),
             )

@@ -66,20 +66,27 @@ describe("pickerSections with apps", () => {
       ...overrides,
     }) as UsableMcpConnectionRecord;
   const defs = [step("trigger.gmail", "triggers"), step("mcp.call", "mcp")];
+  const groupOf = (
+    category: string,
+    connections: UsableMcpConnectionRecord[] | null,
+    canConnect = false,
+    d = defs,
+    unavailable = false,
+  ) =>
+    pickerSections(d, { connections, canConnect, unavailable })
+      .find((section) => section.id === "apps")
+      ?.groups.find((group) => group.category === category);
   const gmailGroup = (
     connections: UsableMcpConnectionRecord[] | null,
     canConnect = false,
     d = defs,
-  ) =>
-    pickerSections(d, { connections, canConnect })
-      .find((section) => section.id === "apps")
-      ?.groups.find((group) => group.category === "gmail");
+  ) => groupOf("gmail", connections, canConnect, d);
 
   it("puts an app first in Apps, holding its trigger and its connection's tools", () => {
     const apps = pickerSections(defs, { connections: [conn()], canConnect: true }).find(
       (section) => section.id === "apps",
     );
-    expect(apps?.groups.map((group) => group.category)).toEqual(["gmail", "outlook", "mcp"]);
+    expect(apps?.groups.map((group) => group.category)).toEqual(["gmail", "microsoft_365", "mcp"]);
     const group = apps?.groups[0];
     expect(group?.items.map((item) => item.id)).toEqual(["trigger.gmail"]);
     expect(group?.app?.actions.map((action) => [action.connectionId, action.tool])).toEqual([
@@ -92,19 +99,62 @@ describe("pickerSections with apps", () => {
     ).toHaveLength(1);
   });
 
-  it("offers to connect only a member who may, and only once the list is known to hold none", () => {
-    expect(gmailGroup([], true)?.app?.connectKey).toBe("google-workspace");
-    expect(gmailGroup([], false)?.app?.connectKey).toBeNull();
-    expect(gmailGroup(null, true)?.app?.connectKey).toBeNull();
-    expect(gmailGroup([conn({ catalog_key: "hubspot" })], true)?.app?.connectKey).toBe(
-      "google-workspace",
+  const groupsOf = (sections: ReturnType<typeof pickerSections>) =>
+    Object.fromEntries(
+      (sections.find((section) => section.id === "apps")?.groups ?? []).map((group) => [
+        group.category,
+        group.app?.actions.map((action) => action.tool) ?? [],
+      ]),
     );
+
+  it("splits one connection's tools across its apps, each once, and keeps its rows in the server's own group", () => {
+    const sections = pickerSections(defs, {
+      connections: [
+        conn({
+          last_tools: [
+            { name: "draft_gmail_message", description: "" },
+            { name: "get_events", description: "" },
+            { name: "search_custom", description: "" },
+            { name: "start_google_auth", description: "" },
+          ],
+        }),
+      ],
+      canConnect: true,
+    });
+    const apps = groupsOf(sections);
+    expect(apps.gmail).toEqual(["draft_gmail_message"]);
+    expect(apps.google_calendar).toEqual(["get_events"]);
+    expect(apps.google_workspace).toEqual(["search_custom"]);
+    expect(Object.values(apps).flat()).not.toContain("start_google_auth");
+  });
+
+  it("offers Connect and names an untested connection only in the server's own group", () => {
+    const find = (connections: UsableMcpConnectionRecord[], category: string) =>
+      pickerSections(defs, { connections, canConnect: true })
+        .find((section) => section.id === "apps")
+        ?.groups.find((group) => group.category === category)?.app;
+    expect(gmailGroup([], true)?.app?.connectKey).toBeNull();
+    expect(find([], "google_workspace")?.connectKey).toBe("google-workspace");
+    const untested = [conn({ last_tools: null })];
+    expect(gmailGroup(untested)?.app?.untested).toEqual([]);
+    expect(find(untested, "google_workspace")?.untested).toEqual([{ id: "c1", name: "gmail-dev" }]);
+    expect(find(untested, "google_calendar")).toBeUndefined();
+  });
+
+  it("offers to connect only a member who may, and only once the list is known to hold none", () => {
+    const connectKey = (
+      ...args: Parameters<typeof groupOf> extends [string, ...infer R] ? R : never
+    ) => groupOf("google_workspace", ...args)?.app?.connectKey;
+    expect(connectKey([], true)).toBe("google-workspace");
+    expect(connectKey([], false)).toBeUndefined();
+    expect(connectKey(null, true)).toBeUndefined();
+    expect(connectKey([conn({ catalog_key: "hubspot" })], true)).toBe("google-workspace");
     // Nothing to connect through when the canvas offers no MCP call.
-    expect(gmailGroup([], true, [step("trigger.gmail", "triggers")])?.app?.connectKey).toBeNull();
+    expect(connectKey([], true, [step("trigger.gmail", "triggers")])).toBeUndefined();
   });
 
   it("leaves a disabled connection and held-back tools out, and notes one with no tools", () => {
-    const group = gmailGroup([
+    const group = groupOf("google_workspace", [
       conn({ allowed_tools: ["other"] }),
       conn({ id: "c2", is_enabled: false }),
       conn({ id: "c3", name: "fresh", last_tools: null, label: "Fresh" }),
@@ -118,12 +168,12 @@ describe("pickerSections with apps", () => {
 
   it("says why when this member may not edit workflows, not when the list is just loading", () => {
     const state = (connections: UsableMcpConnectionRecord[] | null, unavailable: boolean) =>
-      pickerSections(defs, { connections, canConnect: false, unavailable }).find(
-        (section) => section.id === "apps",
-      )?.groups[0]?.app?.needsPermission;
+      groupOf("google_workspace", connections, false, defs, unavailable)?.app?.needsPermission;
     expect(state(null, true)).toBe(true);
-    expect(state(null, false)).toBe(false);
-    expect(state([], false)).toBe(false);
+    expect(state(null, false)).toBeUndefined();
+    expect(state([], false)).toBeUndefined();
+    // Only the server's own group says so; the Gmail group just shows what it has.
+    expect(groupOf("gmail", null, false, defs, true)?.app?.needsPermission).toBe(false);
   });
 
   it("has no group for an app with nothing to show", () => {

@@ -70,17 +70,17 @@ class TestTheRunsInput:
         assert input_problems(TriggerInputConfig(), {"anything": [1]}) == []
 
     @pytest.mark.parametrize(
-        ("change", "field"),
+        ("change", "field", "kind"),
         [
-            ({"email": None}, "email"),
-            ({"seats": "3"}, "seats"),
-            ({"seats": 2.5}, "seats"),
-            ({"urgent": 1}, "urgent"),
-            ({"price": "cheap"}, "price"),
-            ({"due": "01/10/2026"}, "due"),
-            ({"due": "2026-02-30"}, "due"),
-            ({"plan": "enterprise"}, "plan"),
-            ({"extra": "x"}, "extra"),
+            ({"email": None}, "email", "missing"),
+            ({"seats": "3"}, "seats", "int_type"),
+            ({"seats": 2.5}, "seats", "int_type"),
+            ({"urgent": 1}, "urgent", "bool_type"),
+            ({"price": "cheap"}, "price", "float_type"),
+            ({"due": "01/10/2026"}, "due", "value_error"),
+            ({"due": "2026-02-30"}, "due", "value_error"),
+            ({"plan": "enterprise"}, "plan", "value_error"),
+            ({"extra": "x"}, "extra", "extra_forbidden"),
         ],
         ids=[
             "missing-text",
@@ -94,12 +94,12 @@ class TestTheRunsInput:
             "undeclared",
         ],
     )
-    def test_each_value_that_does_not_fit_is_named(self, change, field):
+    def test_each_value_that_does_not_fit_is_named(self, change, field, kind):
         run_input = {**FITS, **change}
         if change.get("email", "") is None:
             del run_input["email"]
         problems = input_problems(_config(), run_input)
-        assert [problem["field"] for problem in problems] == [field]
+        assert [(problem["field"], problem["type"]) for problem in problems] == [(field, kind)]
         assert problems[0]["message"]
 
     def test_a_problem_never_quotes_the_value_it_refused(self):

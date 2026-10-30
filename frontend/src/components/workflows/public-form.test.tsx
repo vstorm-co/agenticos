@@ -75,6 +75,74 @@ describe("PublicForm", () => {
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body).website).toBe("spam.example");
   });
 
+  it("marks the answer the server refused, and drops the mark once it is changed", async () => {
+    answer(422, {
+      error: { details: { problems: [{ field: "seats", message: "x", type: "int_type" }] } },
+    });
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.type(screen.getByLabelText(/Team size/), "12");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByText("This has to be a whole number.")).toBeVisible();
+    expect(screen.getByLabelText(/Team size/)).toHaveAttribute("aria-invalid", "true");
+    await userEvent.type(screen.getByLabelText(/Team size/), "3");
+    expect(screen.getByLabelText(/Team size/)).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("shows a local check over a stale server mark, and clears the mark on the next send", async () => {
+    answer(422, {
+      error: { details: { problems: [{ field: "name", message: "x", type: "string_too_long" }] } },
+    });
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(await screen.findByText("This answer does not fit - check it.")).toBeVisible();
+
+    await userEvent.clear(screen.getByLabelText("Your name"));
+    expect(screen.getByText("Fill this in.")).toBeVisible();
+    expect(screen.queryByText("This answer does not fit - check it.")).toBeNull();
+
+    answer(201, { message: "Thanks" });
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Thanks");
+  });
+
+  it.each([
+    [
+      422,
+      { error: { details: { problems: [{ field: "extra", type: "extra_forbidden" }] } } },
+      "This form has changed",
+    ],
+    [
+      422,
+      { error: { details: { fields: [{ field: "values", message: "x" }] } } },
+      "could not be read",
+    ],
+    [413, {}, "too long to send"],
+  ])("says why a %s refused the whole form", async (status, body, words) => {
+    answer(status, body);
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(words);
+  });
+
+  it("reads a refusal whose body is not JSON as a plain refusal", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>", { status: 422 })));
+    render(<PublicForm page={PAGE} token="tok" />);
+
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Some answers do not fit this form");
+  });
+
   it.each([
     [422, "Some answers do not fit this form"],
     [429, "taking a lot of answers"],

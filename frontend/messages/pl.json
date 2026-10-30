@@ -3438,7 +3438,8 @@
         "number": "To musi być liczba.",
         "integer": "To musi być liczba całkowita.",
         "date": "To musi być data.",
-        "choice": "Wybierz jedną z opcji."
+        "choice": "Wybierz jedną z opcji.",
+        "invalid": "Ta odpowiedź nie pasuje - sprawdź ją."
       },
       "exposureManualDescription": "Uruchamia go osoba przyciskiem Run w edytorze albo Start a run na stronie runów.",
       "runDraft": "Testuj draft",
@@ -3574,6 +3575,7 @@
       "alertNeedsAudience": "Wybierz, kogo powiadomić",
       "alertNeedsPeople": "Wybrano „Wybrane osoby”, ale nikogo nie wskazano",
       "alertCondition": "{count, plural, one {Co najmniej # wystąpienie} few {Co najmniej # wystąpienia} many {Co najmniej # wystąpień} other {Co najmniej # wystąpienia}} z wynikiem {outcomes}{hasStep, select, yes { w kroku {step}} other {}}{hasText, select, yes { i tekstem „{text}”} other {}} w ciągu {window}",
+      "alertOutcomesGone": "To nie jest wynik opublikowanej wersji: {outcomes}",
       "alertTells": "Powiadamia: {who}",
       "alertNeverFired": "Jeszcze nie zadziałał",
       "alertLastFired": "{count, plural, one {Ostatnio zadziałał {when}, przy # wystąpieniu} few {Ostatnio zadziałał {when}, przy # wystąpieniach} many {Ostatnio zadziałał {when}, przy # wystąpieniach} other {Ostatnio zadziałał {when}, przy # wystąpieniach}}",
@@ -8692,7 +8694,7 @@
     "validationBindingUnavailable": "Ta wartość czyta krok, który nie wykonał się na każdej ścieżce do tego miejsca.",
     "validationMergeDuplicateBranch": "To scalenie łączy tę samą gałąź więcej niż raz.",
     "validationMergeNoCommonDominator": "Gałęzie tego scalenia nie mają wspólnego punktu wyjścia.",
-    "validationMergeNotFromIf": "Gałęzie scalenia muszą pochodzić z dwóch wyników jednego warunku.",
+    "validationMergeNotFromIf": "Gałęzie scalenia muszą wychodzić z jednego kroku, który obiera jedną drogę wyjścia, np. z If, Switch, decyzji, klasyfikatora, zatwierdzenia, obsługi błędów lub kontroli tabeli.",
     "validationMergeNotExclusive": "Gałęzie tego scalenia nie wykluczają się wzajemnie.",
     "validationPortNameTaken": "„{name}” jest już wyjściem tego kroku - zmień nazwę.",
     "validationQuickLogOutputUnknown": "„{name}” nie jest już wyjściem tego kroku - otwórz szybki log i zapisz go ponownie.",
@@ -8707,6 +8709,7 @@
     "validationFanoutPortMultipleEdges": "Port {port} tego kroku ma więcej niż jedno połączenie.",
     "validationInputBoundTwice": "To wejście ustawia więcej niż jedno źródło.",
     "validationInputNotBound": "Wymagane: wpisz wartość albo weź ją z wcześniejszego kroku.",
+    "validationDecisionValueNotBound": "Wymagane: powiąż to, na podstawie czego ten krok decyduje - wpisz wartość albo weź ją z wcześniejszego kroku.",
     "pickerAgentLabel": "Agent",
     "pickerAgentPlaceholder": "Wybierz agenta",
     "pickerAgentsEmpty": "Nie ma agentów do wyboru.",
@@ -8810,7 +8813,16 @@
       "mcp": "Serwery MCP",
       "email": "E-mail",
       "gmail": "Gmail",
-      "outlook": "Outlook"
+      "outlook": "Outlook",
+      "google_calendar": "Google Calendar",
+      "google_drive": "Google Drive",
+      "google_docs": "Google Docs",
+      "google_sheets": "Google Sheets",
+      "google_workspace": "Google Workspace",
+      "outlook_calendar": "Outlook Calendar",
+      "onedrive": "OneDrive",
+      "excel": "Excel",
+      "microsoft_365": "Microsoft 365"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Tylko gałąź domyślna} one {# gałąź i domyślna} few {# gałęzie i domyślna} many {# gałęzi i domyślna} other {# gałęzi i domyślna}}",
     "nodeSummaryCollect": "Zbiera nieudane elementy i idzie dalej",
@@ -8857,6 +8869,8 @@
     "pickerBotsEmpty": "Nie ma jeszcze botów kanałów.",
     "pickerBotsAdd": "Dodaj go w Kanałach",
     "pickerBotOrphaned": "Bota, którego wskazuje ten krok, już nie ma - wybierz innego.",
+    "pickerBotWrongPlatform": "Tego bota nie można tu użyć. Workflow odpowiadają w Slacku, Mattermoście i Telegramie - wybierz innego.",
+    "pickerBotWrongPlatformOne": "Ten krok przyjmuje boty {platform} - wybierz innego.",
     "pickerBotNeedsPermission": "Działanie jako bot kanału wymaga channels:manage, którego nie masz.",
     "inputFields": {
       "title": "Pola wejścia",
@@ -9316,10 +9330,10 @@
     "appMcpBadge": "MCP",
     "appMcpBadgeHint": "Wywołanie narzędzia na serwerze MCP",
     "appServer": {
-      "gmail": "Google Workspace",
-      "outlook": "Microsoft 365"
+      "google_workspace": "Google Workspace",
+      "microsoft_365": "Microsoft 365"
     },
-    "appConnect": "Połącz {server}, aby dodać akcje {app}",
+    "appConnect": "Połącz {server}, aby dodać jego akcje",
     "appOrgOnly": "Akcje pochodzą z połączeń MCP organizacji, nie z osobistych.",
     "appUntested": "{connection} nie ma jeszcze listy narzędzi. Przetestuj połączenie, aby ją pobrać.",
     "appCardName": "{app} · {tool}",
@@ -9336,7 +9350,6 @@
       "listFilters": "Wyświetl filtry",
       "manageFilter": "Zarządzaj filtrem",
       "changeLabelsBatch": "Zmień etykiety wielu",
-      "startGoogleSignIn": "Rozpocznij logowanie Google",
       "createDraft": "Utwórz wersję roboczą",
       "sendMessage": "Wyślij wiadomość",
       "searchMail": "Szukaj w poczcie",
@@ -9348,8 +9361,8 @@
       "sendSharedDraft": "Wyślij wersję roboczą (współdzielona skrzynka)"
     },
     "appServerFull": {
-      "gmail": "Google Workspace (własny serwer)",
-      "outlook": "Microsoft 365 (własny serwer)"
+      "google_workspace": "Google Workspace (własny serwer)",
+      "microsoft_365": "Microsoft 365 (własny serwer)"
     },
     "appNeedsPermission": "Akcje {app} nie są pokazane, bo nie możesz edytować tego workflow."
   },
@@ -10708,6 +10721,9 @@
   "publicForm": {
     "trapLabel": "Zostaw to pole puste",
     "refused": {
+      "changed": "Ten formularz zmienił się, odkąd go otworzono. Odśwież stronę i wypełnij go ponownie.",
+      "unreadable": "Nie udało się odczytać odpowiedzi. Odśwież stronę i spróbuj ponownie.",
+      "tooLarge": "Odpowiedzi są za długie, żeby je wysłać. Skróć je i spróbuj ponownie.",
       "invalid": "Niektóre odpowiedzi nie pasują do formularza. Sprawdź je i wyślij ponownie.",
       "busy": "Formularz przyjmuje teraz dużo odpowiedzi. Spróbuj za minutę.",
       "gone": "Ten formularz jest zamknięty.",

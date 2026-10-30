@@ -27,6 +27,16 @@ vi.mock("@/components/workflows/use-app-connections", () => ({
   useMcpAppStep: () => mcpApp.step,
 }));
 
+// Adding a step reads the channel bots to start a reply wired; none are known here.
+vi.mock("@/hooks/use-permissions", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-permissions")>()),
+  usePermissions: () => ({ can: () => false }),
+}));
+vi.mock("@/hooks/use-channel-bots", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-channel-bots")>()),
+  useChannelBots: () => ({ bots: [], isLoading: false, error: null }),
+}));
+
 /**
  * What a node card says about its step: a line of what it is set to do, its
  * policy, its labelled ports, and - on a run's canvas - what the run did with it.

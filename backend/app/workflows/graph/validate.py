@@ -1262,8 +1262,8 @@ def _rule_5_exclusive_merge(
             problems.append(
                 (
                     f"nodes.{node.id}",
-                    "A merge's branches must come from one logic.if, error handler or "
-                    "error-routing step",
+                    "A merge's branches must leave one step that takes a single way out, such as "
+                    "an If, a Switch, a decision, a classifier, an approval, an error handler or a table check",
                 )
             )
             continue
@@ -1277,8 +1277,8 @@ def _rule_5_exclusive_merge(
             problems.append(
                 (
                     f"nodes.{node.id}",
-                    "A merge's branches must come from one logic.if, error handler or "
-                    "error-routing step",
+                    "A merge's branches must leave one step that takes a single way out, such as "
+                    "an If, a Switch, a decision, a classifier, an approval, an error handler or a table check",
                 )
             )
             continue
@@ -1454,6 +1454,10 @@ def _rule_8_no_parallel_fanout(graph: WorkflowGraph, definitions: DefinitionMap)
 
 # Rule 9 - every required input is bound exactly once
 
+# Steps that branch on `value`: unbound it reads `None`, so the step would always take its
+# false / otherwise branch without anything saying so.
+_DECIDES_ON_VALUE = frozenset({"logic.if", "logic.switch"})
+
 
 def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
     problems: Problems = []
@@ -1484,6 +1488,17 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
         definition = definitions.get(node.id)
         if definition is None or definition.input_schema is None:
             continue
+        if (
+            definition.id in _DECIDES_ON_VALUE
+            and (node.id, "value") not in bound_counts
+            and (node.id, "value") not in keyed
+        ):
+            problems.append(
+                (
+                    f"nodes.{node.id}.value",
+                    "This step decides on `value` - bind what it should look at",
+                )
+            )
         for field_name, field in definition.input_schema.model_fields.items():
             if (
                 field.is_required()

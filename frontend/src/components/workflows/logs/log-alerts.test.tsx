@@ -49,6 +49,7 @@ const CHOICES = {
     ["n2", ["error", "true"]],
   ]),
   labels: new Map([["out", "Done"]]),
+  livePorts: null as Map<string, string[]> | null,
 };
 
 function rule(overrides: Partial<LogAlertRule> = {}): LogAlertRule {
@@ -76,8 +77,8 @@ function rule(overrides: Partial<LogAlertRule> = {}): LogAlertRule {
   };
 }
 
-function view(canEdit = true) {
-  return render(<LogAlerts workflowId="wf" canEdit={canEdit} {...CHOICES} />);
+function view(canEdit = true, livePorts: Map<string, string[]> | null = null) {
+  return render(<LogAlerts workflowId="wf" canEdit={canEdit} {...CHOICES} livePorts={livePorts} />);
 }
 
 beforeEach(() => {
@@ -91,6 +92,30 @@ beforeEach(() => {
 });
 
 describe("LogAlerts", () => {
+  it("flags an outcome the live version's step no longer logs, and only against the live version", () => {
+    hook.rules = [rule({ node_instance_id: "n1", outcomes: ["big"] })];
+    view(true, new Map([["n1", ["error", "large"]]]));
+    expect(screen.getByText("Not an outcome of the live version: big")).toBeTruthy();
+  });
+
+  it("flags nothing without a live version, for a step the live version lacks, or for an outcome it still has", () => {
+    hook.rules = [rule({ node_instance_id: "n1", outcomes: ["big"] })];
+    const { unmount } = view(true, null);
+    expect(screen.queryByText(/Not an outcome/)).toBeNull();
+    unmount();
+    const gone = view(true, new Map([["n2", ["error"]]]));
+    expect(screen.queryByText(/Not an outcome/)).toBeNull();
+    gone.unmount();
+    view(true, new Map([["n1", ["error", "big"]]]));
+    expect(screen.queryByText(/Not an outcome/)).toBeNull();
+  });
+
+  it("judges a rule for any step against every step the live version logs", () => {
+    hook.rules = [rule({ node_instance_id: null, outcomes: ["big", "large"] })];
+    view(true, new Map([["n1", ["error", "large"]]]));
+    expect(screen.getByText("Not an outcome of the live version: big")).toBeTruthy();
+  });
+
   it("describes each rule in words: the condition, who it tells, and its last firing", () => {
     hook.rules = [
       rule(),
@@ -432,6 +457,7 @@ describe("the alert dialog", () => {
         steps={[["n1", "Fetch lead"]]}
         stepPorts={new Map([["n1", ["error", "out"]]])}
         labels={new Map([["no", "Declined"]])}
+        livePorts={null}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Add alert" }));

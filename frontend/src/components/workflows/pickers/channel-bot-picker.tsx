@@ -20,8 +20,8 @@ import { Perm } from "@/types/permissions";
 export interface ChannelBotPickerProps {
   /** What the control is called: the field's own name, or the picker's when it has none. */
   label?: string;
-  /** Offer only this platform's bots - a Slack step's picker lists Slack bots. */
-  platform?: string;
+  /** Offer only these platforms' bots - a Slack step's picker lists Slack bots. */
+  platform?: string | readonly string[];
   /** The chosen bot's id, or null while none is. */
   value: string | null;
   onChange: (botId: string | null) => void;
@@ -50,9 +50,15 @@ export function ChannelBotPicker({
   const { can } = usePermissions();
   const mayManage = can(Perm.channelsManage);
   const { bots: every, isLoading } = useChannelBots(mayManage);
-  const bots = platform === undefined ? every : every.filter((bot) => bot.platform === platform);
+  const platforms = typeof platform === "string" ? [platform] : platform;
+  const bots =
+    platforms === undefined ? every : every.filter((bot) => platforms.includes(bot.platform));
   const chosen = bots.find((bot) => bot.id === value);
-  const orphaned = mayManage && value !== null && !isLoading && chosen === undefined;
+  const lost = mayManage && value !== null && !isLoading && chosen === undefined;
+  const misplaced = lost && every.some((bot) => bot.id === value);
+  const orphaned = lost && !misplaced;
+  // A step with one platform names it; one open to several lists them.
+  const only = platforms?.length === 1 ? platforms[0] : undefined;
 
   if (!mayManage) {
     return <p className="text-muted-foreground text-xs">{t("pickerBotNeedsPermission")}</p>;
@@ -71,7 +77,9 @@ export function ChannelBotPicker({
               <span className="flex items-center gap-2">
                 <Bot className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{bot.name}</span>
-                {platform === undefined && <Badge variant="outline">{bot.platform}</Badge>}
+                {(platforms === undefined || platforms.length > 1) && (
+                  <Badge variant="outline">{bot.platform}</Badge>
+                )}
                 {!bot.is_active && <Badge variant="secondary">{t("pickerBotOff")}</Badge>}
               </span>
             </SelectItem>
@@ -87,6 +95,15 @@ export function ChannelBotPicker({
         </p>
       )}
       {orphaned && <p className="text-foreground/70 text-xs">{t("pickerBotOrphaned")}</p>}
+      {misplaced && (
+        <p className="text-foreground/70 text-xs">
+          {only === undefined
+            ? t("pickerBotWrongPlatform")
+            : t("pickerBotWrongPlatformOne", {
+                platform: `${only.charAt(0).toUpperCase()}${only.slice(1)}`,
+              })}
+        </p>
+      )}
       {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );

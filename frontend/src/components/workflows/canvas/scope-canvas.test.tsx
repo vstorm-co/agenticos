@@ -1,10 +1,20 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NodeDefinition, WorkflowDetail, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { WorkflowCanvas } from "./workflow-canvas";
+
+// Adding a step reads the channel bots to start a reply wired; none are known here.
+vi.mock("@/hooks/use-permissions", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-permissions")>()),
+  usePermissions: () => ({ can: () => false }),
+}));
+vi.mock("@/hooks/use-channel-bots", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-channel-bots")>()),
+  useChannelBots: () => ({ bots: [], isLoading: false, error: null }),
+}));
 
 const store = useWorkflowEditorStore;
 

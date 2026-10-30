@@ -296,6 +296,16 @@ export function secretKind(schema: Schema): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** The platforms a channel-bot leaf offers, from `x-platform`: one name or a list of names. */
+export function channelPlatforms(schema: Schema): readonly string[] | undefined {
+  const value = schema["x-platform"];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+    return value as string[];
+  }
+  return undefined;
+}
+
 /** Whether a `config_schema` leaf opts into binding via `x-bindable: true`. */
 export function isBindable(schema: Schema): boolean {
   return schema["x-bindable"] === true;

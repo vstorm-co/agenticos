@@ -9,11 +9,12 @@ before. A bot's messages start one workflow at most.
 """
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.workflows.contracts.results import Completed, Failed, NodeResult
-from app.workflows.nodes._channels import ChannelBotConfig
+from app.workflows.nodes._channels import WORKFLOW_PLATFORMS, ChannelBotConfig
 from app.workflows.nodes._triggers import ChannelMessageTriggerOutput, run_input_as
 
 ChatType = Literal["private", "group"]
@@ -22,6 +23,11 @@ ChatType = Literal["private", "group"]
 class ChannelMessageTriggerConfig(ChannelBotConfig):
     """Which bot's messages start the workflow, and which of them."""
 
+    bot_id: UUID = Field(
+        title="Bot",
+        description="Which of the organization's Slack, Mattermost or Telegram bots starts the workflow",
+        json_schema_extra={"x-resource": "channel_bot", "x-platform": list(WORKFLOW_PLATFORMS)},
+    )
     chat_types: tuple[ChatType, ...] = Field(
         default=("private", "group"),
         min_length=1,

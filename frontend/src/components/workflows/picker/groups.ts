@@ -137,17 +137,22 @@ function appGroups(
   for (const app of WORKFLOW_APPS) {
     const triggers = definitions.filter((definition) => app.triggers.includes(definition.id));
     const own = (connections ?? []).filter(
-      (connection) => connection.is_enabled && appForCatalogKey(connection.catalog_key) === app,
+      (connection) =>
+        connection.is_enabled &&
+        connection.catalog_key !== null &&
+        app.catalogKeys.includes(connection.catalog_key),
     );
     const actions: AppAction[] = [];
     const untested: { id: string; name: string }[] = [];
     if (call !== undefined) {
       for (const connection of own) {
         const tools = offeredTools(connection) ?? [];
-        if (tools.length === 0) {
+        // The server's own group speaks for the connection as a whole.
+        if (tools.length === 0 && app.fallback) {
           untested.push({ id: connection.id, name: connectionLabel(connection) });
         }
         for (const tool of tools) {
+          if (appForCatalogKey(connection.catalog_key, tool.name) !== app) continue;
           actions.push({
             key: `${connection.id}:${tool.name}`,
             app,
@@ -161,11 +166,11 @@ function appGroups(
       }
     }
     const connectKey =
-      call !== undefined && canConnect && connections !== null && own.length === 0
+      app.fallback && call !== undefined && canConnect && connections !== null && own.length === 0
         ? app.catalogKeys[0]
         : null;
     // Not known, not none: this member may not read the connections.
-    const needsPermission = call !== undefined && unavailable;
+    const needsPermission = app.fallback && call !== undefined && unavailable;
     if (
       triggers.length === 0 &&
       actions.length === 0 &&

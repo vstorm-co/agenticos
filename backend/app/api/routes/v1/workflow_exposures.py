@@ -212,7 +212,8 @@ async def get_workflow_form(token: str, service: WorkflowExposureSvc) -> Any:
 async def submit_workflow_form(token: str, request: Request, service: WorkflowExposureSvc) -> Any:
     """Start one run with the answers, as the form's publisher, and say the form's
     thanks. Answers that do not fit its fields are `422` with the fields that are
-    wrong in `details.problems`, and start nothing."""
+    wrong in `details.problems` - each `{field, message, type}`, `type` the
+    validator's own error type - and start nothing."""
     body = await read_workflow_body(request.stream())
     try:
         data = WorkflowFormSubmission.model_validate_json(body)

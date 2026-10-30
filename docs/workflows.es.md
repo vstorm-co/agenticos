@@ -1,5 +1,5 @@
 ---
-source_sha: "918897481ed6"
+source_sha: "f96ab37e96d7"
 ---
 
 # Workflows { #workflows }
@@ -125,24 +125,37 @@ hace o por su grupo. Añades un paso de cuatro maneras:
   paso aparece allí. Debajo, **Add a note** y, cuando hay algo copiado, **Paste**.
 - **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
 
-**Gmail** y **Outlook** son grupos propios en **Apps and the web**. Cada uno contiene
-el trigger nativo de la aplicación, donde el lienzo puede aceptar uno, y una entrada por
-herramienta de cada conexión MCP de la organización al servidor correspondiente - Google
-Workspace para Gmail, Microsoft 365 para Outlook - como **Create draft** o **Send
-message**. Elegir una entrada añade un [MCP call](reference/workflow-nodes.md#mcp-call)
+Las aplicaciones de Google Workspace (**Gmail**, **Google Calendar**, **Google Drive**,
+**Google Docs**, **Google Sheets**) y de Microsoft 365 (**Outlook**, **Outlook
+Calendar**, **OneDrive**, **Excel**) son grupos propios en **Apps and the web**. Cada
+uno contiene el trigger nativo de la aplicación, donde el lienzo puede aceptar uno, y
+una entrada por herramienta de cada conexión MCP de la organización al servidor
+correspondiente - como **Create draft** o **Send message**.
+
+Las herramientas de una
+conexión se reparten en estos grupos por su nombre; una herramienta que ninguno
+reclama queda en el grupo del propio servidor (**Google Workspace**, **Microsoft
+365**), donde también se muestran **Connect** y una conexión sin probar. Las
+herramientas de inicio de sesión (`start_google_auth`, `login`, `verify-login`) no se
+ofrecen.
+
+Elegir una entrada añade un [MCP call](reference/workflow-nodes.md#mcp-call)
 ya configurado con esa conexión y esa herramienta, así que los workflows guardados y el
 contrato del nodo no cambian. La entrada no oculta nada: lleva una insignia **MCP** y el
 nombre de la conexión, el nombre propio de la herramienta va debajo, en su propia línea, y el servidor se nombra una vez en el encabezado del grupo; nada se recorta.
+
 **Search steps** la encuentra por cualquiera de los dos nombres o por la aplicación. En
 el lienzo el paso se lee **Gmail · Create draft** con una insignia **MCP**, y debajo se
 ven la conexión y el nombre propio de la herramienta; sus ajustes dicen que es una
 llamada a una herramienta MCP en esa conexión y enlazan a ella. Una herramienta que la
 lista no nombra muestra su propio nombre. Cada herramienta de Gmail que ofrece el servidor tiene un nombre claro, como **List labels** o **Read thread**. El trigger nativo
-no es una llamada MCP y no lleva insignia. Sin una conexión que encaje, el grupo muestra
-el trigger y una fila **Connect** para conectar el servidor. Solo se listan las conexiones
+no es una llamada MCP y no lleva insignia.
+
+Sin una conexión que encaje, el grupo del propio servidor muestra una fila **Connect**
+para conectar el servidor. Solo se listan las conexiones
 de la organización, y las herramientas de una conexión son las que registró su última
 prueba, así que vuelve a probarla para listar las nuevas. Quien no puede editar
-el workflow ve solo el trigger. Quien lo edita pero no gestiona servidores MCP ve todas las acciones y no recibe una fila **Connect**: solo quien gestiona servidores conecta uno. Las filas de acciones de una aplicación se eligen, no se arrastran:
+el workflow ve solo los triggers. Quien lo edita pero no gestiona servidores MCP ve todas las acciones y no recibe una fila **Connect**: solo quien gestiona servidores conecta uno. Las filas de acciones de una aplicación se eligen, no se arrastran:
 solo las filas propias de un paso se pueden arrastrar al lienzo.
 
 Un paso nuevo nunca cae encima de otro, queda seleccionado, abre sus ajustes cuando
@@ -301,6 +314,11 @@ del elemento o del valor, una comprobación - **is equal to**, **is at least**,
 mostraron la última ejecución o los datos de prueba. La condición se guarda como la
 expresión JMESPath que evalúa el paso. **Write it as an expression** la edita como tal, y
 una que las filas no pueden mostrar sigue siendo una expresión.
+
+Renombrar una regla de **Switch**, una categoría del clasificador, una rama de error o una
+opción de aprobación traslada las conexiones, los enlaces y el quick log que usaban el
+nombre anterior, salvo que se reordenen, inserten o borren entradas, o cambien dos
+nombres a la vez.
 
 ### Nombrar un paso, anotarlo y apagarlo { #naming-noting-and-switching-off-a-step }
 
@@ -836,6 +854,8 @@ dejado la organización se omite. Cada una recibe una notificación en la campan
 correo, según sus propias [preferencias de notificación](governance.md#alerts), y quien ya
 no puede ver el workflow deja de verla. La notificación dice cuántas líneas coincidieron y
 su enlace abre la página Logs filtrada por el paso y los resultados de la regla.
+Una regla con un resultado que el paso
+de la versión publicada no tiene aparece marcada en la lista.
 
 Las reglas las ve quien puede ver el workflow; las crea, cambia, pausa y borra quien puede
 editarlo, por rol o por un grant sobre él. Las reglas no forman parte de la API pública.
@@ -1075,8 +1095,16 @@ responde el agente del bot como hasta ahora.
 
 El trigger entrega `text`, `sender` - con el miembro que vinculó, si lo hizo - y el
 `channel_id` y el `thread_id` que admite un paso **Send a message** de la misma
-plataforma, así que la respuesta llega al hilo del que vino el mensaje. Los mensajes
-de un bot inician como mucho un workflow, y escuchar a un bot requiere
+plataforma, así que la respuesta llega al hilo del que vino el mensaje.
+
+Los triggers de Slack y
+Mattermost entregan un hilo incluso con un mensaje de nivel superior, porque el propio
+mensaje lo abre, así que una respuesta enlazada va en el hilo; un trigger de Telegram
+entrega un tema solo dentro de un tema de foro.
+
+Un paso **Send a message** añadido después de un trigger **Channel message** empieza
+como el bot del trigger, con `channel_id` y `thread_id` enlazados, cuando las
+plataformas coinciden. Los mensajes de un bot inician como mucho un workflow, y escuchar a un bot requiere
 `channels:manage`. Una nota de voz llega como su transcripción; los demás adjuntos
 no se entregan. Ver
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).

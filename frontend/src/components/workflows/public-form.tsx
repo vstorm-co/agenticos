@@ -12,6 +12,7 @@ import {
   type InputField,
   initialValues,
   runInputFrom,
+  serverFieldProblems,
 } from "@/lib/workflows/input-fields";
 
 /** What a workflow's public form shows - `WorkflowFormPage`. */
@@ -23,15 +24,29 @@ export interface PublicFormPage {
 }
 
 /** Why the form could not take the answers, as the page says it. */
-type Refusal = "invalid" | "busy" | "unavailable" | "gone" | "failed";
+type Refusal =
+  "invalid" | "changed" | "unreadable" | "tooLarge" | "busy" | "unavailable" | "gone" | "failed";
 
 function refusalOf(status: number): Refusal {
-  if (status === 422) return "invalid";
   if (status === 429) return "busy";
   // The workflow's monthly budget is spent: nothing the visitor can do about it.
   if (status === 402) return "unavailable";
   if (status === 404) return "gone";
+  if (status === 413) return "tooLarge";
   return "failed";
+}
+
+/** The `details` of the API's error envelope, or an empty object for a body that is not one. */
+async function detailsOf(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const body = (await response.json()) as { error?: { details?: unknown } };
+    const details = body.error?.details;
+    return typeof details === "object" && details !== null
+      ? (details as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -49,6 +64,7 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
   const [tried, setTried] = useState(false);
   const [sending, setSending] = useState(false);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
+  const [serverProblems, setServerProblems] = useState<Record<string, FieldProblem>>({});
   const [thanks, setThanks] = useState<string | null>(null);
 
   const answers = runInputFrom(page.fields, values);
@@ -61,6 +77,7 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
     if (!("input" in answers)) return;
     setSending(true);
     setRefusal(null);
+    setServerProblems({});
     try {
       const response = await fetch(`/api/forms/${encodeURIComponent(token)}`, {
         method: "POST",
@@ -70,6 +87,15 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
       if (response.ok) {
         const body = (await response.json()) as { message: string };
         setThanks(body.message);
+      } else if (response.status === 422) {
+        const details = await detailsOf(response);
+        if (Array.isArray(details.fields)) {
+          setRefusal("unreadable");
+        } else {
+          const refused = serverFieldProblems(details.problems, page.fields);
+          setServerProblems(refused.problems);
+          setRefusal(refused.changed ? "changed" : "invalid");
+        }
       } else {
         setRefusal(refusalOf(response.status));
       }
@@ -103,8 +129,14 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
             key={field.name}
             field={field}
             value={values[field.name]}
-            problem={problems[field.name]}
-            onChange={(value) => setValues({ ...values, [field.name]: value })}
+            problem={problems[field.name] ?? serverProblems[field.name]}
+            onChange={(value) => {
+              setValues({ ...values, [field.name]: value });
+              if (field.name in serverProblems) {
+                const { [field.name]: _cleared, ...rest } = serverProblems;
+                setServerProblems(rest);
+              }
+            }}
           />
         ))}
       </div>

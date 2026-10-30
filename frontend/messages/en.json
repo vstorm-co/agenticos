@@ -5099,7 +5099,8 @@
         "number": "This has to be a number.",
         "integer": "This has to be a whole number.",
         "date": "This has to be a date.",
-        "choice": "Choose one of the options."
+        "choice": "Choose one of the options.",
+        "invalid": "This answer does not fit - check it."
       },
       "exposureManualDescription": "A person starts it with Run in the editor or Start a run on its runs page.",
       "runDraft": "Test draft",
@@ -5235,6 +5236,7 @@
       "alertNeedsAudience": "Choose who is told",
       "alertNeedsPeople": "Specific people is chosen and nobody is named",
       "alertCondition": "{count, plural, one {At least # occurrence} other {At least # occurrences}} with outcome {outcomes}{hasStep, select, yes { in {step}} other {}}{hasText, select, yes { containing “{text}”} other {}} within {window}",
+      "alertOutcomesGone": "Not an outcome of the live version: {outcomes}",
       "alertTells": "Notifies: {who}",
       "alertNeverFired": "Has not fired yet",
       "alertLastFired": "{count, plural, one {Last fired {when}, on # occurrence} other {Last fired {when}, on # occurrences}}",
@@ -8161,7 +8163,7 @@
     "validationBindingUnavailable": "This value reads a step that has not run on every path here.",
     "validationMergeDuplicateBranch": "This merge joins the same branch more than once.",
     "validationMergeNoCommonDominator": "This merge's branches do not share a common starting point.",
-    "validationMergeNotFromIf": "A merge's branches must come from one condition's two outcomes.",
+    "validationMergeNotFromIf": "A merge's branches must leave one step that takes a single way out, such as an If, a Switch, a decision, a classifier, an approval, an error handler or a table check.",
     "validationMergeNotExclusive": "This merge's branches are not mutually exclusive.",
     "validationPortNameTaken": "`{name}` is already a port on this step - rename it.",
     "validationQuickLogOutputUnknown": "`{name}` is not an output of this step - open the quick log and save it again.",
@@ -8176,6 +8178,7 @@
     "validationFanoutPortMultipleEdges": "This step's {port} port has more than one connection.",
     "validationInputBoundTwice": "This input is set by more than one source.",
     "validationInputNotBound": "Required: type a value, or take one from an earlier step.",
+    "validationDecisionValueNotBound": "Required: bind what this step decides on - type a value, or take one from an earlier step.",
     "pickerAgentLabel": "Agent",
     "pickerAgentPlaceholder": "Choose an agent",
     "pickerAgentsEmpty": "No agents to choose from.",
@@ -8279,7 +8282,16 @@
       "mcp": "MCP servers",
       "email": "Email",
       "gmail": "Gmail",
-      "outlook": "Outlook"
+      "outlook": "Outlook",
+      "google_calendar": "Google Calendar",
+      "google_drive": "Google Drive",
+      "google_docs": "Google Docs",
+      "google_sheets": "Google Sheets",
+      "google_workspace": "Google Workspace",
+      "outlook_calendar": "Outlook Calendar",
+      "onedrive": "OneDrive",
+      "excel": "Excel",
+      "microsoft_365": "Microsoft 365"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Default branch only} one {# branch and default} other {# branches and default}}",
     "nodeSummaryCollect": "Collects failed items and carries on",
@@ -8320,6 +8332,8 @@
     "pickerBotsEmpty": "No channel bots yet.",
     "pickerBotsAdd": "Add one under Channels",
     "pickerBotOrphaned": "The bot this step names is gone - choose another.",
+    "pickerBotWrongPlatform": "This bot cannot be used here. Workflows answer on Slack, Mattermost and Telegram - choose another.",
+    "pickerBotWrongPlatformOne": "This step takes {platform} bots - choose another.",
     "pickerBotNeedsPermission": "Acting as a channel bot needs channels:manage, which you do not hold.",
     "inputFields": {
       "title": "Input fields",
@@ -8779,10 +8793,10 @@
     "appMcpBadge": "MCP",
     "appMcpBadgeHint": "A tool call on an MCP server",
     "appServer": {
-      "gmail": "Google Workspace",
-      "outlook": "Microsoft 365"
+      "google_workspace": "Google Workspace",
+      "microsoft_365": "Microsoft 365"
     },
-    "appConnect": "Connect {server} to add {app} actions",
+    "appConnect": "Connect {server} to add its actions",
     "appOrgOnly": "Actions come from the organization's MCP connections, not from personal ones.",
     "appUntested": "{connection} has no tools listed yet. Test the connection to list them.",
     "appCardName": "{app} · {tool}",
@@ -8799,7 +8813,6 @@
       "listFilters": "List filters",
       "manageFilter": "Manage filter",
       "changeLabelsBatch": "Change labels on several",
-      "startGoogleSignIn": "Start Google sign-in",
       "createDraft": "Create draft",
       "sendMessage": "Send message",
       "searchMail": "Search mail",
@@ -8811,8 +8824,8 @@
       "sendSharedDraft": "Send draft (shared mailbox)"
     },
     "appServerFull": {
-      "gmail": "Google Workspace (self-hosted)",
-      "outlook": "Microsoft 365 (self-hosted)"
+      "google_workspace": "Google Workspace (self-hosted)",
+      "microsoft_365": "Microsoft 365 (self-hosted)"
     },
     "appNeedsPermission": "{app} actions are not shown because you can't edit this workflow."
   },
@@ -10932,6 +10945,9 @@
   "publicForm": {
     "trapLabel": "Leave this empty",
     "refused": {
+      "changed": "This form has changed since you opened it. Reload the page and fill it in again.",
+      "unreadable": "Your answers could not be read. Reload the page and try again.",
+      "tooLarge": "Your answers are too long to send. Shorten them and try again.",
       "invalid": "Some answers do not fit this form. Check them and send again.",
       "busy": "This form is taking a lot of answers right now. Try again in a minute.",
       "gone": "This form is closed.",

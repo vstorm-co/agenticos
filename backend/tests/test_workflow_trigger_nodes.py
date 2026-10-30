@@ -424,3 +424,11 @@ class TestOneTriggerAtTheEntry:
             entry_node_id=entry.id, nodes=(entry, step), edges=(_edge(step, entry),)
         )
         assert [field for field, _ in _rule_1_single_entry(looped)] == ["entry_node_id"]
+
+
+def test_the_channel_trigger_offers_only_the_platforms_a_workflow_can_answer_on():
+    field = ChannelMessageTriggerConfig.model_json_schema()["properties"]["bot_id"]
+    assert (field["x-resource"], field["x-platform"]) == (
+        "channel_bot",
+        ["slack", "mattermost", "telegram"],
+    )

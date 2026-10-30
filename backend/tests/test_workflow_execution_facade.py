@@ -1065,6 +1065,9 @@ def test_input_rejects_values_postgres_jsonb_cannot_store(payload):
     with pytest.raises(WorkflowRunInputInvalidError) as refused:
         _checked_input(payload)
     assert refused.value.status_code == 422
+    assert [(p["field"], p["type"]) for p in refused.value.details["problems"]] == [
+        ("input", "json_invalid")
+    ]
 
 
 def test_input_accepts_literal_escape_text_and_multilingual_strings():

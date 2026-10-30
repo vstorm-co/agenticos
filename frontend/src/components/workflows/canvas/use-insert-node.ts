@@ -10,6 +10,9 @@ import type {
   WorkflowEdge,
   WorkflowGraph,
 } from "@/lib/workflows/types";
+import { useChannelBots, usePermissions } from "@/hooks";
+import type { ChannelBot } from "@/types/channels";
+import { Perm } from "@/types/permissions";
 import { type NodeInsertion, useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { buildCatalogMap, definitionsByNode } from "./graph-adapter";
@@ -27,23 +30,10 @@ export interface InsertOptions {
 /** Add a step the way {@link planInsertion} places and wires it. */
 export type InsertNode = (definition: NodeDefinition, options?: InsertOptions) => void;
 
-/**
- * The bindings an app's action starts with: the mail the workflow's trigger delivered,
- * read into the arguments that answer it (`thread_id`, `in_reply_to`, ...). Empty unless
- * the step is a known mail tool and that app's trigger sits upstream of it as planned,
- * so every binding is one the validator accepts.
- */
-function suggestedBindings(
-  graph: WorkflowGraph,
-  plan: NodeInsertion,
-  catalog: NodeDefinition[],
-): Binding[] {
-  // An app's action is an MCP call; a `tool` in any other step's config is not one.
-  const tool = plan.node.definition_id === "mcp.call" ? plan.node.config.tool : undefined;
-  const suggestion = typeof tool === "string" ? suggestedBindingsFor(tool) : null;
-  if (suggestion === null) return [];
+/** The graph as it will be once `plan` is applied: the step, its wire, and any split. */
+function graphAfter(graph: WorkflowGraph, plan: NodeInsertion): WorkflowGraph {
   const edges = graph.edges.filter((edge) => edge.id !== plan.split?.edgeId);
-  const after: WorkflowGraph = {
+  return {
     ...graph,
     entry_node_id: plan.becomesEntry ? plan.node.id : graph.entry_node_id,
     nodes: [...graph.nodes, plan.node],
@@ -53,11 +43,19 @@ function suggestedBindings(
       ...(plan.edge === null ? [] : [plan.edge]),
     ],
   };
-  const upstream = availableSourceNodes(
-    after,
-    { items: catalog, total: catalog.length },
-    plan.node.id,
-  );
+}
+
+/**
+ * The bindings an app's action starts with: the mail the workflow's trigger delivered,
+ * read into the arguments that answer it (`thread_id`, `in_reply_to`, ...). Empty unless
+ * the step is a known mail tool and that app's trigger sits upstream of it as planned,
+ * so every binding is one the validator accepts.
+ */
+function appBindings(after: WorkflowGraph, plan: NodeInsertion, upstream: Set<string>): Binding[] {
+  // An app's action is an MCP call; a `tool` in any other step's config is not one.
+  const tool = plan.node.definition_id === "mcp.call" ? plan.node.config.tool : undefined;
+  const suggestion = typeof tool === "string" ? suggestedBindingsFor(tool) : null;
+  if (suggestion === null) return [];
   const trigger = after.nodes.find(
     (node) => upstream.has(node.id) && suggestion.triggers.includes(node.definition_id),
   );
@@ -65,6 +63,37 @@ function suggestedBindings(
   return Object.entries(suggestion.fields).map(([argument, field]) =>
     nodeOutputBinding(plan.node.id, `arguments/${argument}`, trigger.id, "out", [field]),
   );
+}
+
+const SEND_STEP = /^(slack|mattermost|telegram)\.message\.send$/;
+
+/**
+ * What a Send a message step starts with after a Channel message trigger: that trigger's
+ * bot, and the channel and thread the message came from. Nothing unless the bots are
+ * known (`null` while loading, on an error, or without `channels:manage`) and the bot is
+ * on the step's own platform - a suggestion is never a guess.
+ */
+function channelReply(
+  after: WorkflowGraph,
+  plan: NodeInsertion,
+  upstream: Set<string>,
+  bots: readonly ChannelBot[] | null,
+): { config: Record<string, unknown>; bindings: Binding[] } {
+  const none = { config: {}, bindings: [] };
+  const platform = SEND_STEP.exec(plan.node.definition_id)?.[1];
+  if (platform === undefined || bots === null) return none;
+  const trigger = after.nodes.find(
+    (node) => upstream.has(node.id) && node.definition_id === "trigger.channel_message",
+  );
+  const botId = trigger?.config.bot_id;
+  if (trigger === undefined || typeof botId !== "string") return none;
+  if (bots.find((bot) => bot.id === botId)?.platform !== platform) return none;
+  return {
+    config: { bot_id: botId },
+    bindings: ["channel_id", "thread_id"].map((field) =>
+      nodeOutputBinding(plan.node.id, field, trigger.id, "out", [field]),
+    ),
+  };
 }
 
 /**
@@ -75,10 +104,14 @@ function suggestedBindings(
  * than subscribing to them, so the palette and every node's "+" can hold one
  * stable callback without re-rendering on each edit.
  */
-export function useInsertNode(catalog: NodeDefinition[]): InsertNode {
+export function useInsertNode(catalog: NodeDefinition[], readOnly = false): InsertNode {
   const insertNode = useWorkflowEditorStore((state) => state.insertNode);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const catalogMap = useMemo(() => buildCatalogMap(catalog), [catalog]);
+  // A read-only canvas adds nothing, so it does not fetch the bots either.
+  const mayManage = usePermissions().can(Perm.channelsManage) && !readOnly;
+  const { bots, isLoading, error } = useChannelBots(mayManage);
+  const knownBots = mayManage && !isLoading && error == null ? bots : null;
   return useCallback(
     (definition, { config, ...options } = {}) => {
       const { graph, scopePath, selection } = useWorkflowEditorStore.getState();
@@ -92,10 +125,22 @@ export function useInsertNode(catalog: NodeDefinition[]): InsertNode {
         ...options,
       });
       const configured = config === undefined ? plan : { ...plan, node: { ...plan.node, config } };
+      const after = graphAfter(graph, configured);
+      const upstream = availableSourceNodes(
+        after,
+        { items: catalog, total: catalog.length },
+        configured.node.id,
+      );
+      const reply = channelReply(after, configured, upstream, knownBots);
       // One insertion, so one undo takes the step and its suggested bindings back together.
       const planned = {
         ...configured,
-        bindings: [...configured.bindings, ...suggestedBindings(graph, configured, catalog)],
+        node: { ...configured.node, config: { ...reply.config, ...configured.node.config } },
+        bindings: [
+          ...configured.bindings,
+          ...appBindings(after, configured, upstream),
+          ...reply.bindings,
+        ],
       };
       insertNode(planned);
       // A step with something to set opens its settings at once: it is added to
@@ -104,6 +149,6 @@ export function useInsertNode(catalog: NodeDefinition[]): InsertNode {
         editNode(planned.node.id);
       }
     },
-    [insertNode, editNode, catalog, catalogMap],
+    [insertNode, editNode, catalog, catalogMap, knownBots],
   );
 }

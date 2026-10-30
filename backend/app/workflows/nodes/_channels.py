@@ -42,6 +42,9 @@ PLATFORM_NAMES: dict[Platform, str] = {
     "telegram": "Telegram",
 }
 
+# The platforms a workflow can listen and answer on; a Teams bot's turns are not workflow input.
+WORKFLOW_PLATFORMS: tuple[Platform, ...] = tuple(PLATFORM_NAMES)
+
 
 class ChannelBotConfig(BaseModel):
     """Which bot the step acts as."""
@@ -121,17 +124,30 @@ def check_bot_on(platform: Platform) -> ResourceCheck:
 async def check_listening_bot(
     db: AsyncSession, ctx: AuthContext, config: BaseModel
 ) -> list[tuple[str, str]]:
-    """The publish check for the Channel message trigger: a bot of any platform the
-    author may act as - what it hears is the organization's, so listening to it takes
-    `channels:manage` as speaking as it does."""
-    if not isinstance(config, ChannelBotConfig) or await _usable_bot(db, ctx, config.bot_id, None):
+    """The publish check for the Channel message trigger: a Slack, Mattermost or
+    Telegram bot the author may act as - what it hears is the organization's, so
+    listening to it takes `channels:manage` as speaking as it does. A Teams bot is
+    refused: workflows have no Teams steps."""
+    if not isinstance(config, ChannelBotConfig):
         return []
-    return [
-        (
-            "bot_id",
-            "This is not an active channel bot you can act as - using one needs channels:manage",
-        )
-    ]
+    bot = await _usable_bot(db, ctx, config.bot_id, None)
+    if bot is None:
+        return [
+            (
+                "bot_id",
+                "This is not an active channel bot you can act as - using one needs "
+                "channels:manage",
+            )
+        ]
+    if bot.platform not in WORKFLOW_PLATFORMS:
+        return [
+            (
+                "bot_id",
+                "A workflow cannot listen to a Teams bot - choose a Slack, Mattermost "
+                "or Telegram bot",
+            )
+        ]
+    return []
 
 
 type BotCall = Callable[[ChannelAdapter, str, str | None], Awaitable[NodeResult]]

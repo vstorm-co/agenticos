@@ -19,7 +19,8 @@ contains(value.tags, 'urgent')
 | `true` | output | `LogicIfOutput` | `branch: "true"`, `value` |
 | `false` | output | `LogicIfOutput` | `branch: "false"`, `value` |
 
-Only the edges leaving the chosen port are followed. Every node on the other
+`value` must be bound: publishing, and a test run of the draft, refuse the step
+without it. Only the edges leaving the chosen port are followed. Every node on the other
 branch is recorded as `skipped`, up to the `logic.merge` that rejoins the two
 branches. Publishing checks that a merge's inputs come from two different ports
 of one `logic.if`, so they can never both run.

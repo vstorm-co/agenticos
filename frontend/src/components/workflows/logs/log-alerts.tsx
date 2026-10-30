@@ -105,6 +105,21 @@ export function LogAlerts({
   );
 }
 
+/**
+ * The rule's outcomes the live version's step no longer logs. A rule is a server row
+ * and is never rewritten here, only flagged - and only against the live version: with
+ * none, or for a step it does not have, there is nothing to compare with.
+ */
+function outcomesGone(rule: LogAlertRule, livePorts: Map<string, string[]> | null): string[] {
+  if (livePorts === null) return [];
+  const live =
+    rule.node_instance_id === null
+      ? [...livePorts.values()].flat()
+      : livePorts.get(rule.node_instance_id);
+  if (live === undefined) return [];
+  return rule.outcomes.filter((port) => !live.includes(port));
+}
+
 function RuleRow({
   rule,
   choices,
@@ -133,6 +148,7 @@ function RuleRow({
         : t(audience === "admins" ? "alertAudienceAdmins" : "alertAudienceOwner"),
     )
     .join(", ");
+  const gone = outcomesGone(rule, choices.livePorts);
   return (
     <li className="flex flex-wrap items-start gap-3 py-3">
       <div className="min-w-0 flex-1 space-y-0.5">
@@ -148,6 +164,13 @@ function RuleRow({
             window: t(`alertWindows.${rule.window_minutes}`),
           })}
         </p>
+        {gone.length > 0 && (
+          <p className="text-destructive text-xs">
+            {t("alertOutcomesGone", {
+              outcomes: gone.map((port) => choices.labels.get(port) ?? port).join(", "),
+            })}
+          </p>
+        )}
         <p className="text-muted-foreground text-xs">{t("alertTells", { who })}</p>
         <p className="text-muted-foreground text-xs">
           {rule.last_firing === null

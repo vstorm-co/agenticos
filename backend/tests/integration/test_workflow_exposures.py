@@ -1097,11 +1097,11 @@ def _answering(*steps: tuple[NodeInstance, str]) -> WorkflowGraph:
     bindings = tuple(
         Binding(
             target_node_id=node.id,
-            target_field="body",
+            target_field="body" if node.definition_id == "webhook.respond" else "value",
             source=NodeOutputRef(node_id=trigger.id, port="out", field_path=("body",)),
         )
         for node, _port in steps
-        if node.definition_id == "webhook.respond"
+        if node.definition_id in ("webhook.respond", "logic.if")
     )
     return WorkflowGraph(
         entry_node_id=trigger.id,
@@ -1564,6 +1564,7 @@ class TestForms:
         assert (page.status_code, page.json()["title"]) == (200, "Talk to us")
         assert refused.status_code == 422
         assert refused.json()["error"]["details"]["problems"][0]["field"] == "name"
+        assert refused.json()["error"]["details"]["problems"][0]["type"] == "missing"
         assert (sent.status_code, sent.json()) == (
             201,
             {"message": "Thank you - your answers were sent."},
@@ -1686,6 +1687,27 @@ class TestChannelMessages:
             _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
         )
         await db.execute(delete(OrganizationMember).where(OrganizationMember.user_id == owner.id))
+
+        taken = await WorkflowExposureService(db).receive_channel_message(
+            bot, _message(bot), sender_user_id=None
+        )
+
+        assert taken is False and await _runs(db) == []
+
+    @pytest.mark.security
+    async def test_a_teams_listener_from_before_the_refusal_hands_the_message_back(
+        self, db, tenant
+    ):
+        owner, org, workflow = tenant
+        bot = await _bot(db, org)
+        await _publish(
+            db,
+            _ctx(owner, org),
+            workflow,
+            _graph("trigger.channel_message", {"bot_id": str(bot.id)}),
+        )
+        bot.platform = "teams"
+        await db.flush()
 
         taken = await WorkflowExposureService(db).receive_channel_message(
             bot, _message(bot), sender_user_id=None

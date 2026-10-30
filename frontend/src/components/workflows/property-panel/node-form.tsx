@@ -80,6 +80,7 @@ import {
   objectFields,
   resourceKind,
   secretKind,
+  channelPlatforms,
   singleFieldSchema,
   type Defs,
   type ResourceKind,
@@ -321,7 +322,7 @@ function ResourcePin({
     return (
       <ChannelBotPicker
         label={label}
-        platform={typeof schema["x-platform"] === "string" ? schema["x-platform"] : undefined}
+        platform={channelPlatforms(schema)}
         value={strOrNull(value)}
         onChange={(next) => onChange(next ?? undefined)}
         disabled={disabled}

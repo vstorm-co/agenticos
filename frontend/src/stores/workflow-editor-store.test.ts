@@ -758,6 +758,146 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().graph?.nodes.find((node) => node.id === "b")?.label).toBeUndefined();
   });
 
+  it("updateNodeConfig carries a renamed rule's wires and readers in one undoable edit", () => {
+    const graph = seededGraph();
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [
+        {
+          ...nodeAt("a", 0, 0),
+          definition_id: "logic.switch",
+          config: { rules: [{ name: "big", condition: "value" }] },
+          quick_log: { message: "m", outputs: ["big"] },
+        },
+        nodeAt("b", 100, 0),
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "a",
+          source_port: "big",
+          target_node_id: "b",
+          target_port: "in",
+        },
+      ],
+      bindings: [
+        {
+          target_node_id: "b",
+          target_field: "message",
+          source: { kind: "node_output", node_id: "a", port: "big", field_path: [] },
+        },
+      ],
+    });
+    store.getState().updateNodeConfig("a", { rules: [{ name: "large", condition: "value" }] });
+    let now = store.getState().graph;
+    const source = now?.bindings[0]?.source;
+    expect(now?.edges[0]?.source_port).toBe("large");
+    expect(source?.kind === "node_output" && source.port).toBe("large");
+    expect(now?.nodes[0]?.quick_log?.outputs).toEqual(["large"]);
+
+    store.getState().undo();
+    now = store.getState().graph;
+    const undone = now?.bindings[0]?.source;
+    expect((now?.nodes[0]?.config.rules as { name: string }[])[0]?.name).toBe("big");
+    expect(now?.edges[0]?.source_port).toBe("big");
+    expect(undone?.kind === "node_output" && undone.port).toBe("big");
+    expect(now?.nodes[0]?.quick_log?.outputs).toEqual(["big"]);
+  });
+
+  describe("updateNodeConfig keeps a rename through retyping", () => {
+    const seedSwitch = (rules: { name?: string; condition: string }[]) => {
+      const graph = seededGraph();
+      store.getState().seedGraph({
+        ...graph,
+        nodes: [
+          {
+            ...nodeAt("a", 0, 0),
+            definition_id: "logic.switch",
+            config: { rules },
+            quick_log: { message: "m", outputs: [rules[0]?.name ?? ""] },
+          },
+          nodeAt("b", 100, 0),
+        ],
+        edges: [
+          {
+            id: "e1",
+            source_node_id: "a",
+            source_port: rules[0]?.name ?? "",
+            target_node_id: "b",
+            target_port: "in",
+          },
+        ],
+        bindings: [
+          {
+            target_node_id: "b",
+            target_field: "message",
+            source: {
+              kind: "node_output",
+              node_id: "a",
+              port: rules[0]?.name ?? "",
+              field_path: [],
+            },
+          },
+        ],
+      });
+    };
+    const type = (...rules: ({ name?: string; condition: string } | undefined)[][]) => {
+      for (const next of rules) {
+        store.getState().updateNodeConfig("a", { rules: next.map((rule) => ({ ...rule })) });
+      }
+    };
+
+    it("follows a name cleared and retyped", () => {
+      seedSwitch([{ name: "big", condition: "v" }]);
+      type(
+        [{ name: "bi", condition: "v" }],
+        [{ name: "b", condition: "v" }],
+        [{ condition: "v" }],
+        [{ name: "l", condition: "v" }],
+        [{ name: "la", condition: "v" }],
+      );
+      const now = store.getState().graph;
+      const source = now?.bindings[0]?.source;
+      expect(now?.edges[0]?.source_port).toBe("la");
+      expect(source?.kind === "node_output" && source.port).toBe("la");
+      expect(now?.nodes[0]?.quick_log?.outputs).toEqual(["la"]);
+    });
+
+    it("follows a name that passes through another rule's name", () => {
+      seedSwitch([
+        { name: "a", condition: "v" },
+        { name: "ab", condition: "w" },
+      ]);
+      type(
+        [
+          { name: "ab", condition: "v" },
+          { name: "ab", condition: "w" },
+        ],
+        [
+          { name: "abc", condition: "v" },
+          { name: "ab", condition: "w" },
+        ],
+      );
+      const now = store.getState().graph;
+      expect(now?.edges[0]?.source_port).toBe("abc");
+      expect(now?.nodes[0]?.quick_log?.outputs).toEqual(["abc"]);
+    });
+
+    it("one undo restores the whole carried rename", () => {
+      seedSwitch([{ name: "big", condition: "v" }]);
+      type([{ condition: "v" }], [{ name: "l", condition: "v" }]);
+      expect(store.getState().graph?.edges[0]?.source_port).toBe("l");
+      store.getState().undo();
+      expect(store.getState().graph?.edges[0]?.source_port).toBe("big");
+    });
+  });
+
+  it("updateNodeConfig on a node that is not there changes nothing", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().updateNodeConfig("zzz", { x: 1 });
+    expect(store.getState().graph?.nodes.map((n) => n.config)).toEqual([{}, {}]);
+  });
+
   it("updateNodeDetails is a no-op before seeding", () => {
     store.getState().updateNodeDetails("b", { label: "Tidy" });
     expect(store.getState().graph).toBeNull();

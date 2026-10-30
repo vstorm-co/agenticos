@@ -673,6 +673,7 @@ async def test_a_merge_from_one_logic_if_publishes(mock_db_session, registered_n
         entry_node_id=entry.id,
         nodes=(entry, branch_node, then_leg, else_leg, merge_node),
         edges=edges,
+        bindings=(_decides_on(branch_node.id),),
     )
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert validated.entry_node_id == entry.id
@@ -717,6 +718,11 @@ async def test_a_merges_branches_from_the_same_if_port_are_refused(
     )
 
 
+def _decides_on(node_id: UUID) -> Binding:
+    """What an If or a Switch looks at: a literal, since the test is about the wiring."""
+    return Binding(target_node_id=node_id, target_field="value", source=LiteralValue(value=True))
+
+
 def _switch_into_merge(*ports: str, legs: tuple[str, ...] = ()) -> tuple[WorkflowGraph, UUID]:
     """A `logic.switch` wired straight into a `logic.merge` by `ports`, and through a leg by `legs`."""
     entry = _echo_node()
@@ -746,6 +752,7 @@ def _switch_into_merge(*ports: str, legs: tuple[str, ...] = ()) -> tuple[Workflo
         entry_node_id=entry.id,
         nodes=(entry, switch, *leg_nodes, merge_node),
         edges=tuple(edges),
+        bindings=(_decides_on(switch.id),),
     )
     return graph, merge_node.id
 
@@ -756,6 +763,31 @@ async def test_a_merge_may_take_two_ports_of_one_branching_step_straight(mock_db
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert len(validated.edges) == 3
+
+
+async def test_a_merge_may_join_an_error_routing_steps_out_and_error_ports(mock_db_session):
+    entry = _echo_node()
+    routed = _echo_node()
+    routed = routed.model_copy(update={"policy": NodePolicy(on_error="route")})
+    merge_node = NodeInstance(
+        id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, routed, merge_node),
+        edges=(
+            _edge(entry.id, "out", routed.id, "in"),
+            _edge(routed.id, "out", merge_node.id, "in"),
+            _edge(routed.id, "error", merge_node.id, "in"),
+        ),
+    )
+
+    # The error port's shape may be refused on its own terms; the merge itself is not.
+    try:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    except GraphValidationError as refused:
+        assert refused.details is not None
+        assert not any(f["field"] == f"nodes.{merge_node.id}" for f in refused.details["fields"])
 
 
 async def test_a_merge_may_take_a_port_straight_and_another_through_a_leg(mock_db_session):
@@ -830,7 +862,7 @@ async def test_a_merge_taking_two_ports_of_a_step_that_branches_not_exclusively_
         await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "logic.if" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}" and "single way out" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -891,7 +923,7 @@ async def test_a_merge_fed_through_two_ports_of_a_step_that_is_not_exclusive_is_
         await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "logic.if" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}" and "single way out" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -1373,6 +1405,63 @@ async def test_a_required_input_bound_exactly_once_publishes(mock_db_session, re
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b), edges=(edge,), bindings=(binding,))
     validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert validated.bindings == (binding,)
+
+
+_DECISION_MESSAGE = "This step decides on `value` - bind what it should look at"
+
+
+def _decision_graph(
+    definition_id: str, config: dict, *bindings: Binding
+) -> tuple[NodeInstance, WorkflowGraph]:
+    entry = _echo_node()
+    step = NodeInstance(
+        id=uuid4(),
+        definition_id=definition_id,
+        definition_version=1,
+        config=config,
+        layout=_pos(),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, step),
+        edges=(_edge(entry.id, "out", step.id, "in"),),
+        bindings=bindings,
+    )
+    return step, graph
+
+
+_DECISIONS = [
+    ("logic.if", {"condition": "value"}),
+    ("logic.switch", {"rules": [{"name": "big", "condition": "value"}]}),
+]
+
+
+@pytest.mark.parametrize(("definition_id", "config"), _DECISIONS, ids=["if", "switch"])
+async def test_a_step_that_decides_on_nothing_bound_is_refused(
+    mock_db_session, definition_id, config
+):
+    step, graph = _decision_graph(definition_id, config)
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    assert excinfo.value.details is not None
+    assert {"field": f"nodes.{step.id}.value", "message": _DECISION_MESSAGE} in (
+        excinfo.value.details["fields"]
+    )
+
+
+@pytest.mark.parametrize(("definition_id", "config"), _DECISIONS, ids=["if", "switch"])
+@pytest.mark.parametrize("target", ["value", "value/x"], ids=["whole", "by-key"])
+async def test_a_decision_with_a_value_bound_is_not_refused_for_it(
+    mock_db_session, definition_id, config, target
+):
+    step, graph = _decision_graph(definition_id, config)
+    binding = Binding(target_node_id=step.id, target_field=target, source=LiteralValue(value=True))
+    graph = graph.model_copy(update={"bindings": (binding,)})
+    try:
+        await validate_graph(mock_db_session, _owner_ctx(), graph)
+    except GraphValidationError as exc:
+        assert exc.details is not None
+        assert all(f["field"] != f"nodes.{step.id}.value" for f in exc.details["fields"])
 
 
 async def test_an_optional_input_bound_twice_is_refused(mock_db_session, registered_node):

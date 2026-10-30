@@ -1,7 +1,8 @@
-"""`logic.merge`: rejoin the two branches of a `logic.if` into one path.
+"""`logic.merge`: join branches back into one path.
 
 Exactly one of its incoming branches ran - publishing refuses a merge whose
-inputs do not leave one `logic.if` through different ports - and neither
+inputs do not leave one step that takes a single way out through different
+ports - and neither
 branch dominates the merge, so rule 4 lets it bind to neither. The dispatcher
 therefore hands it the output of the branch that did run
 (`DispatchContext.arrived_output`), and the merge passes that on under

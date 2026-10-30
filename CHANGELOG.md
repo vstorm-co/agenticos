@@ -913,6 +913,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Send a message answers inside the bound thread on Slack and Mattermost and in the
+  forum topic on Telegram, instead of at the top level; a channel or thread id the
+  platform cannot address fails with `CHANNEL_TARGET_INVALID` before sending. (#1800)
+- The public form marks each answer the server refused (`details.problems` entries
+  carry `type`) and says when the form changed, could not be read, or was too long.
+  (#1800)
+- The editor accepts a merge of an error-routing step's branches, as publish does;
+  the merge copy no longer speaks of an If only. (#1800)
+- Renaming a Switch rule, classifier category, error branch or approval choice
+  carries its wires, bindings, template references and quick log in one undoable
+  edit; a log alert on the old name is flagged. (#1800)
+- Send a message added after a Channel message trigger starts as the trigger's bot
+  with `channel_id` and `thread_id` bound when the platforms match. (#1800)
+- Google Workspace and Microsoft 365 tools are grouped by app (Calendar, Drive, Docs,
+  Sheets; Outlook Calendar, OneDrive, Excel); sign-in tools are not offered. (#1800)
+- The `mcp.call` reference lists every failure code. (#1800)
 - A branch, rule, category or choice named `error` on a step that routes its errors is
   now refused, naming the clash and asking for another name, in the editor and at
   publish; a saved workflow that already has one needs the rename before it
@@ -1235,6 +1251,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A workflow can no longer listen to a Teams bot.** A Channel message trigger on a
+  Teams bot is refused at publish and on a test run; a Teams listener published
+  earlier hands its messages back to the bot's agent. (#1800)
+- **An If or Switch with nothing bound to `value` is refused** at publish and on a
+  test run; versions published before keep running and read null. (#1800)
+- **Send a message no longer quotes a message id on Telegram.** A graph that bound a
+  message id as `thread_id` to quote-reply now fails; bind the trigger's
+  `thread_id`. A channel or thread id containing `:` is refused. (#1800)
 - **`mcp.call` retries by what could have reached the server.** A failure before
   the call - the server could not be reached, or did not answer the connection or
   the tool listing - is a retried `MCP_CALL_FAILED`, for every call. A call that

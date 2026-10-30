@@ -1,5 +1,5 @@
 ---
-source_sha: "918897481ed6"
+source_sha: "f96ab37e96d7"
 ---
 
 # Workflows { #workflows }
@@ -131,24 +131,34 @@ fügen einen Schritt auf vier Wegen hinzu:
 - **Ziehen** Sie einen Schritt aus der Auswahl, um ihn dort abzulegen, wo Sie ihn
   fallen lassen, ohne Verbindung.
 
-**Gmail** und **Outlook** sind eigene Gruppen unter **Apps and the web**. Jede enthält
-den nativen Trigger der App, wo die Zeichenfläche einen annimmt, und einen Eintrag je
-Tool jeder MCP-Verbindung der Organisation zum passenden Server - Google Workspace für
-Gmail, Microsoft 365 für Outlook - etwa **Create draft** oder **Send message**. Ein
-Eintrag fügt einen [MCP call](reference/workflow-nodes.md#mcp-call) hinzu, der schon auf
+Die Apps von Google Workspace (**Gmail**, **Google Calendar**, **Google Drive**,
+**Google Docs**, **Google Sheets**) und von Microsoft 365 (**Outlook**, **Outlook
+Calendar**, **OneDrive**, **Excel**) sind eigene Gruppen unter **Apps and the web**.
+Jede enthält den nativen Trigger der App, wo die Zeichenfläche einen annimmt, und einen
+Eintrag je Tool jeder MCP-Verbindung der Organisation zum passenden Server - etwa
+**Create draft** oder **Send message**. Die Tools einer Verbindung werden nach Namen
+auf diese Gruppen verteilt; ein Tool, das keine davon beansprucht, steht in der
+eigenen Gruppe des Servers (**Google Workspace**, **Microsoft 365**), wo auch
+**Connect** und eine ungetestete Verbindung gezeigt werden. Die Anmelde-Tools
+(`start_google_auth`, `login`, `verify-login`) werden nicht angeboten.
+
+Ein Eintrag fügt einen [MCP call](reference/workflow-nodes.md#mcp-call) hinzu, der schon auf
 diese Verbindung und dieses Tool gesetzt ist; gespeicherte Workflows und der Vertrag
 des Knotens ändern sich nicht. Der Eintrag verbirgt nichts: Er trägt ein **MCP**-Abzeichen
 und den Namen der Verbindung, der eigene Name des Tools steht darunter in einer eigenen
-Zeile, der Server einmal in der Überschrift der Gruppe; nichts wird abgeschnitten. **Search steps** findet ihn über beide Namen oder die App. Auf der
+Zeile, der Server einmal in der Überschrift der Gruppe; nichts wird abgeschnitten.
+
+**Search steps** findet ihn über beide Namen oder die App. Auf der
 Zeichenfläche liest sich der Schritt **Gmail · Create draft** mit einem
 **MCP**-Abzeichen, darunter stehen die Verbindung und der eigene Name des Tools; seine
 Einstellungen sagen, dass es ein MCP-Tool-Aufruf auf dieser Verbindung ist, und
 verlinken sie. Jedes Gmail-Tool, das der Server anbietet, hat einen klaren Namen, etwa **List labels**
 oder **Read thread**; ein Tool ohne Namen in der Liste zeigt seinen eigenen Namen. Der native Trigger ist kein MCP-Aufruf und trägt kein Abzeichen.
-Ohne passende Verbindung zeigt die Gruppe den Trigger und eine Zeile **Connect**, um den
+
+Ohne passende Verbindung zeigt die eigene Gruppe des Servers eine Zeile **Connect**, um den
 Server zu verbinden. Es werden nur Verbindungen der Organisation aufgelistet, und die
 Tools einer Verbindung sind die, die ihr letzter Test festgehalten hat; testen Sie sie
-erneut, um neue aufzulisten. Wer den Workflow nicht bearbeiten darf, sieht nur den Trigger. Wer ihn bearbeitet, aber keine MCP-Server verwaltet, sieht alle Aktionen und bekommt keine Zeile **Connect**: Nur wer Server verwaltet, verbindet einen. Die Aktionszeilen einer App werden ausgewählt, nicht gezogen: Auf
+erneut, um neue aufzulisten. Wer den Workflow nicht bearbeiten darf, sieht nur die Trigger. Wer ihn bearbeitet, aber keine MCP-Server verwaltet, sieht alle Aktionen und bekommt keine Zeile **Connect**: Nur wer Server verwaltet, verbindet einen. Die Aktionszeilen einer App werden ausgewählt, nicht gezogen: Auf
 die Zeichenfläche lassen sich nur die eigenen Zeilen eines Schritts ziehen.
 
 Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, öffnet seine
@@ -317,6 +327,11 @@ die der letzte Lauf oder die Testdaten zeigten, werden vorgeschlagen. Die Beding
 als JMESPath-Ausdruck gespeichert, den der Schritt auswertet. **Write it as an
 expression** bearbeitet sie als diesen, und einer, den die Zeilen nicht zeigen können,
 bleibt ein Ausdruck.
+
+Wird eine **Switch**-Regel, eine Klassifikator-Kategorie, ein Fehlerzweig oder eine
+Genehmigungsauswahl umbenannt, nehmen die Verbindungen, Bindungen und das schnelle Log, die
+den alten Namen nutzten, den neuen mit, außer wenn Einträge umsortiert, eingefügt oder
+gelöscht werden oder sich zwei Namen gleichzeitig ändern.
 
 ### Einen Schritt benennen, notieren und abschalten { #naming-noting-and-switching-off-a-step }
 
@@ -890,7 +905,8 @@ in der Glocke und eine E-Mail, soweit ihre eigenen
 [Benachrichtigungseinstellungen](governance.md#alerts) es erlauben; wer den Workflow nicht
 mehr ansehen darf, sieht sie nicht mehr. Die Benachrichtigung nennt, wie viele Zeilen
 passten, und ihr Link öffnet die Logs-Seite, gefiltert auf Schritt und Ergebnisse der
-Regel.
+Regel. Eine Regel mit einem Ergebnis, das der Schritt der Live-Version nicht hat, wird in
+der Liste markiert.
 
 Die Regeln sieht, wer den Workflow ansehen darf; wer ihn bearbeiten darf, per Rolle oder
 per Grant darauf, legt sie an, ändert, pausiert und löscht sie. Die Regeln sind nicht Teil
@@ -1140,8 +1156,15 @@ beantwortet der Agent des Bots wie bisher.
 Der Trigger übergibt `text`, `sender` - mit dem Mitglied, das der Absender verknüpft
 hat, falls er es tat - sowie `channel_id` und `thread_id`, die ein Schritt **Send a
 message** derselben Plattform annimmt, sodass die Antwort im Thread der Nachricht
-landet. Die Nachrichten eines Bots starten höchstens einen Workflow, und das Zuhören
-braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
+landet. Slack- und Mattermost-Trigger übergeben auch bei einer Nachricht auf oberster
+Ebene einen Thread, weil die Nachricht selbst ihn eröffnet, sodass eine gebundene
+Antwort im Thread steht; ein Telegram-Trigger übergibt ein Thema nur innerhalb eines
+Forenthemas.
+
+Ein **Send a message**-Schritt, der nach einem **Channel message**-Trigger hinzugefügt
+wird, startet als der Bot des Triggers, mit gebundenen `channel_id` und `thread_id`, wenn
+die Plattformen übereinstimmen. Die Nachrichten eines Bots starten höchstens einen
+Workflow, und das Zuhören braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
 Anhänge werden nicht übergeben. Siehe
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 

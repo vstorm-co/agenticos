@@ -7,6 +7,7 @@ import {
   inputFieldsOf,
   payloadSchema,
   runInputFrom,
+  serverFieldProblems,
   typedPayloadPort,
 } from "./input-fields";
 import type { Port } from "./types";
@@ -123,5 +124,93 @@ describe("runInputFrom", () => {
   it("captions a field by its label, or its name", () => {
     expect(fieldCaption(field())).toBe("email");
     expect(fieldCaption(field({ label: "Email" }))).toBe("Email");
+  });
+});
+
+describe("serverFieldProblems", () => {
+  const fields = [
+    field({ name: "name" }),
+    field({ name: "seats", type: "integer" }),
+    field({ name: "due", type: "date" }),
+    field({ name: "plan", type: "choice", options: ["a"] }),
+    field({ name: "price", type: "number" }),
+    field({ name: "note", type: "text" }),
+  ];
+
+  it("does not call a form-level refusal a changed form", () => {
+    expect(
+      serverFieldProblems([{ field: "input", message: "x", type: "json_invalid" }], fields),
+    ).toEqual({ problems: {}, changed: false });
+    expect(serverFieldProblems([{ field: "gone", type: "missing" }], fields).changed).toBe(true);
+  });
+
+  it("marks each refused answer by what it needed", () => {
+    expect(
+      serverFieldProblems(
+        [
+          { field: "name", type: "missing" },
+          { field: "seats", type: "int_type" },
+          { field: "price", type: "float_type" },
+          { field: "due", type: "value_error" },
+          { field: "plan", type: "value_error" },
+          { field: "note", type: "value_error" },
+        ],
+        fields,
+      ),
+    ).toEqual({
+      problems: {
+        name: "required",
+        seats: "integer",
+        price: "number",
+        due: "date",
+        plan: "choice",
+        note: "invalid",
+      },
+      changed: false,
+    });
+    expect(
+      serverFieldProblems(
+        [
+          { field: "due", type: "date_parsing" },
+          { field: "plan", type: "literal_error" },
+          { field: "price", type: "decimal_parsing" },
+          { field: "seats", type: "int_parsing" },
+        ],
+        fields,
+      ).problems,
+    ).toEqual({ due: "date", plan: "choice", price: "number", seats: "integer" });
+  });
+
+  it("says the form changed for an answer it does not ask for", () => {
+    expect(serverFieldProblems([{ field: "extra", type: "extra_forbidden" }], fields).changed).toBe(
+      true,
+    );
+    expect(serverFieldProblems([{ field: "gone", type: "missing" }], fields).changed).toBe(true);
+  });
+
+  it("marks an extra_forbidden on a declared field's subpath as not fitting, not as a changed form", () => {
+    expect(serverFieldProblems([{ field: "name.x", type: "extra_forbidden" }], fields)).toEqual({
+      problems: { name: "invalid" },
+      changed: false,
+    });
+  });
+
+  it("marks anything else as not fitting, and ignores what it cannot read", () => {
+    expect(
+      serverFieldProblems([{ field: "name", type: "string_too_long" }, "x", null], fields),
+    ).toEqual({ problems: { name: "invalid" }, changed: false });
+    expect(serverFieldProblems([{ field: "name" }, { field: 3, type: "missing" }], fields)).toEqual(
+      {
+        problems: { name: "invalid" },
+        changed: false,
+      },
+    );
+    expect(serverFieldProblems("nope", fields)).toEqual({ problems: {}, changed: false });
+  });
+
+  it("reads the field from the first segment of a dotted name", () => {
+    expect(serverFieldProblems([{ field: "seats.0", type: "int_type" }], fields).problems).toEqual({
+      seats: "integer",
+    });
   });
 });

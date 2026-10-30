@@ -1,5 +1,5 @@
 ---
-source_sha: "583f712a78d3"
+source_sha: "5918277bc50f"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -210,6 +210,8 @@ oder Telegram-Bots der Organisation, die der Bot mit seinem eigenen Agenten
 beantwortet hätte und die zum Filter des Knotens passt. Das Veröffentlichen braucht
 `channels:manage`, und die Nachrichten eines Bots starten höchstens einen Workflow.
 `triggered_by` ist `channel_message`.
+Ein Teams-Bot wird beim Veröffentlichen und im Testlauf abgelehnt; ein früher
+veröffentlichter Teams-Listener gibt seine Nachrichten an den Agenten des Bots zurück.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
     options:
@@ -434,13 +436,16 @@ führt die ersten beiden genau so aus.
 
 `logic.if` wertet eine JMESPath-Bedingung über seinem gebundenen `value` aus und
 geht über den Port `true` oder `false` weiter. Jeder Knoten auf dem nicht
-genommenen Zweig wird als `skipped` festgehalten. `logic.merge` führt die beiden
-Zweige wieder zusammen. Er läuft, sobald der genommene Zweig ihn erreicht, und
+genommenen Zweig wird als `skipped` festgehalten. `value` muss gebunden sein:
+Das Veröffentlichen und ein Testlauf des Entwurfs lehnen den Schritt ohne es ab; eine
+früher veröffentlichte Version läuft weiter und liest null.
+
+`logic.merge` führt die Zweige wieder zusammen. Er läuft, sobald der genommene Zweig ihn erreicht, und
 gibt dessen Ausgabe als `value` weiter. Das Veröffentlichen prüft, dass die
 Eingänge eines Merge einen Schritt über verschiedene Ports verlassen und dass
-dieser Schritt pro Run genau einen Port nimmt - ein If / else, ein Switch, eine
-Entscheidung, `ai.classify`, eine Tabellenprüfung oder eine Freigabe -, sodass
-immer genau einer von ihnen läuft.
+dieser Schritt pro Run genau einen Port nimmt - ein If, ein Switch, eine
+Entscheidung, `ai.classify`, eine Tabellenprüfung, eine Freigabe oder ein Schritt,
+der seine Fehler weiterleitet -, sodass immer genau einer von ihnen läuft.
 
 Ein Merge kann zwei oder mehr Ports dieses Schritts direkt aufnehmen, ohne
 Schritt dazwischen, etwa `needs_reply` und `unsure` von `ai.classify`: Er läuft
@@ -472,7 +477,9 @@ lässt oder etwas anderes aufruft, kann nicht veröffentlicht werden.
 **Switch.** Schickt den Lauf in den ersten von vielen Zweigen, dessen Regel gilt.
 Jede Regel hat einen Namen, der Port ihres Zweigs ist, und eine JMESPath-Bedingung
 über den gebundenen `value`, der Reihe nach geprüft; `otherwise` übernimmt, wenn
-keine gilt. Die Zweige laufen in einem `logic.merge` zusammen, der sie annimmt, weil
+keine gilt. `value` muss gebunden sein: Das Veröffentlichen und ein Testlauf des
+Entwurfs lehnen den Schritt ohne es ab; eine früher veröffentlichte Version läuft
+weiter und liest null. Die Zweige laufen in einem `logic.merge` zusammen, der sie annimmt, weil
 stets genau einer genommen wird. Eine Regel, die an ihren Daten scheitert, lässt
 den Schritt mit `CONDITION_FAILED` scheitern und nennt die Regel.
 
@@ -575,7 +582,7 @@ der weg oder nicht mehr geteilt ist, lässt den Schritt mit `SECRET_NOT_USABLE`
 fehlschlagen, ein Modell, das nicht antwortet, mit `DECISION_FAILED`, das nach der
 Policy des Schritts wiederholt wird, und eine Bereitstellung ohne das Extra
 `browser` mit `DECISION_MODEL_UNAVAILABLE`. Ein Merge darf die Zweige einer
-Entscheidung wieder zusammenführen, wie die eines If-/Else-Schritts.
+Entscheidung wieder zusammenführen, wie die eines If.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -609,6 +616,13 @@ gelöschter, abgeschalteter oder zu einer anderen Plattform gehörender Bot läs
 Schritt mit `CHANNEL_NOT_USABLE` fehlschlagen. Eine Plattform, die einen Aufruf zur
 Laufzeit ablehnt, mit `CHANNEL_UNSUPPORTED`, und eine, die nicht antwortet, mit
 `CHANNEL_CALL_FAILED`. Senden wird nie von selbst wiederholt.
+
+**Send a message** antwortet in einem Thread, wenn `thread_id` gesetzt ist: der
+Thread-Zeitstempel bei Slack, die ID des Root-Posts bei Mattermost oder die Nummer
+eines Telegram-Forenthemas. Die Nachricht wird in den Thread gepostet, nie als
+zitierte Antwort. Eine leere `thread_id` postet in den Kanal selbst. Eine Kanal- oder
+Thread-ID mit einem `:` darin oder ein Telegram-Thread, der keine Zahl ist, lässt den
+Schritt mit `CHANNEL_TARGET_INVALID` scheitern, bevor etwas gesendet wird.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 
@@ -786,6 +800,11 @@ kann:
 | Das Tool deklariert das **Idempotency key argument** nicht | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nichts gesendet |
 | Das Tool antwortete mit einem Fehler | `MCP_TOOL_ERROR` oder die Antwort als Ausgabe |
 | Die strukturierte Antwort ist größer als 1 MiB | `MCP_RESULT_TOO_LARGE` |
+| Die strukturierte Antwort ist kein JSON | `MCP_RESULT_INVALID` |
+| Der Schritt nennt weder Server noch Tool | `MCP_CALL_NOT_CONFIGURED`, nichts gesendet |
+| Das Tool ist auf dieser Verbindung nicht erlaubt | `MCP_TOOL_NOT_ALLOWED`, nichts gesendet |
+| Ein genannter Genehmiger kann Freigaben nicht mehr entscheiden | `APPROVER_UNAVAILABLE`, nichts gesendet |
+| Der Aufruf wurde nicht genehmigt | `MCP_CALL_REJECTED`, nichts gesendet |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 

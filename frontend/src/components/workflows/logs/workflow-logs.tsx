@@ -39,7 +39,12 @@ import { LogAlerts } from "./log-alerts";
 import { outcomeLabels } from "./outcome-labels";
 import { LOG_PAGE } from "@/lib/workflows/logs-api";
 import { effectiveDefinition, ERROR_PORT } from "@/lib/workflows/ports";
-import { nodeDisplayName, type NodeInstance, type WorkflowLogEntry } from "@/lib/workflows/types";
+import {
+  nodeDisplayName,
+  type NodeDefinition,
+  type NodeInstance,
+  type WorkflowLogEntry,
+} from "@/lib/workflows/types";
 
 // Not port ids: a port may be called anything, and the NUL character is not a name.
 const ALL = "\u0000all";
@@ -60,12 +65,27 @@ const SINCE_MS: Record<string, number> = {
  * every filter applied on the server, all but the text kept in the address. Lines from test runs
  * are left out until asked for. A row opens the run that wrote it.
  */
+/**
+ * The ways a step's quick log writes a line: `error` always, and the output ports it
+ * logs - every one unless the log names some. Only `error` while the catalog does not
+ * know the step.
+ */
+function loggedOutcomes(node: NodeInstance, definition: NodeDefinition | undefined): string[] {
+  const own = [ERROR_PORT];
+  if (definition === undefined) return own;
+  const logged = node.quick_log?.outputs;
+  for (const port of effectiveDefinition(node, definition).ports) {
+    if (port.kind === "output" && (logged == null || logged.includes(port.id))) own.push(port.id);
+  }
+  return own;
+}
+
 export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
   const router = useRouter();
   const { workflow } = useWorkflow(workflowId);
-  const { nodes: catalog } = useNodeCatalog();
+  const { nodes: catalog, isLoading: catalogLoading } = useNodeCatalog();
   const [step, setStep] = useUrlState("step");
   // Repeated when a link carries several: an alert's counts every one of its outcomes.
   const [outcomes, setOutcomes] = useUrlList("outcome");
@@ -106,7 +126,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   // draft's and the live version's both, so a step still live but gone from the
   // draft is offered while its lines are still being written.
   const { version } = useWorkflowVersion(workflowId, workflow?.current_version_id ?? null);
-  const { steps, ports, stepPorts, labels } = useMemo(() => {
+  const { steps, ports, stepPorts, labels, livePorts } = useMemo(() => {
     const instances = new Map<string, NodeInstance>();
     for (const graph of [workflow?.draft_graph, version?.graph]) {
       for (const node of graph?.nodes ?? []) {
@@ -122,14 +142,11 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
       const definition = catalog.find(
         (entry) => entry.id === node.definition_id && entry.version === node.definition_version,
       );
-      const own = [ERROR_PORT];
-      if (definition !== undefined) {
-        const logged = node.quick_log?.outputs;
-        for (const port of effectiveDefinition(node, definition).ports) {
-          if (port.kind !== "output") continue;
-          ports.add(port.id);
-          if (logged == null || logged.includes(port.id)) own.push(port.id);
-        }
+      const own = loggedOutcomes(node, definition);
+      for (const port of definition === undefined
+        ? []
+        : effectiveDefinition(node, definition).ports) {
+        if (port.kind === "output") ports.add(port.id);
       }
       stepPorts.set(node.id, own);
       for (const [id, label] of outcomeLabels(node, definition)) {
@@ -143,8 +160,23 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
       );
       return [node.id, name] as [string, string];
     });
-    return { steps: named, ports: [...ports], stepPorts, labels: labelOf };
-  }, [workflow, version, catalog]);
+    // The live version alone: an alert rule is judged against what is running, not the
+    // draft. Nothing to judge by until the catalog has loaded, nor while it lacks any
+    // logging step's definition - that step's outcomes are unknown, and a rule for any
+    // step is judged against all of them.
+    const liveLogging = (version?.graph.nodes ?? []).filter((node) => node.quick_log);
+    const known = liveLogging.flatMap((node): [string, string[]][] => {
+      const definition = catalog.find(
+        (entry) => entry.id === node.definition_id && entry.version === node.definition_version,
+      );
+      return definition === undefined ? [] : [[node.id, loggedOutcomes(node, definition)]];
+    });
+    const livePorts: Map<string, string[]> | null =
+      version === undefined || catalogLoading || known.length !== liveLogging.length
+        ? null
+        : new Map(known);
+    return { steps: named, ports: [...ports], stepPorts, labels: labelOf, livePorts };
+  }, [workflow, version, catalog, catalogLoading]);
   // A value the address carries stays an option when no graph has it any more, so
   // the select never reads blank: named by a line that step wrote, else as it is.
   const stepOptions: [string, string][] =
@@ -336,6 +368,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
         steps={steps}
         stepPorts={stepPorts}
         labels={labels}
+        livePorts={livePorts}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Schema } from "./schema-model";
 import {
   asFormProperty,
+  channelPlatforms,
   classify,
   defsOf,
   humanise,
@@ -331,5 +332,17 @@ describe("takesJson", () => {
   it("is false for a scalar or a list of text, which the form edits itself", () => {
     expect(takesJson({ type: "string" })).toBe(false);
     expect(takesJson({ type: "array", items: { type: "string" } })).toBe(false);
+  });
+});
+
+describe("channelPlatforms", () => {
+  it("reads one platform, a list, or none", () => {
+    expect(channelPlatforms({ "x-platform": "slack" })).toEqual(["slack"]);
+    expect(channelPlatforms({ "x-platform": ["slack", "telegram"] })).toEqual([
+      "slack",
+      "telegram",
+    ]);
+    expect(channelPlatforms({})).toBeUndefined();
+    expect(channelPlatforms({ "x-platform": [1, "slack"] })).toBeUndefined();
   });
 });

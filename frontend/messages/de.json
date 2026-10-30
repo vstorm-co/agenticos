@@ -6483,7 +6483,8 @@
         "number": "Das muss eine Zahl sein.",
         "integer": "Das muss eine ganze Zahl sein.",
         "date": "Das muss ein Datum sein.",
-        "choice": "Wähle eine der Optionen."
+        "choice": "Wähle eine der Optionen.",
+        "invalid": "Diese Antwort passt nicht - bitte prüfen."
       },
       "exposureManualDescription": "Eine Person startet ihn mit Run im Editor oder mit Start a run auf seiner Run-Seite.",
       "runDraft": "Draft testen",
@@ -6619,6 +6620,7 @@
       "alertNeedsAudience": "Wählen Sie, wer informiert wird",
       "alertNeedsPeople": "„Bestimmte Personen“ ist gewählt, aber niemand benannt",
       "alertCondition": "{count, plural, one {Mindestens # Vorkommen} other {Mindestens # Vorkommen}} mit Ergebnis {outcomes}{hasStep, select, yes { in {step}} other {}}{hasText, select, yes { mit „{text}“} other {}} innerhalb von {window}",
+      "alertOutcomesGone": "Kein Ergebnis der Live-Version: {outcomes}",
       "alertTells": "Benachrichtigt: {who}",
       "alertNeverFired": "Noch nicht ausgelöst",
       "alertLastFired": "{count, plural, one {Zuletzt ausgelöst {when}, bei # Vorkommen} other {Zuletzt ausgelöst {when}, bei # Vorkommen}}",
@@ -8038,7 +8040,7 @@
     "validationBindingUnavailable": "Dieser Wert liest einen Schritt, der nicht auf jedem Weg hierher gelaufen ist.",
     "validationMergeDuplicateBranch": "Diese Zusammenführung verbindet denselben Zweig mehr als einmal.",
     "validationMergeNoCommonDominator": "Die Zweige dieser Zusammenführung haben keinen gemeinsamen Ausgangspunkt.",
-    "validationMergeNotFromIf": "Die Zweige einer Zusammenführung müssen aus den zwei Ergebnissen einer Bedingung kommen.",
+    "validationMergeNotFromIf": "Die Zweige einer Zusammenführung müssen einen einzigen Schritt verlassen, der genau einen Ausgang nimmt, etwa ein If, ein Switch, eine Entscheidung, ein Klassifikator, eine Genehmigung, ein Fehlerbehandler oder eine Tabellenprüfung.",
     "validationMergeNotExclusive": "Die Zweige dieser Zusammenführung schließen sich nicht gegenseitig aus.",
     "validationPortNameTaken": "„{name}“ ist an diesem Schritt bereits ein Ausgang - benennen Sie ihn um.",
     "validationQuickLogOutputUnknown": "„{name}“ ist kein Ausgang dieses Schritts - öffnen Sie das schnelle Log und speichern Sie es erneut.",
@@ -8053,6 +8055,7 @@
     "validationFanoutPortMultipleEdges": "Der Port {port} dieses Schritts hat mehr als eine Verbindung.",
     "validationInputBoundTwice": "Diese Eingabe wird von mehr als einer Quelle gesetzt.",
     "validationInputNotBound": "Erforderlich: Geben Sie einen Wert ein oder übernehmen Sie einen aus einem früheren Schritt.",
+    "validationDecisionValueNotBound": "Erforderlich: Binden Sie, worüber dieser Schritt entscheidet - geben Sie einen Wert ein oder übernehmen Sie einen aus einem früheren Schritt.",
     "pickerAgentLabel": "Agent",
     "pickerAgentPlaceholder": "Einen Agent wählen",
     "pickerAgentsEmpty": "Keine Agents zur Auswahl.",
@@ -8156,7 +8159,16 @@
       "mcp": "MCP-Server",
       "email": "E-Mail",
       "gmail": "Gmail",
-      "outlook": "Outlook"
+      "outlook": "Outlook",
+      "google_calendar": "Google Calendar",
+      "google_drive": "Google Drive",
+      "google_docs": "Google Docs",
+      "google_sheets": "Google Sheets",
+      "google_workspace": "Google Workspace",
+      "outlook_calendar": "Outlook Calendar",
+      "onedrive": "OneDrive",
+      "excel": "Excel",
+      "microsoft_365": "Microsoft 365"
     },
     "nodeSummaryBranches": "{count, plural, =0 {Nur der Standardzweig} one {# Zweig und Standard} other {# Zweige und Standard}}",
     "nodeSummaryCollect": "Sammelt fehlgeschlagene Elemente und macht weiter",
@@ -8203,6 +8215,8 @@
     "pickerBotsEmpty": "Noch keine Channel-Bots.",
     "pickerBotsAdd": "Unter Kanäle hinzufügen",
     "pickerBotOrphaned": "Der Bot dieses Schritts ist weg - wählen Sie einen anderen.",
+    "pickerBotWrongPlatform": "Diesen Bot können Sie hier nicht verwenden. Workflows antworten in Slack, Mattermost und Telegram - wählen Sie einen anderen.",
+    "pickerBotWrongPlatformOne": "Dieser Schritt nimmt nur {platform}-Bots - wählen Sie einen anderen.",
     "pickerBotNeedsPermission": "Als Channel-Bot zu handeln erfordert channels:manage, das Sie nicht haben.",
     "inputFields": {
       "title": "Eingabefelder",
@@ -8662,10 +8676,10 @@
     "appMcpBadge": "MCP",
     "appMcpBadgeHint": "Ein Tool-Aufruf auf einem MCP-Server",
     "appServer": {
-      "gmail": "Google Workspace",
-      "outlook": "Microsoft 365"
+      "google_workspace": "Google Workspace",
+      "microsoft_365": "Microsoft 365"
     },
-    "appConnect": "Verbinde {server}, um {app}-Aktionen hinzuzufügen",
+    "appConnect": "Verbinde {server}, um dessen Aktionen hinzuzufügen",
     "appOrgOnly": "Aktionen stammen aus den MCP-Verbindungen der Organisation, nicht aus persönlichen.",
     "appUntested": "Für {connection} sind noch keine Tools aufgelistet. Teste die Verbindung, um sie aufzulisten.",
     "appCardName": "{app} · {tool}",
@@ -8682,7 +8696,6 @@
       "listFilters": "Filter auflisten",
       "manageFilter": "Filter verwalten",
       "changeLabelsBatch": "Labels mehrerer ändern",
-      "startGoogleSignIn": "Google-Anmeldung starten",
       "createDraft": "Entwurf erstellen",
       "sendMessage": "Nachricht senden",
       "searchMail": "E-Mails suchen",
@@ -8694,8 +8707,8 @@
       "sendSharedDraft": "Entwurf senden (geteiltes Postfach)"
     },
     "appServerFull": {
-      "gmail": "Google Workspace (selbst gehostet)",
-      "outlook": "Microsoft 365 (selbst gehostet)"
+      "google_workspace": "Google Workspace (selbst gehostet)",
+      "microsoft_365": "Microsoft 365 (selbst gehostet)"
     },
     "appNeedsPermission": "{app}-Aktionen werden nicht angezeigt, weil Sie diesen Workflow nicht bearbeiten dürfen."
   },
@@ -10815,6 +10828,9 @@
   "publicForm": {
     "trapLabel": "Dieses Feld leer lassen",
     "refused": {
+      "changed": "Dieses Formular hat sich geändert, seit Sie es geöffnet haben. Laden Sie die Seite neu und füllen Sie es erneut aus.",
+      "unreadable": "Ihre Antworten konnten nicht gelesen werden. Laden Sie die Seite neu und versuchen Sie es erneut.",
+      "tooLarge": "Ihre Antworten sind zu lang zum Senden. Kürzen Sie sie und versuchen Sie es erneut.",
       "invalid": "Einige Antworten passen nicht zu diesem Formular. Prüfen Sie sie und senden Sie erneut.",
       "busy": "Dieses Formular nimmt gerade viele Antworten an. Versuchen Sie es in einer Minute erneut.",
       "gone": "Dieses Formular ist geschlossen.",

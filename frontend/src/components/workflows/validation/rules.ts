@@ -32,7 +32,7 @@ import {
   typesCompatible,
   UNKNOWN,
 } from "./schema";
-import { ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
+import { AUTHOR_NAMED_PORTS, ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
 import { isTrigger } from "@/lib/workflows/triggers";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
@@ -237,20 +237,6 @@ export function rule4BranchLocalAvailability(
 }
 
 /**
- * The ports an author names on a step: its config's list, the key holding each
- * entry's name, and the ports the step has whatever the author names - what the
- * backend's `_RESERVED` sets hold. (The catalog's ports here already carry the
- * author's own, so they cannot say which are static.)
- */
-const AUTHOR_NAMED_PORTS: Record<string, { list: string; key: string; static: readonly string[] }> =
-  {
-    "logic.switch": { list: "rules", key: "name", static: ["in", "otherwise"] },
-    "ai.classify": { list: "categories", key: "name", static: ["in", "other"] },
-    "error.handle": { list: "branches", key: "name", static: ["in", "default"] },
-    "human.approval": { list: "choices", key: "id", static: ["in", "approved", "rejected"] },
-  };
-
-/**
  * An author-named output that reuses a port its step has - the static ones, the
  * `unsure` of a classifier with a minimum confidence, the `error` of a step that
  * routes its errors. The analog of `nodes/_port_names.py` and
@@ -362,6 +348,8 @@ export function rule5ExclusiveMerge(
     incoming.set(e.target_node_id, list);
   }
 
+  const policyById = new Map(graph.nodes.map((item) => [item.id, item.policy]));
+
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
     if (definition === null || definition.id !== "logic.merge") continue;
@@ -374,11 +362,14 @@ export function rule5ExclusiveMerge(
       continue;
     }
     const distinct = new Set(edgesIn.map((e) => e.source));
+    // As `_branches_exclusively` in `validate.py`: a step that routes its errors takes
+    // its `out` or its `error` port, never both, as an If takes one of its answers.
+    const exclusive = (id: string): boolean =>
+      routesErrors({ policy: policyById.get(id) }) ||
+      definitionFor(definitions, id)?.exclusive_branches === true;
     // A step that feeds the merge by several ports must itself take one per run.
     const feedsBySeveral = [...distinct].some(
-      (source) =>
-        edgesIn.filter((e) => e.source === source).length > 1 &&
-        definitionFor(definitions, source)?.exclusive_branches !== true,
+      (source) => edgesIn.filter((e) => e.source === source).length > 1 && !exclusive(source),
     );
     if (feedsBySeveral) {
       problems.push(node(n.id, "merge-not-from-if"));
@@ -390,10 +381,7 @@ export function rule5ExclusiveMerge(
       problems.push(node(n.id, "merge-no-common-dominator"));
       continue;
     }
-    const commonDefinition = definitionFor(definitions, common);
-    // The catalog's `exclusive_branches`, as `validate.py` reads it; a node that
-    // routes its errors is exclusive too, but the client does not mirror that.
-    if (commonDefinition === null || commonDefinition.exclusive_branches !== true) {
+    if (!exclusive(common)) {
       problems.push(node(n.id, "merge-not-from-if"));
       continue;
     }
@@ -568,6 +556,18 @@ export function rule8NoParallelFanout(
 
 // Rule 9 — every required input bound exactly once.
 
+/** Steps that branch on `value`; unbound it reads null, so an If takes `false` and a Switch `otherwise`, silently. */
+const DECIDES_ON_VALUE: ReadonlySet<string> = new Set(["logic.if", "logic.switch"]);
+
+/** Whether a binding targets the node's `value`, whole or by key. */
+function valueBound(graph: WorkflowGraph, nodeId: string): boolean {
+  return graph.bindings.some(
+    (b) =>
+      b.target_node_id === nodeId &&
+      (b.target_field === "value" || b.target_field.startsWith("value/")),
+  );
+}
+
 export function rule9RequiredInputsBound(
   graph: WorkflowGraph,
   definitions: DefinitionMap,
@@ -591,6 +591,9 @@ export function rule9RequiredInputsBound(
   for (const n of graph.nodes) {
     const definition = definitionFor(definitions, n.id);
     if (definition === null) continue;
+    if (DECIDES_ON_VALUE.has(definition.id) && !valueBound(graph, n.id)) {
+      problems.push(nodeField(n.id, "value", "decision-value-not-bound"));
+    }
     for (const fieldName of requiredFields(definition.input_schema)) {
       const key = `${n.id}\u0000${fieldName}`;
       if ((boundCounts.get(key) ?? 0) === 0) {

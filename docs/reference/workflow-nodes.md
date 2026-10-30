@@ -189,6 +189,8 @@ categories. Its output is the one of [trigger.gmail](#trigger-gmail).
 Mattermost or Telegram bots that the bot would have answered with its own agent and
 that fits the node's filter. Publishing it needs `channels:manage`, and a bot's
 messages start one workflow at most. `triggered_by` is `channel_message`.
+A Teams bot is refused at publish and on a test run; a Teams listener published before
+that hands its messages back to the bot's agent.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
     options:
@@ -399,12 +401,16 @@ runs the first two as written.
 
 `logic.if` evaluates a JMESPath condition over its bound `value` and continues
 down the `true` or the `false` port. Every node on the untaken branch is
-recorded as `skipped`. `logic.merge` rejoins the two branches. It runs once the
+recorded as `skipped`. `value` must be bound: publishing, and a test run of the
+draft, refuse the step without it; a version published before keeps running and
+reads null.
+
+`logic.merge` rejoins the branches. It runs once the
 taken branch reaches it and passes that branch's output on as `value`.
 Publishing checks that a merge's inputs leave one step through different ports,
-and that the step takes exactly one port per run - an If / else, a Switch, a
-decision, `ai.classify`, a table check or an approval - so exactly one of them
-ever runs.
+and that the step takes exactly one port per run - an If, a Switch, a
+decision, `ai.classify`, a table check, an approval or a step that routes its
+errors - so exactly one of them ever runs.
 
 A merge can take two or more ports of that step straight, with nothing
 between them, such as `ai.classify`'s `needs_reply` and `unsure`: it runs once,
@@ -433,7 +439,9 @@ calls anything else, cannot be published.
 
 **Switch.** Sends the run down the first of many branches whose rule holds. Each
 rule has a name, which is its branch's port, and a JMESPath condition over the
-bound `value`, tried in order; `otherwise` takes the run when none holds. Its
+bound `value`, tried in order; `otherwise` takes the run when none holds. `value`
+must be bound: publishing, and a test run of the draft, refuse the step without it;
+a version published before keeps running and reads null. Its
 branches rejoin at a `logic.merge`, which accepts them because exactly one is ever
 taken. A rule that fails on its data fails the step with `CONDITION_FAILED` and
 names the rule.
@@ -528,7 +536,7 @@ The key is checked at publish and read again on every run. A key that is gone
 or unshared fails the step with `SECRET_NOT_USABLE`, a model that does not
 answer with `DECISION_FAILED`, which is retried as the step's policy says, and a
 deployment built without the `browser` extra with `DECISION_MODEL_UNAVAILABLE`.
-A merge may rejoin a decision's branches, as it rejoins an If / else step's.
+A merge may rejoin a decision's branches, as it rejoins an If's.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -560,6 +568,12 @@ publish, the run's principal on every run. A bot deleted, switched off or of ano
 platform stops the step with `CHANNEL_NOT_USABLE`. A platform that refuses a call at
 run time fails it with `CHANNEL_UNSUPPORTED`, and one that does not answer with
 `CHANNEL_CALL_FAILED`. Sending is never repeated on its own.
+
+**Send a message** answers inside a thread when `thread_id` is set: Slack's thread
+timestamp, Mattermost's root post id or a Telegram forum topic's number. The message
+is posted into the thread, never as a quoted reply. An empty `thread_id` posts to the
+channel itself. A channel or thread id with a `:` in it, or a Telegram thread that is
+not a number, fails with `CHANNEL_TARGET_INVALID` before anything is sent.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 
@@ -726,6 +740,11 @@ the server:
 | The tool does not declare the **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nothing sent |
 | The tool answered with an error | `MCP_TOOL_ERROR`, or the answer as output |
 | The structured answer is over 1 MiB | `MCP_RESULT_TOO_LARGE` |
+| The structured answer is not JSON | `MCP_RESULT_INVALID` |
+| The step names no server or tool | `MCP_CALL_NOT_CONFIGURED`, nothing sent |
+| The tool is not allowed on this connection | `MCP_TOOL_NOT_ALLOWED`, nothing sent |
+| A named approver can no longer decide approvals | `APPROVER_UNAVAILABLE`, nothing sent |
+| The call was not approved | `MCP_CALL_REJECTED`, nothing sent |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 

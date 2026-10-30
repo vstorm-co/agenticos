@@ -15,6 +15,16 @@ vi.mock("@/components/workflows/use-app-connections", () => ({
   useMcpAppStep: () => null,
 }));
 
+// Adding a step reads the channel bots to start a reply wired; none are known here.
+vi.mock("@/hooks/use-permissions", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-permissions")>()),
+  usePermissions: () => ({ can: () => false }),
+}));
+vi.mock("@/hooks/use-channel-bots", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-channel-bots")>()),
+  useChannelBots: () => ({ bots: [], isLoading: false, error: null }),
+}));
+
 const store = useWorkflowEditorStore;
 
 const IO = [port("in", "input", null), port("out", "output", null)];

@@ -1,5 +1,5 @@
 ---
-source_sha: "f403f3a8ab4b"
+source_sha: "2f49c387cc96"
 ---
 
 # API HTTP { #the-http-api }
@@ -403,7 +403,7 @@ Identyfikatory dostaw webhooka i GitHub przeżywają retencję treści runa jako
 
 Publikacja triggerów automatycznych i zmiany uprawnień ich wykonania wymagają sesji członka (`403` dla klucza API organizacji). Klucze mogą publikować ręczne workflow, rozpoczynać przebiegi w granicach scope i wstrzymywać ekspozycje, ale nie mogą ich włączać, rotować sekretów/linków formularzy, zmieniać harmonogramów ani wybierać nowej tożsamości workflow obsługi błędów. Te operacje zachowują uprawnienia użytkownika dla przyszłych zdarzeń.
 
-Publiczne formularze workflow egzekwują limit bajtów wejścia podczas czytania strumienia żądania, przed parsowaniem JSON i sprawdzeniem tokenu. Nadmierne body z zadeklarowanym rozmiarem lub chunked zwraca `413`; niepoprawny JSON i pola zgłoszenia zwracają `422`.
+Publiczne formularze workflow egzekwują limit bajtów wejścia podczas czytania strumienia żądania, przed parsowaniem JSON i sprawdzeniem tokenu. Nadmierne body z zadeklarowanym rozmiarem lub chunked zwraca `413`; niepoprawny JSON i pola zgłoszenia zwracają `422`. Każdy wpis `details.problems` w `422` ma postać `{field, message, type}`, gdzie `type` to własny typ błędu walidatora (`missing`, `int_type`, `extra_forbidden`, ...), dzięki czemu formularz może powiedzieć przy każdej odpowiedzi, czego potrzebował.
 
 
 Workflow, którego węzłem wyzwalacza jest webhook albo harmonogram, dostaje swoją

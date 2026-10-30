@@ -147,7 +147,11 @@ def _checked_input(run_input: dict[str, Any] | None) -> dict[str, Any]:
     except (ValueError, TypeError, RecursionError) as exc:
         raise WorkflowRunInputInvalidError(
             problems=[
-                {"field": "input", "message": "Use valid JSON without NUL or unpaired surrogates"}
+                {
+                    "field": "input",
+                    "message": "Use valid JSON without NUL or unpaired surrogates",
+                    "type": "json_invalid",
+                }
             ]
         ) from exc
     if size > settings.WORKFLOW_RUN_MAX_INPUT_BYTES:

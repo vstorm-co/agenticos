@@ -1,5 +1,5 @@
 ---
-source_sha: "583f712a78d3"
+source_sha: "5918277bc50f"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -197,6 +197,8 @@ wiadomości. Jej wyjście jest takie samo jak [trigger.gmail](#trigger-gmail).
 Slacku, Mattermost lub Telegramie, na którą bot odpowiedziałby własnym agentem i
 która pasuje do filtra węzła. Publikacja wymaga `channels:manage`, a wiadomości
 jednego bota uruchamiają najwyżej jeden workflow. `triggered_by` to `channel_message`.
+Bot Teams jest odrzucany przy publikacji i w przebiegu testowym; nasłuch Teams opublikowany
+wcześniej oddaje swoje wiadomości agentowi bota.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
     options:
@@ -411,12 +413,16 @@ uruchamia dwa pierwsze dokładnie tak.
 
 `logic.if` wylicza warunek JMESPath na zbindowanej wartości `value` i prowadzi
 dalej portem `true` albo `false`. Każdy węzeł na nieobranej gałęzi zostaje
-zapisany jako `skipped`. `logic.merge` łączy obie gałęzie z powrotem. Działa,
+zapisany jako `skipped`. `value` musi być zbindowane: publikacja i przebieg
+testowy wersji roboczej odrzucają krok bez niego; wersja opublikowana wcześniej
+działa dalej i czyta null.
+
+`logic.merge` łączy gałęzie z powrotem. Działa,
 gdy dotrze do niego obrana gałąź, i przekazuje dalej jej wyjście jako `value`.
 Publikacja sprawdza, czy wejścia merge'a wychodzą z jednego kroku różnymi
-portami i czy ten krok w każdym przebiegu wybiera dokładnie jeden port - If / else,
-Switch, decyzja, `ai.classify`, sprawdzenie tabeli albo zatwierdzenie - żeby zawsze
-działało dokładnie jedno z nich.
+portami i czy ten krok w każdym przebiegu wybiera dokładnie jeden port - If,
+Switch, decyzja, `ai.classify`, sprawdzenie tabeli, zatwierdzenie albo krok
+kierujący swoje błędy - żeby zawsze działało dokładnie jedno z nich.
 
 Merge może przyjąć dwa lub więcej portów tego kroku bezpośrednio, bez kroku
 pomiędzy, na przykład `needs_reply` i `unsure` z `ai.classify`: uruchamia się raz,
@@ -447,7 +453,9 @@ innego, nie da się opublikować.
 **Switch.** Kieruje przebieg pierwszą z wielu gałęzi, której reguła jest spełniona.
 Każda reguła ma nazwę, będącą portem jej gałęzi, i warunek JMESPath nad powiązaną
 `value`, sprawdzane po kolei; `otherwise` przejmuje przebieg, gdy żadna nie jest
-spełniona. Gałęzie łączą się w `logic.merge`, który je przyjmuje, bo zawsze biegnie
+spełniona. `value` musi być zbindowane: publikacja i przebieg testowy wersji
+roboczej odrzucają krok bez niego; wersja opublikowana wcześniej działa dalej i
+czyta null. Gałęzie łączą się w `logic.merge`, który je przyjmuje, bo zawsze biegnie
 dokładnie jedna. Reguła, która zawodzi na swoich danych, kończy krok błędem
 `CONDITION_FAILED` i wskazuje regułę.
 
@@ -542,7 +550,7 @@ Klucz, którego już nie ma albo nie jest udostępniony, kończy krok błędem
 `SECRET_NOT_USABLE`, model, który nie odpowiada, błędem `DECISION_FAILED`,
 ponawianym zgodnie z polityką kroku, a wdrożenie zbudowane bez extra `browser`
 błędem `DECISION_MODEL_UNAVAILABLE`. Merge może połączyć gałęzie decyzji tak jak
-gałęzie kroku If / else.
+gałęzie kroku If.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -575,6 +583,12 @@ publikacji i od podmiotu runa przy każdym runie. Bot usunięty, wyłączony alb
 platformy kończy krok błędem `CHANNEL_NOT_USABLE`. Platforma, która odmawia wywołania
 w trakcie runa, kończy go błędem `CHANNEL_UNSUPPORTED`, a taka, która nie odpowiada,
 błędem `CHANNEL_CALL_FAILED`. Wysyłanie nigdy nie jest powtarzane samo.
+
+**Send a message** odpowiada w wątku, gdy ustawiono `thread_id`: znacznik czasu
+wątku na Slacku, id posta głównego na Mattermost albo numer tematu forum na Telegramie.
+Wiadomość trafia do wątku, nigdy jako cytowana odpowiedź. Pusty `thread_id` wysyła na
+sam kanał. Id kanału lub wątku zawierające `:` albo wątek Telegrama, który nie jest
+liczbą, kończy krok błędem `CHANNEL_TARGET_INVALID` przed wysłaniem czegokolwiek.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 
@@ -747,6 +761,11 @@ serwera:
 | Narzędzie nie deklaruje **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nic nie wysłano |
 | Narzędzie odpowiedziało błędem | `MCP_TOOL_ERROR` albo odpowiedź jako wyjście |
 | Ustrukturyzowana odpowiedź ma ponad 1 MiB | `MCP_RESULT_TOO_LARGE` |
+| Ustrukturyzowana odpowiedź nie jest JSON-em | `MCP_RESULT_INVALID` |
+| Krok nie wskazuje serwera ani narzędzia | `MCP_CALL_NOT_CONFIGURED`, nic nie wysłano |
+| Narzędzie nie jest dozwolone w tym połączeniu | `MCP_TOOL_NOT_ALLOWED`, nic nie wysłano |
+| Wskazany zatwierdzający nie może już podejmować decyzji | `APPROVER_UNAVAILABLE`, nic nie wysłano |
+| Wywołanie nie zostało zatwierdzone | `MCP_CALL_REJECTED`, nic nie wysłano |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 

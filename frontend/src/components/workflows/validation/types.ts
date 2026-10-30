@@ -65,6 +65,7 @@ export type ValidationCode =
   | "input-bound-twice"
   | "input-not-bound"
   | "config-not-set"
+  | "decision-value-not-bound"
   // Rule 13 — a step's own name, and what switching one off may not break.
   | "label-taken"
   | "trigger-switched-off"
@@ -113,6 +114,7 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "input-bound-twice": "validationInputBoundTwice",
   "input-not-bound": "validationInputNotBound",
   "config-not-set": "validationConfigNotSet",
+  "decision-value-not-bound": "validationDecisionValueNotBound",
   "label-taken": "validationLabelTaken",
   "trigger-switched-off": "validationTriggerSwitchedOff",
   "control-switched-off": "validationControlSwitchedOff",

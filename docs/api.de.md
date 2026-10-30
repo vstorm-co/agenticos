@@ -1,5 +1,5 @@
 ---
-source_sha: "f403f3a8ab4b"
+source_sha: "2f49c387cc96"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -437,7 +437,7 @@ Webhook- und GitHub-Zustellungs-IDs überleben die Aufbewahrung von Ausführungs
 
 Die Veröffentlichung automatischer Trigger und Änderungen ihrer Ausführungsrechte erfordern eine Mitgliedssitzung (`403` für Organisations-API-Schlüssel). Schlüssel dürfen manuelle Workflows veröffentlichen, Ausführungen innerhalb ihrer Scopes starten und Expositionen pausieren, aber nicht aktivieren, Geheimnisse/Formularlinks rotieren, Zeitpläne ändern oder eine neue Fehler-Workflow-Identität wählen. Diese Vorgänge hinterlegen Benutzerrechte für spätere Ereignisse.
 
-Öffentliche Workflow-Formulare erzwingen das Eingabebyte-Limit beim Lesen des Anforderungsstroms, vor JSON-Parsing und Tokenprüfung. Zu große deklarierte oder in Chunks gesendete Inhalte liefern `413`; fehlerhaftes JSON und ungültige Formularfelder liefern `422`.
+Öffentliche Workflow-Formulare erzwingen das Eingabebyte-Limit beim Lesen des Anforderungsstroms, vor JSON-Parsing und Tokenprüfung. Zu große deklarierte oder in Chunks gesendete Inhalte liefern `413`; fehlerhaftes JSON und ungültige Formularfelder liefern `422`. Jeder Eintrag von `details.problems` einer `422` ist `{field, message, type}`, wobei `type` der eigene Fehlertyp des Validators ist (`missing`, `int_type`, `extra_forbidden`, ...), sodass ein Formular je Antwort sagen kann, was es brauchte.
 
 
 Ein Workflow, dessen Trigger-Knoten ein Webhook oder ein Zeitplan ist, erhält seine

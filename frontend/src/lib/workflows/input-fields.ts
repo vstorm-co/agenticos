@@ -135,7 +135,7 @@ export function initialValues(fields: readonly InputField[]): Record<string, For
 }
 
 /** Why a field's value cannot start the run. */
-export type FieldProblem = "required" | "number" | "integer" | "date" | "choice";
+export type FieldProblem = "required" | "number" | "integer" | "date" | "choice" | "invalid";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -189,4 +189,49 @@ export function runInputFrom(
     else input[field.name] = result.value;
   }
   return Object.keys(problems).length > 0 ? { problems } : { input };
+}
+
+/** The server's refusal kind for one answer, as the field problem it names. */
+function problemOfType(type: string, field: InputField): FieldProblem {
+  if (type === "missing") return "required";
+  if (type.startsWith("int_")) return "integer";
+  if (type.startsWith("float_") || type.startsWith("decimal_")) return "number";
+  if (type.startsWith("date_")) return "date";
+  if (type === "literal_error" || type === "enum") return "choice";
+  if (type === "value_error") {
+    // A date and a choice are checked by validators that raise a plain ValueError.
+    if (field.type === "date") return "date";
+    if (field.type === "choice") return "choice";
+  }
+  return "invalid";
+}
+
+/**
+ * What the server refused in a form submission, per field, from its
+ * `details.problems`: `{field, message, type}` entries, `type` being the validator's
+ * own error type. `changed` is set when it refused an answer this form does not ask
+ * for - the form was edited since the visitor opened it. Entries of no readable shape
+ * are skipped; the submitted value is never in them.
+ */
+export function serverFieldProblems(
+  problems: unknown,
+  fields: readonly InputField[],
+): { problems: Record<string, FieldProblem>; changed: boolean } {
+  const marked: Record<string, FieldProblem> = {};
+  let changed = false;
+  if (!Array.isArray(problems)) return { problems: marked, changed };
+  for (const entry of problems) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { field: path, type } = entry as { field?: unknown; type?: unknown };
+    if (typeof path !== "string") continue;
+    const declared = fields.find((candidate) => candidate.name === path.split(".")[0]);
+    // An answer the form does not ask for is a form edited since it was opened; any other
+    // refusal naming no field of it (the whole payload not storable) is not.
+    if (declared === undefined) {
+      changed ||= type === "extra_forbidden" || type === "missing";
+      continue;
+    }
+    marked[declared.name] = typeof type === "string" ? problemOfType(type, declared) : "invalid";
+  }
+  return { problems: marked, changed };
 }

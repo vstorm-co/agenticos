@@ -17,6 +17,21 @@ import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
  * reads them through {@link effectiveDefinition}, so none of them can disagree.
  */
 
+/**
+ * The ports an author names on a step: its config's list, the key holding each
+ * entry's name, and the ports the step has whatever the author names - what the
+ * backend's `_RESERVED` sets hold. (The catalog's ports here already carry the
+ * author's own, so they cannot say which are static.)
+ */
+export const AUTHOR_NAMED_PORTS: Readonly<
+  Record<string, { list: string; key: string; static: readonly string[] }>
+> = {
+  "logic.switch": { list: "rules", key: "name", static: ["in", "otherwise"] },
+  "ai.classify": { list: "categories", key: "name", static: ["in", "other"] },
+  "error.handle": { list: "branches", key: "name", static: ["in", "default"] },
+  "human.approval": { list: "choices", key: "id", static: ["in", "approved", "rejected"] },
+};
+
 /** The output a node with `on_error: "route"` fails through. */
 export const ERROR_PORT = "error";
 

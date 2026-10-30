@@ -186,6 +186,9 @@ describe("NodePicker app groups", () => {
   const openGmail = async () =>
     userEvent.click(screen.getByRole("option", { name: /Mail trigger and Gmail actions/ }));
 
+  const openServerGroup = async () =>
+    userEvent.click(screen.getByRole("option", { name: /^Google Workspace/ }));
+
   it("groups the trigger and each tool of the organization's connection, MCP badge and all", async () => {
     apps.connections = [connection()];
     const onPick = mountApps();
@@ -252,11 +255,17 @@ describe("NodePicker app groups", () => {
     apps.connections = [connection({ catalog_key: "hubspot" })];
     apps.canConnect = true;
     const onPick = mountApps();
+    // Connect sits in the server's own group, not in Gmail's.
     await openGmail();
+    expect(screen.queryByText(/Connect Google Workspace/)).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: "All steps" }));
+    await openServerGroup();
     await userEvent.click(
-      screen.getByRole("option", { name: "Connect Google Workspace to add Gmail actions" }),
+      screen.getByRole("option", { name: "Connect Google Workspace to add its actions" }),
     );
     expect(router.push).toHaveBeenCalledWith("/mcp-servers?server=google-workspace");
+    await userEvent.click(screen.getByRole("option", { name: "All steps" }));
+    await openGmail();
     await userEvent.click(
       within(screen.getByRole("group", { name: /^Gmail/ })).getByRole("option", { name: /^Gmail/ }),
     );
@@ -301,6 +310,9 @@ describe("NodePicker app groups", () => {
     await openGmail();
     expect(screen.queryByRole("option", { name: /Create draft/ })).toBeNull();
     expect(screen.getByRole("option", { name: /List gmail drafts/ })).toBeTruthy();
+    expect(screen.queryByText(/fresh has no tools listed yet/)).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: "All steps" }));
+    await openServerGroup();
     expect(screen.getByText(/fresh has no tools listed yet/)).toBeTruthy();
     expect(screen.queryByText(/off/)).toBeNull();
   });
@@ -309,9 +321,11 @@ describe("NodePicker app groups", () => {
     apps.connections = null;
     apps.unavailable = true;
     mountApps();
-    await openGmail();
+    await openServerGroup();
     expect(
-      screen.getByText(/Gmail actions are not shown because you can't edit this workflow/),
+      screen.getByText(
+        /Google Workspace actions are not shown because you can't edit this workflow/,
+      ),
     ).toBeTruthy();
   });
 

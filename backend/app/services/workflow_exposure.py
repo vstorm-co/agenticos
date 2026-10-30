@@ -91,6 +91,7 @@ from app.services.workflow_execution.facade import WorkflowExecutionService
 from app.worker.jobs import WORKFLOW_SCHEDULES_CHECK, Tick
 from app.workflows.contracts.io import output_refs
 from app.workflows.graph.model import WorkflowGraph
+from app.workflows.nodes._channels import WORKFLOW_PLATFORMS
 from app.workflows.nodes._triggers import (
     ChannelMessageTriggerOutput,
     ChannelSender,
@@ -881,13 +882,17 @@ class WorkflowExposureService:
         sender's link, the mention rule - so this decides only whether the
         workflow listening to the bot takes it: one is live and on, its publisher
         can still run it, and the message fits its filter. `False` leaves the
-        message to the bot's agent.
+        message to the bot's agent, as does a bot of a platform workflows do not
+        answer on (Teams).
 
         Raises:
             WorkflowAdmissionQuotaError: Too much of the organization's work is in
                 flight to admit the run.
             WorkflowRunInputTooLargeError: The message is over the input limit.
         """
+        # A listener stored before publish refused a Teams bot must not swallow its messages.
+        if bot.platform not in WORKFLOW_PLATFORMS:
+            return False
         exposure = await workflow_exposure_repo.get_channel_listener(self.db, bot.id)
         if exposure is None or not exposure.is_active:
             return False

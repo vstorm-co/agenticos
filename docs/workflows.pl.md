@@ -1,5 +1,5 @@
 ---
-source_sha: "918897481ed6"
+source_sha: "f96ab37e96d7"
 ---
 
 # Workflows { #workflows }
@@ -117,24 +117,34 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
   i tam trafia krok. Pod nim **Dodaj notatkę** (Add a note) oraz, gdy coś skopiowano, **Wklej** (Paste).
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
 
-**Gmail** i **Outlook** to osobne grupy w **Apps and the web**. Każda zawiera
-natywny trigger aplikacji, tam gdzie kanwa może go przyjąć, oraz po jednym wpisie na
-narzędzie każdego organizacyjnego połączenia MCP z odpowiednim serwerem - Google
-Workspace dla Gmaila, Microsoft 365 dla Outlooka - na przykład **Create draft** albo
-**Send message**. Wybranie wpisu dodaje [MCP call](reference/workflow-nodes.md#mcp-call)
+Aplikacje Google Workspace (**Gmail**, **Google Calendar**, **Google Drive**,
+**Google Docs**, **Google Sheets**) i Microsoft 365 (**Outlook**, **Outlook
+Calendar**, **OneDrive**, **Excel**) to osobne grupy w **Apps and the web**.
+Każda zawiera natywny trigger aplikacji, tam gdzie kanwa może go przyjąć, oraz po
+jednym wpisie na narzędzie każdego organizacyjnego połączenia MCP z odpowiednim
+serwerem - na przykład **Create draft** albo **Send message**. Narzędzia połączenia
+są przydzielane do tych grup według nazwy; narzędzie, którego żadna nie przejmuje,
+trafia do grupy samego serwera (**Google Workspace**, **Microsoft 365**), gdzie
+pokazywane są też **Connect** i nieprzetestowane połączenie. Narzędzi logowania
+(`start_google_auth`, `login`, `verify-login`) nie oferujemy.
+
+Wybranie wpisu dodaje [MCP call](reference/workflow-nodes.md#mcp-call)
 od razu ustawiony na to połączenie i to narzędzie, więc zapisane workflowy i kontrakt
 węzła się nie zmieniają. Wpis niczego nie ukrywa: ma plakietkę **MCP** i nazwę
 połączenia, pod nią stoi własna nazwa narzędzia w osobnym wierszu, a serwer jest nazwany raz w nagłówku grupy; nic nie jest
-ucinane. **Search steps**
+ucinane.
+
+**Search steps**
 znajduje go po którejkolwiek z nazw albo po aplikacji. Na kanwie krok czyta się
 **Gmail · Create draft** z plakietką **MCP**, a pod spodem widać połączenie i własną
 nazwę narzędzia; jego ustawienia mówią, że to wywołanie narzędzia MCP w tym połączeniu,
 i linkują do niego. Każde narzędzie Gmaila, które oferuje serwer, ma zwykłą nazwę, na przykład **List labels**
-lub **Read thread**; narzędzie spoza listy nazw pokazuje własną nazwę. Natywny trigger nie jest wywołaniem MCP i nie ma plakietki. Bez
-pasującego połączenia grupa pokazuje trigger i wiersz **Connect** do podłączenia serwera.
+lub **Read thread**; narzędzie spoza listy nazw pokazuje własną nazwę. Natywny trigger nie jest wywołaniem MCP i nie ma plakietki.
+
+Bez pasującego połączenia grupa samego serwera pokazuje wiersz **Connect** do podłączenia serwera.
 Wypisane są tylko połączenia organizacji, a narzędzia połączenia to te, które zapisał
 jego ostatni test, więc przetestuj je ponownie, żeby zobaczyć nowe. Członek, który nie
-może edytować danego workflow, widzi sam trigger. Członek, który go edytuje, ale nie zarządza serwerami MCP,
+może edytować danego workflow, widzi same triggery. Członek, który go edytuje, ale nie zarządza serwerami MCP,
 widzi wszystkie akcje i nie dostaje wiersza **Connect**: serwer podłącza tylko osoba nim zarządzająca. Wiersze akcji aplikacji się wybiera, nie przeciąga: na kanwę można
 przeciągać tylko własne wiersze kroków.
 
@@ -292,6 +302,11 @@ elementu albo wartości, sprawdzenie - **is equal to**, **is at least**, **conta
 przebieg albo dane testowe, są podpowiadane. Warunek jest zapisywany jako wyrażenie
 JMESPath, które krok wylicza. **Write it as an expression** edytuje go jako to
 wyrażenie, a takie, którego wiersze nie pokażą, zostaje wyrażeniem.
+
+Zmiana nazwy reguły **Switch**, kategorii klasyfikatora, gałęzi błędu lub wyboru
+zatwierdzenia przenosi połączenia, powiązania i szybki log, które używały starej nazwy,
+chyba że zmieniono kolejność wpisów, wstawiono je lub usunięto, albo naraz zmieniły się
+dwie nazwy.
 
 ### Nazywanie kroku, notatka i wyłączanie { #naming-noting-and-switching-off-a-step }
 
@@ -812,7 +827,8 @@ alertu. Workflow ma do 25 reguł, a przełącznik przy każdej ją wstrzymuje.
 organizację, jest pomijana. Każda z nich dostaje powiadomienie w dzwonku i e-mail, zgodnie
 z własnymi [preferencjami powiadomień](governance.md#alerts), a ten, kto nie może już
 zobaczyć workflow, nie widzi powiadomienia. Powiadomienie podaje, ile wierszy pasowało, a
-jego link otwiera stronę Logs przefiltrowaną do kroku i wyników reguły.
+jego link otwiera stronę Logs przefiltrowaną do kroku i wyników reguły. Reguła z wynikiem, którego krok opublikowanej
+wersji nie ma, jest oznaczona na liście.
 
 Reguły widzi każdy, kto może zobaczyć workflow; dodaje, zmienia, wstrzymuje i usuwa je
 każdy, kto może go edytować, przez rolę albo przez grant na nim. Reguły nie są częścią
@@ -1045,6 +1061,12 @@ odpowiedź od agenta bota jak dotąd, więc workflow może przejąć zwroty i zo
 Wyzwalacz przekazuje `text`, `sender` - z członkiem, którego nadawca powiązał, jeśli
 to zrobił - oraz `channel_id` i `thread_id`, które przyjmuje krok **Send a message**
 tej samej platformy, więc odpowiedź trafia do wątku, z którego przyszła wiadomość.
+Wyzwalacze Slacka i Mattermost przekazują wątek nawet przy wiadomości z najwyższego
+poziomu, bo sama wiadomość go zakłada, więc powiązana odpowiedź jest w wątku;
+wyzwalacz Telegrama przekazuje temat tylko wewnątrz tematu forum.
+
+Krok **Send a message** dodany po triggerze **Channel message** startuje jako bot tego
+triggera, z powiązanymi `channel_id` i `thread_id`, gdy platformy się zgadzają.
 Wiadomości jednego bota uruchamiają najwyżej jeden workflow, a nasłuchiwanie bota
 wymaga `channels:manage`. Notatka głosowa przychodzi jako transkrypcja; inne
 załączniki nie są przekazywane. Zobacz

@@ -11,8 +11,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from app.agents.capabilities.channel_tools._directory import (
@@ -22,11 +23,14 @@ from app.agents.capabilities.channel_tools._directory import (
     ChannelSummary,
 )
 from app.core.permissions import AuthContext
+from app.services.channels.mattermost import MattermostAdapter
+from app.services.channels.slack import SlackAdapter
+from app.services.channels.telegram import TelegramAdapter
 from app.services.workflow_execution import context
 from app.workflows._registry import REGISTRY, load_builtins
 from app.workflows.contracts.results import Completed, Failed
 from app.workflows.nodes import _channels
-from app.workflows.nodes._channels import ChannelBotConfig, check_bot_on
+from app.workflows.nodes._channels import ChannelBotConfig, check_bot_on, check_listening_bot
 from app.workflows.nodes.channel_find._handler import ChannelFindConfig, ChannelFindInput
 from app.workflows.nodes.channel_find._handler import handler_on as find_on
 from app.workflows.nodes.channel_members._handler import ChannelMembersConfig, ChannelMembersInput
@@ -79,6 +83,25 @@ def adapter(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     return platform
 
 
+@pytest.fixture
+def bot_on(monkeypatch: pytest.MonkeyPatch):
+    """Make a bot of a platform usable, behind the given adapter instance."""
+
+    def make(platform: str, adapter_instance: Any) -> None:
+        bot = MagicMock(platform=platform, api_base_url="https://chat.example.com")
+
+        @asynccontextmanager
+        async def session() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        monkeypatch.setattr(_channels, "get_worker_db_context", session)
+        monkeypatch.setattr(_channels, "_usable_bot", AsyncMock(return_value=bot))
+        monkeypatch.setattr(_channels, "get_adapter", lambda name: adapter_instance)
+        monkeypatch.setattr(_channels, "unseal_bot_token", lambda _bot: "bot-token")
+
+    return make
+
+
 async def _run(handle, config, node_input) -> Any:
     with context.dispatching_as(_dispatch()):
         return await handle(config, node_input)
@@ -98,9 +121,9 @@ class TestSend:
         token, message = adapter.send_message.await_args.args
         assert token == "bot-token"
         assert (message.platform_chat_id, message.text, message.reply_to_message_id) == (
-            "c-1",
+            "c-1:t-9",
             "Deploy done",
-            "t-9",
+            None,
         )
         assert message.api_base_url == "https://chat.example.com"
 
@@ -112,6 +135,109 @@ class TestSend:
         assert isinstance(result, Failed) and result.error.code == "CHANNEL_CALL_FAILED"
         assert result.error.retryable is True
         assert "bot-token" not in str(result.error)
+
+
+class TestSendIntoAThread:
+    async def test_a_slack_reply_lands_in_the_thread(self, bot_on):
+        client = MagicMock(chat_postMessage=AsyncMock())
+        bot_on("slack", SlackAdapter())
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client):
+            result = await _run(
+                send_on("slack"),
+                ChannelBotConfig.model_validate(BOT),
+                ChannelSendInput(channel_id="C1", text="Deploy done", thread_id="1700.1"),
+            )
+        assert isinstance(result, Completed)
+        assert client.chat_postMessage.await_args.kwargs == {
+            "channel": "C1",
+            "text": "Deploy done",
+            "thread_ts": "1700.1",
+        }
+
+    async def test_a_mattermost_reply_lands_under_its_root_post(self, bot_on, monkeypatch):
+        client = MagicMock(post=AsyncMock(return_value=MagicMock(raise_for_status=lambda: None)))
+        monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: client)
+        bot_on("mattermost", MattermostAdapter())
+        result = await _run(
+            send_on("mattermost"),
+            ChannelBotConfig.model_validate(BOT),
+            ChannelSendInput(channel_id="c1", text="Deploy done", thread_id="root9"),
+        )
+        assert isinstance(result, Completed)
+        assert client.post.await_args.args[0] == "https://chat.example.com/api/v4/posts"
+        assert client.post.await_args.kwargs["json"] == {
+            "channel_id": "c1",
+            "message": "Deploy done",
+            "root_id": "root9",
+        }
+
+    @staticmethod
+    def _telegram(bot_on) -> MagicMock:
+        bot = MagicMock(send_message=AsyncMock())
+        bot.session.close = AsyncMock()
+        bot_on("telegram", TelegramAdapter())
+        return bot
+
+    async def test_a_telegram_reply_lands_in_the_forum_topic(self, bot_on):
+        bot = self._telegram(bot_on)
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            result = await _run(
+                send_on("telegram"),
+                ChannelBotConfig.model_validate(BOT),
+                ChannelSendInput(channel_id="-1001234", text="hi", thread_id="7"),
+            )
+        assert isinstance(result, Completed)
+        kwargs = bot.send_message.await_args.kwargs
+        assert (kwargs["chat_id"], kwargs["message_thread_id"], kwargs["reply_to_message_id"]) == (
+            "-1001234",
+            7,
+            None,
+        )
+
+    async def test_a_telegram_reply_with_no_thread_goes_to_the_chat(self, bot_on):
+        bot = self._telegram(bot_on)
+        with patch("app.services.channels.telegram.Bot", return_value=bot):
+            result = await _run(
+                send_on("telegram"),
+                ChannelBotConfig.model_validate(BOT),
+                ChannelSendInput(channel_id="-1001234", text="hi", thread_id=""),
+            )
+        assert isinstance(result, Completed)
+        assert "message_thread_id" not in bot.send_message.await_args.kwargs
+        assert bot.send_message.await_args.kwargs["chat_id"] == "-1001234"
+
+    @pytest.mark.parametrize(
+        ("platform", "channel_id", "thread_id"),
+        [
+            ("telegram", "-1001234", "1700.1"),
+            ("telegram", "-1001234", "abc"),
+            ("slack", "C1:1700.1", None),
+            ("mattermost", "c1:root9", "root9"),
+            ("slack", "C1", "1700.1:x"),
+            ("mattermost", "c1", "root9:x"),
+        ],
+        ids=[
+            "telegram-dotted",
+            "telegram-word",
+            "slack-colon",
+            "mattermost-colon",
+            "slack-thread-colon",
+            "mattermost-thread-colon",
+        ],
+    )
+    async def test_a_target_the_platform_cannot_address_is_refused_before_sending(
+        self, bot_on, platform, channel_id, thread_id
+    ):
+        adapter_instance = MagicMock(send_message=AsyncMock())
+        bot_on(platform, adapter_instance)
+        result = await _run(
+            send_on(platform),
+            ChannelBotConfig.model_validate(BOT),
+            ChannelSendInput(channel_id=channel_id, text="x", thread_id=thread_id),
+        )
+        assert isinstance(result, Failed) and result.error.code == "CHANNEL_TARGET_INVALID"
+        assert result.error.retryable is False
+        adapter_instance.send_message.assert_not_awaited()
 
 
 class TestRead:
@@ -248,6 +374,37 @@ class TestWhoMayActAsABot:
         if role == "viewer":
             # Refused before the bot is even looked up.
             lookup.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_teams_bot_cannot_start_a_workflow(self, monkeypatch):
+        monkeypatch.setattr(
+            _channels.channel_bot_repo,
+            "get_for_org",
+            AsyncMock(return_value=MagicMock(is_active=True, platform="teams")),
+        )
+        problems = await check_listening_bot(
+            MagicMock(), self._ctx("owner"), ChannelBotConfig.model_validate(BOT)
+        )
+        assert problems == [
+            (
+                "bot_id",
+                "A workflow cannot listen to a Teams bot - choose a Slack, Mattermost "
+                "or Telegram bot",
+            )
+        ]
+
+    async def test_a_slack_bot_still_starts_one(self, monkeypatch):
+        monkeypatch.setattr(
+            _channels.channel_bot_repo,
+            "get_for_org",
+            AsyncMock(return_value=MagicMock(is_active=True, platform="slack")),
+        )
+        assert (
+            await check_listening_bot(
+                MagicMock(), self._ctx("owner"), ChannelBotConfig.model_validate(BOT)
+            )
+            == []
+        )
 
     async def test_a_config_of_another_step_is_not_this_checks_to_judge(self):
         assert await check_bot_on("slack")(MagicMock(), MagicMock(), MagicMock()) == []

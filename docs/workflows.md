@@ -112,24 +112,34 @@ group. You add a step four ways:
   lands there. Beneath it, **Add a note** and, once something is copied, **Paste**.
 - **Drag** a step from the picker to put it where you drop it, wired to nothing.
 
-**Gmail** and **Outlook** are groups of their own in **Apps and the web**. Each holds
-the app's native trigger, where the canvas may take one, and one entry per tool of
-every organization MCP connection to the matching server - Google Workspace for
-Gmail, Microsoft 365 for Outlook - such as **Create draft** or **Send message**.
+The apps of Google Workspace (**Gmail**, **Google Calendar**, **Google Drive**,
+**Google Docs**, **Google Sheets**) and of Microsoft 365 (**Outlook**, **Outlook
+Calendar**, **OneDrive**, **Excel**) are groups of their own in **Apps and the web**.
+Each holds the app's native trigger, where the canvas may take one, and one entry per
+tool of every organization MCP connection to the matching server - such as **Create
+draft** or **Send message**. A connection's tools are sorted into these groups by
+name; a tool none of them claims sits in the server's own group (**Google
+Workspace**, **Microsoft 365**), which is also where **Connect** and an untested
+connection are shown. The sign-in tools (`start_google_auth`, `login`,
+`verify-login`) are not offered.
+
 Picking an entry adds an [MCP call](reference/workflow-nodes.md#mcp-call) already
 set to that connection and tool, so stored workflows and the node's contract do not
 change. The entry never hides what it is: it carries an **MCP** badge and the
 connection's name, and the tool's own name stands on its own line under it, with the
-server named once in the group's heading; nothing is cut short. **Search
-steps** finds it by either name or by the app. On the canvas the step reads
+server named once in the group's heading; nothing is cut short.
+
+**Search steps** finds it by either name or by the app. On the canvas the step reads
 **Gmail · Create draft** with an **MCP** badge, with the connection and the tool's own
 name beneath, and its settings say it is an MCP tool call on that connection and link
 to it. Every Gmail tool the server offers has a plain name, such as **List labels** or
-**Read thread**; a tool the list does not name shows its own name. The native trigger is not an MCP call and carries no badge. With no
-matching connection the group shows the trigger and a row to **Connect** the server.
-Only organization connections are listed, and a connection's tools are the ones its
+**Read thread**; a tool the list does not name shows its own name. The native trigger
+is not an MCP call and carries no badge.
+
+With no matching connection the server's own group shows a row to **Connect** the
+server. Only organization connections are listed, and a connection's tools are the ones its
 last test recorded, so test it again to list new ones. A member who may not edit
-a workflow sees the trigger alone. A member who edits it but does not manage
+a workflow sees the triggers alone. A member who edits it but does not manage
 MCP servers sees every action and is not offered a **Connect** row: only a manager
 connects a server. An app's action rows are picked, not dragged: only
 the step's own rows can be dragged onto the canvas.
@@ -282,6 +292,10 @@ field of the item or the value, a check - **is equal to**, **is at least**,
 or the test data showed are suggested. The condition is stored as the JMESPath
 expression the step evaluates. **Write it as an expression** edits it as that, and
 one the rows cannot show stays an expression.
+
+Renaming a **Switch** rule, a classifier category, an error branch or an approval
+choice carries the wires, bindings and quick log that used the old name, unless
+entries are reordered, inserted or deleted, or two names change at once.
 
 ### Naming a step, noting it and switching it off { #naming-noting-and-switching-off-a-step }
 
@@ -787,7 +801,8 @@ organization's **admins**, or **specific people** you pick; a person who has lef
 organization is skipped. Each of them gets a notification in the bell and an email, as
 their own [notification preferences](governance.md#alerts) allow, and one who can no
 longer view the workflow no longer sees it. The notification says how many lines
-matched, and its link opens the Logs page filtered to the rule's step and outcomes.
+matched, and its link opens the Logs page filtered to the rule's step and outcomes. A
+rule with an outcome that the live version's step does not have is flagged in the list.
 
 Anyone who may view the workflow sees its rules; whoever may edit it, by role or by a
 grant on it, adds, changes, pauses and deletes them. The rules are not part of the
@@ -1018,10 +1033,15 @@ bot's agent as before, so a workflow can take refunds and leave the rest.
 
 The trigger hands on the `text`, the `sender` - with the member they linked, if
 they did - and the `channel_id` and `thread_id` a **Send a message** step of the
-same platform takes, so the answer lands in the thread the message came from. A
-bot's messages start one workflow at most, and listening to a bot needs
-`channels:manage`. A voice note arrives as its transcript; other attachments are
-not handed on. See
+same platform takes, so the answer lands in the thread the message came from. Slack
+and Mattermost triggers hand on a thread even for a top-level message, because the
+message itself roots it, so a bound reply is threaded; a Telegram trigger hands on a
+topic only inside a forum topic.
+
+A **Send a message** step added after a **Channel message** trigger starts as the
+trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+A voice note arrives as its transcript; other attachments are not handed on. See
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
 ### When another workflow calls it { #when-another-workflow-calls-it }

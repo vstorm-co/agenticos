@@ -6,6 +6,18 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useInsertNode } from "./use-insert-node";
 
+const mayManage = vi.fn(() => true);
+const channelBots = vi.fn((_enabled: boolean) => ({
+  bots: [{ id: "b1", platform: "slack" }],
+  isLoading: false,
+  error: null as unknown,
+}));
+
+vi.mock("@/hooks", () => ({
+  usePermissions: () => ({ can: () => mayManage() }),
+  useChannelBots: (enabled: boolean) => channelBots(enabled),
+}));
+
 const STEP = makeDefinition({
   id: "step",
   ports: [port("in", "input", null), port("out", "output", null)],
@@ -14,6 +26,12 @@ const STEP = makeDefinition({
 const REAL_INSERT = useWorkflowEditorStore.getState().insertNode;
 
 beforeEach(() => {
+  mayManage.mockReturnValue(true);
+  channelBots.mockReturnValue({
+    bots: [{ id: "b1", platform: "slack" }],
+    isLoading: false,
+    error: null,
+  });
   useWorkflowEditorStore.setState({ insertNode: REAL_INSERT });
   useWorkflowEditorStore.getState().teardown();
 });
@@ -196,4 +214,146 @@ it("binds nothing for a step that is not an MCP call, whatever its config names"
     from: { nodeId: "t", portId: "out" },
   });
   expect(useWorkflowEditorStore.getState().graph?.bindings).toEqual([]);
+});
+
+const CHANNEL = makeDefinition({
+  id: "trigger.channel_message",
+  ports: [port("out", "output", null)],
+});
+const SLACK_SEND = makeDefinition({
+  id: "slack.message.send",
+  ports: [port("in", "input", null), port("out", "output", null)],
+});
+const TELEGRAM_SEND = makeDefinition({
+  id: "telegram.message.send",
+  ports: [port("in", "input", null), port("out", "output", null)],
+});
+
+function seedChannel(config: Record<string, unknown> = { bot_id: "b1" }, wired = true) {
+  const nodes = wired
+    ? [node("t", "trigger.channel_message", config)]
+    : [node("t", "trigger.channel_message", config), node("a", "mcp.call")];
+  useWorkflowEditorStore.getState().seedGraph({
+    entry_node_id: "t",
+    nodes,
+    edges: [],
+    bindings: [],
+    scopes: [],
+  });
+}
+
+function addSend(
+  definition: typeof SLACK_SEND,
+  options: { config?: Record<string, unknown>; from?: string } = { from: "t" },
+) {
+  const { result } = renderHook(() =>
+    useInsertNode([CHANNEL, SLACK_SEND, TELEGRAM_SEND, MCP_CALL]),
+  );
+  result.current(definition, {
+    config: options.config,
+    from: options.from === undefined ? undefined : { nodeId: options.from, portId: "out" },
+  });
+  const graph = useWorkflowEditorStore.getState().graph;
+  const added = graph?.nodes.find((item) => item.definition_id === definition.id);
+  return {
+    graph,
+    added,
+    wired: graph?.bindings
+      .filter((binding) => binding.target_node_id === added?.id)
+      .map((binding) => [
+        binding.target_field,
+        binding.source.kind === "node_output" ? binding.source.field_path.join("/") : null,
+      ]),
+  };
+}
+
+it("starts Send a message after a channel trigger as the trigger's bot, answering where the message came from", () => {
+  seedChannel();
+  const { added, wired } = addSend(SLACK_SEND);
+  expect(added?.config).toEqual({ bot_id: "b1" });
+  expect(wired).toEqual([
+    ["channel_id", "channel_id"],
+    ["thread_id", "thread_id"],
+  ]);
+
+  useWorkflowEditorStore.getState().undo();
+  const undone = useWorkflowEditorStore.getState().graph;
+  expect(undone?.nodes.map((item) => item.id)).toEqual(["t"]);
+  expect(undone?.bindings).toEqual([]);
+});
+
+it("suggests nothing when the trigger's bot is of another platform", () => {
+  seedChannel();
+  const { added, wired } = addSend(TELEGRAM_SEND);
+  expect(added?.config).toEqual({});
+  expect(wired).toEqual([]);
+});
+
+it.each([
+  [
+    "while the bots load",
+    () => channelBots.mockReturnValue({ bots: [], isLoading: true, error: null }),
+  ],
+  [
+    "after they fail",
+    () =>
+      channelBots.mockReturnValue({
+        bots: [{ id: "b1", platform: "slack" }],
+        isLoading: false,
+        error: new Error("boom"),
+      }),
+  ],
+  ["without channels:manage", () => mayManage.mockReturnValue(false)],
+])("suggests nothing %s", (_case, arrange) => {
+  seedChannel();
+  arrange();
+  const { added, wired } = addSend(SLACK_SEND);
+  expect(added?.config).toEqual({});
+  expect(wired).toEqual([]);
+});
+
+it("asks for the bots only for a member who may manage them", () => {
+  seedChannel();
+  mayManage.mockReturnValue(false);
+  addSend(SLACK_SEND);
+  expect(channelBots).toHaveBeenCalledWith(false);
+});
+
+it("suggests nothing when the trigger names no bot, names an unknown one, or is not upstream", () => {
+  seedChannel({});
+  expect(addSend(SLACK_SEND).added?.config).toEqual({});
+  useWorkflowEditorStore.getState().teardown();
+  seedChannel({ bot_id: "gone" });
+  expect(addSend(SLACK_SEND).wired).toEqual([]);
+  useWorkflowEditorStore.getState().teardown();
+  seedChannel({ bot_id: "b1" }, false);
+  const unwired = addSend(SLACK_SEND, { from: "a" });
+  expect(unwired.added?.config).toEqual({});
+  expect(unwired.wired).toEqual([]);
+});
+
+it("suggests nothing for a step that is not Send a message", () => {
+  seedChannel();
+  const { result } = renderHook(() => useInsertNode([CHANNEL, MCP_CALL]));
+  result.current(MCP_CALL, { from: { nodeId: "t", portId: "out" } });
+  expect(useWorkflowEditorStore.getState().graph?.bindings).toEqual([]);
+});
+
+it("keeps a bot the step was added with, and still binds the reply", () => {
+  seedChannel();
+  const { added, wired } = addSend(SLACK_SEND, { config: { bot_id: "b9" }, from: "t" });
+  expect(added?.config).toEqual({ bot_id: "b9" });
+  expect(wired).toEqual([
+    ["channel_id", "channel_id"],
+    ["thread_id", "thread_id"],
+  ]);
+});
+
+it("does not fetch the channel bots for a read-only canvas", () => {
+  channelBots.mockClear();
+  renderHook(() => useInsertNode([STEP], true));
+  expect(channelBots).toHaveBeenCalledWith(false);
+  channelBots.mockClear();
+  renderHook(() => useInsertNode([STEP], false));
+  expect(channelBots).toHaveBeenCalledWith(true);
 });

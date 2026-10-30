@@ -118,7 +118,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const selection = useWorkflowEditorStore((state) => state.selection);
   const revealNodeId = useWorkflowEditorStore((state) => state.revealNodeId);
   const clearReveal = useWorkflowEditorStore((state) => state.clearReveal);
-  const insert = useInsertNode(catalog);
+  const insert = useInsertNode(catalog, readOnly);
 
   const { screenToFlowPosition, fitView, getZoom, flowToScreenPosition } = useReactFlow();
   const flowStore = useStoreApi();

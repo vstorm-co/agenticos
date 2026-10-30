@@ -71,6 +71,15 @@ describe("useMcpAppStep", () => {
     expect(result.current?.tool).toBe("draft_gmail_message");
   });
 
+  it("groups a tool by its name, and has no app for a sign-in tool", () => {
+    const calendar = renderHook(() => useMcpAppStep({ connection_id: "c1", tool: "get_events" }));
+    expect(calendar.result.current?.app.id).toBe("google_calendar");
+    const signIn = renderHook(() =>
+      useMcpAppStep({ connection_id: "c1", tool: "start_google_auth" }),
+    );
+    expect(signIn.result.current).toBeNull();
+  });
+
   it("has no tool yet before one is chosen", () => {
     const { result } = renderHook(() => useMcpAppStep({ connection_id: "c1" }));
     expect(result.current?.tool).toBe("");

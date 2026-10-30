@@ -239,7 +239,8 @@ class WorkflowRunInputInvalidError(AppException):
     """The run's input does not fit the fields its Manual or API trigger declares (422).
 
     `details["problems"]` names each field that is missing, of the wrong type,
-    not one of a choice's options, or not declared at all.
+    not one of a choice's options, or not declared at all. Each entry is
+    `{field, message, type}`, `type` being the validator's own error type.
     """
 
     message = "The run's input does not fit the fields this workflow asks for"

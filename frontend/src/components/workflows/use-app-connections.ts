@@ -34,7 +34,8 @@ export interface McpAppStep {
 export function useMcpAppStep(config: Record<string, unknown>): McpAppStep | null {
   const { connections } = useAppConnections();
   const connection = connections?.find((one) => one.id === config.connection_id);
-  const app = connection === undefined ? null : appForCatalogKey(connection.catalog_key);
+  const tool = typeof config.tool === "string" ? config.tool : "";
+  const app = connection === undefined ? null : appForCatalogKey(connection.catalog_key, tool);
   if (connection === undefined || app === null) return null;
-  return { app, connection, tool: typeof config.tool === "string" ? config.tool : "" };
+  return { app, connection, tool };
 }

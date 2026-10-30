@@ -1,5 +1,5 @@
 ---
-source_sha: "f403f3a8ab4b"
+source_sha: "2f49c387cc96"
 ---
 
 # La API HTTP { #the-http-api }
@@ -425,7 +425,7 @@ Los ID de entregas de webhook y GitHub sobreviven a la retención del contenido 
 
 Publicar disparadores automáticos y cambiar su autoridad de ejecución requiere una sesión de miembro (`403` para claves API de organización). Las claves pueden publicar workflows manuales, iniciar ejecuciones dentro de sus ámbitos y pausar exposiciones, pero no activarlas, rotar secretos/enlaces de formularios, cambiar programaciones ni elegir una nueva identidad para el workflow de errores. Estas operaciones conservan la autoridad de un usuario para eventos futuros.
 
-Los formularios públicos aplican el límite de bytes de entrada al leer el flujo de la solicitud, antes de analizar JSON o buscar el token. Los cuerpos demasiado grandes, declarados o enviados por fragmentos, devuelven `413`; JSON mal formado y campos no válidos devuelven `422`.
+Los formularios públicos aplican el límite de bytes de entrada al leer el flujo de la solicitud, antes de analizar JSON o buscar el token. Los cuerpos demasiado grandes, declarados o enviados por fragmentos, devuelven `413`; JSON mal formado y campos no válidos devuelven `422`. Cada entrada de `details.problems` de un `422` es `{field, message, type}`, donde `type` es el tipo de error propio del validador (`missing`, `int_type`, `extra_forbidden`, ...), de modo que un formulario puede decir, respuesta por respuesta, qué necesitaba.
 
 
 Un workflow cuyo nodo trigger es un webhook o una programación recibe su exposure al

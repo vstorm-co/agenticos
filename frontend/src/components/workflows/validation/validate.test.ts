@@ -270,6 +270,7 @@ describe("drift parity — happy graphs the backend publishes", () => {
         edge("e4", "then", "out", "m", "in"),
         edge("e5", "else", "out", "m", "in"),
       ],
+      bindings: [literalBinding("branch", "value", true)],
     });
     expect(run(g)).toEqual([]);
   });
@@ -325,6 +326,7 @@ describe("drift parity — happy graphs the backend publishes", () => {
         edge("e2", "branch", "then", "then", "in"),
         edge("e3", "branch", "otherwise", "else", "in"),
       ],
+      bindings: [literalBinding("branch", "value", true)],
     });
     expect(run(g)).toEqual([]);
   });
@@ -444,7 +446,10 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("e3", "branch", "then", "c", "in"),
         edge("e4", "b", "out", "c", "in"),
       ],
-      bindings: [nodeOutputBinding("c", "value", "b", "out", ["value"])],
+      bindings: [
+        literalBinding("branch", "value", true),
+        nodeOutputBinding("c", "value", "b", "out", ["value"]),
+      ],
     });
     expect(codesOf(run(g))).toEqual(["binding-unavailable"]);
   });
@@ -525,6 +530,7 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("e4", "t", "out", "m", "in"),
         edge("e5", "o", "out", "m", "in"),
       ],
+      bindings: [literalBinding("branch", "value", true)],
     });
     expect(codesOf(run(g))).toEqual(["merge-not-exclusive"]);
   });
@@ -590,6 +596,42 @@ describe("drift parity — graphs the backend refuses", () => {
       ],
     });
     expect(codesOf(run(g))).toEqual(["merge-duplicate-branch"]);
+  });
+
+  it("rule 5 — a merge may join the branches of a step that routes its errors", () => {
+    const routed = { ...node("s", "test.consumer_noreq"), policy: { on_error: "route" as const } };
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        routed,
+        node("ok", "test.consumer_noreq"),
+        node("bad", "test.consumer_noreq"),
+        node("m", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "s", "in"),
+        edge("e2", "s", "out", "ok", "in"),
+        edge("e3", "s", "error", "bad", "in"),
+        edge("e4", "ok", "out", "m", "in"),
+        edge("e5", "bad", "out", "m", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).toEqual([]);
+  });
+
+  it("rule 5 — a merge may take a routed step's out and error ports straight", () => {
+    const routed = { ...node("s", "test.consumer_noreq"), policy: { on_error: "route" as const } };
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), routed, node("m", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "s", "in"),
+        edge("e2", "s", "out", "m", "in"),
+        edge("e3", "s", "error", "m", "in"),
+      ],
+    });
+    expect(codesOf(run(g))).toEqual([]);
   });
 
   it("rule 5 — a merge taking two ports of a step that does not branch exclusively", () => {
@@ -700,6 +742,7 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("x7", "a", "out", "m", "in"),
         edge("x8", "b", "out", "m", "in"),
       ],
+      bindings: [literalBinding("branch", "value", true)],
     });
     expect(codesOf(run(g))).toEqual(["merge-not-exclusive"]);
   });
@@ -827,6 +870,27 @@ describe("drift parity — graphs the backend refuses", () => {
       edges: [edge("e1", "a", "out", "b", "in")],
     });
     expect(codesOf(run(g))).toEqual(["input-not-bound"]);
+  });
+
+  it("rule 9 — an if or a switch with nothing bound to its value", () => {
+    for (const id of ["logic.if", "logic.switch"]) {
+      const g = graph({
+        entry: "entry",
+        nodes: [echo("entry"), node("d", id)],
+        edges: [edge("e1", "entry", "out", "d", "in")],
+      });
+      expect(
+        run(g)
+          .filter((p) => p.code === "decision-value-not-bound")
+          .map((p) => [p.nodeId, p.field]),
+      ).toEqual([["d", "value"]]);
+      expect(codesOf(run({ ...g, bindings: [literalBinding("d", "value", true)] }))).not.toContain(
+        "decision-value-not-bound",
+      );
+      expect(
+        codesOf(run({ ...g, bindings: [literalBinding("d", "value/x", true)] })),
+      ).not.toContain("decision-value-not-bound");
+    }
   });
 
   it("rule 9 — a required setting left empty, unless it is set or bound", () => {

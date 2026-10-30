@@ -49,6 +49,7 @@ const graphs = vi.hoisted(() => ({
   workflow: null as unknown,
   live: null as unknown,
   catalog: [] as unknown[],
+  catalogLoading: false,
 }));
 vi.mock("@/hooks", () => ({
   useUrlState: (key: string) => [
@@ -77,7 +78,7 @@ vi.mock("@/hooks", () => ({
   useWorkflowVersion: () => ({
     version: graphs.live === null ? undefined : { graph: graphs.live },
   }),
-  useNodeCatalog: () => ({ nodes: graphs.catalog }),
+  useNodeCatalog: () => ({ nodes: graphs.catalog, isLoading: graphs.catalogLoading }),
 }));
 
 function entry(overrides: Partial<WorkflowLogEntry> = {}): WorkflowLogEntry {
@@ -109,6 +110,7 @@ beforeEach(() => {
   };
   graphs.live = null;
   graphs.catalog = [HTTP];
+  graphs.catalogLoading = false;
   logs.loading = false;
   url.values = {};
   url.set.mockReset();
@@ -221,6 +223,63 @@ describe("WorkflowLogs", () => {
     expect(props.stepPorts.get("n3")).toEqual(["error", "out", "no"]);
     // The alert dialog derives its no-step choices from the steps; the filter keeps its own.
     expect(props).not.toHaveProperty("ports");
+  });
+
+  it("hands the alerts the outcomes the live version logs, apart from the draft's", () => {
+    const switchStep = (rule: string) => ({
+      id: "s",
+      definition_id: "logic.switch",
+      definition_version: 1,
+      label: "Size",
+      config: { rules: [{ name: rule, condition: "value" }] },
+      quick_log: { message: "x", outputs: [rule] },
+    });
+    graphs.workflow = {
+      current_version_id: "v1",
+      draft_graph: { nodes: [switchStep("big")] },
+    };
+    graphs.live = { nodes: [switchStep("large")] };
+    graphs.catalog = [
+      {
+        id: "logic.switch",
+        version: 1,
+        name: "Switch",
+        ports: [{ id: "in", label: "in", kind: "input", schema: null }],
+      },
+    ];
+    render(<WorkflowLogs workflowId="wf" />);
+    const props = alerts.props.mock.lastCall?.[0] as { livePorts: Map<string, string[]> | null };
+    expect(props.livePorts?.get("s")).toEqual(["error", "large"]);
+  });
+
+  it("hands the alerts no live ports while the catalog loads", () => {
+    graphs.workflow = { current_version_id: "v1", draft_graph: { nodes: [] } };
+    graphs.live = { nodes: [logging("n1", "Fetch lead")] };
+    graphs.catalog = [];
+    graphs.catalogLoading = true;
+    render(<WorkflowLogs workflowId="wf" />);
+    expect((alerts.props.mock.lastCall?.[0] as { livePorts: unknown }).livePorts).toBeNull();
+  });
+
+  it("hands the alerts no live ports when a logging step's definition is unknown", () => {
+    // A rule for any step is judged against every logging step's outcomes, so one
+    // unknown step - or a catalog that failed and knows none - leaves nothing to judge by.
+    graphs.workflow = { current_version_id: "v1", draft_graph: { nodes: [] } };
+    graphs.live = { nodes: [logging("n1", "Fetch lead"), logging("n9", "Old", "gone.step")] };
+    graphs.catalog = [HTTP];
+    const { unmount } = render(<WorkflowLogs workflowId="wf" />);
+    expect((alerts.props.mock.lastCall?.[0] as { livePorts: unknown }).livePorts).toBeNull();
+    unmount();
+    graphs.live = { nodes: [logging("n1", "Fetch lead")] };
+    graphs.catalog = [];
+    render(<WorkflowLogs workflowId="wf" />);
+    expect((alerts.props.mock.lastCall?.[0] as { livePorts: unknown }).livePorts).toBeNull();
+  });
+
+  it("hands the alerts no live ports when the workflow has no live version", () => {
+    render(<WorkflowLogs workflowId="wf" />);
+    const props = alerts.props.mock.lastCall?.[0] as { livePorts: unknown };
+    expect(props.livePorts).toBeNull();
   });
 
   it("is read-only for the alerts until the workflow says the caller may edit it", () => {

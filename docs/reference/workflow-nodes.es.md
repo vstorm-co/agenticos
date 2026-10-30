@@ -1,5 +1,5 @@
 ---
-source_sha: "583f712a78d3"
+source_sha: "5918277bc50f"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -201,6 +201,8 @@ Mattermost o Telegram de la organización que el bot habría respondido con su p
 agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`, y
 los mensajes de un bot inician como mucho un workflow. `triggered_by` es
 `channel_message`.
+Un bot de Teams se rechaza al publicar y en una ejecución de prueba; un oyente de
+Teams publicado antes devuelve sus mensajes al agente del bot.
 
 ::: app.workflows.nodes.trigger_channel_message._handler.ChannelMessageTriggerConfig
     options:
@@ -420,12 +422,16 @@ ejecuta los dos primeros tal cual.
 
 `logic.if` evalúa una condición JMESPath sobre su `value` enlazado y sigue por el
 puerto `true` o `false`. Cada nodo de la rama no tomada queda registrado como
-`skipped`. `logic.merge` vuelve a unir las dos ramas. Se ejecuta cuando la rama
+`skipped`. `value` debe estar enlazado: publicar, y una ejecución de prueba del
+borrador, rechazan el paso sin él; una versión publicada antes sigue funcionando y
+lee null.
+
+`logic.merge` vuelve a unir las ramas. Se ejecuta cuando la rama
 tomada llega a él y pasa la salida de esa rama como `value`. Publicar comprueba
 que las entradas de un merge salen de un mismo paso por puertos distintos y que
-ese paso toma exactamente un puerto en cada run - un If / else, un Switch, una
-decisión, `ai.classify`, una comprobación de tabla o una aprobación -, de modo que
-siempre se ejecuta exactamente una de ellas.
+ese paso toma exactamente un puerto en cada run - un If, un Switch, una
+decisión, `ai.classify`, una comprobación de tabla, una aprobación o un paso que
+encamina sus errores -, de modo que siempre se ejecuta exactamente una de ellas.
 
 Un merge puede tomar dos o más puertos de ese paso directamente, sin ningún paso
 entre medias, como `needs_reply` y `unsure` de `ai.classify`: se ejecuta una vez,
@@ -456,7 +462,9 @@ analizar, o que llama a otra cosa, no se puede publicar.
 **Switch.** Envía la ejecución por la primera de muchas ramas cuya regla se cumple.
 Cada regla tiene un nombre, que es el puerto de su rama, y una condición JMESPath
 sobre el `value` vinculado, probadas en orden; `otherwise` se lleva la ejecución
-cuando ninguna se cumple. Las ramas se reúnen en un `logic.merge`, que las acepta
+cuando ninguna se cumple. `value` debe estar enlazado: publicar, y una ejecución de
+prueba del borrador, rechazan el paso sin él; una versión publicada antes sigue
+funcionando y lee null. Las ramas se reúnen en un `logic.merge`, que las acepta
 porque siempre se toma exactamente una. Una regla que falla con sus datos hace fallar
 el paso con `CONDITION_FAILED` y nombra la regla.
 
@@ -556,7 +564,7 @@ no existe o no está compartida hace fallar el paso con `SECRET_NOT_USABLE`, un
 modelo que no responde con `DECISION_FAILED`, que se reintenta según la política
 del paso, y un despliegue construido sin el extra `browser` con
 `DECISION_MODEL_UNAVAILABLE`. Un merge puede volver a unir las ramas de una
-decisión, como las de un paso If / else.
+decisión, como las de un If.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -589,6 +597,13 @@ para publicar, y al principal del run en cada run. Un bot borrado, apagado o de 
 plataforma hace fallar el paso con `CHANNEL_NOT_USABLE`. Una plataforma que rechaza
 una llamada al ejecutarse lo hace fallar con `CHANNEL_UNSUPPORTED`, y una que no
 responde, con `CHANNEL_CALL_FAILED`. El envío nunca se repite solo.
+
+**Send a message** responde dentro de un hilo cuando `thread_id` está definido: la
+marca de tiempo del hilo en Slack, el id de la publicación raíz en Mattermost o el
+número de un tema de foro en Telegram. El mensaje se publica en el hilo, nunca como
+respuesta citada. Un `thread_id` vacío publica en el propio canal. Un id de canal o de
+hilo con un `:`, o un hilo de Telegram que no es un número, hace fallar el paso con
+`CHANNEL_TARGET_INVALID` antes de enviar nada.
 
 ::: app.workflows.nodes._channels.ChannelBotConfig
 
@@ -759,6 +774,11 @@ Cuando la llamada se corta, lo que sigue depende de si pudo llegar al servidor:
 | La herramienta no declara el **Idempotency key argument** | `MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED`, nada enviado |
 | La herramienta respondió con un error | `MCP_TOOL_ERROR`, o la respuesta como salida |
 | La respuesta estructurada supera 1 MiB | `MCP_RESULT_TOO_LARGE` |
+| La respuesta estructurada no es JSON | `MCP_RESULT_INVALID` |
+| El paso no nombra servidor ni herramienta | `MCP_CALL_NOT_CONFIGURED`, nada enviado |
+| La herramienta no está permitida en esta conexión | `MCP_TOOL_NOT_ALLOWED`, nada enviado |
+| Un aprobador nombrado ya no puede decidir aprobaciones | `APPROVER_UNAVAILABLE`, nada enviado |
+| La llamada no fue aprobada | `MCP_CALL_REJECTED`, nada enviado |
 
 ::: app.workflows.nodes.mcp_call._handler.McpCallConfig
 

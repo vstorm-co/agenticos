@@ -4,6 +4,8 @@
 branch's port - and a JMESPath condition over the bound `value`. The rules are
 tried in order and the first that holds takes the run; `otherwise` takes it when
 none does. The step hands on the branch it chose and the value, unchanged.
+`value` must be bound: publishing, and a test run of the draft, refuse the step
+without it.
 
 ## Why it is not a chain of If steps
 

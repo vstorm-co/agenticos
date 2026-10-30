@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
-import { appToolLabel } from "@/components/workflows/apps";
+import { appToolLabel, serverGroupId } from "@/components/workflows/apps";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { sectionSwatchClass } from "@/components/workflows/node-visuals";
 import { writeNodeDragData } from "@/components/workflows/palette/drag";
@@ -221,7 +221,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                   {label(open.category)}
                   {open.app !== undefined && (
                     <span className="mt-0.5 block text-xs font-normal tracking-normal normal-case">
-                      {t(`appServerFull.${open.category}`)}
+                      {t(`appServerFull.${serverGroupId(open.app.app)}`)}
                     </span>
                   )}
                   {hint(open.category) !== null && (
@@ -241,11 +241,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                 </p>
               ))}
               {open.app?.connectKey != null && (
-                <ConnectRow
-                  group={open}
-                  catalogKey={open.app.connectKey}
-                  label={label(open.category)}
-                />
+                <ConnectRow group={open} catalogKey={open.app.connectKey} />
               )}
               {open.app?.needsPermission === true && (
                 <p className="text-muted-foreground px-2 py-1.5 text-xs">
@@ -315,15 +311,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
 }
 
 /** The way to get an app's actions when no connection provides them: opens that catalog entry. */
-function ConnectRow({
-  group,
-  catalogKey,
-  label,
-}: {
-  group: PickerGroup;
-  catalogKey: string;
-  label: string;
-}) {
+function ConnectRow({ group, catalogKey }: { group: PickerGroup; catalogKey: string }) {
   const t = useTranslations("workflows");
   const router = useRouter();
   return (
@@ -333,7 +321,7 @@ function ConnectRow({
       className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs"
     >
       <Plus aria-hidden="true" className="size-4 shrink-0" />
-      {t("appConnect", { server: t(`appServer.${group.category}`), app: label })}
+      {t("appConnect", { server: t(`appServer.${group.category}`) })}
     </Command.Item>
   );
 }

@@ -118,6 +118,10 @@ def ports_for(config: BaseModel | None) -> tuple[Port, ...]:
 def input_problems(config: TriggerInputConfig, run_input: dict[str, Any]) -> list[dict[str, str]]:
     """What is wrong with `run_input` against the declared fields, one entry a field.
 
+    Each entry is `{field, message, type}`, `type` being the validator's own error
+    type (`missing`, `int_type`, `extra_forbidden`, ...), so a form can say per answer
+    what it needed. A refused value is never quoted.
+
     Empty when it fits, or when no fields are declared.
     """
     if not config.fields:
@@ -126,7 +130,11 @@ def input_problems(config: TriggerInputConfig, run_input: dict[str, Any]) -> lis
         payload_model(config.fields).model_validate(run_input)
     except ValidationError as exc:
         return [
-            {"field": ".".join(str(part) for part in error["loc"]), "message": error["msg"]}
+            {
+                "field": ".".join(str(part) for part in error["loc"]),
+                "message": error["msg"],
+                "type": error["type"],
+            }
             for error in exc.errors(include_url=False, include_input=False)
         ]
     return []

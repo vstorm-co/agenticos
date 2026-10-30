@@ -1,12 +1,22 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, port } from "@/components/workflows/validation/fixtures";
 import type { NodeInstance, WorkflowDetail } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { WorkflowCanvas } from "./workflow-canvas";
+
+// Adding a step reads the channel bots to start a reply wired; none are known here.
+vi.mock("@/hooks/use-permissions", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-permissions")>()),
+  usePermissions: () => ({ can: () => false }),
+}));
+vi.mock("@/hooks/use-channel-bots", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-channel-bots")>()),
+  useChannelBots: () => ({ bots: [], isLoading: false, error: null }),
+}));
 
 /** The quick log on a card: + Log, the popover, the LOG tab and its marks. */
 

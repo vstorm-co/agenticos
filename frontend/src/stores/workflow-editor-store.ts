@@ -11,6 +11,7 @@ import {
 import { create } from "zustand";
 
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
+import { carryPortRename, portRename } from "@/lib/workflows/port-rename";
 import type { StepData } from "@/lib/workflows/step-data";
 import {
   outputRefs,
@@ -657,8 +658,12 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     updateNodeConfig: (nodeId, config) => {
       const { graph } = get();
       if (graph === null) return;
+      const before = graph.nodes.find((node) => node.id === nodeId);
       const nodes = graph.nodes.map((node) => (node.id === nodeId ? { ...node, config } : node));
-      commit({ ...graph, nodes });
+      // A renamed rule, category, branch or choice keeps what reads it, in the same edit.
+      const rename = before === undefined ? null : portRename(before, config, graph);
+      const edited = { ...graph, nodes };
+      commit(rename === null ? edited : carryPortRename(edited, nodeId, rename));
     },
 
     updateNodePolicy: (nodeId, policy) => {

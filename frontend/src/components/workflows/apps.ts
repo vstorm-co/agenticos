@@ -15,6 +15,11 @@ export interface WorkflowApp {
   brand: BrandName;
   /** The definition ids of the app's native triggers. */
   triggers: readonly string[];
+  /**
+   * The server's own group: the one a tool no other app of the server claims falls into,
+   * and the only one that offers Connect or names an untested connection.
+   */
+  fallback: boolean;
   /** The MCP catalog keys whose connections provide the app's actions. */
   catalogKeys: readonly [string, ...string[]];
   /** The common tools by their raw name, to the `workflows.appTool` message that names them. */
@@ -31,6 +36,7 @@ export const WORKFLOW_APPS: readonly WorkflowApp[] = [
   {
     id: "gmail",
     brand: "gmail",
+    fallback: false,
     triggers: ["trigger.gmail"],
     catalogKeys: ["google-workspace"],
     tools: {
@@ -48,7 +54,6 @@ export const WORKFLOW_APPS: readonly WorkflowApp[] = [
       batch_modify_gmail_message_labels: "appTool.changeLabelsBatch",
       draft_gmail_message: "appTool.createDraft",
       send_gmail_message: "appTool.sendMessage",
-      start_google_auth: "appTool.startGoogleSignIn",
     },
     suggestedBindings: {
       draft_gmail_message: { thread_id: "thread_id", in_reply_to: "rfc_message_id" },
@@ -56,8 +61,54 @@ export const WORKFLOW_APPS: readonly WorkflowApp[] = [
     },
   },
   {
+    id: "google_calendar",
+    brand: "googlecalendar",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["google-workspace"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "google_drive",
+    brand: "gdrive",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["google-workspace"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "google_docs",
+    brand: "google",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["google-workspace"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "google_sheets",
+    brand: "google",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["google-workspace"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "google_workspace",
+    brand: "google",
+    fallback: true,
+    triggers: [],
+    catalogKeys: ["google-workspace"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
     id: "outlook",
     brand: "microsoft",
+    fallback: false,
     triggers: ["trigger.outlook"],
     catalogKeys: ["ms-365"],
     tools: {
@@ -73,6 +124,42 @@ export const WORKFLOW_APPS: readonly WorkflowApp[] = [
       "send-shared-mailbox-draft": { userId: "mailbox" },
     },
   },
+  {
+    id: "outlook_calendar",
+    brand: "microsoft",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["ms-365"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "onedrive",
+    brand: "onedrive",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["ms-365"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "excel",
+    brand: "microsoft",
+    fallback: false,
+    triggers: [],
+    catalogKeys: ["ms-365"],
+    tools: {},
+    suggestedBindings: {},
+  },
+  {
+    id: "microsoft_365",
+    brand: "microsoft",
+    fallback: true,
+    triggers: [],
+    catalogKeys: ["ms-365"],
+    tools: {},
+    suggestedBindings: {},
+  },
 ];
 
 /** A step's own group marks: what the picker and the cards draw for the app. */
@@ -80,10 +167,79 @@ export const APP_MARKS = Object.fromEntries(
   WORKFLOW_APPS.map((app) => [app.id, brandMark(app.brand)]),
 );
 
-/** The app whose actions a connection to this catalog entry provides, if any. */
-export function appForCatalogKey(catalogKey: string | null): WorkflowApp | null {
+/** The sign-in tools of the servers: a step never offers them, the connection handles signing in. */
+export const LOGIN_TOOLS: ReadonlySet<string> = new Set([
+  "start_google_auth",
+  "login",
+  "logout",
+  "verify-login",
+]);
+
+/** Tools the name heuristic cannot place, by the app they belong to. */
+const TOOL_GROUPS: Readonly<Record<string, string>> = {
+  get_events: "google_calendar",
+  manage_event: "google_calendar",
+  query_freebusy: "google_calendar",
+  search_drive_files: "google_drive",
+  get_drive_file_content: "google_drive",
+  append_table_rows: "google_sheets",
+  read_sheet_values: "google_sheets",
+  "list-calendar-events": "outlook_calendar",
+  "create-calendar-event": "outlook_calendar",
+};
+
+/** Per server, the words in a tool's name that place it in an app; the first rule to match wins. */
+const TOOL_TOKENS: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
+  "google-workspace": [
+    ["gmail", ["gmail"]],
+    ["google_calendar", ["calendar", "calendars", "event", "events", "freebusy"]],
+    ["google_sheets", ["sheet", "sheets", "spreadsheet", "spreadsheets"]],
+    ["google_docs", ["doc", "docs", "document", "documents"]],
+    ["google_drive", ["drive", "file", "files", "folder", "folders"]],
+  ],
+  "ms-365": [
+    ["excel", ["excel", "workbook", "worksheet", "worksheets"]],
+    ["outlook_calendar", ["calendar", "calendars", "event", "events", "meeting", "meetings"]],
+    ["outlook", ["mail", "email", "message", "messages", "draft", "drafts", "mailbox", "inbox"]],
+    ["onedrive", ["drive", "drives", "file", "files", "folder", "folders"]],
+  ],
+};
+
+/**
+ * The app a tool of a connection to this catalog entry belongs to. With no tool named,
+ * the server's own group; a sign-in tool, none; otherwise the app that lists the tool,
+ * then the explicit table, then the words in its name, then the server's own group.
+ * Null for a catalog entry no app covers.
+ */
+export function appForCatalogKey(catalogKey: string | null, tool?: string): WorkflowApp | null {
   if (catalogKey === null) return null;
-  return WORKFLOW_APPS.find((app) => app.catalogKeys.includes(catalogKey)) ?? null;
+  const apps = WORKFLOW_APPS.filter((app) => app.catalogKeys.includes(catalogKey));
+  const fallback = apps.find((app) => app.fallback);
+  if (fallback === undefined) return null;
+  if (tool === undefined || tool === "") return fallback;
+  if (LOGIN_TOOLS.has(tool)) return null;
+  const listed = apps.find(
+    (app) => Object.hasOwn(app.tools, tool) || Object.hasOwn(app.suggestedBindings, tool),
+  );
+  if (listed !== undefined) return listed;
+  const byId = (id: string | undefined) => apps.find((app) => app.id === id);
+  const explicit = byId(TOOL_GROUPS[tool]);
+  if (explicit !== undefined) return explicit;
+  const words = new Set(tool.toLowerCase().split(/[_\-.]+/));
+  const rule = (TOOL_TOKENS[catalogKey] ?? []).find(([, tokens]) =>
+    tokens.some((token) => words.has(token)),
+  );
+  return byId(rule?.[0]) ?? fallback;
+}
+
+/** The id of the server's own group that `app`'s connections belong to: what names its server. */
+export function serverGroupId(app: WorkflowApp): string {
+  const own = WORKFLOW_APPS.find(
+    (one) => one.fallback && one.catalogKeys[0] === app.catalogKeys[0],
+  );
+  // i18n-exempt: a registry invariant, never shown.
+  if (own === undefined) throw new Error(`No server group for the app ${app.id}`);
+  return own.id;
 }
 
 /** `list_gmail_labels` as "List gmail labels": a tool nobody named gets its own name, readable. */
