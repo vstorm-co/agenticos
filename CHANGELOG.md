@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.31.2] - 2026-10-30
+
 ### Fixed
 
 - Give frontend CI 45 minutes to complete coverage and its production build; align the operational timeout table in all four documentation languages with the current jobs.
