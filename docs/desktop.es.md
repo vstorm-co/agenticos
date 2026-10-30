@@ -1,5 +1,5 @@
 ---
-source_sha: "10fa5377e44e"
+source_sha: "9350ca23bd90"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -303,6 +303,12 @@ ajustes y cuando un chat nuevo recibe su ID.
 | Solo lectura           | Leer archivos; no se escribe nada y no se ejecuta ningún comando | La app rechaza escrituras y comandos                                                                                                 |
 | Escribir en la carpeta | Leer, escribir dentro de la carpeta, ejecutar comandos           | Los comandos se ejecutan bajo Seatbelt en macOS y bubblewrap en Linux, con escritura solo en la carpeta y los directorios temporales |
 | Acceso completo        | Los comandos se ejecutan como tú, sin aislamiento                | Cada comando se muestra antes en un diálogo nativo para permitirlo                                                                   |
+
+Los comandos pueden leer la carpeta autorizada y los archivos de ejecución del
+sistema, pero no otros archivos personales ni credenciales heredadas de la
+aplicación. Las herramientas que los necesiten requieren permiso separado para
+todo el ordenador. Las lecturas directas de archivos locales tienen un límite de
+10 MiB para que un resultado grande no desconecte el dispositivo.
 
 Windows ofrece solo lectura y acceso completo. Linux ofrece escribir en la carpeta
 solo cuando `bwrap` está instalado.

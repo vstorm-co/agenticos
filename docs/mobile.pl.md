@@ -1,5 +1,5 @@
 ---
-source_sha: "4efca0168725"
+source_sha: "20c345dd22a5"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -102,6 +102,10 @@ Przełączenie czyści również stare Live Activities, oczekujące akcje i przy
 widżetów. Natywne kliknięcia powiadomień są związane z logowaniem, które
 zarejestrowało push; opóźnione powiadomienie nie otworzy rozmowy na innym
 serwerze.
+
+Zmiana powiązanego konta usuwa już wyświetlone powiadomienia Androida. Zmiana
+serwera usuwa też przypięte agenty z szybkich akcji ikony aplikacji iOS.
+
 
 ## Prywatność powiadomień { #notification-privacy }
 

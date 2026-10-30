@@ -1,5 +1,5 @@
 ---
-source_sha: "10fa5377e44e"
+source_sha: "9350ca23bd90"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -293,6 +293,12 @@ nowemu czatowi identyfikatora.
 | Tylko odczyt     | Czytać pliki; nic nie jest zapisywane i żadne polecenie się nie uruchamia | Aplikacja odrzuca zapisy i polecenia                                                                                    |
 | Zapis w folderze | Czytać, zapisywać w folderze, uruchamiać polecenia                        | Polecenia działają pod Seatbelt na macOS i bubblewrap na Linuksie, z zapisem tylko w folderze i katalogach tymczasowych |
 | Pełny dostęp     | Polecenia działają jako ty, bez piaskownicy                               | Każde polecenie jest najpierw pokazane w natywnym oknie do zatwierdzenia                                                |
+
+Polecenia w folderze mogą czytać wybrany folder i systemowe pliki środowiska
+uruchomieniowego, ale nie pozostałe pliki katalogu domowego ani odziedziczone
+sekrety aplikacji. Narzędzia potrzebujące tych danych wymagają osobnej zgody na
+cały komputer. Bezpośredni odczyt plików lokalnych ma limit 10 MiB, aby zbyt duży
+wynik nie rozłączał urządzenia.
 
 Windows oferuje tylko odczyt i pełny dostęp. Linux oferuje zapis w folderze tylko
 wtedy, gdy jest zainstalowany `bwrap`.

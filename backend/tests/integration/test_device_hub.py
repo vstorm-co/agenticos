@@ -239,6 +239,7 @@ async def test_the_heartbeat_keeps_a_device_listed_while_its_session_is_open(
     monkeypatch.setattr(_hub, "HEARTBEAT_SECONDS", 0.05)
     _session_is(monkeypatch, active=True)
     device = _hub.Device(session_id=uuid4(), user_id=uuid4(), platform="macos", connection="c")
+    await _hub._announce(redis, device)
     with anyio.move_on_after(0.2):
         await _hub._keep_listed(redis, device, _App())
     assert await redis.raw.ttl(f"devicehub:device:{device.session_id}") > 0
@@ -278,3 +279,87 @@ def _session_is(monkeypatch: pytest.MonkeyPatch, *, active: bool, expired: bool 
             )
         ),
     )
+
+
+async def test_connection_recency_is_not_session_uuid_order(redis: RedisClient) -> None:
+    user_id = uuid4()
+    older = _hub.Device(
+        session_id=UUID(int=1),
+        user_id=user_id,
+        platform="macos",
+        connection="old",
+        connected_at=datetime.now(UTC) - timedelta(days=1),
+    )
+    newer = _hub.Device(
+        session_id=UUID(int=2**128 - 1),
+        user_id=user_id,
+        platform="linux",
+        connection="new",
+        connected_at=datetime.now(UTC),
+    )
+    try:
+        await _hub._announce(redis, older)
+        await _hub._announce(redis, newer)
+        assert [d.session_id for d in await device_hub.connected(user_id)] == [
+            newer.session_id,
+            older.session_id,
+        ]
+        assert (await device_hub.wait_for(user_id, None, timeout=0)).session_id == newer.session_id
+    finally:
+        await _hub._withdraw(redis, older)
+        await _hub._withdraw(redis, newer)
+
+
+@pytest.mark.security
+async def test_two_sockets_never_receive_the_same_device_call(redis: RedisClient) -> None:
+    user_id, session_id = uuid4(), uuid4()
+    old, new = _App(), _App()
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(
+            lambda: device_hub.serve(old, user_id=user_id, session_id=session_id, platform="macos")
+        )
+        await _until(lambda: _connected(user_id, session_id))
+        first = (await device_hub.connected(user_id))[0].connection
+        tasks.start_soon(
+            lambda: device_hub.serve(new, user_id=user_id, session_id=session_id, platform="macos")
+        )
+
+        async def replaced() -> bool:
+            return (await device_hub.connected(user_id))[0].connection != first
+
+        await _until(replaced)
+
+        async def answer() -> None:
+            await new.got_call.wait()
+            await new.says(
+                {"type": "result", "id": new.sent[-1]["id"], "ok": True, "value": {"once": True}}
+            )
+
+        tasks.start_soon(answer)
+        assert await device_hub.call(session_id, "shell.run", {}, timeout=5) == {"once": True}
+        assert old.sent == []
+        assert len(new.sent) == 1
+        # An old socket's late hello cannot reclaim presence from its replacement.
+        await old.says({"type": "hello", "version": "old", "capabilities": {}})
+        await _until(lambda: _old_closed(old))
+        assert (await device_hub.connected(user_id))[0].connection != first
+        await new.leaves()
+
+
+async def _old_closed(app: _App) -> bool:
+    return app.closed == (1000, "Replaced by a newer connection")
+
+
+async def test_a_replaced_heartbeat_cannot_reclaim_presence(
+    redis: RedisClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old = _hub.Device(session_id=uuid4(), user_id=uuid4(), platform="macos", connection="old")
+    new = old.model_copy(update={"connection": "new"})
+    await _hub._announce(redis, new)
+    monkeypatch.setattr(_hub, "HEARTBEAT_SECONDS", 0)
+    try:
+        with pytest.raises(_hub._Disconnected):
+            await _hub._keep_listed(redis, old, _App())
+        assert (await device_hub.connected(old.user_id))[0].connection == "new"
+    finally:
+        await _hub._withdraw(redis, new)

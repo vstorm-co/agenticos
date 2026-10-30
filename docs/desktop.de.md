@@ -1,5 +1,5 @@
 ---
-source_sha: "10fa5377e44e"
+source_sha: "9350ca23bd90"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -310,6 +310,12 @@ wenn die Einstellungen geschlossen werden und ein neuer Chat seine ID erhält.
 | Nur lesen           | Dateien lesen; nichts wird geschrieben und kein Befehl läuft | Die App lehnt Schreibzugriffe und Befehle ab                                                                                    |
 | Im Ordner schreiben | Lesen, im Ordner schreiben, Befehle ausführen                | Befehle laufen unter Seatbelt auf macOS und bubblewrap auf Linux, schreibbar nur im Ordner und in den temporären Verzeichnissen |
 | Vollzugriff         | Befehle laufen als Sie, ohne Sandbox                         | Jeder Befehl wird zuerst in einem nativen Dialog zur Freigabe gezeigt                                                           |
+
+Ordnerbefehle dürfen den freigegebenen Ordner und System-Laufzeitdateien lesen,
+aber keine anderen Dateien im Home-Verzeichnis oder geerbte Anmeldedaten der
+Anwendung. Dafür ist eine separate Freigabe des ganzen Computers nötig. Direkte
+lokale Dateizugriffe sind auf 10 MiB begrenzt, damit große Ergebnisse die
+Geräteverbindung nicht trennen.
 
 Windows bietet Nur lesen und Vollzugriff. Linux bietet Schreiben im Ordner nur,
 wenn `bwrap` installiert ist.

@@ -1,5 +1,6 @@
 import Foundation
 import Tauri
+import UIKit
 import WidgetKit
 
 struct GlanceArgs: Decodable {
@@ -24,8 +25,11 @@ class WidgetPlugin: Plugin {
     if let faces = AppGroup.faces, FileManager.default.fileExists(atPath: faces.path) {
       try FileManager.default.removeItem(at: faces)
     }
-    WidgetCenter.shared.reloadAllTimelines()
-    invoke.resolve()
+    DispatchQueue.main.async {
+      UIApplication.shared.shortcutItems = []
+      WidgetCenter.shared.reloadAllTimelines()
+      invoke.resolve()
+    }
   }
 
   @objc public func update(_ invoke: Invoke) throws {

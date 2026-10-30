@@ -285,6 +285,11 @@ The folder and mode stay selected when settings close and when a new chat gets i
 | Write in the folder | Read, write inside the folder, run commands        | Commands run under Seatbelt on macOS and bubblewrap on Linux, writable only in the folder and the temporary directories |
 | Full access         | Commands run as you, unsandboxed                   | Every command is shown in a native dialog to allow first                                                                |
 
+Folder commands can read the approved folder and system runtime files, but not
+unrelated home-directory files or inherited application credentials. Tools that
+need those files require separate whole-computer consent. Direct local file reads
+are limited to 10 MiB so an oversized result cannot disconnect the device.
+
 Windows offers read only and full access. Linux offers writing in the folder only
 when `bwrap` is installed.
 

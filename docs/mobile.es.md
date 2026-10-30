@@ -1,5 +1,5 @@
 ---
-source_sha: "4efca0168725"
+source_sha: "20c345dd22a5"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -102,6 +102,11 @@ El cambio también borra Live Activities anteriores, acciones pendientes y
 agentes fijados en widgets. Los toques de notificaciones nativas se vinculan al
 inicio de sesión que registró push; una notificación tardía no abrirá una
 conversación en otro servidor.
+
+Cambiar la cuenta vinculada elimina las notificaciones de Android ya mostradas.
+Cambiar de servidor también elimina los agentes fijados de las acciones rápidas
+del icono de la app iOS.
+
 
 ## Privacidad de notificaciones { #notification-privacy }
 

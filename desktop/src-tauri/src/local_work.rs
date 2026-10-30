@@ -11,7 +11,7 @@
 //! - Read only: files can be read; nothing is written and no command runs.
 //! - Write in the folder: files inside the folder can be written, and commands run
 //!   under the operating system's sandbox (Seatbelt on macOS, bubblewrap on Linux)
-//!   that lets them write only there and in the temporary directories.
+//!   that restricts user files to that folder, with read access to system runtimes.
 //! - Full access: commands run as the person, unsandboxed - and each one is shown
 //!   in a native dialog for the person to allow first.
 
@@ -431,8 +431,15 @@ fn files_at(
             let mut data = Vec::new();
             crate::local_fs::regular(directory, &path, false)
                 .map_err(failed)?
+                .take(FILE_LIMIT + 1)
                 .read_to_end(&mut data)
                 .map_err(failed)?;
+            if data.len() as u64 > FILE_LIMIT {
+                return Err(Refusal::new(
+                    "too_large",
+                    "This file exceeds the 10 MiB local read limit.",
+                ));
+            }
             Ok(object(
                 serde_json::json!({ "data": base64::engine::general_purpose::STANDARD.encode(data) }),
             ))
@@ -592,12 +599,21 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
     if cfg!(target_os = "macos") {
         let quoted = root_text.replace('\\', "\\\\").replace('"', "\\\"");
         let profile = format!(
-            "(version 1)(allow default)(deny file-write*)\
-             (allow file-write* (subpath \"{quoted}\") (subpath \"/private/tmp\") (subpath \"/private/var/folders\") \
-             (literal \"/dev/null\") (subpath \"/dev/fd\") (literal \"/dev/stdout\") (literal \"/dev/stderr\") (literal \"/dev/tty\"))"
+            "(version 1)(allow default)(deny file-read*)(deny file-write*)(allow file-read-metadata)\
+             (allow file-read* (literal \"/\") (subpath \"{quoted}\") \
+             (subpath \"/System\") (subpath \"/usr\") (subpath \"/bin\") (subpath \"/sbin\") \
+             (subpath \"/opt/homebrew\") (subpath \"/Library/Apple\") \
+             (subpath \"/private/etc\") (subpath \"/private/var/db/dyld\") (subpath \"/dev\"))\
+             (allow file-write* (subpath \"{quoted}\") (literal \"/dev/null\") \
+             (subpath \"/dev/fd\") (literal \"/dev/stdout\") (literal \"/dev/stderr\") (literal \"/dev/tty\"))"
         );
         let mut command = tokio::process::Command::new("/usr/bin/sandbox-exec");
         command.args(["-p", &profile, "/bin/sh", "-c", line]);
+        command
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin")
+            .env("HOME", root)
+            .env("TMPDIR", root);
         return Ok(command);
     }
     if cfg!(target_os = "linux") {
@@ -609,9 +625,7 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
         })?;
         let mut command = tokio::process::Command::new(bwrap);
         command.args([
-            "--ro-bind",
-            "/",
-            "/",
+            "--unshare-pid",
             "--dev",
             "/dev",
             "--proc",
@@ -620,9 +634,35 @@ fn sandboxed(root: &Path, mode: Mode, line: &str) -> Result<tokio::process::Comm
             "/tmp",
             "--die-with-parent",
         ]);
+        // Runtime files only: binding `/` also exposes the person's SSH keys,
+        // browser profiles and other files outside the approved workspace.
+        for runtime in [
+            "/usr",
+            "/bin",
+            "/sbin",
+            "/lib",
+            "/lib64",
+            "/etc/ld.so.cache",
+            "/etc/ld.so.conf",
+            "/etc/ld.so.conf.d",
+            "/etc/resolv.conf",
+            "/etc/hosts",
+            "/etc/nsswitch.conf",
+            "/etc/ssl/certs",
+            "/etc/pki",
+        ] {
+            if Path::new(runtime).exists() {
+                command.args(["--ro-bind", runtime, runtime]);
+            }
+        }
         command.args([
             "--bind", &root_text, &root_text, "--chdir", &root_text, "--", "/bin/sh", "-c", line,
         ]);
+        command
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin")
+            .env("HOME", root)
+            .env("TMPDIR", "/tmp");
         return Ok(command);
     }
     Err(Refusal::new(
@@ -743,6 +783,54 @@ mod tests {
             .unwrap();
         assert!(read_file(&root, "huge").await.unwrap_err().contains("limit"));
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn device_file_reads_refuse_large_files_without_breaking_following_reads() {
+        let root = folder();
+        std::fs::File::create(root.join("large"))
+            .unwrap()
+            .set_len(FILE_LIMIT + 1)
+            .unwrap();
+        let args = object(serde_json::json!({"path": "large"}));
+        let refusal = files("fs.read", &root, Mode::ReadOnly, &args).await.unwrap_err();
+        assert_eq!(refusal.kind, "too_large");
+        std::fs::write(root.join("small"), "ok").unwrap();
+        let args = object(serde_json::json!({"path": "small"}));
+        assert_eq!(
+            files("fs.read", &root, Mode::ReadOnly, &args).await.unwrap()["data"],
+            "b2s="
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[tokio::test]
+    async fn workspace_shell_cannot_read_files_outside_the_grant() {
+        let root = folder();
+        let outside = folder();
+        std::fs::write(root.join("allowed"), "workspace-data").unwrap();
+        std::fs::write(outside.join("secret"), "private-data").unwrap();
+        let line = format!(
+            "cat allowed; cat {}",
+            shell_quote(&outside.join("secret").to_string_lossy())
+        );
+        let output = sandboxed(&root, Mode::WorkspaceWrite, &line)
+            .unwrap()
+            .current_dir(&root)
+            .output()
+            .await
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            text.contains("workspace-data"),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!text.contains("private-data"));
+        assert!(!output.status.success());
+        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
     }
 
     #[test]

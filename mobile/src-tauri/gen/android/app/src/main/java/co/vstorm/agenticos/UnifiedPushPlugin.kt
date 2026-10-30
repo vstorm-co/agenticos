@@ -34,7 +34,11 @@ class UnifiedPushPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun bindSession(invoke: Invoke) {
         val args = invoke.parseArgs(PushSessionArgs::class.java)
-        PushMessagingService.store(activity).edit().putString("session", args.sessionId).apply()
+        val store = PushMessagingService.store(activity)
+        if (store.getString("session", null) != args.sessionId) {
+            NotificationManagerCompat.from(activity).cancelAll()
+        }
+        store.edit().putString("session", args.sessionId).apply()
         invoke.resolve()
     }
 

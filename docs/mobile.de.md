@@ -1,5 +1,5 @@
 ---
-source_sha: "4efca0168725"
+source_sha: "20c345dd22a5"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -103,6 +103,11 @@ Ein Wechsel löscht außerdem alte Live Activities, wartende Aktionen und Widget
 Pins. Native Benachrichtigungsklicks sind an die Anmeldung ihrer Push-
 Registrierung gebunden; eine verspätete Mitteilung öffnet keine Unterhaltung auf
 einem anderen Server.
+
+Ein Wechsel des verknüpften Kontos entfernt bereits angezeigte Android-
+Benachrichtigungen. Ein Serverwechsel entfernt außerdem angeheftete Agenten aus
+den Schnellaktionen des iOS-App-Symbols.
+
 
 ## Datenschutz bei Benachrichtigungen { #notification-privacy }
 

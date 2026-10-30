@@ -84,6 +84,7 @@ class Device(BaseModel):
     platform: str
     version: str = ""
     capabilities: Capabilities = Capabilities()
+    connected_at: datetime = datetime.min.replace(tzinfo=UTC)
     connection: str = ""
     """This socket's own id, so a reconnect's presence is not removed by the old socket."""
 
@@ -125,8 +126,8 @@ def _user_key(user_id: UUID) -> str:
     return f"devicehub:user:{user_id}"
 
 
-def _inbox(session_id: UUID) -> str:
-    return f"devicehub:to:{session_id}"
+def _inbox(session_id: UUID, connection: str) -> str:
+    return f"devicehub:to:{session_id}:{connection}"
 
 
 def _reply(call_id: str) -> str:
@@ -150,7 +151,7 @@ async def connected(user_id: UUID) -> list[Device]:
             await redis.raw.srem(_user_key(user_id), raw_id)
             continue
         found.append(Device.model_validate_json(value))
-    return found
+    return sorted(found, key=lambda device: device.connected_at, reverse=True)
 
 
 WAIT_POLL_SECONDS = 2.0
@@ -193,10 +194,15 @@ async def call(
         DeviceCallFailed: The app answered with an error.
     """
     redis = await _require()
+    presence = await redis.get(_presence_key(session_id))
+    if presence is None:
+        raise DeviceUnavailable(message="Your computer is not connected", details={"op": op})
+    device = Device.model_validate_json(presence)
+    inbox = _inbox(session_id, device.connection)
     call_id = new_call_id()
     async with _subscribed(redis, _reply(call_id)) as replies:
         delivered = await redis.raw.publish(
-            _inbox(session_id), Call(id=call_id, op=op, args=args).model_dump_json()
+            inbox, Call(id=call_id, op=op, args=args).model_dump_json()
         )
         if not delivered:
             raise DeviceUnavailable(
@@ -210,7 +216,7 @@ async def call(
             # A timeout, or the run being stopped: either way the app should stop
             # the work rather than finish something nobody will read.
             with anyio.CancelScope(shield=True):
-                await redis.raw.publish(_inbox(session_id), Cancel(id=call_id).model_dump_json())
+                await redis.raw.publish(inbox, Cancel(id=call_id).model_dump_json())
             if isinstance(exc, TimeoutError):
                 raise DeviceCallTimedOut(
                     message=f"Your computer did not answer within {timeout:g} seconds",
@@ -260,13 +266,14 @@ async def serve(websocket: Socket, *, user_id: UUID, session_id: UUID, platform:
         user_id=user_id,
         platform=platform,
         connection=secrets.token_hex(8),
+        connected_at=datetime.now(UTC),
     )
-    await _announce(redis, device)
     try:
         async with (
-            _subscribed(redis, _inbox(session_id)) as inbox,
+            _subscribed(redis, _inbox(session_id, device.connection)) as inbox,
             anyio.create_task_group() as tasks,
         ):
+            await _announce(redis, device)
             tasks.start_soon(_relay, redis, inbox, websocket, device)
             tasks.start_soon(_keep_listed, redis, device, websocket)
             await _read(websocket, redis, device)
@@ -278,12 +285,30 @@ async def serve(websocket: Socket, *, user_id: UUID, session_id: UUID, platform:
             await _withdraw(redis, device)
 
 
-async def _announce(redis: RedisClient, device: Device) -> None:
-    await redis.set(
-        _presence_key(device.session_id), device.model_dump_json(), ttl=PRESENCE_TTL_SECONDS
+async def _announce(redis: RedisClient, device: Device, *, replace: bool = True) -> bool:
+    """Atomically claim presence or renew only the socket that still owns it."""
+    return bool(
+        await redis.raw.eval(
+            """
+        local current = redis.call('GET', KEYS[1])
+        if ARGV[5] ~= '1' and (not current or cjson.decode(current).connection ~= ARGV[1]) then
+            return 0
+        end
+        redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+        redis.call('SADD', KEYS[2], ARGV[4])
+        redis.call('EXPIRE', KEYS[2], ARGV[3] * 4)
+        return 1
+        """,
+            2,
+            _presence_key(device.session_id),
+            _user_key(device.user_id),
+            device.connection,
+            device.model_dump_json(),
+            PRESENCE_TTL_SECONDS,
+            str(device.session_id),
+            "1" if replace else "0",
+        )
     )
-    await redis.raw.sadd(_user_key(device.user_id), str(device.session_id))
-    await redis.expire(_user_key(device.user_id), PRESENCE_TTL_SECONDS * 4)
 
 
 async def _keep_listed(redis: RedisClient, device: Device, websocket: Socket) -> None:
@@ -297,7 +322,9 @@ async def _keep_listed(redis: RedisClient, device: Device, websocket: Socket) ->
     while True:
         await anyio.sleep(HEARTBEAT_SECONDS)
         await _require_open_session(device, websocket)
-        await _announce(redis, device)
+        if not await _announce(redis, device, replace=False):
+            await websocket.close(code=1000, reason="Replaced by a newer connection")
+            raise _Disconnected
 
 
 async def _require_open_session(device: Device, websocket: Socket) -> None:
@@ -310,10 +337,20 @@ async def _require_open_session(device: Device, websocket: Socket) -> None:
 
 async def _withdraw(redis: RedisClient, device: Device) -> None:
     """Unlist the computer - unless a newer socket of the same app already relisted it."""
-    current = await redis.get(_presence_key(device.session_id))
-    if current is None or Device.model_validate_json(current).connection == device.connection:
-        await redis.delete(_presence_key(device.session_id))
-        await redis.raw.srem(_user_key(device.user_id), str(device.session_id))
+    await redis.raw.eval(
+        """
+        local current = redis.call('GET', KEYS[1])
+        if current and cjson.decode(current).connection ~= ARGV[1] then return 0 end
+        redis.call('DEL', KEYS[1])
+        redis.call('SREM', KEYS[2], ARGV[2])
+        return 1
+        """,
+        2,
+        _presence_key(device.session_id),
+        _user_key(device.user_id),
+        device.connection,
+        str(device.session_id),
+    )
 
 
 async def _relay(redis: RedisClient, inbox: PubSub, websocket: Socket, device: Device) -> None:
@@ -357,7 +394,9 @@ async def _read(websocket: Socket, redis: RedisClient, device: Device) -> None:
         if isinstance(frame, Hello):
             device.version = frame.version
             device.capabilities = frame.capabilities
-            await _announce(redis, device)
+            if not await _announce(redis, device, replace=False):
+                await websocket.close(code=1000, reason="Replaced by a newer connection")
+                return
         elif isinstance(frame, Result):
             await redis.raw.publish(_reply(frame.id), text)
 

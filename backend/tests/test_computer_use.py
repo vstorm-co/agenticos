@@ -1235,11 +1235,12 @@ class TestTheTools:
 
         assert len(desktop.performed) == 1
         refused = [
-            part.model_response()
+            part.model_response_str()
             for message in second.new_messages()
             for part in getattr(message, "parts", [])
-            if part.part_kind == "retry-prompt"
+            if isinstance(part, ToolReturnPart) and part.tool_name == "computer_act"
         ]
+        # With no retries left, steer returns the refusal as a tool result.
         assert len(refused) == 1
         assert "Take a screenshot with `computer_screenshot` first" in refused[0]
 

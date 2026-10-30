@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Route local calls to one connection, select devices by connection recency, reject oversized local file reads, isolate folder commands from unrelated personal files and clear mobile notification/shortcut remnants when switching accounts or servers.
+
 - Preserve accepted push deliveries when fan-out times out, bound APNs previews by encoded payload size, retain device registrations on configuration mismatches and include the iOS push entitlement in generated builds.
 
 - Pin signed app release builds to the verified commit SHA instead of re-resolving a mutable release tag.

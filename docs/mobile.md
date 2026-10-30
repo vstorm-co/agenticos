@@ -96,6 +96,10 @@ Switching also clears old Live Activities, pending actions and widget pins.
 Native notification taps are bound to the sign-in that registered push, so a
 delayed notification cannot open a different server’s conversation.
 
+Changing the bound account clears already displayed Android notifications.
+Switching servers also removes pinned agents from the iOS app-icon quick actions.
+
+
 ## Notification privacy
 
 Phone notification preferences belong to the current sign-in. **Settings →
