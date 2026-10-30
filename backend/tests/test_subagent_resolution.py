@@ -474,6 +474,8 @@ class TestWhatAnInlineSpecialistCanReach:
         assert prepared.resources["kb_collection_names"] == ["kb_parent"]
         specialist_resources = prepared.built("summariser")["resources"]
         assert specialist_resources["kb_collection_names"] == ["kb_specialist"]
+        # The bound base behind the name, not a name to resolve again (#2537).
+        assert list(specialist_resources["kb_vector_scopes"]) == ["kb_specialist"]
         assert specialist_resources is not prepared.resources
 
     async def test_a_specialist_with_no_model_of_its_own_runs_on_its_callers(self):
@@ -1271,6 +1273,7 @@ class TestASpecialistTheModelInvents:
         )
         assert built["resources"] == {
             "kb_collection_names": [],
+            "kb_vector_scopes": {},
             "skills": [],
             "context_files": [],
         }

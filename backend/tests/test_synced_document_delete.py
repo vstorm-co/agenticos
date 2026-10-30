@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core import background
+from app.db.vector_tables import VectorScope
 from app.repositories import rag_document_repo
 from app.services.rag_document import RAGDocumentService
 
@@ -64,8 +65,8 @@ def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock
         collection_name="docs",
         vector_document_id=vector_document_id,
         storage_path=storage_path,
-        # No knowledge base, so the vector delete's tenant resolves to None - a
-        # deployment-wide document; the delete carries that tenant so it cannot
+        # No knowledge base, so the vector delete's scope is deployment-wide - a
+        # document with no base; the delete carries that scope so it cannot
         # reach another org's rows in a shared-named collection (#1684).
         knowledge_base_id=None,
     )
@@ -85,7 +86,31 @@ class TestDeletingATrackedDocument:
         ingestion.remove_document.assert_not_awaited()
 
         await _run_deferred(db)
-        ingestion.remove_document.assert_awaited_once_with("docs", "vector-doc-1", tenant=None)
+        ingestion.remove_document.assert_awaited_once_with(
+            "docs", "vector-doc-1", scope=VectorScope(tenant=None)
+        )
+
+    @pytest.mark.security
+    async def test_the_vectors_go_under_the_base_the_document_is_filed_under(self, monkeypatch):
+        """Its base's own scope - tenant and base - so the delete reaches this
+        document's chunks and nothing of a same-named base (#2537)."""
+        from app.repositories import knowledge_base_repo
+
+        row = _row(vector_document_id="vector-doc-1")
+        row.knowledge_base_id = uuid.uuid4()
+        scope = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=row.knowledge_base_id)
+        monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=row))
+        monkeypatch.setattr(rag_document_repo, "delete", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            knowledge_base_repo, "get_by_id", AsyncMock(return_value=MagicMock(vector_scope=scope))
+        )
+        ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
+        db = _deferring_db()
+
+        await RAGDocumentService(db).delete_document(str(row.id), ingestion)
+        await _run_deferred(db)
+
+        ingestion.remove_document.assert_awaited_once_with("docs", "vector-doc-1", scope=scope)
 
     async def test_a_document_with_no_vectors_asks_for_nothing(self, monkeypatch):
         """One that failed to index. There is nothing in the store to remove, and

@@ -2,25 +2,14 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from uuid import UUID
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.models import Document, DocumentInfo, IngestionResult, IngestionStatus
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
-
-
-class _Unset:
-    """Sentinel telling an omitted `tenant` argument from an explicit `None`.
-
-    `None` is a real tenant - the deployment-wide rows an app-scoped, personal or
-    local collection writes - so a caller that means it must be able to say so and
-    not have the ingester's bound tenant stand in (#1684)."""
-
-
-_UNSET = _Unset()
 
 
 class _CollectionRemoved(Exception):
@@ -61,22 +50,28 @@ class IngestionService:
         processor: DocumentProcessor,
         vector_store: BaseVectorStore,
         on_event: Callable[..., Awaitable[None]] | None = None,
-        tenant: UUID | None = None,
+        scope: VectorScope | None = None,
     ):
         self.processor = processor
         self.store = vector_store
         self._on_event = on_event
-        # The tenant this ingester's collection belongs to, resolved once from the
-        # knowledge base by whoever built this service (the uploading document's
-        # base, the sync source's, the flow's) rather than passed per file. It
-        # stamps every chunk written and scopes the existing-document lookup and
-        # the replace-delete, so one organization cannot find, overwrite or delete
-        # another's document in a collection whose name they share (#1684). `None`
-        # is a deployment-wide collection - an app-scoped base, the CLI, a
-        # local-path sync. Bound rather than per-call because `ingest_file` has
-        # many callers and an argument each may omit is one some caller will (the
-        # trap #992 was).
-        self._tenant = tenant
+        # The knowledge base this ingester's collection belongs to, resolved once by
+        # whoever built this service (the uploading document's base, the sync
+        # source's, the flow's) rather than passed per file: its tenant and the
+        # base itself. It stamps every chunk written and scopes the
+        # existing-document lookup and the replace-delete, so one organization
+        # cannot find, overwrite or delete another's document in a collection
+        # whose name they share (#1684), nor one base another's of the same tenant
+        # (#2537). Omitted, it is the deployment-wide tenant with no base - the
+        # CLI, a collection no base claims. Bound rather than per-call because
+        # `ingest_file` has many callers and an argument each may omit is one some
+        # caller will (the trap #992 was).
+        self._scope = scope if scope is not None else VectorScope(tenant=None)
+
+    @property
+    def scope(self) -> VectorScope:
+        """The knowledge base this ingester writes for, as the store scopes it."""
+        return self._scope
 
     async def _emit(self, event: str, data: dict[str, object]) -> None:
         if self._on_event:
@@ -106,7 +101,7 @@ class IngestionService:
                 collection_name,
                 source_path=source_path,
                 content_hash=content_hash,
-                tenant=self._tenant,
+                scope=self._scope,
             )
         except Exception as exc:
             logger.warning("Could not check for existing document: %s", exc, exc_info=True)
@@ -114,14 +109,14 @@ class IngestionService:
         return _stored(doc) if doc is not None else StoredDocument()
 
     async def document_ids_at(self, collection_name: str, source_path: str) -> list[str]:
-        """Every stored document at exactly this address, in the ingester's tenant.
+        """Every stored document at exactly this address, in the ingester's scope.
 
         Unlike `existing_document`, a store that refuses the lookup raises: this
         answers what may be deleted, and "none" on the strength of a failed query
         would delete a row whose vectors are still searchable.
         """
         return await self.store.document_ids_at(
-            collection_name, source_path=source_path, tenant=self._tenant
+            collection_name, source_path=source_path, scope=self._scope
         )
 
     async def ingest_file(
@@ -150,18 +145,18 @@ class IngestionService:
         and leave an untracked one behind (#1275). A caller that can tell whether
         the collection still exists passes it so the write is skipped instead.
 
-        The **security-bearing** tenant stamped on every chunk (the conjunct
-        retrieval ANDs into every query) is `self._tenant` - resolved once from
-        the collection's knowledge base by whoever built this service, never a
-        per-call argument. It used to also ride `document.metadata.organization_id`,
+        The **security-bearing** tenant and base stamped on every chunk (the
+        conjunct retrieval ANDs into every query) are `self._scope` - resolved
+        once from the collection's knowledge base by whoever built this service,
+        never a per-call argument. It used to also ride `document.metadata.organization_id`,
         set here from a caller-supplied `organization_id` naming whichever
         organization was *paying* for the embeddings; those agree for an org base,
-        but not for an app-scoped one, where `self._tenant` is `None` even though a
+        but not for an app-scoped one, where the scope's tenant is `None` even though a
         real organization uploaded and paid. Trusting the caller's value left an
         app-scoped base's chunks stamped with whichever organization uploaded
         first - unreachable by both the `IS NULL` scope meant to match them and
         every organization's own equality scope (#1684, FA-039). `document.metadata.organization_id`
-        is now mirrored from `self._tenant` alone, so it can only ever agree with
+        is now mirrored from the scope's tenant alone, so it can only ever agree with
         the value `_build_chunk_metadata` stamps. `source`, `organizational_unit`
         and `doc_date` are the FA-039 business metadata; `document_type` is derived
         here from the parsed filetype (P1). All ride `document.metadata`, so
@@ -181,11 +176,10 @@ class IngestionService:
 
             # Trusted, security-bearing tenant plus the business dimensions. Set
             # before insert_document so _build_chunk_metadata carries them. Mirrors
-            # self._tenant - never a caller-supplied organization_id, which is the
-            # paying organization and can disagree with it for an app-scoped base.
-            document.metadata.organization_id = (
-                str(self._tenant) if self._tenant is not None else None
-            )
+            # the scope's tenant - never a caller-supplied organization_id, which is
+            # the paying organization and can disagree with it for an app-scoped base.
+            tenant = self._scope.tenant
+            document.metadata.organization_id = str(tenant) if tenant is not None else None
             document.metadata.source = source
             document.metadata.organizational_unit = organizational_unit
             document.metadata.doc_date = doc_date
@@ -236,12 +230,12 @@ class IngestionService:
             await self.store.insert_document(
                 collection_name=collection_name,
                 document=document,
-                tenant=self._tenant,
+                scope=self._scope,
             )
 
             if existing_id:
                 try:
-                    await self.store.delete_document(collection_name, existing_id, self._tenant)
+                    await self.store.delete_document(collection_name, existing_id, self._scope)
                 except Exception:
                     # The ingest *succeeded*: the document asked for is stored.
                     # Failing here used to be reported as a failed ingest, which
@@ -306,24 +300,22 @@ class IngestionService:
         )
 
     async def remove_document(
-        self, collection_name: str, document_id: str, tenant: UUID | _Unset | None = _UNSET
+        self, collection_name: str, document_id: str, scope: VectorScope | None = None
     ) -> bool:
         """Wipes all traces of a document from the vector store.
 
-        `tenant` scopes the delete to one tenant's rows on the shared runtime
-        table (#1684). A caller that holds the document's own row - the tracking
-        service - passes the collection's tenant, exactly the tag the chunks were
-        stamped with at ingest; that tenant may be `None` for an app-scoped,
-        personal or local document, so it is passed explicitly and the sentinel
-        default distinguishes "not given" from a deliberate deployment-wide
-        `None`. Omitted, the ingester's own bound tenant stands in.
+        `scope` confines the delete to one knowledge base's rows on the shared
+        runtime table (#1684, #2537). A caller that holds the document's own row -
+        the tracking service, the retention sweep - passes the scope of the base
+        it is filed under, exactly the tags the chunks were stamped with at
+        ingest. Omitted, the ingester's own bound scope stands in.
         """
-        scoped = self._tenant if isinstance(tenant, _Unset) else tenant
+        scoped = self._scope if scope is None else scope
         try:
             await self.store.delete_document(
                 collection_name=collection_name,
                 document_id=document_id,
-                tenant=scoped,
+                scope=scoped,
             )
             await self._emit(
                 "rag.document.deleted",

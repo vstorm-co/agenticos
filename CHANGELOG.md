@@ -23,6 +23,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Knowledge bases that share a collection name and a vector tenant keep their
+  chunks apart. An app-scoped base and a personal base outside any organization,
+  or an organization's base and a member's personal base in it, no longer return,
+  count, replace or delete each other's chunks: every chunk records the knowledge
+  base it was ingested for, and every vector read and write is confined to the
+  base. An agent searches the bases it is bound to rather than whichever base of
+  that name resolves first; an agent bound to two bases that share a name
+  searches both without reaching unbound same-named bases. Resolving a collection name for an organization
+  with no base of its own falls back only to an app-scoped base, never to a
+  personal base outside any organization. A sync source writes into the
+  organization's oldest base of its collection name, as before; pointing one at
+  a collection now needs write access to that base, and adding one to another
+  base of the same name is refused. Deleting a base whose collection name another
+  base still holds - directly, by an organization purge or by an account deletion -
+  now also removes the chunks filed under it from the shared table, in the same
+  cleanup job that unlinks its files (#2537).
+  **Upgrade action:** migration `0180_stamp_rag_rows_by_base` files existing
+  chunks under their knowledge base from `rag_documents` and indexes the new key
+  on every `rag_<collection>` table. It rewrites every tracked chunk once, all in
+  one transaction, so on large deployments plan a maintenance window, keep free
+  disk for about the combined size of the `rag_<collection>` tables and their
+  indexes, and run `VACUUM ANALYZE` on them afterwards. A chunk it cannot
+  attribute to exactly one base - untracked, or tracked under no base or under
+  several - stays matched by its tenant as before, so a same-named app-scoped
+  base and personal base outside any organization still share those chunks.
+  `SELECT count(*) FROM rag_<collection> WHERE metadata->>'knowledge_base_id' IS
+  NULL` finds them; delete the documents they belong to and upload them again.
+  Where an organization has two bases of one name, a sync source shows and runs
+  only under the older one, which is where its documents have always been
+  written, and the newer base no longer finds that synced content in search.
+  Create the newer base under a name of its own to give it sources of its own.
 - Deliver model-generated photos on Mattermost, Slack, Teams and Telegram,
   including after channel approval; report missing or invalid media instead of
   silently posting only a success message. Ordinary workspace files still need

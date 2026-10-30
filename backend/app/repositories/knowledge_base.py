@@ -247,8 +247,9 @@ async def list_personal_carrying_org(
     left to the `organization_id` `ON DELETE SET NULL`, which flips their
     `vector_tenant` to `None` while their rows stay stamped with the now-deleted
     organization - stranding them behind the read side's `IS NULL` scope (#1684).
-    The purge re-stamps their rows to untagged so they match again; this is how it
-    finds them, read before the org row (and the `SET NULL`) goes.
+    The purge re-stamps their rows to untagged, filed under the base, so they match
+    again (#2537); this is how it finds them, read before the org row (and the
+    `SET NULL`) goes.
     """
     result = await db.execute(
         select(KnowledgeBase).where(
@@ -325,19 +326,22 @@ async def get_for_collection(
     per-collection resolution reaches for: the column is not unique, so picking
     whichever row the database orders first resolves another tenant's embedding
     config and unseals their vault key when two organizations share a name (#913).
-    This narrows to the caller's own organization first, then to an `app`-scoped row
-    (owned by no organization, deployment-wide by design), and never to a third
-    organization's row.
+    This narrows to the caller's own organization first, then to an `app`-scoped
+    row (owned by no organization, deployment-wide by design), and never to a third
+    organization's row, nor to a personal base outside any organization (#2537).
 
     `organization_id=None` is a caller with no organization in hand - a
     deployment-level operation, a local-directory sync - and keeps the first-match
     behaviour it always had; a name shared across tenants stays ambiguous for it.
 
-    Within one organization the choice among siblings is immaterial by
-    construction: a row joining an occupied collection name adopts that name's
-    embedding configuration and credential, so every row on one vector table
-    answers the same way. `KnowledgeBaseService._shared_embedding` is what holds
-    that true.
+    Within one organization the choice among siblings is immaterial to how the
+    collection embeds: a row joining an occupied collection name adopts that
+    name's embedding configuration and credential, so every row on one vector
+    table answers the same way (`KnowledgeBaseService._shared_embedding` holds
+    that true). It is not immaterial to which rows are read: the chosen base's
+    `vector_scope` decides whose chunks a name-resolved search reads and which
+    base a sync writes into (#2537), so the oldest of the organization's bases
+    wins, as it always has.
     """
     return choose_for_collection(
         await list_by_collection_name(db, collection_name), organization_id
@@ -352,8 +356,13 @@ def choose_for_collection(
     `candidates` are :func:`list_by_collection_name`'s rows, oldest first. Apart
     so a caller resolving many rows against one name - a base's sync sources -
     loads the candidates once and decides each row the way the sync does.
+
+    The fallback is an app-scoped base only. "No organization" is not enough: a
+    personal base outside any organization has none either, and resolving to it
+    would sync into and embed through one person's base for every organization
+    without a base of its own (#2537).
     """
     for kb in candidates:
         if organization_id is None or kb.organization_id == organization_id:
             return kb
-    return next((kb for kb in candidates if kb.organization_id is None), None)
+    return next((kb for kb in candidates if kb.scope == KBScope.APP.value), None)

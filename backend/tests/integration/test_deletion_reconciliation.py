@@ -12,6 +12,7 @@ to neighbouring rows when one is deleted, which a mock cannot show.
 
 import asyncio
 import contextlib
+import json
 import uuid
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -24,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.core.exceptions import BadRequestError
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.locks import LockScope, hold_name
 from app.db.models.conversation import Conversation
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -1011,3 +1013,142 @@ class TestConcurrentSelfDeletes:
             await holder.commit()
 
         assert deleted.id == owner_id
+
+
+async def _filed_table(s, table: str, chunks: dict[str, uuid.UUID]) -> None:
+    """A runtime vector table holding one chunk per id, filed under the given base.
+
+    Only `metadata` matters to the purge, so the table carries no embedding."""
+    await s.execute(text(f"CREATE TABLE {table} (id text PRIMARY KEY, metadata jsonb)"))
+    for chunk_id, kb_id in chunks.items():
+        await s.execute(
+            text(f"INSERT INTO {table} (id, metadata) VALUES (:id, CAST(:meta AS jsonb))"),  # noqa: S608
+            {"id": chunk_id, "meta": json.dumps({"knowledge_base_id": str(kb_id)})},
+        )
+
+
+async def _chunk_ids(s, table: str) -> set[str]:
+    return set((await s.execute(text(f"SELECT id FROM {table}"))).scalars())  # noqa: S608
+
+
+class TestADeletedBasesChunksOnAKeptTable:
+    """A base deleted while another base holds its collection name leaves the shared
+    table standing (#913); the chunks filed under it are read by no scope any more,
+    so the queued cleanup deletes them by the base's id and leaves the survivor's
+    (#2537). These run the real job against a real table."""
+
+    async def test_deleting_a_knowledge_base_removes_its_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            doomed_id = doomed.id
+
+        try:
+            async with factory() as s:
+                await KnowledgeBaseService(s).delete(doomed_id, ctx=ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_purging_an_organization_removes_its_bases_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            owner, other = _user(), _user()
+            s.add_all([owner, other])
+            await s.flush()
+            org = await _org(s, owner)
+            other_org = await _org(s, other)
+            doomed = _org_collection(org.id, collection)
+            kept = _org_collection(other_org.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            org_id = org.id
+
+        try:
+            async with factory() as s:
+                org = await s.get(Organization, org_id)
+                await OrganizationService(s, vector_store=store).purge(org)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    async def test_deleting_a_user_removes_their_personal_bases_chunks_only(
+        self, engine: AsyncEngine
+    ) -> None:
+        store = PgVectorStore(
+            settings=app_settings.rag,
+            embedding_service=MagicMock(),
+            resolver=MagicMock(),
+            engine=engine,
+        )
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kbshare{uuid.uuid4().hex[:12]}"
+        table = store._table(collection)
+        async with factory() as s:
+            leaver, keeper = _user(), _user()
+            s.add_all([leaver, keeper])
+            await s.flush()
+            leaver_org = await _org(s, leaver, is_personal=True)
+            keeper_org = await _org(s, keeper, is_personal=True)
+            doomed = _personal_kb(leaver_org.id, leaver.id, collection)
+            kept = _personal_kb(keeper_org.id, keeper.id, collection)
+            s.add_all([doomed, kept])
+            await s.flush()
+            await _filed_table(s, table, {"doomed-0": doomed.id, "kept-0": kept.id})
+            await s.commit()
+            leaver_id = leaver.id
+
+        try:
+            async with factory() as s:
+                await UserService(s, vector_store=store).delete(leaver_id)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"kept-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()

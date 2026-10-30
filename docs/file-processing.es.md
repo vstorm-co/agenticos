@@ -1,5 +1,5 @@
 ---
-source_sha: "a2d3374dd0ae"
+source_sha: "ffee109a8c8e"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -588,6 +588,22 @@ organización pasa por ella
 resuelve así la configuración de cada una, cayendo a una colección de ámbito app,
 nunca a la de un tercero.
 
+El recurso es solo una base de ámbito app: una base personal fuera de toda
+organización tampoco tiene organización, pero es de una sola persona
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Una fuente de sincronización registra una organización y un nombre de colección,
+no una base de conocimiento, así que su sincronización escribe en la base que elige
+esa resolución - la base más antigua de la organización con ese nombre - y solo esa
+base la lista y la ejecuta. Cada ruta de la API que dirige una fuente a una
+colección comprueba el permiso de escritura sobre esa base, y añadir una fuente a
+otra base del mismo nombre se rechaza con 400.
+
+Cuando la base personal de un miembro es más antigua que la base de la organización
+del mismo nombre, las sincronizaciones de la organización con ese nombre acaban en
+la base personal, y la base de la organización no admite fuentes: créala con un
+nombre propio.
+
 !!! warning "Un nombre de colección es un espacio de embeddings"
 
     Resolver por organización solo es seguro porque todas las filas con un mismo
@@ -887,6 +903,29 @@ de modo que un filtro selectivo no puede sacar una fila de fuera del ámbito. Un
 colección app-scoped, de todo el deployment, se casa por *no llevar tenant sellado* en
 vez de por una igualdad que toda organización incumpliría — y eso es lo que permite
 que todos lean la base compartida sin que nadie lea la de los demás.
+
+**Un filtro tampoco llega a otra base de conocimiento del mismo nombre.** El tenant
+por sí solo no distingue cada par: una base de ámbito app y una base personal fuera de
+toda organización no tienen ninguno, y la base de una organización y la base personal
+de un miembro en ella tienen la misma organización. Por eso cada fragmento registra
+también la base de conocimiento para la que se indexó, y la búsqueda, el recuento de
+vectores, la búsqueda al reemplazar y el borrado leen solo los fragmentos de la propia
+base; borrar un documento también elimina sus propios fragmentos que no registran
+base. Un fragmento escrito antes de que los fragmentos registraran su base, y que la
+actualización no asignó, coincide por su tenant como antes, salvo para una base
+personal fuera de toda organización, cuya búsqueda y recuento no toman ninguno
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Borrar una base de conocimiento cuyo nombre de colección aún tiene otra base conserva
+la tabla compartida, y el trabajo de limpieza encolado con el borrado elimina los
+fragmentos asignados a la base borrada. Borrar una organización y borrar una cuenta
+hacen lo mismo con las bases que eliminan. Los fragmentos sin asignar se quedan y
+coinciden por su tenant
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Un agente busca en las bases de conocimiento a las que está vinculado con su propio
+ámbito, sin volver a resolver sus nombres. Un agente vinculado a dos bases con el
+mismo nombre busca en su ámbito combinado, excluyendo otras bases del mismo nombre.
 
 **`GET /rag/collections/{name}/filter-values`** responde con los valores de
 `organizational_unit` realmente presentes en la colección, bajo ese mismo ámbito.

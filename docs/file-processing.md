@@ -554,6 +554,20 @@ running this organization's text through their credential
 therefore resolves each organization's own configuration, falling back to an
 app-scoped collection but never to a third tenant's.
 
+The fallback is an app-scoped base only: a personal base outside any
+organization has no organization either, but it is one person's
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+A sync source records an organization and a collection name, not a knowledge
+base, so its sync writes into the base that resolution picks - the organization's
+oldest base by the name - and only that base lists and runs it. Every API route
+that points a source at a collection checks write access to that base, and adding
+one to another base of the same name is refused with 400.
+
+When a member's personal base is older than the organization's base of the same
+name, the organization's syncs by that name therefore land in the personal base, and
+the organization's base takes no source: create it under a name of its own.
+
 !!! warning "One collection name is one embedding space"
 
     Resolving per organization is only safe because every row on one collection
@@ -823,6 +837,27 @@ selective filter cannot surface a row from outside the scope. An app-scoped,
 deployment-wide collection is matched on *having no tenant stamped* rather than on an
 equality every organization would fail, which is what lets everybody read the shared
 base without anybody reading each other's.
+
+**A filter cannot reach another knowledge base of the same name either.** The tenant
+alone does not tell every pair apart: an app-scoped base and a personal base outside
+any organization both have none, and an organization's base and a member's personal
+base in it both have the organization. So every chunk also records the knowledge base
+it was ingested for, and search, the vector count, the replace lookup and delete read
+a base's own chunks only; deleting a document also removes its own chunks that
+record no base. A chunk written before chunks recorded their base, and not filed
+by the upgrade, matches by its tenant as before - except for a personal base
+outside any organization, whose search and count take none of those
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Deleting a knowledge base whose collection name another base still holds keeps the
+shared table, and the cleanup job queued with the delete removes the chunks filed under
+the deleted base. An organization purge and an account deletion do the same for the
+bases they remove. Unfiled chunks stay, matched by their tenant
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+An agent searches the knowledge bases it is bound to under their own scopes, not by
+resolving their names again. An agent bound to two bases that share a name
+searches their combined scope, excluding other same-named bases.
 
 **`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
 values actually present in the collection, under that same scope. It exists because

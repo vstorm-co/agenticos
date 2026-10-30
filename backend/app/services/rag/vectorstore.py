@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -20,11 +21,13 @@ from app.db.vector_tables import (
     VECTOR_DOCTYPE_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
     VECTOR_INDEX_SUFFIX,
+    VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
     VECTOR_ORGUNIT_INDEX_SUFFIX,
     VECTOR_SOURCE_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
     VECTOR_TABLE_PREFIX,
+    VectorScope,
     is_runtime_vector_table,
     validate_collection_name,
 )
@@ -77,16 +80,16 @@ class BaseVectorStore(ABC):
 
     @abstractmethod
     async def insert_document(
-        self, collection_name: str, document: Document, tenant: UUID | None = None
+        self, collection_name: str, document: Document, scope: VectorScope
     ) -> None:
-        """Write a document's chunks, stamped with the collection's tenant.
+        """Write a document's chunks, stamped with the collection's tenant and base.
 
-        `tenant` is the collection's own - its organization for an org base,
-        `None` for an app-scoped one every organization reads or a collection no
-        knowledge base claims - passed in by the ingester that resolved the base.
-        It is recorded on every chunk, so the shared runtime table (a collection
-        name is not unique across tenants) can be scoped per tenant afterwards
-        (#1684).
+        `scope` is the knowledge base's own (`KnowledgeBase.vector_scope`), passed
+        in by the ingester that resolved the base: its tenant - its organization
+        for an org base, `None` for an app-scoped one every organization reads or
+        a collection no knowledge base claims (#1684) - and the base itself
+        (#2537). Both are recorded on every chunk, so the shared runtime table (a
+        collection name is not unique) can be scoped per base afterwards.
         """
 
     @abstractmethod
@@ -107,12 +110,12 @@ class BaseVectorStore(ABC):
         """
 
     @abstractmethod
-    async def resolve_tenant(self, name: str, organization_id: UUID | None) -> UUID | None:
-        """The tenant a search of this collection scopes its rows by (#1684).
+    async def resolve_scope(self, name: str, organization_id: UUID | None) -> VectorScope:
+        """The scope a search of this collection reads its rows under (#1684, #2537).
 
         The retrieval service resolves it from the collection for the searching
-        organization and hands it to `search` and `get_documents`; see the
-        `PgVectorStore` implementation for the semantics.
+        organization and hands it to `search`; see the `PgVectorStore`
+        implementation for the semantics.
         """
 
     @abstractmethod
@@ -121,13 +124,28 @@ class BaseVectorStore(ABC):
 
     @abstractmethod
     async def delete_document(
-        self, collection_name: str, document_id: str, tenant: UUID | None = None
+        self, collection_name: str, document_id: str, scope: VectorScope
     ) -> None:
-        """Remove one document's chunks, only within the collection's tenant.
+        """Remove one document's chunks, only within the knowledge base's tenant.
 
-        `tenant` scopes the delete to the rows that tenant wrote, so a collection
-        name shared across tenants cannot have one org delete another's document
-        (#1684). `None` matches only the untagged, deployment-wide rows.
+        `scope` confines the delete to the rows of its tenant filed under that
+        base, plus the document's own unfiled rows of the tenant - even for a
+        base that reads no unfiled rows, since the document is named by its own
+        id (#2537). So a collection name shared across tenants (#1684) or across
+        same-tenant bases cannot have one delete another's document.
+        """
+
+    @abstractmethod
+    async def delete_knowledge_base_chunks(
+        self, collection_name: str, knowledge_base_id: UUID
+    ) -> None:
+        """Remove every chunk filed under a deleted knowledge base.
+
+        For a base deleted while another base still holds its collection name, so
+        the shared table is kept (#913): the chunks filed under it are no longer
+        read by any scope, and nothing else would ever remove them (#2537). Only
+        filed chunks: an unfiled one cannot be attributed to this base and stays
+        matched by its tenant. A missing table is a no-op, so a retry is safe.
         """
 
     @abstractmethod
@@ -139,7 +157,11 @@ class BaseVectorStore(ABC):
         Used by an organization purge for a personal base the `SET NULL` orphans:
         its `vector_tenant` flips to `None` while its rows stay stamped with the
         deleted organization, so they must be re-stamped to untagged to match the
-        `None` read scope again (#1684). Scoped to the base's *surviving* documents,
+        `None` read scope again (#1684). They are filed under the base in the same
+        write: an unfiled chunk with no tenant is the app scope's, so untagging
+        alone would hand the person's chunks to a same-named app-scoped base, and
+        hide them from the person's own base, which takes no unfiled chunks
+        (#2537). Scoped to the base's *surviving* documents,
         resolved from `rag_documents` inside the one update statement, *and* to
         `tenant`'s tag - so a shared runtime table's other tenants, the deleted
         org's own torn-down residual rows, and a document deleted before this runs
@@ -154,8 +176,8 @@ class BaseVectorStore(ABC):
     async def get_collection_info(
         self,
         collection_name: str,
+        scope: VectorScope,
         organization_id: UUID | None = None,
-        tenant: UUID | None = None,
     ) -> CollectionInfo:
         pass
 
@@ -164,18 +186,17 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    async def get_documents(
-        self, collection_name: str, tenant: UUID | None = None
-    ) -> list[DocumentInfo]:
-        """Every document the tenant holds in a collection.
+    async def get_documents(self, collection_name: str, scope: VectorScope) -> list[DocumentInfo]:
+        """Every document the scope holds in a collection.
 
-        `tenant` scopes the listing to that tenant's own rows on a shared runtime
-        table (#1684); `None` lists only the untagged, deployment-wide rows.
+        `scope` confines the listing to one base's rows on a shared runtime table
+        (#1684, #2537); `VectorScope(tenant=None)` lists the untagged,
+        deployment-wide rows.
         """
 
     @abstractmethod
     async def get_document_chunks(
-        self, collection_name: str, document_id: str, tenant: UUID | None = None
+        self, collection_name: str, document_id: str, scope: VectorScope
     ) -> list[DocumentChunk]:
         """Every stored chunk of one document, in document order.
 
@@ -183,8 +204,8 @@ class BaseVectorStore(ABC):
         splitter produced them - so callers can reconstruct what the parse
         looked like. An unknown document or collection is an empty list.
 
-        `tenant` scopes the read to that tenant's own rows, so a shared collection
-        name does not expose another tenant's chunks (#1684).
+        `scope` confines the read to one base's rows, so a shared collection
+        name does not expose another tenant's or base's chunks (#1684, #2537).
         """
 
     @abstractmethod
@@ -192,7 +213,7 @@ class BaseVectorStore(ABC):
         self,
         collection_name: str,
         document_id: str,
-        tenant: UUID | None,
+        scope: VectorScope,
         *,
         page_num: int,
         chunk_num: int,
@@ -204,8 +225,7 @@ class BaseVectorStore(ABC):
         At most `before` chunks preceding `(page_num, chunk_num)` and `after`
         following it, plus the chunk at that position when it still exists - a
         read bounded by position, so surrounding a match in a large document
-        does not load the document (#1651). Tenant-scoped like
-        `get_document_chunks`.
+        does not load the document (#1651). Scoped like `get_document_chunks`.
         """
 
     @abstractmethod
@@ -220,10 +240,8 @@ class BaseVectorStore(ABC):
         reveals another organization's values, and empty for an absent collection.
         """
 
-    async def get_document_list(
-        self, collection_name: str, tenant: UUID | None = None
-    ) -> RAGDocumentList:
-        docs = await self.get_documents(collection_name, tenant)
+    async def get_document_list(self, collection_name: str, scope: VectorScope) -> RAGDocumentList:
+        docs = await self.get_documents(collection_name, scope)
         return RAGDocumentList(
             items=[
                 RAGDocumentItem(
@@ -245,16 +263,16 @@ class BaseVectorStore(ABC):
         *,
         source_path: str,
         content_hash: str,
-        tenant: UUID | None = None,
+        scope: VectorScope,
     ) -> DocumentInfo | None:
         """The stored document this file refers to, found by one precedence.
 
-        `tenant` is the collection's own, passed in by the ingester that resolved
-        the knowledge base: the search is confined to the rows that tenant wrote,
-        so a collection name shared across tenants cannot have one org match,
-        replace or delete another's document (#1684). This reference
+        `scope` is the knowledge base's own, passed in by the ingester that
+        resolved it: the search is confined to the rows that base holds, so a
+        collection name shared across tenants or bases cannot have one match,
+        replace or delete another's document (#1684, #2537). This reference
         implementation gets that confinement for free, because `get_documents`
-        already scopes to the tenant.
+        already applies the scope.
 
         **One precedence, both answers about one document.** A `source_path`
         match anywhere in the collection beats a `filename` match anywhere in it,
@@ -274,7 +292,7 @@ class BaseVectorStore(ABC):
         overrides it with an indexed lookup per key (#1102). Both answer `None`
         for no match - never an empty document, a stored hash of `""` included.
         """
-        docs = await self.get_documents(collection_name, tenant)
+        docs = await self.get_documents(collection_name, scope)
         filename = Path(source_path).name if source_path else ""
         by_filename: DocumentInfo | None = None
         by_hash: DocumentInfo | None = None
@@ -294,7 +312,7 @@ class BaseVectorStore(ABC):
         return by_filename or by_hash
 
     async def document_ids_at(
-        self, collection_name: str, *, source_path: str, tenant: UUID | None = None
+        self, collection_name: str, *, source_path: str, scope: VectorScope
     ) -> list[str]:
         """Every stored document addressed exactly at `source_path`, in id order.
 
@@ -304,7 +322,7 @@ class BaseVectorStore(ABC):
         This reference implementation reads the whole collection; `PgVectorStore`
         asks the index.
         """
-        docs = await self.get_documents(collection_name, tenant)
+        docs = await self.get_documents(collection_name, scope)
         return sorted(
             doc.document_id
             for doc in docs
@@ -330,7 +348,7 @@ class BaseVectorStore(ABC):
         self,
         chunk: DocumentPageChunk,
         document: Document,
-        tenant: UUID | None = None,
+        scope: VectorScope,
     ) -> dict[str, Any]:
         metadata: dict[str, Any] = {
             "page_num": chunk.page_num,
@@ -343,17 +361,24 @@ class BaseVectorStore(ABC):
         # the spread above for a caller that set it directly (a store caller with
         # no separate tenant argument to give, like a test seeding rows) - never
         # from parsed file content or an uploaded field, since `DocumentProcessor`
-        # leaves it unset and only a trusted caller writes it (#1684). `tenant` is
-        # an explicit override for a caller that resolved the collection's own
-        # knowledge base separately from the `Document` it is inserting -
-        # `IngestionService`, which mirrors it onto `document.metadata.organization_id`
-        # itself before this is ever reached, so the two cannot disagree in
-        # practice. Stored as text so `metadata->>'organization_id'` - what every
-        # scoped query reads and what the hash index is built on - compares
-        # against it directly. `None` on both leaves the key out of the spread
-        # entirely, so the `IS NULL` scope matches it.
-        if tenant is not None:
-            metadata["organization_id"] = str(tenant)
+        # leaves it unset and only a trusted caller writes it (#1684). The scope's
+        # tenant is an explicit override for a caller that resolved the
+        # collection's own knowledge base separately from the `Document` it is
+        # inserting - `IngestionService`, which mirrors it onto
+        # `document.metadata.organization_id` itself before this is ever reached,
+        # so the two cannot disagree in practice. Stored as text so
+        # `metadata->>'organization_id'` - what every scoped query reads and what
+        # the hash index is built on - compares against it directly. `None` on
+        # both leaves the key out of the spread entirely, so the `IS NULL` scope
+        # matches it.
+        if scope.tenant is not None:
+            metadata["organization_id"] = str(scope.tenant)
+        # The base the chunk was ingested for (#2537), only ever from the scope:
+        # `DocumentMetadata` has no such field, so no parsed or uploaded value can
+        # reach the spread above. Absent with no base, which leaves the chunk
+        # unfiled and matched by its tenant alone.
+        if scope.knowledge_base_id is not None:
+            metadata["knowledge_base_id"] = str(scope.knowledge_base_id)
         return metadata
 
     def _sanitize_id(self, document_id: str) -> str:
@@ -444,25 +469,65 @@ _CHUNK_INSERT_BATCH = 200
 _FACET_KEYS: frozenset[str] = frozenset({"organizational_unit", "source", "document_type"})
 
 
+def _vector_scope_clause(scope: VectorScope, *, prefix: str = "") -> tuple[str, dict[str, Any]]:
+    """The conjunct confining a query to one scope's chunks, and its bound params.
+
+    The tenant rule (#1684): every chunk carries the tenant it was ingested for
+    in `metadata->>'organization_id'`, and a scope reads only its own tenant's -
+    `IS NULL` for a deployment-wide tenant, deliberately not a dropped predicate,
+    which would read and delete across every tenant.
+
+    The base rule (#2537), when the scope names a knowledge base: the tenant
+    alone cannot tell an app-scoped base from a personal base outside any
+    organization, nor an organization's base from a personal one in it, so a
+    chunk filed under the base (`metadata->>'knowledge_base_id'`) matches, a
+    chunk filed under another base never does, and an unfiled one matches only
+    when the scope `takes_unfiled` - the rule
+    `rag_document_repo.in_collection_scope` applies to document rows. The tenant
+    rule still holds for a filed chunk: a base's chunks carry its tenant, and a
+    chunk that does not - a document deleted before an organization purge
+    re-stamped the base's survivors - stays out rather than coming back.
+
+    Built from literals alone; every value is bound, under `prefix` so a caller
+    composing it with other conjuncts can keep the names apart.
+    """
+    if scope.tenant is None:
+        tenant_clause, params = "(metadata->>'organization_id') IS NULL", {}
+    else:
+        tenant_clause = f"(metadata->>'organization_id') = :{prefix}org"
+        params = {f"{prefix}org": str(scope.tenant)}
+    if scope.knowledge_base_id is None:
+        return tenant_clause, params
+    if scope.additional_knowledge_base_ids:
+        filed = f"(metadata->>'knowledge_base_id') = ANY(:{prefix}kbs)"
+        params[f"{prefix}kbs"] = [
+            str(kb) for kb in (scope.knowledge_base_id, *scope.additional_knowledge_base_ids)
+        ]
+    else:
+        filed = f"(metadata->>'knowledge_base_id') = :{prefix}kb"
+        params[f"{prefix}kb"] = str(scope.knowledge_base_id)
+    if scope.takes_unfiled:
+        filed = f"({filed} OR (metadata->>'knowledge_base_id') IS NULL)"
+    return f"{tenant_clause} AND {filed}", params
+
+
 def _scope_conjuncts(scope: RetrievalScope) -> tuple[list[str], dict[str, Any]]:
     """The mandatory server-trusted conjuncts for a scope (tenant + FA-037 slot).
 
     A `TenantScope` contributes the mandatory tenant conjunct as an equality; an
     `AppScope` contributes it as `IS NULL`, since an app-scoped ingest stamps no
     tenant onto its rows (#1688) - the two are mutually exclusive, so a row
-    matches at most one. Either way, when the authorization slot is populated, the
-    per-document restriction is added too. The unscoped maintenance marker
-    contributes nothing. Every value is bound.
+    matches at most one. A scope naming its knowledge base narrows that to the
+    base's own chunks (#2537, `_vector_scope_clause`). Either way, when the
+    authorization slot is populated, the per-document restriction is added too.
+    The unscoped maintenance marker contributes nothing. Every value is bound.
     """
     conjuncts: list[str] = []
     params: dict[str, Any] = {}
     authz: frozenset[VectorDocumentId] | None = None
-    if isinstance(scope, TenantScope):
-        conjuncts.append("metadata->>'organization_id' = :scope_org")
-        params["scope_org"] = str(scope.organization_id)
-        authz = scope.authorized_document_ids
-    elif isinstance(scope, AppScope):
-        conjuncts.append("(metadata->>'organization_id') IS NULL")
+    if isinstance(scope, TenantScope | AppScope):
+        clause, params = _vector_scope_clause(scope.vectors(), prefix="scope_")
+        conjuncts.append(clause)
         authz = scope.authorized_document_ids
     if authz is not None:
         if authz:
@@ -641,50 +706,29 @@ class PgVectorStore(BaseVectorStore):
             return f"(embedding::halfvec({dim}))"
         return "embedding"
 
-    @staticmethod
-    def _org_filter(tenant: UUID | None) -> tuple[str, dict[str, Any]]:
-        """The tenant conjunct for the shared runtime table, and its bound param.
-
-        Every row carries the organization that ingested it in
-        `metadata->>'organization_id'` (stamped by `_build_chunk_metadata`), and
-        a caller may only find, replace, delete or read the rows of the tenant it
-        resolved to - the whole of the #1684 fix, since a collection name is not
-        unique across tenants and they share one physical table.
-
-        `tenant` is the resolved vector tenant, not a caller's raw organization:
-        `None` is a deployment-wide collection - an app-scoped base every
-        organization reads, the CLI, a local-path sync - and matches only rows
-        with no tenant tag. It is `IS NULL` deliberately, not a dropped
-        predicate: without a conjunct the deployment-wide caller would read and
-        delete across every tenant, which is the defect inverted rather than
-        fixed. The clause is built from these two literals alone; the value is
-        always bound.
-        """
-        if tenant is None:
-            return "(metadata->>'organization_id') IS NULL", {}
-        return "(metadata->>'organization_id') = :org", {"org": str(tenant)}
-
-    async def resolve_tenant(self, name: str, organization_id: UUID | None) -> UUID | None:
-        """The tenant a search of this collection scopes its rows by (#1684).
+    async def resolve_scope(self, name: str, organization_id: UUID | None) -> VectorScope:
+        """The scope a search of this collection reads its rows under (#1684, #2537).
 
         Only the search path uses this, and only when the caller carries an
-        organization - a route request, an agent run - which has one that is never
-        None. It maps that organization to the one knowledge base the caller may
-        read for this name (its own where a name is shared, an app-scoped base as
-        the deployment-wide fallback, #913) and returns that base's vector tenant:
-        its organization for an org base, `None` for an app-scoped one every
-        organization reads or a collection no base claims.
+        organization - an agent run - which has one that is never None. It maps
+        that organization to the one knowledge base the caller may read for this
+        name (its organization's own where a name is shared, an app-scoped base as
+        the deployment-wide fallback, #913) and returns that base's vector scope:
+        its tenant - its organization for an org base, `None` for an app-scoped
+        one every organization reads - and the base itself, so a same-named base
+        of the same tenant stays out (#2537). A collection no base claims is the
+        deployment-wide tenant alone.
 
-        `None` in short-circuits to `None`: a caller with no organization - the
-        CLI's `rag-search` - is deployment-wide, and must not be handed whichever
+        `None` in short-circuits to the deployment-wide tenant: a caller with no
+        organization - the CLI's `rag-search` - must not be handed whichever
         organization's base a name-only lookup happened to match first. Every
-        other path is handed the exact tenant of the knowledge base it already
+        other path is handed the exact scope of the knowledge base it already
         resolved, rather than resolving one from a name.
         """
         if organization_id is None:
-            return None
+            return VectorScope(tenant=None)
         resolved = await self._resolver(name, organization_id)
-        return resolved.vector_tenant if resolved is not None else None
+        return resolved.vector_scope if resolved is not None else VectorScope(tenant=None)
 
     async def _ensure_collection(self, name: str) -> None:
         """Create table for collection if not exists."""
@@ -743,6 +787,18 @@ class PgVectorStore(BaseVectorStore):
                         f"ON {table} USING hash ((metadata->>'{key}'))"
                     )
                 )
+            # The base key the scope narrows to (#2537). A btree rather than a hash:
+            # the value is a UUID, so bounded, and one table usually holds a
+            # handful of bases - a hash bucket of one value grows an overflow
+            # chain every insert walks, where a btree deduplicates it. It also
+            # answers the `IS NULL` arm of an unfiled-chunk scope.
+            # `0180_stamp_rag_rows_by_base` builds it on collections that predate it.
+            await session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {table}{VECTOR_KB_INDEX_SUFFIX} "
+                    f"ON {table} ((metadata->>'knowledge_base_id'))"
+                )
+            )
             # The date dimension is a range, so a partial btree on the identical
             # safe expression the WHERE predicate uses, `WHERE` the result is
             # non-NULL - so the index build cannot raise on a bad legacy row
@@ -771,7 +827,7 @@ class PgVectorStore(BaseVectorStore):
             return result.scalar() is not None
 
     async def insert_document(
-        self, collection_name: str, document: Document, tenant: UUID | None = None
+        self, collection_name: str, document: Document, scope: VectorScope
     ) -> None:
         """Write a document's chunks, a batch of rows per statement.
 
@@ -795,9 +851,9 @@ class PgVectorStore(BaseVectorStore):
         await self._ensure_collection(collection_name)
         if not document.chunked_pages:
             raise ValueError("Document has no chunked pages.")
-        # `tenant` is the collection's own, passed in by the ingester that
-        # resolved the knowledge base; it is stamped on every chunk so the shared
-        # runtime table can be scoped per tenant afterwards (#1684).
+        # `scope` is the knowledge base's own, passed in by the ingester that
+        # resolved it; it is stamped on every chunk so the shared runtime table
+        # can be scoped per tenant (#1684) and per base (#2537) afterwards.
         embedder, _ = await self._for_collection(collection_name)
         vectors = await run_blocking_settled(embedder.embed_document, document)
         statement = text(f"""
@@ -818,7 +874,7 @@ class PgVectorStore(BaseVectorStore):
                             "content": chunk.chunk_content,
                             "embedding": str(vectors[i]),
                             "metadata": json.dumps(
-                                self._build_chunk_metadata(chunk, document, tenant)
+                                self._build_chunk_metadata(chunk, document, scope)
                             ),
                         }
                         for i, chunk in batch
@@ -847,10 +903,11 @@ class PgVectorStore(BaseVectorStore):
         SQL `WHERE` (not a Python post-filter), so top-k is computed over already
         restricted rows. The tenant conjunct is mandatory for a `TenantScope`
         (`metadata->>'organization_id' = :scope_org`) or an `AppScope`
-        (`... IS NULL`), and absent only for the explicit unscoped maintenance
-        marker. `query_filter.organization_id` also scopes which tenant's
-        knowledge base the query embeds through, so a name shared across
-        organizations does not embed on another tenant's key (#913).
+        (`... IS NULL`), narrowed to the scope's knowledge base when it names one
+        (#2537), and absent only for the explicit unscoped maintenance marker.
+        `query_filter.organization_id` also scopes which tenant's knowledge base
+        the query embeds through, so a name shared across organizations does not
+        embed on another tenant's key (#913).
         """
         table = self._table(collection_name)
         if not await self._collection_exists(collection_name):
@@ -933,8 +990,8 @@ class PgVectorStore(BaseVectorStore):
     async def get_collection_info(
         self,
         collection_name: str,
+        scope: VectorScope,
         organization_id: UUID | None = None,
-        tenant: UUID | None = None,
     ) -> CollectionInfo:
         """Vector count for a collection, reporting an absent one as empty.
 
@@ -949,15 +1006,15 @@ class PgVectorStore(BaseVectorStore):
 
         `organization_id` scopes the width lookup to the caller's own knowledge
         base, so a collection name shared across tenants does not resolve - and
-        unseal the vault key of - another organization's row (#913). `tenant`
-        scopes the count, so a shared name reports the caller's own vector total
-        rather than every tenant's summed together (#1684).
+        unseal the vault key of - another organization's row (#913). `scope`
+        confines the count, so a shared name reports the base's own vector total
+        rather than every tenant's or base's summed together (#1684, #2537).
         """
         _, dim = await self._for_collection(collection_name, organization_id)
         if not await self._collection_exists(collection_name):
             return CollectionInfo(name=collection_name, total_vectors=0, dim=dim)
         table = self._table(collection_name)
-        org_clause, org_params = self._org_filter(tenant)
+        org_clause, org_params = _vector_scope_clause(scope)
         async with self.async_session() as session:
             result = await session.execute(
                 text(f"SELECT COUNT(*) FROM {table} WHERE {org_clause}"),
@@ -973,21 +1030,44 @@ class PgVectorStore(BaseVectorStore):
             await session.commit()
 
     async def delete_document(
-        self, collection_name: str, document_id: str, tenant: UUID | None = None
+        self, collection_name: str, document_id: str, scope: VectorScope
     ) -> None:
         table = self._table(collection_name)
         sanitized = self._sanitize_id(document_id)
-        # The tenant conjunct is what stops one org deleting another's document
+        # The document is named by its own id, so its unfiled chunks - written
+        # before chunks recorded their base, or left unfiled by the upgrade - go
+        # with it even from a base that reads no unfiled chunks. Left behind, a
+        # personal base's document would stay readable through a same-named
+        # app-scoped base with nothing tracking it (#2537).
+        scope = replace(scope, takes_unfiled=True)
+        # The scope conjunct is what stops one org deleting another's document
         # from the shared table (#1684): matching a `parent_doc_id` alone reaches
         # every tenant's rows under that id, which is how the replace path could
-        # delete across tenants. `tenant` is the collection's own, passed in by
-        # the caller that resolved the knowledge base, so it agrees with the tag
-        # the ingest wrote.
-        org_clause, org_params = self._org_filter(tenant)
+        # delete across tenants. `scope` is the knowledge base's own, passed in by
+        # the caller that resolved it, so it agrees with the tags the ingest
+        # wrote (#2537).
+        org_clause, org_params = _vector_scope_clause(scope)
         async with self.async_session() as session:
             await session.execute(
                 text(f"DELETE FROM {table} WHERE parent_doc_id = :doc_id AND {org_clause}"),
                 {"doc_id": sanitized, **org_params},
+            )
+            await session.commit()
+
+    async def delete_knowledge_base_chunks(
+        self, collection_name: str, knowledge_base_id: UUID
+    ) -> None:
+        if not await self._collection_exists(collection_name):
+            return
+        table = self._table(collection_name)
+        # Keyed on the base alone, not its tenant: a base's id is unique, so a
+        # chunk filed under it is its own whatever tenant tag it carries. The
+        # btree `_kb_idx` serves the predicate. The only interpolated token is
+        # `table`, validated by `_table`.
+        async with self.async_session() as session:
+            await session.execute(
+                text(f"DELETE FROM {table} WHERE (metadata->>'knowledge_base_id') = :kb"),
+                {"kb": str(knowledge_base_id)},
             )
             await session.commit()
 
@@ -997,9 +1077,12 @@ class PgVectorStore(BaseVectorStore):
         """Drop the `organization_id` tag from a base's own rows stamped by a tenant.
 
         `metadata - 'organization_id'` makes `metadata->>'organization_id'` read
-        `NULL`, which is exactly what the `None` branch of `_org_filter` tests -
+        `NULL`, which is exactly what the deployment-wide tenant rule tests -
         so the orphaned personal base's rows match its new `vector_tenant=None`,
         the same as a personal base that never carried an organization (#1684).
+        Each row is also filed under the base (`knowledge_base_id`): a personal
+        base outside any organization takes no unfiled rows, and an unfiled row
+        with no tenant belongs to a same-named app-scoped base (#2537).
 
         Two conjuncts, both load-bearing on a runtime table a collection name shares
         across tenants (#913). The `parent_doc_id IN (SELECT ...)` subquery confines
@@ -1013,7 +1096,7 @@ class PgVectorStore(BaseVectorStore):
         when this statement's snapshot is taken (untagged here, then removed by its
         own `tenant=None` cleanup) or already gone (left stamped and never
         un-deleted), never un-deleted-and-orphaned as a stale id list allowed
-        (#1684). The `_org_filter(tenant)` conjunct then untags only rows still
+        (#1684). The tenant conjunct then untags only rows still
         stamped with the deleted org. Every value is bound; `_table` validates the
         only interpolated token. A base with no surviving documents or a missing
         table is a no-op, so a retry is safe.
@@ -1021,35 +1104,35 @@ class PgVectorStore(BaseVectorStore):
         if not await self._collection_exists(collection_name):
             return
         table = self._table(collection_name)
-        org_clause, org_params = self._org_filter(tenant)
+        org_clause, org_params = _vector_scope_clause(VectorScope(tenant=tenant))
         # The only interpolated token is `table`, validated by `_table`; the tenant
         # and the knowledge-base id are bound. `rag_documents` is a fixed model
         # table name, not caller input. S608 is ignored file-wide for that reason.
         async with self.async_session() as session:
             await session.execute(
                 text(
-                    f"UPDATE {table} SET metadata = metadata - 'organization_id' "
+                    f"UPDATE {table} SET metadata = jsonb_set("
+                    "metadata - 'organization_id', '{knowledge_base_id}', "
+                    "to_jsonb(CAST(:kb_tag AS text)), true) "
                     f"WHERE {org_clause} AND parent_doc_id IN ("
                     "SELECT vector_document_id FROM rag_documents "
                     "WHERE knowledge_base_id = :kb_id AND vector_document_id IS NOT NULL)"
                 ),
-                {"kb_id": knowledge_base_id, **org_params},
+                {"kb_id": knowledge_base_id, "kb_tag": str(knowledge_base_id), **org_params},
             )
             await session.commit()
 
-    async def get_documents(
-        self, collection_name: str, tenant: UUID | None = None
-    ) -> list[DocumentInfo]:
+    async def get_documents(self, collection_name: str, scope: VectorScope) -> list[DocumentInfo]:
         # Return an empty list for non-existent collections instead of silently
         # creating them via _ensure_collection. `get_collection_info` answers the
         # same question the same way.
         if not await self._collection_exists(collection_name):
             return []
         table = self._table(collection_name)
-        # Scoped to the caller's own tenant on the shared table (#1684); the
+        # Scoped to the caller's own base on the shared table (#1684, #2537); the
         # reference `find_existing_document` reads this, so the scope reaches the
         # lookup too.
-        org_clause, org_params = self._org_filter(tenant)
+        org_clause, org_params = _vector_scope_clause(scope)
         async with self.async_session() as session:
             # Ordered so a lookup that falls back to a filename match does not
             # depend on heap order (#548).
@@ -1109,7 +1192,7 @@ class PgVectorStore(BaseVectorStore):
         *,
         source_path: str,
         content_hash: str,
-        tenant: UUID | None = None,
+        scope: VectorScope,
     ) -> DocumentInfo | None:
         """Look the document up by its indexed metadata keys, not a full scan (#1102).
 
@@ -1119,12 +1202,11 @@ class PgVectorStore(BaseVectorStore):
         first hit. Each statement returns one document, so the id and hash a
         caller reads name one document, which is the #548 invariant.
 
-        Every statement carries the tenant conjunct, so the match is confined to
-        the rows the ingesting organization wrote (#1684): a collection name
-        shared across tenants cannot let one org find - and then replace or
-        delete - another's document. `tenant` is the collection's own, passed in
-        by the ingester that resolved the knowledge base, the same source the
-        ingest stamped from.
+        Every statement carries the scope conjunct, so the match is confined to
+        the rows of the ingesting knowledge base (#1684, #2537): a collection name
+        shared across tenants or bases cannot let one find - and then replace or
+        delete - another's document. `scope` is the base's own, passed in by the
+        ingester that resolved it, the same source the ingest stamped from.
 
         The expression indexes these lean on are built by `_ensure_collection`;
         a collection predating them still answers correctly, at a scan, until
@@ -1134,7 +1216,7 @@ class PgVectorStore(BaseVectorStore):
             return None
         table = self._table(collection_name)
         filename = Path(source_path).name if source_path else ""
-        org_clause, org_params = self._org_filter(tenant)
+        org_clause, org_params = _vector_scope_clause(scope)
         async with self.async_session() as session:
             if source_path:
                 hit = await self._first_document(
@@ -1168,13 +1250,13 @@ class PgVectorStore(BaseVectorStore):
         return None
 
     async def document_ids_at(
-        self, collection_name: str, *, source_path: str, tenant: UUID | None = None
+        self, collection_name: str, *, source_path: str, scope: VectorScope
     ) -> list[str]:
-        """The reference answer by the indexed `source_path` key, tenant-scoped (#1684)."""
+        """The reference answer by the indexed `source_path` key, scoped (#1684, #2537)."""
         if not await self._collection_exists(collection_name):
             return []
         table = self._table(collection_name)
-        org_clause, org_params = self._org_filter(tenant)
+        org_clause, org_params = _vector_scope_clause(scope)
         async with self.async_session() as session:
             result = await session.execute(
                 text(
@@ -1216,16 +1298,16 @@ class PgVectorStore(BaseVectorStore):
         return grouped[0] if grouped else None
 
     async def get_document_chunks(
-        self, collection_name: str, document_id: str, tenant: UUID | None = None
+        self, collection_name: str, document_id: str, scope: VectorScope
     ) -> list[DocumentChunk]:
         # Same answer for "no such collection" as get_documents: empty, not an
         # UndefinedTableError dressed up as a 500.
         if not await self._collection_exists(collection_name):
             return []
         table = self._table(collection_name)
-        # Scoped to the caller's own tenant, so a shared collection name cannot
-        # read back another organization's chunk content (#1684).
-        org_clause, org_params = self._org_filter(tenant)
+        # Scoped to the caller's own base, so a shared collection name cannot
+        # read back another organization's or base's chunk content (#1684, #2537).
+        org_clause, org_params = _vector_scope_clause(scope)
         async with self.async_session() as session:
             result = await session.execute(
                 text(
@@ -1254,7 +1336,7 @@ class PgVectorStore(BaseVectorStore):
         self,
         collection_name: str,
         document_id: str,
-        tenant: UUID | None,
+        scope: VectorScope,
         *,
         page_num: int,
         chunk_num: int,
@@ -1264,7 +1346,7 @@ class PgVectorStore(BaseVectorStore):
         if not await self._collection_exists(collection_name):
             return []
         table = self._table(collection_name)
-        org_clause, org_params = self._org_filter(tenant)
+        org_clause, org_params = _vector_scope_clause(scope)
         # The position as `get_document_chunks` sorts it: an absent key is 0.
         # Built from literals only; every value is bound.
         position = (

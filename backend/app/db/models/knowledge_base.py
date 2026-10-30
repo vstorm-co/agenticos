@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 from app.db.models.resource_grant import Visibility
+from app.db.vector_tables import VectorScope
 
 
 class KBScope(enum.StrEnum):
@@ -115,6 +116,22 @@ class KnowledgeBase(TimestampMixin, Base):
         if self.scope == KBScope.APP.value:
             return None
         return self.organization_id
+
+    @property
+    def vector_scope(self) -> VectorScope:
+        """The chunks of the shared runtime table this base holds (#2537).
+
+        Its own chunks, and the unfiled chunks its tenant holds - except for a
+        personal base outside any organization, whose tenant `None` is the app
+        scope's: its own chunks are always filed under it, and the unfiled ones
+        with no tenant belong to the app-scoped base that shares the name.
+        """
+        tenant = self.vector_tenant
+        return VectorScope(
+            tenant=tenant,
+            knowledge_base_id=self.id,
+            takes_unfiled=self.scope == KBScope.APP.value or tenant is not None,
+        )
 
     def __repr__(self) -> str:
         return f"<KnowledgeBase(id={self.id}, name={self.name!r}, scope={self.scope})>"

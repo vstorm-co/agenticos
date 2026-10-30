@@ -16,6 +16,7 @@ from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
+from app.worker.jobs import BasePurge
 
 
 @pytest.fixture(autouse=True)
@@ -427,7 +428,7 @@ class TestKBAccessControl:
             # its vector table is dropped too - by a cleanup job queued on this
             # session, so a rollback takes it back with the rows (#1266, #1349).
 
-        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name])
+        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
     @pytest.mark.anyio
     async def test_deleting_a_kb_dispatches_a_durable_cleanup(self, mock_db, monkeypatch):
@@ -455,7 +456,12 @@ class TestKBAccessControl:
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
         # A sibling still holds the name, so only the files ride the job, not a drop.
-        dispatch.assert_awaited_once_with(mock_db, ["rag/docs/a.pdf", "rag/docs/b.md"], [])
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            ["rag/docs/a.pdf", "rag/docs/b.md"],
+            [],
+            base_purges=[BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id)],
+        )
 
     @pytest.mark.anyio
     async def test_deleting_the_last_kb_locks_it_and_deactivates_its_sources(
@@ -494,7 +500,7 @@ class TestKBAccessControl:
         lock.assert_awaited_once_with(mock_db, kb.id)
         get_all.assert_awaited_once_with(mock_db, collection_name=kb.collection_name)
         update.assert_awaited_once_with(mock_db, source.id, is_active=False)
-        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name])
+        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
     @pytest.mark.anyio
     async def test_deleting_a_kb_a_sibling_still_holds_keeps_the_collection(
@@ -526,8 +532,14 @@ class TestKBAccessControl:
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
-        # Nothing to unlink and no table to drop, so no cleanup is queued.
-        dispatch.assert_not_awaited()
+        # No table to drop, but the base's own chunks stay in the kept table
+        # under an id nothing reads, so they are deleted by it (#2537).
+        dispatch.assert_awaited_once_with(
+            mock_db,
+            [],
+            [],
+            base_purges=[BasePurge(collection=kb.collection_name, knowledge_base_id=kb.id)],
+        )
         get_all.assert_not_awaited()
         update.assert_not_awaited()
 
@@ -557,7 +569,7 @@ class TestKBAccessControl:
             svc = KnowledgeBaseService(mock_db)
             await svc.delete(kb.id, ctx=_ctx(user_id=user_id))
 
-        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name])
+        dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 
     @pytest.mark.anyio
     async def test_dropping_a_rag_collection_deletes_the_row_and_dispatches_the_drop(

@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
 from app.services.background_jobs import enqueue
-from app.worker.jobs import CLEANUP_EXTERNAL_STATE, CleanupExternalState, Restamp
+from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge, CleanupExternalState, Restamp
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -63,11 +63,13 @@ async def queue_external_state_cleanup(
     prefixes: list[str] | None = None,
     required_paths: list[str] | None = None,
     organization_id: UUID | None = None,
+    base_purges: list[BasePurge] | None = None,
 ) -> None:
     """Queue a delete's external-state cleanup, in the delete's own transaction.
 
-    The paths, the required paths and the re-stamps are each chunked across
-    jobs, independently, and zipped onto as many jobs as the longest needs;
+    The paths, the required paths, the re-stamps and the base purges are each
+    chunked across jobs, independently, and zipped onto as many jobs as the
+    longest needs;
     collections and prefixes ride the first job only - `delete_collection` and
     `delete_prefix` are idempotent, but one pass over them is enough.
     `required_paths` are unlinked like `storage_paths`, but one the store
@@ -77,6 +79,7 @@ async def queue_external_state_cleanup(
     restamps = restamps or []
     prefixes = prefixes or []
     required_paths = required_paths or []
+    base_purges = base_purges or []
     path_chunks = [
         storage_paths[i : i + _MAX_PATHS_PER_JOB]
         for i in range(0, len(storage_paths), _MAX_PATHS_PER_JOB)
@@ -89,7 +92,12 @@ async def queue_external_state_cleanup(
         restamps[i : i + _MAX_RESTAMPS_PER_JOB]
         for i in range(0, len(restamps), _MAX_RESTAMPS_PER_JOB)
     ]
-    for index in range(max(len(path_chunks), len(required_chunks), len(restamp_chunks), 1)):
+    purge_chunks = [
+        base_purges[i : i + _MAX_RESTAMPS_PER_JOB]
+        for i in range(0, len(base_purges), _MAX_RESTAMPS_PER_JOB)
+    ]
+    jobs = max(len(path_chunks), len(required_chunks), len(restamp_chunks), len(purge_chunks), 1)
+    for index in range(jobs):
         await enqueue(
             db,
             CLEANUP_EXTERNAL_STATE,
@@ -99,6 +107,7 @@ async def queue_external_state_cleanup(
                 restamps=restamp_chunks[index] if index < len(restamp_chunks) else [],
                 prefixes=prefixes if index == 0 else [],
                 required_paths=required_chunks[index] if index < len(required_chunks) else [],
+                base_purges=purge_chunks[index] if index < len(purge_chunks) else [],
             ),
             organization_id=organization_id,
         )
@@ -155,6 +164,7 @@ async def cleanup_external_state(
     restamps: list[Restamp] | None = None,
     prefixes: list[str] | None = None,
     required_paths: list[str] | None = None,
+    base_purges: list[BasePurge] | None = None,
 ) -> dict[str, int]:
     """Unlink a committed delete's stored uploads and drop its unreferenced vector tables.
 
@@ -171,9 +181,11 @@ async def cleanup_external_state(
 
     `restamps` are the personal bases an organization purge orphaned: each
     untags that org's rows for that base's own
-    surviving documents on a table the base still keeps alive, so its new
-    `vector_tenant=None` reaches them again rather than leaving them stranded behind
-    the `IS NULL` read scope (#1684). The base's surviving `parent_doc_id`s are
+    surviving documents on a table the base still keeps alive, and files them
+    under the base, so its new `vector_tenant=None` reaches them again rather than
+    leaving them stranded behind the `IS NULL` read scope (#1684) - and a
+    same-named app-scoped base, which reads the unfiled rows with no tenant, does
+    not (#2537). The base's surviving `parent_doc_id`s are
     resolved inside the store's one update statement, from `rag_documents` - so a
     document deleted before or concurrently with this run is no longer among them
     and its rows are left stamped (untagging them would un-delete it) rather than
@@ -190,6 +202,12 @@ async def cleanup_external_state(
     find them by. `required_paths` are single files in the same position - a
     deleted conversation's or account's generated media - and a refused one is
     raised the same way.
+
+    `base_purges` are deleted bases whose table is kept because another base
+    still holds the name (#913): their filed chunks are read by no scope any
+    more and nothing else would remove them, so each is deleted by its base id
+    (#2537). A purge that fails is raised like a re-stamp, so the retries re-run
+    it; deleting by base id is idempotent and a missing table is a no-op.
     """
     from app.core.exceptions import DatabaseError, ExternalServiceError
     from app.db.locks import LockScope, hold_name
@@ -200,6 +218,7 @@ async def cleanup_external_state(
     restamps = restamps or []
     prefixes = prefixes or []
     required_paths = required_paths or []
+    base_purges = base_purges or []
     storage = get_file_storage()
     for storage_path in storage_paths:
         # Best-effort but not silent: the row that named this file is committed-gone,
@@ -229,7 +248,9 @@ async def cleanup_external_state(
     dropped = 0
     restamped = 0
     restamp_failures: list[str] = []
-    if collections or restamps:
+    purged = 0
+    purge_failures: list[str] = []
+    if collections or restamps or base_purges:
         async with _vector_store() as store, get_worker_db_context() as db:
             for collection in collections:
                 await hold_name(db, LockScope.COLLECTION_TEARDOWN, collection)
@@ -261,6 +282,16 @@ async def cleanup_external_state(
                     restamp_failures.append(collection)
                 else:
                     restamped += 1
+            for purge in base_purges:
+                try:
+                    await store.delete_knowledge_base_chunks(
+                        purge.collection, purge.knowledge_base_id
+                    )
+                except SQLAlchemyError as exc:
+                    logger.warning("Failed to purge collection %s: %s", purge.collection, exc)
+                    purge_failures.append(purge.collection)
+                else:
+                    purged += 1
 
     logger.info(
         "external_state_cleanup",
@@ -268,6 +299,7 @@ async def cleanup_external_state(
             "unlinked": len(storage_paths) + len(required_paths),
             "dropped": dropped,
             "restamped": restamped,
+            "purged": purged,
         },
     )
     # Raised after the loop, not inside it, so every entry is attempted and the drops
@@ -278,6 +310,11 @@ async def cleanup_external_state(
             message="Failed to re-stamp orphaned personal knowledge bases on organization purge",
             details={"collections": restamp_failures},
         )
+    if purge_failures:
+        raise DatabaseError(
+            message="Failed to remove a deleted knowledge base's chunks",
+            details={"collections": purge_failures},
+        )
     if prefix_failures or required_failures:
         raise ExternalServiceError(
             message="Failed to remove stored files on delete",
@@ -287,6 +324,7 @@ async def cleanup_external_state(
         "unlinked": len(storage_paths) + len(required_paths),
         "dropped": dropped,
         "restamped": restamped,
+        "purged": purged,
     }
 
 
@@ -338,5 +376,10 @@ async def sweep_teardown_reservations() -> dict[str, int]:
 async def run_external_state_cleanup(job: CleanupExternalState) -> dict[str, int]:
     """The job `queue_external_state_cleanup` queues."""
     return await cleanup_external_state(
-        job.storage_paths, job.collections, job.restamps, job.prefixes, job.required_paths
+        job.storage_paths,
+        job.collections,
+        job.restamps,
+        job.prefixes,
+        job.required_paths,
+        job.base_purges,
     )

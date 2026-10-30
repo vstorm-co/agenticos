@@ -1,5 +1,5 @@
 ---
-source_sha: "a2d3374dd0ae"
+source_sha: "ffee109a8c8e"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -581,6 +581,20 @@ poświadczenie
 rozwiązuje więc własną konfigurację każdej organizacji, spadając na kolekcję
 o zasięgu app, ale nigdy na kolekcję trzeciego tenanta.
 
+Rozwiązaniem zapasowym jest wyłącznie baza o zasięgu app: baza osobista poza
+jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
+więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie - najstarszej
+bazy organizacji o tej nazwie - i tylko ta baza je wyświetla i uruchamia. Każdy
+route API, który kieruje źródło do kolekcji, sprawdza prawo zapisu do tej bazy, a
+dodanie źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400.
+
+Gdy osobista baza członka jest starsza niż baza organizacji o tej samej nazwie,
+synchronizacje organizacji o tej nazwie trafiają więc do bazy osobistej, a baza
+organizacji nie przyjmuje źródła: utwórz ją pod własną nazwą.
+
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 
     Rozwiązywanie per organizacja jest bezpieczne tylko dlatego, że wszystkie
@@ -874,6 +888,27 @@ filtr nie wyciągnie wiersza spoza zakresu. Kolekcja app-scoped, obejmująca ca�
 wdrożenie, dopasowywana jest po *braku ostemplowanego tenanta*, a nie po równości,
 której każda organizacja by nie spełniła — i to właśnie pozwala wszystkim czytać
 wspólną bazę, nie czytając siebie nawzajem.
+
+**Filtr nie sięgnie też innej bazy wiedzy o tej samej nazwie.** Sam tenant nie
+rozróżnia każdej pary: baza o zasięgu app i baza osobista poza jakąkolwiek organizacją
+nie mają go wcale, a baza organizacji i osobista baza członka w tej organizacji mają
+tę samą organizację. Dlatego każdy chunk zapisuje także bazę wiedzy, dla której został
+zaindeksowany, a wyszukiwanie, licznik wektorów, wyszukiwanie przy zastępowaniu i
+usuwanie czytają wyłącznie chunki danej bazy; usunięcie dokumentu usuwa też jego
+własne chunki, które nie zapisują bazy. Chunk zapisany, zanim chunki zaczęły
+zapisywać swoją bazę, i nieprzypisany przez aktualizację, pasuje jak dotąd po swoim
+tenancie — z wyjątkiem bazy osobistej poza jakąkolwiek organizacją, której
+wyszukiwanie i licznik nie biorą żadnego z nich ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Usunięcie bazy wiedzy, której nazwę kolekcji wciąż ma inna baza, zostawia wspólną
+tabelę, a zadanie porządkowe zakolejkowane razem z usunięciem usuwa chunki przypisane
+do usuniętej bazy. Usunięcie organizacji i usunięcie konta robią to samo dla baz,
+które usuwają. Nieprzypisane chunki zostają i pasują po swoim tenancie
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
+a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
+nazwie przeszukuje ich połączony zakres, pomijając inne bazy o tej samej nazwie.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

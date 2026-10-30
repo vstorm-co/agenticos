@@ -16,7 +16,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
@@ -72,11 +72,12 @@ class CollectionScope:
     @classmethod
     def of(cls, kb: KnowledgeBase) -> Self:
         """The scope of this knowledge base."""
+        vectors = kb.vector_scope
         return cls(
             knowledge_base_id=kb.id,
             collection_name=kb.collection_name,
-            tenant=kb.vector_tenant,
-            takes_unfiled=kb.scope == KBScope.APP.value or kb.vector_tenant is not None,
+            tenant=vectors.tenant,
+            takes_unfiled=vectors.takes_unfiled,
         )
 
 

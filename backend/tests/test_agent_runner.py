@@ -80,6 +80,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
+from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
 from app.services.agent_runner import (
     ASIDE_PREFIX,
@@ -462,6 +463,37 @@ class TestPrepare:
             await service.prepare(ctx, agent.id)
 
         assert build.call_args.kwargs["resources"]["kb_collection_names"] == ["kb_live"]
+        # The bound base itself travels beside its name, so the search reads that
+        # base and never a same-named one the name resolves to first (#2537).
+        assert build.call_args.kwargs["resources"]["kb_vector_scopes"] == {
+            "kb_live": collections[live_id].vector_scope
+        }
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_same_named_bound_bases_keep_both_scopes(self):
+        ctx = _ctx()
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        collections = {
+            cid: SimpleNamespace(
+                id=cid,
+                organization_id=ctx.organization_id,
+                collection_name="shared",
+                vector_scope=VectorScope(tenant=ctx.organization_id, knowledge_base_id=cid),
+            )
+            for cid in ids
+        }
+        with patch(
+            "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+            new=AsyncMock(return_value=collections),
+        ):
+            resources = await AgentRunnerService(_db())._bound_collections(
+                AgentSpec(name="Both", collection_ids=ids), ctx
+            )
+        assert resources["kb_collection_names"] == ["shared"]
+        scope = resources["kb_vector_scopes"]["shared"]
+        assert scope.knowledge_base_id == ids[0]
+        assert scope.additional_knowledge_base_ids == (ids[1],)
 
     @pytest.mark.anyio
     async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
