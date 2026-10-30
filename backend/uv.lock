@@ -10,7 +10,7 @@ overrides = [
 
 [[package]]
 name = "agenticos"
-version = "1.28.1"
+version = "1.29.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -144,7 +144,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=7.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.13" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.14.1" },
-    { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.37" },
+    { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.39" },
     { name = "pydantic-ai-harness", specifier = ">=0.61.0" },
     { name = "pydantic-ai-skills", specifier = ">=2.1.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.61.0" },
@@ -3101,15 +3101,15 @@ email = [
 
 [[package]]
 name = "pydantic-ai-backend"
-version = "0.2.37"
+version = "0.2.39"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic", extra = ["email"] },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/5d/602688272763a5ffb558286e5bf6b5b3a2feafb815185167f2e79294af02/pydantic_ai_backend-0.2.37.tar.gz", hash = "sha256:e17509a069fcfe9fa63e0dd72a231a138fb7e324a7ae0f880bcdcb476919961b", size = 2859415, upload-time = "2026-10-19T22:42:02.156Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/a1/8a25b5a0543e655c21267cf10e1fc5bb03c847bf8378162e81ca23aa9134/pydantic_ai_backend-0.2.39.tar.gz", hash = "sha256:989c9576b7fd2fa9ab01108f71bf86a9e6bd33fc1d1ba6c1f3221619485c3fb8", size = 2862179, upload-time = "2026-10-30T13:05:02.85Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/35/65fb0dc122f6fbcf5ea9a3b0e7c559f64c36444b973a864ab1f3610f6b39/pydantic_ai_backend-0.2.37-py3-none-any.whl", hash = "sha256:ad7da5eed45b36e223e0589a3b89ab153beff2bd006642d50cbefba479996457", size = 218605, upload-time = "2026-10-19T22:42:00.583Z" },
+    { url = "https://files.pythonhosted.org/packages/98/ee/2e7f581763c5a2c77dcabf4d6be07128b032b19dfba7b703836439720745/pydantic_ai_backend-0.2.39-py3-none-any.whl", hash = "sha256:51308492d26b9a1495ab3779fd7e635f1a81ff708b66998138c77f18b7844e3d", size = 219082, upload-time = "2026-10-30T13:05:01.018Z" },
 ]
 
 [package.optional-dependencies]

@@ -37,6 +37,7 @@ import type {
   ChannelPlatform,
   InheritedSpeechToText,
 } from "@/types/channels";
+import { MentionPolicyFields } from "./mention-policy-fields";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
@@ -118,6 +119,7 @@ export function AddChannelDialog({
   const [slackWebhook, setSlackWebhook] = useState(true);
   const [teamsAppId, setTeamsAppId] = useState("");
   const [teamsTenantId, setTeamsTenantId] = useState("");
+  const [respondToBroadcasts, setRespondToBroadcasts] = useState(false);
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
   const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
   // A bot not yet registered serves no agent, so what it would inherit today is
@@ -169,6 +171,7 @@ export function AddChannelDialog({
     setTeamsAppId("");
     setTeamsTenantId("");
     setAnswerStyle(DEFAULT_ANSWER_STYLE);
+    setRespondToBroadcasts(false);
     setTranscription(INHERIT);
     setErrors({});
   }
@@ -212,6 +215,7 @@ export function AddChannelDialog({
           ? { teams_app_id: teamsAppId.trim(), teams_tenant_id: teamsTenantId.trim() }
           : {}),
         ...answerStyle,
+        ...(respondToBroadcasts ? { access_policy: { respond_to_broadcasts: true } } : {}),
         // Inherit is the server's default, so it sends nothing; off is the
         // switch; choose is both halves and the key - the schema refuses one
         // half alone as a setting that cannot run, and a pair with no key.
@@ -436,6 +440,12 @@ export function AddChannelDialog({
             </>
           )}
 
+          <MentionPolicyFields
+            idPrefix="channel"
+            platform={platform}
+            enabled={respondToBroadcasts}
+            onChange={setRespondToBroadcasts}
+          />
           <MoreOptions label={t("moreOptions")}>
             <AnswerStyleFields
               idPrefix="channel"

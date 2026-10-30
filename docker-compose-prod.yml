@@ -117,6 +117,7 @@ services:
     networks:
       data:
       visuals:
+      browser:
       edge:
         aliases:
           - backend
@@ -285,6 +286,7 @@ services:
       - data
       - edge
       - visuals
+      - browser
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -315,7 +317,7 @@ services:
     # client and this service ship together, and a client newer than the service
     # calls routes it does not have (#2484). Bump both at once;
     # backend/tests/test_sandboxd_compat.py fails when they differ.
-    image: ghcr.io/vstorm-co/sandboxd:0.2.37
+    image: ghcr.io/vstorm-co/sandboxd:0.2.39
     profiles: [sandbox]
     # Without an init the server is PID 1, and Python reaps only the children it
     # waits on: anything orphaned under it stays a zombie for the container's
@@ -400,6 +402,55 @@ services:
       - data
     restart: unless-stopped
 
+  # Interactive browsing uses a separate browser with proxy-only public egress.
+  browser:
+    logging: *logging
+    environment:
+      - TZ=${BROWSER_TZ:-UTC}
+      - BROWSER_LANG=${BROWSER_LANG:-en-US}
+    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    profiles: [browser]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/9222; printf 'GET /json/version HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q webSocketDebuggerUrl"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      browser-egress:
+        condition: service_healthy
+    shm_size: 512mb
+    networks:
+      - browser
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  browser-egress:
+    logging: *logging
+    image: ubuntu/squid:6.6-24.04_edge
+    profiles: [browser]
+    healthcheck:
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/3128; printf 'GET http://127.0.0.1/ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | head -n 1 | grep -q '403'"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - ./docker/browser-egress/squid.conf:/etc/squid/squid.conf:ro
+    networks:
+      - browser
+      - browser-egress
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
   # Enabled by scripts/deploy.sh when VISUAL_RENDER_CDP_URL names this service.
   # Isolated from the internet, the proxy and data services. The renderer serves
   # the drawing and its libraries through CDP; Chromium needs no outbound route.
@@ -424,6 +475,11 @@ services:
           memory: 1G
 
 networks:
+  browser:
+    driver: bridge
+    internal: true
+  browser-egress:
+    driver: bridge
   visuals:
     driver: bridge
     internal: true

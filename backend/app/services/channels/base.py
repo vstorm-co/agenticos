@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -27,6 +28,27 @@ logger = logging.getLogger(__name__)
 # `agent_registry.slugify` reads the same set and cannot import that module.
 ROOM_HANDLES = frozenset({"channel", "all", "here", "everyone"})
 
+
+_BROADCAST_TEXT = re.compile(r"(?<![\w@])@(?:channel|all|here|everyone)(?![\w.-])", re.I)
+_CODE = re.compile(r"```[\s\S]*?```|`[^`]*`")
+_SLACK_BROADCAST = re.compile(r"<!(?:channel|group|here|everyone)(?:\|[^>]+)?>")
+
+
+def mentionable_text(text: str) -> str:
+    """Text outside code spans, with Mattermost's full-width mention prefix normalized."""
+    return _CODE.sub("", text).replace("\uff20", "@")
+
+
+def broadcast_mentioned(platform: str, text: str) -> bool:
+    """Recognize room mentions outside code; Telegram uses explicit text aliases."""
+    plain = mentionable_text(text)
+    if platform == "slack":
+        return _SLACK_BROADCAST.search(plain) is not None
+    if platform in ("mattermost", "telegram"):
+        return _BROADCAST_TEXT.search(plain) is not None
+    return False
+
+
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal["web", "slack", "telegram", "mattermost", "teams", "discord"]
@@ -38,6 +60,7 @@ DEFAULT_ACCESS_POLICY: dict[str, Any] = {
     "whitelist": [],
     "allowed_groups": [],
     "require_link": False,
+    "respond_to_broadcasts": False,
     "rate_limit_rpm": 10,
     "denied_message": "You are not authorised to use this bot.",
 }
@@ -61,7 +84,7 @@ DEFAULT_USAGE_REPORTING: dict[str, Any] = {
 # JSON-serialised form used by SQLite model defaults (stored as TEXT).
 DEFAULT_ACCESS_POLICY_JSON: str = (
     '{"mode":"open","whitelist":[],"allowed_groups":[],'
-    '"require_link":false,"rate_limit_rpm":10,'
+    '"require_link":false,"respond_to_broadcasts":false,"rate_limit_rpm":10,'
     '"denied_message":"You are not authorised to use this bot."}'
 )
 
@@ -215,6 +238,7 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    broadcast_mention: bool = False
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.
 
@@ -472,6 +496,10 @@ class ChannelAdapter(ABC):
         calls it on every adapter the same way, which is what replaced reaching
         for two differently named methods by `getattr`.
         """
+
+    async def resolve_addressing(self, bot_token: str, incoming: IncomingMessage) -> bool | None:
+        """Whether this message directly names this bot, resolving identity where needed."""
+        return incoming.addressed
 
     @abstractmethod
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:

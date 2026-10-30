@@ -32,6 +32,7 @@ import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { AnswerStyle, ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
+import { MentionPolicyFields } from "./mention-policy-fields";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -58,6 +59,7 @@ export interface ChannelBotDraft {
   commandToken: string;
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
+  respondToBroadcasts: boolean;
   answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
 }
@@ -111,6 +113,12 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     }
   }
 
+  if (draft.respondToBroadcasts !== (bot.access_policy.respond_to_broadcasts ?? false)) {
+    patch.access_policy = {
+      ...bot.access_policy,
+      respond_to_broadcasts: draft.respondToBroadcasts,
+    };
+  }
   Object.assign(patch, transcriptionPatch(bot, draft.transcription));
   return patch;
 }
@@ -178,6 +186,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     appToken: "",
     commandToken: "",
     webhookMode: bot.webhook_mode,
+    respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
     answerStyle: {
       ack_reaction: bot.ack_reaction,
       stream_answers: bot.stream_answers,
@@ -373,6 +382,14 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             </FormField>
           ))}
 
+        <MentionPolicyFields
+          idPrefix="edit-channel"
+          platform={bot.platform}
+          enabled={draft.respondToBroadcasts}
+          onChange={(respondToBroadcasts) =>
+            setDraft((current) => ({ ...current, respondToBroadcasts }))
+          }
+        />
         <AnswerStyleFields
           idPrefix="edit-channel"
           platform={bot.platform}

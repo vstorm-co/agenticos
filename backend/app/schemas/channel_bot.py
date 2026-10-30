@@ -19,6 +19,10 @@ class AccessPolicy(BaseSchema):
     whitelist: list[str] = []
     allowed_groups: list[str] = []
     require_link: bool = False
+    respond_to_broadcasts: bool = Field(
+        default=False,
+        description="Respond to channel-wide mentions as well as direct mentions. The platform must deliver the message to this bot.",
+    )
     rate_limit_rpm: int = 10
     denied_message: str = "You are not authorised to use this bot."
 

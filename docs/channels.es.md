@@ -1,5 +1,5 @@
 ---
-source_sha: "3d018adddfb9"
+source_sha: "873d97c32ad0"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2104,29 +2104,17 @@ para mostrar diferencias entre la consola y Mattermost.
   proceso está consultando el token de este bot». Ese proceso está fuera del
   despliegue, normalmente otro despliegue o un script con el mismo token, y solo
   su dueño puede pararlo.
-- **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
-  plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
-  `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las
-  mismas llamadas que usan las consultas de canal, así que Telegram ofrece los cinco
-  aunque ofrezca dos de las cuatro herramientas. El Builder lista bajo la caja los
-  que esta plataforma puede responder e inserta uno en el cursor, cada uno con
-  la descripción real de la herramienta - la misma que lee el modelo antes de
-  decidir si la llama, no la paráfrasis abreviada del catálogo, sin el marcado
-  que el propio modelo usa para distinguir el resumen de la forma de la
-  respuesta.
+- **El contexto del canal se añade automáticamente en cada run.** Los runs de Mattermost, Slack, Teams y Telegram reciben nombre, propósito, tema, visibilidad, número comunicado de miembros y una lista visible limitada, también con prompts existentes o vacíos. `{channel_members}` nombra la lista; `{member_list}` sigue como alias. Los demás marcadores son `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` y `{member_count}`.
 
-    Se resuelven por run y nunca se cachean: la pertenencia a un canal cambia, y una
-    lista caducada en un prompt es peor que ninguna porque el agent la afirma como
-    un hecho. Solo se pide lo que la prosa pide, así que una vinculación que no
-    nombra ningún marcador no cuesta nada. Un marcador que la plataforma no pudo
-    responder se convierte en `(unavailable)` en vez de costarle a alguien su
-    respuesta.
+    Cada fuente se consulta una vez por run, sin caché entre turnos: hasta 50 miembros visibles y 2000 caracteres por valor. Telegram devuelve administradores, no todos los miembros. Cada fuente tiene cinco segundos; los valores no disponibles siguen desconocidos. Se aplanan y se entregan como datos de conversación no confiables, fuera de las instrucciones del sistema. Slack devuelve identificadores de miembros sin consultar cada perfil. El texto editable añade indicaciones junto al contexto de ejecución.
 
-    Un prompt que rellenó alguno de ellos gana una frase que dice que los valores
-    sustituidos son información y no órdenes, y a cada valor se le aplanan los
-    saltos de línea y las llaves. El `purpose` de un canal lo puede editar
-    cualquiera que pueda editar el canal, y se está pegando dentro de las
-    instrucciones de un agent.
+- **Elija si las menciones de grupo inician un run.** Al crear o editar un bot, *Responder a menciones de grupo* está desactivado por defecto. Las invocaciones directas siguen funcionando. Al activarlo admite también `@all`, `@here` y `@channel` de Mattermost, menciones nativas de Slack y menciones estructuradas de canales o equipos de Teams. Se mantienen las comprobaciones de identidad, acceso y límites. El código citado y las menciones a otras personas no cuentan.
+
+    Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
+
+- **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
+- **Todas las llamadas MCP requieren aprobación en apps de chat, incluidas las lecturas y conexiones de organización o plataforma.** Vincular una cuenta identifica la conexión utilizada; no autoriza publicar automáticamente resultados personales. La misma regla se aplica a agentes delegados y llamadas reanudadas.
+- **El agent conoce dónde responde y qué cuenta está disponible.** Las indicaciones de ejecución identifican el comunicador y la consola del despliegue, explican el workspace gestionado y distinguen conexiones MCP de la organización y servicios personales. Estos necesitan la identidad vinculada del remitente y su propia conexión autorizada al servicio. Para vincular se envía `link`, sin barra, en un mensaje directo; el enlace privado no pertenece a un canal. El agent comunica resultados reales y un siguiente paso concreto si falta autorización o capacidad.
 - **Un mensaje reentregado se responde una vez.** Todas las plataformas entregan al
   menos una vez: las rutas de webhook responden 200 antes de hacer ningún trabajo,
   así que un handler lento nunca dispara un reintento, pero un 200 perdido por el
@@ -2571,19 +2559,7 @@ salió bien como si no
 Un turno que sí llegó a ejecutarse conserva sus ficheros — lo alimentaron, y el run
 está en la transcripción.
 
-**La salida** es lo que el agent escribió en este turno, comparado con una instantánea
-tomada cuando se abrió el workspace. No un diff de todo: `/uploads` es el fichero
-propio del usuario — devolverlo es citarle a alguien su propio adjunto — y `/skills`
-es saber hacer que materializó la plataforma, no trabajo del agent. Un fichero que
-*sobrescribió* tampoco se envía: reescribir un script sobre el que está iterando es lo
-normal, y publicarlo en cada turno llenaría el canal con el mismo adjunto.
-
-**Si esa instantánea no se pudo tomar, no se publica nada.** La comparación es «todo
-lo de ahora, menos todo lo de entonces», así que tratar un workspace ilegible como uno
-vacío haría que todos los ficheros que ya hubiera en él se leyeran como la salida de
-este turno — y bajo alcance `agent` o `channel` esos ficheros son de otras personas.
-Un adjunto que falta es el fallo que merece la pena tener; la hoja de cálculo de un
-compañero en un canal compartido no lo es.
+**La salida** de ficheros se envía solo mediante `send_channel_file`, cuando el usuario pide recibir o descargar el fichero. Crearlo, leerlo o editarlo no lo adjunta. Conceda la herramienta por vinculación del bot en *Dónde está disponible este agent*. Las vinculaciones existentes conservan su selección; active esta acción explícitamente tras actualizar. La herramienta tiene efectos secundarios y sigue la política normal de aprobación. Envía solo el fichero indicado del workspace, rechaza rutas internas y ficheros de más de 8 MB y permite hasta tres intentos por turno. Los fallos de la plataforma se comunican sin afirmar que se entregó. Teams puede requerir aceptación en un chat personal. Los gráficos y las visualizaciones solicitadas mantienen su entrega separada como imagen.
 
 Cada fichero lleva el tipo que su nombre implica y no un `application/octet-stream`
 plano, así que un gráfico que escribió un agent llega como una imagen en las
@@ -2711,7 +2687,14 @@ Cuatro herramientas cambian eso, y cada una se concede **por vinculación**, baj
 | `get_channel_info` | Nombre, propósito, tema, tamaño | ✅ | ✅ | ✅ | ✅ |
 | `list_channel_members` | Quién está aquí | ✅ | solo admins | ✅ | ✅ |
 | `search_channels` | Qué otros canales existen | ✅ | — | ✅ | — |
-| `read_channel_history` | Qué se dijo hace poco, **en el hilo en el que está respondiendo** | ✅ | — | ✅ | — |
+| `read_channel_history` | Mensajes recientes del canal o de este hilo con `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Enviar un fichero solicitado del workspace | ✅ | ✅ | ✅ | ✅ |
+
+Para conectar la cuenta, envíe al bot un mensaje directo con solo `link`, sin barra. Abra el enlace privado tras iniciar sesión en AgenticOS y vuelva al canal. Si los ficheros anteriores del hilo requieren conexión, el bot lo explica sin descargarlos y vuelve a intentarlo tras conectar. Las imágenes del canal usan el doble de resolución CSS; los diagramas Mermaid horizontales muy anchos reciben una disposición vertical solo en el PNG.
+
+Las imágenes solicitadas mediante `generate_image` se adjuntan a las respuestas en las cuatro plataformas de chat, además de los gráficos y diagramas. Las imágenes guardadas se leen dentro de la organización de la ejecución, se limitan a 8 MiB y 16 megapíxeles y se convierten a PNG; las imágenes ausentes, no válidas o demasiado grandes generan un aviso de entrega fallida. Teams también ajusta las imágenes a sus propios límites. Crear un fichero normal en el espacio de trabajo sigue sin enviarlo: requiere `send_channel_file`. El contexto del hilo conserva las fechas originales; las expresiones de tiempo relativo se refieren a esas fechas, no al momento en que el agente entra en el hilo.
+
+Solo se adjuntan ficheros registrados como generados por las herramientas de la propia ejecución. El nombre de una herramienta o el texto de su resultado no autorizan el acceso a imágenes de otra conversación. Rechazar la generación no produce un aviso de imagen no entregada. Los hilos existentes actualizan el texto una vez, sin volver a descargar los adjuntos anteriores.
 
 Por vinculación y no por agent, porque una organización puede vincular un agent a dos
 servidores de Mattermost y tres workspaces de Slack — y *«¿puede leer lo que se dijo
@@ -2732,22 +2715,13 @@ Tres cosas que merece la pena saber antes de concederlas:
   con el token propio del bot, así que el agent ve exactamente lo que ve el bot. No
   hay ninguna lista de permitidos nuestra que pueda desincronizarse de la de la
   plataforma.
-- **El modelo nunca nombra un canal, ni un hilo.** Las herramientas se atan en el
-  servidor al canal en el que llegó el mensaje, y `read_channel_history` también al
-  hilo: un hilo y su canal son dos transcripciones, y aquella en la que se le habló al
-  agent es el hilo. Atada solo al canal, *«resume lo que decidimos arriba»* resumía
-  cualquier otra cosa que la sala hubiera estado diciendo. Un argumento para
-  cualquiera de las dos convertiría *«quién está en este canal»* en *«lee cualquier
-  canal en el que esté este bot»*, preguntado desde una conversación de otro sitio.
+- **El modelo no indica un ID de canal ni de hilo.** `read_channel_history` usa `scope="channel"` por defecto para los mensajes recientes del canal actual; `scope="thread"` lee solo el hilo vinculado. Ningún alcance accede a otro canal. El resultado es una ventana reciente limitada, no una prueba de que no existan mensajes anteriores. El contexto automático sigue limitado al hilo.
 - **`read_channel_history` es la que merece la pena poner tras una puerta.** Es una
   lectura, así que no pregunta por defecto, pero mete los mensajes de otras personas
   en una transcripción de run que alguien lee semanas después. Una anulación de
   `tool_approval` en la vinculación es la forma de hacer que pregunte.
 
-Esto deliberadamente *no* es lo mismo que meter la lista de miembros y el propósito
-del canal en cada system prompt. Eso es otra funcionalidad con otro modo de fallo — un
-`purpose` escrito por cualquiera que pueda editar el canal, pegado dentro de las
-instrucciones, es una inyección de prompt con un botón de editar público.
+El contexto automático incluye nombre, propósito y una lista visible limitada, marcados como datos y no instrucciones. Las herramientas concedidas por vinculación permiten consultas adicionales y envío explícito de ficheros; retirar una herramienta no elimina el contexto automático.
 
 ## Elegir { #choosing }
 

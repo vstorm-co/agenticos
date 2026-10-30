@@ -298,6 +298,19 @@ class TestPosting:
         assert b'name="files[1]"; filename="r.csv"' in last
         assert b"b" * 1000 in last
 
+    async def test_a_file_sent_on_its_own_is_posted_without_text(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        """What `send_channel_file` sends: an attachment and no words."""
+        await adapter.send_message(
+            "tok",
+            OutgoingMessage(
+                "dm", "", attachments=[OutgoingAttachment("r.csv", b"x,y", "text/csv")]
+            ),
+        )
+        (posted,) = api.posted("/channels/dm/messages")
+        assert b'name="files[0]"; filename="r.csv"' in posted
+
     async def test_an_empty_message_with_nothing_attached_posts_nothing(
         self, adapter: DiscordAdapter, api: _Discord
     ):
