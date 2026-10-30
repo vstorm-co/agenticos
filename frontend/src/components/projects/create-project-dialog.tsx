@@ -29,6 +29,10 @@ import { cn } from "@/lib/utils";
 import type { Project } from "@/types/projects";
 import { ProjectSandboxChoice } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
+import { useProjectFolder } from "@/hooks/use-project-folder";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import type { LocalTarget } from "@/lib/desktop/commands";
 
 /** Private to its creator until they share it: a project is somebody's work first. */
 const ONLY_ME: Audience = { mode: "private", group_ids: [], user_ids: [] };
@@ -51,6 +55,9 @@ export function CreateProjectDialog({
   const t = useTranslations("projects");
   const tErrors = useTranslations("errors");
   const { create } = useProjects();
+  const shell = useShell();
+  const folder = useProjectFolder(null);
+  const [localFolder, setLocalFolder] = useState<LocalTarget | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -66,13 +73,15 @@ export function CreateProjectDialog({
         description: description.trim() || null,
         instructions,
         default_agent_id: agentId,
-        ...(sandbox === "auto"
+        ...(sandbox === "auto" || sandbox === "computer"
           ? {}
           : sandbox === "state"
             ? { backend: "state" as const }
             : { backend: "service" as const, sandbox_connection_id: sandbox }),
         ...audiencePayload(audience),
       });
+      if (localFolder) folder.bind(project.id, localFolder);
+      setLocalFolder(null);
       setName("");
       setDescription("");
       setInstructions("");
@@ -154,7 +163,15 @@ export function CreateProjectDialog({
           </FormField>
           <ProjectSandboxChoice
             value={sandbox}
-            onChange={setSandbox}
+            onChange={(next) => {
+              setSandbox(next);
+              if (next !== "computer") setLocalFolder(null);
+            }}
+            computer={
+              isDesktopShell(shell) && folder.available
+                ? { target: localFolder, onChange: setLocalFolder, disabled: create.isPending }
+                : undefined
+            }
             enabled={open}
             error={errors.sandbox_connection_id}
           />
@@ -168,7 +185,13 @@ export function CreateProjectDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
+          <Button
+            onClick={handleCreate}
+            loading={create.isPending}
+            disabled={
+              !name.trim() || create.isPending || (sandbox === "computer" && localFolder === null)
+            }
+          >
             {t("create")}
           </Button>
         </DialogFooter>

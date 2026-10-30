@@ -256,3 +256,48 @@ async def test_streamed_author_references_are_screened_and_not_retained() -> Non
     assert "private@example.com" not in str(seen) and "confidential" not in str(seen)
     assert "U-STREAM-PRIVATE" not in stored and "private@example.com" not in stored
     assert "U-STREAM-PRIVATE" not in json.dumps(as_payload(recorder), default=str)
+
+
+@pytest.mark.security
+def test_a_manifest_omits_channel_references_and_ephemeral_desktop_screenshots() -> None:
+    from pydantic_ai.messages import (
+        BinaryContent,
+        ModelMessagesTypeAdapter,
+        ToolReturnPart,
+        UserPromptPart,
+    )
+    from pydantic_ai.models import ModelRequestParameters
+
+    from app.agents.channel_reference import ChannelReferencePart
+    from app.agents.ephemeral_media import NOT_KEPT, ephemeral_image
+
+    attachment = BinaryContent(data=b"my attachment", media_type="image/png")
+    recorder = RunRecorder()
+    recorder.observe_request(
+        [
+            ModelRequest(
+                parts=[
+                    ChannelReferencePart(content="private channel author"),
+                    UserPromptPart(content=["Current question", attachment]),
+                    ToolReturnPart(
+                        tool_name="computer_screenshot",
+                        content=ephemeral_image(b"private screen", "image/png"),
+                    ),
+                ]
+            )
+        ],
+        None,
+        ModelRequestParameters(),
+    )
+    stored = json.dumps(recorder.messages)
+    assert "private channel author" not in stored
+    assert NOT_KEPT in stored
+    restored = ModelMessagesTypeAdapter.validate_python(recorder.messages)
+    prompt = restored[0].parts[0]
+    assert isinstance(prompt, UserPromptPart)
+    assert isinstance(prompt.content, list)
+    assert prompt.content[0] == "Current question"
+    restored_attachment = prompt.content[1]
+    assert isinstance(restored_attachment, BinaryContent)
+    assert restored_attachment.data == attachment.data
+    assert restored_attachment.media_type == attachment.media_type

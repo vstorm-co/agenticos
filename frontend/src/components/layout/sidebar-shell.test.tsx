@@ -11,6 +11,9 @@ import { version } from "../../../package.json";
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
+vi.mock("@/hooks/use-release-update", () => ({
+  useReleaseUpdate: () => ({ data: { latest: null } }),
+}));
 vi.mock("@/components/layout/sidebar-search", () => ({
   SidebarSearch: () => <button>the search row</button>,
 }));
@@ -40,15 +43,14 @@ function follows(earlier: HTMLElement, later: HTMLElement): boolean {
 }
 
 describe("SidebarShell", () => {
-  it("opens on the destinations, with nothing above them", () => {
-    // The organization moved into the account's menu, so the column starts with
-    // the places you can go rather than with the tenant they are read through.
+  it("keeps labelled search above the destinations", () => {
     renderShell();
-
-    const nav = screen.getByRole("navigation");
-    for (const below of ["the search row", "the account menu"]) {
-      expect(follows(nav, screen.getByRole("button", { name: below }))).toBe(true);
-    }
+    expect(
+      follows(
+        screen.getByRole("button", { name: "the search row" }),
+        screen.getByRole("navigation"),
+      ),
+    ).toBe(true);
   });
 
   it("puts the account last", () => {

@@ -51,6 +51,8 @@ export const SEEDED_SKILL_CONTENT = "## When a customer asks for a refund\n\nChe
 
 /** A knowledge base, so /rag has a row rather than only an empty state. */
 export const SEEDED_KB_NAME = "E2E Handbook";
+export const SEEDED_PROJECT_NAME = "E2E Workspace";
+export const SEEDED_CONTEXT_NAME = "e2e-company-guide.md";
 
 /** A draft agent: the only thing that can prove an unpublished agent will not run. */
 export const DRAFT_AGENT_NAME = "E2E Draft";
@@ -322,7 +324,10 @@ export async function expectNoRenderedSecret(page: Page): Promise<void> {
  * exactly the card roots, since the overlay is a direct child of one.
  */
 export function agentCard(page: Page, text: string): Locator {
-  return page.locator('div:has(> a[href^="/agents/"])').filter({ hasText: text });
+  const cards = page.locator('div:has(> a[href^="/agents/"])');
+  return text.startsWith("@")
+    ? cards.filter({ has: page.getByTitle(text, { exact: true }) })
+    : cards.filter({ hasText: text });
 }
 
 /**

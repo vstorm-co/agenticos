@@ -3,16 +3,9 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, BookOpen, FilePlus, Upload } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  DialogFooter,
-  Input,
-  Label,
-  Switch,
-} from "@/components/ui";
+import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
+import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
 import { FilePane, FileTree, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { CategoryInput } from "@/components/skills/category-input";
@@ -35,6 +28,7 @@ interface SkillWorkbenchProps {
   categorySuggestions?: string[];
   onSave: (edit: SkillEdit) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
 /**
@@ -61,13 +55,13 @@ export function SkillWorkbench({
   categorySuggestions = [],
   onSave,
   onCancel,
+  onDelete,
 }: SkillWorkbenchProps) {
   const t = useTranslations("skills");
   const { addResource, saveResource, removeResource, uploadResources } = useSkill(skill.id);
 
   const [description, setDescription] = useState(skill.description);
   const [content, setContent] = useState(skill.content);
-  const [enabled, setEnabled] = useState(skill.enabled);
   // Held as text while it is edited; whitespace-only means "no category", so
   // clearing the field is how a skill leaves its shelf.
   const [category, setCategory] = useState(skill.category ?? "");
@@ -83,7 +77,6 @@ export function SkillWorkbench({
   const changed =
     description !== skill.description ||
     content !== skill.content ||
-    enabled !== skill.enabled ||
     editedCategory !== skill.category;
 
   const upload = async (picked: File[]) => {
@@ -93,12 +86,6 @@ export function SkillWorkbench({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none">
-      {/* Above the split rather than inside the body pane: the description and
-          the switch are facts about the skill, not about the file being read,
-          and they have to stay reachable while somebody is in `checklist.md`.
-          Every column is label / control / helper from the top, so the three
-          inputs share one line - bottom-aligning them by helper text put the
-          category box at whatever height its wrapped helper left it. */}
       <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
         <div className="min-w-0 flex-1 basis-72 space-y-1.5">
           <Label htmlFor="skill-description">{t("description3")}</Label>
@@ -121,19 +108,6 @@ export function SkillWorkbench({
             readOnly={!canEdit}
           />
           <p className="text-muted-foreground text-xs">{t("groupsListingNeverReaches")}</p>
-        </div>
-        <div className="shrink-0 space-y-1.5">
-          <Label htmlFor="skill-enabled">{t("enabled")}</Label>
-          {/* Centered on the input row: the switch is shorter than an input,
-              and sitting on the row's top edge it reads as misplaced. */}
-          <div className="flex h-9 items-center">
-            <Switch
-              id="skill-enabled"
-              checked={enabled}
-              onCheckedChange={setEnabled}
-              disabled={!canEdit}
-            />
-          </div>
         </div>
       </div>
 
@@ -238,20 +212,35 @@ export function SkillWorkbench({
       )}
 
       <DialogFooter>
-        <ShareResourceButton
-          resourceType="skill"
-          resourceId={skill.id}
-          name={skill.name}
-          canManage={canEdit}
-          className="sm:mr-auto"
-        />
+        <div className="flex items-center gap-2 sm:mr-auto">
+          <ShareResourceButton
+            resourceType="skill"
+            resourceId={skill.id}
+            name={skill.name}
+            canManage={canEdit}
+          />
+          {canEdit && onDelete && (
+            <ResourceActions
+              name={skill.name}
+              onDelete={onDelete}
+              disabled={
+                isSaving ||
+                addResource.isPending ||
+                saveResource.isPending ||
+                removeResource.isPending ||
+                uploadResources.isPending
+              }
+            />
+          )}
+        </div>
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel2") : t("close")}
         </Button>
         {canEdit && (
           <Button
-            onClick={() => onSave({ description, content, enabled, category: editedCategory })}
-            disabled={!changed || !description.trim() || isSaving}
+            onClick={() => onSave({ description, content, category: editedCategory })}
+            loading={isSaving}
+            disabled={!changed || !description.trim()}
           >
             {t("save")}
           </Button>

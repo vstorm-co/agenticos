@@ -16,7 +16,7 @@ export const SEGMENTED_CLASS =
 /** One choice on the control: a pill, filled in ink when it is the one chosen. */
 export function segment(active: boolean): string {
   return cn(
-    "flex h-8 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors",
+    "flex h-8 touch:min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors",
     active
       ? "bg-primary text-primary-foreground shadow-card"
       : "text-muted-foreground hover:text-foreground",

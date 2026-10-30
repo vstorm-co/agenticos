@@ -59,11 +59,13 @@ interface ConnectionDialogProps {
 const PURPOSE: Record<SandboxConnectionKind, string> = {
   docker: "sandboxd",
   daytona: "daytona",
+  e2b: "e2b",
 };
 
 const SUGGESTED_NAME: Record<SandboxConnectionKind, string> = {
   docker: "secretNameDocker",
   daytona: "secretNameDaytona",
+  e2b: "secretNameE2b",
 };
 
 interface FormState {
@@ -324,6 +326,12 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                       {t("kindDaytona")}
                     </span>
                   </SelectItem>
+                  <SelectItem value="e2b">
+                    <span className="flex items-center gap-2">
+                      <ConnectionKindIcon kind="e2b" />
+                      {t("kindE2b")}
+                    </span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -384,7 +392,11 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">
-              {form.kind === "docker" ? t("dockerTokenHint") : t("daytonaKeyHint")}
+              {form.kind === "docker"
+                ? t("dockerTokenHint")
+                : form.kind === "e2b"
+                  ? t("e2bKeyHint")
+                  : t("daytonaKeyHint")}
             </p>
             {/* The token is not something to go and find: `make sandbox-token`
                 generated it into `backend/.env`, and that is the file the service
@@ -427,7 +439,9 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                 placeholder={t("serviceSOwn")}
                 onChange={(event) => setForm({ ...form, defaultRuntime: event.target.value })}
               />
-              <p className="text-muted-foreground text-xs">{t("daytonaSnapshotImageWhat")}</p>
+              <p className="text-muted-foreground text-xs">
+                {form.kind === "e2b" ? t("e2bTemplateWhat") : t("daytonaSnapshotImageWhat")}
+              </p>
             </div>
           )}
 

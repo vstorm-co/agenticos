@@ -593,3 +593,42 @@ describe("WorkspaceSection", () => {
     expect(screen.getByLabelText("Runs on")).toBeDisabled();
   });
 });
+
+it("selects Computer without storing a machine path and clears container-only fields", async () => {
+  const changed = vi.fn();
+  const view = render(
+    <WorkspaceSection
+      definition={SANDBOX}
+      binding={binding({
+        backend: "service",
+        connection_id: "cloud",
+        runtime: "desktop",
+        session_scope: "agent",
+      })}
+      onChange={changed}
+    />,
+    { wrapper },
+  );
+  await userEvent.click(screen.getByRole("button", { name: /^Computer/ }));
+  expect(changed).toHaveBeenCalledWith(
+    expect.objectContaining({
+      config: expect.objectContaining({
+        backend: "local",
+        runtime: null,
+        connection_id: null,
+        session_scope: "conversation",
+      }),
+    }),
+  );
+  view.rerender(
+    <WorkspaceSection
+      definition={SANDBOX}
+      binding={binding({ backend: "local" })}
+      onChange={changed}
+    />,
+  );
+  expect(screen.getByRole("combobox", { name: "Who shares it by default" })).toBeDisabled();
+  expect(screen.queryByLabelText("Runtime")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Runs on")).not.toBeInTheDocument();
+  expect(screen.getByText(/Each person chooses a folder or Whole computer/)).toBeInTheDocument();
+});

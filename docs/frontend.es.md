@@ -1,5 +1,5 @@
 ---
-source_sha: "5538880e71c7"
+source_sha: "3b553bcc7ca4"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -37,6 +37,8 @@ Las personas y organizaciones usan `EntityAvatar`: las fotos se recortan en
 círculos, con iniciales sobre un color estable como alternativa. Los agentes
 conservan sus caras generadas. Las descripciones del catálogo reservan dos
 líneas; al abrir un elemento se muestra la descripción completa.
+
+Las acciones asíncronas usan `Button loading` para conservar su etiqueta y tamaño y evitar envíos repetidos. El estado continúa hasta completar todos los pasos, incluidas las cargas de archivos. Los botones basados en enlaces conservan un único hijo y bloquean la activación mientras no están disponibles. Los controles comparten el foco de teclado y tamaños compactos en escritorio, con objetivos táctiles de 44px cuando hay espacio. Las capas se animan desde su anclaje; las ayudas ajustan el texto al ancho de la ventana. El calendario usa el idioma de la consola y el progreso expone su valor real y máximo a las tecnologías de asistencia. Las animaciones respetan la preferencia Motion de la persona.
 
 ## El navegador nunca llama al backend { #the-browser-never-calls-the-backend }
 

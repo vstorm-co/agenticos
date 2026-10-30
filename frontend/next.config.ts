@@ -62,6 +62,8 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // next-intl owns locale rewrites; Next must preserve their internal paths.
+  skipProxyUrlNormalize: true,
   pageExtensions: ["ts", "tsx"],
   // The development badge sits in the corner the console's own controls use.
   devIndicators: false,

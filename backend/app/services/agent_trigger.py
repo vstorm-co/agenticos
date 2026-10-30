@@ -86,6 +86,7 @@ from app.schemas.agent_trigger import (
     TriggerUpdate,
     _cron_has_next,
 )
+from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.services import portal_catalog, portals, trigger_dedupe, trigger_events
 from app.services.access import AGENT, resolve_access, visible_resource_ids
@@ -583,6 +584,11 @@ class AgentTriggerService:
                 message="Only you, signed in as yourself, can let a trigger act as you",
                 details={"agent_id": str(agent_id)},
             )
+        if data.local_target is not None and not data.runs_as_creator:
+            raise BadRequestError(
+                message="A trigger works on your computer only when it acts as you",
+                details={"agent_id": str(agent_id)},
+            )
 
         now = datetime.now(UTC)
         event_source: str | None = None
@@ -685,6 +691,9 @@ class AgentTriggerService:
             portal_key=portal_key,
             delivery_mode=delivery_mode,
             runs_as_creator=data.runs_as_creator,
+            local_target=(
+                None if data.local_target is None else data.local_target.model_dump(mode="json")
+            ),
             overlap=data.overlap or TriggerOverlap.SKIP.value,
             teams_conversation_id=data.teams_conversation_id,
         )
@@ -902,6 +911,7 @@ class AgentTriggerService:
         trigger = await self._owned(ctx, agent_id, trigger_id)
         changes = writable(data, over=AgentTrigger)
         self._guard_acting_as_creator(ctx, trigger, changes)
+        self._guard_local_target(ctx, trigger, changes, data.local_target)
 
         # A filter edit, the event mirror of a cadence edit: an event trigger's
         # `event_config` is re-normalised against its source, and one sent for a
@@ -987,6 +997,38 @@ class AgentTriggerService:
             and any(field in changes for field in _WHAT_IT_DOES)
         ):
             changes["runs_as_creator"] = False
+
+    @staticmethod
+    def _guard_local_target(
+        ctx: AuthContext,
+        trigger: AgentTrigger,
+        changes: dict[str, Any],
+        local_target: LocalTarget | None,
+    ) -> None:
+        """Keep a trigger's computer the creator's own (#2305).
+
+        Only the creator points a trigger at their computer, and only one that
+        acts as them; a trigger that stops acting as them stops reaching it.
+
+        Raises:
+            AuthorizationError: Someone other than the creator names a folder.
+            BadRequestError: A folder is named for a trigger that does not act as its creator.
+        """
+        acting = changes.get("runs_as_creator", trigger.runs_as_creator)
+        if "local_target" in changes and local_target is not None:
+            if not _acts_as_themselves(ctx, trigger.created_by_user_id):
+                raise AuthorizationError(
+                    message="Only the person who made this trigger can point it at their computer",
+                    details={"trigger_id": str(trigger.id)},
+                )
+            if not acting:
+                raise BadRequestError(
+                    message="A trigger works on your computer only when it acts as you",
+                    details={"trigger_id": str(trigger.id)},
+                )
+            changes["local_target"] = local_target.model_dump(mode="json")
+        if not acting and trigger.local_target is not None:
+            changes["local_target"] = None
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""
@@ -1791,6 +1833,13 @@ class AgentTriggerService:
                 # The creator's own MCP connections speak for this fire only when
                 # the creator let it act as them; otherwise nobody is speaking.
                 acts_for_sender=ctx.fired_as_creator is not None,
+                # The creator's computer, for a trigger that acts as them and
+                # names one; `_open_local` refuses it for any other fire.
+                local=(
+                    LocalTarget.model_validate(trigger.local_target)
+                    if trigger.local_target is not None and ctx.fired_as_creator is not None
+                    else None
+                ),
             )
         except NotFoundError, AuthorizationError:
             # Access was withdrawn between the pre-check and the run. Same verdict:

@@ -1,5 +1,5 @@
 ---
-source_sha: "caab99f82fc1"
+source_sha: "2f33faf1a39b"
 ---
 
 # Archivos de contexto { #context-files }
@@ -19,6 +19,8 @@ conoce la respuesta.
 Es la respuesta a un problema con el que toda empresa se topa en su tercer agent
 — los mismos tres párrafos pegados en tres juegos de instrucciones, y luego
 editados en uno solo de ellos.
+
+En Agent Builder, **Context → New context file** crea un archivo directamente en el panel de capacidades, lo vincula al borrador actual y activa Context. Después puedes elegir cómo lo usa ese agente. La publicación sigue siendo un paso separado. La creación requiere permisos para editar el agente y los archivos de contexto.
 
 ## Dónde queda, entre los skills y el conocimiento { #where-it-sits-between-skills-and-knowledge }
 

@@ -6,8 +6,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { getProject } from "@/lib/projects-api";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
+import { act } from "@testing-library/react";
+import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
 import { ProjectChip } from "./project-chip";
 
+const desktop = vi.hoisted(() => ({ enabled: false, folder: null as LocalTarget | null }));
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () => (desktop.enabled ? { platform: "macos" } : null),
+}));
+vi.mock("@/hooks/use-project-folder", () => ({
+  useProjectFolder: (id: string | null) => ({
+    target: desktop.folder,
+    available: true,
+    scopeKey: id ? `alice:org:${id}` : null,
+  }),
+}));
 const params = vi.fn(() => new URLSearchParams());
 vi.mock("next/navigation", () => ({
   useSearchParams: () => params(),
@@ -56,6 +69,9 @@ function chip(conversationId: string | null, pickerOpen = false) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  desktop.enabled = false;
+  desktop.folder = null;
+  useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   params.mockReturnValue(new URLSearchParams());
   useConversationStore.getState().setPendingProjectId(null);
   useAgentSelectionStore.getState().select(null);
@@ -63,6 +79,7 @@ beforeEach(() => {
     async (id) =>
       ({
         id,
+        can_use: true,
         name: id === "p-1" ? "Launch" : "Treasury",
         default_agent_id: id === "p-1" ? "a-1" : null,
       }) as never,
@@ -143,4 +160,45 @@ describe("ProjectChip", () => {
     await userEvent.click(screen.getByRole("button", { name: "none" }));
     expect(useConversationStore.getState().pendingProjectId).toBeNull();
   });
+});
+
+it("inherits the approved folder for a new desktop project chat and keeps a manual Cloud override", async () => {
+  desktop.enabled = true;
+  desktop.folder = { folder: "/approved/project", mode: "read_only" };
+  useConversationStore.getState().setPendingProjectId("p-1");
+  const view = chip(null, true);
+  await waitFor(() => expect(useWorkOnStore.getState().targetFor(null)).toEqual(desktop.folder));
+  act(() => useWorkOnStore.getState().set(null, null));
+  await userEvent.click(screen.getByRole("button", { name: "pick bare" }));
+  await waitFor(() => expect(useWorkOnStore.getState().draftProjectKey).toBe("alice:org:p-3"));
+  expect(useWorkOnStore.getState().targetFor(null)).toEqual(desktop.folder);
+  act(() => useWorkOnStore.getState().set(null, null));
+  view.rerender(
+    <QueryClientProvider client={new QueryClient()}>
+      <ProjectChip conversationId={null} pickerOpen={false} onPickerOpenChange={vi.fn()} />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("link");
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+});
+it("does not apply a computer's project folder in a browser or to an existing conversation", async () => {
+  desktop.folder = { folder: "/approved", mode: "read_only" };
+  useConversationStore.getState().setPendingProjectId("p-1");
+  const view = chip(null);
+  await screen.findByRole("link");
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
+  view.unmount();
+  desktop.enabled = true;
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "c-existing", project_id: "p-1" });
+  chip("c-existing");
+  await screen.findByRole("link");
+  expect(useWorkOnStore.getState().targetFor("c-existing")).toBeNull();
+});
+
+it("clears the inherited folder when a desktop draft has no project", async () => {
+  desktop.enabled = true;
+  useWorkOnStore.getState().applyProject("alice:org:p-old", { folder: "/old", mode: "read_only" });
+  chip(null);
+  await waitFor(() => expect(useWorkOnStore.getState().draftProjectKey).toBeNull());
+  expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
 });

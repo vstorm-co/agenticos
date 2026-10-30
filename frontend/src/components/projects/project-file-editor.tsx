@@ -130,7 +130,8 @@ export function ProjectFileEditor({ projectId, path }: { projectId: string; path
               {t("close")}
             </Button>
             <Button
-              disabled={!dirty || save.isPending || !original}
+              loading={save.isPending}
+              disabled={!dirty || !original}
               onClick={() => {
                 if (original) save.mutate({ content, revision: original.revision });
               }}

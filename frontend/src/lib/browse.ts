@@ -1,4 +1,4 @@
-import type { BrowseOutcome, BrowserFrame } from "@/types/chat";
+import type { BrowseOutcome, BrowserFrame, ToolCall } from "@/types/chat";
 
 /**
  * One step the browser took, as the panel lists it.
@@ -14,6 +14,13 @@ export interface BrowseStep {
   reason: string | null;
   url: string | null;
 }
+
+/**
+ * The tools that drive a desktop rather than a browser. Each run that uses one
+ * draws the desktop in a window named after its first call - a screenshot, or
+ * an action approved in a run of its own - so any of them can carry a window.
+ */
+export const DESKTOP_TOOLS: ReadonlySet<string> = new Set(["computer_screenshot", "computer_act"]);
 
 /** One `browse_web` call, assembled from its frames. */
 export interface Browse {
@@ -51,6 +58,11 @@ export interface Browse {
    * right.
    */
   imageStep: number;
+  tabId?: string | null;
+  nativeId?: string | null;
+  resumable?: boolean;
+  navigable?: boolean;
+  controlError?: string | null;
   outcome: BrowseOutcome | null;
   detail: string | null;
   /** The site a person kept their sign-in to when they handed the browser back (#2129). */
@@ -78,6 +90,11 @@ function opened(frame: BrowserFrame): Browse {
     steps: [],
     image: null,
     imageStep: -1,
+    tabId: frame.tab_id ?? null,
+    nativeId: frame.native_id ?? null,
+    resumable: frame.resumable === true,
+    navigable: frame.navigable === true,
+    controlError: null,
     outcome: null,
     detail: null,
   };
@@ -93,7 +110,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
       return {
         ...browse,
         image: frame.image ?? browse.image,
-        imageStep: frame.step,
+        imageStep: frame.image ? frame.step : browse.imageStep,
         url: frame.url ?? browse.url,
         title: frame.title ?? browse.title,
       };
@@ -115,6 +132,8 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         title: frame.title ?? browse.title,
       };
     }
+    case "browser_control_error":
+      return { ...browse, controlError: frame.detail ?? null };
     case "browser_needs_person":
       return { ...browse, needs: frame.detail ?? null };
     case "browser_pointer":
@@ -186,4 +205,115 @@ export function isRunning(browse: Browse): boolean {
 export function browseById(browses: Browse[], callId: string | null): Browse | null {
   if (callId === null) return null;
   return browses.find((browse) => browse.callId === callId) ?? null;
+}
+
+/** Preserve the cached final image while the chat remains authoritative about completion. */
+export function withLivePreview(streamed: Browse, live: Browse | null): Browse {
+  if (!live || live.callId !== streamed.callId) return streamed;
+  if (isRunning(streamed)) return live;
+  return {
+    ...streamed,
+    image: live.image ?? streamed.image,
+    imageStep: live.image ? live.imageStep : streamed.imageStep,
+  };
+}
+
+/** Latest view for each actual tab, bounded independently of the number of actions. */
+export function latestBrowserTabs(browses: Browse[]): Browse[] {
+  const tabs = new Map<string, Browse>();
+  for (const browse of browses) {
+    if (!browse.navigable && !browse.nativeId) continue;
+    const id = browse.tabId ?? browse.callId;
+    tabs.delete(id);
+    tabs.set(id, browse);
+  }
+  return Array.from(tabs.values()).slice(-8);
+}
+
+/** Read page identity from the direct tools' stored report, accepting only web links. */
+export function recordedBrowserPage(call: Pick<ToolCall, "args" | "result">): {
+  url: string | null;
+  title: string | null;
+} {
+  const report =
+    typeof call.result === "string"
+      ? /^PAGE: (.+) - (https?:\/\/\S+)\s*$/m.exec(call.result)
+      : null;
+  const candidate = report?.[2] ?? call.args.start_url ?? call.args.url;
+  if (typeof candidate !== "string") return { url: null, title: null };
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return { url: null, title: null };
+    const title = report?.[1];
+    return { url: url.href, title: title && title !== "(untitled)" ? title.slice(0, 300) : null };
+  } catch {
+    return { url: null, title: null };
+  }
+}
+
+/** Tools sharing a browser session; individual actions never represent a new tab. */
+export const BROWSER_TOOLS: ReadonlySet<string> = new Set([
+  "browse_web",
+  "browser_open",
+  "browser_new_tab",
+  "browser_tabs",
+  "browser_switch_tab",
+  "browser_close_tab",
+  "browser_read",
+  "browser_click",
+  "browser_type",
+  "browser_select",
+  "browser_scroll",
+  "browser_back",
+]);
+
+export interface TurnBrowseVisit {
+  id: string;
+  call: ToolCall;
+  browse: Browse | null;
+}
+
+/** One transcript card per actual tab, retaining its latest successful page read. */
+export function turnBrowseVisits(calls: ToolCall[], browses: Browse[]): TurnBrowseVisit[] {
+  const live = new Map(browses.map((browse) => [browse.callId, browse]));
+  const visits = new Map<string, TurnBrowseVisit>();
+  const desktopLive = calls.some((call) => DESKTOP_TOOLS.has(call.name) && live.has(call.id));
+  let active = "main";
+  for (const call of calls) {
+    const browse = live.get(call.id) ?? null;
+    if (DESKTOP_TOOLS.has(call.name)) {
+      if (browse) visits.set(`desktop:${call.id}`, { id: call.id, call, browse });
+      else if (!desktopLive && !visits.has("desktop"))
+        visits.set("desktop", { id: call.id, call, browse });
+      continue;
+    }
+    if (!BROWSER_TOOLS.has(call.name)) continue;
+    if (call.name === "browser_tabs" || call.name === "browser_close_tab") {
+      const selected =
+        typeof call.result === "string" ? /^\* (\S+):/m.exec(call.result)?.[1] : null;
+      if (selected) active = selected;
+      continue;
+    }
+    const page = recordedBrowserPage(call);
+    if (call.name === "browser_switch_tab") {
+      if (!browse && !page.url) continue;
+      if (typeof call.args.tab_id === "string") active = call.args.tab_id;
+    }
+    if (call.name === "browser_new_tab") {
+      const tab = typeof call.result === "string" ? /^TAB: (\S+)/m.exec(call.result)?.[1] : null;
+      if (!browse && (!tab || !recordedBrowserPage({ args: {}, result: call.result }).url))
+        continue;
+      active = tab ?? call.id;
+    }
+    const liveTab = browse?.tabId ?? browse?.nativeId;
+    if (liveTab) active = liveTab;
+    const key = `tab:${active}`;
+    const previous = visits.get(key);
+    visits.set(key, {
+      id: previous?.id ?? call.id,
+      call: page.url || !previous ? call : previous.call,
+      browse: browse ?? previous?.browse ?? null,
+    });
+  }
+  return Array.from(visits.values());
 }

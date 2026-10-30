@@ -56,6 +56,15 @@ def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(
                 .read_text()
                 .strip()
             )
+            desktop_shipped = (
+                (
+                    Path(__file__).resolve().parents[1]
+                    / "fixtures"
+                    / "architect-instructions-desktop-1.31.0.md"
+                )
+                .read_text()
+                .strip()
+            )
             ids = []
             for draft, published in [
                 (shipped, shipped),
@@ -63,6 +72,11 @@ def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(
                 ("Our edits", "Our edits"),
                 (shipped, None),
                 ("Unknown old instructions", None),
+                (desktop_shipped, desktop_shipped),
+                (
+                    desktop_shipped + "\nOrganization edits.",
+                    desktop_shipped + "\nOrganization edits.",
+                ),
             ]:
                 org_id, agent_id, version_id = (
                     uuid4(),
@@ -125,7 +139,15 @@ def test_prompt_migrations_preserve_edits_and_stamp_only_known_instructions(
                     ).all()
                 )
                 digest = instructions_fingerprint(shipped)
-                assert [recorded[item] for item in ids] == [digest, digest, None, digest, None]
+                assert [recorded[item] for item in ids] == [
+                    digest,
+                    digest,
+                    None,
+                    digest,
+                    None,
+                    instructions_fingerprint(desktop_shipped),
+                    None,
+                ]
                 actual = dict(
                     connection.execute(text("SELECT id, prompt FROM agent_exposures")).all()
                 )

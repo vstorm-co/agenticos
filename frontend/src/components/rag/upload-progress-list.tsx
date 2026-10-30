@@ -14,12 +14,20 @@ import { cn } from "@/lib/utils";
  * bytes have arrived and the server is still parsing, which is a different wait
  * and says so rather than sitting at a full bar.
  */
-export function UploadProgressList({ uploads }: { uploads: UploadProgress[] }) {
+export function UploadProgressList({
+  uploads,
+  limit,
+}: {
+  uploads: UploadProgress[];
+  limit?: number;
+}) {
   const t = useTranslations("pages.kb");
   if (uploads.length === 0) return null;
+  const shown = limit === undefined ? uploads : uploads.slice(0, limit);
+  const remaining = uploads.length - shown.length;
   return (
-    <section className="border-border bg-card mb-6 space-y-3 rounded-xl border p-4">
-      {uploads.map((up) => (
+    <section className="border-border bg-card mb-3 space-y-3 rounded-xl border p-4">
+      {shown.map((up) => (
         <div key={up.uploadId}>
           <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
             <span className="text-foreground flex min-w-0 items-center gap-2 font-medium">
@@ -37,11 +45,17 @@ export function UploadProgressList({ uploads }: { uploads: UploadProgress[] }) {
             </span>
           </div>
           <Progress
+            aria-label={up.filename}
             value={up.percent ?? undefined}
             className={cn(up.percent === null && "animate-pulse")}
           />
         </div>
       ))}
+      {remaining > 0 && (
+        <p className="text-muted-foreground text-xs" role="status">
+          {t("moreUploads", { count: remaining })}
+        </p>
+      )}
     </section>
   );
 }

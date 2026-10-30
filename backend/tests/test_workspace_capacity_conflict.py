@@ -87,7 +87,7 @@ def test_empty_directories_cannot_bypass_the_storage_ceiling():
 
 async def test_a_failed_recovery_is_visible_instead_of_reported_as_saved(monkeypatch):
     workspace_service = service.SandboxWorkspaceService(MagicMock())
-    opened = MagicMock(kind="state", scope_key="key")
+    opened = MagicMock(kind="state", scope_key="key", local=None)
     monkeypatch.setattr(
         workspace_service,
         "_flush_state",

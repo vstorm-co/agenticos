@@ -75,7 +75,7 @@ export const CODING_AGENT_ID = "coding_agent";
 export function unboundBinding(capabilityId: string): CapabilityBindingSpec {
   return {
     id: capabilityId,
-    config: {},
+    config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
     approval: "default",
     tool_approval: {},
     tool_overrides: {},
@@ -162,7 +162,7 @@ export function withCapability(
     ...bindings,
     {
       id: capabilityId,
-      config: {},
+      config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
       approval: "default",
       tool_approval: {},
       tool_overrides: {},

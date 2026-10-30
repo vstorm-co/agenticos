@@ -3,20 +3,313 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AgenticOS</title>
-    <link rel="stylesheet" href="connect.css" />
+    <title>Welcome to AgenticOS</title>
+    <link rel="stylesheet" href="onboarding.css" />
   </head>
   <body>
+    <!-- The window's title bar is drawn by the page (an inset title bar on macOS),
+         so this strip is what it is dragged by. -->
+    <div class="titlebar" data-tauri-drag-region></div>
     <main>
-      <h1>AgenticOS</h1>
-      <p>Where is your server? The address you open in a browser. A <code>make dev</code> stack answers on the address filled in below.</p>
-      <form id="connect">
-        <label for="server">Server address</label>
-        <input id="server" name="server" type="text" autocomplete="url" autofocus spellcheck="false" placeholder="http://localhost:3000" />
-        <p id="error" role="alert" hidden></p>
-        <button type="submit">Connect</button>
-      </form>
+      <img
+        class="app-icon"
+        src="app-icon.png"
+        alt=""
+        width="104"
+        height="104"
+      />
+
+      <section data-screen="welcome">
+        <h1>Welcome to AgenticOS</h1>
+        <p class="lead">
+          Your agents, a click away: on your desktop, in the menu bar, on a
+          shortcut.
+        </p>
+        <button type="button" class="primary" data-go="permissions">
+          Get started
+        </button>
+      </section>
+
+      <section data-screen="permissions" hidden>
+        <h1>Make this computer ready</h1>
+        <p class="lead">
+          Optional permissions for desktop features. You can skip them and
+          enable them later in System Settings.
+        </p>
+        <div class="permission-list">
+          <div class="permission-row" data-permission="screen_capture">
+            <div>
+              <strong>Screen recording</strong>
+              <p>
+                Attach a selected screenshot to a chat. Nothing is captured
+                during setup.
+              </p>
+              <span data-permission-status role="status">Checking…</span>
+            </div>
+            <button type="button" class="secondary">Open settings</button>
+          </div>
+          <div class="permission-row" data-permission="accessibility">
+            <div>
+              <strong>Accessibility</strong>
+              <p>
+                Use selected text in Quick Ask and let an approved agent control
+                the mouse and keyboard.
+              </p>
+              <span data-permission-status role="status">Checking…</span>
+            </div>
+            <button type="button" class="secondary">Open settings</button>
+          </div>
+        </div>
+        <p class="hint">
+          macOS may require an app restart after enabling screen recording.
+          Agents still ask before using your screen. Microphone and folder
+          access are requested when you use those features.
+        </p>
+        <p class="error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="button" class="link" data-go="welcome">Back</button
+          ><button type="button" class="primary" data-go="where">
+            Continue
+          </button>
+        </div>
+      </section>
+
+      <section data-screen="where" hidden>
+        <h1>Where should AgenticOS live?</h1>
+        <p class="lead">You can change this later from the menu.</p>
+        <div class="choices">
+          <button type="button" class="choice" data-go="local">
+            <span class="choice-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <rect x="3.5" y="4.5" width="17" height="11.5" rx="2" />
+                <path d="M1.5 19.5h21" />
+              </svg>
+            </span>
+            <span class="choice-text">
+              <span class="choice-title">On this computer</span>
+              <span class="choice-hint"
+                >Runs locally in Docker, with your own files and settings.</span
+              >
+            </span>
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="choice" data-go="server">
+            <span class="choice-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <rect x="3.5" y="3.5" width="17" height="7" rx="1.75" />
+                <rect x="3.5" y="13.5" width="17" height="7" rx="1.75" />
+                <path d="M7 7h.01M7 17h.01" />
+              </svg>
+            </span>
+            <span class="choice-text">
+              <span class="choice-title">On my organization's server</span>
+              <span class="choice-hint"
+                >Connect to the AgenticOS your company runs and sign in with
+                your work account.</span
+              >
+            </span>
+            <span class="chevron" aria-hidden="true"></span>
+          </button>
+        </div>
+      </section>
+
+      <section data-screen="server" hidden>
+        <h1>Your organization's server</h1>
+        <p class="lead">The address you open AgenticOS at in a browser.</p>
+        <form id="server-form">
+          <label for="server">Server address</label>
+          <input
+            id="server"
+            name="server"
+            type="text"
+            autocomplete="url"
+            spellcheck="false"
+            placeholder="agenticos.example.com"
+          />
+          <p class="error" role="alert" hidden></p>
+          <div class="actions">
+            <button type="button" class="link" data-go="where">Back</button>
+            <button type="submit" class="primary">Connect</button>
+          </div>
+        </form>
+      </section>
+
+      <section data-screen="local" hidden>
+        <h1 data-local-heading>AgenticOS on this computer</h1>
+        <p class="lead" data-local-lead>
+          A local workspace, managed from your menu bar.
+        </p>
+        <div class="local-overview" data-local-overview>
+          <div
+            class="local-instance"
+            data-local-instance
+            data-state="checking"
+            aria-busy="true"
+          >
+            <span class="local-machine" aria-hidden="true"
+              ><svg viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="13" rx="2" />
+                <path d="M8 21h8m-4-4v4" /></svg
+            ></span>
+            <div class="local-copy">
+              <strong data-local-title>Checking this computer</strong>
+              <p data-local-message role="status">
+                Looking for AgenticOS and Docker…
+              </p>
+            </div>
+            <span class="local-status" aria-hidden="true"></span>
+          </div>
+          <div class="actions" data-local-actions hidden>
+            <button type="button" class="link" data-go="where">Back</button>
+            <button type="button" class="secondary" data-action="docker" hidden>
+              Download Docker Desktop
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              data-action="open-docker"
+              hidden
+            >
+              Open Docker Desktop
+            </button>
+            <button type="button" class="secondary" data-action="check" hidden>
+              Check again
+            </button>
+            <button type="button" class="secondary" data-action="create" hidden>
+              New instance
+            </button>
+            <button type="button" class="primary" data-action="use" hidden>
+              Connect and continue
+            </button>
+          </div>
+          <div class="instance-list" data-instance-list hidden></div>
+          <p class="error" role="alert" data-instance-error hidden></p>
+        </div>
+        <div class="local-create" data-local-create hidden>
+          <form id="local-form" hidden>
+            <input type="hidden" id="instance-id" name="instance-id" value="" />
+            <div class="form-surface">
+              <fieldset class="form-group">
+                <legend>Workspace</legend>
+                <div class="form-fields">
+                  <div class="form-field">
+                    <label for="instance-name">Instance name</label
+                    ><input
+                      id="instance-name"
+                      name="instance-name"
+                      type="text"
+                      placeholder="Work or Personal"
+                      maxlength="80"
+                      required
+                    />
+                  </div>
+                  <div class="form-field">
+                    <label for="organization">Organization</label
+                    ><input
+                      id="organization"
+                      name="organization"
+                      type="text"
+                      placeholder="Acme"
+                      required
+                    />
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset class="form-group">
+                <legend>Owner account</legend>
+                <div class="form-fields">
+                  <div class="form-field">
+                    <label for="email">Your email</label
+                    ><input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autocomplete="email"
+                      placeholder="you@company.com"
+                      required
+                    />
+                  </div>
+                  <div class="form-field">
+                    <label for="password">Password</label
+                    ><input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autocomplete="new-password"
+                      placeholder="At least 8 characters"
+                      minlength="8"
+                      required
+                    />
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset class="form-group">
+                <legend>AI provider</legend>
+                <div class="form-fields">
+                  <div class="form-field form-field-select">
+                    <label for="provider">Provider</label
+                    ><select id="provider" name="provider">
+                      <option value="anthropic">Anthropic</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="google">Google</option>
+                      <option value="openrouter">OpenRouter</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="api-key"
+                      >API key <span class="optional">optional</span></label
+                    ><input
+                      id="api-key"
+                      name="api-key"
+                      type="password"
+                      autocomplete="off"
+                      placeholder="Add now or later"
+                      spellcheck="false"
+                    />
+                  </div>
+                </div>
+                <p class="hint">
+                  A key is needed for agent responses. You can add it later in
+                  AI providers.
+                </p>
+              </fieldset>
+              <p class="form-note">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6Z" />
+                  <path d="m8 12 3 3 5-6" /></svg
+                >Separate data and login. Keys are stored in this instance’s
+                vault.
+              </p>
+              <p class="error" role="alert" hidden></p>
+              <div class="actions form-actions">
+                <button type="button" class="link" data-action="cancel-create">
+                  Cancel
+                </button>
+                <button type="submit" class="primary">Create instance</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section data-screen="progress" hidden>
+        <h1>Setting up AgenticOS</h1>
+        <p class="lead">
+          The first download takes a few minutes. You can leave this window
+          open.
+        </p>
+        <ol class="steps">
+          <li data-step="files">Preparing</li>
+          <li data-step="download">Downloading AgenticOS</li>
+          <li data-step="start">Starting</li>
+          <li data-step="owner">Creating your organization</li>
+        </ol>
+        <p class="error" role="alert" hidden></p>
+        <div class="actions" data-progress-actions hidden>
+          <button type="button" class="link" data-go="local">Back</button>
+        </div>
+      </section>
     </main>
-    <script src="connect.js"></script>
+    <script type="module" src="onboarding.js"></script>
   </body>
 </html>

@@ -10,12 +10,14 @@ parked run that never continues. It drives a real agent through park and resume.
 """
 
 import asyncio
+import json
 import uuid
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from pydantic_ai import ApprovalRequired
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
@@ -95,6 +97,10 @@ def _ctx(decision: ApprovalDecision | None) -> MagicMock:
         request_approval=None if decision is None else AsyncMock(return_value=decision),
     )
     return ctx
+
+
+class _Recipient(BaseModel):
+    address: str
 
 
 class _Recorder:
@@ -182,6 +188,29 @@ class TestGate:
                 args={"to": "a@example.com"},
                 handler=_Recorder(),
             )
+
+    @pytest.mark.anyio
+    async def test_a_call_whose_arguments_are_models_is_asked_about_as_json(self):
+        """The request is stored as JSONB, so validated arguments cannot go in as they are.
+
+        A tool taking a list of models - `computer_act`'s actions - parked its run
+        with a serialization error instead of a request a person could answer.
+        """
+        ctx = _ctx(ApprovalPending())
+        gate = ApprovalGate(required_tool_names=GATED)
+
+        with pytest.raises(ApprovalRequired):
+            await gate.wrap_tool_execute(
+                ctx,
+                call=_call({"to": [{"address": "a@example.com"}]}),
+                tool_def=_tool_def(),
+                args={"to": [_Recipient(address="a@example.com")]},
+                handler=_Recorder(),
+            )
+
+        request = ctx.deps.request_approval.await_args.args[0]
+        assert request.tool_args == {"to": [{"address": "a@example.com"}]}
+        json.dumps(request.tool_args)
 
     @pytest.mark.anyio
     async def test_a_tool_that_needs_no_approval_is_untouched(self):

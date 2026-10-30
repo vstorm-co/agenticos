@@ -54,7 +54,6 @@ keep their own workflow. Upgrading does not overwrite customized agent instructi
 previously installed gallery skills; the updated template and bundled Projects
 guide apply to new installations.
 
-
 ## Starting a chat in a project
 
 Two ways in:
@@ -139,17 +138,41 @@ apps a run in one of them published - those the reader may open.
 **Instructions** edits them in Markdown with Source and Preview, as the Agent
 Builder does an agent's, above the project's name, description and default agent.
 
+Drop external files onto a folder to upload into it, or elsewhere on the Files tab to upload at the project root. Holding a drag over a collapsed folder opens it after a short delay. The drop hint stays within the file area, row actions keep their space, and folders show no item counts. Large upload queues show the first three entries and the number waiting. File-type icons distinguish source code, JSON, markup, documents, spreadsheets and media across projects, chat attachments, RAG and skill files.
+
+The desktop console passes file drags to the same drop targets as the web app. Drop
+onto a file to use its containing folder, or onto empty space in either pane to use
+the project root. Blobby and the Dock keep their separate drop-to-chat behavior.
+
+## Local folders in the desktop app
+
+The **Files** tab separates **Shared project files** from **This computer**. A folder approved during project creation opens automatically on this installation; otherwise Shared project files opens first. Select This computer to connect a folder. Once connected, **Folder settings** changes or disconnects it; its path and access mode stay visible without repeating the setup form.
+
+Shared project files contains uploaded copies available to people with project access. To share a local file, select that source and upload a copy. These locations do not synchronize: editing a local file does not update an uploaded copy, and sharing project membership does not grant disk access. The **Shared project workspace** controls under Instructions change only server storage; they do not connect or disconnect a personal folder.
+
+The native picker confirms the folder grant, initially read-only. This connection belongs to the current account and organization on this computer. Disconnecting it leaves native grants used by other chats intact. Local preview lists up to 500 entries, skips generated folders such as `.git` and `node_modules`, and shows read failures without silently switching to cloud files.
+
+New desktop chats in the project inherit this folder and its approved access
+mode. Project instructions still apply, while sandbox tools work locally rather
+than in the shared container. Change **Work on** for an individual chat to override
+that choice; existing conversations keep their own settings. The folder shortcut
+beside the composer opens these controls. An unavailable computer or revoked grant
+does not switch the run to Cloud. Phones and browsers continue to use shared
+project files; the connection does not give them remote access to your computer.
+Agent answers and tool results saved in a project chat remain visible to people
+who can read that chat, so consider its audience before discussing private files.
+
 ## Sharing and permissions
 
 A project is private to whoever created it until they share it, with the same
 **Share** dialog an agent or a skill uses: people, [departments](departments.md)
 or the whole organization, each at a level.
 
-| Grant level | Permission | What it allows |
-|---|---|---|
-| `read` | `projects:view` | See the project, its files and its instructions |
-| `use` | `projects:use` | Chat in it; add, edit, rename, move and remove files |
-| `edit` | `projects:edit` | Change its instructions and default agent, share it, delete it |
+| Grant level | Permission      | What it allows                                                 |
+| ----------- | --------------- | -------------------------------------------------------------- |
+| `read`      | `projects:view` | See the project, its files and its instructions                |
+| `use`       | `projects:use`  | Chat in it; add, edit, rename, move and remove files           |
+| `edit`      | `projects:edit` | Change its instructions and default agent, share it, delete it |
 
 Roles hold these at the usual scopes: an Owner or Admin reaches every project, a
 Builder works in and edits the ones shared with them, a Member edits their own

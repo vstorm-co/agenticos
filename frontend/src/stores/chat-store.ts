@@ -58,6 +58,8 @@ export interface ChatState {
 
   addMessage: (message: ChatMessage) => void;
   updateMessage: (id: string, updater: (msg: ChatMessage) => ChatMessage) => void;
+  /** Take a message back off the transcript: one the server refused before saving it. */
+  removeMessage: (id: string) => void;
   updateMessagesWhere: (
     predicate: (msg: ChatMessage) => boolean,
     updater: (msg: ChatMessage) => ChatMessage,
@@ -96,6 +98,11 @@ const chatState: StateCreator<ChatState> = (set) => ({
   updateMessage: (id, updater) =>
     set((state) => ({
       messages: state.messages.map((msg) => (msg.id === id ? updater(msg) : msg)),
+    })),
+
+  removeMessage: (id) =>
+    set((state) => ({
+      messages: state.messages.filter((msg) => msg.id !== id),
     })),
 
   updateMessagesWhere: (predicate, updater) =>

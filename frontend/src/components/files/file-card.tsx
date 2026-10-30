@@ -169,26 +169,8 @@ export function FileCard({
   );
 
   if (compact) {
-    return (
-      <div
-        className={cn(
-          CHIP,
-          onRemove !== undefined && "pr-8",
-          onOpen !== undefined && "hover:border-foreground/30 transition-colors",
-          className,
-        )}
-      >
-        {/* The whole chip opens the file, under the remove button where there
-            is one - a chip in the transcript is a file to read (#927's tile
-            stacked eight pastes into a wall of empty pages). */}
-        {onOpen !== undefined && (
-          <button
-            type="button"
-            onClick={onOpen}
-            aria-label={t("openFile", { name })}
-            className="absolute inset-0 rounded-lg"
-          />
-        )}
+    const compactBody = (
+      <>
         <span className="bg-foreground/[0.04] relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
           {isImage && imageUrl != null ? (
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
@@ -211,6 +193,29 @@ export function FileCard({
             <span className="text-muted-foreground truncate text-[11px]">{meta}</span>
           )}
         </span>
+      </>
+    );
+    return (
+      <div
+        className={cn(
+          CHIP,
+          onRemove !== undefined && "pr-8",
+          onOpen !== undefined && "hover:border-foreground/30 transition-colors",
+          className,
+        )}
+      >
+        {onOpen !== undefined ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={t("openFile", { name })}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md text-left"
+          >
+            {compactBody}
+          </button>
+        ) : (
+          compactBody
+        )}
 
         {onRemove !== undefined && (
           // Its own hit area rather than a 12px glyph in a corner: at chip height

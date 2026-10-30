@@ -29,12 +29,14 @@ export function EmptyState({
     <div
       className={cn(
         "border-border bg-card flex flex-col items-center justify-center rounded-xl border text-center",
-        fill ? "h-full px-6 py-16" : "px-6 py-20",
+        fill ? "h-full px-5 py-10 sm:py-16" : "px-5 py-12 sm:px-6 sm:py-20",
         className,
       )}
     >
       {Icon && <SectionGlyph icon={Icon} className="mb-5" />}
-      <h3 className="text-foreground text-base font-semibold tracking-tight">{title}</h3>
+      <h3 className="text-foreground max-w-full text-base font-semibold tracking-tight break-words">
+        {title}
+      </h3>
       {description && (
         <p className="text-muted-foreground mt-1.5 max-w-sm text-sm leading-relaxed text-pretty">
           {description}

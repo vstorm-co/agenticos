@@ -173,7 +173,18 @@ function TimelineGroup({
   // long, and glide rather than jump: this fires again on every step through the
   // thread, where the sections do not otherwise change.
   useEffect(() => {
-    if (anchored) ref.current?.scrollIntoView?.({ block: "start", behavior: glideOrJump() });
+    const section = ref.current;
+    const scrollport = section?.closest<HTMLElement>("[data-run-scrollport]");
+    if (!anchored || !section || !scrollport) return;
+    // scrollIntoView also scrolls the page around this panel. Its smooth glide
+    // moved the header (and Close) while the reader was trying to click it.
+    scrollport.scrollTo?.({
+      top:
+        scrollport.scrollTop +
+        section.getBoundingClientRect().top -
+        scrollport.getBoundingClientRect().top,
+      behavior: glideOrJump(),
+    });
   }, [anchored]);
 
   const first = group.items[0];

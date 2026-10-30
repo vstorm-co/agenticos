@@ -53,7 +53,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
             // is for. Centred, the numbers sat in the middle of the card with
             // their sparklines pinned under them and the height its owner gave
             // the card spent on nothing.
-            <div className="grid flex-1 grid-cols-2 gap-5 @[40rem]/widget:grid-cols-4">
+            <div className="grid flex-1 grid-cols-2 gap-5 @min-[36rem]/widget:grid-cols-4">
               <Figure
                 tone="indigo"
                 label={t("runs")}

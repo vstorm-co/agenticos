@@ -6,7 +6,7 @@ import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
-import { Button } from "@/components/ui";
+import { Button, SwipeToDecide } from "@/components/ui";
 import { callSummary } from "@/lib/approval-view";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
@@ -46,55 +46,64 @@ export function PendingApproval({
   const summary = callSummary(approval.tool_args);
 
   return (
-    <li className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start">
-      <div className="flex min-w-0 flex-1 gap-3">
-        <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <div>
-            <p className="text-sm">
-              {t.rich("wantsTo", {
-                actor,
-                tool: lowerFirst(phrase(approval.tool_id)),
-                strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
-              })}
-            </p>
-            {summary !== null && (
-              <p className="text-foreground/80 mt-1 truncate text-sm" title={summary}>
-                {summary}
+    <li>
+      <SwipeToDecide
+        onApprove={() => onDecide(true)}
+        onReject={() => onDecide(false)}
+        approveLabel={t("approve")}
+        rejectLabel={t("reject")}
+        disabled={deciding}
+        className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start"
+      >
+        <div className="flex min-w-0 flex-1 gap-3">
+          <AgentFace agentId={approval.agent_id} className="size-9 shrink-0" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div>
+              <p className="text-sm">
+                {t.rich("wantsTo", {
+                  actor,
+                  tool: lowerFirst(phrase(approval.tool_id)),
+                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
+                })}
               </p>
-            )}
-            <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <AccountBadge account={approval.account} />
-              {approval.triggered_by_email && (
-                <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
+              {summary !== null && (
+                <p className="text-foreground/80 mt-1 truncate text-sm" title={summary}>
+                  {summary}
+                </p>
               )}
-              {ago !== null && (
-                <span title={formatDateTime(approval.created_at as string, locale)}>{ago}</span>
-              )}
-              <button
-                type="button"
-                onClick={onOpenRun}
-                className="hover:text-foreground inline-flex items-center gap-1 underline underline-offset-4"
-              >
-                {t("openTheRun")}
-                <ExternalLink className="h-3 w-3" aria-hidden />
-              </button>
-            </p>
+              <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <AccountBadge account={approval.account} />
+                {approval.triggered_by_email && (
+                  <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
+                )}
+                {ago !== null && (
+                  <span title={formatDateTime(approval.created_at as string, locale)}>{ago}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={onOpenRun}
+                  className="hover:text-foreground inline-flex items-center gap-1 underline underline-offset-4"
+                >
+                  {t("openTheRun")}
+                  <ExternalLink className="h-3 w-3" aria-hidden />
+                </button>
+              </p>
+            </div>
+            <ApprovalDelegate approval={approval} />
+            <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
           </div>
-          <ApprovalDelegate approval={approval} />
-          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
         </div>
-      </div>
-      <div className="flex shrink-0 gap-2 sm:flex-col">
-        <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
-          <CheckCircle2 className="h-4 w-4" aria-hidden />
-          {t("approve")}
-        </Button>
-        <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
-          <XCircle className="h-4 w-4" aria-hidden />
-          {t("reject")}
-        </Button>
-      </div>
+        <div className="flex shrink-0 gap-2 sm:flex-col">
+          <Button size="sm" disabled={deciding} onClick={() => onDecide(true)}>
+            <CheckCircle2 className="h-4 w-4" aria-hidden />
+            {t("approve")}
+          </Button>
+          <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
+            <XCircle className="h-4 w-4" aria-hidden />
+            {t("reject")}
+          </Button>
+        </div>
+      </SwipeToDecide>
     </li>
   );
 }

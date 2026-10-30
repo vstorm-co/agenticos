@@ -22,11 +22,11 @@ describe("SidebarSearch", () => {
     window.removeEventListener("command-palette:open", opened);
   });
 
-  it("is named for what it does, and the row prints no shortcut", () => {
+  it("is named for what it does, with the shortcut hidden from its accessible name", () => {
     render(<SidebarSearch />);
 
     expect(screen.getByRole("button", { name: "search" })).toBeInTheDocument();
-    expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "search" })).toHaveTextContent("searchShortcut");
   });
 
   it("carries its shortcut as a badge in the icon row, the keyboard's own", () => {

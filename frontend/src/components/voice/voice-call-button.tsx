@@ -109,7 +109,7 @@ export function VoiceCallButton({
           aria-label={t("start")}
           aria-describedby={describedBy}
           data-tour="chat-voice-call"
-          className={`${BUTTON} cursor-not-allowed`}
+          className={`${BUTTON} cursor-not-allowed aria-disabled:pointer-events-auto`}
           onPointerEnter={(event) => {
             if (event.pointerType !== "mouse") return;
             keepOpen();

@@ -167,6 +167,7 @@ from app.agents.connect_on_use import (
     PendingService,
 )
 from app.agents.deps import AgentDeps, CompactionSink
+from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.hand_off import CallWorker, HandOffSpend
@@ -291,6 +292,7 @@ from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
+from app.services.device_hub import LocalTarget
 from app.services.mcp_catalog import get_entry as mcp_catalog_entry
 from app.services.mcp_connection import (
     AccountNote,
@@ -663,6 +665,13 @@ class AdmittedAs(BaseModel):
         migrated.setdefault("acts_for_sender", data["private_to_user"])
         return migrated
 
+    local: LocalTarget | None = Field(
+        default=None,
+        description=(
+            "Where on the person's own computer the chat asked this run to work "
+            "(#2305), so a run resumed after an approval keeps working there."
+        ),
+    )
     approval_mode: ApprovalMode = Field(
         default=ApprovalMode.FOLLOW_AGENT,
         description=(
@@ -1614,7 +1623,7 @@ def _classify_output(
             call.tool_call_id for call in result.output.calls if call.tool_name == ASK_USER_TOOL
         ]
         paused = PausedRunState(
-            messages=ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+            messages=dump_messages(result.all_messages()),
             tool_call_ids=parked,
             questions=questions,
         )
@@ -1655,6 +1664,62 @@ async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
+def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
+    """Describe the selected environment after its device and service grants resolve."""
+    from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
+
+    briefing = APP_ENVIRONMENT_GUIDANCE
+    if local is not None:
+        selected = ["This run explicitly uses the initiating person's paired Desktop."]
+        if local.folder is not None:
+            selected.append(
+                f"Sandbox tools use their approved local folder in {local.mode} mode. "
+                "These files are personal, not the project's shared server files. "
+                "Do not describe local edits as uploaded or shared."
+            )
+        if local.browser:
+            selected.append("Browser tools use the approved local browser, not a cloud browser.")
+        if local.computer:
+            selected.append(
+                "Computer tools operate this person's own screen and input, not a cloud desktop."
+            )
+        if local.model_service is not None:
+            selected.append(
+                "Inference uses the selected local model service; do not claim it runs in the cloud."
+            )
+        if local.mcp_services:
+            selected.append(
+                "The selected approved local MCP services are available through this run's tools."
+            )
+        briefing += "\n\n### Selected for this run\n" + "\n".join(selected)
+    if briefing in spec.instructions:
+        return spec
+    return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{briefing}"})
+
+
+def _with_local_capabilities(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
+    """Opt-in tools for this run, retaining the author's limits and approval gates."""
+    if local is None:
+        return spec
+    requested: dict[str, dict[str, object]] = {}
+    if local.folder is not None:
+        requested[SANDBOX_CAPABILITY_ID] = {}
+    if local.browser:
+        requested[BROWSER_CAPABILITY_ID] = {"connection": "local"}
+    if local.computer:
+        requested["computer_use"] = {"desktop": "local"}
+    bindings = list(spec.capabilities)
+    for capability_id, config in requested.items():
+        own = next((entry for entry in bindings if entry.id == capability_id), None)
+        binding = (
+            own.model_copy(update={"enabled": True, "config": {**own.config, **config}})
+            if own is not None
+            else CapabilityBindingSpec(id=capability_id, config=config)
+        )
+        bindings = [entry for entry in bindings if entry.id != capability_id] + [binding]
+    return spec.model_copy(update={"capabilities": bindings})
+
+
 def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
     """The spec as it runs in a project: in the project's container, told about it.
 
@@ -1676,10 +1741,12 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
     )
     briefing = (
         f"## Project: {project.name}\n\n"
-        "This conversation is part of a project. Your workspace is the project's: its "
-        "files are shared with every chat in the project and every agent that answers "
+        "This conversation is part of a project. By default, its shared server workspace "
+        "contains files shared with every chat in the project and every agent that answers "
         "in it, whoever asked - so keep work there, and look there first for what the "
-        "person refers to.\n\n"
+        "person refers to. An explicitly selected local environment overrides the working "
+        "folder for this run; local files remain personal and are not synchronized to "
+        "this shared workspace.\n\n"
         "Several people may write in this chat. Each person's message starts with their "
         'name ("Anna: ..."): that is who is speaking, not part of what they said. Address '
         "people by name, keep track of who asked for what, and when you answer one "
@@ -2350,7 +2417,7 @@ def _delegate_builder(
 
     def build() -> PydanticAgent[Any, Any]:
         built = build_agent(
-            delegation.render_variables(spec),
+            _with_execution_environment(delegation.render_variables(spec), None),
             model,
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
@@ -2809,6 +2876,7 @@ class AgentRunnerService:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        local: LocalTarget | None = None,
         on_compaction: CompactionSink | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
@@ -2949,6 +3017,7 @@ class AgentRunnerService:
             version_id=version_id,
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
+            local=local,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -3039,6 +3108,22 @@ class AgentRunnerService:
             )
         return requested
 
+    @staticmethod
+    async def _browser_session(ctx: AuthContext, local: LocalTarget) -> UUID:
+        """Resolve only the initiating person's paired device, without opening a folder."""
+        from app.services import device_hub
+
+        if ctx.user_id is None or ctx.api_key_id is not None or ctx.subject_is_publisher_fallback:
+            raise BadRequestError(
+                message="Only your own chats can use your computer's browser or screen"
+            )
+        device = await device_hub.wait_for(ctx.user_id, local.device_id, timeout=0)
+        if device is None:
+            raise BadRequestError(
+                message="Your computer is not connected: open the AgenticOS app on it"
+            )
+        return device.session_id
+
     async def _assemble(
         self,
         ctx: AuthContext,
@@ -3063,6 +3148,7 @@ class AgentRunnerService:
         already_spent: dict[str, DelegationSpend],
         already_started: dict[str, datetime | None],
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        local: LocalTarget | None = None,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
@@ -3108,7 +3194,9 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
-        spec = await self.registry.with_assistant_guidance(agent, spec)
+        spec = _with_local_capabilities(
+            await self.registry.with_assistant_guidance(agent, spec), local
+        )
 
         # Whose ChatGPT sign-in the run's models may run on: the person the run
         # is for. On a resume `ctx` is the approver's, and releasing somebody's
@@ -3128,21 +3216,31 @@ class AgentRunnerService:
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
-        model_spec = await self.models.resolve(
-            models_ctx, profile_id=model_profile_id or spec.model_profile_id
-        )
-        # The override arrives from a socket frame or an API body, past every
-        # picker and past publish, so the catalogs' answer is checked here too
-        # (#2487): a speech or embedding model refused by name, before a run row
-        # or a model call, rather than a provider error on the first turn.
-        outputs = model_outputs(
-            model_spec.provider, model_spec.model, base_url=model_spec.credential.base_url
-        )
-        if not outputs.chat:
-            raise BadRequestError(
-                message=not_chat_refusal(model_spec.label, model_spec.model, outputs),
-                details={"model_profile_id": str(model_spec.profile_id)},
+        local_model_choice: tuple[str, UUID] | None = None
+        model_spec: ModelRequestSpec | None = None
+        if local is not None and local.model_service is not None:
+            if voice is not None:
+                raise BadRequestError(message="Local models are available for text conversations")
+            profile = await self.models.profile_for_organization(
+                models_ctx.organization_id, profile_id=model_profile_id or spec.model_profile_id
             )
+            local_model_choice = (local.model_service, profile.id)
+        else:
+            model_spec = await self.models.resolve(
+                models_ctx, profile_id=model_profile_id or spec.model_profile_id
+            )
+            # The override arrives from a socket frame or an API body, past every
+            # picker and past publish, so the catalogs' answer is checked here too
+            # (#2487): a speech or embedding model refused by name, before a run row
+            # or a model call, rather than a provider error on the first turn.
+            outputs = model_outputs(
+                model_spec.provider, model_spec.model, base_url=model_spec.credential.base_url
+            )
+            if not outputs.chat:
+                raise BadRequestError(
+                    message=not_chat_refusal(model_spec.label, model_spec.model, outputs),
+                    details={"model_profile_id": str(model_spec.profile_id)},
+                )
 
         # The organization's ceiling is read here rather than passed in by the
         # surface, for the reason this module exists: a limit each caller has to
@@ -3342,9 +3440,21 @@ class AgentRunnerService:
                 channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
                 # A call spends on its realtime model and key, not the chat profile's.
-                model_label=voice.model_label if voice is not None else model_spec.label,
-                provider=voice.provider if voice is not None else model_spec.provider,
-                secret_id=voice.secret_id if voice is not None else model_spec.secret_id,
+                model_label=voice.model_label
+                if voice is not None
+                else model_spec.label
+                if model_spec is not None
+                else "Local model",
+                provider=voice.provider
+                if voice is not None
+                else model_spec.provider
+                if model_spec is not None
+                else "ollama",
+                secret_id=voice.secret_id
+                if voice is not None
+                else model_spec.secret_id
+                if model_spec is not None
+                else None,
                 modality="voice" if voice is not None else "text",
                 started_at=datetime.now(UTC),
                 is_test=is_test,
@@ -3425,9 +3535,10 @@ class AgentRunnerService:
         # `resources`. Nothing starts here for a container-backed one: the
         # client opens its session on the first tool call, so an agent granted a
         # workspace it never touches costs nothing.
+        workspace_ctx = models_ctx if local is not None else ctx
         workspace = await self.workspaces.open(
             spec,
-            ctx=ctx,
+            ctx=workspace_ctx,
             identity=WorkspaceIdentity(
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
@@ -3442,10 +3553,10 @@ class AgentRunnerService:
                 # And a key, which is not the person it was issued by.
                 user_id=(
                     None
-                    if ctx.user_id is None
+                    if workspace_ctx.user_id is None
                     or subject_is_publisher_fallback
-                    or ctx.api_key_id is not None
-                    else str(ctx.user_id)
+                    or workspace_ctx.api_key_id is not None
+                    else str(workspace_ctx.user_id)
                 ),
                 channel_key=channel_key,
                 project_id=project.id if project is not None else None,
@@ -3462,9 +3573,52 @@ class AgentRunnerService:
                 else None
             ),
             on_wait=on_sandbox_wait,
+            local=local,
         )
+        if local is not None and (local.browser or local.computer) and local.folder is None:
+            session_id = await self._browser_session(workspace_ctx, local)
+            if local.browser:
+                resources["local_browser_session"] = session_id
+            if local.computer:
+                resources["local_computer_session"] = session_id
+        if local is not None and (
+            local.model_service is not None
+            or local.mcp_services
+            or ((local.browser or local.computer) and local.folder is not None)
+        ):
+            # _open_local has authenticated the actual sender and resolved only
+            # their own paired session before any local service is contacted.
+            from app.services.device_hub import (
+                DeviceWorkspace,
+                describe_service,
+                local_mcp_toolset,
+                local_model_spec,
+            )
+
+            if workspace is None or not isinstance(workspace.workspace.backend, DeviceWorkspace):
+                raise BadRequestError(message="Local services require your own connected computer")
+            session_id = workspace.workspace.backend.session_id
+            if local.browser:
+                resources["local_browser_session"] = session_id
+            if local.computer:
+                resources["local_computer_session"] = session_id
+            if local_model_choice is not None:
+                service_id, profile_id = local_model_choice
+                service = await describe_service(session_id, service_id, "model")
+                model_spec = local_model_spec(profile_id, session_id, service)
+                run.model_label = model_spec.label
+                run.provider = model_spec.provider
+                run.secret_id = None
+            for service_id in dict.fromkeys(local.mcp_services):
+                service = await describe_service(session_id, service_id, "mcp")
+                spec_toolsets.append(local_mcp_toolset(session_id, service))
+
+        # Local inference was resolved only after the workspace authenticated its owner.
+        assert model_spec is not None
+
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.
+        spec = _with_execution_environment(spec, local)
         spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
@@ -3772,6 +3926,7 @@ class AgentRunnerService:
             finished_plan_withheld=finished_plan_withheld,
             admitted_as=AdmittedAs(
                 approval_mode=approval_mode,
+                local=local,
                 acts_for_sender=acts_for_sender,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
@@ -5206,6 +5361,7 @@ class AgentRunnerService:
         memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
+        local: LocalTarget | None = None,
         message_history: Sequence[ModelMessage] | None = None,
         exposure: AgentExposure | None = None,
         environment_id: UUID | None = None,
@@ -5286,6 +5442,7 @@ class AgentRunnerService:
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,
             acts_for_sender=acts_for_sender,
+            local=local,
             exposure=exposure,
             environment_id=environment_id,
             on_compaction=on_compaction,
@@ -5513,6 +5670,7 @@ class AgentRunnerService:
             # path where somebody had said no (#1326), and read a direct message
             # as a channel (#1343).
             approval_mode=state.admitted_as.approval_mode,
+            local=state.admitted_as.local,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
@@ -6108,7 +6266,7 @@ class AgentRunnerService:
                 # nothing else (#55).
                 summarized = await offloaded_history(
                     prepared.built.capabilities,
-                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+                    dump_messages(result.all_messages()),
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(new_messages)

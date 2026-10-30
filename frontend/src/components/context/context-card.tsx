@@ -1,33 +1,25 @@
 "use client";
 
-import { FileText, Trash2 } from "lucide-react";
-
-import { BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
-import type { ContextFileSummary } from "@/types/providers";
+import { BlankPeek, Card, DocPeek, TextPeek } from "@/components/ui";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
 import { AudienceChip } from "@/components/sharing/audience-chip";
-import { useTranslations } from "next-intl";
+import type { ContextFileSummary } from "@/types/providers";
 
 interface ContextCardProps {
   file: ContextFileSummary;
-  /** A viewer opens files to read them; only an editor gets the delete. */
-  canEdit: boolean;
   onOpen: () => void;
-  onDelete: () => void;
 }
 
-/** Shared content and its users; each agent's Context binding owns its usage policy. */
-export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProps) {
-  const tc = useTranslations("common");
+/** Preview, usage and the next action, with concise metadata beside the action. */
+export function ContextCard({ file, onOpen }: ContextCardProps) {
   return (
-    <Card className="peek-card group hover:border-foreground/20 relative h-full overflow-hidden">
+    <Card className="peek-card group hover:border-foreground/20 flex flex-col overflow-hidden">
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-full w-full flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
+        className="flex w-full flex-1 flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
       >
-        {/* Not on a phone - see `SkillCard`. */}
         <DocPeek className="h-32 max-sm:hidden">
           {file.excerpt ? (
             <TextPeek
@@ -38,43 +30,29 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
             <BlankPeek />
           )}
         </DocPeek>
-        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5 pb-12">
-          <span className="flex items-center gap-2 pr-8">
-            <span className="text-foreground truncate text-sm font-semibold">{file.name}</span>
+        <span className="flex w-full flex-1 flex-col gap-1.5 p-4">
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              className="text-foreground max-w-full truncate text-base font-semibold"
+              title={file.name}
+            >
+              {file.name}
+            </span>
           </span>
-          <span className="text-muted-foreground line-clamp-2 min-h-10 text-sm">
+          <span className="text-foreground/85 line-clamp-2 min-h-10 text-sm leading-relaxed">
             {file.description}
           </span>
-          <span className="text-muted-foreground mt-auto flex items-center gap-1 pt-1 text-xs">
-            <FileText className="h-3.5 w-3.5 shrink-0" />
-            {file.format.toUpperCase()}
-          </span>
-          <AudienceChip visibility={file.visibility} groups={file.shared_groups} />
-          <UsedBy agents={file.used_by} />
         </span>
       </button>
-      {/* Beside the card's own controls rather than inside the button that opens
-          it: giving it to an agent is the next step after writing one (#2075). It
-          keeps the card's edge, and the bin that appears on hover sits beside it
-          rather than holding a gap open when it does not. */}
-      <div className="absolute right-4 bottom-3 flex items-center gap-1">
-        {canEdit && (
-          // Outside the open button - a button cannot hold another - and quiet until
-          // the card is pointed at, so a grid of cards is not a column of bins.
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={tc("deleteNamed", { name: file.name })}
-            onClick={onDelete}
-            className="hover-reveal h-8 w-8"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
+      <UsedBy agents={file.used_by} className="text-foreground/85 mx-4 mb-3 gap-2" />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+        <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <AudienceChip visibility={file.visibility} groups={file.shared_groups} />{" "}
+        </div>
         <AddToAgent
           resource={{ kind: "context", id: file.id }}
           name={file.name}
-          className="h-8 text-xs"
+          className="h-8 shrink-0"
         />
       </div>
     </Card>
