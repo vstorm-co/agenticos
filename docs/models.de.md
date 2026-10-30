@@ -1,5 +1,5 @@
 ---
-source_sha: "64867ca52c0e"
+source_sha: "a216e1026281"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -102,6 +102,50 @@ Bildbeschreibung bei der Konfiguration und im Worker. Alte Konfigurationen laden
 weiterhin; ein inkompatibles Modell muss vor der Nutzung ersetzt werden. Das
 Ausschalten bleibt möglich. Azure-Deployment-Namen werden nicht anhand der
 Basismodell-IDs des Katalogs klassifiziert.
+
+### Das Modell, mit dem ein neuer Agent startet { #the-model-a-new-agent-starts-on }
+
+Es gibt kein organisationsweites Standardmodell. Der Spec eines Agents nennt sein
+Modell, und die Veröffentlichung lehnt einen Spec ab, der keines nennt.
+
+Ein neuer Agent, der kein Modell nennt, startet mit dem Modell der Organisation,
+wenn die Organisation genau ein Modell hat, auf dem ein Agent laufen kann. Das ist
+ein Chat-Modell mit Schlüssel oder ein selbst gehostetes Modell, das ohne Schlüssel
+gespeichert wurde, und die Veröffentlichung akzeptiert es so, wie es ist, Fallbacks
+eingeschlossen. Das gilt für jeden Weg, einen Agent anzulegen: **Neuer Agent** in
+der Konsole, `POST /agents` ohne `model_profile_id`, eine Vorlage, eine Kopie eines
+Entwurfs ohne Modell und ein beförderter Spezialist. Der Architekt, der Assistent
+der Organisation, wählt sein Modell beim Veröffentlichen selbst.
+
+Das Modell wird in den Entwurf geschrieben. So lässt sich der Agent veröffentlichen,
+ohne dass jemand **Modell** öffnet, und seine Historie zeigt, mit welchem Modell er
+veröffentlicht wurde. Ein Spec, der ein Modell nennt, behält es. Der Entwurf gilt
+dann als Nutzer des Modells: Das Modell lässt sich erst löschen, wenn der Agent auf
+ein anderes Modell wechselt oder gelöscht wird; Archivieren genügt nicht. Um nur den
+Schlüssel oder den Endpunkt des Modells zu ändern, bearbeiten Sie es an Ort und
+Stelle ([Schlüssel oder Endpunkt eines Profils
+ändern](#changing-a-profiles-key-or-endpoint)).
+
+Der Entwurf bleibt ohne Modell, wenn die Organisation keines oder mehr als eines
+hat. Profile, auf denen kein Agent laufen kann, zählen nicht: ein Profil ohne
+Schlüssel, ein Text-to-Speech-Modell und die anderen Modelle aus [Ein Profil, auf
+dem kein Agent laufen kann](#a-profile-an-agent-cannot-run-on), und ebenso wenig ein
+Profil, das die Veröffentlichung ablehnen würde, etwa eines mit einem solchen Modell
+als Fallback. Ein Modell auf einer
+[ChatGPT-Anmeldung](#running-on-a-chatgpt-subscription) wird nie für jemanden
+gewählt, weil es das Abonnement einer einzelnen Person ist, aber es zählt als
+Modell.
+
+Ebenso wenig ein Modell, unter dessen ersten drei Fallbacks, die ein Run
+versucht, eine Anmeldung ist: Fällt das Modell aus, wiche der Run jedes
+Menschen, der die Anmeldung sehen darf, auf dieses Abonnement aus. Auch der
+Architekt wählt weder ein solches Modell noch eine Anmeldung. Ein Autor kann ein
+solches Modell weiterhin bewusst wählen und veröffentlichen.
+
+Die Veröffentlichung lehnt den Entwurf dann mit *No model selected - pick one under
+Build > Model before publishing* ab. Die Ablehnung markiert auch das Feld
+(`model_profile_id` in `details.fields`), und die Konsole zeigt daneben **Zum
+Abschnitt Modell**, das den Tab **Bauen** an der Karte **Modell** öffnet.
 
 ### Schlüssel oder Endpunkt eines Profils ändern { #changing-a-profiles-key-or-endpoint }
 

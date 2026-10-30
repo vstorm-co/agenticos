@@ -1,5 +1,5 @@
 ---
-source_sha: "64867ca52c0e"
+source_sha: "a216e1026281"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -92,6 +92,46 @@ działa też przy konfiguracji proaktywności i przy rozwiązywaniu profilu do z
 konfiguracje nadal się wczytują; przed użyciem trzeba zastąpić niezgodny model.
 Wyłączenie funkcji pozostaje możliwe. Nazwy wdrożeń Azure nie są klasyfikowane
 na podstawie identyfikatorów modeli bazowych z katalogu.
+
+### Model, na którym startuje nowy agent { #the-model-a-new-agent-starts-on }
+
+Nie ma domyślnego modelu dla całej organizacji. Spec agenta wskazuje jego model, a
+publikacja odrzuca spec, który żadnego nie wskazuje.
+
+Nowy agent, który nie wskazuje modelu, startuje na modelu organizacji, gdy
+organizacja ma dokładnie jeden model, na którym agent może działać. To model czatowy
+z kluczem albo model self-hosted zapisany do działania bez klucza, który publikacja
+przyjmuje w obecnej postaci, razem z fallbackami. Dotyczy to każdego sposobu
+tworzenia agenta: **Nowy agent** w konsoli, `POST /agents` bez `model_profile_id`,
+szablonu, kopii szkicu bez modelu oraz wypromowanego specjalisty. Architekt,
+asystent organizacji, sam wybiera swój model przy publikacji.
+
+Model jest zapisywany w szkicu, więc agent publikuje się bez otwierania sekcji
+**Model**, a jego historia pokazuje, na jakim modelu został opublikowany. Spec,
+który wskazuje model, zachowuje go. Szkic liczy się wtedy jako użycie modelu: modelu
+nie da się usunąć, dopóki agent nie przejdzie na inny model albo nie zostanie
+usunięty; archiwizacja nie wystarczy. Aby zmienić tylko klucz lub endpoint modelu,
+edytuj go w miejscu ([Zmiana klucza lub endpointu
+profilu](#changing-a-profiles-key-or-endpoint)).
+
+Szkic zostaje bez modelu, gdy organizacja nie ma żadnego modelu albo ma więcej niż
+jeden. Profile, na których agent nie może działać, nie są liczone: profil bez
+klucza, model text-to-speech i pozostałe modele z sekcji [Profil, na którym agent
+nie może działać](#a-profile-an-agent-cannot-run-on), ani profil, który publikacja by
+odrzuciła, na przykład taki z fallbackiem na taki model. Model na [logowaniu
+ChatGPT](#running-on-a-chatgpt-subscription) nigdy nie jest wybierany za kogoś, bo
+to subskrypcja jednej osoby, ale jest liczony jako model.
+
+Nie jest też wybierany model, którego fallbacki zawierają logowanie wśród
+pierwszych trzech, czyli tych, których próbuje run: gdy model zawiedzie, run
+każdego, kto widzi to logowanie, przeszedłby na tę subskrypcję. Architekt też
+nie wybiera takiego modelu ani logowania. Autor nadal może świadomie wybrać taki
+model i go opublikować.
+
+Publikacja odrzuca wtedy szkic komunikatem *No model selected - pick one under
+Build > Model before publishing*. Odmowa oznacza też pole (`model_profile_id` w
+`details.fields`), a konsola pokazuje obok niej **Przejdź do sekcji Model**, co
+otwiera zakładkę **Budowa** na karcie **Model**.
 
 ### Zmiana klucza lub endpointu profilu { #changing-a-profiles-key-or-endpoint }
 

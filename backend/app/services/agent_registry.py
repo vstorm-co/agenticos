@@ -71,7 +71,7 @@ from app.core.exceptions import (
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import SecretKind
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
@@ -138,7 +138,12 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
-from app.services.model_profile import MAX_FALLBACK_DEPTH
+from app.services.model_profile import (
+    MAX_FALLBACK_DEPTH,
+    is_sign_in,
+    reaches_a_sign_in,
+    usable_for_agents,
+)
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
@@ -186,6 +191,13 @@ DEFAULT_GRANTED_SCOPES = frozenset(
 # binding out of a spec, and an id is part of the spec format.
 DELEGATION_CAPABILITY_ID = "subagents"
 
+NO_MODEL = "No model selected - pick one under Build > Model before publishing"
+"""Publish's refusal of a spec with no `model_profile_id`.
+
+Marked on the field as well, so the console can take its reader to the Model
+section rather than leave them to find it (#2483).
+"""
+
 # How many pinned versions the cycle walk will follow before it stops and says
 # so. The visited set already makes the walk terminate on a graph that loops;
 # this bounds what it *costs*, because the number of pins is not bounded by the
@@ -194,6 +206,7 @@ _MAX_DELEGATION_NODES = 200
 
 # How far the clone naming loop counts before it lets the collision be reported.
 _MAX_COPIES = 50
+
 # `AgentSpec.name` is bounded, and a copy of a copy grows. Truncating the base
 # rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
@@ -441,8 +454,13 @@ class _SpecProblems:
     messages: list[str] = field(default_factory=list)
     fields: list[dict[str, str]] = field(default_factory=list)
 
+    @classmethod
+    def at(cls, field_name: str, message: str) -> _SpecProblems:
+        """One problem with an input to mark, said as a line too."""
+        return cls([message], [{"field": field_name, "message": message}])
+
     def add(self, messages: Sequence[str]) -> None:
-        """Problems with nothing to mark - a broken reference, a missing model."""
+        """Problems with nothing to mark - a broken reference."""
         self.messages.extend(messages)
 
     def merge(self, other: _SpecProblems) -> None:
@@ -1217,7 +1235,8 @@ class AgentRegistryService:
         platform has no organization-wide default, because a model an agent did
         not choose is one somebody else's change can swap underneath it - and it
         cannot name a knowledge collection it has never seen. Publishing an agent
-        missing either would produce answers from nowhere, confidently.
+        missing either would produce answers from nowhere, confidently. `create`
+        does start it on the organization's model when there is only one.
 
         The skills it expects are installed first, from the gallery, and skipped
         where the organization already has them. A bundled skill is bound where
@@ -1283,6 +1302,7 @@ class AgentRegistryService:
         group_ids: list[UUID] | None = None,
         user_ids: list[UUID] | None = None,
         from_starter: bool = False,
+        choose_model: bool = True,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1292,6 +1312,13 @@ class AgentRegistryService:
         by hand, which meant the second person to look for it was told it did not
         exist. A draft cannot run and cannot be reached by an exposure either
         way, so what this decides is who can find it, not what it can do.
+
+        A spec that names no model starts on the organization's only model, when
+        it has exactly one an agent can run on (`_only_model`, #2483), so the
+        first publish does not stop at Model. With none or several it stays empty.
+        `choose_model=False` leaves it empty for a caller that picks the model
+        itself: the organization assistant, which reads a model in its draft as
+        one somebody chose for it.
 
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
@@ -1308,6 +1335,8 @@ class AgentRegistryService:
         elif not spec.instructions.strip():
             spec = _with_starter_instructions(spec)
         spec = _without_unselectable(spec)
+        if choose_model and spec.model_profile_id is None:
+            spec = spec.model_copy(update={"model_profile_id": await self._only_model(ctx)})
 
         slug = slugify(spec.name)
         if await agent_repo.get_by_slug(self.db, slug, organization_id=ctx.organization_id):
@@ -1355,6 +1384,46 @@ class AgentRegistryService:
                 user_ids=user_ids or [],
             )
         return agent
+
+    async def _only_model(self, ctx: AuthContext) -> UUID | None:
+        """The model a new agent starts on, when the organization has only one (#2483).
+
+        Only one: with two, which of them an agent runs on is a choice about cost
+        and quality that belongs to its author, so the draft stays empty and
+        publish asks for it. One means a profile `usable_for_agents` - a chat
+        model with a key, or a self-hosted one saved to run without one (#2478) -
+        that publish would also accept as it stands,
+        fallback chain included, so the agent publishes without anybody opening
+        Model. Never one a run on which can reach a ChatGPT sign-in, as the
+        model or a fallback (`reaches_a_sign_in`, #2545): that is one person's
+        subscription, and nobody else's run may spend it. It still counts
+        towards "only one", because it is a model the author could deliberately
+        pick.
+
+        Written into the draft, not resolved at run time: there is still no
+        organization-wide default, and the agent's own history says which model
+        it was published on.
+        """
+        # Before the read rather than at the insert, where `agent_repo.create`
+        # takes it too: a profile deleted in between would be written into the
+        # draft as a dangling id (#2478).
+        await hold_subject_shared(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
+        # Counted after publish's own check, so a broken profile beside a good
+        # one does not make two. A sign-in is counted without it: whether it is
+        # the caller's is publish's question, not whether it is a model.
+        profiles = await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
+        candidates = [
+            profile
+            for profile in profiles
+            if usable_for_agents(profile)
+            and (is_sign_in(profile) or not await self.model_profile_problems(ctx, profile.id))
+        ]
+        if len(candidates) != 1:
+            return None
+        (only,) = candidates
+        if reaches_a_sign_in(only, {p.id: p for p in profiles}):
+            return None
+        return only.id
 
     async def clone(self, ctx: AuthContext, agent_id: UUID, *, name: str | None = None) -> Agent:
         """Copy an agent's draft into a new agent, in draft.
@@ -1529,9 +1598,11 @@ class AgentRegistryService:
         # A model, named. There is no organization-wide default to fall back
         # on: a model an agent did not choose is one somebody else's change can
         # swap underneath it, and "why did this get more expensive" then has no
-        # answer in the agent's own history.
+        # answer in the agent's own history. A new agent is written onto the
+        # organization's only model when it has one (`_only_model`), which is
+        # still a named model in the spec.
         if spec.model_profile_id is None:
-            problems.add(["No model selected - pick one before publishing"])
+            problems.merge(_SpecProblems.at("model_profile_id", NO_MODEL))
         else:
             problems.add(await self.model_profile_problems(ctx, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches

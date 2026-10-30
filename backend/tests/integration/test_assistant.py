@@ -17,7 +17,7 @@ from app.repositories import agent_repo, organization_assistant_repo
 from app.schemas.assistant import AssistantUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.assistant import AssistantService
-from tests.integration._keys import provider_key
+from tests.integration._keys import chatgpt_sign_in, provider_key
 
 pytestmark = pytest.mark.anyio
 
@@ -75,6 +75,31 @@ async def _model(
     db.add(profile)
     await db.flush()
     return profile
+
+
+async def test_its_draft_is_not_held_to_the_only_model_it_was_installed_beside(
+    db: AsyncSession,
+) -> None:
+    """A new agent starts on the organization's only model (#2483), but the
+    assistant picks its own: a model in its draft reads as somebody's choice, and
+    one that broke before its first publish would keep it waiting for good."""
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    first = await _model(db, organization)
+    service = AssistantService(db)
+    # Installed switched off: nothing publishes it yet.
+    await service.update(ctx, AssistantUpdate(enabled=False))
+    first.secret_id = None
+    await db.flush()
+    second = await _model(db, organization)
+
+    await service.update(ctx, AssistantUpdate(enabled=True))
+    ready = await service.state(ctx)
+
+    assert ready.status == "ready"
+    agent = await agent_repo.get(db, ready.agent_id, organization_id=organization.id)
+    assert agent is not None
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == second.id
 
 
 async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
@@ -154,6 +179,43 @@ async def test_architect_skips_a_chat_profile_with_an_incompatible_fallback(
     agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
     assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == (
         valid.id if valid else None
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("onto_a_sign_in", [True, False])
+async def test_it_is_not_published_on_a_model_that_falls_back_to_a_chatgpt_sign_in(
+    db: AsyncSession, onto_a_sign_in: bool
+) -> None:
+    """An outage would hand the organization's runs to one person's subscription
+    (#2545); a chain with no sign-in in it is published on as before."""
+    organization, owner = await _organization(db)
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    if onto_a_sign_in:
+        fallback = ModelProfile(
+            id=uuid.uuid4(),
+            organization_id=organization.id,
+            label="Z my ChatGPT",
+            provider="openai_codex",
+            model="gpt-5.4",
+            secret_id=await chatgpt_sign_in(db, organization.id, owner_id=owner.id),
+        )
+        db.add(fallback)
+    else:
+        fallback = await _model(db, organization)
+        fallback.label = "Z backup"
+    primary = await _model(db, organization)
+    primary.label = "A primary"
+    primary.fallback_profile_ids = [str(fallback.id)]
+    await db.flush()
+
+    state = await AssistantService(db).state(viewer)
+
+    assert state.status == ("needs_model" if onto_a_sign_in else "ready")
+    agent = (await db.execute(select(Agent).where(Agent.id == state.agent_id))).scalar_one()
+    # Neither the model nor the sign-in it falls back to.
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == (
+        None if onto_a_sign_in else primary.id
     )
 
 
