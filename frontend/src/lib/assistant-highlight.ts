@@ -6,9 +6,14 @@
  * `?highlight=<anchor>`, an anchor being a `data-tour` value - the same names the
  * onboarding walkthrough spotlights, so a control the tour can find, the
  * Architect can point at. An anchor behind a tab is revealed the way the tour
- * reveals it, by clicking the tab its step names.
+ * reveals it, by activating the tab its step names (`activateTab`: a Radix tab
+ * ignores a bare `click()`).
  */
 
+import { activateTab } from "@/lib/activate-tab";
+import { localePrefixOf } from "@/lib/locale-routing";
+import { defaultLocale } from "@/lib/locales";
+import { glideOrJump } from "@/lib/motion";
 import { TOUR_STEPS } from "@/lib/onboarding/tour";
 
 const HIGHLIGHT = "highlight";
@@ -45,27 +50,71 @@ function find(anchor: string): HTMLElement | null {
 }
 
 /**
- * Point at `anchor` once the page draws it: reveal it, scroll it into view and
+ * The first copy of an anchor outside a `hidden` element and an inactive tab
+ * panel, or `null`. A control behind another tab can already be in the
+ * document: Radix keeps an inactive panel as an empty, `hidden` element (the
+ * Activity page's anchors are its panels), and the organization page keeps
+ * every panel mounted. Counting such a control as found rang an invisible
+ * element and never switched its tab. Hiding by a CSS class is not detected.
+ */
+function findShown(anchor: string): HTMLElement | null {
+  const copies = document.querySelectorAll<HTMLElement>(`[data-tour="${CSS.escape(anchor)}"]`);
+  return (
+    Array.from(copies).find(
+      (copy) => !copy.closest('[hidden], [role="tabpanel"][data-state="inactive"]'),
+    ) ?? null
+  );
+}
+
+/** A path without its locale prefix, read in any case as the middleware reads it. */
+function withoutLocale(pathname: string): string {
+  const locale = localePrefixOf(pathname);
+  return locale ? pathname.slice(locale.length + 1) || "/" : pathname;
+}
+
+/**
+ * Whether the browser is on `page` yet. The router may have added a locale, so
+ * a link naming none matches the page in any; a link naming one - an agent's
+ * copy of the address bar, or the same page in another language - is not
+ * reached until the browser is in that locale.
+ */
+function arrivedAt(page: string): boolean {
+  const pushed = new URL(page, window.location.origin).pathname;
+  const here = window.location.pathname;
+  const named = localePrefixOf(pushed);
+  if (named !== null && named !== (localePrefixOf(here) ?? defaultLocale)) return false;
+  return withoutLocale(here) === withoutLocale(pushed);
+}
+
+/**
+ * Point at `anchor` once `page` draws it: reveal it, scroll it into view and
  * ring it. Resolves whether it was found; a page that never draws it - the
  * reader may not hold the permission the control needs - is simply not pointed at.
+ *
+ * `page` is the path the caller has just pushed. Nothing is looked for until
+ * the browser is on it: the page being left often holds the same anchor and the
+ * same tab trigger (every agent's Builder does), and switching its tab rewrites
+ * its URL, which cancels the navigation still in flight.
  */
-export async function pointAt(anchor: string): Promise<boolean> {
+export async function pointAt(anchor: string, page: string): Promise<boolean> {
   // By the step's id as well: a step may light its card's header while the
   // Architect names the card, and both sit behind the same tab.
   const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
   let revealed = false;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
-    const element = find(anchor);
+    const element = arrivedAt(page) ? findShown(anchor) : null;
     if (element) {
-      element.scrollIntoView({ block: "center", behavior: "smooth" });
+      element.scrollIntoView({ block: "center", behavior: glideOrJump() });
       element.classList.add(HIGHLIGHT_CLASS);
       setTimeout(() => element.classList.remove(HIGHLIGHT_CLASS), RING_MS);
       return true;
     }
-    if (tab && !revealed) {
+    if (tab && !revealed && arrivedAt(page)) {
       const trigger = find(tab);
       if (trigger) {
-        trigger.click();
+        // A tab switch leaves focus where the reader was typing, in the
+        // Architect's panel. A popover still takes it as it opens.
+        activateTab(trigger, { moveFocus: false });
         revealed = true;
       }
     }

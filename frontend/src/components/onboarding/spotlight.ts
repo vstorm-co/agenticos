@@ -66,42 +66,6 @@ export function keepClearOf(element: Element, cover: Element | null): void {
 }
 
 /**
- * Resolve once `selector` is in the document, or with `null` if the wait is
- * aborted or `timeoutMs` elapses first.
- *
- * A step's target only exists after its page has mounted and its data has
- * settled, which is a navigation and a render or two away — so the engine cannot
- * query for it synchronously after telling the router to move. The
- * `MutationObserver` catches it the moment it appears; the timeout keeps a step
- * whose target never renders (a slow page, a control a permission hid) from
- * hanging the spotlight; and the abort signal drops the wait when the reader
- * moves to another step before this one's element arrived.
- */
-/**
- * Switch a Radix tab from script, by its trigger element.
- *
- * A `Tabs.Trigger` selects on a primary-button `mousedown` and, in the automatic
- * activation mode this app's tabs use, on `focus` — never on a bare
- * `HTMLElement.click()`, which dispatches only a `click` event and moves no
- * focus. So the tour clicking a tab did nothing: the panel stayed unmounted and
- * the next spotlight hunted a target that never appeared, landing centered with
- * no highlight. Firing both what Radix listens to (a `mousedown`, and focus)
- * covers either activation mode. `preventScroll` because driver.js does the
- * scrolling; a second one here only fights it.
- */
-export function activateTab(trigger: HTMLElement): void {
-  // A popover's trigger opens on a click, not a press: the chat's settings, whose
-  // approval-mode and connection stops sit inside it, waited out their timeout
-  // behind a closed popover and the walk stood still between them.
-  if (trigger.getAttribute("aria-haspopup") === "dialog") {
-    trigger.click();
-    return;
-  }
-  trigger.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
-  trigger.focus({ preventScroll: true });
-}
-
-/**
  * Whether a key event landed somewhere the reader is composing text.
  *
  * Arrow keys step the walkthrough, but inside a create dialog the same keys move

@@ -175,7 +175,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
     if (link === null) return;
     event.preventDefault();
     router.push(link.path);
-    if (link.anchor) void pointAt(link.anchor);
+    if (link.anchor) void pointAt(link.anchor, link.path);
   };
 
   return (

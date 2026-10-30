@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 import {
-  activateTab,
   isTypingTarget,
   onlyHiddenMatches,
   revealDisclosures,
@@ -16,6 +15,7 @@ import {
 } from "@/components/onboarding/spotlight";
 import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
+import { activateTab } from "@/lib/activate-tab";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { AGENT_BUILDER, pageKey } from "@/lib/onboarding/tour";
