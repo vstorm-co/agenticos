@@ -13,6 +13,10 @@ concurrency:
   cancel-in-progress: true
 jobs:
   desktop:
+    # Smoke packages exercise installation, not debugger symbols. The Linux RPM
+    # step stalled for 32 minutes; avoid its unnecessary debug-symbol payload.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
     strategy:
       fail-fast: false
       matrix:

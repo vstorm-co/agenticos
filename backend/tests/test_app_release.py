@@ -181,3 +181,22 @@ def test_release_jobs_build_the_verified_commit_even_if_the_tag_moves(tmp_path: 
             if step.get("uses", "").startswith("actions/checkout@")
         )
         assert checkout["with"]["ref"] == "${{ needs.resolve.outputs.commit }}"
+
+
+def test_desktop_smoke_packages_omit_debug_symbols_without_skipping_formats() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
+    job = workflow["jobs"]["desktop"]
+    assert job["env"]["CARGO_PROFILE_DEV_DEBUG"] == "0"
+    assert set(job["strategy"]["matrix"]["os"]) == {
+        "macos-latest",
+        "windows-latest",
+        "ubuntu-latest",
+    }
+    packaging = next(
+        step for step in job["steps"] if step.get("name") == "Build desktop installer packages"
+    )
+    assert "--debug --ci" in packaging["run"]
+    assert "--bundles" not in packaging["run"]
+    assert next(
+        step for step in job["steps"] if step.get("name") == "Install and remove desktop packages"
+    )
