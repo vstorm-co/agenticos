@@ -1,5 +1,5 @@
 ---
-source_sha: "5e1c57ae866b"
+source_sha: "7204fdd1cd6c"
 ---
 
 # Comandos { #commands }
@@ -677,3 +677,19 @@ uv run agenticos cmd my-command --name test
 ```
 
 Para más detalles, mira `docs/adding_features.md`.
+
+## Actualizar Architect {#refreshing-the-architect}
+
+Después de una actualización, revisa las instrucciones instaladas de Architect y su guía de AgenticOS. Actualiza después las copias sin cambios propios:
+
+```bash
+uv run agenticos cmd refresh-assistant --dry-run
+uv run agenticos cmd refresh-assistant --org <org-id>
+uv run agenticos cmd refresh-assistant --org <org-id> --replace-edited
+```
+
+Sin `--org`, se procesan todas las organizaciones. El informe distingue `current` (actual), `update` (pendiente de actualizar), `edited` (modificada) y `untracked` (procedencia desconocida); `--dry-run` no escribe nada. Las copias `edited` y `untracked` se omiten salvo que `--replace-edited` sustituya explícitamente los cambios de la organización.
+
+Los cambios de instrucciones crean y publican una nueva versión del agente, conservando el historial, modelo, presupuesto, capacidades, skills y ajustes del asistente. Si otros campos del borrador difieren de la versión publicada, toda la actualización queda bloqueada hasta publicar o descartar esos cambios; la opción de sustitución no evita esta comprobación. Un asistente nunca publicado recibe instrucciones actualizadas en su borrador y aún necesita un modelo y publicación en el Builder. Se omiten asistentes ausentes o archivados. Una guía ausente o desvinculada se informa sin cambiar los vínculos de skills.
+
+La guía es un skill compartido: actualizar su contenido y recursos incrementa su versión y afecta a todos los agentes que usan esa copia. Sus modificaciones tienen la misma protección que las instrucciones. Las copias de origen desconocido siguen como `untracked`; la migración reconoce solo instrucciones exactas distribuidas anteriormente por AgenticOS. Una actualización del despliegue no sobrescribe automáticamente Architect: ejecuta este comando para adoptar la nueva plantilla.

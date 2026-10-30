@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `refresh-assistant [--org <id>] [--dry-run] [--replace-edited]` reports and
+  refreshes installed Architect instructions and its AgenticOS guide. New
+  instructions publish as a new agent version, preserving configuration and
+  history. Organization edits are skipped unless explicitly replaced; unrelated
+  pending draft changes block the refresh. After upgrading, run the command to
+  adopt updated templates in existing organizations (#2520).
+
 ### Fixed
 
 - Explicit `@slug` channel invocations retain saved conversation history, just
@@ -26,8 +35,8 @@ Two things are versioned separately from this file and worth knowing about:
   references after the initial thread backfill.
 - Channel replies retain each message's author, answer the current request without
   reviving unrelated tasks, and explain how to revise a published App when its
-  original sandbox is unavailable. Existing channel prompts receive the updated
-  guidance without duplicate default blocks or losing custom instructions.
+  original sandbox is unavailable. Channel defaults now come from the current deployment; a one-time
+  migration removes recognized stored copies while preserving custom additions.
   Author metadata stays outside the actual prompt screened by input guardrails.
 - Read-only MCP tools no longer require approval solely because a linked
   member's run is in Mattermost, Slack, Teams or Telegram. Unlinked senders still

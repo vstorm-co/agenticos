@@ -1,5 +1,5 @@
 ---
-source_sha: "623d27b2de5f"
+source_sha: "ec4d3995b98f"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2719,3 +2719,7 @@ flowchart TD
   transporte, así que solo se engancha donde existe un sumidero.
 
 Una publicación que solo contiene la mención del bot o espacios se ignora después de eliminar la mención, antes de reclamar la entrega o iniciar una ejecución. Esto evita enviar un mensaje de usuario vacío que la API del modelo omitiría, rechazando después la respuesta anterior del asistente como prefill. Un mensaje con solo adjuntos sigue pasando por el procesamiento de archivos.
+
+## Instrucciones predeterminadas actuales de los canales {#current-channel-defaults}
+
+El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. El prompt del vínculo guarda solo añadidos propios. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.

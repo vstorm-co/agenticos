@@ -653,3 +653,19 @@ uv run agenticos cmd my-command --name test
 ```
 
 For more details, see `docs/adding_features.md`.
+
+## Refreshing the Architect
+
+After upgrading, inspect installed Architect instructions and its AgenticOS guide, then refresh copies nobody edited:
+
+```bash
+uv run agenticos cmd refresh-assistant --dry-run
+uv run agenticos cmd refresh-assistant --org <org-id>
+uv run agenticos cmd refresh-assistant --org <org-id> --replace-edited
+```
+
+Omit `--org` to process every organization. The report distinguishes `current`, `update`, `edited` and `untracked`; `--dry-run` writes nothing. `edited` and `untracked` copies are skipped unless `--replace-edited` explicitly replaces organization changes.
+
+Instruction changes create and publish a new agent version, preserving published history, model, budget, capabilities, skills and assistant settings. If other draft fields differ from the published version, the entire refresh is blocked until those changes are published or discarded; the replacement flag does not bypass this check. An assistant that has never been published receives updated draft instructions and still needs a model and publication in the Builder. Missing and archived assistants are skipped. A missing or detached guide is reported without changing skill bindings.
+
+The guide is an ordinary shared skill: refreshing its content and resources increments its version and affects every agent using that copy. Edited guides receive the same protection as edited instructions. Existing copies with unknown provenance remain untracked; the upgrade recognizes only exact instructions previously shipped by AgenticOS. A deployment upgrade does not automatically overwrite an installed Architect: run this command to adopt the new template.

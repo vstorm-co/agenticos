@@ -504,6 +504,32 @@ class SkillService:
                 and the copy - the listing's top-up, racing a seed.
         """
         bundled, existing = await self._library_pair(ctx, key)
+        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+
+    async def refresh_gallery(
+        self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False
+    ) -> LibraryRefresh:
+        """Refresh a gallery copy using the same edit protection as seeded skills."""
+        bundled = skill_library.gallery_get(key)
+        if bundled is None:
+            raise NotFoundError(message="No such gallery skill", details={"key": key})
+        existing = await skill_repo.get_by_name(
+            self.db, bundled.name, organization_id=ctx.organization_id
+        )
+        if existing is not None:
+            await self.get(ctx, existing.id, perm=Perm.SKILLS_EDIT)
+        if dry_run:
+            return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+
+    async def _refresh_bundled(
+        self,
+        ctx: AuthContext,
+        bundled: skill_library.LibrarySkill,
+        existing: Skill | None,
+        *,
+        replace_edited: bool,
+    ) -> LibraryRefresh:
         if existing is not None:
             # Locked and re-read before deciding: an edit a member commits between
             # the lookup and the overwrite would otherwise be judged on the copy as

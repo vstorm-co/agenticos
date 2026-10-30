@@ -22,6 +22,14 @@ agent pipeline as the web chat.
 Bots live in the DB (`channel_bots`), with per-user identity (`channel_identity`) and
 per-thread session (`channel_session`).
 
+## Surface prompts
+
+`formatting.house_style` supplies current defaults at run time. Binding prompts
+store custom additions only; do not seed a snapshot of defaults into a new row.
+Migration `0183_channel_prompt_defaults.py` removes exact historical defaults.
+Channel metadata remains request-only reference data, outside system instructions
+and the guarded input. Never infer identity or authorization from display labels.
+
 ## Tokens go through the vault
 
 Bot tokens are sealed with `app/core/vault.py`, bound to the organization.

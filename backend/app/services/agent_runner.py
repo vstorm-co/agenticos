@@ -281,11 +281,9 @@ from app.services.channels.base import OutgoingAttachment, channel_key
 from app.services.channels.directory import restore_directory
 from app.services.channels.formatting import (
     CHANNEL_BEHAVIOR,
-    LEGACY_CHANNEL_BEHAVIOR,
-    LEGACY_MCP_APPROVAL_GUIDANCE,
     LINK_ACCOUNT_INSTRUCTION,
-    MCP_APPROVAL_GUIDANCE,
     ChannelReference,
+    house_style,
     runtime_context,
 )
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
@@ -1620,24 +1618,16 @@ run is metered exactly like one that was waited for.
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
-    """The spec as this binding wants it, if the binding says anything.
+    """Append current surface defaults and the binding's custom additions.
 
-    A binding is created holding the platform's own style - what that client
-    renders, how a link is written there - as its starting text, so what the
-    agent will be told is what somebody editing it can see, change and delete.
-    From here it is simply the binding's text.
-
-    **Appended, never substituted.** A surface shapes how an answer is
-    delivered; what the agent is *for* belongs to the version somebody published,
-    and a binding that could replace it would be a way to repurpose an approved
-    agent without approving anything. The copy is local to this run -
-    `model_copy` leaves the stored spec alone.
+    Surface defaults are deployment-owned; the database stores only additions.
+    The published agent spec remains unchanged.
     """
-    added = "" if exposure is None else (exposure.prompt or "").strip()
-    # Metadata belongs in a lower-trust message, never in system instructions.
-    added = added.replace(CHANNEL_CONTEXT, "").strip()
-    added = added.replace(LEGACY_CHANNEL_BEHAVIOR, CHANNEL_BEHAVIOR)
-    added = added.replace(LEGACY_MCP_APPROVAL_GUIDANCE, MCP_APPROVAL_GUIDANCE)
+    if exposure is None:
+        return spec
+    added = "\n\n".join(
+        part for part in (house_style(exposure.surface), (exposure.prompt or "").strip()) if part
+    )
     if not added:
         return spec
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
