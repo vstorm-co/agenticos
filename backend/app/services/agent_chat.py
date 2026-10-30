@@ -561,8 +561,9 @@ class ChatAgentRunner:
         # model request reads it.
         prepared.deps.steering = steering
         prepared.deps.visual_reports = visual_reports
+        input_edge = input_screen_for(prepared.spec)
         if steering is not None:
-            steering.screen = input_screen_for(prepared.spec)
+            steering.screen = input_edge
         # Before the model answers, not after: the model is about to say it cannot
         # reach the person's Notion, and the card with the button that connects it
         # belongs beside that sentence, not under it once the turn is over.
@@ -593,6 +594,9 @@ class ChatAgentRunner:
             router = AttachmentRouter(
                 prepared.workspace.workspace if prepared.workspace is not None else None,
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
+                # Screened before a file is written, not only once the run starts
+                # (#2559): a refused file must not outlive its turn.
+                screen=input_edge,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
             # Kept on the prompt's row so the next turn's history still carries

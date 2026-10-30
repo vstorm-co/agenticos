@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.core.blocking import run_blocking_settled
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import TenantScope, compose
@@ -71,7 +72,7 @@ async def test_embedding_http_runs_off_loop_and_books_the_request_ledger(
                     ],
                     metadata=DocumentMetadata(filename="test.txt", filesize=5, filetype="txt"),
                 )
-                await store.insert_document("audit", document)
+                await store.insert_document("audit", document, VectorScope(tenant=None))
     finally:
         request_scope.reset(token)
     assert observed == [(observed[0][0], "caller-tenant")]

@@ -55,6 +55,23 @@ def builtins_loaded():
 
 
 @pytest.fixture(autouse=True)
+def no_model_runs_on_a_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No profile here runs on a ChatGPT sign-in; `test_publish_sign_ins` has those.
+
+    Stubbed at the repository boundary, so the real check runs - and finds nothing
+    to refuse - on every publish, rollback and draft check below.
+    """
+    monkeypatch.setattr(
+        "app.services.agent_registry.credential_repo.get_profiles_by_ids",
+        AsyncMock(return_value={}),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_secret_repo.get_many",
+        AsyncMock(return_value={}),
+    )
+
+
+@pytest.fixture(autouse=True)
 def model_profile_exists(monkeypatch):
     """Every spec here names a model that resolves - the model is not the subject."""
     monkeypatch.setattr(

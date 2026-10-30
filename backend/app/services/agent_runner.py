@@ -226,10 +226,12 @@ from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
+from app.db.models.credential import ModelProfile
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
 from app.db.models.skill import Skill
 from app.db.session import get_db_context, get_worker_db_context
+from app.db.vector_tables import VectorScope
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -258,10 +260,17 @@ from app.services.agent_registry import (
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
     delegation_binding,
+    models_a_run_reaches,
 )
 from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
-from app.services.attachments import AttachmentRouter
+from app.services.attachments import (
+    UPLOAD_DIR,
+    AttachmentRouter,
+    EarlierAttachments,
+    find_earlier_attachments,
+    restore_earlier_attachments,
+)
 from app.services.channel_link import mcp_servers_link
 from app.services.channels.attachments import (
     ChannelFileBudget,
@@ -294,7 +303,7 @@ from app.services.mcp_connection import (
     connect_personal_toolset,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
-from app.services.model_profile import ModelProfileService
+from app.services.model_profile import ModelProfileService, reaches_a_sign_in
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
@@ -1275,6 +1284,9 @@ class PreparedRun:
     """A call's text twin, when the call hands work off (#54): the session points
     its steps at the call's event pump."""
 
+    earlier_attachments_checked: bool = False
+    """The workspace actually reached its attachment setup, persisted with the terminal run."""
+
     materialised_skills: MaterialisedSkills | None = None
     """The skill files written into that workspace, as they were written.
 
@@ -1804,19 +1816,29 @@ Said before the writes can have succeeded, so it does not claim they did."""
 
 
 def _start_turn_on_first_use(
-    workspace: RecordingWorkspace, prepared: PreparedRun, skills: list[Skill]
+    workspace: RecordingWorkspace,
+    prepared: PreparedRun,
+    skills: list[Skill],
+    *,
+    earlier: EarlierAttachments | None = None,
+    can_parse: bool = False,
+    checked_earlier: bool = False,
 ) -> None:
-    """Write the run's skills and take its snapshot when the sandbox is first used.
+    """Write the run's skills, put back the thread's attachments and take the
+    run's snapshot when the sandbox is first used.
 
-    The same two steps, in the same order, that a `state` workspace takes while the
+    The same steps, in the same order, that a `state` workspace takes while the
     run is prepared - deferred because on a sandbox they are what opens the
-    session. Both never raise, so the operation waiting behind them is never
+    session. None of them raises, so the operation waiting behind them is never
     failed by them; a snapshot that could not be taken stays `None`, which posts
     nothing back.
     """
 
     async def start() -> None:
         prepared.materialised_skills = await materialise_skills(workspace, skills)
+        if earlier is not None:
+            await restore_earlier_attachments(workspace, earlier, can_parse=can_parse)
+        prepared.earlier_attachments_checked = checked_earlier
         prepared.workspace_at_start = await workspace_snapshot(workspace)
 
     workspace.prepare_on_first_use(start)
@@ -1829,6 +1851,29 @@ def _untouched(workspace: OpenWorkspace) -> bool:
     """
     recorder = workspace.workspace
     return isinstance(recorder, RecordingWorkspace) and not recorder.touched
+
+
+_EARLIER_ATTACHMENTS_BRIEFING = (
+    "An earlier turn of this conversation stopped before it finished. Files attached "
+    f"to it that are missing from `{UPLOAD_DIR}/` are put back there before your first "
+    "use of the workspace this turn, where the workspace takes them - so one may be "
+    "there even where an earlier message says it could not be written or processed. "
+    f"List `{UPLOAD_DIR}/` before saying a file is missing, and if it is still not "
+    "there, say it could not be put back."
+)
+"""What a run is told when an interrupted turn of its thread left attachments behind (#2481).
+
+The earlier message's own note is history and cannot be rewritten, and it says
+there is no file to open; this is what tells the model to look again. Said before
+the writes can have happened - on a sandbox they wait for its first use - so it
+does not claim they succeeded: a write can still be refused, and is only logged."""
+
+
+def _with_earlier_attachments_briefing(spec: AgentSpec) -> AgentSpec:
+    """The spec told that the thread's attachments are put back - see `_EARLIER_ATTACHMENTS_BRIEFING`."""
+    return spec.model_copy(
+        update={"instructions": f"{spec.instructions}\n\n{_EARLIER_ATTACHMENTS_BRIEFING}"}
+    )
 
 
 def _with_skills_briefing(spec: AgentSpec, *, deferred: bool = False) -> AgentSpec:
@@ -2150,6 +2195,23 @@ class _RunBudget:
     guard: BudgetGuard | None = None
 
 
+@dataclass
+class _ModelCatalog:
+    """The organization's models, listed once per run and resolved as needed.
+
+    Which of them a level offers depends on the spec delegating (a ChatGPT
+    sign-in only when that spec names it), so the rows are kept rather than one
+    finished answer, and each profile is resolved the first time a level offers
+    it.
+    """
+
+    rows: list[ModelProfile] | None = None
+    """Every profile in the organization, or `None` until first read."""
+
+    resolved: dict[UUID, ModelRequestSpec | None] = field(default_factory=dict)
+    """Each profile resolved so far, by id - `None` for one that did not resolve."""
+
+
 @dataclass(frozen=True)
 class _Delegation:
     """What every level of one run's delegation tree is resolved against.
@@ -2161,6 +2223,14 @@ class _Delegation:
     """
 
     ctx: AuthContext
+    models_ctx: AuthContext
+    """Who the tree's models are resolved for - whose ChatGPT sign-in they may spend.
+
+    `ctx` except on a resume, where `ctx` is the approver's and this is the run's
+    own person, as `_assemble` resolves the run's own model: releasing somebody's
+    run must neither lend its delegates the approver's subscription nor refuse
+    them the owner's."""
+
     run: AgentRun
     surface: RunSurface
     """Where the run came from, for the briefing a delegate gets on a personal
@@ -2237,19 +2307,15 @@ class _Delegation:
     Parked instead, the delegate's approval would surface as one on the twin's
     `task` call, which no approval row answers."""
 
-    profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
-    """The organization's model catalog, resolved at most once and only if asked for.
+    catalog: _ModelCatalog = field(default_factory=_ModelCatalog)
+    """The organization's model catalog, read at most once and only if asked for.
 
-    Every model a specialist a model invented may run on, keyed by the label an
-    author sees - see :meth:`AgentRunnerService._model_catalog`. Empty means
-    *not yet read* rather than "this organization has none", which is a state a
-    run cannot be in: the delegating agent's own profile resolved before any of
-    this, so the catalog always holds at least it.
+    What a specialist a model invented may run on comes out of it per level - see
+    :meth:`AgentRunnerService._model_catalog`, which is the only reader.
 
-    Shared across the tree because it is a fact about the organization, not about
-    a level, and reading it costs a query and a vault unseal per profile. Two
-    nested levels that both allow dynamic specialists would otherwise pay for it
-    twice.
+    Shared across the tree because the rows are a fact about the organization,
+    not about a level, and resolving one costs a vault unseal. Two nested levels
+    that both allow dynamic specialists would otherwise pay for it twice.
     """
 
 
@@ -2400,7 +2466,12 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
-            resources={"kb_collection_names": [], "skills": [], CONTEXT_FILES_RESOURCE: []},
+            resources={
+                "kb_collection_names": [],
+                "kb_vector_scopes": {},
+                "skills": [],
+                CONTEXT_FILES_RESOURCE: [],
+            },
             secrets={},
             extra_toolsets=[],
         )()
@@ -2685,14 +2756,18 @@ class AgentRunnerService:
         owner = await self._run_owner_context(ctx, existing_run)
         return None if owner is None else await mint_for_run(owner)
 
-    async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
-        """Vector-store collection names for the agent's bound collections.
+    async def _bound_collections(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, Any]:
+        """The agent's bound collections, as the `resources` entries that carry them.
 
         Resolved server-side and passed through deps: the model asks *what* to
-        search, never *where*.
+        search, never *where*. `kb_collection_names` are the vector-store names;
+        `kb_vector_scopes` the bound base behind each, because a name is not
+        unique and resolving it again would search whichever same-named base of
+        the organization comes first rather than the one bound here (#2537).
         """
         found = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
         names: list[str] = []
+        scopes: dict[str, VectorScope] = {}
         for collection_id in spec.collection_ids:
             collection = found.get(collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
@@ -2704,8 +2779,21 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            names.append(collection.collection_name)
-        return names
+            name = collection.collection_name
+            if previous := scopes.get(name):
+                # Both bases passed the organization check above, so they share
+                # a vector tenant. Read their union without widening to siblings.
+                scopes[name] = replace(
+                    previous,
+                    additional_knowledge_base_ids=(
+                        *previous.additional_knowledge_base_ids,
+                        collection.id,
+                    ),
+                )
+            else:
+                names.append(name)
+                scopes[name] = collection.vector_scope
+        return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
         """What an earlier turn of this thread recorded, in one read.
@@ -3149,7 +3237,7 @@ class AgentRunnerService:
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            **await self._bound_collections(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
@@ -3495,6 +3583,8 @@ class AgentRunnerService:
         spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
+        earlier: EarlierAttachments | None = None
+        checked_earlier = False
         if workspace is not None:
             resources[WORKSPACE_RESOURCE] = workspace.workspace
             resources[WORKSPACE_SHARED_RESOURCE] = await self._workspace_shared(
@@ -3521,6 +3611,42 @@ class AgentRunnerService:
             # turn - before the model saw a token, for a turn that may never touch
             # the sandbox. The briefing cannot wait for the writes, so it is given
             # whenever there are skills, worded so it does not claim they landed.
+            #
+            # And the files of this agent's turns that stopped before writing them,
+            # put back (#2481) - on the same first use, or here for a `state`
+            # workspace, and before the snapshot either way so a file put back is
+            # not read as this turn's output. Only on a run by a person, in a
+            # session: a publisher standing in for a visitor or a key's holder is
+            # not whoever attached the file - the same subjects the workspace
+            # identity above refuses. A resume looks again only when its own
+            # person continues it, since a sandbox may first be used after the
+            # park; one released by another approver opens the approver's
+            # workspace, and `chat_file_repo` does not let that run's finishing
+            # close the window.
+            if (
+                conversation_id is not None
+                and ctx.user_id is not None
+                and ctx.api_key_id is None
+                and not subject_is_publisher_fallback
+                and (
+                    existing_run is None
+                    or (existing_run.user_id == ctx.user_id and _started_by_a_person(existing_run))
+                )
+            ):
+                earlier = await find_earlier_attachments(
+                    self.db,
+                    conversation_id=conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    agent_id=agent.id,
+                    can_parse=workspace.parses_documents,
+                    # A file the input edge would refuse is never put back
+                    # (#2481): its turn may have stopped before the edge ran.
+                    screen=input_screen_for(spec),
+                )
+                checked_earlier = True
+            if earlier is not None:
+                spec = _with_earlier_attachments_briefing(spec)
             if isinstance(workspace.workspace, RecordingWorkspace):
                 if resources["skills"]:
                     spec = _with_skills_briefing(spec, deferred=True)
@@ -3528,6 +3654,10 @@ class AgentRunnerService:
                 materialised = await materialise_skills(workspace.workspace, resources["skills"])
                 if materialised.written:
                     spec = _with_skills_briefing(spec)
+                if earlier is not None:
+                    await restore_earlier_attachments(
+                        workspace.workspace, earlier, can_parse=workspace.parses_documents
+                    )
                 # After the skills are written, so materialising them does not read as
                 # the turn's own output.
                 started_with = await workspace_snapshot(workspace.workspace)
@@ -3561,6 +3691,7 @@ class AgentRunnerService:
         )
         runtime = await self._delegation_runtime(
             ctx,
+            models_ctx=models_ctx,
             spec=spec,
             agent=agent,
             run=run,
@@ -3718,6 +3849,11 @@ class AgentRunnerService:
             approvals=channel,
             workspace=workspace,
             hand_off=hand_off,
+            earlier_attachments_checked=(
+                checked_earlier
+                and workspace is not None
+                and not isinstance(workspace.workspace, RecordingWorkspace)
+            ),
             materialised_skills=materialised,
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
@@ -3765,13 +3901,21 @@ class AgentRunnerService:
                 prepared.channel_file_budget,
             )
         if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
-            _start_turn_on_first_use(workspace.workspace, prepared, resources["skills"])
+            _start_turn_on_first_use(
+                workspace.workspace,
+                prepared,
+                resources["skills"],
+                earlier=earlier,
+                can_parse=workspace.parses_documents,
+                checked_earlier=checked_earlier,
+            )
         return prepared
 
     async def _delegation_runtime(
         self,
         ctx: AuthContext,
         *,
+        models_ctx: AuthContext,
         spec: AgentSpec,
         agent: Agent,
         run: AgentRun,
@@ -3799,6 +3943,8 @@ class AgentRunnerService:
         delegation from inside a tool call.
 
         Args:
+            models_ctx: Who every model in the tree is resolved for: see
+                `_Delegation.models_ctx`.
             resources: The run's own resource dict, from which a shared
                 capability's instance state travels to the delegates. Read, never
                 handed on: see :meth:`_delegate_resources`.
@@ -3831,6 +3977,7 @@ class AgentRunnerService:
         attribution: dict[UUID, ModelRequestSpec] = {}
         delegation = _Delegation(
             ctx=ctx,
+            models_ctx=models_ctx,
             run=run,
             surface=surface,
             agent_id=agent.id,
@@ -3878,12 +4025,20 @@ class AgentRunnerService:
             depth_remaining=depth_remaining,
             depth=0,
             dynamic=await self._dynamic_specialists(
-                delegation, config, trace_content=spec.trace_content
+                delegation,
+                config,
+                trace_content=spec.trace_content,
+                named=models_a_run_reaches(spec),
             ),
         )
 
     async def _dynamic_specialists(
-        self, delegation: _Delegation, config: SubagentsConfig, *, trace_content: TraceContent
+        self,
+        delegation: _Delegation,
+        config: SubagentsConfig,
+        *,
+        trace_content: TraceContent,
+        named: frozenset[UUID],
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -3896,24 +4051,34 @@ class AgentRunnerService:
         the *result* off `SubagentRuntime.dynamic`. Two readers would be two
         answers to "may this agent invent a specialist", and the one that mattered
         would be whichever ran later.
+
+        `named` is the profiles this agent's own author chose (`_model_catalog`).
+        Also `None` when no model is left to invent one on - an override onto a
+        model elsewhere, with the one the spec names refused to this caller -
+        because the delegation library reads an empty list of allowed models as
+        "any model at all".
         """
         if not config.allow_dynamic:
             return None
-        profiles = await self._model_catalog(delegation)
+        profiles = await self._model_catalog(delegation, named)
+        if not profiles:
+            return None
         return DynamicSpecialists(
             build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
             allowed_models=tuple(profiles),
         )
 
-    async def _model_catalog(self, delegation: _Delegation) -> Mapping[str, ModelRequestSpec]:
+    async def _model_catalog(
+        self, delegation: _Delegation, named: frozenset[UUID]
+    ) -> Mapping[str, ModelRequestSpec]:
         """Every model a dynamic specialist may run on, resolved and keyed by label.
 
         Resolved rather than listed, because a specialist has to be *built* from
         inside a tool call, on a session the whole run shares - so the credential
         has to be out of the vault before the run starts, exactly as a pinned
         delegate's is. That is a query and an unseal per profile, which is why it
-        happens only for an agent whose author asked for dynamic specialists and
-        only once per run.
+        happens only for an agent whose author asked for dynamic specialists, and
+        the listing only once per run.
 
         The label is the handle, because it is what the Builder shows an author,
         what an organization's models are unique by, and therefore the only name a
@@ -3925,40 +4090,68 @@ class AgentRunnerService:
         credential in the catalog is unsealed before the run starts, whether or not
         a specialist is ever invented - the price of the model being able to choose
         at all, and the reason this is not resolved for every agent. And it widens
-        what a reviewed agent may run a specialist on to any of the organization's
-        models, not only the one its author chose for itself; the run's own caps
-        still bind, so what varies is the price of a request rather than the ceiling
-        on the run. The whole catalog is the right scope because a model profile has
-        no per-row grants to resolve - it is organization-scoped configuration, and
-        `list_profiles` is scoped to the organization the run is in.
+        what a reviewed agent may run a specialist on to the organization's models,
+        not only the one its author chose for itself; the run's own caps still
+        bind, so what varies is the price of a request rather than the ceiling on
+        the run. A model profile has no per-row grants to resolve - it is
+        organization-scoped configuration, and `list_profiles` is scoped to the
+        organization the run is in.
 
-        A profile that no longer resolves is left out with a warning rather than
-        failing the run - its key deleted (`BadRequestError`), or the row itself
-        gone between this listing and this resolution (`NotFoundError`). The
-        alternative is one misconfigured model in a catalog of ten stopping an agent
-        that names none of it, which is the same reasoning `resolve` already applies
-        to a fallback chain. The delegating agent's own profile is not at risk from
-        this: it resolved before this method was reached, so the catalog holds at
-        least it and can never come back empty.
+        Except a ChatGPT sign-in, which is one person's subscription. A run spends
+        one for anybody who may see it in the vault - its owner, whoever it is
+        shared with, the organization's owners and admins - so offered here, a
+        specialist the model invents would spend that person's plan on an agent
+        nobody chose it for. A profile on a sign-in, or one whose fallbacks reach
+        one (`reaches_a_sign_in`, since `resolve` follows them), is offered only
+        when it is in `named`: the profiles the delegating agent's own published
+        spec names (`models_a_run_reaches`), without what its parent shares with
+        it. Its author chose those, and publish held them to being allowed to
+        (#2546).
+
+        A profile that does not resolve is left out with a warning rather than
+        failing the run - its key deleted (`BadRequestError`), the row itself gone
+        between this listing and this resolution (`NotFoundError`), or a sign-in
+        the person running the agent may not spend (`AuthorizationError`: an API
+        key's holder, a widget visitor, a member it is not shared with). The
+        alternative is one model in a catalog of ten stopping an agent that names
+        none of it, which is the same reasoning `resolve` already applies to a
+        fallback chain. The result can be empty - see `_dynamic_specialists`.
+
+        Every profile is resolved for `_Delegation.models_ctx`, the run's own
+        person, so a resume does not resolve it for the approver.
         """
-        if not delegation.profiles:
-            for profile in await self.models.list_profiles(delegation.ctx):
-                # A specialist on a speech or embedding model would fail on its
-                # first turn (#2487).
-                if not model_outputs(
-                    profile.provider, profile.model, base_url=profile.base_url
-                ).chat:
-                    continue
-                try:
-                    delegation.profiles[profile.label] = await self.models.resolve(
-                        delegation.ctx, profile_id=profile.id
-                    )
-                except BadRequestError, NotFoundError:
-                    logger.warning(
-                        "model_profile_not_usable_for_dynamic_specialists",
-                        extra={"profile_id": str(profile.id), "label": profile.label},
-                    )
-        return delegation.profiles
+        catalog = delegation.catalog
+        if catalog.rows is None:
+            catalog.rows = await self.models.list_profiles(delegation.ctx)
+        by_id = {profile.id: profile for profile in catalog.rows}
+        offered: dict[str, ModelRequestSpec] = {}
+        for profile in catalog.rows:
+            # A specialist on a speech or embedding model would fail on its
+            # first turn (#2487).
+            if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
+                continue
+            if profile.id not in named and reaches_a_sign_in(profile, by_id):
+                continue
+            if profile.id not in catalog.resolved:
+                catalog.resolved[profile.id] = await self._catalog_entry(
+                    delegation.models_ctx, profile
+                )
+            if (resolved := catalog.resolved[profile.id]) is not None:
+                offered[profile.label] = resolved
+        return offered
+
+    async def _catalog_entry(
+        self, ctx: AuthContext, profile: ModelProfile
+    ) -> ModelRequestSpec | None:
+        """One profile of `_model_catalog`, resolved - or `None`, logged, if it does not."""
+        try:
+            return await self.models.resolve(ctx, profile_id=profile.id)
+        except BadRequestError, NotFoundError, AuthorizationError:
+            logger.warning(
+                "model_profile_not_usable_for_dynamic_specialists",
+                extra={"profile_id": str(profile.id), "label": profile.label},
+            )
+            return None
 
     async def _resolve_delegates(
         self,
@@ -4112,7 +4305,9 @@ class AgentRunnerService:
             build=_delegate_builder(
                 delegation,
                 spec=spec,
-                model=await self.models.resolve(ctx, profile_id=spec.model_profile_id),
+                model=await self.models.resolve(
+                    delegation.models_ctx, profile_id=spec.model_profile_id
+                ),
                 agent_id=delegation.agent_id,
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
@@ -4126,6 +4321,7 @@ class AgentRunnerService:
             preferred_mode=specialist.preferred_mode,
             workspace=_delegate_workspace(spec, shared),
             collection_names=tuple(own_resources["kb_collection_names"]),
+            collection_scopes=tuple(own_resources["kb_vector_scopes"].items()),
         )
 
     async def _resolve_delegate(
@@ -4222,7 +4418,8 @@ class AgentRunnerService:
                 },
             )
 
-        pinned = _with_shared(AgentSpec.model_validate(version.spec), shared)
+        published = AgentSpec.model_validate(version.spec)
+        pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
             ctx, pinned, shared=shared, parent_resources=resources
@@ -4266,9 +4463,14 @@ class AgentRunnerService:
                     # And its own trace-content mode, for the same reason: a
                     # published delegate carries an observability block of its
                     # own, so what a specialist it invents may record is its
-                    # author's answer rather than its caller's.
+                    # author's answer rather than its caller's. And the sign-ins
+                    # its own author named, not those a binding its caller shares
+                    # runs on: nobody publishing this delegate chose them (#2546).
                     dynamic=await self._dynamic_specialists(
-                        delegation, nested_config, trace_content=pinned.trace_content
+                        delegation,
+                        nested_config,
+                        trace_content=pinned.trace_content,
+                        named=models_a_run_reaches(published),
                     ),
                 )
             else:
@@ -4280,7 +4482,9 @@ class AgentRunnerService:
                 runnable = _without_delegation(pinned)
 
         runnable = _with_channel_mcp_approval(runnable, delegation.surface)
-        model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
+        model = await self.models.resolve(
+            delegation.models_ctx, profile_id=runnable.model_profile_id
+        )
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
         resolved = await build_toolsets_for_agent(
@@ -4330,6 +4534,7 @@ class AgentRunnerService:
             # replaces those deps with a clone of the parent's - see
             # `ResolvedSubagent.collection_names`.
             collection_names=tuple(delegate_resources["kb_collection_names"]),
+            collection_scopes=tuple(delegate_resources["kb_vector_scopes"].items()),
         )
 
     async def _delegate_resources(
@@ -4366,7 +4571,7 @@ class AgentRunnerService:
         delegate reaches a durable workspace at all.
         """
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            **await self._bound_collections(spec, ctx),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
@@ -4822,6 +5027,8 @@ class AgentRunnerService:
                 if agent_id == prepared.run.agent_id
             ),
         )
+        if prepared.earlier_attachments_checked:
+            await agent_run_repo.record_attachment_lookup(self.db, prepared.run)
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
@@ -5196,8 +5403,9 @@ class AgentRunnerService:
             draft=draft,
         )
         prepared.built.deps.steering = steering
+        input_edge = input_screen_for(prepared.spec)
         if steering is not None:
-            steering.screen = input_screen_for(prepared.spec)
+            steering.screen = input_edge
         if parks_questions:
             prepared.built.deps.ask_questions = park_the_question
             prepared.built.deps.parks_questions = True
@@ -5213,6 +5421,9 @@ class AgentRunnerService:
                 # from the briefing: a briefing is a best effort and this decides
                 # whether the extracted text is written at all.
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
+                # Screened before a file is written, not only once the run starts
+                # (#2559): a refused file must not outlive its turn.
+                screen=input_edge,
             )
             assembled = await router.build_prompt(prompt, attachments)
             attachment_context = router.context or None

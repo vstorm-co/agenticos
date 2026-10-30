@@ -4754,6 +4754,7 @@
       "agentAposSBehaviour": "Zachowanie agenta mieszka tutaj, a nie w kodzie. Bądź konkretny: co ma robić, czego odmawiać i jak cytować. Markdown, a model czyta strukturę - nagłówki i listy sprawiają, że długi prompt da się śledzić, dlatego podgląd pokazuje je wyrenderowane.",
       "agentAposSOwn": "Własny miesięczny limit wydatków tego agenta. Limit organizacji obowiązuje dodatkowo - agent może go zaostrzyć, nigdy poluzować. Limit kroków łapie inny rodzaj ucieczki: pętlę narzędzi, która jest tania na wywołanie i nigdy się nie kończy.",
       "agentCannotBePublished": "Tego agenta nie można jeszcze opublikować",
+      "goToModel": "Przejdź do sekcji Model",
       "agentConfigurationNotCode": "Agent to asystent z własnymi instrukcjami, wiedzą i narzędziami. Zbuduj go tutaj, opublikuj, a ludzie będą go używać w czacie, w Slacku lub Telegramie albo przez API.",
       "agents": "Agenci",
       "archive": "Archiwizuj",

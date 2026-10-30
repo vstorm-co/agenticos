@@ -7,16 +7,17 @@ from uuid import UUID
 
 from rank_bm25 import BM25Okapi
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import (
     RetrievalFilters,
     RetrievalQuery,
     RetrievalScope,
     compose,
-    scope_for_tenant,
+    scope_for,
 )
 from app.services.rag.models import ParentContextMode, SearchResult
-from app.services.rag.parent_context import expand_context, expansion_tenant
+from app.services.rag.parent_context import expand_context, expansion_scope
 from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
@@ -60,19 +61,18 @@ class RetrievalService(BaseRetrievalService):
         """The scope a search of this collection should carry, resolved by name.
 
         For a caller that holds only a collection name and its own organization -
-        the agent capability, the CLI - not an already-authorized knowledge base
-        row. It asks the store's own `resolve_tenant` (its own organization for an
-        org base, `None` for an app-scoped one every organization reads or a
-        collection no base claims, #1684) and converts that into the matching
-        scope shape (`TenantScope` or `AppScope`, FA-039). A caller that already
-        resolved and authorized the base for this name - the `/search` route,
-        through `CollectionAccessService` - builds its scope directly from that
-        base's own `vector_tenant` with `scope_for_tenant` instead, so it never
-        re-resolves a name the resolver could prefer a different, same-named base
-        for (#1684).
+        the agent capability - not an already-authorized knowledge base row. It
+        asks the store's own `resolve_scope` (the base the name resolves to for
+        that organization, and its tenant - its organization for an org base,
+        `None` for an app-scoped one every organization reads or a collection no
+        base claims, #1684, #2537) and converts that into the matching scope shape
+        (`TenantScope` or `AppScope`, FA-039). A caller that already resolved and
+        authorized the base for this name - the `/search` route, through
+        `CollectionAccessService` - builds its scope directly from that base's own
+        `vector_scope` with `scope_for` instead, so it never re-resolves a name the
+        resolver could prefer a different, same-named base for (#1684).
         """
-        tenant = await self.store.resolve_tenant(collection_name, organization_id)
-        return scope_for_tenant(tenant)
+        return scope_for(await self.store.resolve_scope(collection_name, organization_id))
 
     @staticmethod
     def _rrf_fuse(
@@ -240,10 +240,10 @@ class RetrievalService(BaseRetrievalService):
         # dedup above are untouched and operate on the small chunks; this only
         # attaches surrounding context to what was already selected, so `OFF`
         # returns exactly what the pre-#1651 path did.
-        expandable, tenant = expansion_tenant(scope)
-        if expandable:
+        siblings = expansion_scope(scope)
+        if siblings is not None:
             await expand_context(
-                self.store, final_results, parent_context, lambda _: (collection_name, tenant)
+                self.store, final_results, parent_context, lambda _: (collection_name, siblings)
             )
 
         total_time = time.time() - start_time
@@ -348,10 +348,10 @@ class RetrievalService(BaseRetrievalService):
         single-collection path.
         """
 
-        def resolve_fetch(result: SearchResult) -> tuple[str, UUID | None] | None:
+        def resolve_fetch(result: SearchResult) -> tuple[str, VectorScope] | None:
             collection = str(result.metadata["collection"])
-            expandable, tenant = expansion_tenant(scopes[collection])
-            return (collection, tenant) if expandable else None
+            siblings = expansion_scope(scopes[collection])
+            return (collection, siblings) if siblings is not None else None
 
         await expand_context(self.store, results, parent_context, resolve_fetch)
 

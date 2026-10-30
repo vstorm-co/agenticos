@@ -531,6 +531,7 @@ class _LazyAgent:
             "deps": replace(
                 clone,
                 kb_collection_names=list(self._delegate.collection_names),
+                kb_vector_scopes=dict(self._delegate.collection_scopes),
                 request_approval=(
                     None if self._journal.in_background() else clone.request_approval
                 ),

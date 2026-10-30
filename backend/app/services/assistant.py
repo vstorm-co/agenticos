@@ -38,7 +38,7 @@ from app.repositories.agent_run import RunFilters
 from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
 from app.services import agent_templates
 from app.services.agent_registry import AgentRegistryService, slugify
-from app.services.model_profile import usable_for_agents
+from app.services.model_profile import choosable_for_others
 from app.services.sandbox_connection import SandboxConnectionService
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,11 @@ class AssistantService:
             ),
             starters=list(template.starters),
         )
-        agent = await self.registry.create(installer, spec, visibility=Visibility.ORG)
+        # No model here: `_publish_when_possible` picks one, and keeps a model it
+        # finds in the draft as somebody's deliberate choice (#2483).
+        agent = await self.registry.create(
+            installer, spec, visibility=Visibility.ORG, choose_model=False
+        )
         return await self.registry.set_avatar(
             installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"
         )
@@ -196,34 +200,49 @@ class AssistantService:
 
         A text-to-speech or embedding profile is not one (#2487), and neither is a
         profile whose key was deleted (#2478): publish refuses both, so the
-        assistant waits for a model it can run on.
+        assistant waits for a model it can run on. Nor is a ChatGPT sign-in
+        (#2535), or a profile that falls back to one (#2545): it is one person's
+        subscription, and the assistant serves the whole organization, so the
+        assistant waits for a model the organization can share.
+
+        A model already in the draft is somebody's deliberate choice and is kept,
+        but published here only on the same terms: this runs for whoever opens
+        the console next, so a sign-in in the draft, or a model that falls back
+        to one, waits for somebody who may change the organization's settings to
+        publish it in the Builder.
         """
-        profiles = [
-            profile
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=organization_id
-            )
-            if usable_for_agents(profile)
-        ]
-        if not profiles:
+        profiles = await credential_repo.list_profiles(self.db, organization_id=organization_id)
+        by_id = {profile.id: profile for profile in profiles}
+        choosable = {
+            profile.id: profile for profile in profiles if choosable_for_others(profile, by_id)
+        }
+        drafted = AgentSpec.model_validate(agent.draft_spec).model_profile_id
+        if not choosable or (drafted is not None and drafted not in choosable):
             return agent
         installer = await self._installer(organization_id)
-        for profile in profiles:
-            if not profile.fallback_profile_ids or not await self.registry.model_profile_problems(
-                installer, profile.id
-            ):
-                selected_id = profile.id
-                break
-        else:
-            return agent
+        selected = drafted
+        if selected is None:
+            # Before the lock: this runs on every console open until the
+            # assistant publishes, and a scan that finds nothing must not hold it.
+            for profile in choosable.values():
+                if (
+                    not profile.fallback_profile_ids
+                    or not await self.registry.model_profile_problems(installer, profile.id)
+                ):
+                    selected = profile.id
+                    break
+            else:
+                return agent
         agent = await self.registry.get(installer, agent.id, perm=Perm.AGENTS_EDIT, for_update=True)
-        if agent.current_version_id is not None:
-            return agent
         spec = AgentSpec.model_validate(agent.draft_spec)
-        if spec.model_profile_id is None:
-            spec = spec.model_copy(update={"model_profile_id": selected_id})
+        # A draft changed since it was read - a sign-in picked meanwhile, say -
+        # is decided on the next look, from what it holds then.
+        if agent.current_version_id is not None or spec.model_profile_id != drafted:
+            return agent
+        if drafted is None:
+            spec = spec.model_copy(update={"model_profile_id": selected})
             agent = await self.registry.save_draft(installer, agent.id, spec)
-        elif await self.registry.model_profile_problems(installer, spec.model_profile_id):
+        elif await self.registry.model_profile_problems(installer, drafted):
             # A deliberately selected model is the author's to replace.
             return agent
         await self.registry.publish(installer, agent.id, note="Installed")

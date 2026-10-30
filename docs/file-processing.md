@@ -126,6 +126,35 @@ knows the file is there. A picture is named in that history rather than sent
 again; an agent that needs to look at it once more asks for it, or opens it from
 `uploads/` when it has a workspace.
 
+**A file whose turn stopped is put back by the next one.** A file is tied to the
+message it came with before the run starts, so it cannot be attached again. If the
+run answering that message ended without completing — failed, cancelled, or stopped
+by a budget or the loop guard — the same agent's next turn for that person in that
+conversation writes the file back to `uploads/` (with its extracted text, where the
+workspace cannot read the original, and that text alone if only it is missing)
+before it first uses the workspace: at once for a stored workspace, on first use for
+a sandbox. The run is told to list `uploads/` before it says a file is missing, and
+to say a file could not be put back if it is still not there.
+
+Only the person's own files are put back, only from that agent's interrupted turns,
+the newest 50 at most, and only until that agent completes a turn for the same
+person that started after the interrupted one ended and actually reached attachment setup in its workspace.
+A completed turn without a workspace, or without using its sandbox, leaves this window open. A turn run with an API key, for
+a widget visitor or released from an approval by somebody else does not end that
+period. A file removed after that stays removed.
+
+Some files are not put back: those of a turn a guardrail blocked, since the input
+guardrail refused what that turn carried; those of a prompt whose run was never
+opened, which belongs to no agent; files on a turn run with an API key or for a
+widget visitor.
+
+When the agent has an input guardrail, each file is also screened before it is put
+back, over what the guardrail would read of it: its name, its path and its first
+lines. A turn can stop before the guardrail reads its input, for example on a
+budget, so a file the guardrail refuses is not written, and the log names its id
+only. When every file is refused, the run is not told that any may be back.
+Without an input guardrail, nothing changes.
+
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
 on the reasoning that a shell has no library for any of them — `read_file` on an
@@ -173,6 +202,11 @@ line cannot say that: a turn read each failure as a problem with the command it
 had just written and kept trying — `ls`, then a `curl` of a `data:` URI, then
 three workarounds offered to the person, across two turns. One sentence now says
 the workspace is unavailable and that another attempt will fail the same way.
+
+**A turn the input guardrail blocks writes nothing.** The reference and its head
+are screened by the agent's input edge before the file is written, so a file in a
+blocked turn never reaches `uploads/` and a later turn cannot open it. See
+[Guardrails](reference/capabilities.md#guardrails).
 
 The reference is what the model actually reads:
 
@@ -554,6 +588,20 @@ running this organization's text through their credential
 therefore resolves each organization's own configuration, falling back to an
 app-scoped collection but never to a third tenant's.
 
+The fallback is an app-scoped base only: a personal base outside any
+organization has no organization either, but it is one person's
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+A sync source records an organization and a collection name, not a knowledge
+base, so its sync writes into the base that resolution picks - the organization's
+oldest base by the name - and only that base lists and runs it. Every API route
+that points a source at a collection checks write access to that base, and adding
+one to another base of the same name is refused with 400.
+
+When a member's personal base is older than the organization's base of the same
+name, the organization's syncs by that name therefore land in the personal base, and
+the organization's base takes no source: create it under a name of its own.
+
 !!! warning "One collection name is one embedding space"
 
     Resolving per organization is only safe because every row on one collection
@@ -740,7 +788,20 @@ all the same, so the documents deleted with it stop being searchable rather than
 lingering in a table nothing lists (#1361). A search reads the absent table as empty
 and the next upload recreates it. The table is spared only when a sibling base still
 holds the same name, since the vector namespace is not tenant-unique and dropping it
-would take their chunks too (#913).
+would take their chunks too (#913). Then only the dropped base's own document rows and
+files go, and its chunks are removed from the kept table, as for a deleted base below.
+Unfiled document rows of the base's organization (uploads from before documents
+recorded their base) go too, with their files and chunks, unless another base of that
+organization holds the name and still lists them. A drop used to delete every
+document row under the name, another organization's included (#2560).
+
+`rag-drop <name>` goes through the same teardown. It used to drop the vector table
+directly, with no reference check, lock or reservation, and left the document rows
+behind, so it could destroy a table another base still used. Now it clears the one
+base that holds the name, or drops a name no base holds (one `rag-ingest` filled) with
+its document rows. When several bases hold the name it refuses and lists their ids;
+`--knowledge-base <id>` names the one to clear, and the table stays for the others.
+A worker drops the table and removes the files after the command commits (#2560).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -748,6 +809,12 @@ the old name before this landed still exists and is still deletable, but nothing
 can be ingested into it — delete it and create one under another name. Nothing is
 lost in doing so: an ingest into that collection has never succeeded, because
 building the vector index on a table with no `embedding` column fails.
+
+Deleting a base detaches and deactivates the sync sources whose resolved target was that base.
+They keep their connector configuration, but require an explicit reassignment before syncing
+again; another base with the same name does not inherit them. Clearing a default base keeps
+its sources because its target row remains. CLI ingestion refuses a name reserved for a
+queued drop until cleanup releases it.
 
 ### Who may reach a collection
 
@@ -823,6 +890,48 @@ selective filter cannot surface a row from outside the scope. An app-scoped,
 deployment-wide collection is matched on *having no tenant stamped* rather than on an
 equality every organization would fail, which is what lets everybody read the shared
 base without anybody reading each other's.
+
+**A filter cannot reach another knowledge base of the same name either.** The tenant
+alone does not tell every pair apart: an app-scoped base and a personal base outside
+any organization both have none, and an organization's base and a member's personal
+base in it both have the organization. So every chunk also records the knowledge base
+it was ingested for, and search, the vector count, the replace lookup and delete read
+a base's own chunks only; deleting a document also removes its own chunks that
+record no base. A chunk written before chunks recorded their base, and not filed
+by the upgrade, matches by its tenant as before - except for a personal base
+outside any organization, whose search and count take none of those
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Deleting a knowledge base whose collection name another base still holds keeps the
+shared table, and the cleanup job queued with the delete removes the chunks filed under
+the deleted base. An organization purge and an account deletion do the same for the
+bases they remove, and so does dropping a collection (`DELETE /rag/collections/{name}`),
+which also deletes only that base's document rows; for a kept default it removes
+only the chunks of the documents it deleted, so an upload made after the drop keeps
+its own, and a chunk with no document row stays
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Deleting a knowledge base (`DELETE /kb/{id}`) while another base holds its name also
+deletes the unfiled document rows of its organization, with their files and chunks,
+unless another base of that organization holds the name and still lists them - the
+same rule as a collection drop ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Otherwise unfiled chunks stay, matched by
+their tenant, and unfiled document rows stay listed under the bases of their tenant
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+An upload or a sync still indexing a file for the base when it is deleted leaves
+no chunks behind. The write takes a lock on the base's row that conflicts with the
+delete's, in the transaction that inserts the chunks: a write that comes second finds the base gone, writes
+nothing and fails at the index step, and a write that comes first commits before
+the delete, whose cleanup then removes its chunks
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+A local sync queued for a base deleted before it runs ends with an error and writes
+nothing
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+An agent searches the knowledge bases it is bound to under their own scopes, not by
+resolving their names again. An agent bound to two bases that share a name
+searches their combined scope, excluding other same-named bases.
 
 **`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
 values actually present in the collection, under that same scope. It exists because

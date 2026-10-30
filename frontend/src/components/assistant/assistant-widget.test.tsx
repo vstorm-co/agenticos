@@ -524,7 +524,7 @@ describe("the Architect widget", () => {
     fireEvent.click(screen.getByRole("link", { name: "console link" }));
 
     expect(state.push).toHaveBeenCalledWith("/agents");
-    expect(state.pointAt).toHaveBeenCalledWith("agents-new");
+    expect(state.pointAt).toHaveBeenCalledWith("agents-new", "/agents");
     expect(screen.getByRole("dialog")).not.toHaveClass("hidden");
   });
 

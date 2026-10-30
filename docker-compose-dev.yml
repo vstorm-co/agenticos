@@ -224,7 +224,7 @@ services:
     # client and this service ship together, and a client newer than the service
     # calls routes it does not have (#2484). Bump both at once;
     # backend/tests/test_sandboxd_compat.py fails when they differ.
-    image: ghcr.io/vstorm-co/sandboxd:0.2.37
+    image: ghcr.io/vstorm-co/sandboxd:0.2.39
     profiles: [sandbox]
     # The token comes from the same file every other secret in this stack comes
     # from, rather than through compose interpolation. Interpolation reads the

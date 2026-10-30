@@ -1,5 +1,5 @@
 ---
-source_sha: "86a6f70a9b26"
+source_sha: "69ec30c9ff43"
 ---
 
 # Bezpieczeństwo { #security }
@@ -178,6 +178,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Kontrola | Mechanizm | Trzymane przez |
 |---|---|---|
 | Izolacja tenantów, nawet gdy wywołujący jest właścicielem wiersza | `resolve_access` odmawia zasobowi, którego `organization_id` się różni, zanim sprawdzi własność (`app/services/access.py`) | `test_resource_access.py::TestTenantBoundary`, `test_conversation_tenant_isolation.py`, `test_platform_flows.py` |
+| Bazy wiedzy o tej samej nazwie nie mieszają swoich chunków | Każdy chunk we wspólnej tabeli `rag_<name>` zapisuje swojego tenanta i bazę wiedzy, dla której został zaindeksowany; każdy odczyt, licznik, zastąpienie i usunięcie wektorów bierze `vector_scope` bazy (`app/services/rag/vectorstore.py`). Chunki sprzed aktualizacji, których `0180_stamp_rag_rows_by_base` nie mogła przypisać do jednej bazy, zachowują regułę tenanta | `integration/test_rag_vector_scope_per_base.py`, `integration/test_rag_ingest_tenant_scope.py` |
 | Uprawnienie na każdym route'cie kolekcji | Zależność route'u `require(*perms)` na listowaniu, tworzeniu i route'ach katalogu (`app/api/deps.py`), katalog w `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Route'y per zasób autoryzują w serwisie, nie na route'cie | Route działający na jednym agencie, skillu albo kolekcji nie niesie bramki `require()` — bramka roli odmówiłaby posiadaczowi grantu, zanim grant by zadziałał — i zamiast tego woła `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (każdy route jest bramkowany albo rozstrzygany w serwisie) |
 | Grant poszerza dostęp, nie awansując członka | `resolve_access` per zasób bierze `max(zakres roli, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |

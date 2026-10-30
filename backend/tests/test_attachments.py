@@ -13,8 +13,11 @@ from uuid import uuid4
 
 import pytest
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai_harness import GuardrailResult
 
+from app.agents.capabilities.guardrails import GuardrailBlocked, GuardrailsConfig, input_screen
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
+from app.repositories import chat_file as chat_file_repo
 from app.services import attachments as attachments_module
 from app.services.attachments import AttachmentRouter, safe_name, workspace_path
 from tests.workspaces import ShellFailing, document_workspace
@@ -919,3 +922,536 @@ class TestWhenTheWorkspaceWillNotTakeAWrite:
 
         assert isinstance(prompt, str)
         assert "would not accept a write" not in prompt
+
+
+class TestALaterTurnPutsBackWhatAFailedTurnLost:
+    """A file whose turn failed before it reached the workspace (#2481).
+
+    It is linked to the message it came with, so it cannot be attached again, and
+    nothing else ever wrote an attachment: the next turn's model looked in
+    `uploads/`, found nothing, and the only way on was a new conversation.
+    """
+
+    @staticmethod
+    def _earlier(*files) -> attachments_module.EarlierAttachments:
+        return attachments_module.EarlierAttachments(
+            conversation_id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            agent_id=uuid4(),
+            paths={f.id: workspace_path(f) for f in files},
+            text_bearing=frozenset(
+                f.id
+                for f in files
+                if f.parsed_content and f.file_type in attachments_module._TEXT_BEARING
+            ),
+            lit_readable=frozenset(
+                f.id for f in files if f.file_type in attachments_module._LIT_READABLE
+            ),
+        )
+
+    @staticmethod
+    def _rows(monkeypatch, *files) -> AsyncMock:
+        """The scoped read of the missing rows, on a session of its own."""
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def session():
+            yield object()
+
+        read = AsyncMock(side_effect=lambda db, ids, **_: [f for f in files if f.id in ids])
+        monkeypatch.setattr(attachments_module, "get_db_context", session)
+        monkeypatch.setattr(
+            attachments_module.chat_file_repo, "get_many_left_by_interrupted_turns", read
+        )
+        return read
+
+    async def test_a_file_the_workspace_lacks_is_written_with_its_text(self, storage, monkeypatch):
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        document = _document()
+        earlier = self._earlier(chat_file)
+        read = self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), earlier, can_parse=False
+        )
+
+        assert document.exists(workspace_path(chat_file))
+        assert document.exists(f"{workspace_path(chat_file)}.txt")
+        # Read under the thread's scope, not by id alone.
+        assert read.await_args.kwargs == {
+            "conversation_id": earlier.conversation_id,
+            "organization_id": earlier.organization_id,
+            "user_id": earlier.user_id,
+            "agent_id": earlier.agent_id,
+        }
+
+    async def test_a_file_already_there_is_not_read_or_written_again(self, storage, monkeypatch):
+        """The question asked on almost every turn: nothing is missing, so the rows -
+        and their parsed text - are never loaded."""
+        chat_file = _file()
+        workspace = document_workspace(_document())
+        await workspace.write_bytes(workspace_path(chat_file), b"already here")
+        read = self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=False
+        )
+
+        read.assert_not_awaited()
+        storage.assert_not_awaited()
+        assert await workspace.read_bytes(workspace_path(chat_file)) == b"already here"
+
+    async def test_text_the_turn_stopped_before_writing_is_put_back_alone(
+        self, storage, monkeypatch
+    ):
+        """The turn can stop between the original's write and its text's: the
+        original is there, so only the sibling is missing - and only it is written."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        workspace = document_workspace(_document())
+        await workspace.write_bytes(workspace_path(chat_file), b"%PDF already here")
+        self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=False
+        )
+
+        storage.assert_not_awaited()
+        assert await workspace.read_bytes(workspace_path(chat_file)) == b"%PDF already here"
+        assert await workspace.read_text(f"{workspace_path(chat_file)}.txt") == "page one"
+
+    async def test_no_sibling_is_missed_where_lit_reads_the_original(self, storage, monkeypatch):
+        """A runtime carrying `lit` never gets one, so its absence is not a loss."""
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        workspace = document_workspace(_document())
+        await workspace.write_bytes(workspace_path(chat_file), b"%PDF")
+        read = self._rows(monkeypatch, chat_file)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=True
+        )
+
+        read.assert_not_awaited()
+
+    async def test_a_row_the_scope_does_not_return_is_not_written(self, storage, monkeypatch):
+        """Whatever the paths said, only a row the scoped read hands back is written."""
+        chat_file = _file()
+        document = _document()
+        self._rows(monkeypatch)
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), self._earlier(chat_file), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(chat_file))
+
+    async def test_a_file_the_store_cannot_load_does_not_stop_the_rest(self, monkeypatch):
+        gone, kept = _file(storage_path="gone"), _file(filename="kept.csv")
+        document = _document()
+        self._rows(monkeypatch, gone, kept)
+
+        async def load(path: str) -> bytes:
+            if path == "gone":
+                raise FileNotFoundError(path)
+            return b"month,total"
+
+        monkeypatch.setattr(
+            attachments_module, "get_file_storage", lambda: SimpleNamespace(load=load)
+        )
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), self._earlier(gone, kept), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(gone))
+        assert document.exists(workspace_path(kept))
+
+    async def test_a_file_the_workspace_refuses_does_not_stop_the_rest(self, storage, monkeypatch):
+        """A document with no room for a large file may still have room for a small one."""
+        large, small = _file(filename="large.csv"), _file(filename="small.csv")
+        self._rows(monkeypatch, large, small)
+        document = _document()
+        workspace = document_workspace(document)
+        write = workspace.write_bytes
+
+        async def refusing_the_large_one(path: str, data: bytes) -> None:
+            if path == workspace_path(large):
+                raise OSError("no room")
+            await write(path, data)
+
+        monkeypatch.setattr(workspace, "write_bytes", refusing_the_large_one)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(large, small), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(large))
+        assert document.exists(workspace_path(small))
+
+    async def test_a_sibling_the_sandbox_cannot_take_does_not_escape(self, storage, monkeypatch):
+        """The extracted text's write fails the way an unreachable sandbox fails, which
+        is not one of the errors that write expects - and set-up must never fail the
+        operation waiting behind it."""
+        from app.core.exceptions import ExternalServiceError
+
+        chat_file = _file(filename="report.pdf", file_type="pdf", parsed_content="page one")
+        self._rows(monkeypatch, chat_file)
+        document = _document()
+        workspace = document_workspace(document)
+        write = workspace.write_bytes
+
+        async def unreachable_for_text(path: str, data: bytes) -> None:
+            if path.endswith(".txt"):
+                raise ExternalServiceError(message="The sandbox service is unreachable.")
+            await write(path, data)
+
+        monkeypatch.setattr(workspace, "write_bytes", unreachable_for_text)
+
+        await attachments_module.restore_earlier_attachments(
+            workspace, self._earlier(chat_file), can_parse=False
+        )
+
+        assert document.exists(workspace_path(chat_file))
+
+    async def test_a_workspace_that_cannot_be_asked_puts_nothing_back(self, storage, monkeypatch):
+        """The run goes on: this is set-up, and it never fails the operation behind it."""
+        read = self._rows(monkeypatch, _file())
+
+        class _Unreachable(ShellFailing):
+            async def exists(self, path: str) -> bool:
+                raise ConnectionError("sandbox down")
+
+        await attachments_module.restore_earlier_attachments(
+            _Unreachable(document_workspace()), self._earlier(_file()), can_parse=False
+        )
+
+        read.assert_not_awaited()
+
+    async def test_a_read_that_fails_puts_nothing_back(self, storage, monkeypatch):
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def session():
+            raise ConnectionError("database down")
+            yield  # pragma: no cover - never reached
+
+        monkeypatch.setattr(attachments_module, "get_db_context", session)
+        chat_file = _file()
+        document = _document()
+
+        await attachments_module.restore_earlier_attachments(
+            document_workspace(document), self._earlier(chat_file), can_parse=False
+        )
+
+        assert not document.exists(workspace_path(chat_file))
+
+    async def test_an_agent_without_a_workspace_has_nothing_put_back(self, storage):
+        await AttachmentRouter(None).restore([_file()])
+
+        storage.assert_not_awaited()
+
+    async def test_the_thread_is_asked_as_the_caller_in_their_organization(self, monkeypatch):
+        conversation, organization, caller = uuid4(), uuid4(), uuid4()
+        file_id, pdf_id, scan_id = uuid4(), uuid4(), uuid4()
+        found = AsyncMock(
+            return_value=[
+                chat_file_repo.InterruptedFile(file_id, "raport.csv", "text", 10, "a,b"),
+                chat_file_repo.InterruptedFile(pdf_id, "umowa.pdf", "pdf", 10, "Umowa"),
+                chat_file_repo.InterruptedFile(scan_id, "skan.pdf", "pdf", 10, ""),
+            ]
+        )
+        monkeypatch.setattr(attachments_module.chat_file_repo, "left_by_interrupted_turns", found)
+
+        agent = uuid4()
+        earlier = await attachments_module.find_earlier_attachments(
+            object(),
+            conversation_id=conversation,
+            organization_id=organization,
+            user_id=caller,
+            agent_id=agent,
+            can_parse=False,
+            screen=None,
+        )
+
+        assert earlier is not None
+        assert earlier.paths[file_id] == f"uploads/{file_id.hex[:8]}-raport.csv"
+        # Only a document with text gets a sibling; `lit` reads both PDFs itself.
+        assert earlier.text_bearing == {pdf_id}
+        assert earlier.lit_readable == {pdf_id, scan_id}
+        assert found.await_args.kwargs == {
+            "conversation_id": conversation,
+            "organization_id": organization,
+            "user_id": caller,
+            "agent_id": agent,
+            "limit": attachments_module.EARLIER_ATTACHMENTS_RESTORED,
+            "opening_chars": attachments_module._OPENING_CHARS,
+        }
+
+    async def test_a_thread_with_no_attachments_has_nothing_to_put_back(self, monkeypatch):
+        monkeypatch.setattr(
+            attachments_module.chat_file_repo,
+            "left_by_interrupted_turns",
+            AsyncMock(return_value=[]),
+        )
+
+        assert (
+            await attachments_module.find_earlier_attachments(
+                object(),
+                conversation_id=uuid4(),
+                organization_id=uuid4(),
+                user_id=uuid4(),
+                agent_id=uuid4(),
+                can_parse=False,
+                screen=None,
+            )
+            is None
+        )
+
+
+class TestAFileTheInputEdgeRefusesIsNotPutBack:
+    """A turn whose input the guardrail would refuse can still end interrupted -
+    a budget is checked before the edge reads anything - and putting its file back
+    would hand a later turn what the policy turns away (#2481)."""
+
+    @staticmethod
+    async def _find(monkeypatch, *found, screen, can_parse: bool = False):
+        monkeypatch.setattr(
+            attachments_module.chat_file_repo,
+            "left_by_interrupted_turns",
+            AsyncMock(return_value=list(found)),
+        )
+        return await attachments_module.find_earlier_attachments(
+            object(),
+            conversation_id=uuid4(),
+            organization_id=uuid4(),
+            user_id=uuid4(),
+            agent_id=uuid4(),
+            can_parse=can_parse,
+            screen=screen,
+        )
+
+    @staticmethod
+    def _keyword(word: str, seen: list[str] | None = None):
+        from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
+
+        screen = input_screen(GuardrailsConfig(blocked_keywords_in=word))
+        assert screen is not None
+
+        def recording(text: str):
+            if seen is not None:
+                seen.append(text)
+            return screen(text)
+
+        return recording
+
+    @pytest.mark.security
+    async def test_a_refused_file_is_left_out_and_the_rest_put_back(self, monkeypatch, caplog):
+        refused, allowed = uuid4(), uuid4()
+
+        earlier = await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(refused, "plan.csv", "text", 10, "salary,2026"),
+            chat_file_repo.InterruptedFile(allowed, "sales.csv", "text", 10, "month,total"),
+            screen=self._keyword("salary"),
+        )
+
+        assert earlier is not None
+        assert set(earlier.paths) == {allowed}
+        assert [
+            record.file_id
+            for record in caplog.records
+            if record.name == attachments_module.__name__
+        ] == [str(refused)]
+        # The log names the file, never what is in it.
+        assert "salary" not in caplog.text
+
+    @pytest.mark.security
+    async def test_a_thread_whose_every_file_is_refused_has_nothing_to_put_back(self, monkeypatch):
+        """And so no briefing telling the model a file may be back."""
+        earlier = await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(uuid4(), "salary.pdf", "pdf", 10, ""),
+            screen=self._keyword("salary"),
+        )
+
+        assert earlier is None
+
+    @pytest.mark.security
+    async def test_a_screen_that_raises_its_refusal_refuses(self, monkeypatch):
+        from app.agents.capabilities.guardrails import GuardrailBlocked
+
+        def raising(text: str):
+            raise GuardrailBlocked(edge="input", message="Refused.")
+
+        earlier = await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(uuid4(), "a.csv", "text", 10, "x"),
+            screen=raising,
+        )
+
+        assert earlier is None
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(("can_parse", "sibling"), [(False, True), (True, False)])
+    async def test_the_edge_reads_what_it_would_read_of_the_file(
+        self, monkeypatch, can_parse: bool, sibling: bool
+    ):
+        """Its name, path and opening lines, and its extracted text named where a
+        runtime without `lit` gets it - `_referenced`, as on the turn it came with."""
+        file_id = uuid4()
+        seen: list[str] = []
+
+        await self._find(
+            monkeypatch,
+            chat_file_repo.InterruptedFile(file_id, "umowa.pdf", "pdf", 4096, "Umowa\nStrona 1"),
+            screen=self._keyword("unused", seen),
+            can_parse=can_parse,
+        )
+
+        path = f"uploads/{file_id.hex[:8]}-umowa.pdf"
+        (text,) = seen
+        assert f"Attached file: umowa.pdf (4 KB, pdf), in your workspace at {path}" in text
+        assert "Umowa\nStrona 1" in text
+        assert (f"{path}.txt" in text) is sibling
+
+    def test_the_opening_read_has_the_head_of_the_whole_text(self):
+        """Only a prefix of the parsed text is read for the screen, and it must
+        show the edge the same first lines - `\r\n` lines halve what a prefix holds."""
+        head_chars = attachments_module.HEAD_CHARS
+        crlf = "\r\n" * (head_chars + 5)
+        long_lines = "\r\n".join(["x" * 300] * 30)
+
+        for text in (crlf, long_lines, "a\rb\nc" * 2000):
+            prefix = text[: attachments_module._OPENING_CHARS]
+            assert attachments_module._head(prefix) == attachments_module._head(text)
+
+
+def _blocking(word: str = "XYZZY"):
+    """The input edge's own detector, blocking `word` - the one the harness runs."""
+    screen = input_screen(GuardrailsConfig(blocked_keywords_in=word))
+    assert screen is not None
+    return screen
+
+
+@pytest.mark.security
+class TestTheInputEdgeScreensBeforeAnythingIsWritten:
+    """A file the input guardrail refuses never reaches the workspace (#2559).
+
+    The edge screens the prompt on the first model request, and routing used to
+    write the file while the prompt was built - before that. On a conversation-,
+    user- or agent-scoped workspace the refused file stayed, and a later turn
+    could open it.
+    """
+
+    async def test_a_refused_file_is_not_written(self, storage):
+        document = _document()
+        chat_file = _file(parsed_content="month,total\nXYZZY,10")
+
+        await AttachmentRouter(document_workspace(document), screen=_blocking()).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        assert document.files == {}
+        storage.assert_not_awaited()
+
+    async def test_a_refused_turn_is_handed_on_for_the_edge_to_refuse(self, storage):
+        """Built from the same text the edge reads, so the edge refuses it and the
+        turn ends as `guardrail_blocked` the way it always did."""
+        screen = _blocking()
+
+        prompt = await AttachmentRouter(
+            document_workspace(_document()), screen=screen
+        ).build_prompt("summarise", [_file(parsed_content="month,total\nXYZZY,10")])
+
+        assert isinstance(prompt, str)
+        assert "XYZZY" in prompt
+        with pytest.raises(GuardrailBlocked):
+            screen(prompt)
+
+    async def test_a_refused_turn_leaves_the_next_turn_nothing_to_look_for(self, storage):
+        """`context` is replayed to later turns; a path to a file that was never
+        written would send the model looking for it."""
+        router = AttachmentRouter(document_workspace(_document()), screen=_blocking())
+
+        await router.build_prompt("summarise", [_file(parsed_content="XYZZY")])
+
+        assert router.context == ""
+
+    async def test_the_message_alone_is_enough_to_stop_the_write(self, storage):
+        document = _document()
+
+        await AttachmentRouter(document_workspace(document), screen=_blocking()).build_prompt(
+            "XYZZY - summarise", [_file()]
+        )
+
+        assert document.files == {}
+
+    async def test_the_extracted_text_of_a_document_is_screened_too(self, storage):
+        """A PDF's opening lines reach the prompt through its parse, like any other."""
+        document = _document()
+        chat_file = _file(
+            filename="memo.pdf",
+            mime_type="application/pdf",
+            file_type="pdf",
+            parsed_content="XYZZY confidential",
+        )
+
+        await AttachmentRouter(document_workspace(document), screen=_blocking()).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        assert document.files == {}
+
+    async def test_a_screen_that_answers_block_rather_than_raising_stops_it_too(self, storage):
+        document = _document()
+
+        await AttachmentRouter(
+            document_workspace(document), screen=lambda _text: GuardrailResult.block("no")
+        ).build_prompt("summarise", [_file()])
+
+        assert document.files == {}
+
+    async def test_a_clean_turn_is_routed_as_before(self, storage):
+        document = _document()
+        chat_file = _file()
+
+        prompt = await AttachmentRouter(
+            document_workspace(document), screen=_blocking()
+        ).build_prompt("summarise", [chat_file])
+
+        assert document.exists(workspace_path(chat_file))
+        assert workspace_path(chat_file) in prompt
+
+    async def test_a_redacting_screen_does_not_stop_the_write(self, storage):
+        """Only a refusal stops the turn; a redaction is the edge's to apply."""
+        document = _document()
+        chat_file = _file()
+
+        await AttachmentRouter(
+            document_workspace(document), screen=lambda text: GuardrailResult.replace(text)
+        ).build_prompt("summarise", [chat_file])
+
+        assert document.exists(workspace_path(chat_file))
+
+    async def test_an_agent_with_no_workspace_is_not_screened_here(self, storage):
+        """Nothing is written without a workspace, so the edge alone decides."""
+        prompt = await AttachmentRouter(None, screen=_blocking()).build_prompt(
+            "summarise", [_file(parsed_content="XYZZY")]
+        )
+
+        assert isinstance(prompt, str)
+        assert "XYZZY" in prompt
+
+    async def test_what_is_screened_is_what_a_clean_turn_sends(self, storage):
+        """The screen predicts the edge only while both read the same text: a
+        reference worded differently in one place would let a refused head through."""
+        chat_file = _file()
+        clean = await AttachmentRouter(document_workspace(_document())).build_prompt(
+            "summarise", [chat_file]
+        )
+
+        refused = await AttachmentRouter(
+            document_workspace(_document()), screen=lambda _text: GuardrailResult.block("no")
+        ).build_prompt("summarise", [chat_file])
+
+        assert refused == clean

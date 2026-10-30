@@ -1847,7 +1847,16 @@ platform instead.
     platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.
 
 The model may name only a model the organization has a profile for, and the refusal
-names the list. It may not attach capabilities: letting a model grant its own child
+names the list.
+
+A profile on somebody's
+[ChatGPT sign-in](../models.md#running-on-a-chatgpt-subscription), or one whose
+first three fallbacks reach one, is on the list only when the agent's spec names that exact
+profile - its own model, a reviewer's, an inline specialist's or an enabled
+capability's - because a sign-in is one person's subscription. A profile the person
+running the agent may not use is left off rather than failing the run.
+
+The model may not attach capabilities: letting a model grant its own child
 a capability is the ungranted-scope failure wearing a new hat. It gets no knowledge,
 no delegates of its own, and nothing is persisted across runs — keeping a specialist
 means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
@@ -2457,6 +2466,17 @@ API, so its model must support streaming.
 prompt reaches the model scrubbed, but the conversation stores the message as the
 person typed it, personal data included. Anyone who can read the conversation can
 read that message.
+
+**The input edge screens an attachment before it is written.** An attached file
+reaches the prompt as its name, its path and its first 20 lines (at most 2,000
+characters), and the input edge reads them with the person's message. An agent with
+a workspace has that text screened before the file is copied to `uploads/`, so a
+turn the edge blocks writes nothing, and a later turn in a `conversation`-, `user`-
+or `agent`-scoped workspace has no refused file to open. The edge reads only those
+opening lines, so a blocked term further down the file is not caught here; screen
+tool results for that. A picture sent inline is the exception: the edge also reads
+its bytes, and a block those bytes cause is not foreseen, so that picture is still
+written.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

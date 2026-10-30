@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import TenantScope, UnscopedScope
 from app.services.rag.models import ParentContextMode
@@ -179,7 +180,7 @@ class TestTheBoundedRead:
             await _insert(store, tenant=ORG_A, prefix="A", chunk_num=chunk_num)
 
         chunks = await store.get_chunks_around(
-            COLLECTION, DOC, ORG_A, page_num=0, chunk_num=5, before=1, after=2
+            COLLECTION, DOC, VectorScope(tenant=ORG_A), page_num=0, chunk_num=5, before=1, after=2
         )
 
         assert [chunk.content for chunk in chunks] == ["A-c4", "A-c5", "A-c6", "A-c7"]
@@ -201,7 +202,7 @@ class TestTheBoundedRead:
                 )
 
         chunks = await store.get_chunks_around(
-            COLLECTION, DOC, ORG_A, page_num=2, chunk_num=0, before=2, after=5
+            COLLECTION, DOC, VectorScope(tenant=ORG_A), page_num=2, chunk_num=0, before=2, after=5
         )
 
         assert [chunk.content for chunk in chunks] == ["p1-c0", "p1-c1", "p2-c0", "p2-c1"]
@@ -215,7 +216,7 @@ class TestTheBoundedRead:
         await _insert(store, tenant=ORG_A, prefix="p1", chunk_num=0, page_num=1)
 
         chunks = await store.get_chunks_around(
-            COLLECTION, DOC, ORG_A, page_num=1, chunk_num=0, before=1, after=0
+            COLLECTION, DOC, VectorScope(tenant=ORG_A), page_num=1, chunk_num=0, before=1, after=0
         )
 
         assert [chunk.content for chunk in chunks] == ["nopage-c0", "p1-c0"]
@@ -230,10 +231,10 @@ class TestTheBoundedRead:
             await _insert(store, tenant=None, prefix="U", chunk_num=chunk_num)
 
         tenant_rows = await store.get_chunks_around(
-            COLLECTION, DOC, ORG_A, page_num=0, chunk_num=1, before=5, after=5
+            COLLECTION, DOC, VectorScope(tenant=ORG_A), page_num=0, chunk_num=1, before=5, after=5
         )
         untagged_rows = await store.get_chunks_around(
-            COLLECTION, DOC, None, page_num=0, chunk_num=1, before=5, after=5
+            COLLECTION, DOC, VectorScope(tenant=None), page_num=0, chunk_num=1, before=5, after=5
         )
 
         assert [chunk.content for chunk in tenant_rows] == ["A-c0", "A-c1", "A-c2"]
@@ -244,7 +245,13 @@ class TestTheBoundedRead:
 
         assert (
             await store.get_chunks_around(
-                COLLECTION, DOC, ORG_A, page_num=0, chunk_num=0, before=1, after=1
+                COLLECTION,
+                DOC,
+                VectorScope(tenant=ORG_A),
+                page_num=0,
+                chunk_num=0,
+                before=1,
+                after=1,
             )
             == []
         )

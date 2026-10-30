@@ -559,7 +559,16 @@ uv run agenticos cmd rag-drop my_collection
 
 # Drop without confirmation
 uv run agenticos cmd rag-drop my_collection --yes
+
+# Clear one of several knowledge bases that share the name
+uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 ```
+
+`rag-drop` clears the knowledge base that holds the name, the way the console's drop
+does, and a worker removes the vector table and the stored files after the command
+commits. A name that several knowledge bases hold - possibly in different
+organizations - is refused, with their ids, until `--knowledge-base` names one; the
+table then stays for the others.
 
 #### Google Drive sync
 

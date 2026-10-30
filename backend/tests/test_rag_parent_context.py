@@ -21,6 +21,7 @@ from uuid import uuid4
 import pytest
 
 from app.agents.capabilities.knowledge._search import _format_results
+from app.db.vector_tables import VectorScope
 from app.services.rag.filters import AppScope, TenantScope, UnscopedScope
 from app.services.rag.models import DocumentChunk, ParentContextMode, SearchResult
 from app.services.rag.parent_context import (
@@ -30,7 +31,7 @@ from app.services.rag.parent_context import (
     WINDOW_CHUNKS,
     assemble_passage,
     expand_context,
-    expansion_tenant,
+    expansion_scope,
 )
 from app.services.rag.retrieval import RetrievalService
 
@@ -63,16 +64,14 @@ class _Document:
         self,
         collection_name: str,
         document_id: str,
-        tenant: object,
+        scope: object,
         *,
         page_num: int,
         chunk_num: int,
         before: int,
         after: int,
     ) -> list[DocumentChunk]:
-        self.reads.append(
-            (collection_name, document_id, tenant, page_num, chunk_num, before, after)
-        )
+        self.reads.append((collection_name, document_id, scope, page_num, chunk_num, before, after))
         chunks = self._documents.get(document_id, [])
         at = next(
             (i for i, c in enumerate(chunks) if (c.page_num, c.chunk_num) == (page_num, chunk_num)),
@@ -83,8 +82,8 @@ class _Document:
         return chunks[max(0, at - before) : at + after + 1]
 
 
-def _fetch(collection: str = "col", tenant: object = None):
-    return lambda _result: (collection, tenant)
+def _fetch(collection: str = "col", scope: object = None):
+    return lambda _result: (collection, scope)
 
 
 class TestAssemblingAPassage:
@@ -226,18 +225,31 @@ class TestExpandingResults:
         assert [read[4] for read in store.reads] == [9]
 
 
-class TestWhichTenantASiblingIsReadUnder:
+class TestWhichScopeASiblingIsReadUnder:
     @pytest.mark.security
     def test_a_tenant_scope_reads_its_own_organization(self):
         org = uuid4()
 
-        assert expansion_tenant(TenantScope(organization_id=org)) == (True, org)
+        assert expansion_scope(TenantScope(organization_id=org)) == VectorScope(tenant=org)
 
     def test_an_app_scope_reads_only_untagged_rows(self):
-        assert expansion_tenant(AppScope()) == (True, None)
+        assert expansion_scope(AppScope()) == VectorScope(tenant=None)
+
+    @pytest.mark.security
+    def test_siblings_are_read_within_the_searched_base(self):
+        """A match found in one base is expanded from that base's chunks alone,
+        never a same-named base's of the same tenant (#2537)."""
+        org, kb = uuid4(), uuid4()
+
+        assert expansion_scope(
+            TenantScope(organization_id=org, knowledge_base_id=kb)
+        ) == VectorScope(tenant=org, knowledge_base_id=kb)
+        assert expansion_scope(AppScope(knowledge_base_id=kb, takes_unfiled=False)) == VectorScope(
+            tenant=None, knowledge_base_id=kb, takes_unfiled=False
+        )
 
     def test_an_unscoped_search_is_not_expanded(self):
-        assert expansion_tenant(UnscopedScope()) == (False, None)
+        assert expansion_scope(UnscopedScope()) is None
 
 
 def _service(store: MagicMock) -> RetrievalService:
@@ -279,7 +291,7 @@ class TestThroughTheRetrievalService:
         )
 
         assert results[0].expanded_content == "c1\n\nc2\n\nc3"
-        assert store.reads[0][:3] == ("col", "doc", org)
+        assert store.reads[0][:3] == ("col", "doc", VectorScope(tenant=org))
 
     async def test_several_collections_each_read_under_their_own_scope(self):
         org = uuid4()
@@ -308,7 +320,7 @@ class TestThroughTheRetrievalService:
         )
 
         assert sorted((read[0], read[2]) for read in reader.reads) == sorted(
-            [("tenant_col", org), ("app_col", None)]
+            [("tenant_col", VectorScope(tenant=org)), ("app_col", VectorScope(tenant=None))]
         )
 
     async def test_an_unscoped_collection_in_a_multi_search_is_not_expanded(self):

@@ -217,7 +217,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     // On a phone the full-screen window steps aside so the page can be seen.
     if (window.matchMedia(PHONE).matches) setOpen(false);
     router.push(link.path);
-    if (link.anchor) void pointAt(link.anchor);
+    if (link.anchor) void pointAt(link.anchor, link.path);
   };
 
   return (

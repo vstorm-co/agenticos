@@ -88,7 +88,7 @@ from app.services.ingestion_config import PdfParserName, parse_override
 from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
-from app.services.rag.filters import resolve_legacy_filter, scope_for_tenant
+from app.services.rag.filters import resolve_legacy_filter, scope_for
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -218,7 +218,6 @@ async def create_collection(
 )
 async def drop_collection(
     name: str,
-    rag_doc_svc: RAGDocumentSvc,
     kb_svc: KnowledgeBaseSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
@@ -231,18 +230,17 @@ async def drop_collection(
     be used to confirm a deletion, and that 204 was also what another tenant's
     collection returned.
 
-    The document rows and the KB row go in the request; the stored files and the
-    vector table are torn down by the durable cleanup the services hand over after
-    the commit, which takes the collection-teardown lock and re-reads the reference
-    check before dropping only what no base still claims (#1347, #1349, #1355, #913).
+    The resolved base's document rows and its KB row go in the request; the
+    stored files and the vector table are torn down by the durable cleanup the
+    service hands over after the commit, which takes the collection-teardown lock
+    and re-reads the reference check before dropping only what no base still
+    claims (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
+    another base - possibly another organization's - still holds it, only this
+    base's documents go and its chunks are purged from the kept table (#2560).
     So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
-    # delete_for_rag_collection takes the collection's teardown lock; it must run
-    # before the document rows are deleted, because a concurrent org purge takes that
-    # lock before touching the same rows and the opposite order deadlocks (#1387).
     await kb_svc.delete_for_rag_collection(collection)
-    await rag_doc_svc.delete_by_collection(collection.collection_name)
 
 
 @router.get(
@@ -268,7 +266,7 @@ async def get_collection_info(
     """
     collection = await access.readable(ctx, name)
     info = await vector_store.get_collection_info(
-        collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
+        collection.collection_name, collection.vector_scope, ctx.organization_id
     )
     return await rag_doc_svc.collection_info(info, kb=collection)
 
@@ -286,9 +284,7 @@ async def list_documents(
 ) -> Any:
     """List all documents in a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_document_list(
-        collection.collection_name, collection.vector_tenant
-    )
+    return await vector_store.get_document_list(collection.collection_name, collection.vector_scope)
 
 
 @router.post(
@@ -309,19 +305,19 @@ async def search_documents(
     from it - see `CollectionAccessService.readable_all`.
     """
     names = request.collection_names or [request.collection_name]
-    # The authorized knowledge base for each name carries the tenant its rows are
-    # scoped by; threading it through means the search reads the base the caller
-    # was authorized for, not a same-named base in their organization the store
-    # would otherwise resolve without checking resource access (#1684).
+    # The authorized knowledge base for each name carries the scope its rows are
+    # read under; threading it through means the search reads the base the caller
+    # was authorized for, not a same-named base the store would otherwise resolve
+    # without checking resource access (#1684, #2537).
     kbs = await access.readable_all(ctx, names)
     collections = [kb.collection_name for kb in kbs]
-    # One scope per base, built from *its own* resolved tenant - `AppScope` for
-    # an app-scoped base every organization reads, `TenantScope` for an org one -
+    # One scope per base, built from *its own* vector scope - `AppScope` for a
+    # base with no tenant, `TenantScope` for an org one, each naming the base -
     # never from `ctx.organization_id` directly, which cannot match an app-scoped
-    # base's untagged rows (#1684, FA-039). The request body carries business
-    # filters only, so a supplied filter can only narrow, never widen, access
-    # (FA-039 §2.2).
-    scopes = {kb.collection_name: scope_for_tenant(kb.vector_tenant) for kb in kbs}
+    # base's untagged rows (#1684, FA-039), nor tell two same-named bases of one
+    # tenant apart (#2537). The request body carries business filters only, so a
+    # supplied filter can only narrow, never widen, access (FA-039 §2.2).
+    scopes = {kb.collection_name: scope_for(kb.vector_scope) for kb in kbs}
     filters = resolve_legacy_filter(request.filter, request.filters)
     if len(collections) > 1:
         results = await retrieval_service.retrieve_multi(
@@ -368,7 +364,7 @@ async def list_filter_values(
     values = await vector_store.distinct_metadata_values(
         collection.collection_name,
         ["organizational_unit"],
-        scope_for_tenant(collection.vector_tenant),
+        scope_for(collection.vector_scope),
     )
     return RAGFilterValues(organizational_unit=values.get("organizational_unit", []))
 
@@ -389,7 +385,7 @@ async def delete_document(
     """Delete a specific document by its ID from a collection."""
     collection = await access.writable(ctx, name)
     success = await ingestion_service.remove_document(
-        collection.collection_name, document_id, tenant=collection.vector_tenant
+        collection.collection_name, document_id, scope=collection.vector_scope
     )
     if not success:
         raise NotFoundError(
@@ -649,9 +645,11 @@ async def create_sync_source(
     that can later be cloned into one or more knowledge bases. Naming a
     collection the caller cannot write is refused: a sync writes *into* the
     collection, so pointing one at another tenant's is an injection, not a read.
+    The base checked is the one the sync writes into, not any writable base of
+    that name (`CollectionAccessService.source_target`).
     """
     if data.collection_name is not None:
-        await access.writable(ctx, data.collection_name)
+        await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.create_source(data, ctx=ctx)
 
 
@@ -676,7 +674,7 @@ async def clone_sync_source(
     The clone is independent - its own schedule and sync history.
     """
     source = await access.sync_source(ctx, source_id)
-    await access.writable(ctx, data.collection_name)
+    await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.clone_source(str(source.id), data, ctx=ctx)
 
 
@@ -695,7 +693,7 @@ async def update_sync_source(
     """Update an existing sync source configuration."""
     source = await access.sync_source(ctx, source_id)
     if data.collection_name is not None:
-        await access.writable(ctx, data.collection_name)
+        await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.update_source(str(source.id), data, ctx=ctx)
 
 

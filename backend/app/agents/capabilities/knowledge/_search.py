@@ -2,15 +2,17 @@
 
 import contextvars
 import logging
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
 from app.core.config import settings
 from app.core.exceptions import AppException, ExternalServiceError
 from app.db.session import on_the_pooled_loop
+from app.db.vector_tables import VectorScope
 from app.services.rag.citation import citation_locator
 from app.services.rag.embeddings import EmbeddingService
-from app.services.rag.filters import RetrievalFilters
+from app.services.rag.filters import RetrievalFilters, RetrievalScope, scope_for
 from app.services.rag.models import ParentContextMode, SearchResult
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
@@ -119,8 +121,31 @@ _active_kb_collections: contextvars.ContextVar[list[str] | None] = contextvars.C
 )
 
 
+async def _scope_of(
+    service: RetrievalService,
+    name: str,
+    organization_id: UUID,
+    bound: Mapping[str, VectorScope] | None,
+) -> RetrievalScope:
+    """The scope one collection is searched under: its bound base's, when known.
+
+    An agent is bound to knowledge bases, not names, and a name is not unique: an
+    organization's base and a member's personal base can share one. Resolving the
+    name again would search whichever of them resolves first - a personal base's
+    agent reading the organization's chunks and none of its own (#2537). A name
+    with no bound scope - a caller holding names alone - is resolved for the
+    organization as before.
+    """
+    if bound is not None and name in bound:
+        return scope_for(bound[name])
+    return await service.resolve_scope(name, organization_id)
+
+
 async def organizational_units_in_scope(
-    kb_collection_names: list[str], organization_id: UUID | None
+    kb_collection_names: list[str],
+    organization_id: UUID | None,
+    *,
+    kb_vector_scopes: Mapping[str, VectorScope] | None = None,
 ) -> list[str]:
     """The organizational units the collections carry, read as a search reads them.
 
@@ -138,7 +163,7 @@ async def organizational_units_in_scope(
     service = get_retrieval_service()
     units: set[str] = set()
     for name in kb_collection_names:
-        scope = await service.resolve_scope(name, organization_id)
+        scope = await _scope_of(service, name, organization_id, kb_vector_scopes)
         values = await service.store.distinct_metadata_values(name, ["organizational_unit"], scope)
         units.update(values.get("organizational_unit", []))
     return sorted(units)
@@ -147,6 +172,7 @@ async def organizational_units_in_scope(
 async def search_knowledge_base(
     query: str,
     kb_collection_names: list[str] | None = None,
+    kb_vector_scopes: Mapping[str, VectorScope] | None = None,
     top_k: int = 5,
     organization_id: UUID | None = None,
     filters: RetrievalFilters | None = None,
@@ -162,6 +188,9 @@ async def search_knowledge_base(
         kb_collection_names: Vector-store collection names resolved server-side from the
             agent's spec. Never supplied by the LLM directly - injected via
             PydanticAI Deps or the _active_kb_collections ContextVar.
+        kb_vector_scopes: The bound knowledge base behind each of those names. A
+            name found here is searched under its own base's scope rather than
+            resolved again, since a name is not unique (#2537).
         top_k: Number of top results to retrieve (default: 5).
         organization_id: The organization this agent runs for. The security-bearing
             tenant scope is built from it, so a collection name shared across
@@ -207,16 +236,16 @@ async def search_knowledge_base(
     try:
         single_scope = scopes_by_name = None
         if one_collection:
-            # Resolved per name rather than built from `organization_id` alone:
-            # this tool holds only a name, never an already-authorized knowledge
-            # base, so the scope has to come from the store's own resolution -
-            # `AppScope` for an app-scoped base every organization reads,
-            # `TenantScope` for an org one - or an app-scoped base's untagged
-            # rows never matched (#1684, FA-039).
-            single_scope = await service.resolve_scope(resolved[0], organization_id)
+            # Built from the bound base's own scope, or resolved per name when a
+            # caller holds the name alone - never from `organization_id` alone:
+            # `AppScope` for a base with no tenant, `TenantScope` for an org one,
+            # or an app-scoped base's untagged rows never matched (#1684,
+            # FA-039, #2537).
+            single_scope = await _scope_of(service, resolved[0], organization_id, kb_vector_scopes)
         else:
             scopes_by_name = {
-                name: await service.resolve_scope(name, organization_id) for name in resolved
+                name: await _scope_of(service, name, organization_id, kb_vector_scopes)
+                for name in resolved
             }
 
         # Several variants are retrieved bare and expanded once after fusion; a
