@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Cloud, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
+import {
+  ChevronRight,
+  Cloud,
+  Container,
+  Eye,
+  EyeOff,
+  Globe,
+  Laptop,
+  Network,
+  WandSparkles,
+} from "lucide-react";
 
 import {
   Input,
@@ -383,11 +393,8 @@ function SchemaField({
             {choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
                 <span className="flex items-center gap-2">
-                  {/* The service's own mark, where the value names one. A list of
-                      search providers or model vendors is read by their logos
-                      before it is read at all, and the choice is the one thing
-                      on these forms that is a product rather than a setting. */}
-                  {choiceMark(choice)}
+                  {/* Environment symbols and provider marks also appear in the selected value. */}
+                  {choiceMark(choice, name)}
                   {enumLabel(property, choice, copy)}
                 </span>
               </SelectItem>
@@ -652,7 +659,7 @@ function numberText(value: unknown, fallback: unknown): string {
 }
 
 /**
- * The mark for one enum value, where the value names something with a logo.
+ * Environment symbols are scoped to the desktop field; other enums keep provider marks.
  *
  * Two shapes reach here. A value that *is* a service - `brave`, `tavily` - wears
  * that service's mark. A value that names a provider and a model - the image
@@ -661,7 +668,22 @@ function numberText(value: unknown, fallback: unknown): string {
  * `openai-responses` and `google-vertex` are OpenAI and Google to a reader, and
  * the provider table is keyed the way the model catalog is.
  */
-function choiceMark(choice: string) {
+function choiceMark(choice: string, field: string) {
+  if (field === "desktop") {
+    const className = "h-3.5 w-3.5 shrink-0";
+    switch (choice) {
+      case "auto":
+        return <WandSparkles className={className} aria-hidden />;
+      case "e2b":
+        return <Cloud className={className} aria-hidden />;
+      case "sandbox":
+        return <Container className={className} aria-hidden />;
+      case "local":
+        return <Laptop className={className} aria-hidden />;
+      case "daemon":
+        return <Network className={className} aria-hidden />;
+    }
+  }
   if (choice in BRAND_GLYPHS) {
     return <BrandIcon name={choice as BrandName} className="h-3.5 w-3.5 shrink-0" />;
   }
