@@ -34,6 +34,7 @@ describe("phone connections", () => {
     expect(env.invoke).toHaveBeenLastCalledWith("set_mobile_lock", { enabled: false });
   });
   it("rejects malformed native settings instead of inventing a protection state", () => {
+    expect(() => parseMobileSettings(null)).toThrow();
     expect(() => parseMobileSettings({ servers: [], biometric_lock: "yes" })).toThrow();
     const valid = {
       servers: [{ name: "Work", url: "https://work.example/" }],

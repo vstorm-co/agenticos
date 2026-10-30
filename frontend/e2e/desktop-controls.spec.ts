@@ -167,7 +167,12 @@ test.describe("desktop pointer controls", () => {
   test("closes a recorded run from the center of its X button", async ({ page }) => {
     const listing = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/runs" && response.request().method() === "GET",
+        new URL(response.url()).pathname === "/api/runs" &&
+        response.request().method() === "GET" &&
+        // Ignore Dashboard's still-in-flight listing from the previous document.
+        new URL(response.request().headers()["referer"] ?? "about:blank").pathname.endsWith(
+          "/runs",
+        ),
     );
     await page.goto("/runs");
     const response = await listing;
