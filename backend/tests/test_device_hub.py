@@ -252,3 +252,18 @@ async def test_frame_limits_count_utf8_bytes_before_parsing(
         code=1008, reason="Frames are JSON text within the size limit"
     )
     redis.raw.publish.assert_not_called()
+
+
+@pytest.mark.security
+async def test_a_presence_without_a_live_socket_refuses_the_call(monkeypatch):
+    session_id = uuid4()
+    device = _hub.Device(user_id=uuid4(), session_id=session_id, platform="macos")
+    redis = MagicMock()
+    redis.get = AsyncMock(return_value=device.model_dump_json())
+    redis.raw.publish = AsyncMock(return_value=0)
+    pubsub = MagicMock(subscribe=AsyncMock(), aclose=AsyncMock())
+    redis.raw.pubsub.return_value = pubsub
+    monkeypatch.setattr(_hub, "_require", AsyncMock(return_value=redis))
+    with pytest.raises(_hub.DeviceUnavailable, match="closed or offline"):
+        await _hub.call(session_id, "fs.read", {}, timeout=1)
+    pubsub.aclose.assert_awaited_once()

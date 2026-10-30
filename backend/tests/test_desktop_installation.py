@@ -35,6 +35,7 @@ def test_windows_and_linux_installation_requires_a_disposable_runner(
             check(tmp_path)
 
 
+@pytest.mark.security
 def test_mac_validation_rejects_mismatched_extensions_and_unexpected_permissions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

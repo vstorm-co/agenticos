@@ -437,40 +437,72 @@ class TestLegacyCookieSessionRevocation:
                 db.add_all([user, admin])
                 await db.flush()
                 now = datetime.now(UTC)
-                old = Session(
-                    user_id=user.id,
-                    refresh_token_hash=hash_token("legacy-current"),
-                    previous_refresh_token_hash=hash_token("legacy-spent"),
-                    rotated_at=now,
-                    expires_at=now + timedelta(days=1),
-                    is_active=True,
+                old_id, impersonation_id, ended_id, user_id = uuid4(), uuid4(), uuid4(), user.id
+                # Seed the historical schema without today's app/push columns.
+                await db.execute(
+                    text(
+                        "INSERT INTO sessions (id, user_id, impersonator_user_id, refresh_token_hash, previous_refresh_token_hash, rotated_at, expires_at, is_active, created_at, last_used_at) VALUES (:id, :user, :impersonator, :current, :previous, :rotated, :expires, :active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    [
+                        {
+                            "id": old_id,
+                            "user": user.id,
+                            "impersonator": None,
+                            "current": hash_token("legacy-current"),
+                            "previous": hash_token("legacy-spent"),
+                            "rotated": now,
+                            "expires": now + timedelta(days=1),
+                            "active": True,
+                        },
+                        {
+                            "id": impersonation_id,
+                            "user": user.id,
+                            "impersonator": admin.id,
+                            "current": hash_token("legacy-impersonation"),
+                            "previous": None,
+                            "rotated": None,
+                            "expires": now + timedelta(minutes=5),
+                            "active": True,
+                        },
+                        {
+                            "id": ended_id,
+                            "user": user.id,
+                            "impersonator": None,
+                            "current": hash_token("legacy-ended"),
+                            "previous": None,
+                            "rotated": None,
+                            "expires": now + timedelta(days=1),
+                            "active": False,
+                        },
+                    ],
                 )
-                impersonation = Session(
-                    user_id=user.id,
-                    impersonator_user_id=admin.id,
-                    refresh_token_hash=hash_token("legacy-impersonation"),
-                    expires_at=now + timedelta(minutes=5),
-                    is_active=True,
-                )
-                ended = Session(
-                    user_id=user.id,
-                    refresh_token_hash=hash_token("legacy-ended"),
-                    expires_at=now + timedelta(days=1),
-                    is_active=False,
-                )
-                db.add_all([old, impersonation, ended])
                 await db.commit()
-                old_id, impersonation_id, ended_id, user_id = (
-                    old.id,
-                    impersonation.id,
-                    ended.id,
-                    user.id,
+                assert (
+                    await db.scalar(
+                        text("SELECT is_active FROM sessions WHERE id=:id"), {"id": old_id}
+                    )
+                    is True
                 )
-                before = await SessionService(db).validate_refresh_token("legacy-current")
-                assert before is old
                 await db.commit()
 
             up = _alembic("upgrade", "0173_revoke_cookie_sessions")
+            assert up.returncode == 0, up.stderr
+            async with factory() as db:
+                active = (
+                    (
+                        await db.execute(
+                            text(
+                                "SELECT is_active FROM sessions WHERE id IN (:old, :impersonation, :ended)"
+                            ),
+                            {"old": old_id, "impersonation": impersonation_id, "ended": ended_id},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                assert len(active) == 3 and not any(active)
+            # Current services are exercised only once their full schema exists.
+            up = _alembic("upgrade", "head")
             assert up.returncode == 0, up.stderr
             async with factory() as db:
                 service = SessionService(db)
@@ -508,11 +540,14 @@ class TestLegacyCookieSessionRevocation:
             down = _alembic("downgrade", "0172_mcp_health_queue_clock")
             assert down.returncode == 0, down.stderr
             async with factory() as db:
-                service = SessionService(db)
-                revoked = await service.validate_refresh_token("legacy-current")
-                retained = await service.validate_refresh_token("fresh-current")
-                assert revoked is None
-                assert retained is not None
+                revoked = await db.scalar(
+                    text("SELECT is_active FROM sessions WHERE id=:id"), {"id": old_id}
+                )
+                retained = await db.scalar(
+                    text("SELECT is_active FROM sessions WHERE id=:id"), {"id": fresh_id}
+                )
+                assert revoked is False
+                assert retained is True
         finally:
             await engine.dispose()
 

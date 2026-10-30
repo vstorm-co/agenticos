@@ -84,7 +84,7 @@ from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
-from app.schemas.push import ApnsKeyUpdate
+from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
@@ -132,6 +132,9 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationMemberUpdate: OrganizationMember,
     OrganizationUpdate: Organization,
     ProjectUpdate: Project,
+    # Both patch keys within Session.push_preferences JSONB, not columns by name.
+    PushFocusUpdate: None,
+    PushPreferencesUpdate: None,
     RetentionUpdate: Organization,
     SandboxConnectionUpdate: SandboxConnection,
     SecretUpdate: OrganizationSecret,
@@ -228,6 +231,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
             "NotificationPreferenceUpdate",
+            "PushFocusUpdate",
+            "PushPreferencesUpdate",
             "VisibilityUpdate",
         }
 
