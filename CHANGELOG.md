@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A long document indexes against a local Ollama server. Its chunks were sent to
+  `/embeddings` in one request, which Ollama drops past about 320 inputs; they
+  now go in requests of at most 64.
+
 ## [1.30.0] - 2026-10-30
 
 ### Added
