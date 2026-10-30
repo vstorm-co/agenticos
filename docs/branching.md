@@ -182,12 +182,13 @@ like when it does is below.
 | `lint` | 10 | 22s |
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
-| `test-frontend` | 20 | 5m08s |
-| `docker` | 20 | 2m30s |
-| `test` | 25 | 7m43s |
+| `test-frontend` | 45 | 20m07s |
+| `test` | 90 | 22m25s |
 | `e2e` | 25 | 8m01s |
 
-Observed times are from run 31116003994, a full matrix on `main`. Each bound is
+Most observed times are from run 31116003994, a full matrix on `main`. The backend
+time is from run 41102882122 and the frontend time from 41108431368, both on
+30 October 2026. Image builds run separately in `images.yml`. Each bound is
 several times its job rather than just above it: the timeout exists to end a stall,
 and one tight enough to trim a legitimately cold cache is a red build for a reason
 unrelated to the diff.

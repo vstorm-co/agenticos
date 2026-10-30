@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.30.0"
+version = "1.31.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -88,7 +88,7 @@ dependencies = [
     # Pydantic AI is: this is where those are maintained, and pinning would
     # freeze the detectors and the model registry they read. 0.52.0 is the
     # floor: the first release on the slim that brought workspaces.
-    "pydantic-ai-harness>=0.61.0",
+    "pydantic-ai-harness[e2b]>=0.61.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -115,7 +115,7 @@ dependencies = [
     # because `app/core/pinned_http.py` imports it directly: the boundary is
     # wherever an object crosses into or out of a vendor SDK, and a library our
     # own code imports is one this manifest names (#1820).
-    "httpx>=0.28.0",
+    "httpx[http2]>=0.28.0",
     "httpx2>=2.13.1",
     "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
@@ -205,6 +205,10 @@ dependencies = [
     # that grows past its limit is stopped and the parent says why. `/proc` alone
     # would do on Linux and nowhere else.
     "psutil>=7.0",
+    # Web Push to browsers and installed PWAs (#2097): the message encryption
+    # (RFC 8291) and the VAPID signature (RFC 8292) every push service demands.
+    # MPL-2.0, reviewed in licenses/policy.toml.
+    "pywebpush>=2",
 ]
 
 [project.optional-dependencies]
@@ -457,6 +461,11 @@ ignore = [
 # its output is redirected into a results file afterwards. It is not imported by
 # the application - nothing under `app/` may import it - and it carries no gate.
 "../loadtest/**" = ["T201"]
+# Never run in the API: a sandbox runs its source with `python3 -c` and the
+# computerd image copies it in, as the desktop's own account. Its answer is its
+# output (T201), and it runs the desktop's `xdotool` and `exo-open` by name with
+# an argv it builds itself, the entry path an argument (S603, S607).
+"app/agents/capabilities/computer_use/_desktop_apps.py" = ["T201", "S603", "S607"]
 # Postgres cannot parameterise an identifier, so a table name must be
 # interpolated. `_validate_collection_name` rejects anything but
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is
@@ -919,6 +928,18 @@ include = [
     "app/schemas/oauth_server.py",
     "app/repositories/oauth.py",
     "app/services/oauth_server.py",
+    # A phone signed in from a QR the console shows: single-use, a minute, and the
+    # session opened only when the phone redeems it (#2097).
+    "app/services/device_pairing.py",
+    # Web Push to the browsers a person subscribed: the deployment's own signing
+    # key, made on first use, and a push channel through the delivery outbox.
+    "app/services/web_push.py",
+    "app/repositories/push_subscription.py",
+    "app/schemas/push.py",
+    "app/api/routes/v1/push.py",
+    "app/services/apns.py",
+    "app/services/push.py",
+    "app/repositories/apns_device.py",
     "app/api/routes/v1/mcp_oauth.py",
     "app/api/public_api.py",
     "app/api/routes/v1/public_openapi.py",
@@ -929,6 +950,13 @@ include = [
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
+    "app/services/device_hub/__init__.py",
+    "app/services/device_hub/_hub.py",
+    "app/services/device_hub/_protocol.py",
+    "app/services/device_hub/workspace.py",
+    "app/services/device_hub/services.py",
+    "app/services/device_hub/exceptions.py",
+    "app/api/routes/v1/device_hub.py",
     "app/db/models/organization_assistant.py",
     "app/repositories/organization_assistant.py",
     "app/schemas/assistant.py",
@@ -1084,6 +1112,8 @@ testpaths = ["tests"]
 # rather than a warning, so a misspelled marker name fails the run instead of
 # silently dropping the test from `-m security`.
 addopts = "--strict-markers"
+# Dump blocked thread stacks while a stalled CI worker can still report them.
+faulthandler_timeout = 180
 markers = [
     "security: a refusal or security-boundary test. Collected as a set so the security report can show the refusals rather than assert them (#1417) — tenant isolation, permission and grant refusals, a budget checked before the model call, an approval decided once, secret confidentiality, spec publish validation, channel sender identity, constant-time credential compare, webhook HMAC and rate limits. It is a label for the report, not a second gate: `make check` still runs everything.",
 ]
@@ -1455,6 +1485,18 @@ include = [
     "app/schemas/oauth_server.py",
     "app/repositories/oauth.py",
     "app/services/oauth_server.py",
+    # A phone signed in from a QR the console shows: single-use, a minute, and the
+    # session opened only when the phone redeems it (#2097).
+    "app/services/device_pairing.py",
+    # Web Push to the browsers a person subscribed: the deployment's own signing
+    # key, made on first use, and a push channel through the delivery outbox.
+    "app/services/web_push.py",
+    "app/repositories/push_subscription.py",
+    "app/schemas/push.py",
+    "app/api/routes/v1/push.py",
+    "app/services/apns.py",
+    "app/services/push.py",
+    "app/repositories/apns_device.py",
     "app/api/routes/v1/mcp_oauth.py",
     "app/api/public_api.py",
     "app/api/routes/v1/public_openapi.py",
@@ -1465,6 +1507,13 @@ include = [
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
+    "app/services/device_hub/__init__.py",
+    "app/services/device_hub/_hub.py",
+    "app/services/device_hub/_protocol.py",
+    "app/services/device_hub/workspace.py",
+    "app/services/device_hub/services.py",
+    "app/services/device_hub/exceptions.py",
+    "app/api/routes/v1/device_hub.py",
     "app/db/models/organization_assistant.py",
     "app/repositories/organization_assistant.py",
     "app/schemas/assistant.py",

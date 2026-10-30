@@ -29,6 +29,7 @@ from app.db.models.notification import (
     NOTIFICATION_OUTER_RETENTION_DAYS,
     NOTIFICATION_READ_RETENTION_DAYS,
     Notification,
+    NotificationChannel,
     NotificationEventType,
 )
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
@@ -40,6 +41,8 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
 from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.push import PushService
+from app.services.web_push import PushMessage
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +83,7 @@ _FIXED_EMAIL_KEY: dict[NotificationEventType, EmailKey] = {
 }
 
 
-def _safe_send_failure(exc: BaseException) -> str:
+def _safe_send_failure(exc: BaseException, *, provider: str = "email provider") -> str:
     """The sentence a failed send may store, for an exception it may not -
     the same rule `app/services/rag/failures.py` applies to a failed ingest.
     An `AppException` is written in this repository, so its message is a
@@ -91,7 +94,7 @@ def _safe_send_failure(exc: BaseException) -> str:
     is already watching the worker log the raw text goes to instead."""
     if isinstance(exc, AppException):
         return str(exc)
-    return f"the email provider failed ({type(exc).__name__}). The worker log has the full error."
+    return f"the {provider} failed ({type(exc).__name__}). The worker log has the full error."
 
 
 class NotificationDeliveryService:
@@ -165,8 +168,13 @@ class NotificationDeliveryService:
             await self._skip(delivery, claimed_at)
             return "skipped"
 
+        push = delivery.channel == NotificationChannel.PUSH.value
         if not is_mandatory(event_type):
-            enabled = await self._center.email_channel_enabled(recipient.id, event_type)
+            enabled = await (
+                self._center.push_channel_enabled(recipient.id, event_type)
+                if push
+                else self._center.email_channel_enabled(recipient.id, event_type)
+            )
             if not enabled:
                 await self._skip(delivery, claimed_at)
                 return "skipped"
@@ -195,6 +203,9 @@ class NotificationDeliveryService:
         if not gate.visible:
             await self._skip(delivery, claimed_at)
             return "skipped"
+
+        if push:
+            return await self._push(delivery, claimed_at, notification)
 
         email_key, context = self._render(notification, recipient=recipient, role=role)
         # Resolved now, not frozen at write time with the rest of
@@ -244,6 +255,48 @@ class NotificationDeliveryService:
             status=DeliveryStatus.SENT.value,
         )
         return "sent"
+
+    async def _push(
+        self, delivery: NotificationDelivery, claimed_at: datetime, notification: Notification
+    ) -> str:
+        """Push a notification to every browser and iPhone its recipient
+        subscribed (#2097).
+
+        Sent once any of them took it: retrying would show it again on the ones
+        that did. Skipped when there is nobody left to push to - every one
+        unsubscribed since it was queued. Retried only when every one still
+        there refused it.
+        """
+        message = PushMessage(
+            title=await self._deployment_settings.effective_app_name(),
+            body=notification.summary,
+            url=notification.context_url or "/dashboard",
+            tag=str(notification.id),
+        )
+        try:
+            outcome = await PushService(self.db).send(
+                notification.recipient_user_id, message, timeout=SEND_TIMEOUT_SECONDS
+            )
+        except Exception as exc:
+            logger.warning(
+                "notification_push_failed",
+                extra={"delivery_id": str(delivery.id), "error": str(exc)},
+            )
+            await self._fail(delivery, claimed_at, _safe_send_failure(exc, provider="push service"))
+            return "failed"
+        if outcome.sent:
+            await notification_repo.settle_delivery(
+                self.db,
+                delivery_id=delivery.id,
+                claimed_at=claimed_at,
+                status=DeliveryStatus.SENT.value,
+            )
+            return "sent"
+        if not outcome.failed:
+            await self._skip(delivery, claimed_at)
+            return "skipped"
+        await self._fail(delivery, claimed_at, "every push service refused the message")
+        return "failed"
 
     async def _current_role(
         self, notification: Notification, recipient: User

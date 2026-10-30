@@ -17,7 +17,6 @@ const SKILL: SkillSummary = {
   name: "refund-policy",
   description: "How refunds and their exceptions are handled.",
   category: null,
-  enabled: true,
   visibility: "org",
   file_count: 2,
   built_in: false,
@@ -26,9 +25,8 @@ const SKILL: SkillSummary = {
 
 function renderCard(props: Partial<React.ComponentProps<typeof SkillCard>> = {}) {
   const onOpen = vi.fn();
-  const onDelete = vi.fn();
-  render(<SkillCard skill={SKILL} canEdit onOpen={onOpen} onDelete={onDelete} {...props} />);
-  return { onOpen, onDelete };
+  render(<SkillCard skill={SKILL} onOpen={onOpen} {...props} />);
+  return { onOpen };
 }
 
 describe("SkillCard", () => {
@@ -36,11 +34,6 @@ describe("SkillCard", () => {
     renderCard();
     expect(screen.getByText("refund-policy")).toBeInTheDocument();
     expect(screen.getByText(SKILL.description)).toBeInTheDocument();
-  });
-
-  it("marks a skill agents are currently skipping", () => {
-    renderCard({ skill: { ...SKILL, enabled: false } });
-    expect(screen.getByText("disabled")).toBeInTheDocument();
   });
 
   it("stays quiet about a skill that is doing its job", () => {
@@ -81,31 +74,19 @@ describe("SkillCard", () => {
   });
 
   it("opens the skill when its name is clicked", async () => {
-    const { onOpen, onDelete } = renderCard();
+    const { onOpen } = renderCard();
     await userEvent.click(screen.getByText("refund-policy"));
     expect(onOpen).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("keeps deleting separate from opening", async () => {
-    const { onOpen, onDelete } = renderCard();
-    await userEvent.click(screen.getByRole("button", { name: "Delete refund-policy" }));
-    expect(onDelete).toHaveBeenCalled();
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it("offers a viewer no way to delete a skill they can still read", async () => {
-    const { onOpen, onDelete } = renderCard({ canEdit: false });
-    expect(screen.queryByRole("button", { name: "Delete refund-policy" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByText("refund-policy"));
-    expect(onOpen).toHaveBeenCalled();
-    expect(onDelete).not.toHaveBeenCalled();
+  it("keeps destructive actions out of the preview card", () => {
+    renderCard();
+    expect(screen.queryByRole("button", { name: "Delete refund-policy" })).toBeNull();
+    expect(screen.queryByText("Details")).toBeNull();
   });
 
   it("shows the body's opening on a page, with a sheet behind it per file", () => {
-    const { container } = render(
-      <SkillCard skill={SKILL} canEdit={false} onOpen={vi.fn()} onDelete={vi.fn()} />,
-    );
+    const { container } = render(<SkillCard skill={SKILL} onOpen={vi.fn()} />);
 
     expect(screen.getByText("Refunds")).toBeInTheDocument();
     expect(screen.getByText("Use the refund tool")).toBeInTheDocument();
@@ -117,9 +98,8 @@ describe("SkillCard", () => {
     const { container } = render(
       <SkillCard
         skill={{ ...SKILL, excerpt: "", file_count: 0 }}
-        canEdit={false}
+
         onOpen={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
 
@@ -128,7 +108,35 @@ describe("SkillCard", () => {
     expect(container.querySelectorAll(".peek-sheet")).toHaveLength(0);
   });
   it("offers to give the skill to an agent, even to a reader who cannot edit it", () => {
-    renderCard({ canEdit: false });
-    expect(screen.getByText("add-to-agent skill skill-1")).toBeInTheDocument();
+    renderCard();
+    expect(screen.getByText("add-to-agent skill skill-1")).toBeVisible();
   });
+});
+
+it("keeps preview and audience metadata visible without an expansion step", () => {
+  renderCard();
+  expect(screen.getByText("Refunds")).toBeVisible();
+  expect(screen.getByText("Everyone")).toBeVisible();
+  expect(screen.queryByText("Details")).toBeNull();
+});
+
+it("shows agent usage immediately alongside concise metadata", () => {
+  renderCard({
+    skill: {
+      ...SKILL,
+      used_by: [
+        { id: "billing", name: "Billing" },
+        { id: "support", name: "Support" },
+      ],
+    },
+  });
+  const usage = screen.getByText("Used by Billing, Support");
+  expect(usage).toBeVisible();
+  expect(usage.closest("details")).toBeNull();
+  expect(screen.queryByText("Details")).toBeNull();
+});
+
+it("shows an unused resource's next step without opening Details", () => {
+  renderCard({ skill: { ...SKILL, used_by: [] } });
+  expect(screen.getByText("Not used by any agent yet")).toBeVisible();
 });

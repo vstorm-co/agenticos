@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { FolderPlus, FolderUp, Upload } from "lucide-react";
+import {
+  FolderPlus,
+  FolderUp,
+  MoreHorizontal,
+  Upload,
+  Laptop,
+  Users,
+  Settings2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ProjectFileEditor } from "./project-file-editor";
@@ -16,6 +24,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   FormField,
   Input,
 } from "@/components/ui";
@@ -23,13 +35,106 @@ import { useProjectFiles } from "@/hooks/use-projects";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import type { FileSource } from "@/lib/workspace-files";
 import type { Project } from "@/types/projects";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import { useProjectFolder } from "@/hooks/use-project-folder";
+import { ProjectFolderChoice } from "./project-folder-choice";
+import { ProjectFolderExplorer } from "./project-folder-explorer";
 
 /**
  * The project's container, browsable - and, for whoever may work in it, the
  * place to put files and folders every agent in the project then finds.
  */
 export function ProjectFiles({ project }: { project: Project }) {
+  const shell = useShell();
+  const local = useProjectFolder(project.id);
+  if (!project.can_use || !isDesktopShell(shell) || !local.available) {
+    return <SharedProjectFiles project={project} />;
+  }
+  return <DesktopProjectFiles key={project.id} project={project} />;
+}
+
+function DesktopProjectFiles({ project }: { project: Project }) {
+  const t = useTranslations("projects.localFolder");
+  const local = useProjectFolder(project.id);
+  const [choice, setView] = useState<"local" | "shared" | null>(null);
+  const view = choice ?? (local.target ? "local" : "shared");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const tw = useTranslations("chat.controls.workOn");
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          className="flex gap-1"
+          data-tour="project-file-location"
+          role="group"
+          aria-label={t("fileLocation")}
+        >
+          <Button
+            size="sm"
+            variant={view === "shared" ? "secondary" : "ghost"}
+            aria-pressed={view === "shared"}
+            onClick={() => setView("shared")}
+          >
+            <Users className="size-4" aria-hidden />
+            {t("sharedFiles")}
+          </Button>
+          <Button
+            size="sm"
+            variant={view === "local" ? "secondary" : "ghost"}
+            aria-pressed={view === "local"}
+            onClick={() => setView("local")}
+          >
+            <Laptop className="size-4" aria-hidden />
+            {t("localFiles")}
+          </Button>
+        </div>
+        {view === "local" && local.target && (
+          <Button size="sm" variant="ghost" onClick={() => setSettingsOpen(true)}>
+            <Settings2 className="size-4" aria-hidden />
+            {t("manage")}
+          </Button>
+        )}
+      </div>
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        {view === "shared" ? t("sharedHint") : t("privateHint")}
+      </p>
+      {view === "shared" ? (
+        <SharedProjectFiles project={project} />
+      ) : local.target ? (
+        <>
+          <div className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className="min-w-0 truncate font-mono" title={local.target.folder}>
+              {local.target.folder}
+            </span>
+            <span>{tw(`mode.${local.target.mode}`)}</span>
+          </div>
+          <ProjectFolderExplorer root={local.target.folder} />
+        </>
+      ) : (
+        <ProjectFolderChoice value={null} onChange={(target) => local.bind(project.id, target)} />
+      )}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("manage")}</DialogTitle>
+          </DialogHeader>
+          <ProjectFolderChoice
+            value={local.target}
+            onChange={(target) => {
+              local.bind(project.id, target);
+              setSettingsOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function SharedProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects");
+  const tc = useTranslations("common");
   const { files, isLoading, error, upload, uploads, addFolder, move, remove } = useProjectFiles(
     project.id,
   );
@@ -56,16 +161,43 @@ export function ProjectFiles({ project }: { project: Project }) {
       <Button
         size="sm"
         variant="outline"
+        className="hidden sm:inline-flex"
         onClick={() => folderInput.current?.click()}
         disabled={upload.isPending}
       >
         <FolderUp className="h-4 w-4" />
         {t("uploadFolder")}
       </Button>
-      <Button size="sm" variant="outline" onClick={() => setFolderOpen(true)}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="hidden sm:inline-flex"
+        onClick={() => setFolderOpen(true)}
+      >
         <FolderPlus className="h-4 w-4" />
         {t("newFolder")}
       </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="sm:hidden" aria-label={tc("showMore")}>
+            <MoreHorizontal className="h-4 w-4" />
+            {tc("showMore")}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            disabled={upload.isPending}
+            onSelect={() => folderInput.current?.click()}
+          >
+            <FolderUp className="h-4 w-4" />
+            {t("uploadFolder")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setFolderOpen(true)}>
+            <FolderPlus className="h-4 w-4" />
+            {t("newFolder")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <input
         ref={filesInput}
         type="file"
@@ -95,7 +227,7 @@ export function ProjectFiles({ project }: { project: Project }) {
   // A project with nothing in it is a place to put the first files, not two
   // empty panes - a folder tree saying it is empty beside a viewer with nothing
   // to show.
-  const empty = files !== null && files.total === 0 && uploads.length === 0;
+  const empty = files !== null && files.total === 0;
 
   const explorer = empty ? (
     <div className="border-border flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
@@ -105,14 +237,24 @@ export function ProjectFiles({ project }: { project: Project }) {
       <div className="max-w-md space-y-1">
         <p className="text-foreground text-base font-semibold">{t("noFilesYet")}</p>
         <p className="text-muted-foreground text-sm">
-          {writable ? t("noFilesHint") : t("noFilesViewer")}
+          {writable ? (
+            <>
+              <span className="sm:hidden">{t("noFilesMobileHint")}</span>
+              <span className="hidden sm:inline">{t("noFilesHint")}</span>
+            </>
+          ) : (
+            t("noFilesViewer")
+          )}
         </p>
       </div>
-      {toolbar && <div className="flex justify-center [&>span]:mr-0">{toolbar}</div>}
+      {toolbar && (
+        <div className="flex w-full max-w-sm justify-center sm:w-auto sm:max-w-none [&>span]:mr-0">
+          {toolbar}
+        </div>
+      )}
     </div>
   ) : (
     <div className="flex min-h-0 flex-1 flex-col">
-      <UploadProgressList uploads={uploads} />
       <FileExplorer
         source={source}
         files={files}
@@ -120,6 +262,7 @@ export function ProjectFiles({ project }: { project: Project }) {
         error={error}
         toolbar={toolbar}
         onRemove={writable ? setPendingRemove : undefined}
+        onUpload={writable ? (files, folder) => upload.mutate({ files, folder }) : undefined}
         onMove={
           writable
             ? async (source, destination) => {
@@ -132,6 +275,13 @@ export function ProjectFiles({ project }: { project: Project }) {
         }
       />
     </div>
+  );
+
+  const content = (
+    <>
+      <UploadProgressList uploads={uploads} limit={3} />
+      {explorer}
+    </>
   );
 
   return (
@@ -154,10 +304,10 @@ export function ProjectFiles({ project }: { project: Project }) {
           onFiles={picked}
           className="flex min-h-0 flex-1 flex-col"
         >
-          {explorer}
+          {content}
         </FileDropZone>
       ) : (
-        explorer
+        content
       )}
 
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
@@ -178,7 +328,8 @@ export function ProjectFiles({ project }: { project: Project }) {
               {t("cancel")}
             </Button>
             <Button
-              disabled={!folderName.trim() || addFolder.isPending}
+              loading={addFolder.isPending}
+              disabled={!folderName.trim()}
               onClick={async () => {
                 await addFolder.mutateAsync(folderName.trim());
                 setFolderName("");

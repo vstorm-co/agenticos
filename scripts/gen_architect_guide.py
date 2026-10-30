@@ -32,6 +32,9 @@ PAGES = (
     "mcp.md",
     "api.md",
     "projects.md",
+    "desktop.md",
+    "mobile.md",
+    "sandbox.md",
 )
 
 

@@ -10,7 +10,7 @@ mark-all-read would otherwise return gate-blind.
 import contextlib
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -31,6 +31,7 @@ from app.services import rate_limit
 from app.services.access import ARTIFACT, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
+from app.services.push import PushService
 
 logger = logging.getLogger(__name__)
 
@@ -121,13 +122,15 @@ def _build_togglable_pairs() -> frozenset[tuple[NotificationEventType, Notificat
     """Decision 4's preference surface: every `(event_type, channel)` pair
     this page may show a switch for - every non-mandatory event type's
     in-app channel, and every non-mandatory, non-legacy event type's email
-    channel. Mandatory event types (`is_mandatory`) have no preference at
-    all; the four `LEGACY_EMAIL_COLUMN` pairs stay `PATCH /users/me`'s."""
+    channel, and every non-mandatory event type's push channel (#2097). Mandatory
+    event types (`is_mandatory`) have no preference at all; the four
+    `LEGACY_EMAIL_COLUMN` pairs stay `PATCH /users/me`'s."""
     pairs: set[tuple[NotificationEventType, NotificationChannel]] = set()
     for event_type in NotificationEventType:
         if is_mandatory(event_type):
             continue
         pairs.add((event_type, NotificationChannel.IN_APP))
+        pairs.add((event_type, NotificationChannel.PUSH))
         if event_type not in LEGACY_EMAIL_COLUMN:
             pairs.add((event_type, NotificationChannel.EMAIL))
     return frozenset(pairs)
@@ -136,6 +139,20 @@ def _build_togglable_pairs() -> frozenset[tuple[NotificationEventType, Notificat
 # Built once at import time, not per request - the vocabulary is code-defined
 # (Decision 1), not read from anywhere a request could change.
 _TOGGLABLE_PAIRS = _build_togglable_pairs()
+
+
+@dataclass(frozen=True)
+class _ChannelReads:
+    """One fan-out's preferences, by channel, and who can be pushed to.
+
+    A recipient absent from a preference map has no row for it - enabled, as
+    every channel is until somebody turns it off.
+    """
+
+    in_app: dict[uuid.UUID, bool] = field(default_factory=dict)
+    email: dict[uuid.UUID, bool] = field(default_factory=dict)
+    push: dict[uuid.UUID, bool] = field(default_factory=dict)
+    subscribed: set[uuid.UUID] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -556,43 +573,46 @@ class NotificationCenterService:
         use_savepoint: bool,
     ) -> list[Notification]:
         """Preference reads batch across the whole fan-out - one query per
-        channel rather than one per recipient (a mandatory event's rows skip
-        both entirely, since they are visible/delivered regardless). The
+        channel rather than one per recipient (a mandatory event's rows read
+        no preference, since they are visible/delivered regardless - only who
+        has a browser to push to). The
         insert side stays per recipient: `insert_notification_if_new`'s
         dedup-on-conflict is what makes one bad recipient's FK violation, under
         `use_savepoint`, discard only its own row rather than every recipient
         ahead of it - a bulk insert would need to give that up.
         """
-        in_app_by_recipient: dict[uuid.UUID, bool] = {}
-        email_by_recipient: dict[uuid.UUID, bool] = {}
-        if not mandatory:
-            if not use_savepoint:
-                in_app_by_recipient, email_by_recipient = await self._read_preferences(
-                    recipients=recipients, event_type=event_type
-                )
-            else:
-                # Inside a savepoint of its own, for the same reason the
-                # inserts below have theirs. A failed statement - a timeout,
-                # a cancellation - aborts the whole PostgreSQL transaction,
-                # not just itself, so a preference read that raised outside
-                # any savepoint would leave the caller unable to commit the
-                # terminal run update this contract exists to protect
-                # (Decision 2). Nothing is assumed about the preferences
-                # that were not read: the write is abandoned rather than
-                # sent to somebody who may have turned the channel off.
-                try:
-                    async with self.db.begin_nested():
-                        in_app_by_recipient, email_by_recipient = await self._read_preferences(
-                            recipients=recipients, event_type=event_type
-                        )
-                except Exception:
-                    logger.exception(
-                        "notification_preferences_failed",
-                        extra={
-                            "event_type": event_type.value,
-                            "occurrence_id": occurrence_id,
-                        },
+        channels_read = _ChannelReads()
+        if not use_savepoint:
+            channels_read = await self._read_channels(
+                recipients=recipients, event_type=event_type, mandatory=mandatory
+            )
+        else:
+            # Inside a savepoint of its own, for the same reason the
+            # inserts below have theirs. A failed statement - a timeout,
+            # a cancellation - aborts the whole PostgreSQL transaction,
+            # not just itself, so a preference read that raised outside
+            # any savepoint would leave the caller unable to commit the
+            # terminal run update this contract exists to protect
+            # (Decision 2). Nothing is assumed about the preferences
+            # that were not read: the write is abandoned rather than
+            # sent to somebody who may have turned the channel off.
+            try:
+                async with self.db.begin_nested():
+                    channels_read = await self._read_channels(
+                        recipients=recipients, event_type=event_type, mandatory=mandatory
                     )
+            except Exception:
+                logger.exception(
+                    "notification_preferences_failed",
+                    extra={
+                        "event_type": event_type.value,
+                        "occurrence_id": occurrence_id,
+                    },
+                )
+                # A mandatory event is written whatever anyone's preferences
+                # say, so a failed read costs it only the push - who could be
+                # pushed to was the one thing it asked.
+                if not mandatory:
                     return []
 
         written: list[Notification] = []
@@ -605,11 +625,20 @@ class NotificationCenterService:
             # channel off stays off regardless of what the sender picked.
             in_app_visible = mandatory or (
                 _channel_allowed(channels, NotificationChannel.IN_APP)
-                and in_app_by_recipient.get(recipient_id, True)
+                and channels_read.in_app.get(recipient_id, True)
             )
             email_enabled = mandatory or (
                 _channel_allowed(channels, NotificationChannel.EMAIL)
-                and email_by_recipient.get(recipient_id, True)
+                and channels_read.email.get(recipient_id, True)
+            )
+            # Only for somebody with a browser to push to: a delivery row for
+            # nobody would sit in the sweep's queue to be skipped.
+            push_enabled = recipient_id in channels_read.subscribed and (
+                mandatory
+                or (
+                    _channel_allowed(channels, NotificationChannel.PUSH)
+                    and channels_read.push.get(recipient_id, True)
+                )
             )
             if not use_savepoint:
                 notification = await self._write_one(
@@ -623,6 +652,7 @@ class NotificationCenterService:
                     announcement_id=announcement_id,
                     in_app_visible=in_app_visible,
                     email_enabled=email_enabled,
+                    push_enabled=push_enabled,
                 )
                 if notification is not None:
                     written.append(notification)
@@ -646,6 +676,7 @@ class NotificationCenterService:
                         announcement_id=announcement_id,
                         in_app_visible=in_app_visible,
                         email_enabled=email_enabled,
+                        push_enabled=push_enabled,
                     )
             except Exception:  # pragma: no cover
                 # Directly verified (a forced FK violation logs exactly this
@@ -670,10 +701,16 @@ class NotificationCenterService:
                 written.append(notification)
         return written
 
-    async def _read_preferences(
-        self, *, recipients: list[uuid.UUID], event_type: NotificationEventType
-    ) -> tuple[dict[uuid.UUID, bool], dict[uuid.UUID, bool]]:
-        """Both channels' preferences for the whole fan-out, one query each."""
+    async def _read_channels(
+        self, *, recipients: list[uuid.UUID], event_type: NotificationEventType, mandatory: bool
+    ) -> _ChannelReads:
+        """Every channel's preference for the whole fan-out, one query each, and
+        who has a browser or an iPhone to push to. A mandatory event reads no
+        preference - it reaches every channel - but still only pushes to a
+        subscriber."""
+        subscribed = await PushService(self.db).subscribed(recipients)
+        if mandatory:
+            return _ChannelReads(subscribed=subscribed)
         in_app_by_recipient = await notification_repo.get_channel_preferences(
             self.db,
             user_ids=recipients,
@@ -697,7 +734,18 @@ class NotificationCenterService:
                 channel=NotificationChannel.EMAIL.value,
             )
         )
-        return in_app_by_recipient, email_by_recipient
+        push_by_recipient = await notification_repo.get_channel_preferences(
+            self.db,
+            user_ids=recipients,
+            event_type=event_type.value,
+            channel=NotificationChannel.PUSH.value,
+        )
+        return _ChannelReads(
+            in_app=in_app_by_recipient,
+            email=email_by_recipient,
+            push=push_by_recipient,
+            subscribed=subscribed,
+        )
 
     async def _write_one(
         self,
@@ -712,6 +760,7 @@ class NotificationCenterService:
         announcement_id: uuid.UUID | None,
         in_app_visible: bool,
         email_enabled: bool,
+        push_enabled: bool,
     ) -> Notification | None:
         notification = Notification(
             id=uuid.uuid4(),
@@ -735,6 +784,12 @@ class NotificationCenterService:
                 notification_id=notification.id,
                 channel=NotificationChannel.EMAIL.value,
             )
+        if push_enabled:
+            await notification_repo.insert_delivery(
+                self.db,
+                notification_id=notification.id,
+                channel=NotificationChannel.PUSH.value,
+            )
         return notification
 
     async def _channel_enabled(
@@ -744,6 +799,13 @@ class NotificationCenterService:
             self.db, user_ids=[user_id], event_type=event_type.value, channel=channel.value
         )
         return prefs.get(user_id, True)
+
+    async def push_channel_enabled(
+        self, user_id: uuid.UUID, event_type: NotificationEventType
+    ) -> bool:
+        """The send-time recheck for a push delivery (Decision 3): the
+        preference table, as for every channel but the four legacy email pairs."""
+        return await self._channel_enabled(user_id, event_type, NotificationChannel.PUSH)
 
     async def email_channel_enabled(
         self, user_id: uuid.UUID, event_type: NotificationEventType

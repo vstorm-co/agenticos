@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -94,17 +94,43 @@ beforeEach(() => {
 });
 
 /** Tick one category in the facet menu - the choices are the server's, never typed. */
+async function revealFilters() {
+  const toggle = screen.getByRole("button", { name: /^Filters/ });
+  if (toggle.getAttribute("aria-expanded") === "false") await userEvent.click(toggle);
+}
+
 async function pickCategory(name: string) {
+  await revealFilters();
   await userEvent.click(screen.getByRole("button", { name: "Filter by category" }));
   await userEvent.click(await screen.findByRole("menuitemcheckbox", { name }));
 }
 
 /** The status Select, which has no `htmlFor` label of its own. */
 function statusFilter() {
+  const toggle = screen.getByRole("button", { name: /^Filters/ });
+  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
   return screen.getByRole("combobox", { name: "Filter by status" });
 }
 
 describe("the agents gallery filter", () => {
+  it("keeps the selected status when the filters are collapsed and reopened", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+    const toggle = screen.getByRole("button", { name: "Filters" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(statusFilter());
+    await userEvent.click(screen.getByRole("option", { name: "Drafts" }));
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveTextContent("1");
+    await userEvent.click(toggle);
+    expect(statusFilter()).toHaveTextContent("Drafts");
+    expect(screen.getByText("Draft")).toBeVisible();
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+  });
+
   it("shows every status on 'All'", async () => {
     render(<AgentsPage />, { wrapper });
 
@@ -239,6 +265,7 @@ describe("the agents gallery filter", () => {
     render(<AgentsPage />, { wrapper });
     await screen.findByText("Live");
 
+    await revealFilters();
     await userEvent.click(screen.getByRole("button", { name: "Filter by category" }));
 
     const choices = await screen.findAllByRole("menuitemcheckbox");
@@ -258,6 +285,7 @@ describe("the agents gallery filter", () => {
       "2 categories",
     );
 
+    await revealFilters();
     await userEvent.click(screen.getByRole("button", { name: "Filter by category" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Clear filter" }));
 

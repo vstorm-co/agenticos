@@ -57,3 +57,10 @@ undoing: a user id is hashed rather than sanitised, because dropping the
 characters a session id forbids maps `a.b` and `ab` onto one workspace — one
 person reading another's files — and a scope with nothing to key on raises rather
 than falling back to a broader one, because the fallback would be silent.
+
+
+`backend: local` selects the person’s paired computer. It stores no machine path
+or native grant in the agent spec. Each desktop conversation supplies its own
+approved target; a missing selection is refused before any cloud sandbox opens.
+The Builder clears container connection/runtime fields for this backend. Local
+access is personal to a conversation; it cannot publish as an agent-shared workspace.

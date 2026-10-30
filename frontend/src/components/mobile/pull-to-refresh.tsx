@@ -1,0 +1,135 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
+
+import { useMounted } from "@/hooks/use-mounted";
+import { isMobileShell, readShellInfo } from "@/lib/desktop/shell";
+import { haptic } from "@/lib/mobile/haptics";
+import { cn } from "@/lib/utils";
+
+/** How far the page is pulled, after damping, before letting go refreshes it. */
+export const PULL_THRESHOLD = 64;
+const PULL_MAX = 96;
+/** A finger moves twice as far as the page follows it: the pull resists. */
+const DAMPING = 0.5;
+/** How far a finger moves before it counts as a pull: less is a tap, sideways is a swipe. */
+const SLOP = 8;
+
+/** Whether nothing between the touch and the page's scroller is scrolled down. */
+function atTop(target: EventTarget | null, scroller: HTMLElement): boolean {
+  let node = target instanceof Element ? target : null;
+  while (node !== null && node !== scroller) {
+    if (node.scrollTop > 0) return false;
+    node = node.parentElement;
+  }
+  return scroller.scrollTop === 0;
+}
+
+/** Where a phone pulls to refresh: the phone app, or the console installed to a touch screen. */
+function pullable(): boolean {
+  return (
+    isMobileShell(readShellInfo()) ||
+    window.matchMedia?.("(display-mode: standalone) and (pointer: coarse)").matches
+  );
+}
+
+/**
+ * Pull the page down to read it again, as every phone app does (#2097): on
+ * the console's scroller (`main`), from the top, with a tap felt when letting
+ * go would refresh. What refreshes is every query on screen; a chat's
+ * transcript scrolls in its own box, so a pull there begins only when that box
+ * is at its top as well.
+ */
+export function PullToRefresh() {
+  const mounted = useMounted();
+  const enabled = mounted && pullable();
+  const queryClient = useQueryClient();
+  const [pull, setPull] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const scroller = document.getElementById("main");
+    if (!enabled || !scroller) return;
+    let start: { x: number; y: number } | null = null;
+    let pulling = false;
+    let past = false;
+
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1 || !atTop(event.target, scroller)) return;
+      start = { x: event.touches[0]!.clientX, y: event.touches[0]!.clientY };
+      pulling = false;
+      past = false;
+    };
+    const onMove = (event: TouchEvent) => {
+      if (start === null) return;
+      const dx = event.touches[0]!.clientX - start.x;
+      const dy = event.touches[0]!.clientY - start.y;
+      if (!pulling) {
+        if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+        // A swipe sideways - deciding an approval - or up is not a pull.
+        if (dy <= Math.abs(dx)) {
+          start = null;
+          return;
+        }
+        pulling = true;
+      }
+      const distance = Math.min(Math.max(0, dy * DAMPING), PULL_MAX);
+      setPull(distance);
+      const beyond = distance >= PULL_THRESHOLD;
+      if (beyond !== past) {
+        past = beyond;
+        if (beyond) haptic("threshold");
+      }
+    };
+    const onEnd = () => {
+      if (start === null) return;
+      start = null;
+      setPull(0);
+      if (!past) return;
+      past = false;
+      setRefreshing(true);
+      void queryClient.refetchQueries({ type: "active" }).finally(() => setRefreshing(false));
+    };
+
+    const onCancel = () => {
+      past = false;
+      onEnd();
+    };
+
+    scroller.addEventListener("touchstart", onStart, { passive: true });
+    scroller.addEventListener("touchmove", onMove, { passive: true });
+    scroller.addEventListener("touchend", onEnd);
+    scroller.addEventListener("touchcancel", onCancel);
+    return () => {
+      scroller.removeEventListener("touchstart", onStart);
+      scroller.removeEventListener("touchmove", onMove);
+      scroller.removeEventListener("touchend", onEnd);
+      scroller.removeEventListener("touchcancel", onCancel);
+    };
+  }, [enabled, queryClient]);
+
+  if (!enabled || (pull === 0 && !refreshing)) return null;
+  const shown = refreshing ? PULL_THRESHOLD : pull;
+  return (
+    <div
+      aria-hidden
+      data-testid="pull-to-refresh"
+      className="pointer-events-none fixed inset-x-0 top-[var(--shell-inset-top,0px)] z-50 flex justify-center"
+    >
+      <span
+        className="bg-card text-foreground mt-2 rounded-full border p-2 shadow-sm"
+        style={{
+          transform: `translateY(${shown - PULL_THRESHOLD / 2}px)`,
+          opacity: shown / PULL_THRESHOLD,
+        }}
+      >
+        <RefreshCw
+          className={cn("h-4 w-4", refreshing && "animate-spin")}
+          style={refreshing ? undefined : { transform: `rotate(${pull * 4}deg)` }}
+        />
+      </span>
+    </div>
+  );
+}

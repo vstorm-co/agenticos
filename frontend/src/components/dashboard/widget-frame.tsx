@@ -76,14 +76,19 @@ export function WidgetFrame({
     >
       <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">
-          <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
+          <h3
+            title={title}
+            className="text-foreground truncate text-sm font-semibold tracking-tight"
+          >
+            {title}
+          </h3>
           {hint ? <WidgetHint title={title} text={hint} /> : null}
           <WidgetOptionChips options={options} />
         </div>
         {seeAll ? (
           <Link
             href={seeAll}
-            className="text-muted-foreground hover:text-foreground shrink-0 text-xs"
+            className="text-muted-foreground hover:text-foreground touch:min-h-11 inline-flex shrink-0 items-center rounded-md text-xs"
           >
             {t("seeAll")}
           </Link>

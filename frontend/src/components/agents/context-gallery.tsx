@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Button,
   Pager,
   PICKER_PAGE_SIZE,
   SearchInput,
@@ -25,10 +26,16 @@ import { cn } from "@/lib/utils";
 import type { ContextFileSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
+export type ContextChoice = Pick<
+  ContextFileSummary,
+  "id" | "name" | "description" | "mode" | "enabled" | "shared_groups"
+>;
+
 interface ContextGalleryProps {
+  onCreate?: () => void;
   settings?: ContextSettings;
   onSettingsChange?: (settings: ContextSettings) => void;
-  files: ContextFileSummary[];
+  files: ContextChoice[];
   /** How many the organization has, which may exceed what was fetched. */
   total: number;
   /** `spec.context_ids`. */
@@ -51,11 +58,13 @@ export function ContextGallery({
   selectedIds,
   onToggle,
   disabled,
+  onCreate,
   settings = {},
   onSettingsChange,
 }: ContextGalleryProps) {
   const t = useTranslations("agents");
   const tContext = useTranslations("context");
+  const tCreate = tContext;
   const chosen = new Set(selectedIds);
   const known = new Set(files.map((file) => file.id));
   const orphaned = files.length >= total ? selectedIds.filter((id) => !known.has(id)) : [];
@@ -74,21 +83,50 @@ export function ContextGallery({
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <FileText className="text-muted-foreground mx-auto h-6 w-6" />
         <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasNoContext")}</p>
-        <Link
-          href={ROUTES.CONTEXT}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t("addOne")}
-        </Link>
+        {onCreate ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={onCreate}
+            disabled={disabled}
+          >
+            <Plus className="size-3.5" aria-hidden />
+            {tCreate("newContext")}
+          </Button>
+        ) : (
+          <Link
+            href={ROUTES.CONTEXT}
+            className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("addOne")}
+          </Link>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {files.length > 8 && (
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchContext")} />
+      {(files.length > 8 || onCreate) && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {files.length > 8 && (
+            <div className="min-w-40 flex-1">
+              <SearchInput
+                value={list.query}
+                onChange={list.setQuery}
+                placeholder={t("searchContext")}
+              />
+            </div>
+          )}
+          {onCreate && (
+            <Button variant="outline" size="sm" onClick={onCreate} disabled={disabled}>
+              <Plus className="size-3.5" aria-hidden />
+              {tCreate("newContext")}
+            </Button>
+          )}
+        </div>
       )}
 
       <div className="grid gap-2 sm:grid-cols-2">

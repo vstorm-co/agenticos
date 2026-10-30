@@ -203,6 +203,11 @@ matters in my inbox* the default cannot do — on these terms:
   through your API key or by an administrator impersonating you.
 - **The record says so.** The run names the trigger that fired it, and every audit
   entry the fire records carries `via_trigger` with the member it acted as.
+- **It may work on the creator's own computer.** With Run as me on, the creator
+  can point the trigger at a folder on their computer, under **Work on**; each
+  fire then works there through the [desktop app](desktop.md#work-on-this-computer).
+  Turning Run as me off clears it, and a fire that does not act as its creator is
+  refused the computer.
 
 The rule decides how you design an agent that runs on a trigger:
 

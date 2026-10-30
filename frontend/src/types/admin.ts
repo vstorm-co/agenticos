@@ -18,6 +18,8 @@ export interface AdminOrganization {
   name: string;
   slug: string;
   is_personal: boolean;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
   member_count: number;
   agent_count: number;
   /**

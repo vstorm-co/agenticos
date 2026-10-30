@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "default",
+  "description": "The onboarding page, the one page the app carries itself: scanning a pairing code or typing an address. The console it opens is a remote page and is granted nothing.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "deep-link:default",
+    "allow-server-url",
+    "allow-mobile-settings",
+    "allow-mobile-servers",
+    "allow-forget-server",
+    "allow-startup-notice",
+    "allow-pair-with",
+    "allow-connect"
+  ]
+}

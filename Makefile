@@ -1,4 +1,4 @@
-.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -242,6 +242,7 @@ install:
 	fi
 	cd frontend && bun install --frozen-lockfile
 	cd desktop && bun install --frozen-lockfile
+	cd mobile && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
@@ -491,8 +492,8 @@ build-frontend:
 	cd frontend && bun run build
 
 # The desktop shell is a window around a deployment's console, not a build of
-# the frontend: `desktop/ui` is the one page it carries itself, so none of these
-# needs `frontend/`. Rust comes from rustup; the Tauri CLI is pinned in
+# the frontend: `desktop/ui` is the one page it carries itself, and the only file
+# it reads from `frontend/` is blobby's cast. Rust comes from rustup; the Tauri CLI is pinned in
 # `desktop/package.json`. `desktop-check` is not in `lint` or `check`, because CI
 # has no Rust toolchain yet and `tests/test_ci_parity.py` would refuse the
 # difference (docs/desktop.md).
@@ -503,8 +504,22 @@ desktop-build:
 	cd desktop && bun run build
 
 desktop-check:
-	cd desktop && bun test
+	cd desktop/core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
+
+# The phone app (#2097): the same kind of shell for iOS and Android, sharing
+# the desktop's sign-in rules through `desktop/core`. Each target needs that
+# platform's toolchain - Xcode for iOS; the Android SDK, NDK and a JDK for
+# Android - and an emulator, a simulator or a phone. Like `desktop-check`, it
+# is not in `lint` or `check`: CI has no mobile toolchain yet.
+mobile-android:
+	cd mobile && bun run android
+
+mobile-ios:
+	cd mobile && bun run ios
+
+mobile-check:
+	cd mobile/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
 # deployment installs - rather than whatever this machine happens to have in its
@@ -963,7 +978,10 @@ help:
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
 	@echo "  make desktop-dev   Open the desktop shell against a console you name"
 	@echo "  make desktop-build Package the desktop shell for this machine"
-	@echo "  make desktop-check bun test, rustfmt, clippy and the shell's Rust tests"
+	@echo "  make desktop-check rustfmt, clippy and the shell's Rust tests"
+	@echo "  make mobile-android Run the phone app on an Android emulator or phone"
+	@echo "  make mobile-ios    Run the phone app on an iOS simulator or phone"
+	@echo "  make mobile-check  rustfmt, clippy and the phone app's Rust tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"

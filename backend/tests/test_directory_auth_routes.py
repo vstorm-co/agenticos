@@ -193,12 +193,14 @@ class TestKerberosLogin:
         sign_in.sign_in_with_ticket = AsyncMock(return_value=(_user(), None))
 
         resp = await client.get(
-            f"{_KERBEROS}?client=desktop&desktop_nonce=n-1",
+            f"{_KERBEROS}?client=desktop&desktop_nonce=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
             headers={"Authorization": f"Negotiate {base64.b64encode(b't').decode()}"},
         )
 
         assert resp.headers["location"].startswith(f"{settings.DESKTOP_DEEP_LINK_SCHEME}://")
-        assert "desktop_nonce=n-1" in resp.headers["location"]
+        assert (
+            "desktop_nonce=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" in resp.headers["location"]
+        )
         assert "www-authenticate" not in resp.headers
 
     async def test_a_rejected_ticket_goes_back_to_the_sign_in_page_with_its_sentence(

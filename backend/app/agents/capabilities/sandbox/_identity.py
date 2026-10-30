@@ -107,6 +107,7 @@ def scope_key(
     scope: SessionScope,
     backend: BackendKind,
     connection_id: UUID | None = None,
+    runtime: str | None = None,
 ) -> str:
     """The workspace this run attaches to.
 
@@ -137,10 +138,21 @@ def scope_key(
 
     `None` for a `state` workspace, which runs on no host at all.
 
+    **And which runtime**, because a session's image is chosen when it is
+    created and never again: a later run attaches to the container it finds. An
+    agent moved from `workbench` to `desktop` kept attaching to its workbench
+    container, which has no display, and every screenshot failed. The default
+    runtime adds nothing to the key, so every workspace opened before this was
+    folded in keeps the key it had; any other runtime adds a short digest of
+    its alias, which fits where a whole alias (up to 64 characters) would not.
+
     Args:
         connection_id: The connection this run resolved to - the resolved one,
             not what the spec named, so a spec that defers to the organization's
             default keys on the default it actually got.
+        runtime: The runtime this run resolved to, the same way - or `None` for
+            the host's own default, which the caller decides
+            (`SandboxWorkspaceService._open_config`).
 
     Raises:
         WorkspaceScopeUnavailable: If the scope needs an id this run does not
@@ -149,13 +161,14 @@ def scope_key(
     """
     subject = _subject(identity, scope)
     host = "" if connection_id is None else f"-{connection_id.hex[:8]}"
+    image = "" if runtime is None else f"-{hashlib.sha256(runtime.encode()).hexdigest()[:6]}"
     key = (
         f"{_BACKEND_LETTER[backend]}{_SCOPE_LETTER[scope]}"
-        f"-{identity.organization_id.hex[:8]}{host}-{subject}"
+        f"-{identity.organization_id.hex[:8]}{host}{image}-{subject}"
     )
-    # 44 for a stored workspace and 53 with a host folded in, both inside the 64
-    # the service allows; a channel identity string can be longer, so the bound is
-    # enforced rather than reasoned about.
+    # 44 for a stored workspace, 53 with a host folded in and 60 with a runtime
+    # too, all inside the 64 the service allows; a channel identity string can be
+    # longer, so the bound is enforced rather than reasoned about.
     return key[:MAX_SESSION_ID]
 
 

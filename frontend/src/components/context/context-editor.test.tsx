@@ -157,3 +157,22 @@ describe("ContextEditor", () => {
     expect(body()).toHaveAttribute("readonly");
   });
 });
+
+it("offers deletion from the editor's resource menu", async () => {
+  const onDelete = vi.fn();
+  mount({ onDelete });
+  await userEvent.click(screen.getByRole("button", { name: "More actions for glossary" }));
+  expect(onDelete).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("menuitem", { name: "Delete glossary" }));
+  expect(onDelete).toHaveBeenCalledOnce();
+});
+
+it("does not offer the resource menu to a reader", () => {
+  mount({ canEdit: false, onDelete: vi.fn() });
+  expect(screen.queryByRole("button", { name: "More actions for glossary" })).toBeNull();
+});
+
+it("disables destructive actions while a save is pending", () => {
+  mount({ isSaving: true, onDelete: vi.fn() });
+  expect(screen.getByRole("button", { name: "More actions for glossary" })).toBeDisabled();
+});

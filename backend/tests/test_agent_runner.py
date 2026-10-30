@@ -298,7 +298,11 @@ class TestPrepare:
         assert opened["surface"] == RunSurface.SLACK.value
         assert opened["model_label"] == "gpt-4.1"
         assert (prepared.run, prepared.agent) == (run, agent)
-        assert prepared.spec.model_copy(update={"instructions": ""}) == spec
+        assert prepared.spec.model_dump(exclude={"instructions"}) == spec.model_dump(
+            exclude={"instructions"}
+        )
+        assert spec.instructions == ""
+        assert "## AgenticOS apps and execution environments" in prepared.spec.instructions
         assert "answering through Slack" in prepared.spec.instructions
         # Streaming surfaces run their own loop and need the deps the agent was
         # built with; re-deriving them there is how the two drift apart.
@@ -3180,6 +3184,7 @@ class TestParking:
             # What the request asked for, so the continuation is the same run rather
             # than a default-mode one wearing its id (#1326, #1343, #788).
             "admitted_as": {
+                "local": None,
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,
                 "audience_user_id": None,
@@ -6464,6 +6469,200 @@ class TestAFailedRunOverTheApi:
             await service.execute(_ctx(), uuid.uuid4(), "hi")
 
 
+class TestPerRunLocalServices:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "connected, voice_call, model_selected, browser_selected, browser_only, computer_selected",
+        [
+            (True, False, True, True, False, False),
+            (False, False, True, True, False, False),
+            (True, True, True, True, False, False),
+            (True, False, False, False, False, False),
+            (True, False, False, True, True, False),
+            (True, False, False, False, True, True),
+            (True, False, False, False, False, True),
+        ],
+    )
+    async def test_native_services_use_only_the_resolved_workspace_session(
+        self,
+        connected: bool,
+        voice_call: bool,
+        model_selected: bool,
+        browser_selected: bool,
+        browser_only: bool,
+        computer_selected: bool,
+    ):
+        from app.agents.voice import VoiceOptions
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+        from app.services.agent_runner import VoiceRun
+        from app.services.device_hub.services import LocalService
+
+        voice = (
+            VoiceRun(
+                options=VoiceOptions(on_deferred=AsyncMock()),
+                model_label="Realtime",
+                provider="openai",
+                secret_id=uuid.uuid4(),
+            )
+            if voice_call
+            else None
+        )
+        ctx = _ctx()
+        session = uuid.uuid4()
+        target = LocalTarget(
+            folder=None if browser_only else "/approved",
+            model_service="model" if model_selected else None,
+            mcp_services=[] if browser_only else ["files", "files"],
+            browser=browser_selected,
+            computer=computer_selected,
+        )
+        assert ctx.user_id is not None
+        workspace = (
+            OpenWorkspace(
+                workspace=Workspace(device_hub.DeviceWorkspace(session, ctx.user_id, target)),
+                kind="service",
+                scope="run",
+                scope_key="local",
+                row_id=None,
+                local=True,
+            )
+            if connected and not browser_only
+            else None
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Local", model_profile_id=uuid.uuid4())
+        run = MagicMock(id=uuid.uuid4())
+        resolved_model = MagicMock(label="Local model", provider="ollama", secret_id=None)
+        describe = AsyncMock(
+            side_effect=[
+                *(
+                    [LocalService(id="model", name="Model", kind="model", model="installed")]
+                    if model_selected
+                    else []
+                ),
+                LocalService(id="files", name="Files", kind="mcp"),
+            ]
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models,
+                "resolve",
+                new=AsyncMock(
+                    return_value=resolved_model,
+                    side_effect=AssertionError(
+                        "Cloud credentials must not be opened for a local model"
+                    )
+                    if model_selected
+                    else None,
+                ),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch.object(device_hub, "describe_service", describe),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
+            patch.object(device_hub, "local_model_spec", return_value=resolved_model),
+            patch.object(device_hub, "local_mcp_toolset") as tools,
+            patch("app.services.agent_runner.build_agent") as build,
+            patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+        ):
+            if not connected or voice_call:
+                with pytest.raises(
+                    BadRequestError,
+                    match="text conversations" if voice_call else "connected computer",
+                ):
+                    await service.prepare(ctx, agent.id, local=target, voice=voice)
+                describe.assert_not_called()
+                build.assert_not_called()
+                return
+            async with asyncio.timeout(5):
+                await service.prepare(ctx, agent.id, local=target)
+        assert [call.args for call in describe.await_args_list] == [
+            *([(session, "model", "model")] if model_selected else []),
+            *([] if browser_only else [(session, "files", "mcp")]),
+        ]
+        assert build.call_args.args[1] is resolved_model
+        assert "### Selected for this run" in build.call_args.args[0].instructions
+        assert (
+            "personal, not the project's shared server files"
+            in build.call_args.args[0].instructions
+            or browser_only
+        )
+        if browser_selected:
+            assert build.call_args.kwargs["resources"]["local_browser_session"] == session
+        else:
+            assert "local_browser_session" not in build.call_args.kwargs["resources"]
+        assert (
+            "local_computer_session" in build.call_args.kwargs["resources"]
+        ) == computer_selected
+        if computer_selected:
+            assert build.call_args.kwargs["resources"]["local_computer_session"] == session
+        if browser_only:
+            tools.assert_not_called()
+        else:
+            assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
+        if model_selected:
+            assert run.model_label == "Local model" and run.secret_id is None
+
+    @pytest.mark.anyio
+    async def test_a_resumed_local_workspace_belongs_to_the_initiator(self):
+        from app.schemas.local_target import LocalTarget
+
+        owner = uuid.uuid4()
+        approver = _ctx()
+        service = AgentRunnerService(_db())
+        opened = AsyncMock(side_effect=BadRequestError(message="device boundary"))
+        with (
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="Model"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", opened),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            pytest.raises(BadRequestError, match="device boundary"),
+        ):
+            await service._assemble(
+                approver,
+                agent=MagicMock(id=uuid.uuid4()),
+                spec=AgentSpec(name="Local", model_profile_id=uuid.uuid4()),
+                existing_run=None,
+                surface=RunSurface.API,
+                conversation_id=None,
+                user_name=None,
+                extra_toolsets=None,
+                exposure=None,
+                decided={},
+                resuming={},
+                already_spent={},
+                already_started={},
+                restored_audience=RunAudience(user_id=owner),
+                local=LocalTarget(folder="/approved", browser=True),
+            )
+        assert opened.call_args.kwargs["ctx"].user_id == owner
+        assert opened.call_args.kwargs["identity"].user_id == str(owner)
+        assert approver.user_id != owner
+
+
 @pytest.mark.anyio
 @pytest.mark.security
 class TestCancelParkedRun:
@@ -6731,6 +6930,54 @@ class TestCancelParkedRun:
             await service.can_stop_parked(replace(ctx, api_key_id=uuid.uuid4()), uuid.uuid4())
             is False
         )
+
+
+@pytest.mark.anyio
+class TestBrowserOnlyLocalSelection:
+    async def test_resolves_the_callers_paired_device_without_a_workspace(self, monkeypatch):
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        device_id, session = uuid.uuid4(), uuid.uuid4()
+        wait = AsyncMock(return_value=MagicMock(session_id=session))
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        assert (
+            await AgentRunnerService._browser_session(
+                ctx, LocalTarget(browser=True, device_id=device_id)
+            )
+            == session
+        )
+        wait.assert_awaited_once_with(ctx.user_id, device_id, timeout=0)
+        wait.return_value = None
+        with pytest.raises(BadRequestError, match="not connected"):
+            await AgentRunnerService._browser_session(ctx, LocalTarget(browser=True))
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("identity", ["anonymous", "key", "publisher"])
+    async def test_refuses_nonpersonal_authority_before_contacting_a_device(
+        self, identity, monkeypatch
+    ):
+        from dataclasses import replace
+
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+
+        ctx = _ctx()
+        changes = (
+            {"user_id": None}
+            if identity == "anonymous"
+            else {"api_key_id": uuid.uuid4()}
+            if identity == "key"
+            else {"subject_is_publisher_fallback": True}
+        )
+        wait = AsyncMock()
+        monkeypatch.setattr(device_hub, "wait_for", wait)
+        with pytest.raises(BadRequestError, match="Only your own"):
+            await AgentRunnerService._browser_session(
+                replace(ctx, **changes), LocalTarget(browser=True)
+            )
+        wait.assert_not_awaited()
 
 
 @pytest.mark.anyio

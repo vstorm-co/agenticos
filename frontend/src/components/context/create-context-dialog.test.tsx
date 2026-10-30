@@ -69,7 +69,7 @@ describe("CreateContextDialog", () => {
     });
     // Reported rather than closed: whether one file created means "done" or
     // "next of the four somebody dropped" is the page's queue to answer.
-    expect(onCreated).toHaveBeenCalled();
+    expect(onCreated).toHaveBeenCalledWith({ id: "c1", name: "glossary" });
   });
 
   it("sends an untouched description as null and Markdown as the default format", async () => {

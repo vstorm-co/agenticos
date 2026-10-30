@@ -1,5 +1,5 @@
 ---
-source_sha: "5afb693c7c13"
+source_sha: "524eb90cfc8c"
 ---
 
 # Conceptos { #concepts }
@@ -213,6 +213,11 @@ condiciones:
 - **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
   de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
   que actuó.
+- **Puede trabajar en el ordenador del propio creador.** Con Run as me activado,
+  el creador puede dirigir el trigger a una carpeta de su ordenador, en
+  **Trabajar en (Work on)**; cada disparo trabaja entonces allí a través de la
+  [app de escritorio](desktop.md#work-on-this-computer). Desactivar Run as me lo
+  borra, y a un disparo que no actúa como su creador se le niega el ordenador.
 
 La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 

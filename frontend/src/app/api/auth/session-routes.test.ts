@@ -657,6 +657,30 @@ describe("signing in without a password", () => {
 });
 
 describe("finishing an OAuth sign-in", () => {
+  it("forwards a native verifier in the exchange body", async () => {
+    const verifier = "v".repeat(96);
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+    const response = await oauthCallback(request({}, { code: "native", code_verifier: verifier }));
+    expect(response.status).toBe(200);
+    expect(backendFetch).toHaveBeenNthCalledWith(1, "/api/v1/oauth/exchange", {
+      method: "POST",
+      body: JSON.stringify({ code: "native", code_verifier: verifier }),
+    });
+  });
+
+  it.each([null, 123, "short", "x".repeat(129)])(
+    "rejects a malformed native verifier %s before exchange",
+    async (verifier) => {
+      const response = await oauthCallback(
+        request({}, { code: "native", code_verifier: verifier }),
+      );
+      expect(response.status).toBe(400);
+      expect(backendFetch).not.toHaveBeenCalled();
+    },
+  );
+
   it("swaps the single-use code for the token pair, and stores it", async () => {
     // The redirect carries a code, not the tokens (#14): a token in a redirect
     // URL reaches the address bar, the access log and the next Referer.

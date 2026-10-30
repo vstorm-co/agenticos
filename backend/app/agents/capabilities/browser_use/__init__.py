@@ -14,6 +14,8 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_use._capability import WebBrowser
 from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
+from app.agents.capabilities.browser_use._history import BROWSER_REPORT_TOOLS
+from app.agents.capabilities.browser_use._local import page_factory as local_page_factory
 from app.agents.capabilities.browser_use._route import (
     Connection,
     address_problem,
@@ -88,6 +90,26 @@ class WebBrowserConfig(BaseModel):
     different numbers and neither should need a release to get them.
     """
 
+    connection: Connection = Field(
+        title="How the browser reaches the web",
+        default="built_in",
+        description=(
+            "Built in uses the deployment's browser and its address. A proxy sends "
+            "the browses through an address of your own - a residential or regional "
+            "one sites block less. A hosted browser runs them in a browser service "
+            "you pay for, reached over CDP. This computer requires a paired desktop "
+            "and local browsing selected for this chat."
+        ),
+        json_schema_extra={
+            "x-widget": "browser-connection",
+            "x-enum-labels": {
+                "built_in": "Built in",
+                "proxy": "Through a proxy",
+                "hosted": "A hosted browser",
+                "local": "This computer (desktop app)",
+            },
+        },
+    )
     cdp_url: str = Field(
         title="DevTools endpoint",
         default="",
@@ -109,8 +131,8 @@ class WebBrowserConfig(BaseModel):
         title="Allowed domains",
         default=None,
         description=(
-            "Hosts the browser may be on; empty means no restriction. Globs like "
-            "*.example.com are allowed. Checked on every step, not only the first."
+            "Allowed browser hosts. No restriction allows any domain; an empty domain list blocks all. "
+            "Patterns such as *.example.com are supported. Checked on every step."
         ),
     )
     max_steps: int = Field(
@@ -121,6 +143,14 @@ class WebBrowserConfig(BaseModel):
         description=(
             "How many steps one call may take; each step is one model request. A "
             "task that needs more continues in the same tab on the next call."
+        ),
+    )
+    prefer_native_browser: bool = Field(
+        default=True,
+        title="Use the native local browser",
+        description=(
+            "Use an embedded native tab for local DOM browsing. Disable for isolated "
+            "Chromium compatibility. Vision and language/time-zone overrides use Chromium."
         ),
     )
     vision: bool = Field(
@@ -163,23 +193,6 @@ class WebBrowserConfig(BaseModel):
             "uses the agent's model. The agent's own browser tools always use it."
         ),
         json_schema_extra={"x-widget": "model-profile", "x-advanced": True},
-    )
-    connection: Connection = Field(
-        title="How the browser reaches the web",
-        default="built_in",
-        description=(
-            "Built in uses the deployment's browser and its address. A proxy sends "
-            "the browses through an address of your own - a residential or regional "
-            "one sites block less. A hosted browser runs them in a browser service "
-            "you pay for, reached over CDP."
-        ),
-        json_schema_extra={
-            "x-enum-labels": {
-                "built_in": "Built in",
-                "proxy": "Through a proxy",
-                "hosted": "A hosted browser",
-            }
-        },
     )
     proxy_url: str = Field(
         title="Proxy address",
@@ -311,7 +324,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         UrlRefusedError: The URL is missing, malformed, not a CDP scheme, or names
             a host this deployment does not allow.
     """
-    if config.connection == "hosted":
+    if config.connection in ("hosted", "local"):
         # The hosted browser is the endpoint; `connection_problems` checks it.
         return
     if not config.cdp_url:
@@ -373,8 +386,28 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
             side_effecting=False,
         ),
         CapabilityToolInfo(
+            id="browser_new_tab",
+            description="Open a separate browser tab and select it, retaining other pages.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_tabs",
+            description="List this conversation's open tabs, restoring its checkpoint if needed.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_switch_tab",
+            description="Select an existing tab and read its current elements.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_close_tab",
+            description="Close one tab, then select another if any remain.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
             id="browser_read",
-            description="Read the open page again - after waiting for it, or to see it as it is now.",
+            description="Read the open page again, or resume this conversation's browser session.",
             side_effecting=False,
         ),
         CapabilityToolInfo(
@@ -428,10 +461,27 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     credential = (
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
+    local_session = ctx.resources.get("local_browser_session")
+    native_local = (
+        config.prefer_native_browser
+        and not config.vision
+        and not config.timezone
+        and not config.locale
+    )
+    aliases = {
+        tool: override.name
+        for tool, override in ctx.binding.tool_overrides.items()
+        if override.name is not None
+    }
     return WebBrowser(
+        report_tool_names=frozenset(aliases.get(tool, tool) for tool in BROWSER_REPORT_TOOLS),
+        resume_local=isinstance(local_session, UUID) and native_local,
+        page_factory=local_page_factory(local_session, native=native_local)
+        if isinstance(local_session, UUID)
+        else None,
         step_model=step_model if isinstance(step_model, Model) else None,
         route=route_for(
-            connection=config.connection,
+            connection="local" if isinstance(local_session, UUID) else config.connection,
             proxy_url=config.proxy_url,
             hosted_url=config.hosted_url,
             hosted_key_param=config.hosted_key_param,
@@ -439,7 +489,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
             locale=config.locale,
             credential=credential,
         ),
-        cdp_url=config.cdp_url,
+        cdp_url="" if config.connection == "local" else config.cdp_url,
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,
         candidate_cap=config.candidate_cap,

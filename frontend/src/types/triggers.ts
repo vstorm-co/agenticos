@@ -8,6 +8,8 @@
  * split the shape CHECK enforces server-side.
  */
 
+import type { LocalTarget } from "@/lib/desktop/commands";
+
 /** Which of the two concepts a trigger is. Mirrors the backend's `TriggerType`. */
 export type TriggerType = "schedule" | "event";
 
@@ -56,6 +58,8 @@ export interface Trigger {
    * MCP connections (#2027). Only they may turn it on.
    */
   runs_as_creator: boolean;
+  /** A folder on the creator's own computer each fire works in, or null for the sandbox (#2305). */
+  local_target?: LocalTarget | null;
   trigger_type: TriggerType;
   schedule_kind: ScheduleKind;
   interval_seconds: number | null;
@@ -116,6 +120,7 @@ export interface TriggerCreate {
   environment_id?: string | null;
   teams_conversation_id?: string | null;
   runs_as_creator?: boolean;
+  local_target?: LocalTarget | null;
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
@@ -171,5 +176,6 @@ export interface TriggerUpdate {
   environment_id?: string | null;
   teams_conversation_id?: string | null;
   runs_as_creator?: boolean;
+  local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;
 }

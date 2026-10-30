@@ -1,5 +1,5 @@
 ---
-source_sha: "caab99f82fc1"
+source_sha: "2f33faf1a39b"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -18,6 +18,8 @@ edytowalny przez osobę, która naprawdę zna odpowiedź.
 To odpowiedź na problem, który każda firma napotyka przy swoim trzecim agencie —
 te same trzy akapity wklejone do trzech zestawów instrukcji, a potem poprawione
 w jednym z nich.
+
+W kreatorze agenta **Context → New context file** tworzy plik bezpośrednio w panelu zdolności, dołącza go do bieżącego szkicu i włącza Context. Następnie możesz wybrać sposób użycia pliku przez tego agenta. Publikacja pozostaje osobnym krokiem. Tworzenie wymaga uprawnień do edycji agenta i plików contextu.
 
 ## Gdzie leży, między skillami a wiedzą { #where-it-sits-between-skills-and-knowledge }
 

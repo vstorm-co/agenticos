@@ -9,6 +9,7 @@ from collections.abc import Collection, Sequence
 from typing import Any, Literal
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy import Float, and_, bindparam, cast, false, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.agents.spec import CapabilityBindingSpec
 from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -311,6 +313,30 @@ async def published_starters(
         )
     )
     return {row[0]: [str(item) for item in row[1]] for row in result.all()}
+
+
+_CAPABILITY_BINDINGS = TypeAdapter(list[CapabilityBindingSpec])
+
+
+async def published_capabilities(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, list[str]]:
+    """Enabled capability ids from the frozen version, never its editable draft."""
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion.id, AgentVersion.spec["capabilities"]).where(
+            AgentVersion.id.in_(list(version_ids))
+        )
+    )
+    return {
+        version_id: [
+            binding.id
+            for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
+            if binding.enabled
+        ]
+        for version_id, raw in result.all()
+    }
 
 
 async def published_model_profiles(

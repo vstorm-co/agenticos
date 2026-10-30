@@ -67,4 +67,52 @@ describe("Button component", () => {
     const button = screen.getByRole("button");
     expect(button).toHaveAttribute("type", "submit");
   });
+  it("keeps the action name while busy and refuses another submission", () => {
+    const click = vi.fn();
+    const { rerender } = render(
+      <Button loading onClick={click}>
+        Save changes
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save changes" });
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(click).not.toHaveBeenCalled();
+    rerender(<Button onClick={click}>Save changes</Button>);
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute("aria-busy", "true");
+    fireEvent.click(button);
+    expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("blocks child link handlers while an asChild action is unavailable", () => {
+    const click = vi.fn();
+    render(
+      <Button asChild loading>
+        <a href="#project" onClick={click}>
+          Open project
+        </a>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Open project" });
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAttribute("aria-busy", "true");
+    expect(fireEvent.click(link)).toBe(false);
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it("preserves the caller's capture handler and externally controlled busy state", () => {
+    const capture = vi.fn();
+    render(
+      <Button aria-busy onClickCapture={capture}>
+        Refresh
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Refresh" });
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(capture).toHaveBeenCalledOnce();
+  });
 });

@@ -143,7 +143,7 @@ than anyone speaks is dropped, and a sustained flood ends the call.
 A call runs the agent its published spec describes, built by the same factory as
 a text run. The differences come from the realtime session: its tools are fixed
 when the call connects, it cannot pause for an approval, and it cannot carry a
-workspace, a browser or delegates. Those the call hands to the agent's own text
+workspace, a browser, a desktop or delegates. Those the call hands to the agent's own text
 model instead.
 
 | By voice | Capabilities |
@@ -153,7 +153,7 @@ model instead.
 | Adapted | skills: loaded as instructions on demand, without the tools a text run uses to read them |
 | Dropped | tool search: the MCP tools it would have deferred are passed to the call directly |
 | Mapped | thinking: becomes the realtime model's own reasoning setting, where the model has one |
-| Handed off | sandbox, browser use, subagents, the coding agent, video generation, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
+| Handed off | sandbox, browser use, computer use, subagents, the coding agent, video generation, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
 
 The Builder's Voice card lists the capabilities this agent hands off in calls.
 

@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { FolderKanban, Plus } from "lucide-react";
+import { FolderKanban, Plus, Files, MessageSquare, AppWindow, FileText } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -104,15 +104,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       >
         <TabsList data-tour="project-tabs" className="shrink-0">
           <TabsTrigger disabled={isLoading} value="files">
+            <Files className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("files")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="chats">
+            <MessageSquare className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("chats")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="apps">
+            <AppWindow className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("apps")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="instructions">
+            <FileText className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("instructions")}
           </TabsTrigger>
         </TabsList>

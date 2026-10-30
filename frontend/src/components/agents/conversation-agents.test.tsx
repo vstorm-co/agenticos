@@ -92,14 +92,53 @@ describe("who answered in a conversation", () => {
       <ConversationAgents agents={[agent("A"), agent("B")]} showName={false} />,
     );
     const second = () => container.querySelectorAll<HTMLElement>("[data-agent-avatar]")[1]!;
-    expect(second().className).toContain("-ml-1.5");
+    expect(second().className).toContain("-ml-3");
 
     rerender(<ConversationAgents agents={[agent("A"), agent("B"), agent("C")]} showName={false} />);
-    expect(second().className).toContain("-ml-3.5");
-    expect(second().className).toContain("group-hover/stack:ml-0.5");
+    expect(second().className).toContain("-ml-4");
+    expect(second().className).toContain("group-hover/stack:-ml-3");
     // The first face never moves: the stack opens to the right of it.
     expect(
       container.querySelectorAll<HTMLElement>("[data-agent-avatar]")[0]!.className,
     ).not.toContain("-ml-");
   });
+});
+
+it("keeps full-size rail faces overlapping within 40px and hides older overflow", () => {
+  const { container } = render(
+    <ConversationAgents
+      agents={[agent("Newest"), agent("Recent"), agent("Third"), agent("Old"), agent("Oldest")]}
+      showName={false}
+      compact
+      size="md"
+    />,
+  );
+  const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
+  expect(Array.from(faces, (face) => face.dataset.agentAvatar)).toEqual([
+    "Newest-id",
+    "Recent-id",
+    "Third-id",
+  ]);
+  for (const face of faces) expect(face).toHaveClass("w-9");
+  expect(faces[1]).toHaveClass("-ml-[34px]");
+  expect(faces[2]).toHaveClass("-ml-[34px]");
+  expect(faces[0]).toHaveClass("z-30");
+  expect(faces[1]).not.toHaveClass("group-hover/stack:ml-0.5");
+  // 3 * 36px - 2 * 34px = 40px, with the most recent face in front.
+  expect(screen.queryByText(/^\+/)).toBeNull();
+  expect(screen.getByTitle("Newest → Recent → Third → Old → Oldest")).toBeInTheDocument();
+});
+
+it("overlaps two full-size faces without shrinking either one", () => {
+  const { container } = render(
+    <ConversationAgents
+      agents={[agent("Newest"), agent("Older")]}
+      compact
+      size="md"
+      showName={false}
+    />,
+  );
+  const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
+  expect(faces[0]).toHaveClass("w-9");
+  expect(faces[1]).toHaveClass("w-9", "-ml-8");
 });

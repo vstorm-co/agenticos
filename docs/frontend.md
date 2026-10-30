@@ -33,6 +33,8 @@ circles, with stable colours and initials as the fallback. Agents retain their
 generated faces. Gallery descriptions reserve two lines; opening an item shows
 the full description.
 
+Async actions use `Button loading` to preserve their label and footprint while preventing repeat submissions. Keep that state active until every step, including uploads, finishes. Link-backed buttons retain a single child and block activation while unavailable. Controls share keyboard focus treatment and compact desktop sizing, with 44px touch targets where space permits. Overlays animate from their anchor; tooltips wrap within the viewport. Calendar headings follow the console language, and progress exposes its actual value and maximum to assistive technology. Motion follows the person's Motion preference.
+
 ## The browser never calls the backend
 
 Every request goes to `/api/*` on this app, which forwards to FastAPI with the

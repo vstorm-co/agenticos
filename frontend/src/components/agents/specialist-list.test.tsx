@@ -302,7 +302,6 @@ describe("what a specialist can do", () => {
         name: "Refunds",
         description: "How refunds work here.",
         category: null,
-        enabled: true,
         visibility: "org",
         file_count: 0,
         built_in: false,

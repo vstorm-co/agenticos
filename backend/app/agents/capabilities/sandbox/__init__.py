@@ -80,14 +80,16 @@ class SandboxConfig(BaseModel):
     shows one person another person's files.
     """
 
-    backend: Literal["state", "service"] = Field(
+    backend: Literal["state", "service", "local"] = Field(
         title="Where files live",
         default="state",
         description=(
             "state: files only, no shell, stored by the platform - works on every "
             "deployment with no extra services. "
             "service: a container or cloud sandbox, on one of the connections this "
-            "organization has registered."
+            "organization has registered. "
+            "local: the person selects and approves their own computer in desktop chat; "
+            "no machine path or native consent is stored in this spec."
         ),
     )
     connection_id: UUID | None = Field(

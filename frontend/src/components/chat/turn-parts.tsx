@@ -4,6 +4,7 @@ import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
+import { BROWSER_TOOLS, DESKTOP_TOOLS } from "@/lib/browse";
 import { toolEntry } from "@/lib/tool-catalog";
 import { drawnUnderTheAnswer } from "@/lib/turn-extras";
 import { isVisualTool } from "@/lib/visuals";
@@ -77,7 +78,7 @@ export function TurnParts({
   const elapsed = useTurnElapsed(startedAt, isStreaming);
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
-  const render = (run: PartRun, browses = true, afterWork = false) =>
+  const render = (run: PartRun, visuals = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
         {/* The rail folds its own earlier steps away, but it cannot see what is
@@ -100,8 +101,7 @@ export function TurnParts({
             />
           ))}
         </AgentSteps>
-        {browses && <TurnBrowses calls={browseCalls([run])} />}
-        {browses && <TurnVisuals calls={visualCalls([run])} />}
+        {visuals && <TurnVisuals calls={visualCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
@@ -137,6 +137,7 @@ export function TurnParts({
     return (
       <>
         {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
+        <TurnBrowses calls={browseCalls(runs)} />
         {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
       </>
     );
@@ -144,7 +145,10 @@ export function TurnParts({
   const split = foldWork(runs, stopped);
   if (split === null) {
     return (
-      <>{runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}</>
+      <>
+        <TurnBrowses calls={browseCalls(runs)} />
+        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
+      </>
     );
   }
   return (
@@ -152,7 +156,7 @@ export function TurnParts({
       <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
         {split.folded.map((run) => render(run, false))}
       </WorkFold>
-      <TurnBrowses calls={browseCalls(split.folded)} />
+      <TurnBrowses calls={browseCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
       {split.shown.map((run, index) =>
         // The first thing after the fold opens the answer, as anything after a step does.
@@ -430,24 +434,16 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * the same row the card reads to decide whether to open itself - so a tool is
  * described in one place and the rail and the card cannot disagree about it.
  */
-/**
- * The calls that open a browser window in these runs, in the order they were made:
- * every `browse_web`, and the first `browser_open` - the one that starts the agent
- * driving the tab itself. A later `browser_open` in the same turn navigates that
- * same tab, as its clicks do, so it is drawn in the window already there rather
- * than as a second one beside it.
- */
+/** All browser operations in turn order, so the card tracks each tab's latest page. */
 export function browseCalls(runs: PartRun[]): ToolCall[] {
-  let driving = false;
   return runs.flatMap((run) =>
     run.kind === "tools"
-      ? run.parts.flatMap((part) => {
-          const call = part.toolCall;
-          if (call?.name === "browse_web") return [call];
-          if (call?.name !== "browser_open" || driving) return [];
-          driving = true;
-          return [call];
-        })
+      ? run.parts.flatMap((part) =>
+          part.toolCall &&
+          (BROWSER_TOOLS.has(part.toolCall.name) || DESKTOP_TOOLS.has(part.toolCall.name))
+            ? [part.toolCall]
+            : [],
+        )
       : [],
   );
 }

@@ -1,8 +1,11 @@
 "use client";
 
 import type { Mentionable } from "@/types/mention";
+import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
+import { useDesktopLiveTurn } from "./use-desktop-live-turn";
+import { useDesktopRunControl } from "./use-desktop-run-control";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -13,10 +16,11 @@ import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
+import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
 import { nextStepEvent, withNextSteps, type NextStepEvent } from "@/lib/next-step-events";
 import { coalesceChatFrames } from "@/lib/chat-frame-batch";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
-import { useTenantId } from "@/hooks/use-organizations";
+import { useTenantId, useOrganizationList } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
 import { addVisualImages, appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
 import { isVisualTool } from "@/lib/visuals";
@@ -35,6 +39,7 @@ import type {
   Decision,
   Delegation,
   PendingApproval,
+  QueuedMessage,
   ReviewConfig,
   SubagentFrame,
   ToolCall,
@@ -49,7 +54,7 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
-import { applyBrowserFrame, type Browse } from "@/lib/browse";
+import { latestBrowserTabs, applyBrowserFrame, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts, replyFromWire, type WireReply } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
@@ -57,23 +62,17 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { setUrlParam } from "@/lib/utils";
+import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
+import { isDesktopShell, readShellInfo } from "@/lib/desktop/shell";
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { useConversationStore, useWorkingStore } from "@/stores";
-/** A message the user typed while the agent was busy / socket offline.
- *  Held outside the chat history until the drainer ships it. */
 /** A correction sent to the running turn, shown until it reaches the model. */
 export interface SteerDraft {
   id: string;
   text: string;
 }
 
-export interface QueuedMessage {
-  id: string;
-  content: string;
-  fileIds?: string[];
-  files?: ChatMessageFile[];
-  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
-  mentions?: Mentionable[];
-}
+export type { QueuedMessage } from "@/types/chat";
 
 /** One conversation, including the one a first question has not named yet. */
 interface ConversationRef {
@@ -232,6 +231,24 @@ export function useChat(options: UseChatOptions = {}) {
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  // In the apps the queue is also the outbox: kept sealed on the device under the
+  // conversation it was typed in, so closing the app or opening another thread
+  // does not lose a message written without a network (#2097). In a browser tab
+  // `keepOutbox` keeps nothing.
+  const outboxForRef = useRef<string | null>(null);
+  const setQueue = useCallback((next: QueuedMessage[]) => {
+    messageQueueRef.current = next;
+    setQueuedMessages([...next]);
+    void keepOutbox(outboxForRef.current, next);
+  }, []);
+  // The queued message sent last, until `user_prompt` says the server saved it.
+  // An `error` before then is a refusal of a message written nowhere else: it
+  // goes back to the queue, marked, rather than leaving a question on screen
+  // that a reload would show was never sent.
+  const unconfirmedRef = useRef<{ message: QueuedMessage; bubbleId: string } | null>(null);
+  // Bumped by a retry and by an outbox coming back from the device, neither of
+  // which changes anything else the drainer watches.
+  const [drainTick, setDrainTick] = useState(0);
   const queuedSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionReadyRef = useRef(true);
   const [sessionReady, setSessionReady] = useState(true);
@@ -530,6 +547,7 @@ export function useChat(options: UseChatOptions = {}) {
 
       switch (wsEvent.type) {
         case "user_prompt": {
+          unconfirmedRef.current = null;
           const { message_id } = wsEvent.data as { message_id?: string | null };
           const id = currentUserMessageIdRef.current;
           if (id && message_id) {
@@ -661,6 +679,9 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
+          // The settings popover may be closed: filing a draft's local target
+          // belongs to the chat lifecycle, before another turn can be sent.
+          useWorkOnStore.getState().adopt(conversation_id);
           createdConversationIdRef.current = conversation_id;
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
@@ -930,6 +951,7 @@ export function useChat(options: UseChatOptions = {}) {
         case "browser_held":
         case "browser_released":
         case "browser_needs_person":
+        case "browser_control_error":
         case "browser_pointer": {
           // One branch for every frame: the envelope's `type` is the frame's own
           // `kind` (see `AgentSession._browser_event`), so the payload narrows
@@ -986,14 +1008,24 @@ export function useChat(options: UseChatOptions = {}) {
           // An open that failed ends the turn here, with no `complete` after it.
           setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
+          const { message } = wsEvent.data as { message: string };
+          const refused = unconfirmedRef.current;
+          unconfirmedRef.current = null;
+          if (refused) {
+            chatApi.getState().removeMessage(refused.bubbleId);
+            setQueue([
+              { ...refused.message, refused: message || t("unknownError") },
+              ...messageQueueRef.current,
+            ]);
+          }
           // A refusal before the turn opened a message - an agent with no model,
           // nobody picked to answer - lands in a message of its own under the
           // question it refused. Dropped, the question just sat there unanswered.
           // With no question waiting there is nothing to answer, and it stays out.
-          const unanswered = chatApi.getState().messages.at(-1)?.role === "user";
+          // A queued message refused is back in the queue saying why, instead.
+          const unanswered = !refused && chatApi.getState().messages.at(-1)?.role === "user";
           const id = currentMessageIdRef.current ?? (unanswered ? createNewMessage("") : null);
           if (id) {
-            const { message } = wsEvent.data as { message: string };
             // Into the timeline rather than onto `content` directly: the store's
             // append keeps the two in step, and it starts a parts list for a
             // message that has none - which is what a replayed turn looks like.
@@ -1077,8 +1109,10 @@ export function useChat(options: UseChatOptions = {}) {
           // instead, through the queue that already does exactly that.
           const { texts } = wsEvent.data as { texts: string[] };
           setSteers((waiting) => waiting.filter((steer) => !texts.includes(steer.text)));
-          for (const text of texts) messageQueueRef.current.push({ id: clientId(), content: text });
-          setQueuedMessages([...messageQueueRef.current]);
+          setQueue([
+            ...messageQueueRef.current,
+            ...texts.map((text) => ({ id: clientId(), content: text })),
+          ]);
           break;
         }
 
@@ -1183,6 +1217,7 @@ export function useChat(options: UseChatOptions = {}) {
       onTurnInterrupted,
       activeConversationId,
       refreshConversationCost,
+      setQueue,
       t,
     ],
   );
@@ -1291,8 +1326,15 @@ export function useChat(options: UseChatOptions = {}) {
     return () => disconnect();
   }, [hasAccessToken, connect, disconnect]);
 
+  /** Send one message as a turn; answers the id of its bubble on the transcript. */
   const doSend = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+    (
+      content: string,
+      fileIds?: string[],
+      files?: ChatMessageFile[],
+      mentions?: Mentionable[],
+    ): string => {
+      unconfirmedRef.current = null;
       sessionReadyRef.current = false;
       setSessionReady(false);
       // The previous turn's panels belong to the previous turn. Cleared here rather
@@ -1300,12 +1342,8 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
-      // A browse belongs to the turn that started it, and the panel draws the
-      // newest one - so without this the next turn opens under the last turn's
-      // viewport, and a browse that finished keeps a screenshot alive for as
-      // long as the hook does.
-      setBrowses([]);
-      closeBrowserPanel();
+      // Keep the last browser previews available across follow-up turns.
+      setBrowses(latestBrowserTabs);
       setPersonalGaps([]);
       // Asking something new is the reader deciding not to wait for the turn
       // whose socket went away. Their call to make, and it is the only other
@@ -1392,6 +1430,33 @@ export function useChat(options: UseChatOptions = {}) {
       if (approvalModeRef.current !== "follow_agent") {
         payload.approval_mode = approvalModeRef.current;
       }
+      // "Work on: This computer" (#2305): the folder and mode, read at send
+      // time like the agent. The desktop app checks both against what the person
+      // granted on that computer, whatever this frame says.
+      // Resolve before the first frame as well: sending may beat the project
+      // chip's metadata fetch. applyProject preserves an explicit draft override.
+      if (!conversationId && projectId && isDesktopShell(readShellInfo())) {
+        const key = projectFolderKey(useAuthStore.getState().user?.id ?? null, tenantId, projectId);
+        if (key !== null) {
+          useWorkOnStore
+            .getState()
+            .applyProject(key, useProjectFoldersStore.getState().byProject[key] ?? null);
+        }
+      }
+      const local = useWorkOnStore.getState().targetFor(conversationId || null);
+      const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
+      const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
+      if (local)
+        payload.local = {
+          ...local,
+          ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
+          ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
+        };
+      else if (localBrowser || localComputer)
+        payload.local = {
+          ...(localBrowser ? { browser: true } : {}),
+          ...(localComputer ? { computer: true } : {}),
+        };
       const test = testingRef.current;
       if (test) {
         payload.test = true;
@@ -1408,6 +1473,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (agentId) payload.agent_id = agentId;
       turnAgentIdRef.current = agentId;
       sendMessage(payload);
+      return userMessageId;
     },
     [
       selectionApi,
@@ -1420,7 +1486,7 @@ export function useChat(options: UseChatOptions = {}) {
       conversationId,
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
-      closeBrowserPanel,
+      tenantId,
     ],
   );
 
@@ -1439,13 +1505,12 @@ export function useChat(options: UseChatOptions = {}) {
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
       ) {
         const id = clientId();
-        messageQueueRef.current.push({ id, content, fileIds, files, mentions });
-        setQueuedMessages([...messageQueueRef.current]);
+        setQueue([...messageQueueRef.current, { id, content, fileIds, files, mentions }]);
         return;
       }
       doSend(content, fileIds, files, mentions);
     },
-    [isConnected, doSend],
+    [isConnected, doSend, setQueue],
   );
 
   /**
@@ -1467,36 +1532,79 @@ export function useChat(options: UseChatOptions = {}) {
         queued.mentions?.length
       )
         return;
-      messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
-      setQueuedMessages([...messageQueueRef.current]);
+      setQueue(messageQueueRef.current.filter((q) => q.id !== id));
       setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
       sendMessage({ type: "steer", text: queued.content });
     },
-    [isProcessing, isConnected, sendMessage],
+    [isProcessing, isConnected, sendMessage, setQueue],
   );
 
   /** Move one queued message to another place in the queue, which is the order it is sent in. */
-  const moveQueued = useCallback((id: string, to: number) => {
-    const queue = [...messageQueueRef.current];
-    const from = queue.findIndex((q) => q.id === id);
-    if (from < 0 || to < 0 || to >= queue.length || to === from) return;
-    const [moved] = queue.splice(from, 1);
-    queue.splice(to, 0, moved!);
-    messageQueueRef.current = queue;
-    setQueuedMessages([...queue]);
-  }, []);
+  const moveQueued = useCallback(
+    (id: string, to: number) => {
+      const queue = [...messageQueueRef.current];
+      const from = queue.findIndex((q) => q.id === id);
+      if (from < 0 || to < 0 || to >= queue.length || to === from) return;
+      const [moved] = queue.splice(from, 1);
+      queue.splice(to, 0, moved!);
+      setQueue(queue);
+    },
+    [setQueue],
+  );
 
-  const cancelQueued = useCallback((id: string) => {
-    messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
-    setQueuedMessages([...messageQueueRef.current]);
-  }, []);
+  const cancelQueued = useCallback(
+    (id: string) => setQueue(messageQueueRef.current.filter((q) => q.id !== id)),
+    [setQueue],
+  );
 
+  /** Send a refused message again, in its place in the queue. */
+  const retryQueued = useCallback(
+    (id: string) => {
+      setQueue(
+        messageQueueRef.current.map((q) => (q.id === id ? { ...q, refused: undefined } : q)),
+      );
+      setDrainTick((tick) => tick + 1);
+    },
+    [setQueue],
+  );
+
+  /**
+   * Take the queue off the screen. Not off the device: the outbox is the
+   * conversation's, and comes back when it is opened again - and a tenant's
+   * whole copy is wiped with the rest of its state on a switch.
+   */
   const clearQueued = useCallback(() => {
     if (queuedSendTimer.current !== null) clearTimeout(queuedSendTimer.current);
     queuedSendTimer.current = null;
     messageQueueRef.current = [];
     setQueuedMessages([]);
   }, []);
+
+  // Whose queue is on screen. Opening a conversation brings its outbox back
+  // from the device; a new chat that just got its id with its first message
+  // takes what waits behind that message with it.
+  useEffect(() => {
+    const previous = outboxForRef.current;
+    outboxForRef.current = activeConversationId;
+    if (previous === null && activeConversationId !== null && messageQueueRef.current.length) {
+      void keepOutbox(null, []);
+      void keepOutbox(activeConversationId, messageQueueRef.current);
+      return;
+    }
+    let current = true;
+    void keptOutbox(activeConversationId).then((kept) => {
+      if (!current || kept.length === 0) return;
+      const onScreen = messageQueueRef.current.filter((q) => !kept.some((k) => k.id === q.id));
+      messageQueueRef.current = [...kept, ...onScreen];
+      setQueuedMessages([...messageQueueRef.current]);
+      // Nothing else the drainer watches moved: with a connection up and the
+      // agent idle, it is this that sends them.
+      setDrainTick((tick) => tick + 1);
+    });
+    return () => {
+      current = false;
+    };
+  }, [activeConversationId]);
 
   // A queued message belongs to the organization it was typed in. It sits in
   // this hook's own state until the socket comes back, so neither dropping the
@@ -1617,6 +1725,16 @@ export function useChat(options: UseChatOptions = {}) {
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
   // without it is not asked to 403 on every reopened conversation.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
+  const { data: controlOrgs } = useOrganizationList();
+  const savedControls = useSavedChatControls(
+    can(Perm.approvalsDecide) &&
+      controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,
+  );
+  useEffect(() => {
+    modelProfileRef.current = savedControls.modelProfileId;
+    approvalModeRef.current = savedControls.approvalMode;
+  }, [savedControls.modelProfileId, savedControls.approvalMode]);
+
   const canDecide = can(Perm.approvalsDecide);
 
   // The other direction of `tool_approval_required`: that frame exists only for
@@ -2401,11 +2519,14 @@ export function useChat(options: UseChatOptions = {}) {
   // released its own queued message into whichever thread was opened next -
   // this effect runs before the one that clears the queue on a switch, and the
   // send it schedules cannot be called back (#1775).
+  //
+  // A refused message at the head holds the rest: the queue is the order they go
+  // in, and the person decides whether it goes again or not at all.
   useEffect(() => {
     if (interruptedFor !== null) return;
     if (!isConnected || isProcessing || !sessionReady) return;
     const next = messageQueueRef.current[0];
-    if (!next) return;
+    if (!next || next.refused !== undefined) return;
     const account = useAuthStore.getState().user?.id;
     const organization = useOrgStore.getState().activeOrgId;
     const conversation = conversationApi.getState().currentConversationId;
@@ -2420,9 +2541,9 @@ export function useChat(options: UseChatOptions = {}) {
         !sessionReadyRef.current
       )
         return;
-      messageQueueRef.current.shift();
-      setQueuedMessages([...messageQueueRef.current]);
-      doSend(next.content, next.fileIds, next.files, next.mentions);
+      setQueue(messageQueueRef.current.slice(1));
+      const bubbleId = doSend(next.content, next.fileIds, next.files, next.mentions);
+      unconfirmedRef.current = { message: next, bubbleId };
     }, 100);
     queuedSendTimer.current = timer;
     return () => {
@@ -2436,6 +2557,8 @@ export function useChat(options: UseChatOptions = {}) {
     interruptedFor,
     doSend,
     queuedMessages,
+    setQueue,
+    drainTick,
     tenantId,
     queueAccountId,
     activeConversationId,
@@ -2464,6 +2587,21 @@ export function useChat(options: UseChatOptions = {}) {
     interruptedForRef.current = null;
     setInterruptedFor(null);
   }, [finishedTurns, activeConversationId]);
+
+  const desktopTurnState = pendingQuestions?.length
+    ? "question"
+    : pendingApproval
+      ? "approval"
+      : isProcessing
+        ? "running"
+        : null;
+  useDesktopLiveTurn(activeConversationId, desktopTurnState, () => followingRef.current === null);
+  useDesktopRunControl(
+    activeConversationId,
+    desktopTurnState !== null,
+    () => followingRef.current !== null,
+    stopGeneration,
+  );
 
   // The live turn's cost, and only while it still belongs to the conversation on
   // screen. A value from the thread somebody just left is not a value about this one.
@@ -2529,6 +2667,7 @@ export function useChat(options: UseChatOptions = {}) {
     clearMessages,
     queuedMessages,
     cancelQueued,
+    retryQueued,
     sendQueuedNow,
     moveQueued,
     clearQueued,

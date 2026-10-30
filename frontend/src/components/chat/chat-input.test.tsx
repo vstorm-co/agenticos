@@ -547,6 +547,26 @@ describe("ChatInput dictation engines", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
+  it("starts recording once when a shortcut asks, and only on the server engine", () => {
+    const dictation = serverDictation();
+    const started = vi.fn();
+    const { rerender } = render(
+      <ChatInput onSend={vi.fn()} dictation={dictation} dictateNow onDictateStarted={started} />,
+    );
+    rerender(
+      <ChatInput onSend={vi.fn()} dictation={dictation} dictateNow onDictateStarted={started} />,
+    );
+    expect(dictation.actions.start).toHaveBeenCalledOnce();
+    expect(started).toHaveBeenCalledOnce();
+
+    const browser = serverDictation({ engine: "browser" });
+    const taken = vi.fn();
+    render(<ChatInput onSend={vi.fn()} dictation={browser} dictateNow onDictateStarted={taken} />);
+    expect(taken).toHaveBeenCalledOnce();
+    expect(browser.actions.start).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
   it("shows the microphone beside Send whichever engine dictates", async () => {
     const dictation = serverDictation();
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);

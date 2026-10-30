@@ -43,7 +43,13 @@ from app.agents.capabilities.browser_use import (
 )
 from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
+from app.agents.capabilities.computer_use import (
+    COMPUTER_USE_ID,
+    ComputerUseConfig,
+    validate_daemon_url,
+)
 from app.agents.capabilities.follow_ups import FollowUpsConfig
+from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.model_resolver import lacks_key
@@ -75,6 +81,7 @@ from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
+from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.skill import Skill
 from app.repositories import (
     agent_environment_repo,
@@ -148,6 +155,7 @@ from app.services.model_profile import (
 from app.services.notifications import NotificationService
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
+from app.services.sandbox_runtimes import DESKTOP_RUNTIME
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
@@ -184,6 +192,7 @@ DEFAULT_GRANTED_SCOPES = frozenset(
         "code:execute",
         "sandbox:execute",
         "agents:delegate",
+        "computer:use",
     }
 )
 
@@ -241,6 +250,16 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
         return []
 
     problems: list[str] = []
+    if config.backend == "local":
+        if config.connection_id is not None or config.runtime is not None:
+            problems.append(
+                "A local computer has no sandbox connection or container runtime. Clear both fields."
+            )
+        if config.session_scope != "conversation":
+            problems.append(
+                "Local computer access is personal to a conversation. Choose conversation scope."
+            )
+        return problems
     if config.backend == "state":
         if config.runtime is not None:
             problems.append(
@@ -254,26 +273,18 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             )
         return problems
 
-    connection = None
-    if config.connection_id is not None:
-        connection = await sandbox_connection_repo.get(
-            db, config.connection_id, organization_id=ctx.organization_id
+    connection = await _sandbox_connection(db, ctx, config)
+    if connection is None and config.connection_id is not None:
+        problems.append(
+            "The sandbox connection this agent names does not exist in this "
+            "organization. Pick one that does, or leave it unset to use the default."
         )
-        if connection is None:
-            problems.append(
-                "The sandbox connection this agent names does not exist in this "
-                "organization. Pick one that does, or leave it unset to use the default."
-            )
-    else:
-        # The deployment's own sandbox service, set up here when it runs one and
-        # nobody has opened the Sandboxes page yet - the same row a run would set up.
-        connection = await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
-        if connection is None:
-            problems.append(
-                "This organization has registered no sandbox connection, so an agent "
-                "cannot be given a container-backed workspace. Register one, or use "
-                "the 'state' workspace, which needs nothing."
-            )
+    elif connection is None:
+        problems.append(
+            "This organization has registered no sandbox connection, so an agent "
+            "cannot be given a container-backed workspace. Register one, or use "
+            "the 'state' workspace, which needs nothing."
+        )
 
     if connection is not None and connection.secret_id is None:
         problems.append(
@@ -281,6 +292,19 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
+
+
+async def _sandbox_connection(
+    db: AsyncSession, ctx: AuthContext, config: SandboxConfig
+) -> SandboxConnection | None:
+    """The connection a container-backed workspace would open on, if there is one."""
+    if config.connection_id is not None:
+        return await sandbox_connection_repo.get(
+            db, config.connection_id, organization_id=ctx.organization_id
+        )
+    # The deployment's own sandbox service, set up here when it runs one and
+    # nobody has opened the Sandboxes page yet - the same row a run would set up.
+    return await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
 
 
 def _coding_agent_problems(spec: AgentSpec) -> list[str]:
@@ -294,12 +318,79 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
         return []
     config = sandbox_config(spec)
-    if config is None or config.backend != "service" or not config.include_execute:
+    if config is None or config.backend not in {"service", "local"} or not config.include_execute:
         return [
             "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
             "capability on a sandbox connection with shell commands allowed."
         ]
     return []
+
+
+async def _computer_use_sandbox_problems(
+    db: AsyncSession, ctx: AuthContext, spec: AgentSpec
+) -> list[str]:
+    """A desktop in the sandbox, on an agent with no desktop sandbox to put it in.
+
+    The desktop's clicks and screenshots are commands run in the agent's
+    workspace, the coding agent's arrangement, so it needs a container-backed
+    one. The shell tool is not required: the desktop runs its commands itself.
+    A configuration that does not validate is left to the binding's own check,
+    which names the field.
+
+    And the container has to be the `desktop` runtime, read the way a run reads
+    it: the spec's, else the connection's default. A sandbox where neither names
+    one is refused too, rather than assumed to be on the host's default: the
+    shipped default is `workbench`, which has no display, and a host with an
+    allowlist of its own is not something publish can see. A connection this organization does not
+    have is `_sandbox_problems`'s to name.
+    """
+    desktops: list[str] = []
+    for binding in spec.capabilities:
+        if binding.id == COMPUTER_USE_ID and binding.enabled:
+            try:
+                desktops.append(ComputerUseConfig.model_validate(binding.config).desktop)
+            except ValidationError:
+                continue
+    if "sandbox" not in desktops:
+        return []
+    config = sandbox_config(spec)
+    if config is None or config.backend != "service":
+        return [
+            "Computer use's desktop runs in the agent's sandbox, so it needs the "
+            "Sandbox capability on a sandbox connection, on the 'desktop' runtime."
+        ]
+    connection = await _sandbox_connection(db, ctx, config)
+    if connection is None:
+        return []
+    if connection.kind == "daytona":
+        return [
+            f"Computer use's desktop needs the '{DESKTOP_RUNTIME}' runtime, and the Daytona "
+            f"connection '{connection.name}' runs no runtime of ours. Put the "
+            "sandbox on a sandbox service connection."
+        ]
+    runtime = config.runtime or connection.default_runtime
+    # On E2B the runtime is a template name, and E2B's own desktop template is
+    # called `desktop` too - with the same programs the sandbox desktop drives.
+    if runtime != DESKTOP_RUNTIME:
+        chosen = f"the '{runtime}' runtime" if runtime else "whichever runtime its host defaults to"
+        return [
+            f"Computer use's desktop needs the sandbox's '{DESKTOP_RUNTIME}' runtime, "
+            f"and this agent's sandbox would run on {chosen}. Set the Sandbox "
+            f"capability's runtime to '{DESKTOP_RUNTIME}'."
+        ]
+    return []
+
+
+def _inheriting(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> AgentSpec:
+    """A delegate's spec with the bindings its parent shares and it does not bind.
+
+    What the runtime runs it on (`agent_runner._with_shared`), so a dependency
+    between capabilities is checked against what the delegate will hold, not
+    only against what its own spec says.
+    """
+    own = {binding.id for binding in spec.capabilities}
+    inherited = [binding for binding in shared if binding.id not in own]
+    return spec.model_copy(update={"capabilities": [*spec.capabilities, *inherited]})
 
 
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
@@ -332,6 +423,21 @@ async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> li
             await check_address(config.hosted_url, kind="hosted")
     except ValueError as exc:
         return [f"The browser's {config.connection} address cannot be used: {exc}"]
+    return []
+
+
+def _computer_use_problems(config: BaseModel | None) -> list[str]:
+    """A daemon desktop this deployment's operator has not vetted, or none at all.
+
+    The same exact-match allowlist as the browser's `cdp_url`, against
+    `COMPUTER_DAEMON_ALLOWED_HOSTS`; the sandbox's desktop has no URL to check.
+    """
+    if not isinstance(config, ComputerUseConfig):
+        return []
+    try:
+        validate_daemon_url(config)
+    except ValueError as exc:
+        return [f"Computer use's desktop cannot be used: {exc}."]
     return []
 
 
@@ -1120,6 +1226,9 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        published_capabilities = await agent_repo.published_capabilities(
+            self.db, version_ids=version_ids
+        )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -1161,6 +1270,9 @@ class AgentRegistryService:
                 context_window_tokens=(
                     windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
+                published_capabilities=published_capabilities.get(agent.current_version_id, [])
+                if agent.current_version_id
+                else [],
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
@@ -1730,6 +1842,7 @@ class AgentRegistryService:
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.add(_coding_agent_problems(spec))
+        problems.add(await _computer_use_sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
         problems.merge(await self._sign_in_problems(ctx, spec))
 
@@ -1774,6 +1887,7 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
+            problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
@@ -2466,13 +2580,33 @@ class AgentRegistryService:
 
         problems = _SpecProblems()
         names: list[str] = []
+        # What the runtime lends each specialist, chosen the way it chooses them.
+        share = set(config.share_with_delegates) - {DELEGATION_CAPABILITY_ID}
+        shared = [
+            binding for binding in spec.capabilities if binding.enabled and binding.id in share
+        ]
         for specialist in config.inline:
             names.append(specialist.name)
-            problems.merge(await self._specialist_problems(ctx, specialist))
+            problems.merge(await self._specialist_problems(ctx, specialist, shared=shared))
         problems.add(_share_problems(spec, config))
 
         pins = await self._resolve_pins(ctx, spec.subagents)
         problems.add(pins.problems)
+        # A pinned version passed this check at its own publish, on its own
+        # bindings; what it is lent here can still leave it a desktop and no
+        # desktop sandbox, and the fix is in this agent's share list.
+        for delegate in pins.delegates:
+            if await _computer_use_sandbox_problems(
+                self.db, ctx, _inheriting(delegate.spec, shared)
+            ):
+                problems.add(
+                    [
+                        f"Delegate '{delegate.spec.name}' would be lent computer use's "
+                        "desktop in the sandbox but no desktop sandbox to run it in. "
+                        "Share a 'sandbox' on the 'desktop' runtime with delegates "
+                        "too, or stop sharing 'computer_use'."
+                    ]
+                )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -2521,7 +2655,7 @@ class AgentRegistryService:
         return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
-        self, ctx: AuthContext, specialist: SpecialistSpec
+        self, ctx: AuthContext, specialist: SpecialistSpec, *, shared: list[CapabilityBindingSpec]
     ) -> _SpecProblems:
         """Everything wrong with a specialist defined inside this agent.
 
@@ -2535,7 +2669,9 @@ class AgentRegistryService:
         thinks of it as an agent.
 
         Every problem carries the specialist's name. A Builder form has one input
-        per specialist and cannot point at the right one otherwise.
+        per specialist and cannot point at the right one otherwise. `shared` is
+        the parent's bindings the specialist inherits, which is where a desktop
+        in the sandbox finds one when the specialist binds none itself.
         """
         problems = _SpecProblems()
         for binding in specialist.capabilities:
@@ -2550,7 +2686,11 @@ class AgentRegistryService:
             problems.add(await self.model_profile_problems(ctx, specialist.model_profile_id))
         # Its instructions are filled the way the parent's are, so a typo in a
         # variable is refused here too rather than sent to the model as braces.
-        problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))
+        as_agent = specialist.to_agent_spec(fallback_model_profile_id=None)
+        problems.merge(_variable_problems(as_agent))
+        problems.add(
+            await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
+        )
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

@@ -56,7 +56,6 @@ def _row(
     row.name = name
     row.description = f"What {name} is for."
     row.category = category
-    row.enabled = True
     row.visibility = visibility
     # Text, not a mock attribute: the listing reads the opening of the body.
     row.content = f"# {name}\n\nWhen to use it."

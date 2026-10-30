@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ vi.mock("@/components/dashboard/agent-face", () => ({
   AgentFace: ({ agentId }: { agentId: string }) => <span>{`face ${agentId}`}</span>,
 }));
 vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
+vi.mock("@/lib/mobile/haptics", () => ({ haptic: vi.fn() }));
 
 function approval(overrides: Partial<ToolApproval> = {}): ToolApproval {
   return {
@@ -81,6 +82,28 @@ describe("PendingApproval - a request a person reads", () => {
 
     expect(screen.getByText("researcher")).toBeInTheDocument();
     expect(screen.getByText("An agent")).toBeInTheDocument();
+  });
+});
+
+describe("PendingApproval - decided with a swipe on a phone", () => {
+  it("approves on a swipe right and rejects on a swipe left", () => {
+    const onDecide = vi.fn();
+    inIntl(
+      <PendingApproval
+        approval={approval()}
+        deciding={false}
+        onDecide={onDecide}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    const row = screen.getByText("MEMORY.md").closest("[class*=touch-pan-y]")!;
+    for (const to of [200, -200]) {
+      fireEvent.pointerDown(row, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(row, { pointerId: 1, pointerType: "touch", clientX: to, clientY: 0 });
+      fireEvent.pointerUp(row, { pointerId: 1, pointerType: "touch" });
+    }
+
+    expect(onDecide.mock.calls).toEqual([[true], [false]]);
   });
 });
 

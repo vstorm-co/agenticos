@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { Pager, useChosenFirst, useListControls } from "./list-controls";
+import { Dialog, DialogContent, DialogTitle } from "./dialog";
+import { Sheet, SheetContent, SheetTitle } from "./sheet";
+import { useState } from "react";
+import { Pager, SearchInput, useChosenFirst, useListControls } from "./list-controls";
 
 const items = Array.from({ length: 120 }, (_, i) => `item ${i}`);
 const matches = (item: string, query: string) => item.includes(query);
@@ -165,3 +168,71 @@ describe("useChosenFirst", () => {
     expect(result.current.map((row) => row.id)).toEqual(["c", "a", "b", "d"]);
   });
 });
+
+describe("SearchInput", () => {
+  it("clears the query and keeps the input ready for another search", async () => {
+    const change = vi.fn();
+    render(<SearchInput value="invoice" onChange={change} placeholder="Find files…" />);
+    await userEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(change).toHaveBeenCalledWith("");
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("uses Escape to clear before dismissing the surrounding panel", async () => {
+    const change = vi.fn();
+    const outer = vi.fn();
+    const { rerender } = render(
+      <div onKeyDown={outer}>
+        <SearchInput value="invoice" onChange={change} placeholder="Find files…" />
+      </div>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("textbox"));
+    await user.keyboard("{Escape}");
+    expect(change).toHaveBeenCalledWith("");
+    expect(outer).not.toHaveBeenCalled();
+    rerender(
+      <div onKeyDown={outer}>
+        <SearchInput value="" onChange={change} placeholder="Find files…" />
+      </div>,
+    );
+    await user.keyboard("{Escape}");
+    expect(outer).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+  });
+});
+
+function SearchOverlay({ kind, close }: { kind: "sheet" | "dialog"; close: () => void }) {
+  const [query, setQuery] = useState("invoice");
+  const field = <SearchInput value={query} onChange={setQuery} placeholder="Find files…" />;
+  return kind === "sheet" ? (
+    <Sheet open onOpenChange={close}>
+      <SheetContent>
+        <SheetTitle>Files</SheetTitle>
+        {field}
+      </SheetContent>
+    </Sheet>
+  ) : (
+    <Dialog open onOpenChange={close}>
+      <DialogContent aria-describedby={undefined}>
+        <DialogTitle>Files</DialogTitle>
+        {field}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+it.each(["sheet", "dialog"] as const)(
+  "clears on the first Escape inside an actual %s and dismisses on the second",
+  async (kind) => {
+    const close = vi.fn();
+    render(<SearchOverlay kind={kind} close={close} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("textbox"));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(close).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(close).toHaveBeenCalledWith(false);
+  },
+);

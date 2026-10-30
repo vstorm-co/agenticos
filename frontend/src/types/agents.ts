@@ -514,6 +514,8 @@ export interface Agent {
    * profile has been deleted. Listing only.
    */
   published_model?: PublishedModel | null;
+  /** Enabled bindings from the frozen version; absent on older servers. */
+  published_capabilities?: string[] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   created_at?: string;
@@ -791,6 +793,8 @@ export interface JsonSchemaProperty {
    * side outlives the value it was written for without anyone noticing.
    */
   "x-enum-labels"?: Record<string, string>;
+  /** Help for the selected option, kept out of the menu label. */
+  "x-enum-descriptions"?: Record<string, string>;
   /**
    * Whether this string is paragraphs rather than a value.
    *
@@ -831,7 +835,7 @@ export interface JsonSchemaProperty {
    * `model-profile` is one of the organization's model profiles, chosen from
    * the same picker the Builder uses for the agent's own model.
    */
-  "x-widget"?: "model-profile";
+  "x-widget"?: "model-profile" | "browser-connection" | "computer-environment";
   /**
    * The choices an enum offers for each value of another field of the form -
    * the coding agent's models, which depend on its harness. A choice the other
@@ -856,6 +860,8 @@ export interface JsonSchemaProperty {
     format?: string;
     items?: { type?: string };
     "x-enum-labels"?: Record<string, string>;
+    /** Help for the selected option, kept out of the menu label. */
+    "x-enum-descriptions"?: Record<string, string>;
   }[];
 }
 

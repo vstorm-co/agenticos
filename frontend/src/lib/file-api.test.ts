@@ -9,6 +9,9 @@ import {
 } from "./file-api";
 import { ApiError } from "./api-client";
 
+const kept = vi.hoisted(() => ({ file: vi.fn(async (): Promise<Blob | null> => null) }));
+vi.mock("./offline/device-cache", () => ({ keptFile: kept.file }));
+
 /**
  * Chat attachments, which go through this app's own route rather than to the
  * platform: the browser has a session cookie and no bearer token, and the file
@@ -113,6 +116,20 @@ describe("attachmentAccess", () => {
     serve({ blob: () => Promise.resolve(blob) });
 
     expect(await attachmentAccess(file).readBytes()).toBe(blob);
+  });
+
+  it("opens the copy kept on the device when there is no network", async () => {
+    const offline = new TypeError("Failed to fetch");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(offline));
+    const blob = new Blob(["kept"], { type: "text/plain" });
+    kept.file.mockResolvedValue(blob);
+
+    expect(await attachmentAccess(file).readText()).toEqual({ content: "kept", truncated: false });
+    expect(await attachmentAccess(file).readBytes()).toBe(blob);
+    expect(kept.file).toHaveBeenCalledWith("f-1");
+
+    kept.file.mockResolvedValue(null);
+    await expect(attachmentAccess(file).readText()).rejects.toBe(offline);
   });
 
   it("says a file could not be fetched rather than rendering empty", async () => {

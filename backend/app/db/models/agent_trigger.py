@@ -184,6 +184,12 @@ class AgentTrigger(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default=text("false")
     )
 
+    # A folder on the creator's own computer the fire works in, through their
+    # desktop app (#2305): `{"folder", "mode"}`, or null for the agent's own
+    # sandbox. Only with `runs_as_creator` - a fire nobody is behind reaches
+    # nobody's computer - and cleared with it.
+    local_target: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
     # A human label for this trigger, shown where it is listed away from a form.
     # Optional: null falls back to the agent's name, so an existing row and a
     # "just schedule it" without a title both still read sensibly in every list.

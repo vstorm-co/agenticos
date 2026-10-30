@@ -88,8 +88,8 @@ describe("AgentAvatar", () => {
     );
     const { container: other } = render(<AgentAvatar agentId="a1" slug="support" />);
 
-    expect(architect.querySelector('svg circle[fill="#2557d6"]')).not.toBeNull();
-    expect(architect.querySelector("span")).toHaveClass("rounded-full");
+    expect(architect.querySelector('svg rect[fill="#2557d6"]')).not.toBeNull();
+    expect(architect.querySelector("span")).toHaveClass("rounded-[30%]");
     expect(face(other)).not.toBeNull();
   });
 

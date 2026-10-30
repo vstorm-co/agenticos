@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
+import type { LocalTarget } from "@/lib/desktop/commands";
 import type { Project } from "@/types/projects";
 import { CreateProjectDialog } from "./create-project-dialog";
 import { ProjectApps } from "./project-apps";
@@ -14,6 +15,38 @@ import { ProjectChats } from "./project-chats";
 import { ProjectFiles } from "./project-files";
 import { ProjectPickerDialog } from "./project-picker-dialog";
 import { ProjectSettings } from "./project-settings";
+
+const nativeProject = vi.hoisted(() => ({
+  enabled: false,
+  target: null as LocalTarget | null,
+  bind: vi.fn(),
+}));
+vi.mock("@/hooks/use-shell", () => ({
+  useShell: () =>
+    nativeProject.enabled
+      ? { platform: "macos", window: "main", version: "0.2.0", vibrancy: false }
+      : null,
+}));
+vi.mock("@/hooks/use-project-folder", () => ({
+  useProjectFolder: () => ({
+    available: nativeProject.enabled,
+    target: nativeProject.target,
+    bind: nativeProject.bind,
+  }),
+}));
+vi.mock("./project-folder-choice", () => ({
+  ProjectFolderChoice: ({ onChange }: { onChange: (target: LocalTarget | null) => void }) => (
+    <>
+      <button onClick={() => onChange({ folder: "/approved", mode: "read_only" })}>
+        Approve folder
+      </button>
+      <button onClick={() => onChange(null)}>Disconnect folder</button>
+    </>
+  ),
+}));
+vi.mock("./project-folder-explorer", () => ({
+  ProjectFolderExplorer: ({ root }: { root: string }) => <p>Local root: {root}</p>,
+}));
 
 const push = vi.fn();
 vi.mock("@/lib/locale-navigation", () => ({ useRouter: () => ({ push }) }));
@@ -113,6 +146,8 @@ function aProject(overrides: Partial<Project> = {}): Project {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  nativeProject.enabled = false;
+  nativeProject.target = null;
   projects.list.mockReturnValue([]);
   projects.loading = false;
   files.listing.mockReturnValue({
@@ -431,6 +466,27 @@ describe("ProjectChats", () => {
 });
 
 describe("ProjectFiles", () => {
+  it("keeps folder creation available through the phone's More menu", async () => {
+    files.addFolder.mutateAsync.mockResolvedValue({ path: "phone" });
+    wrap(<ProjectFiles project={aProject()} />);
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "New folder" }));
+    await userEvent.type(screen.getByLabelText("Folder name"), "phone");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(files.addFolder.mutateAsync).toHaveBeenCalledWith("phone");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("opens the folder picker from the phone's More menu", async () => {
+    const { container } = wrap(<ProjectFiles project={aProject()} />);
+    const picker = container.querySelector<HTMLInputElement>("input[webkitdirectory]");
+    if (!picker) throw new Error("Expected the folder picker");
+    const click = vi.spyOn(picker, "click");
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Upload folder" }));
+    expect(click).toHaveBeenCalledOnce();
+  });
+
   it("uploads picked files and folders, and clears the picker for the next pick", async () => {
     const { container } = wrap(<ProjectFiles project={aProject()} />);
     const [filesInput, folderInput] =
@@ -440,6 +496,8 @@ describe("ProjectFiles", () => {
     expect(files.upload.mutate).toHaveBeenCalledWith({ files: [file], folder: "" });
     await userEvent.upload(folderInput as HTMLInputElement, file);
     expect(files.upload.mutate).toHaveBeenCalledTimes(2);
+    fireEvent.drop(screen.getByRole("tree"), { dataTransfer: { types: ["Files"], files: [file] } });
+    expect(files.upload.mutate).toHaveBeenCalledTimes(3);
 
     await userEvent.click(screen.getByRole("button", { name: "Upload files" }));
     await userEvent.click(screen.getByRole("button", { name: "Upload folder" }));
@@ -656,6 +714,45 @@ describe("ProjectPickerDialog", () => {
   });
 });
 
+describe("native project folders", () => {
+  it("binds an approved folder only after creating the project", async () => {
+    nativeProject.enabled = true;
+    projects.create.mutateAsync.mockResolvedValue(aProject());
+    const created = vi.fn();
+    wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={created} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Local project");
+    await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+    await userEvent.click(screen.getByRole("option", { name: "Computer · your files" }));
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
+    expect(nativeProject.bind).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(created).toHaveBeenCalled());
+    expect(nativeProject.bind).toHaveBeenCalledWith("p-1", {
+      folder: "/approved",
+      mode: "read_only",
+    });
+  });
+  it("switches between approved local files and shared files", async () => {
+    nativeProject.enabled = true;
+    nativeProject.target = { folder: "/approved", mode: "read_only" };
+    wrap(<ProjectFiles project={aProject()} />);
+    expect(screen.getByText("Local root: /approved")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Shared project files" }));
+    expect(screen.queryByText("Local root: /approved")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "This computer" }));
+    expect(screen.getByText("Local root: /approved")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Folder settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Disconnect folder" }));
+    expect(nativeProject.bind).toHaveBeenLastCalledWith("p-1", null);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Folder settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
+    expect(nativeProject.bind).toHaveBeenLastCalledWith("p-1", nativeProject.target);
+    expect(screen.getByText("Local root: /approved")).toBeInTheDocument();
+  });
+});
+
 it("offers the project editor and wires a rename to the project's mutation", async () => {
   files.move.mutateAsync.mockResolvedValue({ path: "renamed.md" });
   wrap(<ProjectFiles project={aProject()} />);
@@ -707,4 +804,57 @@ it("keeps files readable and explains why changes pause during a workspace trans
   );
   expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "brief.md" })).toBeInTheDocument();
+});
+
+it("keeps shared files clear of native setup until Computer is selected", async () => {
+  nativeProject.enabled = true;
+  nativeProject.target = null;
+  wrap(<ProjectFiles project={aProject()} />);
+  expect(screen.getByRole("button", { name: "Shared project files" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.queryByRole("button", { name: "Approve folder" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Upload files" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "This computer" }));
+  expect(screen.getByRole("button", { name: "Approve folder" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
+  expect(screen.getByText(/To share a file, choose Shared project files/)).toBeVisible();
+  expect(files.upload.mutate).not.toHaveBeenCalled();
+});
+
+it("binds a folder selected directly from the Computer files view", async () => {
+  nativeProject.enabled = true;
+  nativeProject.target = null;
+  wrap(<ProjectFiles project={aProject()} />);
+  await userEvent.click(screen.getByRole("button", { name: "This computer" }));
+  await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
+  expect(nativeProject.bind).toHaveBeenCalledWith("p-1", {
+    folder: "/approved",
+    mode: "read_only",
+  });
+});
+
+it("restores a Computer choice that arrives after local preference hydration", () => {
+  nativeProject.enabled = true;
+  nativeProject.target = null;
+  const client = new QueryClient();
+  const node = () => (
+    <QueryClientProvider client={client}>
+      <ProjectFiles project={aProject()} />
+    </QueryClientProvider>
+  );
+  const view = render(node());
+  expect(screen.getByRole("button", { name: "Shared project files" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  nativeProject.target = { folder: "/approved", mode: "read_only" };
+  view.rerender(node());
+  expect(screen.getByRole("button", { name: "This computer" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(screen.getByText("Local root: /approved")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Approve folder" })).not.toBeInTheDocument();
 });

@@ -725,6 +725,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.projectsView,
   },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
 
   // Other vendors' agents, reached over A2A (#2092). The list is what the page
   // is for; registering is `agents:edit`, which the button carries.

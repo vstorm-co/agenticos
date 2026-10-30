@@ -1,16 +1,28 @@
 "use client";
 
-import { ArrowUpRight, Globe, Maximize2 } from "lucide-react";
-import { useTranslations } from "next-intl";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 
+import { Maximize2, Monitor } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
-import { isRunning, type Browse } from "@/lib/browse";
+import {
+  DESKTOP_TOOLS,
+  recordedBrowserPage,
+  turnBrowseVisits,
+  isRunning,
+  latestBrowserTabs,
+  withLivePreview,
+  type Browse,
+} from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
 import { BrowserWindow, hostOf } from "./browser-window";
+import { BrowserVisit } from "./browser-visit";
 
 /** The browses running in this chat, and where a comment on one of their pages goes. */
 const LiveBrowses = createContext<{
@@ -18,41 +30,36 @@ const LiveBrowses = createContext<{
   onComment?: (comment: PageComment) => void;
 }>({ browses: [] });
 
+function isDesktop(call: ToolCall): boolean {
+  return DESKTOP_TOOLS.has(call.name);
+}
+
 /** Hands the chat's live browses to the turns that made them. */
 export const LiveBrowsesProvider = LiveBrowses.Provider;
 
-/**
- * A turn's browses, drawn where the turn made them.
- *
- * Each browse this chat's socket carries is a browser of its own under the
- * message - the page live, at the width of the conversation, with the way to
- * take over - rather than a line that opened a column beside the chat. Several
- * at once sit side by side, two to a row where there is room, so a turn that
- * browses three sites shows three windows rather than one that swaps. A browse
- * from an earlier visit is a record: where it went, and the way there.
- */
+/** Browser transcript links and computer previews associated with this turn. */
 export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
   const { browses: live, onComment } = useContext(LiveBrowses);
-  if (calls.length === 0) return null;
-  const windows = calls.flatMap((call) => {
-    const browse = live.find((entry) => entry.callId === call.id);
-    return browse ? [browse] : [];
-  });
-  const recorded = calls.filter((call) => !live.some((entry) => entry.callId === call.id));
+  const visits = turnBrowseVisits(calls, live);
+  if (visits.length === 0) return null;
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2 py-1">
-      {windows.length > 0 && (
-        // One browse is a window at a reading width rather than the whole column,
-        // where it towered over the answer; several share the column's width.
-        <div className={cn("grid gap-3", windows.length > 1 ? "md:grid-cols-2" : "max-w-3xl")}>
-          {windows.map((browse) => (
-            <InlineBrowser key={browse.callId} browse={browse} onComment={onComment} />
-          ))}
-        </div>
+    <div
+      className={cn(
+        "grid w-full min-w-0 gap-2 py-1",
+        visits.length > 1 ? "md:grid-cols-2" : "max-w-3xl",
       )}
-      {recorded.map((call) => (
-        <RecordedBrowse key={call.id} call={call} />
-      ))}
+    >
+      {visits.map(({ id, call, browse }) =>
+        browse ? (
+          browse.navigable || browse.nativeId ? (
+            <BrowserLink key={id} browse={browse} />
+          ) : (
+            <InlineBrowser key={id} browse={browse} onComment={onComment} />
+          )
+        ) : (
+          <RecordedBrowse key={id} call={call} />
+        ),
+      )}
     </div>
   );
 }
@@ -60,29 +67,11 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
 /** A browse from an earlier turn: where it went, and the way there. */
 function RecordedBrowse({ call }: { call: ToolCall }) {
   const t = useTranslations("chat");
-  // `browse_web` names where it started; `browser_open`, where it opened.
-  const opened = call.args.start_url ?? call.args.url;
-  const start = typeof opened === "string" ? opened : null;
-  const host = hostOf(start);
+  if (!isDesktop(call)) return <BrowserVisit {...recordedBrowserPage(call)} />;
   return (
-    <div className="bg-foreground/[0.04] flex w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2">
-      <span className="ring-foreground/10 bg-background flex h-10 w-14 shrink-0 items-center justify-center rounded-lg ring-1">
-        <Globe className="text-muted-foreground size-4" aria-hidden />
-      </span>
-      <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-        {host ? t("browserLineBrowsed", { host }) : t("browserLineBrowsedWeb")}
-      </span>
-      {start && host && (
-        <a
-          href={start}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-        >
-          {t("browserVisitSite")}
-          <ArrowUpRight className="size-3.5" aria-hidden />
-        </a>
-      )}
+    <div className="text-muted-foreground flex items-center gap-2 py-1 text-xs">
+      <Monitor className="size-4" aria-hidden />
+      {t("computerLineUsed")}
     </div>
   );
 }
@@ -108,12 +97,12 @@ function InlineBrowser({
   const live = useLiveBrowse(
     streamed.runId ?? "",
     streamed.callId,
-    running && Boolean(streamed.runId) && !expanded,
+    Boolean(streamed.runId) && !expanded,
   );
   // The live view's copy while the browse runs: it knows who holds the browser
   // and whether this person may, which the conversation's stream does not say.
   const mine = running && live.browse?.callId === streamed.callId;
-  const browse = mine && live.browse ? live.browse : streamed;
+  const browse = withLivePreview(streamed, live.browse);
   return (
     <div className="border-border bg-background aspect-[16/11] w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm">
       {expanded ? (
@@ -123,7 +112,7 @@ function InlineBrowser({
           className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
         >
           <Maximize2 className="size-5" aria-hidden />
-          {t("browserShownFullScreen", { host: hostOf(browse.url) ?? t("browserHeading") })}
+          {t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
         </button>
       ) : (
         <BrowserWindow
@@ -134,6 +123,7 @@ function InlineBrowser({
               ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
               : null
           }
+          maximizeLabel={t("browserOpenPanel")}
           onMaximize={() => expand(streamed.callId)}
           newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
           onComment={onComment}
@@ -141,4 +131,30 @@ function InlineBrowser({
       )}
     </div>
   );
+}
+
+/** A compact transcript entry that reopens the browser side panel. */
+function BrowserLink({ browse }: { browse: Browse }) {
+  const open = useBrowserPanelStore((state) => state.open);
+  const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
+  return <BrowserVisit url={page.url} title={browse.title} onOpen={() => open(browse.callId)} />;
+}
+
+/** Open each running browser session once, without overriding a reader's selection or closure. */
+export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
+  const newest = latestBrowserTabs(browses).at(-1);
+  const opened = useRef(new Set<string>());
+  const openCallId = useBrowserPanelStore((state) => state.openCallId);
+  const open = useBrowserPanelStore((state) => state.open);
+  const shell = useShell();
+  const callId = newest?.callId;
+  const session = newest?.runId ?? callId;
+  const running = newest ? isRunning(newest) : false;
+  const supported = !newest?.nativeId || (isDesktopShell(shell) && shell.window === "main");
+  useEffect(() => {
+    if (!callId || !session || !running || !supported || opened.current.has(session)) return;
+    opened.current.add(session);
+    if (openCallId === null) open(callId);
+  }, [callId, session, running, supported, openCallId, open]);
+  return null;
 }

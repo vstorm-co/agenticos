@@ -5,6 +5,12 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useWorkOnStore } from "@/stores/work-on-store";
+const localInvoke = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/desktop/shell", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: localInvoke,
+}));
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -72,7 +78,7 @@ describe("the workspace panel", () => {
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
 
-  it("lists what the agent is keeping as tiles, with what each file weighs", async () => {
+  it("lists what the agent is keeping as compact rows, with what each file weighs", async () => {
     draw(
       <WorkspaceFiles
         buttonSlot={document.body}
@@ -91,7 +97,7 @@ describe("the workspace panel", () => {
     expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
-  it("draws each file's first lines on its tile, as All files does", async () => {
+  it("keeps excerpts out of the narrow listing while retaining the file action", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(
       workspace({
         items: [
@@ -117,7 +123,10 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Open report.csv" })).toBeVisible(),
+    );
+    expect(screen.queryByText("month,total")).toBeNull();
   });
 
   it("says whose files these are", async () => {
@@ -806,9 +815,38 @@ describe("the workspace panel", () => {
         />,
       );
       await openPanel();
-      await userEvent.click(screen.getByText("invoice.pdf"));
+      await userEvent.click(screen.getByRole("button", { name: "Open invoice.pdf" }));
 
       expect(useFilePreviewStore.getState().openId).toBe(attachment().id);
     });
   });
+});
+
+it("lists the granted desktop folder rather than the server workspace", async () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  useWorkOnStore.getState().set("c1", { folder: "/approved", mode: "read_only" });
+  localInvoke.mockResolvedValue([]);
+  try {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+    await waitFor(() =>
+      expect(localInvoke).toHaveBeenCalledWith("local_files", { root: "/approved" }),
+    );
+    expect(apiClient.get).not.toHaveBeenCalled();
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
 });

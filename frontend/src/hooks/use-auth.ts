@@ -12,6 +12,9 @@ import type { DirectoryLoginRequest, User, LoginRequest, RegisterRequest } from 
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
 import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
+import { isNetworkFailure, offlineAvailable } from "@/lib/offline/device-cache";
+
+import { clearNativeAccount } from "@/lib/desktop/account-cleanup";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
@@ -188,6 +191,27 @@ export function useReauthenticate(): () => Promise<void> {
   }, [queryClient, setUser]);
 }
 
+/** A request failure that does not establish whether the session is valid. */
+export function sessionUnavailable(error: unknown): boolean {
+  return (
+    isNetworkFailure(error) ||
+    (error instanceof ApiError && (error.status === 429 || error.status >= 500))
+  );
+}
+
+/**
+ * Whether a temporary session-check failure leaves the person signed in as they were.
+ *
+ * In the apps it does: they keep the recent conversations on the device to read
+ * without a network (#2097), and a phone opened on a train is not a sign-out.
+ * The account is the one the store kept; network/server failures and rate limits
+ * keep it. The check runs again on reconnect or focus; a token refusal signs out.
+ * A browser tab keeps no copy, so it is sent to sign in as before.
+ */
+export function stayOffline(error: unknown): boolean {
+  return sessionUnavailable(error) && offlineAvailable() && useAuthStore.getState().user !== null;
+}
+
 function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
@@ -196,7 +220,13 @@ function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
     let answer: SessionAnswer | null;
     try {
       answer = await readSession();
-    } catch {
+    } catch (error) {
+      if (epoch !== identityEpoch) return;
+      if (stayOffline(error)) {
+        useAuthStore.getState().setLoading(false);
+        authCheckPromise = null;
+        return;
+      }
       answer = null;
     }
     if (epoch !== identityEpoch) return;
@@ -226,6 +256,15 @@ export function useAuth() {
     const adopt = (u: User | null) => adoptUser(queryClient, setUser, u);
     void runAuthCheck(adopt);
     ensureTokenRefresh(adopt);
+    const retry = () => {
+      if (!authChecked) void runAuthCheck(adopt);
+    };
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    return () => {
+      window.removeEventListener("online", retry);
+      window.removeEventListener("focus", retry);
+    };
   }, [setUser, queryClient]);
 
   // Both sign-in forms end the same way - a user and a token in the answer - so
@@ -317,7 +356,14 @@ export function useAuth() {
       queryClient.clear();
       resetSessionState();
       logout();
-      toast.success(t("loggedOut"));
+      let cleanupFailed = false;
+      try {
+        await clearNativeAccount();
+      } catch {
+        cleanupFailed = true;
+        toast.error(t("nativeLogoutFailed"));
+      }
+      if (!cleanupFailed) toast.success(t("loggedOut"));
       router.push(ROUTES.LOGIN);
     }
   }, [logout, router, queryClient, t]);
