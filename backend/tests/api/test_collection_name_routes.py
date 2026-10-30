@@ -147,11 +147,12 @@ class TestDroppingACollection:
         dependency it once needed.
         """
         held = _held_by(_ORGANIZATION, "handbook")
-        # [held] resolves the writable KB; [] is the re-check after its row is gone,
-        # which is what lets the durable drop be dispatched.
+        # Authorization, sibling detection and source selection all read before
+        # the row is deleted, so each sees the same sole holder.
         monkeypatch.setattr(
-            knowledge_base_repo, "list_by_collection_name", AsyncMock(side_effect=[[held], []])
+            knowledge_base_repo, "list_by_collection_name", AsyncMock(return_value=[held])
         )
+        monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
         deleted = AsyncMock()
         monkeypatch.setattr(knowledge_base_repo, "delete", deleted)
         monkeypatch.setattr(knowledge_base_repo, "lock", AsyncMock())
