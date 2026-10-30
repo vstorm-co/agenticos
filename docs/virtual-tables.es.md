@@ -1,5 +1,5 @@
 ---
-source_sha: "2251aaa4f1e1"
+source_sha: "1b4f77856ac0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -733,8 +733,3 @@ editor en `record-cell-editor.tsx`, una opción en los diálogos de esquema y de
 tabla, y su etiqueta en los tres catálogos de mensajes. Las pruebas van en
 `backend/tests/test_virtual_table_types.py` para el validador, y en una prueba de
 integración que escribe, filtra y ordena un registro del tipo nuevo.
-
-## Aún no construido { #not-built-yet }
-
-- Reanudar desde la consola un run que se detuvo como **Needs attention**. Se puede
-  cancelar e iniciar un run nuevo.

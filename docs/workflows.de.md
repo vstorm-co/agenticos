@@ -1,5 +1,5 @@
 ---
-source_sha: "f96ab37e96d7"
+source_sha: "49a56d73ddfd"
 ---
 
 # Workflows { #workflows }
@@ -328,7 +328,7 @@ als JMESPath-Ausdruck gespeichert, den der Schritt auswertet. **Write it as an
 expression** bearbeitet sie als diesen, und einer, den die Zeilen nicht zeigen können,
 bleibt ein Ausdruck.
 
-Wird eine **Switch**-Regel, eine Klassifikator-Kategorie, ein Fehlerzweig oder eine
+Wird eine **Switch**-Regel, eine Klassifikator-Kategorie, ein Fehlerzweig, ein **Split**-Zweig oder eine
 Genehmigungsauswahl umbenannt, nehmen die Verbindungen, Bindungen und das schnelle Log, die
 den alten Namen nutzten, den neuen mit, außer wenn Einträge umsortiert, eingefügt oder
 gelöscht werden oder sich zwei Namen gleichzeitig ändern.
@@ -566,6 +566,70 @@ Element den Körper durchlaufen hat. Die Schrittauswahl und die Binding-Quellen 
 in dem Sie sind, und ein Schritt im Körper darf alles lesen, was vor der Schleife
 lief. Was die Schleife tut, steht in der
 [Knoten-Referenz](reference/workflow-nodes.md#loops).
+
+### Parallele Zweige { #parallel-branches }
+
+Jeder Schritt kann einen Ausgangsport an mehrere Schritte schicken, und diese laufen
+gleichzeitig. Der Schritt **Split** tut dasselbe mit benannten Zweigen und nimmt
+alle; er hat keine Bedingung und kann keine Fehler weiterleiten. Welcher Zweig
+zuerst endet, ist nicht festgelegt, nichts darf sich also auf die Reihenfolge
+verlassen. Zeichnen Sie die Beine und führen Sie sie dort zusammen, wo ein späterer
+Schritt braucht, was sie getan haben.
+
+Ein Schritt mit mehreren eingehenden Verbindungen ist ein Join und braucht keinen
+**Merge**. Er läuft, sobald jeder Schritt, der zu ihm führt, abgeschlossen ist,
+wenn mindestens eine seiner Verbindungen aktiv ist: Ein Bein, das ein If nicht
+genommen hat, hält ihn nicht auf. Er wird übersprungen, wenn keine Verbindung aktiv
+ist und wenn ein Schritt, der zu ihm führt, ohne Fehlerpfad fehlgeschlagen ist.
+Seine Bindings dürfen nur Schritte lesen, die sicher vorher gelaufen sind; ein Join
+darf also jedes Bein einer parallelen Gruppe lesen, aber nicht den Zweig eines If,
+der vielleicht nicht lief.
+
+Ein **Merge** hat die Einstellung **Wait for**. **The branch that ran** gibt die
+Ausgabe des einen Zweigs weiter, der ihn erreicht hat, und das Veröffentlichen lehnt
+ihn ab, wenn zwei seiner Eingänge zusammen laufen können. **All branches** wartet
+auf jeden Eingang und gibt jeden unter seinem Namen als `branches` weiter, spätere
+Schritte lesen also `branches.<Name>`; jede Verbindung hat einen **Branch name**.
+
+Das Veröffentlichen lehnt es ab, wenn ein Eingang vielleicht nicht läuft - mit
+seinem Namen - oder wenn nur einer je laufen kann. Eine zweite Verbindung an einen
+Merge wählt die Einstellung, die der Graph braucht, und das Umbenennen eines
+Zweignamens zieht die Schritte nach, die ihn lesen, in einem Rückgängig. Die Details
+stehen in der [Knotenreferenz](reference/workflow-nodes.md#logic-if-and-logic-merge).
+
+Das Veröffentlichen lehnt außerdem einen Graphen mit zwei **Output**-Schritten oder
+zwei **Respond to webhook**-Schritten ab, die in einem Run beide laufen können, und
+einen **Error handler**, den zwei Schritte speisen, die im selben Run fehlschlagen
+können. Geben Sie jedem Bein einen eigenen.
+
+Ein Zweig, der ohne Fehlerpfad fehlschlägt, lässt den Run fehlschlagen. Die Schritte
+neben ihm starten nichts mehr, und was sie in Arbeit hatten, wird geschlossen:
+offene Freigaben, Timer und die Agent-Runs, auf die ein Schritt geparkt ist. Ein
+Schritt, der danach fertig wird, wird als **Finished after the run stopped**
+festgehalten, seine Arbeit bleibt erhalten, und eine [Wiederholung](#running-a-workflow)
+verwendet ihn weiter, statt es noch einmal zu tun. Der Status des Runs folgt seinen
+aktiven Schritten, ein Zweig, der auf eine Freigabe wartet, ist also auch dann
+sichtbar, wenn ein anderer noch läuft.
+
+Das Budget des Runs wird geteilt. Jeder Schritt, der Geld ausgibt, und jeder
+Workflow, den er aufruft, schöpft aus dem, was das Limit nach den Ausgaben und nach
+dem übrig lässt, was andere laufende Schritte halten, nie mehr als sein eigenes
+`max_cost_usd`. Ein Schritt, der den Rest in der Hand seiner Nachbarn findet, wartet
+und fragt erneut, jedes Mal etwas später, statt den ganzen Rest zu bekommen. Eine
+Reservierung endet, wenn der Schritt, der sie genommen hat, abgeschlossen ist.
+
+Benachbarte
+KI-Schritte laufen unter einem Run-Budget nur dann nebeneinander, wenn jeder ein eigenes
+`max_cost_usd` hat: Ein Schritt ohne eines hält den ganzen Rest, sodass seine Nachbarn
+warten, bis er abgeschlossen ist.
+
+Wie viele Zweige gleichzeitig laufen, bestimmt der Worker, nicht der Run. Es gibt
+kein Limit pro Run, die Zweige eines Runs können also jeden Workflow-Slot eines
+Workers belegen, `WORKER_WORKFLOW_CONCURRENCY` (standardmäßig fünf, siehe
+[Konfiguration](configuration.md)), und der Rest wartet in der Schlange. Ein Run,
+auf den jemand wartet, geht vor einem, der sich selbst gestartet hat. Eine breite
+Verzweigung in einem Run bremst daher andere Runs auf diesem Worker; machen Sie sie
+so breit, wie die Arbeit es verlangt.
 
 ## Validierungs-Rückmeldung { #validation-feedback }
 
@@ -863,6 +927,27 @@ Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeb
 hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST
 /api/v1/workflow-runs/{id}/retry`, und `GET /api/v1/workflow-runs` nimmt `status`,
 `mode`, `triggered_by`, `created_after` und `created_before`.
+
+**Resolve** erscheint an einem Schritt, der Aufmerksamkeit braucht, solange sein Run
+noch läuft. Ein Schritt braucht Aufmerksamkeit, wenn er gewirkt haben kann und
+niemand sein Ende sah, oder wenn er aufgehört hat zu warten und nichts ihn mehr
+weckt. Der Dialog nennt den Schritt und sagt, welcher Fall es ist. **Run it again**
+reiht den Schritt für einen neuen Versuch im selben Run ein und warnt bei einem
+Schritt, der etwas geschrieben haben kann, dass es dadurch doppelt geschehen kann.
+**Treat it as failed** ist **Take its error route**, wo der Schritt seine Fehler
+weiterleitet oder in einer Schleife steht, oder **Fail the run**. Hat der Schritt ein
+Ergebnis gemeldet, nachdem er aufgegeben wurde, geht **Use that result** von diesem
+aus weiter. Sonst wird nichts im Run angetastet, Nachbarschritte, Freigaben und
+Timer laufen also weiter.
+
+Einen Schritt klärt nur, wer den Run gestartet hat, oder ein Editor des Workflows,
+und in einem Test-Run darf nur ein Editor einen Schritt klären oder den Run
+wiederholen. Über die API dient dazu `POST
+/api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` mit einem `choice`, und die
+Entscheidung wird auditiert. Ein abgebrochener oder fehlgeschlagener Run hat keinen
+Schritt mehr zu klären: **Retry from failed step** startet einen neuen Run. Ein
+Schritt, der nach dem Stopp seines Runs fertig wurde, ist mit **Finished after the
+run stopped** markiert, und eine Wiederholung verwendet ihn weiter.
 
 ### Die Logs-Seite { #the-logs-page }
 
@@ -1265,7 +1350,7 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 
 | Was Sie sehen | Warum | Was tun |
 |---|---|---|
-| **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen | Prüfen Sie, ob seine Wirkung eingetreten ist, brechen Sie dann den Run ab und starten Sie einen neuen, falls nicht. Ihn in der Konsole fortzusetzen ist noch nicht gebaut |
+| **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen oder hat aufgehört zu warten, und nichts weckt ihn | Prüfen Sie, ob seine Wirkung eingetreten ist, und klären Sie den Schritt dann im Run mit **Resolve**: erneut ausführen, ein spät gemeldetes Ergebnis verwenden, seinen Fehlerpfad nehmen oder den Run fehlschlagen lassen. Den Run abzubrechen und dann **Retry from failed step** zu wählen, beginnt von vorn |
 | `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
 | `WORKFLOW_TRIGGER_MISMATCH` | Der Run wurde über einen Weg angefordert, der nicht sein Live-Trigger ist: von Hand oder per API für einen Workflow, der mit einem Webhook startet, oder im Chat für einen, der nicht mit einer Chatnachricht startet | Starten Sie ihn so, wie sein Trigger es sagt, oder testen Sie den Draft, der jeden Trigger nimmt |
 | `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |

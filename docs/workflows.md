@@ -293,8 +293,8 @@ or the test data showed are suggested. The condition is stored as the JMESPath
 expression the step evaluates. **Write it as an expression** edits it as that, and
 one the rows cannot show stays an expression.
 
-Renaming a **Switch** rule, a classifier category, an error branch or an approval
-choice carries the wires, bindings and quick log that used the old name, unless
+Renaming a **Switch** rule, a classifier category, an error branch, a **Split** branch
+or an approval choice carries the wires, bindings and quick log that used the old name, unless
 entries are reordered, inserted or deleted, or two names change at once.
 
 ### Naming a step, noting it and switching it off { #naming-noting-and-switching-off-a-step }
@@ -505,6 +505,59 @@ and ends at **Loop result**; nothing in it connects back to the loop, which
 continues through **Done** once every item has been through the body. The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
 [node reference](reference/workflow-nodes.md#loops).
+
+### Parallel branches { #parallel-branches }
+
+Any step may send one output port to several steps, and those steps run at the same
+time. The **Split** step does the same with named branches, and takes all of them; it
+has no condition and cannot route errors. Which branch ends first is not defined, so
+nothing may rely on the order. Draw the legs, and bring them together where a later
+step needs what they did.
+
+A step with several incoming connections is a join, and needs no **Merge**. It runs
+once every step leading to it has settled, if at least one of its connections is
+live: a leg that an If left untaken does not hold it back. It is skipped when no
+connection is live, and when a step leading to it failed with no error route. Its
+bindings may read only steps certain to have run before it, so a join may read each
+leg of a parallel group, but not an arm of an If, which may not have run.
+
+A **Merge** has a **Wait for** setting. **The branch that ran** passes on the output
+of the one branch that reached it, and publishing refuses it when two of its
+inputs can run together. **All branches** waits for every input and hands each one on
+by name as `branches`, so later steps read `branches.<name>`; each wire has a
+**Branch name**. Publishing refuses it when an input may not run, naming it, or
+when only one input ever can. Connecting a second leg to a merge picks the setting
+the graph needs, and renaming a branch name carries the steps that read it, in one
+undo. The details are in the [node reference](reference/workflow-nodes.md#logic-if-and-logic-merge).
+
+Publishing also refuses a graph with two **Output** steps, or two **Respond to
+webhook** steps, that can both run in one run, and an **Error handler** that two
+steps able to fail in the same run feed. Give each leg its own.
+
+A branch that fails with no error route fails the run. The steps beside it start
+nothing further, and what they had under way is closed: pending approvals, timers,
+and the agent runs a step is parked on. A step that finishes after that is recorded
+as **Finished after the run stopped**, its work kept, and a [retry](#running-a-workflow)
+reuses it rather than doing it again. The run's status follows its live steps, so
+a branch waiting for an approval shows even while another still runs.
+
+The run's budget is shared. Every step that spends, and every workflow it calls,
+draws on what the cap leaves after spend and what other steps in flight hold, and
+never more than its own `max_cost_usd`. A step that finds the rest held by its
+siblings waits and asks again, a little later each time, rather than being handed
+the whole remainder. A hold ends when the step that took it settles.
+
+Sibling AI
+steps run side by side under a run budget only when each has its own `max_cost_usd`:
+a step without one holds everything that is left, so its siblings wait until it
+settles.
+
+How many branches run at once is set by the worker, not by the run. There is no
+per-run limit, so the branches of one run may take every workflow slot of a worker,
+`WORKER_WORKFLOW_CONCURRENCY` (five by default, see
+[Configuration](configuration.md)), and the rest queue. A run someone is waiting on
+goes ahead of one that started itself. A fan-out of many branches in one run
+therefore slows other runs on that worker; keep it as wide as the work needs.
 
 ## Validation feedback { #validation-feedback }
 
@@ -764,6 +817,23 @@ what each step outside a loop handed on in that run onto the draft's steps, so a
 test run starts from where that run was. Over the API, `POST
 /api/v1/workflow-runs/{id}/retry` retries, and `GET /api/v1/workflow-runs` takes
 `status`, `mode`, `triggered_by`, `created_after` and `created_before`.
+
+**Resolve** is offered on a step that needs attention while its run is still live.
+A step needs attention when it may have acted and nobody saw it finish, or when it
+stopped waiting with nothing left to wake it. The dialog names the step and says
+which. **Run it again** queues the step for a new try on the same run, and on a step
+that may have written something it warns that doing so can do it twice. **Treat it
+as failed** is **Take its error route**, where the step routes its errors or sits in
+a loop, or **Fail the run**. If the step reported a result after it was given up on,
+**Use that result** goes on from it. Nothing else in the run is touched, so its
+siblings, approvals and timers go on.
+
+Only the person who started the run, or an editor of the workflow, may resolve a
+step, and in a test run only an editor may resolve a step or retry the run. Over the
+API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
+decision is audited. A run that was cancelled, or that failed, has no step to resolve:
+**Retry from failed step** starts a new run. A step that finished after its run
+stopped is marked **Finished after the run stopped**, and a retry reuses it.
 
 ### The Logs page { #the-logs-page }
 
@@ -1132,7 +1202,7 @@ needs an idempotency key of its own. Each step's retry promise is listed in the
 
 | What you see | Why | What to do |
 |---|---|---|
-| **Needs attention** | A step that may have acted was interrupted | Check whether its effect happened, then cancel the run and start a new one if it did not. Resuming it from the console is not built yet |
+| **Needs attention** | A step that may have acted was interrupted, or stopped waiting with nothing to wake it | Check whether its effect happened, then **Resolve** the step on the run: run it again, use a result it reported late, take its error route or fail the run. Cancelling the run, then **Retry from failed step**, starts over |
 | `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow publish it again, so its trigger runs as them |
 | `WORKFLOW_TRIGGER_MISMATCH` | The run was asked for through a door its live trigger is not: by hand or the API for a workflow that starts from a webhook, or in the chat for one that does not start from a chat message | Start it the way its trigger says, or test the draft, which takes any trigger |
 | `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |

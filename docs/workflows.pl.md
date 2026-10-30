@@ -1,5 +1,5 @@
 ---
-source_sha: "f96ab37e96d7"
+source_sha: "49a56d73ddfd"
 ---
 
 # Workflows { #workflows }
@@ -303,7 +303,7 @@ przebieg albo dane testowe, są podpowiadane. Warunek jest zapisywany jako wyra�
 JMESPath, które krok wylicza. **Write it as an expression** edytuje go jako to
 wyrażenie, a takie, którego wiersze nie pokażą, zostaje wyrażeniem.
 
-Zmiana nazwy reguły **Switch**, kategorii klasyfikatora, gałęzi błędu lub wyboru
+Zmiana nazwy reguły **Switch**, kategorii klasyfikatora, gałęzi błędu, gałęzi **Split** lub wyboru
 zatwierdzenia przenosi połączenia, powiązania i szybki log, które używały starej nazwy,
 chyba że zmieniono kolejność wpisów, wstawiono je lub usunięto, albo naraz zmieniły się
 dwie nazwy.
@@ -519,6 +519,64 @@ pętli, i kończy na **Loop result**; nic w nim nie łączy się z powrotem z p�
 idzie dalej przez **Done**, gdy każdy element przeszedł przez ciało. Wybór kroków i źródła binding podążają za scope, w którym jesteś, a krok w ciele może czytać wszystko, co
 działało przed pętlą. Co robi pętla, opisuje
 [referencja węzłów](reference/workflow-nodes.md#loops).
+
+### Równoległe gałęzie { #parallel-branches }
+
+Każdy krok może wysłać jeden port wyjściowy do kilku kroków, a te działają w tym
+samym czasie. Krok **Split** robi to samo z nazwanymi gałęziami i obiera je
+wszystkie; nie ma warunku i nie może kierować błędów. Która gałąź skończy pierwsza,
+nie jest określone, więc nic nie może polegać na kolejności. Narysuj odnogi i połącz
+je tam, gdzie późniejszy krok potrzebuje tego, co zrobiły.
+
+Krok z kilkoma połączeniami wejściowymi jest złączeniem (join) i nie potrzebuje
+**Merge**. Uruchamia się, gdy każdy krok prowadzący do niego się zakończy, o ile
+choć jedno z jego połączeń jest aktywne: odnoga, której If nie obrał, go nie
+wstrzymuje. Jest pomijany, gdy żadne połączenie nie jest aktywne oraz gdy krok
+prowadzący do niego zawiódł bez ścieżki błędu. Jego bindingi mogą czytać tylko
+kroki, które na pewno wykonały się wcześniej, więc złączenie może czytać każdą
+odnogę grupy równoległej, ale nie gałąź If, która mogła się nie wykonać.
+
+**Merge** ma ustawienie **Wait for**. **The branch that ran** przekazuje dalej
+wyjście jedynej gałęzi, która do niego dotarła, a publikacja go odrzuca, gdy dwa
+jego wejścia mogą działać razem. **All branches** czeka na każde wejście i
+przekazuje każde z nich według nazwy jako `branches`, więc kolejne kroki czytają
+`branches.<nazwa>`; każde połączenie ma **Branch name**. Publikacja odrzuca je, gdy
+wejście może się nie wykonać - ze wskazaniem go - albo gdy może działać tylko jedno.
+Podłączenie drugiej odnogi do merge'a wybiera ustawienie, którego potrzebuje graf, a
+zmiana nazwy gałęzi przenosi kroki, które ją czytają, w jednym cofnięciu. Szczegóły
+są w [opisie węzłów](reference/workflow-nodes.md#logic-if-and-logic-merge).
+
+Publikacja odrzuca też graf z dwoma krokami **Output** albo dwoma krokami **Respond
+to webhook**, które mogą oba działać w jednym runie, oraz **Error handler**
+zasilany przez dwa kroki, które mogą zawieść w tym samym runie. Daj każdej odnodze
+własny.
+
+Gałąź, która zawodzi bez ścieżki błędu, kończy run błędem. Kroki obok niej nie
+zaczynają niczego więcej, a to, co miały w toku, jest zamykane: oczekujące
+zatwierdzenia, timery i runy agentów, na których krok jest zaparkowany. Krok, który
+skończy się potem, jest zapisany jako **Finished after the run stopped**, z
+zachowaną pracą, a [ponowienie](#running-a-workflow) używa go zamiast robić to
+jeszcze raz. Status runa wynika z jego aktywnych kroków, więc gałąź czekająca na
+zatwierdzenie jest widoczna, nawet gdy inna jeszcze działa.
+
+Budżet runa jest wspólny. Każdy krok, który wydaje, i każdy workflow, który
+wywołuje, czerpie z tego, co limit zostawia po wydatkach i po tym, co trzymają inne
+kroki w toku, nigdy więcej niż własne `max_cost_usd`. Krok, który zastaje resztę
+w rękach swoich sąsiadów, czeka i pyta ponownie, za każdym razem nieco później,
+zamiast dostać całą resztę. Rezerwacja kończy się, gdy krok, który ją wziął, się
+zakończy.
+
+Rodzeństwo kroków AI działa równolegle pod budżetem runa tylko wtedy, gdy
+każdy ma własne `max_cost_usd`: krok bez niego trzyma całą resztę, więc sąsiedzi czekają,
+aż się zakończy.
+
+O tym, ile gałęzi działa naraz, decyduje worker, nie run. Nie ma limitu na run, więc
+gałęzie jednego runa mogą zająć każdy slot workflow workera,
+`WORKER_WORKFLOW_CONCURRENCY` (domyślnie pięć, zobacz
+[Konfiguracja](configuration.md)), a reszta czeka w kolejce. Run, na który ktoś
+czeka, wyprzedza ten, który wystartował sam. Szerokie rozgałęzienie w jednym runie
+spowalnia więc inne runy na tym workerze; niech będzie tak szerokie, jak wymaga
+praca.
 
 ## Informacja zwrotna walidacji { #validation-feedback }
 
@@ -789,6 +847,23 @@ roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przeb
 testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 /api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje
 `status`, `mode`, `triggered_by`, `created_after` i `created_before`.
+
+**Resolve** pojawia się przy kroku wymagającym uwagi, dopóki jego run jest aktywny.
+Krok wymaga uwagi, gdy mógł zadziałać, a nikt nie widział jego końca, albo gdy
+przestał czekać i nic już go nie obudzi. Okno nazywa krok i mówi, o który przypadek
+chodzi. **Run it again** kolejkuje krok do nowej próby w tym samym runie, a przy
+kroku, który mógł coś zapisać, ostrzega, że to może zrobić to dwa razy. **Treat it
+as failed** to **Take its error route**, gdy krok kieruje swoje błędy albo leży w
+pętli, albo **Fail the run**. Jeśli krok zgłosił wynik po tym, jak go porzucono,
+**Use that result** idzie dalej od niego. Nic innego w runie nie jest ruszane, więc
+sąsiednie kroki, zatwierdzenia i timery toczą się dalej.
+
+Krok może rozstrzygnąć tylko osoba, która uruchomiła run, albo edytor workflow, a w
+runie testowym tylko edytor może rozstrzygnąć krok albo ponowić run. Przez API służy do tego `POST
+/api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` z polem `choice`, a decyzja
+trafia do audytu. Run anulowany albo zakończony błędem nie ma kroku do rozstrzygnięcia:
+**Retry from failed step** uruchamia nowy run. Krok, który skończył się po zatrzymaniu
+runa, jest oznaczony **Finished after the run stopped**, a ponowienie go używa.
 
 ### Strona Logs { #the-logs-page }
 
@@ -1163,7 +1238,7 @@ każdego kroku jest w [referencji węzłów](reference/workflow-nodes.md).
 
 | Co widzisz | Dlaczego | Co zrobić |
 |---|---|---|
-| **Wymaga uwagi** | Przerwano krok, który mógł zadziałać | Sprawdź, czy jego efekt nastąpił, a potem anuluj run i uruchom nowy, jeśli nie. Wznowienie go z konsoli nie jest jeszcze zbudowane |
+| **Wymaga uwagi** | Przerwano krok, który mógł zadziałać, albo przestał czekać i nic go nie obudzi | Sprawdź, czy jego efekt nastąpił, a potem użyj **Resolve** na kroku w runie: uruchom go ponownie, użyj wyniku zgłoszonego późno, przejdź jego ścieżką błędu albo zakończ run błędem. Anulowanie runa, a potem **Retry from failed step**, zaczyna od nowa |
 | `PRINCIPAL_REVOKED` | Członek, jako który działa run, stracił dostęp albo jego konto dezaktywowano | Niech członek, który może uruchamiać workflow, opublikuje go ponownie, żeby jego wyzwalacz działał jako on |
 | `WORKFLOW_TRIGGER_MISMATCH` | Run zażądano drogą, którą nie jest żywy wyzwalacz: ręcznie albo przez API dla workflow startującego od webhooka, albo na czacie dla takiego, który nie startuje od wiadomości na czacie | Uruchom go tak, jak mówi jego wyzwalacz, albo przetestuj szkic, który przyjmuje dowolny wyzwalacz |
 | `INVALID_BINDING` | Wartość nie pasowała do pola, do którego ją zbindowano | Błąd kroku wskazuje pole; popraw binding albo wartość wcześniej w grafie |

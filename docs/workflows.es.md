@@ -1,5 +1,5 @@
 ---
-source_sha: "f96ab37e96d7"
+source_sha: "49a56d73ddfd"
 ---
 
 # Workflows { #workflows }
@@ -315,7 +315,7 @@ mostraron la última ejecución o los datos de prueba. La condición se guarda c
 expresión JMESPath que evalúa el paso. **Write it as an expression** la edita como tal, y
 una que las filas no pueden mostrar sigue siendo una expresión.
 
-Renombrar una regla de **Switch**, una categoría del clasificador, una rama de error o una
+Renombrar una regla de **Switch**, una categoría del clasificador, una rama de error, una rama de **Split** o una
 opción de aprobación traslada las conexiones, los enlaces y el quick log que usaban el
 nombre anterior, salvo que se reordenen, inserten o borren entradas, o cambien dos
 nombres a la vez.
@@ -535,6 +535,65 @@ del bucle, y termina en **Loop result**; nada en él vuelve al bucle, que contin
 **Done** cuando cada elemento ha pasado por el cuerpo. El selector de pasos y las fuentes de binding siguen el scope en el que estás, y un paso del cuerpo puede leer cualquier
 cosa que se ejecutara antes del bucle. Qué hace el bucle está en la
 [referencia de nodos](reference/workflow-nodes.md#loops).
+
+### Ramas paralelas { #parallel-branches }
+
+Cualquier paso puede enviar un puerto de salida a varios pasos, y estos se ejecutan
+al mismo tiempo. El paso **Split** hace lo mismo con ramas con nombre y las toma
+todas; no tiene condición y no puede encaminar errores. Cuál de las ramas termina
+primero no está definido, así que nada debe depender del orden. Dibuja las patas y
+únelas donde un paso posterior necesite lo que hicieron.
+
+Un paso con varias conexiones de entrada es un join y no necesita **Merge**. Se
+ejecuta cuando cada paso que lleva a él ha terminado, si al menos una de sus
+conexiones está activa: una pata que un If no tomó no lo retiene. Se omite si
+ninguna conexión está activa y si un paso que lleva a él falló sin camino de error.
+Sus bindings solo pueden leer pasos que seguro se ejecutaron antes, así que un join
+puede leer cada pata de un grupo paralelo, pero no la rama de un If, que quizá no
+se ejecutó.
+
+Un **Merge** tiene el ajuste **Wait for**. **The branch that ran** pasa la salida de
+la única rama que llegó a él, y publicar lo rechaza cuando dos de sus entradas
+pueden ejecutarse juntas. **All branches** espera a cada entrada y pasa cada una por
+nombre como `branches`, de modo que los pasos posteriores leen `branches.<nombre>`;
+cada conexión tiene un **Branch name**.
+
+Publicar lo rechaza cuando una entrada puede
+no ejecutarse - nombrándola - o cuando solo una puede ejecutarse. Conectar una
+segunda pata a un merge elige el ajuste que el grafo necesita, y renombrar una rama
+arrastra los pasos que la leen, en un solo deshacer. Los detalles están en la
+[referencia de nodos](reference/workflow-nodes.md#logic-if-and-logic-merge).
+
+Publicar rechaza además un grafo con dos pasos **Output**, o dos pasos **Respond to
+webhook**, que puedan ejecutarse ambos en un mismo run, y un **Error handler**
+alimentado por dos pasos que pueden fallar en el mismo run. Da a cada pata el suyo.
+
+Una rama que falla sin camino de error hace fallar el run. Los pasos que están a su
+lado no empiezan nada más, y lo que tenían en marcha se cierra: aprobaciones y
+temporizadores pendientes y los runs de agent en que un paso está aparcado. Un paso
+que termina después queda registrado como **Finished after the run stopped**, con su
+trabajo conservado, y un [reintento](#running-a-workflow) lo reutiliza en lugar de
+hacerlo otra vez. El estado del run sigue a sus pasos activos, así que una rama que
+espera una aprobación se ve aunque otra siga ejecutándose.
+
+El budget del run se comparte. Cada paso que gasta, y cada workflow que llama, toma
+de lo que el límite deja tras el gasto y tras lo que retienen otros pasos en curso,
+nunca más que su propio `max_cost_usd`. Un paso que encuentra el resto en manos de
+sus vecinos espera y vuelve a preguntar, cada vez algo más tarde, en lugar de recibir
+todo el resto. Una reserva termina cuando termina el paso que la tomó.
+
+Los pasos de IA hermanos se
+ejecutan a la vez bajo el budget de un run solo si cada uno tiene su propio
+`max_cost_usd`: un paso sin él retiene todo el resto, así que sus vecinos esperan hasta
+que termine.
+
+Cuántas ramas se ejecutan a la vez lo fija el worker, no el run. No hay límite por
+run, así que las ramas de un run pueden ocupar todos los slots de workflow de un
+worker, `WORKER_WORKFLOW_CONCURRENCY` (cinco por defecto, véase
+[Configuración](configuration.md)), y el resto espera en cola. Un run por el que
+alguien espera pasa delante de uno que se inició solo. Una bifurcación ancha en un
+run ralentiza por tanto otros runs de ese worker; que sea tan ancha como pida el
+trabajo.
 
 ## Retroalimentación de validación { #validation-feedback }
 
@@ -813,6 +872,25 @@ en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
 `POST /api/v1/workflow-runs/{id}/retry` reintenta, y `GET /api/v1/workflow-runs`
 acepta `status`, `mode`, `triggered_by`, `created_after` y `created_before`.
+
+**Resolve** aparece en un paso que necesita atención mientras su run sigue activo.
+Un paso necesita atención cuando pudo haber actuado y nadie vio su final, o cuando
+dejó de esperar y nada lo despertará. El diálogo nombra el paso y dice de qué caso se
+trata. **Run it again** pone el paso en cola para un nuevo intento en el mismo run, y
+en un paso que pudo haber escrito algo avisa de que así puede hacerse dos veces.
+**Treat it as failed** es **Take its error route**, donde el paso encamina sus
+errores o está en un bucle, o **Fail the run**. Si el paso informó de un resultado
+después de que se renunciara a él, **Use that result** continúa desde ese resultado.
+Nada más del run se toca, así que los pasos vecinos, las aprobaciones y los
+temporizadores siguen.
+
+Solo puede resolver un paso quien inició el run o un editor del workflow, y en un run
+de prueba solo un editor puede resolver un paso o reintentar el run. Por la API se
+hace con `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` y un `choice`,
+y la decisión queda auditada. Un run cancelado o fallido no tiene paso que resolver:
+**Retry from failed step** inicia un run nuevo. Un paso que terminó después de que su
+run se detuviera se marca como **Finished after the run stopped**, y un reintento lo
+reutiliza.
 
 ### La página Logs { #the-logs-page }
 
@@ -1200,7 +1278,7 @@ reintento de cada paso está en la [referencia de nodos](reference/workflow-node
 
 | Lo que ves | Por qué | Qué hacer |
 |---|---|---|
-| **Needs attention** | Se interrumpió un paso que pudo haber actuado | Comprueba si su efecto ocurrió y, si no, cancela el run e inicia uno nuevo. Reanudarlo desde la consola aún no está construido |
+| **Needs attention** | Se interrumpió un paso que pudo haber actuado, o dejó de esperar y nada lo despierta | Comprueba si su efecto ocurrió y resuelve el paso en el run con **Resolve**: ejecutarlo de nuevo, usar un resultado informado tarde, tomar su camino de error o hacer fallar el run. Cancelar el run y luego **Retry from failed step** empieza de cero |
 | `PRINCIPAL_REVOKED` | El miembro con el que actúa el run perdió el acceso o su cuenta se desactivó | Que un miembro que pueda ejecutar el workflow lo vuelva a publicar, para que su trigger se ejecute como él |
 | `WORKFLOW_TRIGGER_MISMATCH` | El run se pidió por una vía que no es su trigger en vivo: a mano o por la API para un workflow que empieza por un webhook, o en el chat para uno que no empieza por un mensaje del chat | Inícialo como dice su trigger, o prueba el draft, que acepta cualquier trigger |
 | `INVALID_BINDING` | Un valor no encajaba en el campo al que estaba enlazado | El error del paso nombra el campo; corrige el enlace o el valor anterior |

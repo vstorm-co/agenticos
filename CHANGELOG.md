@@ -910,9 +910,34 @@ Two things are versioned separately from this file and worth knowing about:
 - **A generic webhook may sign the time.** With `X-Signature-Timestamp` the
   signature covers `{timestamp}.{body}` and a delivery more than five minutes
   off is refused, so a captured one cannot be replayed.
+- **Workflow steps run in parallel branches.** Any step may send one port to several
+  steps, and those steps run at once; the new **Split** step (`logic.split`) names
+  its branches and takes them all. A step with several incoming connections runs
+  once every step leading to it has settled, if one connection is live, with no
+  Merge. **Merge** gains **Wait for**: `wait_for: one` (the branch that ran, the
+  default, so a stored empty config is unchanged) or `all`, which hands each branch
+  on under `branches` by its `branch_keys` name. A branch that fails with no error
+  route fails the run and withdraws its siblings' approvals, timers and parked
+  agent runs. A step that finishes after that is recorded as finished after the run
+  stopped, and a retry reuses it. There is no per-run cap: one run's branches may
+  use every workflow slot of a worker (`WORKER_WORKFLOW_CONCURRENCY`). (#1800)
+  [Workflows](docs/workflows.md#parallel-branches) has the rules.
+- **A step that needs attention can be resolved on its run.** `POST
+  /workflow-runs/{id}/steps/{node_run_id}/rerun` takes `run_again`,
+  `use_error_route`, `fail_run` or `use_late_result`; the run page offers it as
+  **Resolve** to the person who started the run or an editor, and the choice is
+  audited. Treating a step as failed ends it with `STEP_MARKED_FAILED`. Migration
+  `0241_attempt_reservations.py` adds `node_attempts.reserved_usd` and `late_result`. (#1800)
+- **Parallel steps share the run's budget.** A step that spends is handed what the cap
+  leaves after spend and what other steps in flight and called workflows hold, never
+  more than its own cap; a step whose siblings hold the rest waits and asks again
+  with a growing delay. (#1800)
 
 ### Fixed
 
+- A loop whose item fails, with parallel legs in its body, no longer starts the next
+  iteration while the legs of the failed one are still running: `collect` lets them
+  finish and `stop` cancels them. (#1800)
 - Send a message answers inside the bound thread on Slack and Mattermost and in the
   forum topic on Telegram, instead of at the top level; a channel or thread id the
   platform cannot address fails with `CHANNEL_TARGET_INVALID` before sending. (#1800)
@@ -921,8 +946,8 @@ Two things are versioned separately from this file and worth knowing about:
   (#1800)
 - The editor accepts a merge of an error-routing step's branches, as publish does;
   the merge copy no longer speaks of an If only. (#1800)
-- Renaming a Switch rule, classifier category, error branch or approval choice
-  carries its wires, bindings, template references and quick log in one undoable
+- Renaming a Switch rule, classifier category, error branch, Split branch or approval
+  choice carries its wires, bindings, template references and quick log in one undoable
   edit; a log alert on the old name is flagged. (#1800)
 - Send a message added after a Channel message trigger starts as the trigger's bot
   with `channel_id` and `thread_id` bound when the platforms match. (#1800)
@@ -1251,6 +1276,20 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Existing control-step fan-out now runs concurrently.** The steps a port is wired
+  to run at once. A graph that relied on one leg finishing before another starts must
+  order them with connections. (#1800)
+- **The If and Switch rules on joins changed.** A step several branches reach needs
+  no Merge, but may bind only to steps certain to have run before it. A
+  Merge waiting for **the branch that ran** is refused when two of its inputs can run
+  together, and one waiting for **all branches** when an input may not run. Two Output
+  or two Respond to webhook steps that can run together, and an error handler fed by
+  two steps able to fail in the same run, are refused at publish. (#1800)
+- **A step result that arrives late is recorded as finished.** A step that completes
+  after its run ended, or was cancelled, is `succeeded` with its output kept, nothing
+  follows from it, and a retry of the run reuses it. (#1800)
+- **A step that needs attention is closed when its run is cancelled or fails**,
+  instead of being left live. (#1800)
 - **A workflow can no longer listen to a Teams bot.** A Channel message trigger on a
   Teams bot is refused at publish and on a test run; a Teams listener published
   earlier hands its messages back to the bot's agent. (#1800)

@@ -693,8 +693,3 @@ an editor in `record-cell-editor.tsx`, a choice in the schema and create-table
 dialogs, and its label in the three message catalogs. Tests belong in
 `backend/tests/test_virtual_table_types.py` for the validator, and in an integration
 test that writes, filters and sorts a record of the new type.
-
-## Not built yet { #not-built-yet }
-
-- Resuming a run that stopped as **Needs attention** from the console. It can be
-  cancelled, and a new run started.

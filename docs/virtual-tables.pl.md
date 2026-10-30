@@ -1,5 +1,5 @@
 ---
-source_sha: "2251aaa4f1e1"
+source_sha: "1b4f77856ac0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -727,8 +727,3 @@ Konsola potrzebuje typu w `ColumnTypeName` w `frontend/src/types/tables.ts`, edy
 w trzech katalogach komunikatów. Testy należą do
 `backend/tests/test_virtual_table_types.py` dla walidatora oraz do testu
 integracyjnego, który zapisuje, filtruje i sortuje rekord nowego typu.
-
-## Jeszcze nie zbudowane { #not-built-yet }
-
-- Wznowienie z konsoli runu, który zatrzymał się jako **Wymaga uwagi**. Można go
-  anulować i uruchomić nowy run.

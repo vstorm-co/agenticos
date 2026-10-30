@@ -1,5 +1,5 @@
 ---
-source_sha: "2251aaa4f1e1"
+source_sha: "1b4f77856ac0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -781,8 +781,3 @@ einen Editor in `record-cell-editor.tsx`, eine Auswahl in den Dialogen für Sche
 neue Tabelle und seine Beschriftung in den drei Meldungskatalogen. Tests gehören für den
 Validator in `backend/tests/test_virtual_table_types.py` und in einen
 Integrationstest, der einen Datensatz des neuen Typs schreibt, filtert und sortiert.
-
-## Noch nicht gebaut { #not-built-yet }
-
-- Einen Run, der als **Braucht Aufmerksamkeit** angehalten hat, in der Konsole
-  fortsetzen. Er lässt sich abbrechen und ein neuer Run starten.

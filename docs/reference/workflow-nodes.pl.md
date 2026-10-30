@@ -1,5 +1,5 @@
 ---
-source_sha: "5918277bc50f"
+source_sha: "7e54b3f5be8a"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -220,7 +220,8 @@ uruchamia workflow błędów.
 To, czym workflow odpowiada. Jego zbindowane pola stają się `output` runa, który
 zwraca API i dostarcza wywołująca powierzchnia. Ma te same pola co wyjście
 `agent.run`, więc odpowiedź agenta binduje się wprost. Wyjście bez żadnego
-bindingu to pusta odpowiedź.
+bindingu to pusta odpowiedź. Run odpowiada raz, więc publikacja odrzuca graf z dwoma
+takimi krokami, które mogą oba działać w jednym runie.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
 
@@ -232,7 +233,8 @@ Dostarczenie do grafu z tym krokiem czeka na niego zamiast dostać `202`, najwy�
 przez `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. Odpowiedzią jest pierwszy
 ukończony krok respond, ponowienie tego samego dostarczenia dostaje ją jeszcze
 raz, a run toczy się dalej. Run, który kończy się bez dojścia do kroku, odpowiada
-`202`, jeśli się powiódł, i `500`, jeśli nie. Nagłówki należące do własnej
+`202`, jeśli się powiódł, i `500`, jeśli nie. Publikacja odrzuca graf
+z dwoma takimi krokami, które mogą oba działać w jednym runie. Nagłówki należące do własnej
 odpowiedzi API są odrzucane przy publikacji: ramkowanie, `Content-Type`,
 `Set-Cookie` oraz nagłówki CORS i polityk przeglądarki.
 
@@ -417,17 +419,46 @@ zapisany jako `skipped`. `value` musi być zbindowane: publikacja i przebieg
 testowy wersji roboczej odrzucają krok bez niego; wersja opublikowana wcześniej
 działa dalej i czyta null.
 
-`logic.merge` łączy gałęzie z powrotem. Działa,
-gdy dotrze do niego obrana gałąź, i przekazuje dalej jej wyjście jako `value`.
-Publikacja sprawdza, czy wejścia merge'a wychodzą z jednego kroku różnymi
-portami i czy ten krok w każdym przebiegu wybiera dokładnie jeden port - If,
-Switch, decyzja, `ai.classify`, sprawdzenie tabeli, zatwierdzenie albo krok
-kierujący swoje błędy - żeby zawsze działało dokładnie jedno z nich.
+`logic.merge` łączy gałęzie z powrotem. Domyślnie czeka na **gałąź, która się
+wykonała**: działa, gdy ta gałąź do niego dotrze, i przekazuje jej wyjście dalej
+jako `value`. Publikacja sprawdza, czy to bezpieczne, i odrzuca merge, którego
+wejścia mogą działać w tym samym runie. Nie mogą tego wejścia wychodzące z jednego
+kroku różnymi portami, jeśli ten krok w każdym przebiegu wybiera dokładnie jeden
+port - If, Switch, decyzja, `ai.classify`, sprawdzenie tabeli, zatwierdzenie albo
+krok kierujący swoje błędy. Nie mogą też gałęzie różnych takich kroków, które się
+wzajemnie wykluczają, na przykład zagnieżdżony If ze wspólnym else.
 
 Merge może przyjąć dwa lub więcej portów tego kroku bezpośrednio, bez kroku
 pomiędzy, na przykład `needs_reply` i `unsure` z `ai.classify`: uruchamia się raz,
 dla portu, który krok wybrał. Dwie krawędzie z tego samego portu nadal są
 odrzucane.
+
+Gałęzie działające obok siebie, takie jak odnogi [Split](#logic-split), wymagają
+ustawienia **Wait for** na **All branches** (`wait_for: all`). Merge uruchamia się
+wtedy, gdy każde wejście się zakończy, i przekazuje wyjście każdej gałęzi w
+`branches`, obiekcie według nazw gałęzi, zamiast w `value`. Nazwę gałęzi daje wpis
+w `branch_keys`: edytor uzupełnia go dla każdego połączenia, nazwą kroku albo
+gałęzi Split, a krok dalej czyta `branches.<nazwa>`. Publikacja odrzuca nazwę,
+której nic nie ma, oraz dwie gałęzie o tej samej nazwie.
+
+Publikacja odrzuca też **All branches**, gdy jakieś wejście nie ma pewności
+dotarcia, ilekroć merge działa - z jego nazwą - oraz gdy może działać tylko jedno
+wejście, bo wtedy potrzebne jest **The branch that ran**. `branches` jest
+przechowywane jak wynik każdego kroku: wynik ponad limit inline kończy krok błędem
+`NODE_OUTPUT_TOO_LARGE`, więc pliki przekazuj dalej jako referencje.
+
+Starszy zapisany graf, który czeka na wszystkie gałęzie, a dociera do niego tylko
+część z nich, kończy run błędem `JOIN_INCOMPLETE` ze wskazaniem merge'a. Publikacja
+takiego grafu jest odrzucana; kod zostaje jako zabezpieczenie. `wait_for` i
+`branch_keys` mają wartości domyślne, więc merge zapisany bez konfiguracji nadal
+czeka na gałąź, która się wykonała.
+
+Każdy krok z kilkoma krawędziami wejściowymi jest złączeniem (join) i nie potrzebuje
+merge'a. Uruchamia się, gdy każdy krok prowadzący do niego się zakończy, o ile
+choć jedna krawędź jest aktywna, a pomijany jest, gdy żadna nie jest. Jest też
+pomijany, gdy źródło zawiodło bez ścieżki błędu: ta porażka należy już do runa.
+Bindingi złączenia mogą czytać tylko kroki, które na pewno wykonały się wcześniej,
+więc złączenie może czytać każdą odnogę grupy równoległej, ale nie jedną gałąź If.
 
 Reguła, kategoria, gałąź albo wybór, któremu nadasz nazwę, staje się portem
 wyjściowym, więc nie może powtarzać portu, który krok już ma: `in`, `otherwise`,
@@ -446,7 +477,30 @@ innego, nie da się opublikować.
 
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
+::: app.workflows.nodes.logic_merge._handler.LogicMergeConfig
+
+::: app.workflows.nodes.logic_merge._handler.MergeBranchKey
+
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.split { #logic-split }
+
+**Split.** Kieruje przebieg każdą ze swoich gałęzi naraz. Każda gałąź ma nazwę,
+będącą jej portem wyjściowym, a gałęzi jest od dwóch do dwudziestu. Nic nie jest
+wybierane i żaden warunek nie jest czytany: każda gałąź jest zawsze obierana, a
+kroki po nich działają obok siebie. Krok nie przekazuje niczego dalej, więc krok w
+gałęzi binduje się do tego, co działo się przed Split. Nazwa gałęzi nie może być
+`in` ani powtarzać nazwy, którą krok już ma.
+
+Split nie może kierować swoich błędów, bo Split, który zawiódł, nie uruchomił
+żadnej gałęzi: publikacja odrzuca na nim `on_error: route`, a kroki każdej gałęzi
+kierują własne. Gałęzie spotykają się znów w
+[`logic.merge`](#logic-if-and-logic-merge), który czeka na wszystkie, albo w
+dowolnym kroku mającym je jako wejścia. Także każdy inny krok może wysłać jeden
+port do kilku kroków, które działają naraz tak samo; Split nadaje gałęziom nazwy i
+trzyma je na widoku.
+
+::: app.workflows.nodes.logic_split._handler.LogicSplitConfig
 
 ## logic.switch { #logic-switch }
 
@@ -455,8 +509,8 @@ Każda reguła ma nazwę, będącą portem jej gałęzi, i warunek JMESPath nad 
 `value`, sprawdzane po kolei; `otherwise` przejmuje przebieg, gdy żadna nie jest
 spełniona. `value` musi być zbindowane: publikacja i przebieg testowy wersji
 roboczej odrzucają krok bez niego; wersja opublikowana wcześniej działa dalej i
-czyta null. Gałęzie łączą się w `logic.merge`, który je przyjmuje, bo zawsze biegnie
-dokładnie jedna. Reguła, która zawodzi na swoich danych, kończy krok błędem
+czyta null. Gałęzie łączą się w `logic.merge` czekającym na gałąź, która się wykonała;
+publikacja go przyjmuje, bo zawsze biegnie dokładnie jedna. Reguła, która zawodzi na swoich danych, kończy krok błędem
 `CONDITION_FAILED` i wskazuje regułę.
 
 ::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
@@ -929,6 +983,21 @@ wyjście węzła istnieje tylko na pozostałych portach, więc publikacja odrzuc
 binding, który czyta wyjście na ścieżce błędu albo błąd na ścieżce sukcesu. Port
 błędu musi dokądś prowadzić, a obie ścieżki mogą się połączyć w `logic.merge`.
 
+Gdy kroki działają równolegle, każda gałąź ma własny handler. Gałąź, która zawodzi
+bez ścieżki błędu, kończy run błędem, a kroki obok niej nie zaczynają niczego
+więcej: ich oczekujące zatwierdzenia i timery są wycofywane, tak samo jak runy
+agentów, na których są zaparkowane. Krok, którego praca już trwała, kończy się i
+jest zapisany jako zakończony po zatrzymaniu runa, z zachowanym wyjściem. Ponowienie
+runa używa go zamiast robić to jeszcze raz, a użyty ponownie krok Output albo Respond
+to webhook zgłasza swoją odpowiedź na nowo. Publikacja odrzuca `error.handle`
+zasilany przez dwa kroki, które mogą zawieść w tym samym runie.
+
+Krok wymagający uwagi można rozstrzygnąć na runie, w którym jest. Uznanie go za
+nieudany kończy go kodem `STEP_MARKED_FAILED`, który wychodzi portem `error` kroku,
+jeśli ten kieruje swoje błędy, albo trafia do polityki błędów elementu jego pętli.
+Zakończenie runa błędem kończy run tym błędem bez względu na połączenia grafu.
+Anulowanie runa albo jego porażka zamyka też krok wymagający uwagi.
+
 `error.handle` przyjmuje ten błąd na porcie `in` i wychodzi pierwszą gałęzią,
 której `code` i `retryable` pasują, albo gałęzią `default`, która musi być
 podłączona. `error.raise` kończy swoją gałąź błędem o kodzie, komunikacie i
@@ -978,6 +1047,14 @@ pętla działa dalej. Pętle zagnieżdżają się najwyżej na
 `WORKFLOW_FOREACH_MAX_DEPTH` poziomów, a każdy przebieg węzła, który tworzy run,
 liczy się do `WORKFLOW_RUN_MAX_NODE_RUNS`. Nie ma pętli `while` ani
 równoległego map.
+
+Ciało może rozgałęziać się na równoległe odnogi, które działają obok siebie w
+obrębie iteracji, a iteracja kończy się, gdy żaden jej krok nie jest aktywny. Gdy
+krok w iteracji zawodzi bez ścieżki błędu, `collect` pozwala jego sąsiadom w tej
+iteracji dokończyć, po czym przechodzi do następnego elementu. `stop` anuluje ich,
+wycofując ich zatwierdzenia, timery i zaparkowane runy agentów, i kończy pętlę
+błędem. Następna iteracja nigdy nie startuje, dopóki poprzednia ma jeszcze
+działający krok.
 
 ::: app.workflows.nodes.control_foreach._handler.ForeachConfig
 

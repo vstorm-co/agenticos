@@ -1,5 +1,5 @@
 ---
-source_sha: "5918277bc50f"
+source_sha: "7e54b3f5be8a"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -233,7 +233,7 @@ nie einen Fehler-Workflow.
 Womit der Workflow antwortet. Seine gebundenen Felder werden zum `output` des
 Runs, den die API zurückgibt und die aufrufende Oberfläche zustellt. Er hat
 dieselben Felder wie die Ausgabe von `agent.run`, sodass die Antwort eines Agents
-direkt gebunden werden kann. Eine Ausgabe ohne Bindings ist eine leere Antwort.
+direkt gebunden werden kann. Eine Ausgabe ohne Bindings ist eine leere Antwort. Ein Run antwortet einmal, daher lehnt das Veröffentlichen einen Graphen mit zwei solchen Schritten ab, die in einem Run beide laufen können.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
 
@@ -246,7 +246,7 @@ auf ihn, statt `202` zu bekommen, höchstens
 `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` lang. Der erste abgeschlossene
 Respond-Schritt ist die Antwort, eine Wiederholung derselben Zustellung bekommt
 sie erneut, und der Run läuft danach weiter. Ein Run, der endet, ohne den Schritt
-zu erreichen, antwortet `202`, wenn er erfolgreich war, und sonst `500`. Header,
+zu erreichen, antwortet `202`, wenn er erfolgreich war, und sonst `500`. Das Veröffentlichen lehnt einen Graphen mit zwei solchen Schritten ab, die in einem Run beide laufen können. Header,
 die der eigenen Antwort der API gehören, werden beim Veröffentlichen abgelehnt:
 Framing, `Content-Type`, `Set-Cookie` sowie die CORS- und Browser-Policy-Header.
 
@@ -440,17 +440,49 @@ genommenen Zweig wird als `skipped` festgehalten. `value` muss gebunden sein:
 Das Veröffentlichen und ein Testlauf des Entwurfs lehnen den Schritt ohne es ab; eine
 früher veröffentlichte Version läuft weiter und liest null.
 
-`logic.merge` führt die Zweige wieder zusammen. Er läuft, sobald der genommene Zweig ihn erreicht, und
-gibt dessen Ausgabe als `value` weiter. Das Veröffentlichen prüft, dass die
-Eingänge eines Merge einen Schritt über verschiedene Ports verlassen und dass
-dieser Schritt pro Run genau einen Port nimmt - ein If, ein Switch, eine
-Entscheidung, `ai.classify`, eine Tabellenprüfung, eine Freigabe oder ein Schritt,
-der seine Fehler weiterleitet -, sodass immer genau einer von ihnen läuft.
+`logic.merge` führt Zweige wieder zusammen. Standardmäßig wartet er auf **den Zweig,
+der lief**: Er läuft, sobald dieser Zweig ihn erreicht, und gibt dessen Ausgabe als
+`value` weiter. Das Veröffentlichen prüft, ob das sicher ist, und lehnt einen Merge
+ab, dessen Eingänge im selben Run laufen können. Das können Eingänge nicht, die
+einen Schritt über verschiedene Ports verlassen, wenn dieser Schritt pro Run genau
+einen Port nimmt - ein If, ein Switch, eine Entscheidung, `ai.classify`, eine
+Tabellenprüfung, eine Freigabe oder ein Schritt, der seine Fehler weiterleitet.
+Ebenso wenig können es Zweige verschiedener solcher Schritte, die einander
+ausschließen, etwa ein verschachteltes If mit gemeinsamem Else.
 
 Ein Merge kann zwei oder mehr Ports dieses Schritts direkt aufnehmen, ohne
 Schritt dazwischen, etwa `needs_reply` und `unsure` von `ai.classify`: Er läuft
 einmal, für den Port, den der Schritt genommen hat. Zwei Kanten vom selben Port
 werden weiterhin abgelehnt.
+
+Zweige, die nebeneinander laufen, etwa die Beine eines [Split](#logic-split),
+brauchen **Wait for** auf **All branches** (`wait_for: all`). Der Merge läuft dann,
+sobald jeder Eingang abgeschlossen ist, und gibt die Ausgabe jedes Zweigs unter
+`branches` weiter, einem Objekt nach Zweignamen, statt unter `value`. Den Namen
+eines Zweigs liefert sein Eintrag in `branch_keys`: Der Editor legt für jede
+Verbindung einen an, aus dem Namen des Schritts oder dem Zweig des Split, und ein
+nachfolgender Schritt liest `branches.<Name>`. Das Veröffentlichen lehnt einen
+Namen ab, den nichts hat, und zwei Zweige mit demselben Namen.
+
+Es lehnt außerdem **All branches** ab, wenn ein Eingang nicht sicher ankommt,
+sooft der Merge läuft - mit seinem Namen -, und wenn nur ein Eingang je laufen kann,
+denn dann braucht es **The branch that ran**. `branches` wird wie das Ergebnis
+jedes Schritts gespeichert: Ein Ergebnis über dem Inline-Limit lässt den Schritt mit
+`NODE_OUTPUT_TOO_LARGE` scheitern, reichen Sie Dateien also als Referenzen weiter.
+
+Ein älterer gespeicherter Graph, der auf alle Zweige wartet und den nur einige
+davon erreichen, lässt den Run mit `JOIN_INCOMPLETE` fehlschlagen und nennt den
+Merge. Das Veröffentlichen lehnt einen solchen Graphen ab; der Code bleibt als
+Sicherheitsnetz. `wait_for` und `branch_keys` haben Standardwerte, ein ohne
+Konfiguration gespeicherter Merge wartet also weiter auf den Zweig, der lief.
+
+Jeder Schritt mit mehreren eingehenden Kanten ist ein Join und braucht keinen
+Merge. Er läuft, sobald jeder Schritt, der zu ihm führt, abgeschlossen ist, wenn
+mindestens eine Kante aktiv ist, und wird übersprungen, wenn keine es ist. Er wird
+auch übersprungen, wenn eine Quelle ohne Fehlerpfad fehlgeschlagen ist: Dieser
+Fehler ist schon Sache des Runs. Die Bindings eines Joins dürfen nur Schritte
+lesen, die sicher vorher gelaufen sind; ein Join darf also jedes Bein einer
+parallelen Gruppe lesen, aber keinen Zweig eines If.
 
 Eine Regel, Kategorie, ein Zweig oder eine Auswahl, die Sie benennen, wird zu einem
 Ausgangsport und darf deshalb keinen Port wiederverwenden, den der Schritt schon
@@ -470,7 +502,30 @@ lässt oder etwas anderes aufruft, kann nicht veröffentlicht werden.
 
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
+::: app.workflows.nodes.logic_merge._handler.LogicMergeConfig
+
+::: app.workflows.nodes.logic_merge._handler.MergeBranchKey
+
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.split { #logic-split }
+
+**Split.** Schickt den Run gleichzeitig in jeden seiner Zweige. Jeder Zweig hat
+einen Namen, der sein Ausgangsport ist, und es gibt zwei bis zwanzig. Nichts wird
+gewählt und keine Bedingung gelesen: Jeder Zweig wird immer genommen, und die
+Schritte danach laufen nebeneinander. Der Schritt gibt nichts weiter, ein Schritt in
+einem Zweig bindet also an das, was vor dem Split lief. Ein Zweigname darf nicht
+`in` sein und keinen Namen wiederverwenden, den der Schritt schon hat.
+
+Ein Split kann seine Fehler nicht weiterleiten, denn ein Split, der fehlschlug, hat
+keinen Zweig gestartet: Das Veröffentlichen lehnt `on_error: route` an ihm ab, und
+die Schritte jedes Zweigs leiten ihre eigenen weiter. Die Zweige treffen sich in
+einem [`logic.merge`](#logic-if-and-logic-merge) wieder, der auf alle wartet, oder
+in jedem Schritt, der sie als Eingänge hat. Auch jeder andere Schritt kann einen
+Port an mehrere Schritte schicken, die dann ebenso gleichzeitig laufen; ein Split
+benennt die Zweige und hält sie im Blick.
+
+::: app.workflows.nodes.logic_split._handler.LogicSplitConfig
 
 ## logic.switch { #logic-switch }
 
@@ -479,8 +534,7 @@ Jede Regel hat einen Namen, der Port ihres Zweigs ist, und eine JMESPath-Bedingu
 über den gebundenen `value`, der Reihe nach geprüft; `otherwise` übernimmt, wenn
 keine gilt. `value` muss gebunden sein: Das Veröffentlichen und ein Testlauf des
 Entwurfs lehnen den Schritt ohne es ab; eine früher veröffentlichte Version läuft
-weiter und liest null. Die Zweige laufen in einem `logic.merge` zusammen, der sie annimmt, weil
-stets genau einer genommen wird. Eine Regel, die an ihren Daten scheitert, lässt
+weiter und liest null. Die Zweige laufen in einem `logic.merge` zusammen, der auf den Zweig wartet, der lief; das Veröffentlichen nimmt ihn an, weil stets genau einer genommen wird. Eine Regel, die an ihren Daten scheitert, lässt
 den Schritt mit `CONDITION_FAILED` scheitern und nennt die Regel.
 
 ::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
@@ -978,6 +1032,24 @@ die Ausgabe oder auf dem Erfolgspfad den Fehler liest. Der Fehlerport muss
 irgendwohin führen, und beide Pfade dürfen sich in einem `logic.merge` wieder
 treffen.
 
+Laufen Schritte parallel, hat jeder Zweig seinen eigenen Handler. Ein Zweig, der ohne
+Fehlerpfad fehlschlägt, lässt den Run fehlschlagen, und die Schritte neben ihm
+starten nichts mehr: Ihre offenen Freigaben und Timer werden zurückgezogen, ebenso
+die Agent-Runs, auf die sie geparkt sind. Ein Schritt, dessen Arbeit schon lief,
+wird fertig und als nach dem Ende des Runs beendet festgehalten, seine Ausgabe
+bleibt erhalten. Eine Wiederholung des Runs verwendet ihn weiter, statt es noch
+einmal zu tun, und ein wiederverwendeter Output- oder Respond-to-webhook-Schritt
+meldet seine Antwort erneut. Das Veröffentlichen lehnt einen `error.handle` ab, den
+zwei Schritte speisen, die im selben Run fehlschlagen können.
+
+Ein Schritt, der Aufmerksamkeit braucht, lässt sich in dem Run klären, in dem er
+steht. Ihn als fehlgeschlagen zu behandeln beendet ihn mit `STEP_MARKED_FAILED`, der
+über seinen Port `error` weitergeht, wenn der Schritt seine Fehler weiterleitet,
+oder an die Fehlerrichtlinie der Schleife geht. Den Run fehlschlagen zu lassen
+beendet ihn mit diesem Fehler, wie auch immer der Graph verbunden ist. Ein Run, der
+abgebrochen wird oder fehlschlägt, schließt auch einen Schritt, der Aufmerksamkeit
+braucht.
+
 `error.handle` nimmt diesen Fehler an seinem Port `in` an und verlässt ihn über
 den ersten Zweig, dessen `code` und `retryable` beide passen, oder über
 `default`, der verbunden sein muss. `error.raise` lässt seinen Zweig mit Code,
@@ -1030,6 +1102,14 @@ ersten fehlgeschlagenen Iteration fehl, und die Details des Fehlers tragen den
 verschachteln sich höchstens `WORKFLOW_FOREACH_MAX_DEPTH` tief, und jeder
 Knotenlauf, den ein Run anlegt, zählt gegen `WORKFLOW_RUN_MAX_NODE_RUNS`. Es
 gibt keine `while`-Schleife und kein paralleles Map.
+
+Ein Rumpf darf sich in parallele Beine verzweigen, die innerhalb ihrer Iteration
+nebeneinander laufen, und eine Iteration endet, sobald keiner ihrer Schritte mehr
+aktiv ist. Schlägt ein Schritt in einer Iteration ohne Fehlerpfad fehl, lässt
+`collect` seine Nachbarn in dieser Iteration zu Ende laufen und geht dann zum
+nächsten Element. `stop` bricht sie ab, zieht ihre Freigaben, Timer und geparkten
+Agent-Runs zurück und lässt die Schleife fehlschlagen. Die nächste Iteration
+startet nie, solange eine frühere noch einen laufenden Schritt hat.
 
 ::: app.workflows.nodes.control_foreach._handler.ForeachConfig
 

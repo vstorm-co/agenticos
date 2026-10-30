@@ -1,5 +1,5 @@
 ---
-source_sha: "5918277bc50f"
+source_sha: "7e54b3f5be8a"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -224,7 +224,7 @@ workflow de errores.
 Lo que responde el workflow. Sus campos enlazados pasan a ser el `output` del
 run, que devuelve la API y entrega la superficie que lo invoca. Tiene los mismos
 campos que la salida de `agent.run`, así que la respuesta de un agent se enlaza
-directamente. Una salida sin nada enlazado es una respuesta vacía.
+directamente. Una salida sin nada enlazado es una respuesta vacía. Un run responde una vez, así que publicar rechaza un grafo con dos pasos así que puedan ejecutarse ambos en un mismo run.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
 
@@ -236,7 +236,7 @@ entrega a un grafo con este paso lo espera en lugar de recibir `202`, como mucho
 `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. La respuesta es el primer paso respond
 que termina, un reintento de la misma entrega la recibe de nuevo y el run sigue
 después. Un run que termina sin llegar al paso responde `202` si tuvo éxito y
-`500` si no. Las cabeceras que pertenecen a la propia respuesta de la API se
+`500` si no. Publicar rechaza un grafo con dos pasos así que puedan ejecutarse ambos en un mismo run. Las cabeceras que pertenecen a la propia respuesta de la API se
 rechazan al publicar: el encuadre, `Content-Type`, `Set-Cookie` y las cabeceras
 CORS y de políticas del navegador.
 
@@ -426,17 +426,48 @@ puerto `true` o `false`. Cada nodo de la rama no tomada queda registrado como
 borrador, rechazan el paso sin él; una versión publicada antes sigue funcionando y
 lee null.
 
-`logic.merge` vuelve a unir las ramas. Se ejecuta cuando la rama
-tomada llega a él y pasa la salida de esa rama como `value`. Publicar comprueba
-que las entradas de un merge salen de un mismo paso por puertos distintos y que
-ese paso toma exactamente un puerto en cada run - un If, un Switch, una
-decisión, `ai.classify`, una comprobación de tabla, una aprobación o un paso que
-encamina sus errores -, de modo que siempre se ejecuta exactamente una de ellas.
+`logic.merge` vuelve a unir ramas. Por defecto espera a **la rama que se ejecutó**:
+se ejecuta cuando esa rama llega a él y pasa la salida de la rama como `value`.
+Publicar comprueba que eso es seguro y rechaza un merge cuyas entradas pueden
+ejecutarse en el mismo run. No pueden las entradas que salen de un mismo paso por
+puertos distintos, si ese paso toma exactamente un puerto en cada run - un If, un
+Switch, una decisión, `ai.classify`, una comprobación de tabla, una aprobación o
+un paso que encamina sus errores. Tampoco las ramas de varios de esos pasos que se
+excluyen entre sí, como un If anidado que comparte su else.
 
 Un merge puede tomar dos o más puertos de ese paso directamente, sin ningún paso
 entre medias, como `needs_reply` y `unsure` de `ai.classify`: se ejecuta una vez,
 para el puerto que tomó el paso. Dos aristas del mismo puerto siguen
 rechazándose.
+
+Las ramas que se ejecutan a la vez, como las patas de un [Split](#logic-split),
+necesitan **Wait for** en **All branches** (`wait_for: all`). El merge se ejecuta
+entonces cuando cada entrada ha terminado y pasa la salida de cada rama en
+`branches`, un objeto por nombre de rama, en lugar de `value`. El nombre de una rama
+lo da su entrada de `branch_keys`: el editor pone una para cada conexión, a partir
+del nombre del paso o de la rama del Split, y un paso posterior lee
+`branches.<nombre>`. Publicar rechaza un nombre que nada tiene y dos ramas con el
+mismo nombre.
+
+Publicar rechaza además **All branches** cuando una entrada no tiene la certeza de
+llegar siempre que el merge se ejecuta - con su nombre - y cuando solo una entrada
+puede ejecutarse, pues entonces hace falta **The branch that ran**. `branches` se
+guarda como el resultado de cualquier paso: uno por encima del límite inline hace
+fallar el paso con `NODE_OUTPUT_TOO_LARGE`, así que pasa los archivos como
+referencias.
+
+Un grafo guardado antes que espera a todas las ramas y al que llegan solo algunas
+hace fallar el run con `JOIN_INCOMPLETE`, nombrando el merge. Publicar rechaza un
+grafo así; el código queda como red de seguridad. `wait_for` y `branch_keys` tienen
+valores por defecto, así que un merge guardado sin configuración sigue esperando a
+la rama que se ejecutó.
+
+Cualquier paso con varias aristas de entrada es un join y no necesita merge. Se
+ejecuta cuando cada paso que lleva a él ha terminado, si al menos una arista está
+activa, y se omite si ninguna lo está. También se omite si una fuente falló sin
+camino de error: ese fallo ya es del run. Los bindings de un join solo pueden leer
+pasos que seguro se ejecutaron antes; un join puede leer cada pata de un grupo
+paralelo, pero no una rama de un If.
 
 Una regla, categoría, rama u opción a la que das nombre se convierte en un puerto
 de salida, así que no puede repetir un puerto que su paso ya tiene: `in`,
@@ -455,7 +486,30 @@ analizar, o que llama a otra cosa, no se puede publicar.
 
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
+::: app.workflows.nodes.logic_merge._handler.LogicMergeConfig
+
+::: app.workflows.nodes.logic_merge._handler.MergeBranchKey
+
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.split { #logic-split }
+
+**Split.** Envía el run por cada una de sus ramas a la vez. Cada rama tiene un
+nombre, que es su puerto de salida, y hay de dos a veinte. No se elige nada ni se
+lee ninguna condición: toda rama se toma siempre y los pasos que siguen se
+ejecutan a la vez. El paso no pasa nada, así que un paso de una rama se enlaza con
+lo que se ejecutó antes del Split. El nombre de una rama no puede ser `in` ni
+repetir un nombre que el paso ya tiene.
+
+Un Split no puede encaminar sus errores, porque un Split que falló no inició
+ninguna rama: publicar rechaza `on_error: route` en él, y los pasos de cada rama
+encaminan los suyos. Las ramas vuelven a encontrarse en un
+[`logic.merge`](#logic-if-and-logic-merge) que espera a todas, o en cualquier paso
+que las tenga como entradas. Cualquier otro paso también puede enviar un puerto a
+varios pasos, que se ejecutan a la vez del mismo modo; un Split da nombre a las
+ramas y las mantiene a la vista.
+
+::: app.workflows.nodes.logic_split._handler.LogicSplitConfig
 
 ## logic.switch { #logic-switch }
 
@@ -464,8 +518,7 @@ Cada regla tiene un nombre, que es el puerto de su rama, y una condición JMESPa
 sobre el `value` vinculado, probadas en orden; `otherwise` se lleva la ejecución
 cuando ninguna se cumple. `value` debe estar enlazado: publicar, y una ejecución de
 prueba del borrador, rechazan el paso sin él; una versión publicada antes sigue
-funcionando y lee null. Las ramas se reúnen en un `logic.merge`, que las acepta
-porque siempre se toma exactamente una. Una regla que falla con sus datos hace fallar
+funcionando y lee null. Las ramas se reúnen en un `logic.merge`, que espera a la rama que se ejecutó; publicar lo acepta porque siempre se toma exactamente una. Una regla que falla con sus datos hace fallar
 el paso con `CONDITION_FAILED` y nombra la regla.
 
 ::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
@@ -946,6 +999,24 @@ que publicar rechaza un binding que lee la salida en el camino de error, o el
 error en el camino de éxito. El puerto de error tiene que llevar a algún sitio,
 y los dos caminos pueden volver a unirse en un `logic.merge`.
 
+Cuando los pasos se ejecutan en paralelo, cada rama tiene su propio handler. Una
+rama que falla sin camino de error hace fallar el run, y los pasos que están a su
+lado no empiezan nada más: se retiran sus aprobaciones y temporizadores pendientes,
+y también los runs de agent en que están aparcados.
+
+Un paso cuyo trabajo ya estaba
+en marcha termina y queda registrado como terminado tras la parada del run, con su
+salida conservada. Un reintento del run lo reutiliza en lugar de hacerlo otra vez,
+y un paso Output o Respond to webhook reutilizado vuelve a informar de su
+respuesta. Publicar rechaza un `error.handle` alimentado por dos pasos que pueden
+fallar en el mismo run.
+
+Un paso que necesita atención se puede resolver en el run en que está. Tratarlo como
+fallido lo termina con `STEP_MARKED_FAILED`, que sale por su puerto `error` si el
+paso encamina sus errores, o pasa a la política de errores de elemento de su
+bucle. Hacer fallar el run lo termina con ese error, se conecte como se conecte el
+grafo. Cancelar un run, o que falle, cierra también un paso que necesita atención.
+
 `error.handle` recibe ese error en su puerto `in` y sale por la primera rama
 cuyos `code` y `retryable` coinciden, o por `default`, que debe estar
 conectada. `error.raise` hace fallar su rama con un código, un mensaje y unos
@@ -996,6 +1067,14 @@ iteración. Con `collect`, el resultado del elemento es `null`, el error se aña
 a `errors` y el bucle sigue. Los bucles se anidan como mucho
 `WORKFLOW_FOREACH_MAX_DEPTH` niveles, y cada ejecución de nodo que crea un run
 cuenta para `WORKFLOW_RUN_MAX_NODE_RUNS`. No hay bucle `while` ni map paralelo.
+
+Un cuerpo puede ramificarse en patas paralelas, que se ejecutan a la vez dentro de
+su iteración, y una iteración termina cuando ninguno de sus pasos sigue activo.
+Cuando un paso de una iteración falla sin camino de error, `collect` deja que sus
+vecinos de esa iteración terminen y pasa al siguiente elemento. `stop` los cancela,
+retira sus aprobaciones, temporizadores y runs de agent aparcados, y hace fallar el
+bucle. La siguiente iteración nunca empieza mientras una anterior tenga aún un paso
+en ejecución.
 
 ::: app.workflows.nodes.control_foreach._handler.ForeachConfig
 

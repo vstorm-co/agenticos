@@ -211,7 +211,8 @@ chose it. A run this trigger started never starts an error workflow itself.
 What the workflow answers. Its bound fields become the run's `output`, which
 the API returns and the invoking surface delivers. It has the same fields as
 `agent.run`'s output, so an agent's answer binds straight across. An output
-with nothing bound is an empty answer.
+with nothing bound is an empty answer. A run answers once, so publishing refuses
+a graph with two of these steps that can both run in one run.
 
 ::: app.workflows.contracts.io.WorkflowOutputPayload
 
@@ -223,7 +224,8 @@ a graph holding this step waits for it instead of taking `202`, for at most
 `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`. The first respond step to complete
 is the answer, a retry of the same delivery gets it again, and the run goes on
 after it. A run that ends without reaching the step answers `202` if it
-succeeded and `500` if it did not. Headers the API's own response owns are
+succeeded and `500` if it did not. Publishing refuses a graph with two of these
+steps that can both run in one run. Headers the API's own response owns are
 refused at publish: framing, `Content-Type`, `Set-Cookie`, and the CORS and
 browser-policy headers.
 
@@ -405,16 +407,44 @@ recorded as `skipped`. `value` must be bound: publishing, and a test run of the
 draft, refuse the step without it; a version published before keeps running and
 reads null.
 
-`logic.merge` rejoins the branches. It runs once the
-taken branch reaches it and passes that branch's output on as `value`.
-Publishing checks that a merge's inputs leave one step through different ports,
-and that the step takes exactly one port per run - an If, a Switch, a
-decision, `ai.classify`, a table check, an approval or a step that routes its
-errors - so exactly one of them ever runs.
+`logic.merge` rejoins branches. By default it waits for **the branch that ran**: it
+runs once that branch reaches it and passes the branch's output on as `value`.
+Publishing checks that this is safe, and refuses a merge whose inputs can run in
+the same run. Inputs that leave one step through different ports cannot, when the
+step takes exactly one port per run - an If, a Switch, a decision, `ai.classify`, a
+table check, an approval or a step that routes its errors. Arms of different such
+steps that exclude each other, such as a nested If that shares its else, cannot
+either.
 
 A merge can take two or more ports of that step straight, with nothing
 between them, such as `ai.classify`'s `needs_reply` and `unsure`: it runs once,
 for the port the step took. Two edges from the same port stay refused.
+
+Branches that run side by side, such as the legs of a [Split](#logic-split), need
+**Wait for** set to **All branches** (`wait_for: all`). The merge then runs once
+every input has settled and hands each branch's output on under `branches`, an
+object by branch name, instead of `value`. A branch is named by its `branch_keys`
+entry: the editor fills one in for each wire, from the step's name or the Split's
+branch, and a step downstream reads `branches.<name>`. Publishing refuses a name
+nothing has and two branches with one name.
+
+Publishing also refuses **All branches** when an input is not certain to arrive
+whenever the merge runs, naming it, and when only one input can ever run, which
+needs **The branch that ran**. `branches` is stored
+like any step's result: one over the inline limit fails the step with
+`NODE_OUTPUT_TOO_LARGE`, so hand files on as references.
+
+An older stored graph that waits for all branches and is reached by only some of
+them fails the run with `JOIN_INCOMPLETE`, naming the merge. Publishing refuses
+such a graph; the code stays as a safety net. `wait_for` and `branch_keys` have
+defaults, so a merge stored with no config keeps waiting for the branch that ran.
+
+Any step with several incoming edges is a join, and needs no merge. It runs once
+every step that leads to it has settled, if at least one edge is live, and is
+skipped when none is. It is skipped too when a source failed with no error route:
+that failure is already the run's to report. A join's bindings may read only steps
+certain to have run before it, so a join may read each leg of a parallel group but
+not one arm of an If.
 
 A rule, category, branch or choice you name becomes an output port, so it may not
 reuse a port its step already has: `in`, `otherwise`, `other`, `default`,
@@ -433,7 +463,28 @@ calls anything else, cannot be published.
 
 ::: app.workflows.nodes.logic_if._handler.LogicIfConfig
 
+::: app.workflows.nodes.logic_merge._handler.LogicMergeConfig
+
+::: app.workflows.nodes.logic_merge._handler.MergeBranchKey
+
 ::: app.workflows.nodes.logic_merge._handler.LogicMergeOutput
+
+## logic.split { #logic-split }
+
+**Split.** Sends the run down every one of its branches at once. Each branch has a
+name, which is its output port, and there are two to twenty. Nothing is chosen and
+no condition is read: every branch is always taken, and the steps after them run
+side by side. The step hands nothing on, so a step in a branch binds to what ran
+before the Split. A branch name may not be `in`, or reuse a name the step has.
+
+A Split cannot route its errors, because a Split that failed started no branch:
+publishing refuses `on_error: route` on it, and each branch's own steps route
+theirs. The branches meet again at a [`logic.merge`](#logic-if-and-logic-merge)
+that waits for all of them, or at any step that has them as inputs. Any other step
+may also send one port to several steps, and those steps run at once the same way;
+a Split names the branches and keeps them in view.
+
+::: app.workflows.nodes.logic_split._handler.LogicSplitConfig
 
 ## logic.switch { #logic-switch }
 
@@ -442,8 +493,8 @@ rule has a name, which is its branch's port, and a JMESPath condition over the
 bound `value`, tried in order; `otherwise` takes the run when none holds. `value`
 must be bound: publishing, and a test run of the draft, refuse the step without it;
 a version published before keeps running and reads null. Its
-branches rejoin at a `logic.merge`, which accepts them because exactly one is ever
-taken. A rule that fails on its data fails the step with `CONDITION_FAILED` and
+branches rejoin at a `logic.merge` that waits for the branch that ran, which
+publishing accepts because exactly one is ever taken. A rule that fails on its data fails the step with `CONDITION_FAILED` and
 names the rule.
 
 ::: app.workflows.nodes.logic_switch._handler.LogicSwitchConfig
@@ -905,6 +956,21 @@ binding that reads the output on the error path, or the error on the success
 path. The error port has to lead somewhere, and the two paths may rejoin at a
 `logic.merge`.
 
+When steps run in parallel, each branch has its own handler. A branch that fails
+with no error route fails the run, and the steps beside it start nothing further:
+their pending approvals and timers are withdrawn, and so are the agent runs they
+are parked on. A step whose work was already under way finishes and is recorded as
+finished after the run stopped, with its output kept. A retry of the run reuses
+it instead of doing it again, and a reused Output or Respond to webhook step
+reports its answer again. Publishing refuses an `error.handle` that two steps able
+to fail in the same run both feed.
+
+A step that needs attention can be settled on the run it is in. Treating it as
+failed ends it with `STEP_MARKED_FAILED`, which leaves by its `error` port when the
+step routes its errors, or goes to its loop's item-error policy. Failing the run
+ends the run with that error however the graph is wired. Cancelling a run, or a run
+failing, closes a step that needs attention too.
+
 `error.handle` takes that error on its `in` port and leaves by the first branch
 whose `code` and `retryable` both match, or by `default`, which must be
 connected. `error.raise` fails its branch with a code, a message and details
@@ -951,6 +1017,13 @@ iteration and the error's details carry that iteration's `scope_path`. With
 loop carries on. Loops nest at most `WORKFLOW_FOREACH_MAX_DEPTH` deep, and
 every node run a run creates counts against `WORKFLOW_RUN_MAX_NODE_RUNS`. There
 is no `while` loop and no parallel map.
+
+A body may fan out into parallel legs, which run side by side within their
+iteration, and an iteration ends once none of its steps is live. When a step fails
+in an iteration with no error route, `collect` lets its siblings in that iteration
+finish and then moves to the next item. `stop` cancels them, withdrawing their
+approvals, timers and parked agent runs, and fails the loop. The next iteration
+never starts while an earlier one still has a step running.
 
 ::: app.workflows.nodes.control_foreach._handler.ForeachConfig
 

@@ -150,8 +150,8 @@ base, two agents in turn, an API-created lead scored through a table trigger and
 written back, and a multi-file batch report - run end to end, with a worker killed
 after a table write, one killed inside a model call, and a member revoked halfway.
 
-**Deferred, on purpose:** creating and deleting records from the console; resuming
-a run that needs attention; an API-key principal for tables.
+**Deferred, on purpose:** creating and deleting records from the console; an
+API-key principal for tables.
 None of these has a current estimate: they are listed so the next plan starts from
 them rather than rediscovering them.
 
