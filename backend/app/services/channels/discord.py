@@ -493,26 +493,8 @@ class DiscordAdapter(ChannelAdapter):
         member's and the channel's overwrites. A thread is judged by its parent,
         and a private thread also by its own members: it is invite-only, so
         seeing the parent is not being in it.
-
-        `channel_id` may be a whole conversation key, `parent:thread` (see
-        `membership_chat`). A thread Discord does not know is one never opened -
-        the answer went as a reply in the channel - or deleted since, and the
-        conversation is judged by the channel it was in.
         """
-        parent, thread = split_thread(channel_id)
-        if thread:
-            found = await self._call("GET", f"/channels/{thread}", bot_token)
-            if found.status_code != 404:
-                return await self._sees(bot_token, found, platform_user_id)
-        found = await self._call("GET", f"/channels/{parent}", bot_token)
-        return await self._sees(bot_token, found, platform_user_id)
-
-    def membership_chat(self, platform_chat_id: str) -> str:
-        """The whole key: a private thread's members are not its channel's."""
-        return platform_chat_id
-
-    async def _sees(self, bot_token: str, found: httpx.Response, platform_user_id: str) -> bool:
-        """Whether the account can see the channel `found` is Discord's answer about."""
+        found = await self._call("GET", f"/channels/{channel_id}", bot_token)
         if found.status_code in (403, 404):
             return False
         found.raise_for_status()
@@ -524,13 +506,14 @@ class DiscordAdapter(ChannelAdapter):
         if channel.get("type") in THREAD_TYPES and channel.get("parent_id"):
             if channel.get("type") == PRIVATE_THREAD:
                 joined = await self._call(
-                    "GET", f"/channels/{channel['id']}/thread-members/{platform_user_id}", bot_token
+                    "GET", f"/channels/{channel_id}/thread-members/{platform_user_id}", bot_token
                 )
                 if joined.status_code == 404:
                     return False
                 joined.raise_for_status()
-            parent = await self._call("GET", f"/channels/{channel['parent_id']}", bot_token)
-            return await self._sees(bot_token, parent, platform_user_id)
+            return await self.is_channel_member(
+                bot_token, channel["parent_id"], platform_user_id, api_base_url=api_base_url
+            )
         guild_id = str(channel.get("guild_id") or "")
         guild = await self._call("GET", f"/guilds/{guild_id}", bot_token)
         guild.raise_for_status()
@@ -741,14 +724,19 @@ class DiscordAdapter(ChannelAdapter):
         """The conversation a message in `channel_id` belongs to - see `thread_key`.
 
         A direct message is the chat itself. In a server, a thread is keyed on
-        its parent and itself, and a message outside one on the message, where
-        its thread will be opened.
+        its parent and itself - a private thread on itself alone - and a message
+        outside one on the message, where its thread will be opened.
         """
         if not guild:
             return channel_id
         channel = self._channels.get(channel_id)
         if channel is not None and channel.kind in THREAD_TYPES and channel.parent_id:
             self._threads.put(channel_id, True)
+            # A private thread is invite-only, so it is keyed as a channel of its
+            # own: its room memory and who may read it in the console are then
+            # its members', not everybody's who can see the parent.
+            if channel.kind == PRIVATE_THREAD:
+                return channel_id
             return f"{channel.parent_id}:{channel_id}"
         return thread_key(channel_id, thread_id="", message_id=message_id)
 

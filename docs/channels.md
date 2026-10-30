@@ -1508,8 +1508,9 @@ asking what was wrong. Discord has no reaction on the question.
 every platform. A conversation from a server channel is shown in the console to
 those who can still see that channel, by the server's roles and the channel's
 permission overwrites, which is what being in a channel means on Discord. A
-private thread is invite-only, so one from a private thread is shown only to
-those still in that thread as well.
+private thread is invite-only, so it is a room of its own: a conversation from
+it is shown only to those still in that thread, and the notes the agent keeps
+there are not shared with the channel.
 
 Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
 asks for sharding and the bot stops with that reason. The directory tools are not

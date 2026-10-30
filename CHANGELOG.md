@@ -33,6 +33,11 @@ Two things are versioned separately from this file and worth knowing about:
   and setting one is refused. A bot in more than 2,500 servers stops and says
   Discord requires sharding, which is not supported yet.
 
+### Fixed
+
+- A Microsoft Teams bot's form no longer offers a reaction to a question.
+  Teams never drew it, so the reaction chosen there was saved and ignored.
+
 ## [1.30.0] - 2026-10-30
 
 ### Added

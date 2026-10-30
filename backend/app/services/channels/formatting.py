@@ -49,6 +49,7 @@ CHANNEL_BEHAVIOR = """Channel conversation guidance:
 def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> str:
     """Facts the deployment knows, independent of an editable binding prompt."""
     names = {
+        "discord": "Discord",
         "mattermost": "Mattermost",
         "slack": "Slack",
         "teams": "Microsoft Teams",

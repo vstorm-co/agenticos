@@ -1,5 +1,5 @@
 ---
-source_sha: "6604b66f7686"
+source_sha: "3e03a19684c2"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1553,8 +1553,9 @@ Discorda z pytaniem, co było nie tak. Na Discordzie pytanie nie dostaje reakcji
 `/link` jak na każdej platformie. Rozmowa z kanału serwera jest pokazywana w
 konsoli tym, którzy nadal widzą ten kanał, według ról serwera i nadpisań uprawnień
 kanału, bo tym na Discordzie jest bycie na kanale. Wątek prywatny jest tylko na
-zaproszenie, więc rozmowa z niego jest pokazywana wyłącznie tym, którzy nadal
-są także w tym wątku.
+zaproszenie, więc jest osobnym pokojem: rozmowa z niego jest pokazywana
+wyłącznie tym, którzy nadal są w tym wątku, a notatki, które agent tam
+prowadzi, nie są wspólne z kanałem.
 
 Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
 których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia

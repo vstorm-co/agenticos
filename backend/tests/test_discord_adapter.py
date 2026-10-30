@@ -18,6 +18,7 @@ from websockets.exceptions import ConnectionClosedError
 from websockets.frames import Close
 
 from app.agents.capabilities.guardrails import GuardrailsConfig
+from app.core.memory_keys import room_owner_key
 from app.services.channels import discord
 from app.services.channels.base import (
     ChannelChoice,
@@ -28,6 +29,7 @@ from app.services.channels.base import (
     OutgoingAttachment,
     OutgoingMessage,
     PromptMessage,
+    memory_room_key,
 )
 from app.services.channels.discord import DiscordAdapter, _Channel, _Reply, _Session
 from app.services.channels.discord_protocol import VIEW_CHANNEL
@@ -164,6 +166,15 @@ class TestReading:
         assert incoming.platform_chat_id == f"{CHANNEL}:{THREAD}"
         assert incoming.addressed is True
         assert THREAD in adapter._threads
+
+    def test_a_private_thread_is_a_room_of_its_own(self, adapter: DiscordAdapter):
+        adapter._channels.put(THREAD, _Channel(kind=12, parent_id=CHANNEL, owner_id=USER))
+        incoming = adapter.parse_incoming(_message(channel_id=THREAD), BOT)
+        assert incoming is not None
+        assert incoming.platform_chat_id == THREAD
+        assert memory_room_key("discord", incoming.platform_chat_id, "group") == (
+            room_owner_key("discord", THREAD)
+        )
 
     def test_a_direct_message_is_one_conversation_and_always_addressed(
         self, adapter: DiscordAdapter
@@ -1047,22 +1058,12 @@ class TestMembership:
         api.answer(
             "GET",
             f"/channels/{THREAD}",
-            httpx.Response(200, json={"id": THREAD, "type": 12, "parent_id": CHANNEL}),
+            httpx.Response(200, json={"type": 12, "parent_id": CHANNEL}),
         )
-        key = adapter.membership_chat(f"{CHANNEL}:{THREAD}")
         api.answer("GET", f"/channels/{THREAD}/thread-members/{USER}", httpx.Response(200))
-        assert await adapter.is_channel_member("tok", key, USER, api_base_url=None)
+        assert await adapter.is_channel_member("tok", THREAD, USER, api_base_url=None)
         api.answer("GET", f"/channels/{THREAD}/thread-members/{USER}", httpx.Response(404))
-        assert not await adapter.is_channel_member("tok", key, USER, api_base_url=None)
-
-    async def test_a_thread_never_opened_is_judged_by_its_channel(
-        self, adapter: DiscordAdapter, api: _Discord
-    ):
-        self._routes(api, overwrites=[], member=httpx.Response(200, json={"roles": []}))
-        api.answer("GET", f"/channels/{MESSAGE}", httpx.Response(404))
-        assert await adapter.is_channel_member(
-            "tok", f"{CHANNEL}:{MESSAGE}", USER, api_base_url=None
-        )
+        assert not await adapter.is_channel_member("tok", THREAD, USER, api_base_url=None)
 
     async def test_a_direct_message_holds_its_recipient(
         self, adapter: DiscordAdapter, api: _Discord

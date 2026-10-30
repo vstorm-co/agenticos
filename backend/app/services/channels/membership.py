@@ -136,22 +136,17 @@ async def _confirmed(
     round trip, and a listing is waiting. The chat is the *channel*: Slack and
     Mattermost fold a thread id into `platform_chat_id`, and handed that
     composite the platform answers `channel_not_found` - so every thread
-    participant would be refused while still in the room. The adapter's
-    `membership_chat` strips it, which also makes a channel's many threads one
-    question - except on Discord, where a private thread has members of its own.
+    participant would be refused while still in the room. `channel_key` strips
+    it, which also makes a channel's many threads one question.
     """
     if not claims:
         return set()
     bots = await channel_bot_repo.get_by_ids(db, {claim.bot_id for claim in claims})
-
-    def asked(claim: conversation_repo.ParticipationClaim) -> tuple[UUID, str, str]:
-        return (
-            claim.bot_id,
-            _membership_chat(bots[claim.bot_id], claim.platform_chat_id),
-            claim.platform_user_id,
-        )
-
-    questions = {asked(claim) for claim in claims if claim.bot_id in bots}
+    questions = {
+        (claim.bot_id, channel_key(claim.platform_chat_id), claim.platform_user_id)
+        for claim in claims
+        if claim.bot_id in bots
+    }
     ordered = sorted(questions, key=str)
     answers = await asyncio.gather(
         *(is_still_member(bots[bot_id], chat, account) for bot_id, chat, account in ordered)
@@ -160,16 +155,8 @@ async def _confirmed(
     return {
         claim.conversation_id
         for claim in claims
-        if claim.bot_id in bots and asked(claim) in confirmed
+        if (claim.bot_id, channel_key(claim.platform_chat_id), claim.platform_user_id) in confirmed
     }
-
-
-def _membership_chat(bot: ChannelBot, platform_chat_id: str) -> str:
-    """The chat the platform is asked about; an unregistered one is refused by `is_still_member`."""
-    try:
-        return get_adapter(bot.platform).membership_chat(platform_chat_id)
-    except KeyError:
-        return channel_key(platform_chat_id)
 
 
 async def confirmed_participant_threads(

@@ -212,8 +212,12 @@ def thread_name(text: str) -> str:
 
 
 def without_mention(text: str, user_id: str) -> str:
-    """The message with the bot's own mention taken out - it is the envelope, not the question."""
-    return " ".join(re.sub(rf"<@!?{re.escape(user_id)}>", " ", text).split())
+    """The message with the bot's own mention taken out - it is the envelope, not the question.
+
+    Only the mention and the spaces beside it: line breaks, indentation and a
+    code block in the question reach the agent as they were written.
+    """
+    return re.sub(rf"[ \t]*<@!?{re.escape(user_id)}>[ \t]*", " ", text).strip()
 
 
 def attachment_type(content_type: str | None, filename: str) -> str:

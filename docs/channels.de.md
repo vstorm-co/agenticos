@@ -1,5 +1,5 @@
 ---
-source_sha: "6604b66f7686"
+source_sha: "3e03a19684c2"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1668,9 +1668,10 @@ Frage gibt es auf Discord nicht.
 mit einem Mitglied verknüpft. Eine Unterhaltung aus einem Serverkanal wird in der
 Konsole denen gezeigt, die den Kanal noch sehen können, nach den Rollen des Servers
 und den Berechtigungsüberschreibungen des Kanals, denn das heißt auf Discord, in
-einem Kanal zu sein. Ein privater Thread ist nur auf Einladung zugänglich, daher
-wird eine Unterhaltung daraus nur denen gezeigt, die auch noch in diesem Thread
-sind.
+einem Kanal zu sein. Ein privater Thread ist nur auf Einladung zugänglich und
+daher ein eigener Raum: Eine Unterhaltung daraus wird nur denen gezeigt, die
+noch in diesem Thread sind, und die Notizen, die der Agent dort führt, werden
+nicht mit dem Kanal geteilt.
 
 Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
 verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die
