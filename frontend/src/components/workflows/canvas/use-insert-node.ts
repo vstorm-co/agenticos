@@ -2,6 +2,10 @@ import { useCallback, useMemo } from "react";
 
 import { suggestedBindingsFor } from "@/components/workflows/apps";
 import { nodeOutputBinding } from "@/components/workflows/property-panel/bindings";
+import {
+  carryBranchKey,
+  fittingMergeConfigs,
+} from "@/components/workflows/property-panel/merge-config";
 import { availableSourceNodes } from "@/components/workflows/validation";
 import type {
   Binding,
@@ -43,6 +47,36 @@ function graphAfter(graph: WorkflowGraph, plan: NodeInsertion): WorkflowGraph {
       ...(plan.edge === null ? [] : [plan.edge]),
     ],
   };
+}
+
+/**
+ * What a merge's config becomes when a step is put into one of its branches' wires: the
+ * branch keeps the name its author gave it on the new step's wire, and the mode and
+ * names are fitted as for any new wire. Empty when the step is not put into a merge's wire.
+ */
+function mergeConfigsAfter(
+  graph: WorkflowGraph,
+  after: WorkflowGraph,
+  plan: NodeInsertion,
+  catalogMap: Map<string, NodeDefinition>,
+): Record<string, Record<string, unknown>> {
+  const tail = plan.split?.tail;
+  const cut = graph.edges.find((edge) => edge.id === plan.split?.edgeId);
+  const merge = tail == null ? undefined : after.nodes.find((n) => n.id === tail.target_node_id);
+  if (tail == null || cut === undefined || merge === undefined) return {};
+  const carried = carryBranchKey(
+    merge.config,
+    { nodeId: cut.source_node_id, port: cut.source_port },
+    { nodeId: tail.source_node_id, port: tail.source_port },
+  );
+  const carriedGraph = {
+    ...after,
+    nodes: after.nodes.map((n) => (n === merge ? { ...n, config: carried } : n)),
+  };
+  const fitted = fittingMergeConfigs(carriedGraph, definitionsByNode(carriedGraph, catalogMap), [
+    merge.id,
+  ]);
+  return carried === merge.config ? fitted : { [merge.id]: carried, ...fitted };
 }
 
 /**
@@ -141,6 +175,7 @@ export function useInsertNode(catalog: NodeDefinition[], readOnly = false): Inse
           ...appBindings(after, configured, upstream),
           ...reply.bindings,
         ],
+        configs: mergeConfigsAfter(graph, after, configured, catalogMap),
       };
       insertNode(planned);
       // A step with something to set opens its settings at once: it is added to

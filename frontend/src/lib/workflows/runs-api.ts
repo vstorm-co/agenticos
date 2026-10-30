@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { saveBlob } from "@/lib/file-access";
 import type {
   RunHistoryQuery,
+  StepChoice,
   WorkflowGraph,
   WorkflowNodeRunList,
   WorkflowRunFile,
@@ -47,6 +48,15 @@ export async function listRunHistory(query: RunHistoryQuery): Promise<WorkflowRu
 /** Run again what a run ran, from where it stopped. */
 export async function retryWorkflowRun(runId: string): Promise<WorkflowRunRead> {
   return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/retry`);
+}
+
+/** Decide what becomes of a step that needs attention, on the run it is in. */
+export async function resolveWorkflowRunStep(
+  runId: string,
+  nodeRunId: string,
+  choice: StepChoice,
+): Promise<WorkflowRunRead> {
+  return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/steps/${nodeRunId}/rerun`, { choice });
 }
 
 export async function getWorkflowRun(runId: string): Promise<WorkflowRunRead> {

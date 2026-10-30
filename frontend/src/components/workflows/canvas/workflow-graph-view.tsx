@@ -23,6 +23,7 @@ import { useTranslations } from "next-intl";
 
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui";
 import { readNodeDragData } from "@/components/workflows/palette";
+import { fittingMergeConfigs } from "@/components/workflows/property-panel/merge-config";
 import { problemText } from "@/components/workflows/property-panel/problems";
 import { validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
@@ -182,8 +183,29 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   // An edge orders two steps; the values a step reads are bindings. When the ports
   // match exactly the wiring is unambiguous, so the edge brings its bindings with it.
   const connect = useCallback(
-    (connection: Connection) =>
-      connectNodes(connection, autoBindings(connection, graph ?? EMPTY_GRAPH, definitions)),
+    (connection: Connection) => {
+      const current = graph ?? EMPTY_GRAPH;
+      // A merge that now has branches running together switches to waiting for all of
+      // them, with each named, in the same edit as the wire.
+      const wired: WorkflowGraph = {
+        ...current,
+        edges: [
+          ...current.edges,
+          {
+            id: "",
+            source_node_id: connection.source,
+            source_port: connection.sourceHandle ?? "",
+            target_node_id: connection.target,
+            target_port: connection.targetHandle ?? "",
+          },
+        ],
+      };
+      connectNodes(
+        connection,
+        autoBindings(connection, current, definitions),
+        fittingMergeConfigs(wired, definitions, [connection.target]),
+      );
+    },
     [connectNodes, graph, definitions],
   );
 

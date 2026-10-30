@@ -38,6 +38,7 @@ import { RunAnswer } from "@/components/workflows/runs/run-answer";
 import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
 import { StepLogs } from "@/components/workflows/logs/step-logs";
 import { RunFiles } from "@/components/workflows/runs/run-files";
+import { StepAttentionDialog } from "@/components/workflows/runs/step-attention-dialog";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
 import {
   useCausingRun,
@@ -48,12 +49,14 @@ import {
 } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
+import { routesErrors } from "@/lib/workflows/ports";
 import { stepDataOf } from "@/lib/workflows/step-data";
 import {
   isRunRetryable,
   isRunTerminal,
   type NodeInstance,
   nodeDisplayName,
+  type WorkflowNodeRunRead,
   shortNodeId,
 } from "@/lib/workflows/types";
 import { Perm } from "@/types/permissions";
@@ -79,8 +82,9 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const { workflow } = useWorkflow(id);
   const { nodes: catalog, isLoading: catalogLoading } = useNodeCatalog();
   const router = useRouter();
-  const { run, isLoading, nodes, files, logs, logsError, graph, cancel, retry } =
+  const { run, isLoading, nodes, files, logs, logsError, graph, cancel, retry, resolveStep } =
     useWorkflowRun(runId);
+  const [resolving, setResolving] = useState<string | null>(null);
   const { can } = usePermissions();
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
@@ -155,6 +159,16 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const problem = run.error;
   const title = t("runTitle", { id: shortNodeId(run.id) });
   const stepsRun = nodes.filter((node) => node.status === "succeeded").length;
+  const resolvingNode = nodes.find((node) => node.id === resolving) ?? null;
+  const resolvingInstance = graph?.nodes.find(
+    (entry) => entry.id === resolvingNode?.node_instance_id,
+  );
+  // A step that finished after the run had already stopped: its work happened.
+  const finishedLate = (node: WorkflowNodeRunRead) =>
+    node.status === "succeeded" &&
+    run.ended_at !== null &&
+    node.ended_at !== null &&
+    Date.parse(node.ended_at) > Date.parse(run.ended_at);
 
   return (
     <div className="space-y-6">
@@ -170,7 +184,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
         badges={<WorkflowRunStatusBadge status={run.status} />}
         actions={
           <>
-            {live && can(Perm.workflowsRun) && (
+            {live && run.can_cancel && (
               <Button variant="outline" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
                 <Square className="h-4 w-4" />
                 {t("cancelRun")}
@@ -193,19 +207,22 @@ export default function WorkflowRunPage({ params }: PageProps) {
                 {t("runSeeInLogs")}
               </Link>
             </Button>
-            {isRunRetryable(run.status) && can(Perm.workflowsRun) && (
-              <Button
-                disabled={retry.isPending}
-                onClick={() =>
-                  retry.mutate(undefined, {
-                    onSuccess: (started) => router.push(ROUTES.WORKFLOW_RUN_DETAIL(id, started.id)),
-                  })
-                }
-              >
-                <RotateCcw className="h-4 w-4" />
-                {t("runRetry")}
-              </Button>
-            )}
+            {isRunRetryable(run.status) &&
+              can(Perm.workflowsRun) &&
+              (run.mode === "real" || workflow.can_edit) && (
+                <Button
+                  disabled={retry.isPending}
+                  onClick={() =>
+                    retry.mutate(undefined, {
+                      onSuccess: (started) =>
+                        router.push(ROUTES.WORKFLOW_RUN_DETAIL(id, started.id)),
+                    })
+                  }
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {t("runRetry")}
+                </Button>
+              )}
           </>
         }
       />
@@ -301,6 +318,21 @@ export default function WorkflowRunPage({ params }: PageProps) {
                       <span className="truncate text-sm">{nameOf(node.node_instance_id)}</span>
                       <NodeRunStatusLabel status={node.status} />
                     </div>
+                    {(finishedLate(node) ||
+                      (live && node.status === "needs_attention" && run.can_cancel)) && (
+                      <div className="flex items-center justify-between gap-2">
+                        {finishedLate(node) && (
+                          <p className="text-muted-foreground text-xs">
+                            {t("runStepFinishedLate")}
+                          </p>
+                        )}
+                        {live && node.status === "needs_attention" && run.can_cancel && (
+                          <Button size="sm" variant="outline" onClick={() => setResolving(node.id)}>
+                            {t("runStepResolve")}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                     <p className="text-muted-foreground text-xs">
                       {node.scope_path.length > 0
                         ? t("runStepIteration", {
@@ -334,6 +366,31 @@ export default function WorkflowRunPage({ params }: PageProps) {
           <RunFiles runId={run.id} files={files} />
         </div>
       </div>
+
+      {resolvingNode?.status === "needs_attention" && resolvingInstance !== undefined && (
+        <StepAttentionDialog
+          node={resolvingNode}
+          stepName={nameOf(resolvingNode.node_instance_id)}
+          definition={catalog.find(
+            (entry) =>
+              entry.id === resolvingInstance.definition_id &&
+              entry.version === resolvingInstance.definition_version,
+          )}
+          routesErrors={routesErrors(resolvingInstance)}
+          inLoop={resolvingNode.scope_path.length > 0}
+          open
+          busy={resolveStep.isPending}
+          onOpenChange={(open) => {
+            if (!open) setResolving(null);
+          }}
+          onResolve={(choice) =>
+            resolveStep.mutate(
+              { nodeRunId: resolvingNode.id, choice },
+              { onSuccess: () => setResolving(null) },
+            )
+          }
+        />
+      )}
     </div>
   );
 }

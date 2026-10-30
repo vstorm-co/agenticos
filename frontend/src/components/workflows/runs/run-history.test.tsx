@@ -46,6 +46,7 @@ function run(overrides: Partial<WorkflowRunRead> = {}): WorkflowRunRead {
     causation_run_id: null,
     retry_of_run_id: null,
     depth: 0,
+    can_cancel: false,
     started_at: null,
     ended_at: null,
     created_at: null,

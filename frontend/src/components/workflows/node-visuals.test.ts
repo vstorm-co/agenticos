@@ -8,6 +8,7 @@ import {
   File,
   FingerprintPattern,
   GitBranch,
+  GitFork,
   Reply,
   Search,
   Send,
@@ -59,6 +60,7 @@ describe("sectionSwatchClass", () => {
 describe("nodeVisual", () => {
   it("names a step by its own id first, then by what it touches", () => {
     expect(nodeVisual("logic.if", "logic", "colour").icon).toBe(GitBranch);
+    expect(nodeVisual("logic.split", "logic", "colour").icon).toBe(GitFork);
     expect(nodeVisual("agent.run", "agent", "colour").icon).toBe(Bot);
     expect(nodeVisual("table.record.get", "tables", "colour").icon).toBe(Table2);
     expect(nodeVisual("http.download", "http", "colour").icon).toBe(Download);

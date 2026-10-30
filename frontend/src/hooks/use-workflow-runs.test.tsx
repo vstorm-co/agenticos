@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { qk } from "@/lib/query-keys";
 import * as logsApi from "@/lib/workflows/logs-api";
+import { ApiError } from "@/lib/api-error";
 import * as api from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
@@ -21,6 +22,7 @@ vi.mock("@/lib/workflows/runs-api", () => ({
   cancelWorkflowRun: vi.fn(),
   listRunHistory: vi.fn(),
   retryWorkflowRun: vi.fn(),
+  resolveWorkflowRunStep: vi.fn(),
 }));
 vi.mock("@/lib/workflows/logs-api", () => ({ listRunLogs: vi.fn() }));
 /** The options a routine confirmation goes out with (`toastDone`). */
@@ -122,6 +124,63 @@ describe("retrying a run", () => {
       await result.current.retry.mutateAsync().catch(() => undefined);
     });
     expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe("resolving a step", () => {
+  it("posts the choice and shows the run as it now stands, or says why it could not", async () => {
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("needs_attention"));
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
+    vi.mocked(api.resolveWorkflowRunStep)
+      .mockResolvedValueOnce(run("running"))
+      .mockRejectedValueOnce(new Error("no"));
+    const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
+    await waitFor(() => expect(result.current.run?.status).toBe("needs_attention"));
+
+    await act(() =>
+      result.current.resolveStep.mutateAsync({ nodeRunId: "n", choice: "run_again" }),
+    );
+    expect(api.resolveWorkflowRunStep).toHaveBeenCalledWith("r", "n", "run_again");
+    await waitFor(() => expect(result.current.run?.status).toBe("running"));
+    expect(toast.success).toHaveBeenCalledWith("Step resolved", routine);
+    await act(async () => {
+      await result.current.resolveStep
+        .mutateAsync({ nodeRunId: "n", choice: "fail_run" })
+        .catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe("resolving a step that is no longer there to resolve", () => {
+  it("reads the run and its steps again after a conflict, and not after another failure", async () => {
+    vi.mocked(api.getWorkflowRun).mockResolvedValue(run("needs_attention"));
+    vi.mocked(api.listWorkflowRunNodes).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.getWorkflowRunGraph).mockResolvedValue(null as never);
+    vi.mocked(api.listWorkflowRunFiles).mockResolvedValue({ items: [] });
+    vi.mocked(api.resolveWorkflowRunStep)
+      .mockRejectedValueOnce(new ApiError(409, "Conflict"))
+      .mockRejectedValueOnce(new Error("boom"));
+    const { result } = renderHook(() => useWorkflowRun("r"), { wrapper });
+    await waitFor(() => expect(result.current.run).not.toBeNull());
+    const reads = () => vi.mocked(api.getWorkflowRun).mock.calls.length;
+
+    const before = reads();
+    await act(async () => {
+      await result.current.resolveStep
+        .mutateAsync({ nodeRunId: "n", choice: "run_again" })
+        .catch(() => undefined);
+    });
+    await waitFor(() => expect(reads()).toBe(before + 1));
+
+    await act(async () => {
+      await result.current.resolveStep
+        .mutateAsync({ nodeRunId: "n", choice: "run_again" })
+        .catch(() => undefined);
+    });
+    expect(reads()).toBe(before + 1);
   });
 });
 

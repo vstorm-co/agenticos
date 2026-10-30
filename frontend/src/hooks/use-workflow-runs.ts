@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { listRunLogs } from "@/lib/workflows/logs-api";
 import {
@@ -16,10 +16,16 @@ import {
   listWorkflowRunNodes,
   listRunHistory,
   listWorkflowRuns,
+  resolveWorkflowRunStep,
   retryWorkflowRun,
   startWorkflowRun,
 } from "@/lib/workflows/runs-api";
-import { isRunTerminal, type RunHistoryQuery, type WorkflowRunRead } from "@/lib/workflows/types";
+import {
+  isRunTerminal,
+  type RunHistoryQuery,
+  type StepChoice,
+  type WorkflowRunRead,
+} from "@/lib/workflows/types";
 import { toastDone } from "@/lib/toast";
 
 /** How often a live run is read again - its steps move on their own. */
@@ -147,6 +153,25 @@ export function useWorkflowRun(runId: string) {
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
+  // One step decided in place: the run answers as it now stands, and its steps are read again.
+  const resolveStep = useMutation({
+    mutationFn: ({ nodeRunId, choice }: { nodeRunId: string; choice: StepChoice }) =>
+      resolveWorkflowRunStep(runId, nodeRunId, choice),
+    onSuccess: (resolved) => {
+      queryClient.setQueryData(qk.workflows.run(runId), resolved);
+      void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
+      toastDone(t("stepResolved"));
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      // A conflict means the run moved on - someone resolved the step, or it ended: read
+      // what it is now, so the page stops offering a choice that no longer exists.
+      if (error instanceof ApiError && error.status === 409) {
+        void queryClient.invalidateQueries({ queryKey: qk.workflows.run(runId) });
+        void queryClient.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
+      }
+    },
+  });
   return {
     run: run.data ?? null,
     isLoading: run.isLoading,
@@ -157,5 +182,6 @@ export function useWorkflowRun(runId: string) {
     graph: graph.data ?? null,
     cancel,
     retry,
+    resolveStep,
   };
 }

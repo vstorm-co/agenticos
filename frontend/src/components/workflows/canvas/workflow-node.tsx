@@ -27,7 +27,7 @@ import { connectionLabel } from "@/lib/mcp-servers";
 import { type McpAppStep, useMcpAppStep } from "@/components/workflows/use-app-connections";
 import { cadenceDraftOf } from "@/components/workflows/property-panel/cadence";
 import { ownsAScope } from "@/components/workflows/palette";
-import { routesErrors } from "@/lib/workflows/ports";
+import { routesErrors, splitBranches } from "@/lib/workflows/ports";
 import { nodeDisplayName, type NodeInstance, type Port } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -214,6 +214,8 @@ export function nodeSummary(instance: NodeInstance, t: Translate): string | null
       const branches = Array.isArray(config.branches) ? config.branches.length : 0;
       return t("nodeSummaryBranches", { count: branches });
     }
+    case "logic.split":
+      return t("nodeSummarySplitBranches", { count: splitBranches(config).length });
     case "logic.switch": {
       const rules = Array.isArray(config.rules) ? config.rules.length : 0;
       return t("nodeSummaryRules", { count: rules });

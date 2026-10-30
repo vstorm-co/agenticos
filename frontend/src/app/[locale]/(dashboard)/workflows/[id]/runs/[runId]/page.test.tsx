@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +27,11 @@ const state = vi.hoisted(() => ({
   twice: false,
   graphNodes: null as unknown,
   catalog: [] as unknown[],
+  can: false,
+  canEdit: false,
+  runEndedAt: null as string | null,
+  stepEndedAt: null as string | null,
+  resolve: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,9 +49,9 @@ const GRAPH: WorkflowGraph = {
 
 vi.mock("@/hooks", async (original) => ({
   ...(await original<typeof import("@/hooks")>()),
-  useWorkflow: () => ({ workflow: { id: "w1", name: "Flow", can_edit: false } }),
+  useWorkflow: () => ({ workflow: { id: "w1", name: "Flow", can_edit: state.canEdit } }),
   useNodeCatalog: () => ({ nodes: state.catalog, isLoading: false }),
-  usePermissions: () => ({ can: () => false }),
+  usePermissions: () => ({ can: () => state.can }),
   useCausingRun: () => ({ causing: null, refused: false }),
   useWorkflowRun: () => ({
     run: {
@@ -62,7 +67,8 @@ vi.mock("@/hooks", async (original) => ({
       causation_run_id: null,
       retry_of_run_id: null,
       started_at: null,
-      ended_at: null,
+      ended_at: state.runEndedAt,
+      can_cancel: state.can,
     } as Partial<WorkflowRunRead>,
     isLoading: false,
     nodes: (state.twice ? ["n1", "n2"] : ["n1"]).map(
@@ -77,8 +83,10 @@ vi.mock("@/hooks", async (original) => ({
           cost: 0,
           error: null,
           output: null,
+          last_attempt_status: null,
+          late_output: null,
           started_at: null,
-          ended_at: null,
+          ended_at: state.stepEndedAt,
         }) as WorkflowNodeRunRead,
     ),
     files: [],
@@ -87,6 +95,7 @@ vi.mock("@/hooks", async (original) => ({
     graph: state.graphNodes === null ? GRAPH : (state.graphNodes as WorkflowGraph),
     cancel: { mutate: vi.fn(), isPending: false },
     retry: { mutate: vi.fn(), isPending: false },
+    resolveStep: { mutate: state.resolve, isPending: false },
   }),
 }));
 
@@ -111,6 +120,11 @@ afterEach(() => {
   state.twice = false;
   state.graphNodes = null;
   state.catalog = [];
+  state.can = false;
+  state.canEdit = false;
+  state.runEndedAt = null;
+  state.stepEndedAt = null;
+  state.resolve.mockReset();
 });
 
 const params = Promise.resolve({ id: "w1", runId: "r1" });
@@ -254,5 +268,68 @@ describe("a run's page", () => {
     const lines = screen.getByTestId("step-logs");
     expect(lines).toHaveTextContent("Done");
     expect(lines).toHaveTextContent(/:07/);
+  });
+});
+
+describe("a step that needs attention", () => {
+  const GRAPH_WITH_STEP: WorkflowGraph = {
+    ...GRAPH,
+    nodes: [
+      { id: "a", definition_id: "act", definition_version: 1, config: {}, layout: { x: 0, y: 0 } },
+    ],
+  };
+
+  function needsAttention(mode: "real" | "test") {
+    state.mode = mode;
+    state.status = "needs_attention";
+    state.step = "needs_attention";
+    state.graphNodes = GRAPH_WITH_STEP;
+  }
+
+  it("marks a step that finished after the run stopped", async () => {
+    state.status = "failed";
+    state.step = "succeeded";
+    state.runEndedAt = "2026-10-30T10:00:00Z";
+    state.stepEndedAt = "2026-10-30T10:00:05Z";
+    await renderPage();
+    expect(screen.getByText("Finished after the run stopped.")).toBeInTheDocument();
+  });
+
+  it("does not mark a step that finished before the run stopped", async () => {
+    state.status = "failed";
+    state.step = "succeeded";
+    state.runEndedAt = "2026-10-30T10:00:05Z";
+    state.stepEndedAt = "2026-10-30T10:00:00Z";
+    await renderPage();
+    expect(screen.queryByText("Finished after the run stopped.")).toBeNull();
+  });
+
+  it("resolving a step posts the choice and refreshes the run", async () => {
+    needsAttention("real");
+    state.can = true;
+    state.resolve.mockImplementation((_variables, options: { onSuccess: () => void }) =>
+      options.onSuccess(),
+    );
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fail the run" }));
+
+    expect(state.resolve).toHaveBeenCalledWith(
+      { nodeRunId: "n1", choice: "fail_run" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    // The dialog closes once the choice went through.
+    expect(screen.queryByRole("button", { name: "Fail the run" })).toBeNull();
+  });
+
+  it("closes the dialog without a choice", async () => {
+    needsAttention("real");
+    state.can = true;
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(state.resolve).not.toHaveBeenCalled();
   });
 });

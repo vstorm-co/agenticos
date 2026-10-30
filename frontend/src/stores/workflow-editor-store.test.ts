@@ -468,6 +468,39 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().graph?.bindings).toEqual([]);
   });
 
+  it("wiring a second parallel leg into a merge switches it to all branches in one undo", () => {
+    store.getState().seedGraph(seededGraph());
+    const config = { wait_for: "all", branch_keys: [] };
+    store
+      .getState()
+      .connectNodes({ source: "b", target: "a", sourceHandle: "out", targetHandle: "in" }, [], {
+        a: config,
+      });
+    expect(store.getState().graph?.nodes.find((n) => n.id === "a")?.config).toEqual(config);
+    expect(store.getState().graph?.edges).toHaveLength(2);
+
+    store.getState().undo();
+    expect(store.getState().graph?.nodes.find((n) => n.id === "a")?.config).toEqual({});
+    expect(store.getState().graph?.edges).toHaveLength(1);
+  });
+
+  it("insertNode applies the configs it carries with the step, as one edit", () => {
+    store.getState().seedGraph(seededGraph());
+    store.getState().insertNode({
+      node: { ...nodeAt("c", 0, 0), config: {} },
+      edge: null,
+      bindings: [],
+      becomesEntry: false,
+      replaces: null,
+      configs: { b: { wait_for: "all" } },
+    });
+    expect(store.getState().graph?.nodes.find((n) => n.id === "b")?.config).toEqual({
+      wait_for: "all",
+    });
+    store.getState().undo();
+    expect(store.getState().graph?.nodes.find((n) => n.id === "b")?.config).toEqual({});
+  });
+
   it("connectNodes leaves a connection that is already there as it is", () => {
     store.getState().seedGraph(seededGraph());
     const binding = {
@@ -890,6 +923,297 @@ describe("useWorkflowEditorStore graph slice", () => {
       store.getState().undo();
       expect(store.getState().graph?.edges[0]?.source_port).toBe("big");
     });
+  });
+
+  describe("renaming a Split branch that feeds a merge", () => {
+    const entry = (port: string, key: string) => ({
+      source_node_id: "s",
+      source_port: port,
+      key,
+    });
+    const reader = (key: string): Binding => ({
+      target_node_id: "r",
+      target_field: "message",
+      source: {
+        kind: "node_output",
+        node_id: "m",
+        port: "value",
+        field_path: ["branches", key],
+      },
+    });
+    function seedFork(leftKey: string) {
+      const graph = seededGraph();
+      store.getState().seedGraph({
+        ...graph,
+        nodes: [
+          {
+            ...nodeAt("s", 0, 0),
+            definition_id: "logic.split",
+            config: { branches: [{ name: "left" }, { name: "right" }] },
+          },
+          {
+            ...nodeAt("m", 100, 0),
+            definition_id: "logic.merge",
+            config: {
+              wait_for: "all",
+              branch_keys: [entry("left", leftKey), entry("right", "right")],
+            },
+          },
+          nodeAt("r", 200, 0),
+        ],
+        edges: ["left", "right"].map((port) => ({
+          id: `e-${port}`,
+          source_node_id: "s",
+          source_port: port,
+          target_node_id: "m",
+          target_port: "in",
+        })),
+        bindings: [reader(leftKey), reader("right")],
+      });
+    }
+    const rename = () =>
+      store.getState().updateNodeConfig("s", { branches: [{ name: "large" }, { name: "right" }] });
+    const merge = () => store.getState().graph?.nodes.find((n) => n.id === "m");
+
+    it("carries the merge's wire, its default key and what reads it", () => {
+      seedFork("left");
+      rename();
+      expect(merge()?.config.branch_keys).toEqual([
+        entry("large", "large"),
+        entry("right", "right"),
+      ]);
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "large"],
+      });
+      expect(store.getState().graph?.bindings[1]?.source).toMatchObject({
+        field_path: ["branches", "right"],
+      });
+    });
+
+    it("keeps a key the author chose", () => {
+      seedFork("approved");
+      rename();
+      expect(merge()?.config.branch_keys).toEqual([
+        entry("large", "approved"),
+        entry("right", "right"),
+      ]);
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "approved"],
+      });
+    });
+
+    it("keeps the old key when another branch already goes by the new name", () => {
+      seedFork("left");
+      const graph = store.getState().graph;
+      if (graph === null) throw new Error("no graph");
+      store.getState().seedGraph({
+        ...graph,
+        nodes: graph.nodes.map((n) =>
+          n.id === "m"
+            ? {
+                ...n,
+                config: {
+                  wait_for: "all",
+                  branch_keys: [entry("left", "left"), entry("right", "large")],
+                },
+              }
+            : n,
+        ),
+      });
+      rename();
+      expect(merge()?.config.branch_keys).toEqual([
+        entry("large", "left"),
+        entry("right", "large"),
+      ]);
+    });
+
+    it("carries readers of a merge that never stored its keys, storing nothing", () => {
+      seedFork("left");
+      const graph = store.getState().graph;
+      if (graph === null) throw new Error("no graph");
+      store.getState().seedGraph({
+        ...graph,
+        nodes: graph.nodes.map((n) => (n.id === "m" ? { ...n, config: { wait_for: "all" } } : n)),
+      });
+      rename();
+      expect(merge()?.config).toEqual({ wait_for: "all" });
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "large"],
+      });
+      expect(store.getState().graph?.bindings[1]?.source).toMatchObject({
+        field_path: ["branches", "right"],
+      });
+    });
+
+    it("carries nothing for an unstored key when another branch goes by the new name", () => {
+      seedFork("left");
+      const graph = store.getState().graph;
+      if (graph === null) throw new Error("no graph");
+      store.getState().seedGraph({
+        ...graph,
+        nodes: graph.nodes.map((n) => (n.id === "m" ? { ...n, config: { wait_for: "all" } } : n)),
+        edges: graph.edges.map((e) =>
+          e.source_port === "right" ? { ...e, source_port: "large" } : e,
+        ),
+      });
+      store.getState().updateNodeConfig("s", { branches: [{ name: "large" }, { name: "large" }] });
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "left"],
+      });
+    });
+
+    it("leaves a merge the step does not feed alone", () => {
+      seedFork("left");
+      const graph = store.getState().graph;
+      if (graph === null) throw new Error("no graph");
+      const other = { ...nodeAt("m2", 100, 100), definition_id: "logic.merge", config: {} };
+      store.getState().seedGraph({ ...graph, nodes: [...graph.nodes, other] });
+      rename();
+      expect(store.getState().graph?.nodes.find((n) => n.id === "m2")).toEqual(other);
+    });
+
+    it("is undone in one step", () => {
+      seedFork("left");
+      rename();
+      store.getState().undo();
+      const graph = store.getState().graph;
+      expect(graph?.edges[0]?.source_port).toBe("left");
+      expect(merge()?.config.branch_keys).toEqual([entry("left", "left"), entry("right", "right")]);
+      expect(graph?.bindings[0]?.source).toMatchObject({ field_path: ["branches", "left"] });
+    });
+  });
+
+  describe("a merge's branch names", () => {
+    const keys = (...names: string[]) => ({
+      wait_for: "all",
+      branch_keys: names.map((key, i) => ({ source_node_id: `s${i}`, source_port: "out", key })),
+    });
+    const read = (key: string, tail: string[] = []): Binding => ({
+      target_node_id: "b",
+      target_field: "message",
+      source: {
+        kind: "node_output",
+        node_id: "a",
+        port: "value",
+        field_path: ["branches", key, ...tail],
+      },
+    });
+    function seedMerge(config: Record<string, unknown>, bindings: Binding[]) {
+      const graph = seededGraph();
+      store.getState().seedGraph({
+        ...graph,
+        nodes: [
+          { ...nodeAt("a", 0, 0), definition_id: "logic.merge", config },
+          nodeAt("b", 100, 0),
+        ],
+        bindings,
+      });
+    }
+
+    it("renaming a merge branch key rewrites what reads branches.<key>", () => {
+      seedMerge(keys("research", "draft"), [
+        read("research", ["title"]),
+        read("draft"),
+        {
+          target_node_id: "b",
+          target_field: "body",
+          source: {
+            kind: "template",
+            parts: [
+              "see ",
+              {
+                kind: "node_output",
+                node_id: "a",
+                port: "value",
+                field_path: ["branches", "research"],
+              },
+            ],
+          },
+        },
+      ]);
+      store.getState().updateNodeConfig("a", keys("sources", "draft"));
+      const bindings = store.getState().graph?.bindings ?? [];
+      expect(bindings[0]?.source).toMatchObject({ field_path: ["branches", "sources", "title"] });
+      expect(bindings[1]?.source).toMatchObject({ field_path: ["branches", "draft"] });
+      expect(bindings[2]?.source).toMatchObject({
+        parts: ["see ", { field_path: ["branches", "sources"] }],
+      });
+
+      store.getState().undo();
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "research", "title"],
+      });
+    });
+
+    it("keeps carrying a rename after a leg was deleted", () => {
+      seedMerge(keys("research", "draft", "review"), [read("review"), read("draft")]);
+      // The form writes the live wires only: the middle leg is gone, the last is renamed.
+      store.getState().updateNodeConfig("a", {
+        wait_for: "all",
+        branch_keys: [
+          { source_node_id: "s0", source_port: "out", key: "research" },
+          { source_node_id: "s2", source_port: "out", key: "checked" },
+        ],
+      });
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "checked"],
+      });
+      expect(store.getState().graph?.bindings[1]?.source).toMatchObject({
+        field_path: ["branches", "draft"],
+      });
+    });
+
+    it("carries a rename of a branch whose default name the config never stored", () => {
+      seedMerge({ wait_for: "all" }, [read("research"), read("draft")]);
+      // The form writes every branch, the first under its new name, the other as it was.
+      store.getState().updateNodeConfig("a", {
+        wait_for: "all",
+        branch_keys: [
+          { source_node_id: "s0", source_port: "out", key: "sources" },
+          { source_node_id: "s1", source_port: "out", key: "draft" },
+        ],
+      });
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "sources"],
+      });
+      expect(store.getState().graph?.bindings[1]?.source).toMatchObject({
+        field_path: ["branches", "draft"],
+      });
+    });
+
+    it("leaves a name unrenamed when the edit is not a single rename", () => {
+      seedMerge(keys("research", "draft"), [read("research")]);
+      store.getState().updateNodeConfig("a", keys("x", "y"));
+      expect(store.getState().graph?.bindings[0]?.source).toMatchObject({
+        field_path: ["branches", "research"],
+      });
+    });
+  });
+
+  it("renaming a split branch carries its edges", () => {
+    const graph = seededGraph();
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [
+        {
+          ...nodeAt("a", 0, 0),
+          definition_id: "logic.split",
+          config: { branches: [{ name: "left" }] },
+        },
+        nodeAt("b", 100, 0),
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "a",
+          source_port: "left",
+          target_node_id: "b",
+          target_port: "in",
+        },
+      ],
+    });
+    store.getState().updateNodeConfig("a", { branches: [{ name: "right" }] });
+    expect(store.getState().graph?.edges[0]?.source_port).toBe("right");
   });
 
   it("updateNodeConfig on a node that is not there changes nothing", () => {

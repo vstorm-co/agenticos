@@ -67,6 +67,7 @@ import {
 } from "@/components/workflows/pickers/mcp-tool-picker";
 import { FormPageForm } from "./form-page-form";
 import { InputFieldsForm } from "./input-fields-form";
+import { MergeForm } from "./merge-form";
 import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
 import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
@@ -118,6 +119,7 @@ const AGENT_SOURCE = "agent";
 const AGENT_INLINE = "inline";
 /** `mcp.call`'s server and tool: one field, since the tool is one the server offers. */
 const MCP_CALL = "mcp.call";
+const MERGE = "logic.merge";
 const MCP_SERVER = "connection_id";
 const MCP_TOOL = "tool";
 const MCP_ARGUMENTS = "arguments";
@@ -1023,6 +1025,17 @@ function NodeFields({
   if (definition.id === SCHEDULE_TRIGGER) {
     return (
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+    );
+  }
+  if (definition.id === MERGE) {
+    return (
+      <MergeForm
+        node={node}
+        graph={graph}
+        catalog={catalog}
+        disabled={disabled}
+        updateNodeConfig={updateNodeConfig}
+      />
     );
   }
   if (FIELD_TRIGGERS.has(definition.id)) {

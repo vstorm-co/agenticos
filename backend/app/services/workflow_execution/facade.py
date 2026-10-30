@@ -192,8 +192,9 @@ _RETRYABLE = frozenset(
 )
 
 
-def _read(run: WorkflowRun) -> WorkflowRunRead:
+def _read(run: WorkflowRun, *, can_cancel: bool = False) -> WorkflowRunRead:
     return WorkflowRunRead(
+        can_cancel=can_cancel,
         id=run.id,
         workflow_id=run.workflow_id,
         workflow_version_id=run.workflow_version_id,
@@ -675,7 +676,7 @@ class WorkflowExecutionService:
         )
         await events.append(self.db, run=run, kind=events.EventKind.RUN_CANCELLED)
         await delivery.deliver_result(self.db, run=run)
-        return _read(run)
+        return _read(run, can_cancel=True)
 
     async def resolve_step(
         self, ctx: AuthContext, run_id: UUID, node_run_id: UUID, body: WorkflowStepResolve
@@ -714,12 +715,7 @@ class WorkflowExecutionService:
             or (ctx.api_key_id is not None and not run.public_origin)
         ):
             raise WorkflowRunNotFoundError(run_id=run_id)
-        if not await self._may_cancel(ctx, run, workflow) or (
-            WorkflowRunMode(run.mode) is WorkflowRunMode.TEST
-            and not await resolve_access(
-                self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
-            )
-        ):
+        if not await self._may_resolve(ctx, run, workflow):
             raise AuthorizationError(
                 message="Only the person who started this run, or an editor of its "
                 "workflow, may resolve its steps",
@@ -771,11 +767,11 @@ class WorkflowExecutionService:
                 "choice": body.choice,
             },
         )
-        return _read(run)
+        return _read(run, can_cancel=True)
 
     async def get(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
-        run = await self._load(ctx, run_id, Perm.WORKFLOWS_VIEW)
-        return _read(run)
+        run, workflow = await self._load_with_workflow(ctx, run_id, Perm.WORKFLOWS_VIEW)
+        return _read(run, can_cancel=await self._may_resolve(ctx, run, workflow))
 
     async def list(
         self,
@@ -1114,14 +1110,22 @@ class WorkflowExecutionService:
         for: telling them apart would confirm the run exists, and naming its
         workflow would hand out the id of a workflow they cannot see.
         """
-        run = await workflow_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
-        if (
-            run is None
-            or (ctx.api_key_id is not None and not run.public_origin)
-            or await self._reachable(ctx, run.workflow_id, perm) is None
-        ):
-            raise WorkflowRunNotFoundError(run_id=run_id)
+        run, _workflow = await self._load_with_workflow(ctx, run_id, perm)
         return run
+
+    async def _load_with_workflow(
+        self, ctx: AuthContext, run_id: UUID, perm: Perm
+    ) -> tuple[WorkflowRun, Workflow]:
+        """`_load`, with the workflow it reached."""
+        run = await workflow_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        workflow = (
+            await self._reachable(ctx, run.workflow_id, perm)
+            if run is not None and (ctx.api_key_id is None or run.public_origin)
+            else None
+        )
+        if run is None or workflow is None:
+            raise WorkflowRunNotFoundError(run_id=run_id)
+        return run, workflow
 
     async def _may_cancel(self, ctx: AuthContext, run: WorkflowRun, workflow: Workflow) -> bool:
         if await resolve_access(
@@ -1130,6 +1134,15 @@ class WorkflowExecutionService:
             return True
         return run.execution_principal_user_id == ctx.user_id and await resolve_access(
             self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
+        )
+
+    async def _may_resolve(self, ctx: AuthContext, run: WorkflowRun, workflow: Workflow) -> bool:
+        """Who may cancel, and who may decide a step's fate: as `_may_cancel`, and for a
+        test run only an editor."""
+        if not await self._may_cancel(ctx, run, workflow):
+            return False
+        return WorkflowRunMode(run.mode) is not WorkflowRunMode.TEST or await resolve_access(
+            self.db, ctx, workflow, Perm.WORKFLOWS_EDIT, resource_type=WORKFLOW
         )
 
     async def _resolve_start_graph(

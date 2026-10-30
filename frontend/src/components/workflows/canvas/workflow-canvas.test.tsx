@@ -287,6 +287,59 @@ describe("WorkflowCanvas", () => {
     );
   });
 
+  it("switches a merge to all branches when a second parallel leg is wired into it", async () => {
+    const split = def({
+      id: "logic.split",
+      name: "Split",
+      kind: "control",
+      ports: [{ id: "in", label: "In", kind: "input", schema: null }],
+    });
+    const merge = def({ id: "logic.merge", name: "Merge", kind: "control" });
+    const at = (id: string, definitionId: string, x: number, config = {}) => ({
+      ...node(id, definitionId),
+      config,
+      layout: { x, y: 0 },
+    });
+    const wire = (id: string, from: string, port: string, to: string) => ({
+      id,
+      source_node_id: from,
+      source_port: port,
+      target_node_id: to,
+      target_port: "in",
+    });
+    store.getState().seedGraph({
+      entry_node_id: "s",
+      nodes: [
+        at("s", "logic.split", 0, { branches: [{ name: "a" }, { name: "b" }] }),
+        at("a", "act", 240),
+        at("b", "act", 480),
+        at("j", "logic.merge", 720),
+      ],
+      edges: [wire("e1", "s", "a", "a"), wire("e2", "s", "b", "b"), wire("e3", "a", "out", "j")],
+      bindings: [],
+      scopes: [],
+    });
+    const { container } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={[ACTION, split, merge]} />,
+    );
+
+    fireEvent.click(container.querySelector('[data-node-id="b"] button[aria-label^="Start"]')!);
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-node-id="j"] button[aria-label^="Complete"]'),
+      ).toBeTruthy(),
+    );
+    fireEvent.click(container.querySelector('[data-node-id="j"] button[aria-label^="Complete"]')!);
+
+    await waitFor(() => expect(store.getState().graph?.edges).toHaveLength(4));
+    expect(store.getState().graph?.nodes.find((n) => n.id === "j")?.config).toMatchObject({
+      wait_for: "all",
+      branch_keys: [{ source_node_id: "a" }, { source_node_id: "b" }],
+    });
+    store.getState().undo();
+    expect(store.getState().graph?.nodes.find((n) => n.id === "j")?.config).toEqual({});
+  });
+
   it("refuses to complete an incompatible connection", async () => {
     const producer = def({
       id: "producer",

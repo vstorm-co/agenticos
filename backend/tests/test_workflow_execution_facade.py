@@ -766,6 +766,44 @@ class TestGet:
             result = await service.get(_ctx(), run.id)
         assert result.id == run.id
 
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("mode", "may_edit", "may_run", "starter", "expected"),
+        [
+            # The starter who may run it, an editor by grant (no run permission),
+            # and a runner who is neither: what `cancel` would let each do.
+            (WorkflowRunMode.REAL, False, True, True, True),
+            (WorkflowRunMode.REAL, True, False, False, True),
+            (WorkflowRunMode.REAL, False, True, False, False),
+            (WorkflowRunMode.REAL, False, False, True, False),
+            # A test run is its editors' to resolve, whoever started it.
+            (WorkflowRunMode.TEST, False, True, True, False),
+            (WorkflowRunMode.TEST, True, False, False, True),
+        ],
+    )
+    async def test_it_says_whether_this_caller_may_cancel_and_resolve(
+        self, mode, may_edit, may_run, starter, expected
+    ):
+        ctx = _ctx()
+        run = _run_row(
+            mode=mode.value, execution_principal_user_id=ctx.user_id if starter else uuid.uuid4()
+        )
+        workflow = _workflow(id=run.workflow_id)
+        service = WorkflowExecutionService(MagicMock())
+
+        async def _resolve_access(
+            db: object, ctx: object, resource: object, perm: Perm, *, resource_type: object
+        ) -> bool:
+            return {Perm.WORKFLOWS_EDIT: may_edit, Perm.WORKFLOWS_RUN: may_run}.get(perm, True)
+
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(side_effect=_resolve_access)),
+        ):
+            result = await service.get(ctx, run.id)
+        assert result.can_cancel is expected
+
 
 class TestList:
     @pytest.mark.security

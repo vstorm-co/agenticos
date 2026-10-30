@@ -150,6 +150,13 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
         description="The run this one retries; its succeeded steps were not run again.",
     )
     depth: int
+    can_cancel: bool = Field(
+        default=False,
+        description="Whether the caller may cancel this run and resolve its steps: its "
+        "starter who may run the workflow, or an editor of it; for a test run, an editor. "
+        "Only the single-run read and the answers to cancel and resolve say so; it is "
+        "false elsewhere",
+    )
     started_at: datetime | None
     ended_at: datetime | None
 

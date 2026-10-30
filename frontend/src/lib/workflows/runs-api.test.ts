@@ -12,6 +12,7 @@ import {
   listWorkflowRunNodes,
   listRunHistory,
   listWorkflowRuns,
+  resolveWorkflowRunStep,
   retryWorkflowRun,
   startWorkflowRun,
 } from "./runs-api";
@@ -113,6 +114,16 @@ describe("a run history", () => {
     expect(isRunRetryable("failed")).toBe(true);
     expect(isRunRetryable("budget_exceeded")).toBe(true);
     expect(isRunRetryable("succeeded")).toBe(false);
+  });
+});
+
+describe("a step that needs attention", () => {
+  it("posts the choice to the step's rerun route", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "r" });
+    await resolveWorkflowRunStep("r", "n", "use_late_result");
+    expect(apiClient.post).toHaveBeenLastCalledWith("/workflow-runs/r/steps/n/rerun", {
+      choice: "use_late_result",
+    });
   });
 });
 

@@ -230,6 +230,10 @@ describe("a node card", () => {
       nodeSummary({ ...instance("x", definitionId), config }, t);
     expect(summary("logic.switch", { rules: [{}, {}] })).toBe('nodeSummaryRules:{"count":2}');
     expect(summary("logic.switch", {})).toBe('nodeSummaryRules:{"count":0}');
+    expect(summary("logic.split", { branches: [{ name: "a" }, { name: "b" }] })).toBe(
+      'nodeSummarySplitBranches:{"count":2}',
+    );
+    expect(summary("logic.split", {})).toBe('nodeSummarySplitBranches:{"count":0}');
     // A wait's time is the band's to say, not the summary's.
     expect(summary("flow.wait", { seconds: 30 })).toBeNull();
     expect(summary("data.filter", { condition: "item.ok" })).toBe("ok conditionOps.notEmpty:{}");
@@ -545,6 +549,8 @@ describe("a node card by family", () => {
         cost: 0,
         error: null,
         output: null,
+        last_attempt_status: null,
+        late_output: null,
         started_at: null,
         ended_at: null,
       },
@@ -815,6 +821,8 @@ describe("a node card on a run's canvas", () => {
         cost: 0,
         error: { code: "BAD", message: "It broke" },
         output: null,
+        last_attempt_status: null,
+        late_output: null,
         started_at: null,
         ended_at: null,
       },
@@ -828,6 +836,8 @@ describe("a node card on a run's canvas", () => {
         cost: 0,
         error: null,
         output: null,
+        last_attempt_status: null,
+        late_output: null,
         started_at: null,
         ended_at: null,
       },
@@ -841,6 +851,8 @@ describe("a node card on a run's canvas", () => {
         cost: 0,
         error: null,
         output: null,
+        last_attempt_status: null,
+        late_output: null,
         started_at: null,
         ended_at: null,
       },
@@ -873,6 +885,8 @@ describe("a node card's retry policy on a run's canvas", () => {
     cost: 0,
     error: { code: "URL_REFUSED", message: "Refused" },
     output: null,
+    last_attempt_status: null,
+    late_output: null,
     started_at: null,
     ended_at: null,
   });
@@ -912,6 +926,8 @@ describe("a node card in a run being watched", () => {
     cost: 0,
     error: null,
     output: null,
+    last_attempt_status: null,
+    late_output: null,
     started_at: null,
     ended_at: null,
     ...extra,

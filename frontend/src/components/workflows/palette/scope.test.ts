@@ -36,6 +36,10 @@ describe("ownsAScope", () => {
     expect(ownsAScope(def({ id: "control.foreach", kind: "action" }))).toBe(false);
   });
 
+  it("does not treat a split as a loop", () => {
+    expect(ownsAScope(def({ id: "logic.split", kind: "control" }))).toBe(false);
+  });
+
   it("is false for a plain action node", () => {
     expect(ownsAScope(def({ id: "http.fetch", kind: "action" }))).toBe(false);
   });

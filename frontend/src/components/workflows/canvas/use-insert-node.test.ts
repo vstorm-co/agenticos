@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeDefinition, node, port } from "@/components/workflows/validation/fixtures";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -356,4 +356,129 @@ it("does not fetch the channel bots for a read-only canvas", () => {
   channelBots.mockClear();
   renderHook(() => useInsertNode([STEP], false));
   expect(channelBots).toHaveBeenCalledWith(true);
+});
+
+it("renames a merge's branches when a step is put into the wire of one", () => {
+  const insertNode = vi.fn();
+  const IN = port("in", "input", null);
+  const OUT = port("out", "output", null);
+  const catalog = [
+    STEP,
+    makeDefinition({ id: "logic.split", kind: "control", ports: [IN] }),
+    makeDefinition({ id: "logic.merge", kind: "control", ports: [IN, OUT] }),
+  ];
+  const wire = (id: string, from: string, fromPort: string, to: string) => ({
+    id,
+    source_node_id: from,
+    source_port: fromPort,
+    target_node_id: to,
+    target_port: "in",
+  });
+  const edges = [
+    wire("e0", "S", "a", "A"),
+    wire("e1", "S", "b", "B"),
+    wire("e2", "A", "out", "J"),
+    wire("e3", "B", "out", "J"),
+  ];
+  useWorkflowEditorStore.setState({
+    insertNode,
+    graph: {
+      entry_node_id: "S",
+      nodes: [
+        node("S", "logic.split", { branches: [{ name: "a" }, { name: "b" }] }),
+        node("A", "step"),
+        node("B", "step"),
+        node("J", "logic.merge", {
+          wait_for: "all",
+          branch_keys: [{ source_node_id: "A", source_port: "out", key: "first" }],
+        }),
+      ],
+      edges,
+      bindings: [],
+      scopes: [],
+    },
+  });
+  const { result } = renderHook(() => useInsertNode(catalog));
+
+  result.current(STEP, { between: edges[2] as (typeof edges)[number] });
+
+  const inserted = insertNode.mock.calls[0]?.[0] as {
+    node: { id: string };
+    configs: Record<string, { branch_keys: { source_node_id: string; key: string }[] }>;
+  };
+  // The branch keeps the name its author gave it, now on the new step's wire.
+  expect(inserted.configs["J"]?.branch_keys).toEqual([
+    { source_node_id: "B", source_port: "out", key: expect.any(String) },
+    { source_node_id: inserted.node.id, source_port: "out", key: "first" },
+  ]);
+});
+
+describe("merge configs when a step is added", () => {
+  const IN = port("in", "input", null);
+  const OUT = port("out", "output", null);
+  const catalog = [
+    STEP,
+    makeDefinition({ id: "logic.split", kind: "control", ports: [IN] }),
+    makeDefinition({ id: "logic.merge", kind: "control", ports: [IN, OUT] }),
+  ];
+  const wire = (id: string, from: string, fromPort: string, to: string) => ({
+    id,
+    source_node_id: from,
+    source_port: fromPort,
+    target_node_id: to,
+    target_port: "in",
+  });
+  const seed = (mergeConfig: Record<string, unknown>) => {
+    const edges = [
+      wire("e0", "S", "a", "A"),
+      wire("e1", "S", "b", "B"),
+      wire("e2", "A", "out", "J"),
+      wire("e3", "B", "out", "J"),
+      wire("e4", "J", "out", "T"),
+    ];
+    const insertNode = vi.fn();
+    useWorkflowEditorStore.setState({
+      insertNode,
+      graph: {
+        entry_node_id: "S",
+        nodes: [
+          node("S", "logic.split", { branches: [{ name: "a" }, { name: "b" }] }),
+          node("A", "step"),
+          node("B", "step"),
+          node("J", "logic.merge", mergeConfig),
+          node("T", "step"),
+        ],
+        edges,
+        bindings: [],
+        scopes: [],
+      },
+    });
+    return { insertNode, edges };
+  };
+  const configsOf = (insertNode: ReturnType<typeof vi.fn>) =>
+    (insertNode.mock.calls[0]?.[0] as { configs: Record<string, unknown> }).configs;
+
+  it("changes no merge when the step is dropped on the canvas", () => {
+    const { insertNode } = seed({});
+    renderHook(() => useInsertNode(catalog)).result.current(STEP, { dropAt: { x: 1, y: 1 } });
+    expect(configsOf(insertNode)).toEqual({});
+  });
+
+  it("changes no merge when the step is put into a wire that does not reach one", () => {
+    const { insertNode, edges } = seed({});
+    renderHook(() => useInsertNode(catalog)).result.current(STEP, {
+      between: edges[4] as (typeof edges)[number],
+    });
+    expect(configsOf(insertNode)).toEqual({});
+  });
+
+  it("fits a merge that had no names stored when a step is put into one of its wires", () => {
+    const { insertNode, edges } = seed({});
+    renderHook(() => useInsertNode(catalog)).result.current(STEP, {
+      between: edges[2] as (typeof edges)[number],
+    });
+    expect(configsOf(insertNode)).toEqual({
+      J: { wait_for: "all", branch_keys: [expect.anything(), expect.anything()] },
+    });
+  });
 });

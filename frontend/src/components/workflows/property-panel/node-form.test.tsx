@@ -377,6 +377,13 @@ describe("NodeForm sections", () => {
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { condition: "item.ok" });
   });
 
+  it("draws a merge's own panel in place of its raw config", () => {
+    renderForm({
+      definition: makeDefinition({ id: "logic.merge", kind: "control" }),
+    });
+    expect(screen.getByLabelText("The branch that ran")).toBeChecked();
+  });
+
   it("shows an empty message when a node has no fields", () => {
     renderForm({ definition: makeDefinition({ id: "bare" }) });
     expect(screen.getByText("This node has no configurable fields.")).toBeVisible();

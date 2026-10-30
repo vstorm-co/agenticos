@@ -11,6 +11,8 @@ import {
 import { create } from "zustand";
 
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
+import { carryPortRenameToMerges } from "@/components/workflows/property-panel/merge-config";
+import { carryMergeKeyRename, mergeKeyRename } from "@/lib/workflows/merge-key-rename";
 import { carryPortRename, portRename } from "@/lib/workflows/port-rename";
 import type { StepData } from "@/lib/workflows/step-data";
 import {
@@ -120,6 +122,8 @@ export interface NodeInsertion {
    * one from the new step to where it led, when their ports fit.
    */
   split?: { edgeId: Uuid; tail: WorkflowEdge | null };
+  /** The configs this changes on other steps - a merge the step now feeds - by step. */
+  configs?: Record<Uuid, Record<string, unknown>>;
 }
 
 /** What floats over the canvas on request: the step picker, or the shortcut sheet. */
@@ -223,9 +227,14 @@ export interface WorkflowEditorState {
   editNode: (nodeId: Uuid | null) => void;
   /**
    * Add an edge for a validated `@xyflow/react` connection, with any bindings it
-   * implies, as one edit - a single undo takes back both.
+   * implies and the configs it changes (a merge's mode and branch names), as one
+   * edit - a single undo takes back all of them.
    */
-  connectNodes: (connection: Connection, bindings?: Binding[]) => void;
+  connectNodes: (
+    connection: Connection,
+    bindings?: Binding[],
+    configs?: Record<Uuid, Record<string, unknown>>,
+  ) => void;
   /** Delete the selected nodes and edges, pruning anything left dangling. */
   deleteSelection: () => void;
   /** Replace one node's static `config`. */
@@ -351,6 +360,17 @@ const CLEARED = {
   history: NO_HISTORY,
   conflict: null,
 } as const;
+
+/** `nodes` with the config of each step `configs` names replaced. */
+function withConfigs(
+  nodes: NodeInstance[],
+  configs: Record<Uuid, Record<string, unknown>>,
+): NodeInstance[] {
+  return nodes.map((node) => {
+    const config = configs[node.id];
+    return config === undefined ? node : { ...node, config };
+  });
+}
 
 /**
  * `notes` after the moves, resizes and removals xyflow reports for them. The
@@ -555,7 +575,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({ ...graph, edges: graph.edges.filter((edge) => kept.has(edge.id)) });
     },
 
-    insertNode: ({ node, edge, bindings, becomesEntry, replaces, split }) => {
+    insertNode: ({ node, edge, bindings, becomesEntry, replaces, split, configs = {} }) => {
       const graph = get().graph ?? EMPTY_GRAPH;
       const base =
         split === undefined
@@ -590,7 +610,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({
         ...kept,
         entry_node_id: becomesEntry ? node.id : kept.entry_node_id,
-        nodes: [...kept.nodes, node],
+        nodes: [...withConfigs(kept.nodes, configs), node],
         edges: edge === null ? kept.edges : [...kept.edges, edge],
         bindings: [...kept.bindings, ...bindings],
       });
@@ -613,7 +633,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
           : { editingNodeId: nodeId, selection: { nodeIds: [nodeId], edgeIds: [] } },
       ),
 
-    connectNodes: (connection, bindings = []) => {
+    connectNodes: (connection, bindings = [], configs = {}) => {
       const { graph } = get();
       if (graph === null) return;
       const { source, target, sourceHandle, targetHandle } = connection;
@@ -637,6 +657,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       };
       commit({
         ...graph,
+        nodes: withConfigs(graph.nodes, configs),
         edges: [...graph.edges, edge],
         bindings: [...graph.bindings, ...bindings],
       });
@@ -663,7 +684,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       // A renamed rule, category, branch or choice keeps what reads it, in the same edit.
       const rename = before === undefined ? null : portRename(before, config, graph);
       const edited = { ...graph, nodes };
-      commit(rename === null ? edited : carryPortRename(edited, nodeId, rename));
+      // A merge the step feeds keeps naming that branch, and what reads it.
+      const carried =
+        rename === null
+          ? edited
+          : carryPortRenameToMerges(carryPortRename(edited, nodeId, rename), nodeId, rename);
+      // A renamed merge branch keeps what reads `branches.<name>`, in the same edit.
+      const keyRename = before === undefined ? null : mergeKeyRename(before, config, graph);
+      commit(keyRename === null ? carried : carryMergeKeyRename(carried, nodeId, keyRename));
     },
 
     updateNodePolicy: (nodeId, policy) => {

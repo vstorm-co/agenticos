@@ -555,6 +555,12 @@ export type NodeRunStatus =
   | "skipped"
   | "cancelled";
 
+/** How a step's latest try ended. Mirrors `NodeAttemptStatus`. */
+type NodeAttemptStatus = "in_flight" | "completed" | "failed" | "uncertain";
+
+/** What a person decides for a step that needs attention. Mirrors `StepChoice`. */
+export type StepChoice = "run_again" | "use_error_route" | "fail_run" | "use_late_result";
+
 /** One run of a workflow. Mirrors `WorkflowRunRead`. */
 export interface WorkflowRunRead {
   id: Uuid;
@@ -577,6 +583,8 @@ export interface WorkflowRunRead {
   /** The run this one retries; its succeeded steps were not run again. */
   retry_of_run_id: Uuid | null;
   depth: number;
+  /** Whether the caller may cancel the run and resolve its steps; the single-run read says so. */
+  can_cancel: boolean;
   started_at: string | null;
   ended_at: string | null;
   created_at: string | null;
@@ -599,6 +607,10 @@ export interface WorkflowNodeRunRead {
   error: { code: string; message: string; details?: Record<string, unknown> } | null;
   /** What the step handed on, once it succeeded; null before, and when it failed. */
   output: Record<string, unknown> | null;
+  /** How the step's latest try ended; `uncertain` is one nobody could confirm. Null before any try. */
+  last_attempt_status: NodeAttemptStatus | null;
+  /** What the step reported after its try was given up on, to use instead of running it again. */
+  late_output: Record<string, unknown> | null;
   started_at: string | null;
   ended_at: string | null;
 }

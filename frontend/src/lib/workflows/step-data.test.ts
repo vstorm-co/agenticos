@@ -34,6 +34,8 @@ function row(overrides: Partial<WorkflowNodeRunRead>): WorkflowNodeRunRead {
     cost: 0,
     error: null,
     output: null,
+    last_attempt_status: null,
+    late_output: null,
     started_at: null,
     ended_at: null,
     ...overrides,

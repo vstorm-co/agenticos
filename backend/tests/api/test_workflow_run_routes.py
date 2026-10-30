@@ -304,6 +304,26 @@ class TestGetRoute:
         assert response.status_code == 200
         assert response.json()["id"] == str(run.id)
 
+    @pytest.mark.parametrize(("may_edit", "expected"), [(True, True), (False, False)])
+    async def test_the_run_says_whether_the_caller_may_cancel_it(
+        self, owner_client: OpenClient, may_edit: bool, expected: bool
+    ):
+        # Someone other than the starter, who holds the run permission only.
+        run = _run_row(execution_principal_user_id=uuid.uuid4())
+        workflow = _workflow(id=run.workflow_id)
+
+        async def _access(db, ctx, resource, perm, *, resource_type) -> bool:
+            return may_edit if perm is Perm.WORKFLOWS_EDIT else True
+
+        with (
+            patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=run)),
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(side_effect=_access)),
+        ):
+            async with owner_client() as http:
+                response = await http.get(_url(f"/{run.id}"))
+        assert response.json()["can_cancel"] is expected
+
     @pytest.mark.security
     async def test_a_cross_tenant_run_is_not_found(self, owner_client: OpenClient):
         with patch(f"{FACADE_PATH}.workflow_run_repo.get_run", new=AsyncMock(return_value=None)):
