@@ -1,5 +1,5 @@
 ---
-source_sha: "ffee109a8c8e"
+source_sha: "e82a0c49e3f4"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -137,6 +137,38 @@ al mensaje y se reproduce con el historial, así que «¿y marzo?» llega a un m
 que todavía sabe que el archivo existe. Una imagen se nombra en ese historial en
 lugar de enviarse de nuevo; un agent que necesita volver a mirarla la pide, o la
 abre desde `uploads/` si tiene workspace.
+
+**El archivo de un turno interrumpido lo repone el siguiente.** Un archivo queda
+ligado al mensaje con el que llegó antes de que empiece el run, así que no se puede
+adjuntar de nuevo. Si el run que respondía a ese mensaje terminó sin completarse
+— con un fallo, cancelado o detenido por un presupuesto o el guardián de bucles —,
+el siguiente turno del mismo agente para esa persona en esa conversación vuelve a
+escribir el archivo en `uploads/` (con su texto extraído, donde el workspace no
+puede leer el original, y solo ese texto si es lo único que falta) antes de usar el
+workspace por primera vez: enseguida en un workspace almacenado, en el primer uso en
+un sandbox. Al run se le indica que liste `uploads/` antes de decir que falta un
+archivo, y que diga que no se pudo reponer si sigue sin estar.
+
+Solo se reponen los archivos de la propia persona, solo de los turnos interrumpidos
+de ese agente, como mucho los 50 más recientes, y solo hasta que ese agente complete
+para la misma persona un turno que empezó después de que terminara el interrumpido.
+Un turno ejecutado con una clave de API, para un visitante del widget o liberado de
+una aprobación por otra persona no cierra ese plazo. Un archivo eliminado después
+sigue eliminado.
+
+Algunos archivos no se reponen: los de un turno que bloqueó un guardrail, porque el
+guardrail de entrada rechazó lo que llevaba; los de un prompt cuyo run nunca se
+abrió, que no pertenece a ningún agente; los de un turno ejecutado con una clave de
+API o para un visitante del widget; y los cuyo turno siguiente se completó sin usar
+nunca su sandbox.
+
+Cuando el agente tiene un guardrail de entrada, cada archivo se revisa además antes
+de reponerlo, sobre lo que el guardrail leería de él: su nombre, su ruta y sus
+primeras líneas. Un turno puede detenerse antes de que el guardrail lea su entrada,
+por ejemplo por un presupuesto, así que un archivo que el guardrail rechaza no se
+escribe, y el registro solo indica su identificador. Si se rechazan todos los
+archivos, al run no se le dice que alguno pueda estar de vuelta. Sin un guardrail
+de entrada, nada cambia.
 
 **El texto extraído lo acompaña solo cuando nada puede leer el original.** Antes
 se escribía un `.txt` del parseo junto a cada PDF, `.docx` y hoja de cálculo,

@@ -1,5 +1,5 @@
 ---
-source_sha: "ffee109a8c8e"
+source_sha: "e82a0c49e3f4"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -134,6 +134,36 @@ odtwarzane razem z historią, więc pytanie „a co z marcem” trafia do modelu
 wciąż wie o pliku. Obraz jest w tej historii tylko nazwany, nie wysyłany ponownie;
 agent, który musi znów na niego spojrzeć, prosi o niego albo otwiera go z
 `uploads/`, jeśli ma workspace.
+
+**Plik z tury, która się przerwała, wraca w następnej.** Plik jest przypięty do
+wiadomości, z którą przyszedł, zanim run się zacznie, więc nie da się go załączyć
+ponownie. Jeśli run odpowiadający na tę wiadomość skończył się bez ukończenia —
+błędem, anulowaniem albo zatrzymaniem przez budżet lub strażnika pętli — następna
+tura tego samego agenta dla tej osoby w tej rozmowie zapisuje plik z powrotem w
+`uploads/` (z wyciągniętym tekstem tam, gdzie workspace nie umie przeczytać
+oryginału, a sam tekst, jeśli tylko jego brakuje), zanim pierwszy raz użyje
+workspace'u: od razu dla workspace'u zapisanego, przy pierwszym użyciu dla
+sandboxa. Run dostaje polecenie, by wylistować `uploads/`, zanim powie, że pliku
+brakuje, a jeśli pliku nadal nie ma — by powiedział, że nie dało się go przywrócić.
+
+Wracają tylko własne pliki tej osoby, tylko z przerwanych tur tego agenta, najwyżej
+50 najnowszych, i tylko do chwili, gdy ten agent ukończy dla tej samej osoby turę,
+która zaczęła się po zakończeniu przerwanej. Tura uruchomiona kluczem API, dla
+gościa widgetu albo zwolniona z akceptacji przez kogoś innego tego okresu nie
+kończy. Plik usunięty później zostaje usunięty.
+
+Niektóre pliki nie wracają: pliki tury zablokowanej przez guardrail, bo guardrail
+wejścia odrzucił to, co niosła; pliki promptu, którego run nigdy się nie otworzył —
+nie należy on do żadnego agenta; pliki z tury uruchomionej kluczem API albo dla
+gościa widgetu; oraz pliki, których następna tura ukończyła się, nie używając
+sandboxa.
+
+Gdy agent ma guardrail wejścia, każdy plik jest też sprawdzany, zanim wróci, na
+tym, co guardrail by z niego przeczytał: nazwie, ścieżce i pierwszych liniach. Tura
+może się zatrzymać, zanim guardrail przeczyta jej wejście, na przykład na budżecie,
+więc plik odrzucony przez guardrail nie jest zapisywany, a log podaje tylko jego
+identyfikator. Gdy odrzucone są wszystkie pliki, run nie dostaje informacji, że
+któryś może wrócić. Bez guardraila wejścia nic się nie zmienia.
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego

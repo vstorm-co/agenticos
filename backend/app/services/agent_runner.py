@@ -263,7 +263,13 @@ from app.services.agent_registry import (
 )
 from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
-from app.services.attachments import AttachmentRouter
+from app.services.attachments import (
+    UPLOAD_DIR,
+    AttachmentRouter,
+    EarlierAttachments,
+    find_earlier_attachments,
+    restore_earlier_attachments,
+)
 from app.services.channel_link import mcp_servers_link
 from app.services.channels.attachments import (
     ChannelFileBudget,
@@ -1740,19 +1746,27 @@ Said before the writes can have succeeded, so it does not claim they did."""
 
 
 def _start_turn_on_first_use(
-    workspace: RecordingWorkspace, prepared: PreparedRun, skills: list[Skill]
+    workspace: RecordingWorkspace,
+    prepared: PreparedRun,
+    skills: list[Skill],
+    *,
+    earlier: EarlierAttachments | None = None,
+    can_parse: bool = False,
 ) -> None:
-    """Write the run's skills and take its snapshot when the sandbox is first used.
+    """Write the run's skills, put back the thread's attachments and take the
+    run's snapshot when the sandbox is first used.
 
-    The same two steps, in the same order, that a `state` workspace takes while the
+    The same steps, in the same order, that a `state` workspace takes while the
     run is prepared - deferred because on a sandbox they are what opens the
-    session. Both never raise, so the operation waiting behind them is never
+    session. None of them raises, so the operation waiting behind them is never
     failed by them; a snapshot that could not be taken stays `None`, which posts
     nothing back.
     """
 
     async def start() -> None:
         prepared.materialised_skills = await materialise_skills(workspace, skills)
+        if earlier is not None:
+            await restore_earlier_attachments(workspace, earlier, can_parse=can_parse)
         prepared.workspace_at_start = await workspace_snapshot(workspace)
 
     workspace.prepare_on_first_use(start)
@@ -1765,6 +1779,29 @@ def _untouched(workspace: OpenWorkspace) -> bool:
     """
     recorder = workspace.workspace
     return isinstance(recorder, RecordingWorkspace) and not recorder.touched
+
+
+_EARLIER_ATTACHMENTS_BRIEFING = (
+    "An earlier turn of this conversation stopped before it finished. Files attached "
+    f"to it that are missing from `{UPLOAD_DIR}/` are put back there before your first "
+    "use of the workspace this turn, where the workspace takes them - so one may be "
+    "there even where an earlier message says it could not be written or processed. "
+    f"List `{UPLOAD_DIR}/` before saying a file is missing, and if it is still not "
+    "there, say it could not be put back."
+)
+"""What a run is told when an interrupted turn of its thread left attachments behind (#2481).
+
+The earlier message's own note is history and cannot be rewritten, and it says
+there is no file to open; this is what tells the model to look again. Said before
+the writes can have happened - on a sandbox they wait for its first use - so it
+does not claim they succeeded: a write can still be refused, and is only logged."""
+
+
+def _with_earlier_attachments_briefing(spec: AgentSpec) -> AgentSpec:
+    """The spec told that the thread's attachments are put back - see `_EARLIER_ATTACHMENTS_BRIEFING`."""
+    return spec.model_copy(
+        update={"instructions": f"{spec.instructions}\n\n{_EARLIER_ATTACHMENTS_BRIEFING}"}
+    )
 
 
 def _with_skills_briefing(spec: AgentSpec, *, deferred: bool = False) -> AgentSpec:
@@ -3387,6 +3424,7 @@ class AgentRunnerService:
         spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
+        earlier: EarlierAttachments | None = None
         if workspace is not None:
             resources[WORKSPACE_RESOURCE] = workspace.workspace
             resources[WORKSPACE_SHARED_RESOURCE] = await self._workspace_shared(
@@ -3413,6 +3451,41 @@ class AgentRunnerService:
             # turn - before the model saw a token, for a turn that may never touch
             # the sandbox. The briefing cannot wait for the writes, so it is given
             # whenever there are skills, worded so it does not claim they landed.
+            #
+            # And the files of this agent's turns that stopped before writing them,
+            # put back (#2481) - on the same first use, or here for a `state`
+            # workspace, and before the snapshot either way so a file put back is
+            # not read as this turn's output. Only on a run by a person, in a
+            # session: a publisher standing in for a visitor or a key's holder is
+            # not whoever attached the file - the same subjects the workspace
+            # identity above refuses. A resume looks again only when its own
+            # person continues it, since a sandbox may first be used after the
+            # park; one released by another approver opens the approver's
+            # workspace, and `chat_file_repo` does not let that run's finishing
+            # close the window.
+            if (
+                conversation_id is not None
+                and ctx.user_id is not None
+                and ctx.api_key_id is None
+                and not subject_is_publisher_fallback
+                and (
+                    existing_run is None
+                    or (existing_run.user_id == ctx.user_id and _started_by_a_person(existing_run))
+                )
+            ):
+                earlier = await find_earlier_attachments(
+                    self.db,
+                    conversation_id=conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    agent_id=agent.id,
+                    can_parse=workspace.parses_documents,
+                    # A file the input edge would refuse is never put back
+                    # (#2481): its turn may have stopped before the edge ran.
+                    screen=input_screen_for(spec),
+                )
+            if earlier is not None:
+                spec = _with_earlier_attachments_briefing(spec)
             if isinstance(workspace.workspace, RecordingWorkspace):
                 if resources["skills"]:
                     spec = _with_skills_briefing(spec, deferred=True)
@@ -3420,6 +3493,10 @@ class AgentRunnerService:
                 materialised = await materialise_skills(workspace.workspace, resources["skills"])
                 if materialised.written:
                     spec = _with_skills_briefing(spec)
+                if earlier is not None:
+                    await restore_earlier_attachments(
+                        workspace.workspace, earlier, can_parse=workspace.parses_documents
+                    )
                 # After the skills are written, so materialising them does not read as
                 # the turn's own output.
                 started_with = await workspace_snapshot(workspace.workspace)
@@ -3657,7 +3734,13 @@ class AgentRunnerService:
                 prepared.channel_file_budget,
             )
         if workspace is not None and isinstance(workspace.workspace, RecordingWorkspace):
-            _start_turn_on_first_use(workspace.workspace, prepared, resources["skills"])
+            _start_turn_on_first_use(
+                workspace.workspace,
+                prepared,
+                resources["skills"],
+                earlier=earlier,
+                can_parse=workspace.parses_documents,
+            )
         return prepared
 
     async def _delegation_runtime(

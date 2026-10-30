@@ -126,6 +126,34 @@ knows the file is there. A picture is named in that history rather than sent
 again; an agent that needs to look at it once more asks for it, or opens it from
 `uploads/` when it has a workspace.
 
+**A file whose turn stopped is put back by the next one.** A file is tied to the
+message it came with before the run starts, so it cannot be attached again. If the
+run answering that message ended without completing — failed, cancelled, or stopped
+by a budget or the loop guard — the same agent's next turn for that person in that
+conversation writes the file back to `uploads/` (with its extracted text, where the
+workspace cannot read the original, and that text alone if only it is missing)
+before it first uses the workspace: at once for a stored workspace, on first use for
+a sandbox. The run is told to list `uploads/` before it says a file is missing, and
+to say a file could not be put back if it is still not there.
+
+Only the person's own files are put back, only from that agent's interrupted turns,
+the newest 50 at most, and only until that agent completes a turn for the same
+person that started after the interrupted one ended. A turn run with an API key, for
+a widget visitor or released from an approval by somebody else does not end that
+period. A file removed after that stays removed.
+
+Some files are not put back: those of a turn a guardrail blocked, since the input
+guardrail refused what that turn carried; those of a prompt whose run was never
+opened, which belongs to no agent; files on a turn run with an API key or for a
+widget visitor; and files whose next turn completed without ever using its sandbox.
+
+When the agent has an input guardrail, each file is also screened before it is put
+back, over what the guardrail would read of it: its name, its path and its first
+lines. A turn can stop before the guardrail reads its input, for example on a
+budget, so a file the guardrail refuses is not written, and the log names its id
+only. When every file is refused, the run is not told that any may be back.
+Without an input guardrail, nothing changes.
+
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
 on the reasoning that a shell has no library for any of them — `read_file` on an

@@ -20,6 +20,7 @@ the bytes twice stops being worth it.
 import functools
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -28,13 +29,17 @@ from uuid import UUID
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.workspaces import Workspace, WorkspaceError
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.db.models.chat_file import ChatFile
+from app.db.session import get_db_context
+from app.repositories import chat_file_repo
 from app.services.file_storage import get_file_storage
 from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
 
 if TYPE_CHECKING:
+    from pydantic_ai_harness import GuardrailResult
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -149,7 +154,12 @@ def workspace_path(chat_file: ChatFile) -> str:
     difference between an upload costing one write and costing one per turn for
     the rest of the conversation.
     """
-    return f"{UPLOAD_DIR}/{chat_file.id.hex[:8]}-{safe_name(chat_file.filename)}"
+    return upload_path(chat_file.id, chat_file.filename)
+
+
+def upload_path(file_id: UUID, filename: str) -> str:
+    """`workspace_path` from the two columns it reads, for a caller holding no row."""
+    return f"{UPLOAD_DIR}/{file_id.hex[:8]}-{safe_name(filename)}"
 
 
 def safe_name(filename: str) -> str:
@@ -201,6 +211,11 @@ def _shown_once(filename: str) -> str:
     )
 
 
+def _skips_sibling(file_type: str, *, can_parse: bool) -> bool:
+    """`AttachmentRouter._skips_sibling`, from the column it reads."""
+    return can_parse and file_type in _LIT_READABLE
+
+
 def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     """Where this file's extracted text sits, when one was written beside it.
 
@@ -210,8 +225,13 @@ def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     still there.
     """
     if chat_file.file_type in _TEXT_BEARING and chat_file.parsed_content:
-        return f"{path}.txt"
+        return _sibling_of(path)
     return None
+
+
+def _sibling_of(path: str) -> str:
+    """Where a file's extracted text is written beside it."""
+    return f"{path}.txt"
 
 
 def _referenced(chat_file: ChatFile, path: str, *, sibling: str | None) -> str:
@@ -558,6 +578,36 @@ class AttachmentRouter:
             reference += result.note
         return AttachmentPlan(reference=reference, inline=result.images)
 
+    async def restore(self, files: list[ChatFile]) -> None:
+        """Write each of `files`, which the caller found missing, or its text beside it.
+
+        For a later turn, after the one a file arrived with stopped before putting
+        it there. Nothing else ever writes an attachment, and the file cannot be
+        attached again - it is linked to the message it came with (#2481).
+
+        The same two writes as `_into_workspace`. Never raises, because it runs as
+        set-up ahead of an operation it must not fail: a file the store cannot load
+        or the workspace will not take is logged and passed over, and the next one
+        is still tried - a document with no room for a large file may well have
+        room for a small one. The turn goes on as it would have without this.
+        """
+        workspace = self._workspace
+        if workspace is None:
+            return
+        for chat_file in files:
+            path = workspace_path(chat_file)
+            try:
+                # Missing may mean only its text: the turn can stop between the
+                # two writes, and the original is not loaded again for that.
+                if not await workspace.exists(path):
+                    data = await get_file_storage().load(chat_file.storage_path)
+                    await workspace.write_bytes(path, data)
+                await self._write_extracted_text(workspace, chat_file, path)
+            except Exception:
+                logger.warning(
+                    "attachment_not_restored", extra={"file_id": str(chat_file.id)}, exc_info=True
+                )
+
     async def _sibling_present(
         self, workspace: Workspace, chat_file: ChatFile, path: str
     ) -> str | None:
@@ -584,7 +634,7 @@ class AttachmentRouter:
         itself. An `email` (`.msg`) is never skipped: `lit` reads office documents
         but not Outlook messages, so its extracted text is the only readable form
         (#1591, §5 #7)."""
-        return self._can_parse and chat_file.file_type in _LIT_READABLE
+        return _skips_sibling(chat_file.file_type, can_parse=self._can_parse)
 
     async def _write_extracted_text(
         self, workspace: Workspace, chat_file: ChatFile, path: str
@@ -680,3 +730,154 @@ async def load_turn_attachments(
     return await ConversationService(db).list_turn_attachments(
         message_id, file_ids, user_id=user_id
     )
+
+
+EARLIER_ATTACHMENTS_RESTORED = 50
+"""How many files a turn checks its workspace for, newest first: one `exists` each.
+
+The files are only those of the agent's turns that stopped since its last
+completed one, so this bounds a thread that kept failing, not an ordinary one."""
+
+_OPENING_CHARS = 2 * (HEAD_CHARS + 1)
+"""How much of a file's parsed text `_head` can read: each character it keeps
+comes from at most two (a `\r\n` becomes one `\n`), so this prefix has the
+same head as the whole text."""
+
+
+@dataclass(frozen=True)
+class EarlierAttachments:
+    """The person's files on this agent's interrupted turns, where its next run can find them."""
+
+    conversation_id: UUID
+    organization_id: UUID
+    user_id: UUID
+    agent_id: UUID
+    paths: dict[UUID, str]
+    """Each file's workspace path, by its id."""
+    text_bearing: frozenset[UUID] = frozenset()
+    """The files with parsed text a sibling may be written from - see `_text_sibling`."""
+    lit_readable: frozenset[UUID] = frozenset()
+    """The files a runtime carrying `lit` reads itself, so it has no sibling there."""
+
+
+async def find_earlier_attachments(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
+    can_parse: bool,
+    screen: Callable[[str], GuardrailResult] | None,
+) -> EarlierAttachments | None:
+    """The person's files a turn of this agent may have stopped before writing (#2481).
+
+    `None` when there are none, which is every thread whose turns finished -
+    see `chat_file_repo.left_by_interrupted_turns` for which files qualify and why.
+
+    `screen` is the agent's input edge (`input_screen_for`), or `None` without
+    one. A turn the edge would refuse can still end interrupted rather than
+    blocked - a budget is checked before the edge reads anything - so each file
+    is screened here over what the edge would read of it, and one it refuses is
+    left out: never written, and never counted as something to put back.
+    """
+    found = await chat_file_repo.left_by_interrupted_turns(
+        db,
+        conversation_id=conversation_id,
+        organization_id=organization_id,
+        user_id=user_id,
+        agent_id=agent_id,
+        limit=EARLIER_ATTACHMENTS_RESTORED,
+        opening_chars=_OPENING_CHARS,
+    )
+    if screen is not None:
+        found = [file for file in found if not _refused_on_restore(file, screen, can_parse)]
+    if not found:
+        return None
+    return EarlierAttachments(
+        conversation_id=conversation_id,
+        organization_id=organization_id,
+        user_id=user_id,
+        agent_id=agent_id,
+        paths={file.id: upload_path(file.id, file.filename) for file in found},
+        text_bearing=frozenset(
+            file.id for file in found if file.opening and file.file_type in _TEXT_BEARING
+        ),
+        lit_readable=frozenset(
+            file.id for file in found if _skips_sibling(file.file_type, can_parse=True)
+        ),
+    )
+
+
+def _refused_on_restore(
+    file: chat_file_repo.InterruptedFile,
+    screen: Callable[[str], GuardrailResult],
+    can_parse: bool,
+) -> bool:
+    """Whether the input edge refuses what it would read of this file once it
+    is back: its name, path and opening lines (`_referenced`), the extracted
+    text named as if its write had landed. Logged without its content."""
+    path = upload_path(file.id, file.filename)
+    # Never added to a session: only the columns `_referenced` reads, so the
+    # screen sees the same text the edge would without loading the whole parse.
+    referenced = ChatFile(
+        id=file.id,
+        filename=file.filename,
+        file_type=file.file_type,
+        size=file.size,
+        parsed_content=file.opening or None,
+    )
+    sibling = (
+        None
+        if _skips_sibling(file.file_type, can_parse=can_parse)
+        else _text_sibling(referenced, path)
+    )
+    try:
+        refused = screen(_referenced(referenced, path, sibling=sibling)).action == "block"
+    except GuardrailBlocked:
+        refused = True
+    if refused:
+        logger.warning("attachment_not_restored_refused", extra={"file_id": str(file.id)})
+    return refused
+
+
+async def restore_earlier_attachments(
+    workspace: Workspace, earlier: EarlierAttachments, *, can_parse: bool
+) -> None:
+    """Put back what the workspace is missing of `earlier` (#2481) - a file, or
+    the extracted text a turn stopped before writing beside it.
+
+    The paths are asked about first and the rows read only for a missing file,
+    because the rows carry each file's parsed text. Read in a session of its
+    own: this runs on a sandbox's first use, in the middle of a run whose own
+    session is not to be shared with a tool call. Never raises - it is set-up
+    ahead of the operation that triggered it; see `AttachmentRouter.restore`.
+    """
+    missing: list[UUID] = []
+    try:
+        for file_id, path in earlier.paths.items():
+            if not await workspace.exists(path) or (
+                file_id in earlier.text_bearing
+                and not (can_parse and file_id in earlier.lit_readable)
+                and not await workspace.exists(_sibling_of(path))
+            ):
+                missing.append(file_id)
+    except Exception:
+        logger.warning("attachments_not_checked", exc_info=True)
+        return
+    if not missing:
+        return
+    try:
+        async with get_db_context() as db:
+            files = await chat_file_repo.get_many_left_by_interrupted_turns(
+                db,
+                missing,
+                conversation_id=earlier.conversation_id,
+                organization_id=earlier.organization_id,
+                user_id=earlier.user_id,
+                agent_id=earlier.agent_id,
+            )
+    except Exception:
+        logger.warning("attachments_not_restored", exc_info=True)
+        return
+    await AttachmentRouter(workspace, can_parse=can_parse).restore(files)
