@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api-error";
 
 import {
   apnsSetup,
@@ -20,6 +21,16 @@ const api = vi.hoisted(() => ({
 vi.mock("@/lib/api-client", () => ({ apiClient: api }));
 
 const TOKEN = "ab".repeat(32);
+
+it("accepts an already removed registration but preserves a failed server cleanup", async () => {
+  const push = { configured: true, permission: "granted" as const, token: TOKEN };
+  api.delete.mockRejectedValueOnce(new ApiError(404, "gone"));
+  await expect(disableIphonePush(push)).resolves.toMatchObject({ token: null });
+  api.delete.mockRejectedValueOnce(new ApiError(503, "offline"));
+  await expect(disableIphonePush(push)).rejects.toThrow("offline");
+  api.delete.mockRejectedValueOnce(new Error("network"));
+  await expect(disableIphonePush(push)).rejects.toThrow("network");
+});
 const invoke = vi.fn();
 
 beforeEach(() => {

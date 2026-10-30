@@ -131,8 +131,8 @@ class WebBrowserConfig(BaseModel):
         title="Allowed domains",
         default=None,
         description=(
-            "Hosts the browser may be on; null is unrestricted and an empty list denies all. Globs like "
-            "*.example.com are allowed. Checked on every step, not only the first."
+            "Allowed browser hosts. No restriction allows any domain; an empty domain list blocks all. "
+            "Patterns such as *.example.com are supported. Checked on every step."
         ),
     )
     max_steps: int = Field(

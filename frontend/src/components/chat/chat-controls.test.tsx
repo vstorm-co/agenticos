@@ -360,6 +360,8 @@ it("explains an organization policy refusal and links directly to its approval s
     "href",
     "/orgs/org-1/members?tab=governance",
   );
+  await userEvent.click(screen.getByRole("link", { name: "Open approval settings" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 it("does not call a missing organization policy disabled or offer its settings link", async () => {

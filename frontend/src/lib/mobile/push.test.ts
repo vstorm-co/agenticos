@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ShellError } from "@/lib/desktop/shell";
+import { ApiError } from "@/lib/api-error";
 
 const api = vi.hoisted(() => ({
   get: vi.fn(async () => ({ public_key: "BPub" })),
@@ -19,6 +20,17 @@ const ON = {
   auth: "c2Vj",
 };
 const SUBSCRIPTION = { endpoint: "https://ntfy.sh/upX", keys: { p256dh: "BPk", auth: "c2Vj" } };
+
+it("rejects invalid permission values and tolerates only an already deleted subscription", async () => {
+  expect(() => parsePhonePushStatus({ ...ON, permission: "surprise" })).toThrow("malformed");
+  answers = [{ distributors: [] }];
+  api.delete.mockRejectedValueOnce(new ApiError(404, "gone"));
+  await disablePhonePush(parsePhonePushStatus(ON));
+  api.delete.mockRejectedValueOnce(new ApiError(503, "offline"));
+  await expect(disablePhonePush(parsePhonePushStatus(ON))).rejects.toThrow("offline");
+  api.delete.mockRejectedValueOnce(new Error("network"));
+  await expect(disablePhonePush(parsePhonePushStatus(ON))).rejects.toThrow("network");
+});
 
 let answers: unknown[] = [];
 const invoke = vi.fn(async (command: string, _args?: unknown) =>

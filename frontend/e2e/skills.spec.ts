@@ -129,7 +129,7 @@ test.describe("Skills", () => {
 
     await skillCard(page, name).click();
     await dialog.getByRole("button", { name: `More actions for ${name}`, exact: true }).click();
-    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await page.getByRole("menuitem", { name: `Delete ${name}`, exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(skillCard(page, name)).toHaveCount(0);
   });

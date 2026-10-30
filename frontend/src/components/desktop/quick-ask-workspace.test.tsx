@@ -152,6 +152,7 @@ it("shows loading and retry states in history", async () => {
   env.failed = true;
   view.rerender(<QuickAskWorkspace />);
   expect(screen.getByRole("button", { name: /Could not load conversations/ })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: /Could not load conversations/ }));
 });
 
 it("closes inline history with Escape without closing the current draft", async () => {
@@ -164,4 +165,20 @@ it("closes inline history with Escape without closing the current draft", async 
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("region", { name: "Recent conversations" })).toBeNull();
   expect(screen.getByRole("textbox", { name: "Draft" })).toHaveValue("keep this draft");
+});
+
+it("keeps history open when the eight-tab limit prevents opening another conversation", async () => {
+  const user = userEvent.setup();
+  render(<QuickAskWorkspace />);
+  for (let n = 1; n < 8; n++)
+    await user.click(screen.getByRole("button", { name: "New conversation" }));
+  await user.click(screen.getByRole("button", { name: "Recent conversations" }));
+  await user.type(screen.getByRole("textbox", { name: /Search conversations/ }), "s");
+  await user.click(
+    within(screen.getByRole("region", { name: "Recent conversations" })).getByRole("button", {
+      name: /Saved conversation/,
+    }),
+  );
+  expect(screen.getAllByRole("tab")).toHaveLength(8);
+  expect(screen.getByRole("region", { name: "Recent conversations" })).toBeVisible();
 });

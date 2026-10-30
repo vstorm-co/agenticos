@@ -4,6 +4,8 @@ import {
   readDesktopReadiness,
   readDesktopFocus,
   requestDesktopPermission,
+  publishDesktopActivity,
+  retryDesktopScreenshot,
 } from "./readiness";
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("./shell", async (original) => ({
@@ -30,6 +32,21 @@ it("validates every native status and keeps unsupported separate from denied", a
   invoke.mockResolvedValue(status);
   expect(await readDesktopReadiness()).toEqual(status);
   expect(invoke).toHaveBeenLastCalledWith("desktop_readiness");
+});
+
+it("publishes window activity with account context and can retry a screenshot", async () => {
+  await publishDesktopActivity([], null);
+  expect(invoke).toHaveBeenLastCalledWith(
+    "desktop_activity",
+    expect.objectContaining({ accountId: null, organizationId: null }),
+  );
+  await publishDesktopActivity([], "chat", { user: "me", organization: "org" });
+  expect(invoke).toHaveBeenLastCalledWith(
+    "desktop_activity",
+    expect.objectContaining({ conversationId: "chat", accountId: "me", organizationId: "org" }),
+  );
+  await retryDesktopScreenshot();
+  expect(invoke).toHaveBeenLastCalledWith("desktop_retry_screenshot");
 });
 it("only requests the explicitly selected permission and validates focus context", async () => {
   await requestDesktopPermission("microphone");

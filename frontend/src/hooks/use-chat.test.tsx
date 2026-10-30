@@ -72,7 +72,10 @@ const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
  * caller's permissions the same way, for whether a reloaded parked run may have
  * its approval panel rebuilt.
  */
-function makeWrapper(permissions: string[] = []) {
+function makeWrapper(
+  permissions: string[] = [],
+  organizations: { id: string; chat_may_waive_approvals: boolean }[] = [],
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -80,13 +83,16 @@ function makeWrapper(permissions: string[] = []) {
     // Seeded rather than fetched: these tests count requests, and an
     // organizations or permissions query going out would be a request none of
     // them made.
-    client.setQueryData(qk.organizations.list(), []);
-    client.setQueryData(qk.organizations.permissions("current"), {
-      organization_id: "org-1",
-      role: "member",
-      is_app_admin: false,
-      permissions: permissions.map((permission) => ({ permission, scope: "all" })),
-    });
+    client.setQueryData(qk.organizations.list(), organizations);
+    client.setQueryData(
+      qk.organizations.permissions(useOrgStore.getState().activeOrgId ?? "current"),
+      {
+        organization_id: "org-1",
+        role: "member",
+        is_app_admin: false,
+        permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+      },
+    );
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   };
 }
@@ -4933,4 +4939,46 @@ it("sends a screen-only override without giving the agent a local folder", () =>
   } finally {
     store.resetDraft();
   }
+});
+
+it("reads approval-waiver policy for the active organization", () => {
+  useOrgStore.setState({ activeOrgId: "org-1" });
+  const { result } = renderHook(() => useChat(), {
+    wrapper: makeWrapper(
+      ["approvals:decide"],
+      [
+        { id: "elsewhere", chat_may_waive_approvals: false },
+        { id: "org-1", chat_may_waive_approvals: true },
+      ],
+    ),
+  });
+  act(() => result.current.sendMessage("hello"));
+  expect(lastFrame()).not.toHaveProperty("approval_mode");
+});
+
+const nativeStop = vi.hoisted(() => ({ handler: (_payload: unknown) => {} }));
+vi.mock("./use-desktop", async (original) => {
+  const real = await original<typeof import("./use-desktop")>();
+  return {
+    ...real,
+    useShellEvent: (...args: Parameters<typeof real.useShellEvent>) => {
+      if (args[0] === "desktop:stop-conversation") nativeStop.handler = args[1];
+      real.useShellEvent(...args);
+    },
+  };
+});
+it("stops the originating live conversation from the desktop activity command", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: false,
+  };
+  useConversationStore.getState().setCurrentConversationId("native-chat");
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Keep working"));
+  expect(result.current.isProcessing).toBe(true);
+  act(() => nativeStop.handler("native-chat"));
+  expect(sent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "stop" }));
+  delete window.__AGENTICOS_SHELL__;
 });

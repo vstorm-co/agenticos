@@ -2,6 +2,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { desktopScope } from "@/stores/desktop-preferences-store";
 import type { Notification } from "@/lib/notifications-api";
 
 import { useComposerIntentStore } from "@/stores/composer-intent-store";
@@ -11,6 +12,7 @@ import { MAC_MAIN } from "./fixtures";
 
 const env = vi.hoisted(() => ({
   shell: null as unknown,
+  scope: "account",
   can: true,
   pending: 0,
   unread: 0,
@@ -30,7 +32,7 @@ const env = vi.hoisted(() => ({
 vi.mock("./desktop-setup-gate", () => ({ DesktopSetupGate: () => null }));
 vi.mock("./desktop-activity-bridge", () => ({ DesktopActivityBridge: () => null }));
 vi.mock("@/hooks/use-desktop-notifier", () => ({
-  useDesktopNotifier: () => ({ scope: "account", send: (notice: unknown) => env.notify(notice) }),
+  useDesktopNotifier: () => ({ scope: env.scope, send: (notice: unknown) => env.notify(notice) }),
 }));
 vi.mock("@/lib/mobile/shared", () => ({ takeShared: env.takeShared }));
 vi.mock("sonner", () => ({ toast: { warning: env.warning } }));
@@ -95,6 +97,7 @@ function mount() {
 
 beforeEach(() => {
   Object.assign(env, {
+    scope: "account",
     shell: MAC_MAIN,
     can: true,
     pending: 0,
@@ -294,4 +297,51 @@ describe("DesktopBridge", () => {
       expect(env.report).toHaveBeenCalledWith("could not read what was shared", expect.any(Error)),
     );
   });
+});
+
+it("starts a fresh notification baseline after changing account scope", async () => {
+  env.approvals = [approval("old")];
+  env.inbox = [row("old", "2026-10-21T10:00:00Z")];
+  const view = mount();
+  await inboxRead(1);
+  env.scope = "another";
+  env.approvals = [approval("other-account")];
+  view.again();
+  expect(env.notify).not.toHaveBeenCalled();
+  env.approvals = [...env.approvals, approval("new")];
+  view.again();
+  expect(env.notify).toHaveBeenCalledOnce();
+});
+it("delivers a live question only for its account and a safe console path", async () => {
+  env.scope = desktopScope("person", "org")!;
+  mount();
+  const question = {
+    account: "person",
+    organization: "org",
+    title: "Choose a destination",
+    path: "/chat?id=one",
+  };
+  for (const invalid of [
+    null,
+    "question",
+    {},
+    { ...question, account: 1 },
+    { ...question, organization: 1 },
+    { ...question, title: 1 },
+    { ...question, path: 1 },
+    { ...question, path: "https://evil.test" },
+    { ...question, account: "other" },
+  ]) {
+    act(() => env.listeners.get("desktop:question")?.(invalid));
+  }
+  expect(env.notify).not.toHaveBeenCalled();
+  act(() => env.listeners.get("desktop:question")?.(question));
+  expect(env.notify).toHaveBeenCalledWith(
+    expect.objectContaining({ title: question.title, path: question.path }),
+  );
+  env.notify.mockRejectedValueOnce(new Error("native refusal"));
+  act(() => env.listeners.get("desktop:question")?.(question));
+  await waitFor(() =>
+    expect(env.report).toHaveBeenCalledWith("notifying a live question", expect.any(Error)),
+  );
 });

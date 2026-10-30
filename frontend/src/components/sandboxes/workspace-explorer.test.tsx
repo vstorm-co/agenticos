@@ -765,3 +765,38 @@ it("accepts root drops on empty space in either pane instead of requiring the ro
   });
   await waitFor(() => expect(move).toHaveBeenCalledExactlyOnceWith("notes/brief.md", "brief.md"));
 });
+
+it("refuses dragging a file onto its current folder and accepts root hover", async () => {
+  const move = vi.fn().mockResolvedValue(undefined);
+  render(
+    <FileExplorer
+      source={{ kind: "project", id: "p-1" }}
+      files={listing([file("notes/brief.md")])}
+      isLoading={false}
+      error={null}
+      onMove={move}
+    />,
+  );
+  const folder = screen.getByRole("button", { name: "notes" });
+  const row = screen.getByRole("button", { name: "brief.md" }).closest("li");
+  if (!row) throw new Error("Missing file row");
+  const dataTransfer = {
+    types: ["application/x-agenticos-project-path"],
+    setData: vi.fn(),
+    getData: () => "notes/brief.md",
+    dropEffect: "",
+    effectAllowed: "",
+  };
+  fireEvent.dragStart(row, { dataTransfer });
+  fireEvent.dragOver(folder, { dataTransfer });
+  expect(dataTransfer.dropEffect).toBe("none");
+  expect(move).not.toHaveBeenCalled();
+  const grid = screen.getByRole("tree").parentElement?.parentElement;
+  if (!grid) throw new Error("Missing explorer grid");
+  fireEvent.dragOver(grid, { dataTransfer });
+  expect(dataTransfer.dropEffect).toBe("move");
+  fireEvent.dragLeave(grid, { dataTransfer });
+  fireEvent.dragOver(grid, { dataTransfer: null });
+  fireEvent.dragOver(grid, { dataTransfer: { types: ["text/plain"] } });
+  fireEvent.drop(grid, { dataTransfer: null });
+});

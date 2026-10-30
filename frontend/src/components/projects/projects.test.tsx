@@ -496,6 +496,8 @@ describe("ProjectFiles", () => {
     expect(files.upload.mutate).toHaveBeenCalledWith({ files: [file], folder: "" });
     await userEvent.upload(folderInput as HTMLInputElement, file);
     expect(files.upload.mutate).toHaveBeenCalledTimes(2);
+    fireEvent.drop(screen.getByRole("tree"), { dataTransfer: { types: ["Files"], files: [file] } });
+    expect(files.upload.mutate).toHaveBeenCalledTimes(3);
 
     await userEvent.click(screen.getByRole("button", { name: "Upload files" }));
     await userEvent.click(screen.getByRole("button", { name: "Upload folder" }));
@@ -819,6 +821,18 @@ it("keeps shared files clear of native setup until Computer is selected", async 
   expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
   expect(screen.getByText(/To share a file, choose Shared project files/)).toBeVisible();
   expect(files.upload.mutate).not.toHaveBeenCalled();
+});
+
+it("binds a folder selected directly from the Computer files view", async () => {
+  nativeProject.enabled = true;
+  nativeProject.target = null;
+  wrap(<ProjectFiles project={aProject()} />);
+  await userEvent.click(screen.getByRole("button", { name: "This computer" }));
+  await userEvent.click(screen.getByRole("button", { name: "Approve folder" }));
+  expect(nativeProject.bind).toHaveBeenCalledWith("p-1", {
+    folder: "/approved",
+    mode: "read_only",
+  });
 });
 
 it("restores a Computer choice that arrives after local preference hydration", () => {

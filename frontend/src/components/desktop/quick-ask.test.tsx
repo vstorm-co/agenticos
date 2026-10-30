@@ -10,6 +10,8 @@ import type { Mentionable } from "@/types/mention";
 import type { ToolCall, PendingApproval, Decision, QueuedMessage } from "@/types";
 
 const env = vi.hoisted(() => ({
+  visualControls: false,
+  activity: vi.fn(async () => {}),
   toastError: vi.fn(),
   mentionables: [] as Mentionable[],
   auth: { isAuthenticated: true, isLoading: false },
@@ -38,7 +40,11 @@ const env = vi.hoisted(() => ({
   listeners: new Map<string, (payload?: unknown) => void>(),
   dictation: {
     engine: "server" as string,
-    state: { phase: "idle" as string, transcript: null as null | { id: number; text: string } },
+    state: {
+      phase: "idle" as string,
+      transcript: null as null | { id: number; text: string },
+      reason: null as string | null,
+    },
     actions: { start: vi.fn(async () => {}), stop: vi.fn() },
     agent: undefined as string | null | undefined,
   },
@@ -72,7 +78,23 @@ vi.mock("@/hooks/use-mentionables", () => ({
 }));
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => <span /> }));
 vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
-vi.mock("@/lib/desktop/readiness", () => ({ publishDesktopActivity: vi.fn(async () => {}) }));
+vi.mock("@/lib/desktop/readiness", () => ({ publishDesktopActivity: env.activity }));
+vi.mock("@/components/chat/visual-panel", () => ({
+  ConversationVisualsProvider: ({
+    children,
+    onSend,
+  }: {
+    children: React.ReactNode;
+    onSend: (text: string) => void;
+  }) => (
+    <>
+      {children}
+      {env.visualControls && (
+        <button onClick={() => onSend("From visual")}>Send visual prompt</button>
+      )}
+    </>
+  ),
+}));
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => env.auth }));
 vi.mock("@/hooks/use-chat", () => ({
   useChat: (options: { onConversationCreated: (id: string) => void }) => {
@@ -144,9 +166,11 @@ class CapturingResizeObserver {
   disconnect = vi.fn();
 }
 
-const question = () => screen.getByRole("textbox", { name: "Ask anything" });
+const question = () => screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Ask anything" });
 
 beforeEach(() => {
+  env.visualControls = false;
+  env.activity.mockResolvedValue(undefined);
   vi.stubGlobal("ResizeObserver", CapturingResizeObserver);
   env.auth = { isAuthenticated: true, isLoading: false };
   env.mentionables = [];
@@ -157,7 +181,7 @@ beforeEach(() => {
   env.chat.queuedMessages = [];
   env.listeners.clear();
   env.dictation.engine = "server";
-  env.dictation.state = { phase: "idle", transcript: null };
+  env.dictation.state = { phase: "idle", transcript: null, reason: null };
   useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
   vi.clearAllMocks();
 });
@@ -263,12 +287,12 @@ describe("QuickAsk", () => {
       expect(env.dictation.agent).toBe("a-1");
       press("start");
       expect(env.dictation.actions.start).toHaveBeenCalledOnce();
-      env.dictation.state = { phase: "recording", transcript: null };
+      env.dictation.state = { phase: "recording", transcript: null, reason: null };
       view.rerender(<QuickAsk />);
       expect(screen.getByRole("status")).toHaveTextContent("Listening - let go to stop");
       press("stop");
       expect(env.dictation.actions.stop).toHaveBeenCalled();
-      env.dictation.state = { phase: "transcribing", transcript: null };
+      env.dictation.state = { phase: "transcribing", transcript: null, reason: null };
       view.rerender(<QuickAsk />);
       expect(screen.getByRole("status")).toHaveTextContent("Writing down what you said");
     });
@@ -276,7 +300,11 @@ describe("QuickAsk", () => {
     it("writes the words after what is typed, once per transcript", async () => {
       const view = render(<QuickAsk />);
       await userEvent.type(question(), "Hi");
-      env.dictation.state = { phase: "idle", transcript: { id: 1, text: "what is due today" } };
+      env.dictation.state = {
+        phase: "idle",
+        transcript: { id: 1, text: "what is due today" },
+        reason: null,
+      };
       view.rerender(<QuickAsk />);
       view.rerender(<QuickAsk />);
       expect(question()).toHaveValue("Hi what is due today");
@@ -285,11 +313,15 @@ describe("QuickAsk", () => {
     it("starts one recording however often a held key repeats, into an empty question", () => {
       const view = render(<QuickAsk />);
       press("start");
-      env.dictation.state = { phase: "recording", transcript: null };
+      env.dictation.state = { phase: "recording", transcript: null, reason: null };
       view.rerender(<QuickAsk />);
       press("start");
       expect(env.dictation.actions.start).toHaveBeenCalledOnce();
-      env.dictation.state = { phase: "idle", transcript: { id: 2, text: "what is due today" } };
+      env.dictation.state = {
+        phase: "idle",
+        transcript: { id: 2, text: "what is due today" },
+        reason: null,
+      };
       view.rerender(<QuickAsk />);
       expect(question()).toHaveValue("what is due today");
     });
@@ -297,11 +329,11 @@ describe("QuickAsk", () => {
     it("stops as the microphone opens when it was let go while being asked for", () => {
       const view = render(<QuickAsk />);
       press("start");
-      env.dictation.state = { phase: "requesting", transcript: null };
+      env.dictation.state = { phase: "requesting", transcript: null, reason: null };
       view.rerender(<QuickAsk />);
       press("stop");
       env.dictation.actions.stop.mockClear();
-      env.dictation.state = { phase: "recording", transcript: null };
+      env.dictation.state = { phase: "recording", transcript: null, reason: null };
       view.rerender(<QuickAsk />);
       expect(env.dictation.actions.stop).toHaveBeenCalledOnce();
     });
@@ -641,7 +673,9 @@ it("does not carry an in-flight upload into another account", async () => {
       }),
   );
   const view = render(<QuickAsk />);
-  fireEvent.paste(question(), { clipboardData: { files: [new File(["x"], "private.txt")] } });
+  fireEvent.paste(question(), {
+    clipboardData: { files: [new File(["x"], "private.txt"), new File(["y"], "another.txt")] },
+  });
   env.auth = { isAuthenticated: false, isLoading: false };
   view.rerender(<QuickAsk />);
   await act(async () => {
@@ -712,8 +746,156 @@ it("starts and stops dictation directly from the microphone button", async () =>
   const view = render(<QuickAsk />);
   await userEvent.click(screen.getByRole("button", { name: "Start dictation" }));
   expect(env.dictation.actions.start).toHaveBeenCalledOnce();
-  env.dictation.state = { phase: "recording", transcript: null };
+  env.dictation.state = { phase: "recording", transcript: null, reason: null };
   view.rerender(<QuickAsk />);
   await userEvent.click(screen.getByRole("button", { name: "Stop dictation" }));
   expect(env.dictation.actions.stop).toHaveBeenCalled();
+});
+
+it("reports failed native pin and activity synchronization", async () => {
+  env.commands.quickAskPinned.mockRejectedValueOnce(new Error("pin"));
+  env.activity.mockRejectedValue(new Error("offline"));
+  const view = render(<QuickAsk />);
+  await waitFor(() =>
+    expect(env.report).toHaveBeenCalledWith("reading Quick Ask pin", expect.any(Error)),
+  );
+  expect(env.report).toHaveBeenCalledWith("publishing Quick Ask activity", expect.any(Error));
+  view.unmount();
+  await waitFor(() =>
+    expect(env.report).toHaveBeenCalledWith("clearing Quick Ask activity", expect.any(Error)),
+  );
+});
+it("sends a visual prompt only while no answer is being generated", async () => {
+  env.visualControls = true;
+  const view = render(<QuickAsk initialConversationId="c" />);
+  await userEvent.click(screen.getByRole("button", { name: "Send visual prompt" }));
+  expect(env.chat.sendMessage).toHaveBeenCalledWith("From visual");
+  env.chat.sendMessage.mockClear();
+  env.chat.isProcessing = true;
+  view.rerender(<QuickAsk initialConversationId="c" />);
+  await userEvent.click(screen.getByRole("button", { name: "Send visual prompt" }));
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+});
+it("combines multiple mentions with an attachment and allows keyboard selection", async () => {
+  env.mentionables = [
+    { kind: "mcp", id: "drive", name: "Google Drive" },
+    { kind: "mcp", id: "mail", name: "Google Mail" },
+  ];
+  render(<QuickAsk />);
+  await userEvent.type(question(), "Compare @G");
+  await userEvent.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+  await userEvent.type(question(), "and @G");
+  await userEvent.keyboard("{ArrowDown}{Enter}");
+  await userEvent.upload(
+    screen.getByLabelText("Attach file", { selector: "input" }),
+    new File(["notes"], "notes.txt"),
+  );
+  await waitFor(() => expect(screen.getByText("notes.txt")).toBeVisible());
+  await userEvent.click(question());
+  await userEvent.keyboard("{Enter}");
+  expect(env.chat.sendMessage).toHaveBeenCalledWith(
+    expect.any(String),
+    ["f-notes.txt"],
+    [expect.anything()],
+    expect.arrayContaining(env.mentionables),
+  );
+});
+it("opens contextual setup for missing dictation and a denied microphone", async () => {
+  env.dictation.engine = "browser";
+  const view = render(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: "Start dictation" }));
+  await userEvent.click(screen.getByRole("button", { name: /Set up the agent or microphone/ }));
+  expect(env.commands.openInConsole).toHaveBeenLastCalledWith("/desktop/readiness?repair=agent");
+  env.dictation.state.reason = "mic_denied";
+  view.rerender(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: /Set up the agent or microphone/ }));
+  expect(env.commands.openInConsole).toHaveBeenLastCalledWith(
+    "/desktop/readiness?repair=microphone",
+  );
+});
+
+it("keeps the panel intact when the native file picker cannot open", async () => {
+  env.commands.setQuickAskPickerOpen.mockRejectedValueOnce(new Error("picker"));
+  render(<QuickAsk />);
+  await userEvent.click(screen.getByRole("button", { name: "Attach file" }));
+  await waitFor(() =>
+    expect(env.report).toHaveBeenCalledWith("opening Quick Ask file picker", expect.any(Error)),
+  );
+  expect(env.toastError).toHaveBeenCalled();
+});
+it("clears picked identities and the open palette when the selected agent changes", async () => {
+  env.mentionables = [{ kind: "mcp", id: "drive", name: "Drive" }];
+  render(<QuickAsk />);
+  await userEvent.type(question(), "@D");
+  fireEvent.mouseDown(screen.getByRole("option", { name: /Drive/ }));
+  await userEvent.type(question(), "@D");
+  expect(screen.getByRole("listbox")).toBeVisible();
+  act(() => useAgentSelectionStore.setState({ selectedAgentId: "other" }));
+  expect(screen.queryByRole("listbox")).toBeNull();
+});
+it("enforces the mention cap even when Enter is pressed on a full palette", async () => {
+  env.mentionables = Array.from({ length: 11 }, (_, n) => ({
+    kind: "mcp" as const,
+    id: `m${n}`,
+    name: `Source${n}x`,
+  }));
+  render(<QuickAsk />);
+  for (let n = 0; n < 10; n++) {
+    await userEvent.type(question(), `@Source${n}x`);
+    await userEvent.keyboard("{Enter}");
+  }
+  await userEvent.type(question(), "@Source10x");
+  await userEvent.keyboard("{Enter}");
+  expect(question().value).toContain("@Source10x");
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+});
+it("does not submit or reset while dictation is active, including composition events", async () => {
+  env.visualControls = true;
+  env.dictation.state.phase = "recording";
+  const view = render(<QuickAsk initialConversationId="c" />);
+  await userEvent.click(screen.getByRole("button", { name: "Send visual prompt" }));
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+  fireEvent.keyDown(question(), { key: "n", ctrlKey: true });
+  expect(env.chat.clearMessages).not.toHaveBeenCalled();
+  fireEvent.keyDown(question(), { key: "Enter", isComposing: true });
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
+  env.dictation.state.phase = "idle";
+  env.chat.isProcessing = true;
+  view.unmount();
+  render(<QuickAsk />);
+  fireEvent.keyDown(question(), { key: "n", ctrlKey: true });
+});
+
+it("cancels selected native files across logout and refuses parallel attachment reads", async () => {
+  let finish: (files: File[]) => void = () => {
+    throw new Error("not started");
+  };
+  env.takeFiles.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const view = render(<QuickAsk />);
+  fireEvent.paste(question(), { clipboardData: { files: [] } });
+  act(() =>
+    env.listeners.get("desktop:quick-ask")?.({
+      app: "Finder",
+      window: null,
+      selection: null,
+      clipboard: null,
+      files: ["secret.txt"],
+      accessibility: true,
+    }),
+  );
+  await userEvent.type(question(), "Read this{Enter}");
+  expect(env.takeFiles).toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Attach file", { selector: "input" }), {
+    target: { files: [new File(["x"], "other.txt")] },
+  });
+  expect(env.upload).not.toHaveBeenCalled();
+  env.auth = { isAuthenticated: false, isLoading: false };
+  view.rerender(<QuickAsk />);
+  await act(async () => finish([]));
+  expect(env.chat.sendMessage).not.toHaveBeenCalled();
 });

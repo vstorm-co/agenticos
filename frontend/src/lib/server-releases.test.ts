@@ -4,6 +4,18 @@ vi.mock("next/cache", () => ({ unstable_cache: (fn: () => Promise<unknown>) => f
 import { fetchCurrentRelease, fetchLatestRelease } from "./server-releases";
 import { GET } from "@/app/api/releases/latest/route";
 
+it("does not query a release tag for a development-only version", async () => {
+  vi.resetModules();
+  vi.doMock("../../package.json", () => ({ version: "development" }));
+  try {
+    const { fetchCurrentRelease: read } = await import("./server-releases");
+    expect(await read()).toEqual({ ok: true, release: null });
+  } finally {
+    vi.doUnmock("../../package.json");
+    vi.resetModules();
+  }
+});
+
 const released = { tag_name: "v1.29.0", draft: false, prerelease: false };
 afterEach(() => vi.unstubAllGlobals());
 function reply(payload: unknown, status = 200) {

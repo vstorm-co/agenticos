@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
+import { renderToString } from "react-dom/server";
 import { DesktopSetupGate } from "./desktop-setup-gate";
 import { OPEN_DESKTOP_SETUP } from "./desktop-setup-menu-item";
 
@@ -14,6 +15,10 @@ vi.mock("@/hooks/use-desktop-setup", () => ({
 }));
 vi.mock("@/hooks/use-desktop", () => ({ useShellEvent: vi.fn() }));
 vi.mock("./readiness-panel", () => ({ ReadinessPanel: () => <p>Permission checklist</p> }));
+
+it("does not offer a native checklist during server rendering", () => {
+  expect(renderToString(<DesktopSetupGate />)).not.toContain("Permission checklist");
+});
 vi.mock("@/stores/desktop-preferences-store", () => ({
   useDesktopPreferencesStore: Object.assign(
     (select: (state: { reviewed: Record<string, number>; review: () => void }) => unknown) =>

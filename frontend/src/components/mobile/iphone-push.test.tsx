@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ const push = (over: Partial<IphonePushState> = {}): IphonePushState => ({
 });
 
 const env = vi.hoisted(() => ({
+  invoke: vi.fn().mockResolvedValue(null),
   read: vi.fn(),
   enable: vi.fn(),
   disable: vi.fn(),
@@ -28,6 +29,10 @@ vi.mock("@/lib/mobile/apns", () => ({
 }));
 vi.mock("@/lib/web-push", () => ({ sendTestPush: env.test }));
 vi.mock("sonner", () => ({ toast: { success: env.success, error: env.error } }));
+vi.mock("@/lib/desktop/shell", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: env.invoke,
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -85,4 +90,21 @@ describe("IphonePush", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Turn on" }));
     await waitFor(() => expect(env.error).toHaveBeenCalledTimes(2));
   });
+});
+
+it("retries a failed permission read, opens system settings and refreshes on return", async () => {
+  env.read.mockRejectedValueOnce(new Error("offline"));
+  const view = render(<IphonePush />);
+  env.read.mockResolvedValue(push({ permission: "denied" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Check again" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Open system settings" }));
+  expect(env.invoke).toHaveBeenCalledWith("open_mobile_settings");
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  const reads = env.read.mock.calls.length;
+  await act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(env.read).toHaveBeenCalledTimes(reads + 1);
+  visibility.mockRestore();
+  view.unmount();
 });

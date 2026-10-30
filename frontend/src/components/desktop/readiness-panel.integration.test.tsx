@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -21,6 +21,11 @@ const setup = vi.hoisted(() => ({
 }));
 const events = vi.hoisted(() => new Map<string, (v: unknown) => void>());
 const router = vi.hoisted(() => ({ push: vi.fn() }));
+const screenshot = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/desktop/readiness", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/readiness")>()),
+  retryDesktopScreenshot: screenshot,
+}));
 vi.mock("@/hooks/use-desktop-setup", () => ({ useDesktopSetup: () => setup }));
 vi.mock("@/hooks/use-shell", () => ({
   useShell: () => ({ platform: "macos", window: "main", version: "test", vibrancy: false }),
@@ -89,5 +94,43 @@ it("reports failed probes instead of pretending they are unconfigured", async ()
   mount(<ReadinessPanel />);
   expect(screen.getByText("Could not check — retry")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(setup.refresh).toHaveBeenCalled();
+});
+
+it("opens targeted repairs once and retries a screenshot only after permission was granted", async () => {
+  setup.items = [{ key: "screen_capture", state: "ready" }];
+  setup.native.status.data.screen_capture = "granted";
+  screenshot.mockRejectedValueOnce(new Error("capture failed"));
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  mount(<DesktopSetupGate />);
+  await waitFor(() =>
+    expect(useDesktopPreferencesStore.getState().reviewed[setup.scope]).toBe(setup.revision),
+  );
+  act(() => events.get("desktop:repair-needed")?.("screen_capture"));
+  expect(await screen.findByRole("dialog")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Try the screenshot again" }));
+  await waitFor(() => expect(warning).toHaveBeenCalled());
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const refreshes = setup.refresh.mock.calls.length;
+  act(() => events.get("desktop:repair-needed")?.("screen_capture"));
+  expect(setup.refresh).toHaveBeenCalledTimes(refreshes);
+  warning.mockRestore();
+});
+it("opens the relevant configuration page and manual refresh", async () => {
+  setup.canManageAgents = true;
+  setup.items = [
+    { key: "model", state: "missing", href: "/settings/assistant" },
+    { key: "agent", state: "missing", href: "/agents" },
+    { key: "shortcuts", state: "missing", href: "/settings/shortcuts" },
+  ];
+  mount(<ReadinessPanel />);
+  await userEvent.click(screen.getByRole("button", { name: "View agents" }));
+  expect(router.push).toHaveBeenCalledWith("/agents");
+  for (const button of screen.getAllByRole("button", { name: "Configure" }))
+    await userEvent.click(button);
+  expect(router.push).toHaveBeenCalledWith("/settings/assistant");
+  expect(router.push).toHaveBeenCalledWith("/settings/shortcuts");
+  await userEvent.click(screen.getByRole("button", { name: "Check again" }));
   expect(setup.refresh).toHaveBeenCalled();
 });

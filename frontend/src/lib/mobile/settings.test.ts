@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-error";
-import { chooseMobileServer, parseMobileSettings } from "./settings";
+import { chooseMobileServer, parseMobileSettings, mobileSettings, setMobileLock } from "./settings";
 const env = vi.hoisted(() => ({
   invoke: vi.fn(),
   iphone: vi.fn(),
@@ -18,6 +18,21 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 describe("phone connections", () => {
+  it("reads native settings and changes lock only through the native boundary", async () => {
+    const value = {
+      servers: [],
+      active: null,
+      locked_server: false,
+      biometric_lock: true,
+      biometric_managed: false,
+      biometric_available: true,
+    };
+    env.invoke.mockResolvedValue(value);
+    expect(await mobileSettings()).toEqual(value);
+    expect(env.invoke).toHaveBeenLastCalledWith("mobile_settings");
+    await setMobileLock(false);
+    expect(env.invoke).toHaveBeenLastCalledWith("set_mobile_lock", { enabled: false });
+  });
   it("rejects malformed native settings instead of inventing a protection state", () => {
     expect(() => parseMobileSettings({ servers: [], biometric_lock: "yes" })).toThrow();
     const valid = {
@@ -51,5 +66,8 @@ describe("phone connections", () => {
     await chooseMobileServer("android");
     expect(env.disableAndroid).not.toHaveBeenCalled();
     expect(env.invoke).toHaveBeenCalledWith("choose_server");
+    env.iphone.mockResolvedValue({ token: null });
+    await chooseMobileServer("ios");
+    expect(env.disableIphone).not.toHaveBeenCalled();
   });
 });

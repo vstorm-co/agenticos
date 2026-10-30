@@ -31,4 +31,5 @@ it("muting one conversation does not mute others or the inbox", () => {
   expect(shouldNotify({ ...input, preferences, path: "/chat?id=two" })).toBe(true);
   expect(notificationConversation("/pl/chat?id=one")).toBe("one");
   expect(notificationConversation(null)).toBeNull();
+  expect(notificationConversation("http://[")).toBeNull();
 });

@@ -285,11 +285,10 @@ export function QuickAsk({
       caretAfterPick.current = null;
     }
   }, [question]);
-  const pickMention = (item: Mentionable) => {
-    if (!mentionQuery) return;
+  const pickMention = (item: Mentionable, query: MentionQuery) => {
     const known = mentions.some((one) => one.id === item.id && one.kind === item.kind);
     if (mentions.length >= MAX_MENTIONS && !known) return;
-    const next = insertMention(question, mentionQuery, item);
+    const next = insertMention(question, query, item);
     setQuestion(next.text);
     setPicked(known ? mentions : [...mentions, item]);
     caretAfterPick.current = next.caret;
@@ -576,7 +575,7 @@ export function QuickAsk({
       if (matches.length && (event.key === "Enter" || event.key === "Tab")) {
         event.preventDefault();
         const item = matches[mentionIndex];
-        if (item) pickMention(item);
+        if (item && mentionQuery) pickMention(item, mentionQuery);
         return;
       }
     }
@@ -907,7 +906,7 @@ export function QuickAsk({
             {t("repairSetup")}
           </button>
         )}
-      {mentionOpen && (
+      {mentionOpen && mentionQuery && (
         <div className="mx-3 mb-3">
           <MentionPalette
             id={mentionMenuId}
@@ -915,7 +914,7 @@ export function QuickAsk({
             items={matches}
             selectedIndex={mentionIndex}
             onSelectIndex={setMentionIndex}
-            onPick={pickMention}
+            onPick={(item) => pickMention(item, mentionQuery)}
             isLoading={offered.isLoading}
             failed={offered.isError}
             full={mentions.length >= MAX_MENTIONS ? MAX_MENTIONS : undefined}

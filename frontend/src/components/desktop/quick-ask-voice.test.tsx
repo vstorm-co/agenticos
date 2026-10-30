@@ -98,3 +98,26 @@ it("shows the shared live controls and stops recording when the tab is left", ()
   view.rerender(<QuickAskVoice {...args} active={false} />);
   expect(env.session.end).toHaveBeenCalledOnce();
 });
+
+it("refuses unexpected saved-turn roles without putting them into the transcript", () => {
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  render(<QuickAskVoice {...props()} />);
+  act(() =>
+    env.callbacks?.onTurnSaved?.({
+      id: "bad",
+      role: "system",
+      content: "untrusted",
+      interrupted: false,
+      turn_id: null,
+    }),
+  );
+  expect(useChatStore.getState().messages).toEqual([]);
+  expect(warning).toHaveBeenCalled();
+  warning.mockRestore();
+});
+
+it("refuses starting without an agent even if stale readiness still says available", async () => {
+  render(<QuickAskVoice {...props()} agentId={null} />);
+  await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+  expect(env.session?.start).not.toHaveBeenCalled();
+});

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -83,4 +83,28 @@ describe("PairDevice", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm sign-in" }));
     expect(env.redeem).toHaveBeenCalledWith("second");
   });
+});
+
+it("ignores duplicate confirmation and a redemption completed after leaving the code", async () => {
+  let finish: (value: { user: typeof user; access_token: string }) => void = () => {
+    throw new Error("not started");
+  };
+  env.redeem.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const view = render(<PairDevice />);
+  const confirm = await screen.findByRole("button", { name: "Confirm sign-in" });
+  act(() => {
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+  });
+  expect(env.redeem).toHaveBeenCalledOnce();
+  env.code = "second";
+  view.rerender(<PairDevice />);
+  await act(async () => finish({ user, access_token: "old" }));
+  expect(env.adopt).not.toHaveBeenCalled();
+  expect(env.replace).not.toHaveBeenCalled();
 });

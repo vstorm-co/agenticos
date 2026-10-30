@@ -9,6 +9,7 @@ import {
 } from "@/stores/desktop-preferences-store";
 import type { Notice } from "@/lib/desktop/commands";
 const env = vi.hoisted(() => ({
+  runs: [] as { id: string; conversation_id: string }[],
   user: "one" as string | null,
   org: "org",
   focus: vi.fn(),
@@ -19,7 +20,7 @@ vi.mock("@/stores", () => ({
     select({ user: env.user ? { id: env.user } : null }),
 }));
 vi.mock("./use-organizations", () => ({ useTenantId: () => env.org }));
-vi.mock("./use-desktop-active-runs", () => ({ useDesktopActiveRuns: () => ({ runs: [] }) }));
+vi.mock("./use-desktop-active-runs", () => ({ useDesktopActiveRuns: () => ({ runs: env.runs }) }));
 vi.mock("@/lib/desktop/readiness", () => ({ readDesktopFocus: env.focus }));
 vi.mock("@/lib/desktop/commands", () => ({ notify: env.notify }));
 let client: QueryClient;
@@ -36,6 +37,7 @@ const approval: Notice = {
   reject_label: "Reject",
 };
 beforeEach(() => {
+  env.runs = [];
   env.user = "one";
   env.org = "org";
   env.focus.mockReset().mockResolvedValue({ focused: false, conversation_id: null });
@@ -85,5 +87,31 @@ it("drops a late focus result when the account changed during the native check",
   });
   complete({ focused: false, conversation_id: null });
   await pending;
+  expect(env.notify).not.toHaveBeenCalled();
+});
+
+it("suppresses a run notice when its conversation is already visible", async () => {
+  env.runs = [
+    { id: "other", conversation_id: "elsewhere" },
+    { id: "run", conversation_id: "chat" },
+  ];
+  env.focus.mockResolvedValue({ focused: true, conversation_id: "chat" });
+  const view = renderHook(() => useDesktopNotifier(), { wrapper });
+  await view.result.current.send({ ...approval, path: "/runs/run" }, "approval_requested", "run");
+  expect(env.notify).not.toHaveBeenCalled();
+});
+
+it("does not call the native API without an account or when notices are disabled", async () => {
+  env.user = null;
+  const view = renderHook(() => useDesktopNotifier(), { wrapper });
+  await view.result.current.send(approval, "approval_requested");
+  env.user = "one";
+  useDesktopPreferencesStore.getState().setNotifications(desktopScope("one", "org")!, {
+    ...DEFAULT_DESKTOP_NOTIFICATIONS,
+    approvals: false,
+  });
+  view.rerender();
+  await view.result.current.send(approval, "approval_requested");
+  expect(env.focus).not.toHaveBeenCalled();
   expect(env.notify).not.toHaveBeenCalled();
 });
