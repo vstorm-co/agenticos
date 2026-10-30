@@ -85,6 +85,10 @@ class DispatchContext:
     """For a `control` node, the output of the one predecessor whose edge
     brought the run here - what `logic.merge` passes on, since it may bind to
     neither of its branches. `None` for every other node."""
+    arrived_branches: dict[str, dict[str, Any] | None] | None = None
+    """For a `logic.merge` that waits for all its branches, the output of each by its
+    key (`logic_merge.branch_keys`) - `None` for a branch that did not run. `None` for
+    every other node."""
     public_origin: bool = False
     """Whether nobody answers for the run's input, though it executes as a principal.
 

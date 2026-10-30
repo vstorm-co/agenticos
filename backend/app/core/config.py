@@ -858,10 +858,10 @@ class Settings(BaseSettings):
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
 
-    # A hard ceiling on one workflow graph. `_dominators` (app.workflows.graph.validate)
-    # retains a full dominator set per node - up to O(n^2) total memberships for a
-    # linear chain of n nodes, ~330 MiB of traced allocation at 4,000 nodes in an
-    # isolated benchmark - and the console routes that accept a graph are explicitly
+    # A hard ceiling on one workflow graph. `analyze_graph` (app.workflows.graph.validate)
+    # retains an ancestor set per node - up to O(n^2) total memberships for a linear
+    # chain of n nodes (the dominator sets it replaced took ~330 MiB of traced
+    # allocation at 4,000 nodes in an isolated benchmark) - and the console routes that accept a graph are explicitly
     # unmetered (SECURITY.md's hardening checklist), so an unbounded graph is a
     # resource-exhaustion vector rather than only a slow request. Checked before a
     # draft is even persisted, not only at publish.

@@ -9,6 +9,7 @@ import {
   approvalChoices,
   errorBranches,
   instancePorts,
+  splitBranches,
   switchRules,
   classifyCategories,
   routesErrors,
@@ -74,6 +75,21 @@ describe("instancePorts", () => {
       "otherwise",
       "germany",
     ]);
+  });
+
+  it("gives a Split one output per branch, taking any step", () => {
+    const SPLIT = makeDefinition({ id: "logic.split", ports: [port("in", "input", null)] });
+    const configured = instance({
+      definition_id: "logic.split",
+      config: { branches: [{ name: "a" }, { name: "in" }, { name: "b" }] },
+    });
+    const ports = instancePorts(configured, SPLIT);
+    expect(ports.map((p) => [p.id, p.kind, p.schema])).toEqual([
+      ["in", "input", null],
+      ["a", "output", null],
+      ["b", "output", null],
+    ]);
+    expect(splitBranches({ branches: "junk" })).toEqual([]);
   });
 
   it("gives a classifier one output per category, in order, before other", () => {

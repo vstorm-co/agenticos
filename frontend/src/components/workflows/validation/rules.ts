@@ -1,5 +1,5 @@
 /**
- * The eight structural rules (plus the required-inputs rule the property panel
+ * The structural rules (plus the required-inputs rule the property panel
  * mirrors, and required settings left empty), each a pure function over the in-memory graph and the resolved catalog
  * — the client mirror of `validate.py`'s Pass 1. Every rule returns
  * {@link RawProblem}s and never translates; `validateGraph` renders them.
@@ -18,6 +18,7 @@ import {
   outputRefs,
   type Binding,
   type JsonSchema,
+  type NodeInstance,
   type NodeOutputRef,
   type ScopeBoundary,
   type WorkflowEdge,
@@ -34,6 +35,14 @@ import {
 } from "./schema";
 import { AUTHOR_NAMED_PORTS, ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
 import { isTrigger } from "@/lib/workflows/triggers";
+import {
+  anyPairRunsTogether,
+  canRunTogether,
+  wireCondition,
+  wireRunsWhenever,
+  type GraphAnalysis,
+  type JoinWire,
+} from "./joins";
 import { definitionFor, forwardEdges, kahn, nodeIds, type DefinitionMap } from "./topology";
 import type { RawProblem } from "./types";
 
@@ -213,11 +222,11 @@ function outputReads(
   );
 }
 
-// Rule 4 — branch-local data availability (dominators).
+// Rule 4 — branch-local data availability: what must precede a step (`GraphAnalysis.precede`).
 
 export function rule4BranchLocalAvailability(
   graph: WorkflowGraph,
-  dominators: Map<string, Set<string>>,
+  precede: Map<string, Set<string>>,
 ): RawProblem[] {
   const problems: RawProblem[] = [];
   for (const { binding, ref } of outputReads(graph)) {
@@ -227,9 +236,9 @@ export function rule4BranchLocalAvailability(
       problems.push(nodeField(targetId, binding.target_field, "binding-self-reference"));
       continue;
     }
-    const targetDom = dominators.get(targetId);
-    if (targetDom === undefined) continue;
-    if (!targetDom.has(sourceId)) {
+    const targetPrecede = precede.get(targetId);
+    if (targetPrecede === undefined) continue;
+    if (!targetPrecede.has(sourceId)) {
       problems.push(nodeField(targetId, binding.target_field, "binding-unavailable"));
     }
   }
@@ -333,116 +342,227 @@ export function quickLogProblems(graph: WorkflowGraph, definitions: DefinitionMa
   return problems;
 }
 
-// Rule 5 — exclusive merge.
+// Rule 5 — a merge takes one edge from each branch.
 
-export function rule5ExclusiveMerge(
-  graph: WorkflowGraph,
-  definitions: DefinitionMap,
-  dominators: Map<string, Set<string>>,
-): RawProblem[] {
+const MERGE = "logic.merge";
+const SPLIT = "logic.split";
+
+/** A merge's `wait_for` as stored: absent means the branch that ran. */
+function waitFor(n: NodeInstance): "one" | "all" {
+  return n.config.wait_for === "all" ? "all" : "one";
+}
+
+function merges(graph: WorkflowGraph, definitions: DefinitionMap): NodeInstance[] {
+  return graph.nodes.filter((n) => definitionFor(definitions, n.id)?.id === MERGE);
+}
+
+/**
+ * Whether a merge's branches are exclusive is the join classification's to say
+ * ({@link mergeModeProblems}); what is left here is the shape no classification can
+ * read - two edges leaving one port into the same merge, whichever way it waits. The analog of
+ * `_rule_5_exclusive_merge`.
+ */
+export function rule5ExclusiveMerge(analysis: GraphAnalysis): RawProblem[] {
+  const { graph, definitions } = analysis;
   const problems: RawProblem[] = [];
-  const incoming = new Map<string, { source: string; port: string }[]>();
-  for (const e of graph.edges) {
-    const list = incoming.get(e.target_node_id) ?? [];
-    list.push({ source: e.source_node_id, port: e.source_port });
-    incoming.set(e.target_node_id, list);
-  }
-
-  const policyById = new Map(graph.nodes.map((item) => [item.id, item.policy]));
-
-  for (const n of graph.nodes) {
-    const definition = definitionFor(definitions, n.id);
-    if (definition === null || definition.id !== "logic.merge") continue;
-    const edgesIn = incoming.get(n.id) ?? [];
-    if (edgesIn.length < 2) continue;
-    // One branching step may feed a merge through several of its ports - only one
-    // of them is taken - but never twice through the same one.
-    if (new Set(edgesIn.map((e) => `${e.source}\u0000${e.port}`)).size !== edgesIn.length) {
+  for (const n of merges(graph, definitions)) {
+    const edgesIn = graph.edges.filter((e) => e.target_node_id === n.id);
+    const distinct = new Set(edgesIn.map((e) => `${e.source_node_id}\u0000${e.source_port}`));
+    if (edgesIn.length > 1 && distinct.size !== edgesIn.length) {
       problems.push(node(n.id, "merge-duplicate-branch"));
-      continue;
-    }
-    const distinct = new Set(edgesIn.map((e) => e.source));
-    // As `_branches_exclusively` in `validate.py`: a step that routes its errors takes
-    // its `out` or its `error` port, never both, as an If takes one of its answers.
-    const exclusive = (id: string): boolean =>
-      routesErrors({ policy: policyById.get(id) }) ||
-      definitionFor(definitions, id)?.exclusive_branches === true;
-    // A step that feeds the merge by several ports must itself take one per run.
-    const feedsBySeveral = [...distinct].some(
-      (source) => edgesIn.filter((e) => e.source === source).length > 1 && !exclusive(source),
-    );
-    if (feedsBySeveral) {
-      problems.push(node(n.id, "merge-not-from-if"));
-      continue;
-    }
-    const branches = [...distinct];
-    const common = nearestCommonDominator(branches, dominators);
-    if (common === null) {
-      problems.push(node(n.id, "merge-no-common-dominator"));
-      continue;
-    }
-    if (!exclusive(common)) {
-      problems.push(node(n.id, "merge-not-from-if"));
-      continue;
-    }
-    if (!branchesDivergeAt(common, n.id, distinct, graph, dominators)) {
-      problems.push(node(n.id, "merge-not-exclusive"));
     }
   }
   return problems;
 }
 
-function branchesDivergeAt(
-  common: string,
-  merge: string,
-  branches: Set<string>,
+const SLUG_LIMIT = 32;
+
+function slug(text: string): string {
+  const cleaned = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return (/^[0-9]/.test(cleaned) ? `b_${cleaned}` : cleaned).slice(0, SLUG_LIMIT);
+}
+
+/**
+ * The name of each branch reaching a merge, by `source\0port`: the stored key where
+ * the config has one, else the Split's branch name when the wire leaves a Split, else
+ * a slug of the source step's name. The analog of `logic_merge.branch_keys`.
+ */
+export function branchKeys(
   graph: WorkflowGraph,
-  dominators: Map<string, Set<string>>,
-): boolean {
-  const seenPorts = new Set<string>();
-  for (const branch of branches) {
-    const branchDom = dominators.get(branch) ?? new Set<string>();
-    // A branch that is the branching step itself - its ports wired straight to the
-    // merge - is fed by those edges' ports.
-    const feedingPorts = new Set(
-      graph.edges
-        .filter(
-          (e) =>
-            e.source_node_id === common &&
-            (branch === common ? e.target_node_id === merge : branchDom.has(e.target_node_id)),
-        )
-        .map((e) => e.source_port),
-    );
-    if (feedingPorts.size === 0) return false;
-    for (const port of feedingPorts) {
-      if (seenPorts.has(port)) return false;
+  definitions: DefinitionMap,
+  merge: NodeInstance,
+): Map<string, string> {
+  const configured = merge.config.branch_keys;
+  const stored = new Map<string, unknown>();
+  for (const item of Array.isArray(configured) ? configured : []) {
+    if (typeof item === "object" && item !== null) {
+      stored.set(`${item.source_node_id}\u0000${item.source_port}`, item.key);
     }
-    for (const port of feedingPorts) seenPorts.add(port);
   }
-  return true;
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const keys = new Map<string, string>();
+  for (const e of graph.edges) {
+    const source = byId.get(e.source_node_id);
+    const wire = `${e.source_node_id}\u0000${e.source_port}`;
+    if (e.target_node_id !== merge.id || source === undefined || keys.has(wire)) continue;
+    const key = stored.get(wire);
+    if (typeof key === "string") keys.set(wire, key);
+    else if (source.definition_id === SPLIT) keys.set(wire, e.source_port);
+    else {
+      const name = source.label ? source.label : definitionFor(definitions, source.id)?.name;
+      keys.set(wire, slug(name ?? source.definition_id));
+    }
+  }
+  return keys;
 }
 
-export function nearestCommonDominator(
-  nodes: readonly string[],
-  dominators: Map<string, Set<string>>,
-): string | null {
-  const domSets = nodes.map((id) => dominators.get(id));
-  if (domSets.some((set) => set === undefined)) return null;
-  const resolved = domSets as Set<string>[];
-  const common = intersectAll(resolved);
-  if (common.size === 0) return null;
-  for (const candidate of common) {
-    const candidateDom = dominators.get(candidate) ?? new Set<string>();
-    if ([...common].every((member) => candidateDom.has(member))) return candidate;
+/**
+ * A merge's `wait_for` must match how its branches reach it, and its branch names be
+ * usable: branches that can run together need `all`, and `all` needs each of them
+ * certain to arrive whenever the merge runs; branches of which only one runs need `one`.
+ * Under `all` the names differ, and a name read that no branch has is refused where it
+ * is read. A merge with a branch nothing reaches is left to the reachability rule. The
+ * analog of `_merge_mode_problems`.
+ */
+export function mergeModeProblems(analysis: GraphAnalysis): RawProblem[] {
+  const { graph, definitions } = analysis;
+  const problems: RawProblem[] = [];
+  const keysByMerge = new Map<string, Set<string>>();
+  for (const n of merges(graph, definitions)) {
+    const mode = waitFor(n);
+    const keys = branchKeys(graph, definitions, n);
+    const keyOf = (wire: JoinWire): string =>
+      keys.get(`${wire.sourceNodeId}\u0000${wire.sourcePort}`) as string;
+    const wires = analysis.incoming.get(n.id) ?? [];
+    if (wires.length > 1 && wires.every((w) => wireCondition(analysis, n.id, w) !== undefined)) {
+      const together = anyPairRunsTogether(analysis, n.id);
+      const uncertain = wires.filter((w) => !wireRunsWhenever(analysis, n.id, w));
+      const [first] = uncertain;
+      if (mode === "one" && together) {
+        problems.push(
+          first === undefined
+            ? node(n.id, "merge-wait-for-all")
+            : node(n.id, "merge-together-uncertain", { name: keyOf(first) }),
+        );
+      } else if (mode === "all" && !together) {
+        problems.push(node(n.id, "merge-wait-for-one"));
+      } else if (mode === "all") {
+        for (const wire of uncertain) {
+          problems.push(node(n.id, "merge-leg-not-guaranteed", { name: keyOf(wire) }));
+        }
+      }
+    }
+    const names = [...keys.values()];
+    keysByMerge.set(n.id, new Set(names));
+    if (
+      mode === "all" &&
+      (names.some((name) => name === "") || new Set(names).size !== names.length)
+    ) {
+      problems.push(nodeField(n.id, "branch_keys", "merge-key-invalid"));
+    }
   }
-  return null;
+  for (const { binding, ref } of outputReads(graph)) {
+    const keys = keysByMerge.get(ref.node_id);
+    const [head, key] = ref.field_path;
+    if (keys === undefined || head !== "branches" || key === undefined || keys.has(key)) continue;
+    problems.push({
+      nodeId: binding.target_node_id,
+      edgeId: null,
+      field: binding.target_field,
+      code: "merge-key-unknown",
+      params: { key },
+    });
+  }
+  return problems;
 }
 
-function intersectAll(sets: Set<string>[]): Set<string> {
-  const [first, ...rest] = sets;
-  let result = new Set(first);
-  for (const set of rest) result = new Set([...result].filter((value) => set.has(value)));
-  return result;
+/** A Split takes every branch at once, so it has no one way out for an error to take instead. */
+export function splitProblems(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
+  return graph.nodes
+    .filter((n) => routesErrors(n) && definitionFor(definitions, n.id)?.id === SPLIT)
+    .map((n) => nodeField(n.id, "policy", "split-routes-errors"));
+}
+
+const MERGE_SETTINGS = new Set(["wait_for", "branch_keys"]);
+
+/**
+ * A Merge's `wait_for` and `branch_keys` are fixed in the editor, never bound: the
+ * executor decides when a Merge runs from its stored config, so a binding would reach
+ * the handler's call but not that decision.
+ */
+export function mergeSettingBindingProblems(
+  graph: WorkflowGraph,
+  definitions: DefinitionMap,
+): RawProblem[] {
+  return graph.bindings
+    .filter(
+      (b) =>
+        definitionFor(definitions, b.target_node_id)?.id === MERGE &&
+        MERGE_SETTINGS.has(b.target_field.replace(/\/.*$/, "")),
+    )
+    .map((b) => nodeField(b.target_node_id, b.target_field, "merge-setting-bound"));
+}
+
+/**
+ * A failure a graph claims to handle must reach a handler: a step routing its errors
+ * needs its `error` port wired, and an error handler its `default` - the mirror of the
+ * server's rule 10 node checks.
+ */
+export function errorRoutingProblems(
+  graph: WorkflowGraph,
+  definitions: DefinitionMap,
+): RawProblem[] {
+  const wired = (nodeId: string, port: string) =>
+    graph.edges.some((e) => e.source_node_id === nodeId && e.source_port === port);
+  const problems: RawProblem[] = [];
+  for (const n of graph.nodes) {
+    if (routesErrors(n) && !wired(n.id, ERROR_PORT))
+      problems.push(node(n.id, "error-port-unwired"));
+    if (definitionFor(definitions, n.id)?.id === "error.handle" && !wired(n.id, "default")) {
+      problems.push(node(n.id, "error-handler-default-unwired"));
+    }
+  }
+  return problems;
+}
+
+/** An error handler may not be fed by two branches that run together. */
+export function sharedErrorHandlerProblems(analysis: GraphAnalysis): RawProblem[] {
+  return analysis.graph.nodes
+    .filter(
+      (n) =>
+        definitionFor(analysis.definitions, n.id)?.id === "error.handle" &&
+        anyPairRunsTogether(analysis, n.id),
+    )
+    .map((n) => node(n.id, "error-handler-shared"));
+}
+
+const ANSWERING: [string, RawProblem["code"]][] = [
+  ["core.output", "outputs-both-run"],
+  ["webhook.respond", "respond-both-run"],
+];
+
+/** A run answers once, and a webhook is answered once: no second step that may answer too. */
+export function answeringStepProblems(analysis: GraphAnalysis): RawProblem[] {
+  const problems: RawProblem[] = [];
+  for (const [definitionId, code] of ANSWERING) {
+    const answering = analysis.graph.nodes.filter(
+      (n) => definitionFor(analysis.definitions, n.id)?.id === definitionId,
+    );
+    answering.forEach((later, index) => {
+      const clash = answering
+        .slice(0, index)
+        .some(
+          (earlier) =>
+            analysis.nodeScope.get(earlier.id) === analysis.nodeScope.get(later.id) &&
+            canRunTogether(analysis, earlier.id, later.id),
+        );
+      if (clash) problems.push(node(later.id, code));
+    });
+  }
+  return problems;
 }
 
 // Rule 6 — nested scope boundaries.
@@ -488,7 +608,6 @@ function isSanctionedBoundaryEdge(
 // Rule 7 — no cycles.
 
 export interface CycleResult {
-  predecessors: Map<string, Set<string>>;
   order: string[] | null;
   problems: RawProblem[];
 }
@@ -498,7 +617,7 @@ export function rule7NoCycles(graph: WorkflowGraph, nodeScope: Map<string, strin
     (e) => !nodeScope.has(e.source_node_id) && !nodeScope.has(e.target_node_id),
   );
   const topLevelNodes = graph.nodes.filter((n) => !nodeScope.has(n.id)).map((n) => n.id);
-  const { predecessors, order, cyclic } = kahn(topLevelNodes, topLevelEdges);
+  const { order, cyclic } = kahn(topLevelNodes, topLevelEdges);
   const problems: RawProblem[] = [...cyclic].sort().map((nodeId) => node(nodeId, "node-in-cycle"));
 
   const scopeBodies = new Map<string, Set<string>>();
@@ -518,38 +637,29 @@ export function rule7NoCycles(graph: WorkflowGraph, nodeScope: Map<string, strin
     }
   }
 
-  return { predecessors, order: cyclic.size > 0 ? null : order, problems };
+  return { order: cyclic.size > 0 ? null : order, problems };
 }
 
-// Rule 8 — no parallel fan-out (v1).
+// Rule 8 — one port.
 
-export function rule8NoParallelFanout(
-  graph: WorkflowGraph,
-  definitions: DefinitionMap,
-): RawProblem[] {
-  const byNode = new Map<string, Map<string, WorkflowEdge[]>>();
+/**
+ * A step that is not a control node sends its output through one port. Any number of
+ * steps may follow a port: they run side by side, and the steps waiting for them are
+ * what `mergeModeProblems` judges.
+ */
+export function rule8OnePort(graph: WorkflowGraph, definitions: DefinitionMap): RawProblem[] {
+  // A routed failure leaves by `error` instead of by the step's output, never beside it.
+  const portsByNode = new Map<string, Set<string>>();
   for (const e of graph.edges) {
-    const byPort = byNode.get(e.source_node_id) ?? new Map<string, WorkflowEdge[]>();
-    const list = byPort.get(e.source_port) ?? [];
-    list.push(e);
-    byPort.set(e.source_port, list);
-    byNode.set(e.source_node_id, byPort);
+    if (e.source_port === ERROR_PORT) continue;
+    const ports = portsByNode.get(e.source_node_id) ?? new Set<string>();
+    ports.add(e.source_port);
+    portsByNode.set(e.source_node_id, ports);
   }
-
   const problems: RawProblem[] = [];
-  for (const [nodeId, byPort] of byNode) {
-    const definition = definitionFor(definitions, nodeId);
-    if (definition !== null && definition.kind === "control") continue;
-    // A routed failure leaves by `error` instead of by the step's output, never beside it.
-    const portsWithEdges = [...byPort.entries()].filter(
-      ([port, edges]) => edges.length > 0 && port !== ERROR_PORT,
-    );
-    if (portsWithEdges.length > 1) problems.push(node(nodeId, "fanout-multiple-ports"));
-    for (const [port, edges] of byPort) {
-      if (edges.length > 1) {
-        problems.push(node(nodeId, "fanout-port-multiple-edges", { port }));
-      }
-    }
+  for (const [nodeId, ports] of portsByNode) {
+    if (definitionFor(definitions, nodeId)?.kind === "control") continue;
+    if (ports.size > 1) problems.push(node(nodeId, "fanout-multiple-ports"));
   }
   return problems;
 }

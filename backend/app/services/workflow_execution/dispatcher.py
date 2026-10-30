@@ -542,8 +542,9 @@ async def _completed_outputs(
     Looked up in the scope each source ran in - the reader's own iteration, or
     an enclosing one (`_source_path`). A skipped source has no stored result and
     reads as `None`, which a publish-valid graph never binds to: rule 4 only lets
-    a node bind to what dominates it, and a dominator of a node that runs cannot
-    have been skipped.
+    a node bind to what must precede it - what dominates it, and every leg of a
+    parallel group before the join waiting for them all - and none of those can
+    have been skipped by the time the node runs.
     """
     outputs: dict[UUID, dict[str, Any] | None] = {}
     for node_id in node_ids:

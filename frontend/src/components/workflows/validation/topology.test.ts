@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { DEBUG_ECHO, echo, edge, makeCatalog, makeDefinition, node, port, graph } from "./fixtures";
 import {
-  allDominators,
   definitionFor,
   deriveScopes,
-  dominators,
   forwardEdges,
   indexCatalog,
   kahn,
@@ -147,58 +145,5 @@ describe("kahn", () => {
       [edge("e1", "a", "out", "b", "in"), edge("e2", "b", "out", "a", "in")],
     );
     expect(cyclic).toEqual(new Set(["a", "b"]));
-  });
-});
-
-describe("dominators", () => {
-  it("intersects predecessor dominators and skips a node with no resolved predecessors", () => {
-    // `island` is absent from the predecessors map entirely; `orphan` is present
-    // with an empty set. Both have no resolved predecessor, so neither enters the
-    // dominator map — and a single-predecessor node's set is never mutated by a
-    // later node's intersection.
-    const predecessors = new Map([
-      ["root", new Set<string>()],
-      ["mid", new Set(["root"])],
-      ["join", new Set(["root", "mid"])],
-      ["orphan", new Set<string>()],
-    ]);
-    const dom = dominators(["root", "mid", "join", "orphan", "island"], predecessors, "root");
-    expect(dom.get("join")).toEqual(new Set(["root", "join"]));
-    expect(dom.get("mid")).toEqual(new Set(["root", "mid"]));
-    expect(dom.has("orphan")).toBe(false);
-    expect(dom.has("island")).toBe(false);
-  });
-});
-
-describe("allDominators", () => {
-  it("is empty when the outer order is a cycle", () => {
-    const g = graph({ entry: "a", nodes: [echo("a")] });
-    expect(allDominators(g, [], new Map(), null).size).toBe(0);
-  });
-
-  it("is empty when the entry is not a real node", () => {
-    const g = graph({ entry: "ghost", nodes: [echo("a")] });
-    expect(allDominators(g, [], new Map(), ["a"]).size).toBe(0);
-  });
-
-  it("skips a scope body that has a cycle of its own", () => {
-    const catalog = makeCatalog([DEBUG_ECHO, FOREACH("control.foreach")]);
-    const g = graph({
-      entry: "entry",
-      nodes: [echo("entry"), node("loop", "control.foreach"), echo("x"), echo("y")],
-      edges: [
-        edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "x", "in"),
-        edge("e3", "x", "out", "y", "in"),
-        edge("e4", "y", "out", "x", "in"),
-      ],
-    });
-    const definitions = resolveDefinitions(g, catalog);
-    const scopes = deriveScopes(g, definitions);
-    const outer = kahn(["entry", "loop"], [edge("e1", "entry", "out", "loop", "in")]);
-    const dom = allDominators(g, scopes, outer.predecessors, outer.order);
-    // The body members get no dominator verdict, but the outer nodes still do.
-    expect(dom.get("entry")).toEqual(new Set(["entry"]));
-    expect(dom.has("x")).toBe(false);
   });
 });

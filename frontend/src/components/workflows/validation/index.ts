@@ -2,9 +2,10 @@
  * The client-side mirror of #1786's graph validation — the single import point for
  * the editor's canvas, property panel and binding picker.
  *
- * `validateGraph` runs the eight structural rules (exactly-one-input,
- * reachable-outputs, type-compatibility, branch-local data availability,
- * exclusive-merge, nested-scope boundaries, no cycles, no parallel fan-out), plus
+ * `validateGraph` runs the structural rules (exactly-one-input,
+ * reachable-outputs, type-compatibility, branch-local data availability, a merge's
+ * branches, nested-scope boundaries, no cycles, one port per step), the parallel-branch
+ * rules (legs that must all arrive, one answer per run, a Split's errors), plus
  * the required-inputs rule the property panel's binding form marks, and the two
  * resource checks a client can make without the server (a dangling reference, an
  * unknown definition version). It derives `scopes` from the graph's own topology
@@ -20,8 +21,8 @@
  *
  * The type-compatibility helpers ({@link portShapesCompatible},
  * {@link resolveFieldType}, {@link fieldType}, {@link typesCompatible}) and the
- * reachability helpers ({@link computeDominators}, {@link availableSourceNodes})
- * are exported for the binding picker: its candidate list *is* rule 4's dominator
+ * reachability helpers ({@link computePrecede}, {@link availableSourceNodes})
+ * are exported for the binding picker: its candidate list *is* rule 4's precede
  * set filtered by rule 3's compatibility.
  */
 
@@ -40,11 +41,18 @@ import {
   rule5ExclusiveMerge,
   rule6NestedScopeBoundaries,
   rule7NoCycles,
-  rule8NoParallelFanout,
+  mergeSettingBindingProblems,
+  rule8OnePort,
   rule9RequiredInputsBound,
   rule13NamedAndSwitchedOffSteps,
+  mergeModeProblems,
+  splitProblems,
+  sharedErrorHandlerProblems,
+  errorRoutingProblems,
+  answeringStepProblems,
 } from "./rules";
-import { allDominators, deriveScopes, nodeScopeMap, resolveDefinitions } from "./topology";
+import { analyse } from "./joins";
+import { deriveScopes, nodeScopeMap, resolveDefinitions } from "./topology";
 import { MESSAGE_KEYS, type RawProblem, type ValidationTranslator } from "./types";
 
 export { UNKNOWN } from "./schema";
@@ -120,7 +128,7 @@ export function validateGraph(
 
   const nodeScope = nodeScopeMap(scopes);
   const cycle = rule7NoCycles(graph, nodeScope);
-  const dominators = allDominators(graph, scopes, cycle.predecessors, cycle.order);
+  const analysis = analyse(graph, definitions, nodeScope, cycle.order !== null);
 
   const problems: RawProblem[] = [
     ...missingVersions(graph, definitions),
@@ -129,12 +137,18 @@ export function validateGraph(
     ...rule2ReachableOutputs(graph, nodeScope),
     ...rule3TypeCompatibility(graph, definitions),
     ...templateTargets(graph, definitions),
-    ...rule4BranchLocalAvailability(graph, dominators),
-    ...rule5ExclusiveMerge(graph, definitions, dominators),
+    ...rule4BranchLocalAvailability(graph, analysis.precede),
+    ...mergeModeProblems(analysis),
+    ...rule5ExclusiveMerge(analysis),
     ...portNameClashes(graph, definitions),
     ...quickLogProblems(graph, definitions),
     ...rule6NestedScopeBoundaries(graph, scopes, nodeScope),
-    ...rule8NoParallelFanout(graph, definitions),
+    ...rule8OnePort(graph, definitions),
+    ...errorRoutingProblems(graph, definitions),
+    ...sharedErrorHandlerProblems(analysis),
+    ...answeringStepProblems(analysis),
+    ...splitProblems(graph, definitions),
+    ...mergeSettingBindingProblems(graph, definitions),
     ...rule9RequiredInputsBound(graph, definitions),
     ...rule13NamedAndSwitchedOffSteps(graph, definitions),
   ];
@@ -142,14 +156,14 @@ export function validateGraph(
 }
 
 /**
- * The dominator set of every node — a node's dominators are the nodes that have
- * run on every path reaching it. The reachability half of what the binding picker
- * needs: a candidate source is available at a target only if it dominates it.
- *
- * Empty when the outer graph has a cycle or the entry is not a real node, matching
- * the server: there is then no order to compute dominators over.
+ * What must have run before each step does - the steps before it that run whenever it
+ * does: what dominates it and every leg of a parallel group before the step that waits
+ * for them, but not one arm of an If. What a
+ * binding may read: the picker's candidate list *is* this set filtered by rule 3's
+ * compatibility. Empty when the outer graph has a cycle or the entry is not a real
+ * node, matching the server.
  */
-export function computeDominators(
+export function computePrecede(
   graph: WorkflowGraph,
   catalog: NodeCatalog,
 ): Map<string, Set<string>> {
@@ -157,12 +171,12 @@ export function computeDominators(
   const scopes = deriveScopes(graph, definitions);
   const nodeScope = nodeScopeMap(scopes);
   const cycle = rule7NoCycles(graph, nodeScope);
-  return allDominators(graph, scopes, cycle.predecessors, cycle.order);
+  return analyse(graph, definitions, nodeScope, cycle.order !== null).precede;
 }
 
 /**
- * The nodes whose output a binding on `targetNodeId` may read: every node that
- * dominates it, excluding the target itself (rule 4 forbids a node reading its own
+ * The nodes whose output a binding on `targetNodeId` may read: every node that must
+ * precede it, excluding the target itself (rule 4 forbids a node reading its own
  * output). The binding picker filters these further by rule 3 compatibility.
  */
 export function availableSourceNodes(
@@ -170,9 +184,9 @@ export function availableSourceNodes(
   catalog: NodeCatalog,
   targetNodeId: string,
 ): Set<string> {
-  const dominators = computeDominators(graph, catalog).get(targetNodeId);
-  if (dominators === undefined) return new Set();
-  const available = new Set(dominators);
+  const precede = computePrecede(graph, catalog).get(targetNodeId);
+  if (precede === undefined) return new Set();
+  const available = new Set(precede);
   available.delete(targetNodeId);
   return available;
 }

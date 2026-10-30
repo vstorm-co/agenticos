@@ -332,8 +332,8 @@ def test_a_merge_may_rejoin_a_decision_steps_branches(definition_id, exclusive):
     `logic.if` does, so its branches are exclusive and a merge after them
     publishes; a loop's are not."""
     from app.workflows import _registry
+    from app.workflows.graph.joins import branches_exclusively
     from app.workflows.graph.model import NodeInstance, NodePosition
-    from app.workflows.graph.validate import _branches_exclusively
 
     node = NodeInstance(
         id=uuid.uuid4(),
@@ -342,7 +342,7 @@ def test_a_merge_may_rejoin_a_decision_steps_branches(definition_id, exclusive):
         config={},
         layout=NodePosition(x=0, y=0),
     )
-    assert _branches_exclusively(node, _registry.get(definition_id, 1)) is exclusive
+    assert branches_exclusively(node, _registry.get(definition_id, 1)) is exclusive
 
 
 async def test_decisions_report_provider_spend_and_honor_remaining_workflow_funds(jev):

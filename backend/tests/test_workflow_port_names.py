@@ -73,6 +73,14 @@ def test_a_category_called_unsure_clashes_only_with_a_minimum_confidence():
     assert [error["loc"] for error in excinfo.value.errors()] == [("categories", 0, "name")]
 
 
+def test_a_split_branch_may_not_be_called_in_and_may_be_called_default():
+    from app.workflows.nodes.logic_split._handler import LogicSplitConfig
+
+    with pytest.raises(ValidationError, match="`in` is already a port on this step"):
+        LogicSplitConfig.model_validate({"branches": [{"name": "in"}, {"name": "b"}]})
+    assert LogicSplitConfig.model_validate({"branches": [{"name": "default"}, {"name": "b"}]})
+
+
 def _node(definition_id: str, config: dict[str, Any], *, routes: bool) -> NodeInstance:
     return NodeInstance(
         id=uuid4(),
@@ -94,6 +102,7 @@ _ERROR_CONFIGS = [
     ("ai.classify", {"categories": [{"name": "error"}]}, "categories"),
     ("error.handle", {"branches": [{"name": "a"}, {"name": "b"}, {"name": "error"}]}, "branches"),
     ("human.approval", {"choices": [{"id": "error", "label": "E"}]}, "choices"),
+    ("logic.split", {"branches": [{"name": "a"}, {"name": "error"}]}, "branches"),
 ]
 
 

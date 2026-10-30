@@ -98,6 +98,15 @@ from app.workflows.contracts.io import (
 from app.workflows.contracts.policy import ERROR_PORT
 from app.workflows.contracts.results import WorkflowError
 from app.workflows.graph.errors import GraphValidationError
+from app.workflows.graph.joins import (
+    GraphAnalysis,
+    analyse,
+    any_pair_runs_together,
+    at_level_of,
+    can_run_together,
+    wire_condition,
+    wire_runs_whenever,
+)
 from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, WorkflowGraph
 from app.workflows.graph.quick_log import references, refused_reference
 from app.workflows.nodes._port_names import clash_message
@@ -116,9 +125,9 @@ ERROR_HANDLE = "error.handle"
 def graph_size_problems(graph: WorkflowGraph) -> Problems:
     """A hard ceiling on one graph's node/edge/binding counts.
 
-    Checked first, ahead of even `derive_scopes`: `_dominators` below
-    retains a full dominator set per node, up to O(n^2) total memberships
-    for a linear chain of n nodes, and the console routes a graph reaches
+    Checked first, ahead of even `derive_scopes`: the run conditions and ancestor
+    sets `analyze_graph` keeps per node grow with the graph, up to O(n^2) total
+    memberships for a linear chain of n nodes, and the console routes a graph reaches
     through are explicitly unmetered (SECURITY.md's hardening checklist) -
     an unbounded graph is a resource-exhaustion vector, not only a slow
     request. `WorkflowRegistryService` calls this before a draft is even
@@ -171,20 +180,25 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += await file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
 
-    node_scope = node_scope_map(graph)
+    analysis = analyze_graph(graph)
+    node_scope = analysis.node_scope
     ports = instance_ports(graph, definitions)
-    outer_predecessors, cycle_problems, outer_order = _rule_7_no_cycles(graph, node_scope)
+    _, cycle_problems, outer_order = _rule_7_no_cycles(graph, node_scope)
     problems += cycle_problems
 
     problems += _rule_1_single_entry(graph)
     problems += _rule_2_reachable_outputs(graph, node_scope, outer_order)
     problems += _rule_3_type_compatibility(graph, definitions, ports)
 
-    dominators = _all_dominators(graph, node_scope, outer_predecessors, outer_order)
-    problems += _rule_4_branch_local_availability(graph, dominators, node_scope)
-    problems += _rule_5_exclusive_merge(graph, definitions, dominators)
+    problems += _rule_4_branch_local_availability(graph, analysis.precede, node_scope)
+    problems += _merge_mode_problems(analysis)
+    problems += _rule_5_exclusive_merge(graph, definitions)
     problems += _rule_6_nested_scope_boundaries(graph, node_scope)
-    problems += _rule_8_no_parallel_fanout(graph, definitions)
+    problems += _rule_8_one_port(graph, definitions)
+    problems += _shared_error_handler_problems(analysis)
+    problems += _answering_step_problems(analysis)
+    problems += _split_problems(graph, definitions)
+    problems += _merge_setting_binding_problems(graph, definitions)
     problems += _rule_9_required_inputs_bound(graph, definitions)
     problems += _rule_10_error_routes(graph, definitions)
     problems += _rule_11_loop_bodies(graph, definitions, node_scope)
@@ -238,6 +252,20 @@ def derive_scopes(graph: WorkflowGraph) -> WorkflowGraph:
             )
         )
     return graph.model_copy(update={"scopes": tuple(scopes)})
+
+
+def analyze_graph(graph: WorkflowGraph) -> GraphAnalysis:
+    """Everything the publish rules and the dispatcher read off a graph's shape.
+
+    Scopes, definitions and, per scope, the condition each step runs under, its wires
+    and what must precede it - computed once per graph. A graph whose outer part is
+    cyclic has no conditions: the cycle is refused on its own.
+    """
+    graph = derive_scopes(graph)
+    definitions = _resolve_definitions(graph)
+    node_scope = node_scope_map(graph)
+    _, _, order = _rule_7_no_cycles(graph, node_scope)
+    return analyse(graph, definitions, node_scope, acyclic=order is not None)
 
 
 def _owns_a_scope(definition: NodeDefinition) -> bool:
@@ -515,6 +543,7 @@ _AUTHOR_NAMED_PORTS = {
     "ai.classify": ("categories", "name"),
     "error.handle": ("branches", "name"),
     "human.approval": ("choices", "id"),
+    "logic.split": ("branches", "name"),
 }
 
 
@@ -971,7 +1000,7 @@ def _resolve_field_path(ports: tuple[Port, ...], port_id: str, field_path: tuple
 def _is_dynamic(annotation: Any) -> bool:
     """Whether a path may reach into `annotation` with no schema to follow.
 
-    `Any`, or a `dict` whose values are `Any` (optionally `| None`): a
+    `Any`, or a `dict` whose values are such (optionally `| None`): a
     trigger's payload, a mapped record, an agent's structured answer. What
     such a path finds is only known once the run has it, so it resolves to
     `Any` here and is validated against the target field when the node is
@@ -986,7 +1015,7 @@ def _is_dynamic(annotation: Any) -> bool:
         return len(members) == 1 and _is_dynamic(members[0])
     if origin is dict:
         args = get_args(annotation)
-        return len(args) == 2 and args[1] is Any
+        return len(args) == 2 and _is_dynamic(args[1])
     return False
 
 
@@ -1113,100 +1142,38 @@ def _kahn(
     return predecessors, order, cyclic
 
 
-# Rule 4 - branch-local data availability (dominators)
-
-
-def _all_dominators(
-    graph: WorkflowGraph,
-    node_scope: dict[UUID, UUID],
-    outer_predecessors: dict[UUID, set[UUID]],
-    outer_order: list[UUID] | None,
-) -> dict[UUID, frozenset[UUID]]:
-    if outer_order is None or graph.entry_node_id not in graph.node_by_id:
-        return {}
-    dominators = _dominators(outer_order, outer_predecessors, root=graph.entry_node_id)
-
-    for scope in graph.scopes:
-        body_edges = [
-            edge
-            for edge in graph.edges
-            if edge.source_node_id in scope.body_node_ids
-            and edge.target_node_id in scope.body_node_ids
-        ]
-        body_predecessors, body_order, cyclic = _kahn(list(scope.body_node_ids), body_edges)
-        if cyclic:
-            continue
-        entry_targets = {
-            edge.target_node_id
-            for edge in graph.edges
-            if edge.source_node_id == scope.scope_node_id and edge.source_port == scope.entry_port
-        }
-        for node_id in entry_targets:
-            body_predecessors.setdefault(node_id, set()).add(scope.scope_node_id)
-        body_order_with_root = [scope.scope_node_id, *body_order]
-        body_dominators = _dominators(
-            body_order_with_root, body_predecessors, root=scope.scope_node_id
-        )
-        # Only the nodes this scope owns directly: an outer body's walk also
-        # passes through a nested loop's body, and which of the two answers
-        # stood would otherwise depend on the order the scopes are listed in.
-        dominators.update(
-            {
-                node_id: doms
-                for node_id, doms in body_dominators.items()
-                if node_scope.get(node_id) == scope.scope_node_id
-            }
-        )
-    return dominators
-
-
-def _dominators(
-    order: list[UUID], predecessors: dict[UUID, set[UUID]], *, root: UUID
-) -> dict[UUID, frozenset[UUID]]:
-    dom: dict[UUID, frozenset[UUID]] = {root: frozenset({root})}
-    changed = True
-    while changed:
-        changed = False
-        for node_id in order:
-            if node_id == root:
-                continue
-            preds = [p for p in predecessors.get(node_id, ()) if p in dom]
-            if not preds:
-                continue
-            new_dom = frozenset.intersection(*(dom[p] for p in preds)) | {node_id}
-            if dom.get(node_id) != new_dom:
-                dom[node_id] = new_dom
-                changed = True
-    return dom
+# Rule 4 - branch-local data availability
 
 
 def _rule_4_branch_local_availability(
-    graph: WorkflowGraph, dominators: dict[UUID, frozenset[UUID]], node_scope: dict[UUID, UUID]
+    graph: WorkflowGraph, precede: dict[UUID, frozenset[UUID]], node_scope: dict[UUID, UUID]
 ) -> Problems:
     """A node binds only to what has certainly run before it.
 
-    Inside a loop body that includes what ran before the loop: a binding to a node
-    of an enclosing scope is checked at that scope's level, against the loop the
-    target sits in - the source must dominate the loop itself.
+    That is the steps before it that run whenever it does (`GraphAnalysis.precede`): the
+    steps on its way in, and every leg of a parallel group before the step that waits for
+    them, but not one arm of an If. Inside a loop body that includes what ran before the loop: a
+    binding to a node of an enclosing scope is checked at that scope's level, against the
+    loop the target sits in - the source must precede the loop itself.
     """
     problems: Problems = []
     for index, binding, ref, _templated in _output_reads(graph):
         source_id = ref.node_id
-        target_id = _at_level_of(binding.target_node_id, node_scope.get(source_id), node_scope)
+        target_id = at_level_of(binding.target_node_id, node_scope.get(source_id), node_scope)
         if target_id is None:
             # Not an enclosing scope's node - rule 6 says so.
             continue
         if source_id == target_id:
-            # A node dominates itself (`_dominators` always folds `node_id`
+            # A node precedes itself (`precede` always folds `node_id`
             # into its own set), so the membership check below would call
             # this available - it never is, since the node has not run yet
             # at the point it would need its own output.
             problems.append((f"bindings.{index}", "This binding reads the node's own output"))
             continue
-        target_dom = dominators.get(target_id)
-        if target_dom is None:
+        target_precede = precede.get(target_id)
+        if target_precede is None:
             continue
-        if source_id not in target_dom:
+        if source_id not in target_precede:
             problems.append(
                 (
                     f"bindings.{index}",
@@ -1217,20 +1184,16 @@ def _rule_4_branch_local_availability(
     return problems
 
 
-def _at_level_of(node_id: UUID, level: UUID | None, node_scope: dict[UUID, UUID]) -> UUID | None:
-    """`node_id`, or the loop enclosing it that sits directly in scope `level`."""
-    current: UUID | None = node_id
-    while current is not None and node_scope.get(current) != level:
-        current = node_scope.get(current)
-    return current
-
-
 # Rule 5 - exclusive merge
 
 
-def _rule_5_exclusive_merge(
-    graph: WorkflowGraph, definitions: DefinitionMap, dominators: dict[UUID, frozenset[UUID]]
-) -> Problems:
+def _rule_5_exclusive_merge(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A merge takes one edge from each branch.
+
+    Whether its branches are exclusive is the join classification's to say
+    (`_merge_mode_problems`); what is left here is the shape no classification can
+    read - two edges leaving one port into the same merge, whichever way it waits.
+    """
     problems: Problems = []
     incoming: dict[UUID, list[tuple[UUID, str]]] = {}
     for edge in graph.edges:
@@ -1238,132 +1201,14 @@ def _rule_5_exclusive_merge(
 
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or definition.id != "logic.merge":
+        if definition is None or definition.id != MERGE:
             continue
         edges_in = incoming.get(node.id, [])
-        if len(edges_in) < 2:
-            continue
-        # One branching step may feed a merge through several of its ports - only
-        # one of them is taken - but never twice through the same one.
-        if len(set(edges_in)) != len(edges_in):
+        if len(edges_in) > 1 and len(set(edges_in)) != len(edges_in):
             problems.append(
                 (f"nodes.{node.id}", "This merge has more than one edge from the same branch")
             )
-            continue
-        # A step that feeds the merge by several ports must itself take one per run.
-        ports_by_source: dict[UUID, int] = {}
-        for source, _port in edges_in:
-            ports_by_source[source] = ports_by_source.get(source, 0) + 1
-        if any(
-            count > 1
-            and not _branches_exclusively(graph.node_by_id[source], definitions.get(source))
-            for source, count in ports_by_source.items()
-        ):
-            problems.append(
-                (
-                    f"nodes.{node.id}",
-                    "A merge's branches must leave one step that takes a single way out, such as "
-                    "an If, a Switch, a decision, a classifier, an approval, an error handler or a table check",
-                )
-            )
-            continue
-        branches = list(ports_by_source)
-        distinct_branches = set(branches)
-        common = _nearest_common_dominator(branches, dominators)
-        if common is None:
-            problems.append((f"nodes.{node.id}", "This merge's branches share no common dominator"))
-            continue
-        if not _branches_exclusively(graph.node_by_id[common], definitions.get(common)):
-            problems.append(
-                (
-                    f"nodes.{node.id}",
-                    "A merge's branches must leave one step that takes a single way out, such as "
-                    "an If, a Switch, a decision, a classifier, an approval, an error handler or a table check",
-                )
-            )
-            continue
-        if not _branches_diverge_at(common, node.id, distinct_branches, graph, dominators):
-            problems.append(
-                (
-                    f"nodes.{node.id}",
-                    "This merge's branches are not mutually exclusive - they leave their "
-                    "branching step through the same port",
-                )
-            )
     return problems
-
-
-def _branches_exclusively(node: NodeInstance, definition: NodeDefinition | None) -> bool:
-    """Whether exactly one of this node's output ports is ever taken per run.
-
-    A definition says so itself with `exclusive_branches` - `logic.if` takes
-    `true` or `false`, a decision step one of its answers or `unsure` - and a
-    node that routes its errors leaves by `out` or by `error`, never both.
-    """
-    return node.routes_errors or (definition is not None and definition.exclusive_branches)
-
-
-def _branches_diverge_at(
-    common: UUID,
-    merge: UUID,
-    branches: set[UUID],
-    graph: WorkflowGraph,
-    dominators: dict[UUID, frozenset[UUID]],
-) -> bool:
-    """Whether each branch is reachable from `common` through a distinct port.
-
-    A shared dominator is not enough: rule 8 lets a control node fan one port
-    out to more than one target, so two branches leaving `common` through the
-    *same* port can both run together (or neither run) - not the mutually
-    exclusive pair `logic.merge` is built to wait on. Nor is a non-empty,
-    non-overlapping `feeding_ports` enough on its own: a branch reconverged
-    from more than one of `common`'s ports *before* it is reached (a node
-    downstream of both `then` and `else`, alongside one downstream of only
-    `then`) is dominated by neither port alone, so it can run on either
-    outcome - `feeding_ports` comes back empty for it, not merely shared with
-    another branch, and an empty set is refused here for the same reason a
-    shared one is.
-    """
-    seen_ports: set[str] = set()
-    for branch in branches:
-        branch_dom = dominators.get(branch, frozenset())
-        # A branch that is the branching step itself - its port wired straight
-        # to the merge - is fed by that edge's port.
-        feeding_ports = {
-            edge.source_port
-            for edge in graph.edges
-            if edge.source_node_id == common
-            and (
-                edge.target_node_id == merge
-                if branch == common
-                else edge.target_node_id in branch_dom
-            )
-        }
-        if not feeding_ports or feeding_ports & seen_ports:
-            return False
-        seen_ports |= feeding_ports
-    return True
-
-
-def _nearest_common_dominator(
-    nodes: list[UUID], dominators: dict[UUID, frozenset[UUID]]
-) -> UUID | None:
-    resolved_dom_sets = [dominators.get(node_id) for node_id in nodes]
-    if any(dom_set is None for dom_set in resolved_dom_sets):
-        return None
-    dom_sets: list[frozenset[UUID]] = [
-        dom_set for dom_set in resolved_dom_sets if dom_set is not None
-    ]
-    common = frozenset[UUID].intersection(*dom_sets)
-    if not common:
-        return None
-    # The nearest is the one every other member of `common` also dominates -
-    # i.e. it is dominated by everything else in the set.
-    for candidate in common:
-        candidate_dom = dominators.get(candidate, frozenset())
-        if common <= candidate_dom:
-            return candidate
-    return None
 
 
 # Rule 6 - nested scope boundaries
@@ -1422,33 +1267,190 @@ def _is_sanctioned_boundary_edge(
     return exit_scope is not None and edge.source_port == exit_scope.exit_port
 
 
-# Rule 8 - no parallel fan-out (v1)
+# Rule 8 - one port
+
+MERGE = "logic.merge"
+SPLIT = "logic.split"
 
 
-def _rule_8_no_parallel_fanout(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+def _rule_8_one_port(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A step that is not a control node sends its output through one port.
+
+    Any number of steps may follow a port: they run side by side, and the steps that
+    wait for them are what `_merge_mode_problems` judges.
+    """
     problems: Problems = []
-    by_node: dict[UUID, dict[str, list[Edge]]] = {}
+    ports_by_node: dict[UUID, set[str]] = {}
     for edge in graph.edges:
-        by_node.setdefault(edge.source_node_id, {}).setdefault(edge.source_port, []).append(edge)
+        # A routed failure leaves by `error` instead of `out`, never beside it.
+        if edge.source_port != ERROR_PORT:
+            ports_by_node.setdefault(edge.source_node_id, set()).add(edge.source_port)
 
-    for node_id, by_port in by_node.items():
+    for node_id, ports in ports_by_node.items():
         definition = definitions.get(node_id)
         if definition is not None and definition.kind == "control":
             continue
-        # A routed failure leaves by `error` instead of `out`, never beside it.
-        ports_with_edges = [port for port, edges in by_port.items() if edges and port != ERROR_PORT]
-        if len(ports_with_edges) > 1:
+        if len(ports) > 1:
             problems.append(
                 (f"nodes.{node_id}", "A non-control node may only send output through one port")
             )
-        for port, edges in by_port.items():
-            if len(edges) > 1:
+    return problems
+
+
+def _wait_for(node: NodeInstance) -> str:
+    """A merge's `wait_for` as stored: absent means the branch that ran."""
+    return "all" if node.config.get("wait_for") == "all" else "one"
+
+
+def _merges(analysis: GraphAnalysis) -> list[NodeInstance]:
+    return [
+        node
+        for node in analysis.graph.nodes
+        if (definition := analysis.definitions.get(node.id)) is not None and definition.id == MERGE
+    ]
+
+
+def _merge_mode_problems(analysis: GraphAnalysis) -> Problems:
+    """A merge's `wait_for` must match how its branches reach it, and its branch names be usable.
+
+    Branches that can run together need `all`, or the merge would pass on one of them and
+    forget the rest; and `all` needs each of them certain to arrive whenever the merge runs.
+    Branches of which only one runs need `one`. Under `all` each branch is handed on by
+    name, so the names must differ; a name read that no branch has is refused where it is
+    read. A merge with a branch nothing reaches is left to the reachability rule.
+    """
+    # Imported here: the node's handler module reaches back into the graph package.
+    from app.workflows.nodes.logic_merge._handler import branch_keys
+
+    graph = analysis.graph
+    problems: Problems = []
+    keys_by_merge: dict[UUID, set[str]] = {}
+    for node in _merges(analysis):
+        mode = _wait_for(node)
+        keys = branch_keys(graph, node)
+        wires = analysis.incoming.get(node.id, ())
+        if len(wires) > 1 and all(wire_condition(analysis, node.id, w) is not None for w in wires):
+            together = any_pair_runs_together(analysis, node.id)
+            uncertain = [w for w in wires if not wire_runs_whenever(analysis, node.id, w)]
+            name = (
+                keys[(uncertain[0].source_node_id, uncertain[0].source_port)] if uncertain else ""
+            )
+            if mode == "one" and together:
                 problems.append(
                     (
-                        f"nodes.{node_id}",
-                        f"A non-control node's {port!r} port has more than one edge",
+                        f"nodes.{node.id}",
+                        "Several branches reach this merge together; set Wait for to All branches"
+                        if not uncertain
+                        else f"Several branches reach this merge together, and '{name}' is "
+                        "not certain to arrive",
                     )
                 )
+            elif mode == "all" and not together:
+                problems.append(
+                    (
+                        f"nodes.{node.id}",
+                        "Only one branch can reach this merge at a time; "
+                        "set Wait for to The branch that ran",
+                    )
+                )
+            elif mode == "all":
+                problems += [
+                    (
+                        f"nodes.{node.id}",
+                        f"'{keys[(wire.source_node_id, wire.source_port)]}' is not certain to "
+                        "reach this merge whenever it runs",
+                    )
+                    for wire in uncertain
+                ]
+        names = list(keys.values())
+        keys_by_merge[node.id] = set(names)
+        if mode == "all" and (not all(names) or len(set(names)) != len(names)):
+            problems.append(
+                (f"nodes.{node.id}.config.branch_keys", "Each branch needs a name of its own")
+            )
+    for index, _binding, ref, _templated in _output_reads(graph):
+        keys = keys_by_merge.get(ref.node_id)
+        if keys is None or len(ref.field_path) < 2 or ref.field_path[0] != "branches":
+            continue
+        if ref.field_path[1] not in keys:
+            problems.append(
+                (f"bindings.{index}", f"This merge has no branch called '{ref.field_path[1]}'")
+            )
+    return problems
+
+
+def _split_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A Split takes every branch at once, so it has no one way out for an error to take instead."""
+    return [
+        (f"nodes.{node.id}.policy", "A Split cannot route its errors; route each branch's own")
+        for node in graph.nodes
+        if node.routes_errors
+        and (definition := definitions.get(node.id)) is not None
+        and definition.id == SPLIT
+    ]
+
+
+_MERGE_SETTINGS = frozenset({"wait_for", "branch_keys"})
+
+
+def _merge_setting_binding_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    """A Merge's `wait_for` and `branch_keys` are fixed in the editor, never bound.
+
+    The executor decides when a Merge runs from its stored config, so a binding that
+    changed either one would reach the handler's call but not the decision.
+    """
+    return [
+        (
+            f"nodes.{binding.target_node_id}.{binding.target_field}",
+            "A Merge's setting cannot be bound",
+        )
+        for binding in graph.bindings
+        if (definition := definitions.get(binding.target_node_id)) is not None
+        and definition.id == MERGE
+        and target_path(binding.target_field)[0] in _MERGE_SETTINGS
+    ]
+
+
+def _shared_error_handler_problems(analysis: GraphAnalysis) -> Problems:
+    """An error handler may not be fed by two branches that run together.
+
+    It would see two errors at once but can hand on only one.
+    """
+    return [
+        (
+            f"nodes.{node.id}",
+            "Two branches that run together send their errors here; give each branch its own "
+            "error handler",
+        )
+        for node in analysis.graph.nodes
+        if (definition := analysis.definitions.get(node.id)) is not None
+        and definition.id == ERROR_HANDLE
+        and any_pair_runs_together(analysis, node.id)
+    ]
+
+
+def _answering_step_problems(analysis: GraphAnalysis) -> Problems:
+    """A run answers once, and a webhook is answered once: no second step that may answer too."""
+    messages = {
+        "core.output": "This Output step and another can both run in one run; a run answers once",
+        "webhook.respond": "This Respond to webhook step and another can both run in one run; "
+        "a webhook is answered once",
+    }
+    problems: Problems = []
+    for definition_id, message in messages.items():
+        answering = [
+            node
+            for node in analysis.graph.nodes
+            if (definition := analysis.definitions.get(node.id)) is not None
+            and definition.id == definition_id
+        ]
+        for index, later in enumerate(answering):
+            if any(
+                analysis.node_scope.get(earlier.id) == analysis.node_scope.get(later.id)
+                and can_run_together(analysis, earlier.id, later.id)
+                for earlier in answering[:index]
+            ):
+                problems.append((f"nodes.{later.id}", message))
     return problems
 
 

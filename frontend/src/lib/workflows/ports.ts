@@ -9,7 +9,8 @@ import type { JsonSchema, NodeDefinition, NodeInstance, Port } from "./types";
  * `error.handle` has one output per configured branch beside `default`,
  * `logic.switch` one per rule before `otherwise`, and `ai.classify` one per
  * category before `other`, then `unsure` when it sets a minimum confidence,
- * `human.approval` one per choice before `rejected` in place of `approved`; a
+ * `human.approval` one per choice before `rejected` in place of `approved`, and
+ * `logic.split` one per branch after `in`; a
  * Manual or API trigger's `out` carries a `payload` typed by the fields it
  * declares, and any node whose policy routes its errors has an `error` output
  * carrying the `WorkflowError`. Everything that reads ports - the node's handles, the edge
@@ -30,6 +31,7 @@ export const AUTHOR_NAMED_PORTS: Readonly<
   "ai.classify": { list: "categories", key: "name", static: ["in", "other"] },
   "error.handle": { list: "branches", key: "name", static: ["in", "default"] },
   "human.approval": { list: "choices", key: "id", static: ["in", "approved", "rejected"] },
+  "logic.split": { list: "branches", key: "name", static: ["in"] },
 };
 
 /** The output a node with `on_error: "route"` fails through. */
@@ -62,6 +64,11 @@ export function errorBranches(config: Record<string, unknown>): string[] {
 /** The rule names a `logic.switch` config declares, in order - bad entries skipped. */
 export function switchRules(config: Record<string, unknown>): string[] {
   return namedEntries(config.rules);
+}
+
+/** The branch names a `logic.split` config declares, in order - bad entries skipped. */
+export function splitBranches(config: Record<string, unknown>): string[] {
+  return namedEntries(config.branches);
 }
 
 /** The category names an `ai.classify` config declares, in order - bad entries skipped. */
@@ -127,6 +134,16 @@ export function instancePorts(instance: NodeInstance, definition: NodeDefinition
         schema: defaultPort?.schema ?? null,
       }));
     ports = [...ports, ...branches];
+  }
+  if (definition.id === "logic.split") {
+    // One output per branch, taking any step: a Split hands nothing on.
+    const seen = new Set(ports.map((port) => port.id));
+    ports = [
+      ...ports,
+      ...splitBranches(instance.config)
+        .filter((name) => !seen.has(name))
+        .map<Port>((name) => ({ id: name, label: name, kind: "output", schema: null })),
+    ];
   }
   if (definition.id === "logic.switch") {
     // Rules first, in their order, then the way out when none holds.

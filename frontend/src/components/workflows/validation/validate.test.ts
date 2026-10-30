@@ -46,7 +46,7 @@ import {
 } from "./fixtures";
 import {
   availableSourceNodes,
-  computeDominators,
+  computePrecede,
   deriveScopes,
   fieldType,
   portShapesCompatible,
@@ -59,7 +59,7 @@ import {
   MESSAGE_KEYS,
   type ValidationProblem,
 } from "./index";
-import { nearestCommonDominator } from "./rules";
+import { branchKeys } from "./rules";
 
 // Definitions the backend tests register synthetically, translated to catalog
 // entries. A `null` "in" port is the backend's `_action_definition(port_schema=None)`
@@ -158,6 +158,19 @@ const MERGE = makeDefinition({
   id: "logic.merge",
   ports: [port("in", "input", null), port("out", "output", null)],
 });
+const SPLIT = makeDefinition({
+  id: "logic.split",
+  kind: "control",
+  ports: [port("in", "input", null)],
+});
+const CORE_OUTPUT = makeDefinition({
+  id: "core.output",
+  ports: [port("in", "input", null)],
+});
+const WEBHOOK_RESPOND = makeDefinition({
+  id: "webhook.respond",
+  ports: [port("in", "input", null), port("out", "output", null)],
+});
 const SWITCH = makeDefinition({
   id: "test.fanout",
   kind: "control",
@@ -216,6 +229,9 @@ const CATALOG = makeCatalog([
   LETTER_SINK,
   IF,
   MERGE,
+  SPLIT,
+  CORE_OUTPUT,
+  WEBHOOK_RESPOND,
   SWITCH,
   TWO_PORTS,
   FOREACH,
@@ -223,6 +239,11 @@ const CATALOG = makeCatalog([
 
 function codesOf(problems: ValidationProblem[]): string[] {
   return problems.map((problem) => problem.code).sort();
+}
+
+/** The codes about how steps join - what these tests are about, beside the catalog's own noise. */
+function joinCodes(problems: ValidationProblem[]): string[] {
+  return codesOf(problems).filter((code) => code.startsWith("merge-") || code.endsWith("-shared"));
 }
 
 function run(g: Parameters<typeof validateGraph>[0]): ValidationProblem[] {
@@ -443,8 +464,7 @@ describe("drift parity — graphs the backend refuses", () => {
       edges: [
         edge("e1", "entry", "out", "branch", "in"),
         edge("e2", "branch", "then", "b", "in"),
-        edge("e3", "branch", "then", "c", "in"),
-        edge("e4", "b", "out", "c", "in"),
+        edge("e3", "branch", "otherwise", "c", "in"),
       ],
       bindings: [
         literalBinding("branch", "value", true),
@@ -482,13 +502,13 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(run(graph({ entry: "m", nodes: [node("m", "logic.merge")] }))).toEqual([]);
   });
 
-  it("rule 5 — a merge whose branches share no common dominator", () => {
+  it("rule 5 — a merge whose branches share no common dominator is not told to change mode", () => {
     const g = graph({
       entry: "a",
       nodes: [echo("a"), echo("b"), node("c", "logic.merge")],
       edges: [edge("e1", "a", "out", "c", "in"), edge("e2", "b", "out", "c", "in")],
     });
-    expect(codesOf(run(g))).toEqual(["merge-no-common-dominator", "unreachable-node"]);
+    expect(codesOf(run(g))).toEqual(["unreachable-node"]);
   });
 
   it("rule 5 — a merge whose common dominator is not logic.if", () => {
@@ -510,7 +530,7 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("e5", "bb", "out", "m", "in"),
       ],
     });
-    expect(codesOf(run(g))).toEqual(["merge-not-from-if"]);
+    expect(codesOf(run(g))).toEqual(["merge-wait-for-all"]);
   });
 
   it("rule 5 — a merge whose branches leave the if through the same port", () => {
@@ -532,7 +552,7 @@ describe("drift parity — graphs the backend refuses", () => {
       ],
       bindings: [literalBinding("branch", "value", true)],
     });
-    expect(codesOf(run(g))).toEqual(["merge-not-exclusive"]);
+    expect(codesOf(run(g))).toEqual(["merge-wait-for-all"]);
   });
 
   it("rule 5 — a merge with two edges from the same branch", () => {
@@ -541,7 +561,7 @@ describe("drift parity — graphs the backend refuses", () => {
       nodes: [echo("a"), node("c", "logic.merge")],
       edges: [edge("e1", "a", "out", "c", "in"), edge("e2", "a", "out", "c", "in")],
     });
-    expect(codesOf(run(g))).toEqual(["fanout-port-multiple-edges", "merge-duplicate-branch"]);
+    expect(codesOf(run(g))).toEqual(["merge-duplicate-branch"]);
   });
 
   it("rule 5 — a merge may take two ports of one branching step straight", () => {
@@ -582,7 +602,7 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("e4", "leg", "out", "m", "in"),
       ],
     });
-    expect(codesOf(run(g))).toEqual(["merge-not-exclusive"]);
+    expect(codesOf(run(g))).toEqual(["merge-wait-for-all"]);
   });
 
   it("rule 5 — a merge taking the same port of one step twice stays refused", () => {
@@ -644,7 +664,7 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("e3", "f", "b", "m", "in"),
       ],
     });
-    expect(codesOf(run(g))).toEqual(["merge-not-from-if"]);
+    expect(codesOf(run(g))).toEqual(["merge-wait-for-all"]);
   });
 
   it("rule 5 — a merge fed through two ports of a non-exclusive step below an exclusive one", () => {
@@ -664,7 +684,7 @@ describe("drift parity — graphs the backend refuses", () => {
         edge("e5", "x", "b", "m", "in"),
       ],
     });
-    expect(codesOf(run(g))).toEqual(["merge-not-from-if"]);
+    expect(codesOf(run(g))).toEqual(["merge-together-uncertain"]);
   });
 
   describe("an output an author names may not reuse a port the step has", () => {
@@ -744,7 +764,7 @@ describe("drift parity — graphs the backend refuses", () => {
       ],
       bindings: [literalBinding("branch", "value", true)],
     });
-    expect(codesOf(run(g))).toEqual(["merge-not-exclusive"]);
+    expect(codesOf(run(g))).toEqual(["merge-together-uncertain"]);
   });
 
   it("rule 6 — an edge reaching into a scope body from outside it", () => {
@@ -854,13 +874,13 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(g))).toEqual(["fanout-multiple-ports"]);
   });
 
-  it("rule 8 — a non-control node with two edges on one port", () => {
+  it("rule 8 — a port may feed several steps", () => {
     const g = graph({
       entry: "a",
       nodes: [echo("a"), node("b", "test.consumer_noreq"), node("c", "test.consumer_noreq")],
       edges: [edge("e1", "a", "out", "b", "in"), edge("e2", "a", "out", "c", "in")],
     });
-    expect(codesOf(run(g))).toEqual(["fanout-port-multiple-edges"]);
+    expect(run(g)).toEqual([]);
   });
 
   it("rule 9 — an unbound required input", () => {
@@ -1000,17 +1020,6 @@ describe("validateGraph message rendering", () => {
     expect(problem?.nodeId).toBe("a");
   });
 
-  it("carries the port param on a fan-out problem", () => {
-    const g = graph({
-      entry: "a",
-      nodes: [echo("a"), node("b", "test.consumer_noreq"), node("c", "test.consumer_noreq")],
-      edges: [edge("e1", "a", "out", "b", "in"), edge("e2", "a", "out", "c", "in")],
-    });
-    const problem = run(g).find((p) => p.code === "fanout-port-multiple-edges");
-    expect(problem?.message).toContain("out");
-    expect(problem?.nodeId).toBe("a");
-  });
-
   it("scopes an edge problem to the edge and a graph rule to neither node nor edge", () => {
     const edgeProblem = run(
       graph({
@@ -1029,31 +1038,6 @@ describe("validateGraph message rendering", () => {
   });
 });
 
-describe("nearestCommonDominator — the safety cases a real dominator tree never produces", () => {
-  it("returns null when the branches' dominator sets do not intersect", () => {
-    const dominators = new Map([
-      ["x", new Set(["x"])],
-      ["y", new Set(["y"])],
-    ]);
-    expect(nearestCommonDominator(["x", "y"], dominators)).toBeNull();
-  });
-
-  it("returns null when no member of the intersection dominates every other", () => {
-    // A hand-built, deliberately non-tree map: the intersection {p, q} is
-    // non-empty, but neither p nor q is itself in the map, so none dominates all.
-    const dominators = new Map([
-      ["x", new Set(["p", "q", "x"])],
-      ["y", new Set(["p", "q", "y"])],
-    ]);
-    expect(nearestCommonDominator(["x", "y"], dominators)).toBeNull();
-  });
-
-  it("returns null when a branch has no dominator set at all", () => {
-    const dominators = new Map([["x", new Set(["x"])]]);
-    expect(nearestCommonDominator(["x", "missing"], dominators)).toBeNull();
-  });
-});
-
 describe("binding-picker helpers", () => {
   const linear = graph({
     entry: "a",
@@ -1061,12 +1045,11 @@ describe("binding-picker helpers", () => {
     edges: [edge("e1", "a", "out", "b", "in"), edge("e2", "b", "out", "c", "in")],
   });
 
-  it("computeDominators reports the nodes on every path to a node", () => {
-    const dominators = computeDominators(linear, CATALOG);
-    expect(dominators.get("c")).toEqual(new Set(["a", "b", "c"]));
+  it("computePrecede reports what must have run before a node", () => {
+    expect(computePrecede(linear, CATALOG).get("c")).toEqual(new Set(["a", "b", "c"]));
   });
 
-  it("availableSourceNodes is the dominators minus the node itself", () => {
+  it("availableSourceNodes is what precedes the node, minus the node itself", () => {
     expect(availableSourceNodes(linear, CATALOG, "c")).toEqual(new Set(["a", "b"]));
   });
 
@@ -1089,5 +1072,575 @@ describe("binding-picker helpers", () => {
     ).toBe(true);
     expect(schemaTypeToken(UNKNOWN)).toBe("unknown");
     expect(deriveScopes(linear, resolveDefinitions(linear, CATALOG))).toEqual([]);
+  });
+});
+
+function splitNode(id: string, ...names: string[]) {
+  return node(id, "logic.split", { branches: names.map((name) => ({ name })) });
+}
+
+function routed(id: string, definitionId = "debug.echo") {
+  return { ...node(id, definitionId, { message: "hi" }), policy: { on_error: "route" as const } };
+}
+
+/** `S.a -> A -> M`, `S.b -> B -> M`, then `after`. */
+function mergedFork(mergeConfig: Record<string, unknown> = {}) {
+  return graph({
+    entry: "entry",
+    nodes: [
+      echo("entry"),
+      splitNode("S", "a", "b"),
+      { ...echo("A"), label: "A" },
+      { ...echo("B"), label: "B" },
+      node("M", "logic.merge", mergeConfig),
+      node("after", "test.consumer"),
+    ],
+    edges: [
+      edge("e1", "entry", "out", "S", "in"),
+      edge("e2", "S", "a", "A", "in"),
+      edge("e3", "S", "b", "B", "in"),
+      edge("e4", "A", "out", "M", "in"),
+      edge("e5", "B", "out", "M", "in"),
+      edge("e6", "M", "out", "after", "in"),
+    ],
+    bindings: [literalBinding("after", "value", "x")],
+  });
+}
+
+describe("parallel branches", () => {
+  it("publishes a Split whose branches meet at a merge waiting for all", () => {
+    expect(run(mergedFork({ wait_for: "all" }))).toEqual([]);
+  });
+
+  it("refuses a merge waiting for one behind a Split", () => {
+    expect(codesOf(run(mergedFork()))).toEqual(["merge-wait-for-all"]);
+  });
+
+  it("refuses a merge waiting for all behind an If, and publishes one waiting for one", () => {
+    const g = (config: Record<string, unknown>) =>
+      graph({
+        entry: "entry",
+        nodes: [
+          echo("entry"),
+          node("branch", "logic.if"),
+          { ...echo("A"), label: "A" },
+          { ...echo("B"), label: "B" },
+          node("M", "logic.merge", config),
+        ],
+        edges: [
+          edge("e1", "entry", "out", "branch", "in"),
+          edge("e2", "branch", "then", "A", "in"),
+          edge("e3", "branch", "otherwise", "B", "in"),
+          edge("e4", "A", "out", "M", "in"),
+          edge("e5", "B", "out", "M", "in"),
+        ],
+        bindings: [literalBinding("branch", "value", true)],
+      });
+    expect(codesOf(run(g({ wait_for: "all" })))).toEqual(["merge-wait-for-one"]);
+    expect(run(g({})).map((p) => p.code)).toEqual([]);
+  });
+
+  it("refuses two branches with one name, and a branch with no usable name", () => {
+    const keys = ["A", "B"].map((id) => ({ source_node_id: id, source_port: "out", key: "same" }));
+    const same = run(mergedFork({ wait_for: "all", branch_keys: keys }));
+    expect(codesOf(same)).toEqual(["merge-key-invalid"]);
+    expect(same[0]?.field).toBe("branch_keys");
+    const g = mergedFork({ wait_for: "all" });
+    const unnamed = {
+      ...g,
+      nodes: g.nodes.map((n) => (n.id === "A" ? { ...n, label: "!!!" } : n)),
+    };
+    expect(codesOf(run(unnamed))).toEqual(["merge-key-invalid"]);
+  });
+
+  it("refuses reading a branch the merge does not have", () => {
+    const g = mergedFork({ wait_for: "all" });
+    const reading = (key: string) => ({
+      ...g,
+      bindings: [nodeOutputBinding("after", "value", "M", "out", ["branches", key, "value"])],
+    });
+    const problems = run(reading("nope")).filter((p) => p.code === "merge-key-unknown");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatchObject({ nodeId: "after", field: "value" });
+    expect(problems[0]?.message).toContain('"key":"nope"');
+    expect(codesOf(run(reading("a")))).not.toContain("merge-key-unknown");
+    const whole = {
+      ...g,
+      bindings: [nodeOutputBinding("after", "value", "M", "out", ["branches"])],
+    };
+    expect(codesOf(run(whole))).not.toContain("merge-key-unknown");
+    const value = {
+      ...g,
+      bindings: [nodeOutputBinding("after", "value", "M", "out", ["value", "x"])],
+    };
+    expect(codesOf(run(value))).not.toContain("merge-key-unknown");
+  });
+
+  it.each(["wait_for", "branch_keys", "branch_keys/a"])(
+    "refuses binding the Merge setting %s",
+    (field) => {
+      const g = mergedFork({ wait_for: "all" });
+      const bound = { ...g, bindings: [literalBinding("M", field, "all")] };
+      const problem = run(bound).find((p) => p.code === "merge-setting-bound");
+      expect(problem).toMatchObject({ nodeId: "M", field });
+    },
+  );
+
+  it("refuses a Split that routes its errors", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), { ...splitNode("S", "a", "b"), policy: { on_error: "route" } }],
+      edges: [edge("e1", "entry", "out", "S", "in")],
+    });
+    const problem = run(g).find((p) => p.code === "split-routes-errors");
+    expect(problem).toMatchObject({ nodeId: "S", field: "policy" });
+  });
+
+  it("publishes a step fed by legs one of which may turn away", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("W", "logic.switch", { rules: [{ name: "r" }] }),
+        echo("A"),
+        node("B", "logic.if"),
+        echo("J"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "W", "in"),
+        edge("e2", "W", "r", "A", "in"),
+        edge("e3", "W", "r", "B", "in"),
+        edge("e4", "A", "out", "J", "in"),
+        edge("e5", "B", "then", "J", "in"),
+      ],
+      bindings: [literalBinding("W", "value", 1), literalBinding("B", "value", 1)],
+    });
+    expect(joinCodes(run(g))).toEqual([]);
+  });
+
+  it("refuses two parallel error routes into one handler, and accepts one handler each", () => {
+    const fork = (shared: boolean) =>
+      graph({
+        entry: "entry",
+        nodes: [
+          echo("entry"),
+          splitNode("S", "a", "b"),
+          routed("A"),
+          routed("B"),
+          node("H1", "error.handle"),
+          node("H2", "error.handle"),
+          echo("after1"),
+          echo("after2"),
+        ],
+        edges: [
+          edge("e1", "entry", "out", "S", "in"),
+          edge("e2", "S", "a", "A", "in"),
+          edge("e3", "S", "b", "B", "in"),
+          edge("e4", "A", "error", "H1", "in"),
+          edge("e5", "B", "error", shared ? "H1" : "H2", "in"),
+          edge("e6", "H1", "default", "after1", "in"),
+          edge("e7", "H2", "default", "after2", "in"),
+        ],
+      });
+    const shared = run(fork(true)).filter((p) => p.code === "error-handler-shared");
+    expect(shared.map((p) => p.nodeId)).toEqual(["H1"]);
+    expect(codesOf(run(fork(false)))).not.toContain("error-handler-shared");
+  });
+
+  it("reports an error handler's unwired default beside its shared feed, as the server does", () => {
+    const routed = (id: string) => ({ ...echo(id), policy: { on_error: "route" as const } });
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        splitNode("S", "a", "b"),
+        routed("A"),
+        routed("B"),
+        node("H", "error.handle"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "S", "in"),
+        edge("e2", "S", "a", "A", "in"),
+        edge("e3", "S", "b", "B", "in"),
+        edge("e4", "A", "error", "H", "in"),
+        edge("e5", "B", "error", "H", "in"),
+      ],
+    });
+    const found = run(g).filter((p) => p.nodeId === "H");
+    expect(found.map((p) => p.code).sort()).toEqual([
+      "error-handler-default-unwired",
+      "error-handler-shared",
+    ]);
+  });
+
+  it("reports a step that routes its errors to nowhere", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), { ...echo("A"), policy: { on_error: "route" } }],
+      edges: [edge("e1", "entry", "out", "A", "in")],
+    });
+    expect(run(g)).toContainEqual(
+      expect.objectContaining({ nodeId: "A", code: "error-port-unwired" }),
+    );
+  });
+
+  it.each([
+    ["core.output", "outputs-both-run"],
+    ["webhook.respond", "respond-both-run"],
+  ])("refuses a second %s step that can run beside the first", (definitionId, code) => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        splitNode("S", "a", "b"),
+        node("O1", definitionId),
+        node("O2", definitionId),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "S", "in"),
+        edge("e2", "S", "a", "O1", "in"),
+        edge("e3", "S", "b", "O2", "in"),
+      ],
+    });
+    const problems = run(g).filter((p) => p.code === code);
+    expect(problems.map((p) => p.nodeId)).toEqual(["O2"]);
+  });
+
+  it("publishes two answering steps on the two sides of an If", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("branch", "logic.if"),
+        node("O1", "core.output"),
+        node("O2", "core.output"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "branch", "in"),
+        edge("e2", "branch", "then", "O1", "in"),
+        edge("e3", "branch", "otherwise", "O2", "in"),
+      ],
+      bindings: [literalBinding("branch", "value", true)],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("offers both parallel legs as binding sources at their join", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), splitNode("S", "a", "b"), echo("A"), echo("B"), echo("J")],
+      edges: [
+        edge("e1", "entry", "out", "S", "in"),
+        edge("e2", "S", "a", "A", "in"),
+        edge("e3", "S", "b", "B", "in"),
+        edge("e4", "A", "out", "J", "in"),
+        edge("e5", "B", "out", "J", "in"),
+      ],
+    });
+    expect(availableSourceNodes(g, CATALOG, "J")).toEqual(new Set(["entry", "S", "A", "B"]));
+    expect(availableSourceNodes(g, CATALOG, "A")).toEqual(new Set(["entry", "S"]));
+  });
+});
+
+describe("a merge's branch names", () => {
+  function keysFor(g: ReturnType<typeof graph>) {
+    const definitions = resolveDefinitions(g, CATALOG);
+    const merge = g.nodes.find((n) => n.id === "M") as (typeof g.nodes)[number];
+    return [...branchKeys(g, definitions, merge).values()];
+  }
+
+  it("calls a Split's branch by its name and any other step by its label or name", () => {
+    const g = graph({
+      entry: "s",
+      nodes: [
+        splitNode("s", "a", "b"),
+        { ...echo("l"), label: "Fetch the data" },
+        { ...echo("d"), label: "2nd try" },
+        echo("n"),
+        { ...echo("long"), label: "x".repeat(40) },
+        node("u", "no.such.step"),
+        node("M", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "s", "a", "M", "in"),
+        edge("e2", "s", "b", "M", "in"),
+        edge("e3", "l", "out", "M", "in"),
+        edge("e4", "d", "out", "M", "in"),
+        edge("e5", "n", "out", "M", "in"),
+        edge("e6", "long", "out", "M", "in"),
+        edge("e7", "u", "out", "M", "in"),
+      ],
+    });
+    expect(keysFor(g)).toEqual([
+      "a",
+      "b",
+      "fetch_the_data",
+      "b_2nd_try",
+      "echo",
+      "x".repeat(32),
+      "no_such_step",
+    ]);
+  });
+
+  it("prefers a stored key and ignores a malformed one", () => {
+    const base = mergedFork();
+    const stored = (branch_keys: unknown) => ({
+      ...base,
+      nodes: base.nodes.map((n) => (n.id === "M" ? { ...n, config: { branch_keys } } : n)),
+    });
+    expect(
+      keysFor(
+        stored([
+          { source_node_id: "A", source_port: "out", key: "mine" },
+          "not an object",
+          { source_node_id: "B", source_port: "out", key: 3 },
+        ]),
+      ),
+    ).toEqual(["mine", "b"]);
+    expect(keysFor(stored("nope"))).toEqual(["a", "b"]);
+  });
+
+  it("counts a wire once and skips an edge from nowhere", () => {
+    const base = mergedFork();
+    const g = {
+      ...base,
+      edges: [
+        ...base.edges,
+        edge("again", "A", "out", "M", "in"),
+        edge("ghost", "nobody", "out", "M", "in"),
+      ],
+    };
+    expect(keysFor(g)).toEqual(["a", "b"]);
+  });
+});
+
+describe("steps reached from several ports", () => {
+  const ifX = () => node("X", "logic.if");
+  const decides = literalBinding("X", "value", true);
+
+  it("refuses two outputs after a step reached from both ports of an If", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        ifX(),
+        echo("P"),
+        echo("T"),
+        node("O1", "core.output"),
+        node("O2", "core.output"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "X", "in"),
+        edge("e2", "X", "then", "P", "in"),
+        edge("e3", "P", "out", "O1", "in"),
+        edge("e4", "P", "out", "T", "in"),
+        edge("e5", "X", "otherwise", "T", "in"),
+        edge("e6", "T", "out", "O2", "in"),
+      ],
+      bindings: [decides],
+    });
+    expect(
+      run(g)
+        .filter((p) => p.code === "outputs-both-run")
+        .map((p) => p.nodeId),
+    ).toEqual(["O2"]);
+  });
+
+  it("refuses a merge waiting for one beside a step reached from both ports", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), ifX(), echo("P"), echo("T"), node("M", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "X", "in"),
+        edge("e2", "X", "then", "P", "in"),
+        edge("e3", "P", "out", "T", "in"),
+        edge("e4", "X", "otherwise", "T", "in"),
+        edge("e5", "T", "out", "M", "in"),
+        edge("e6", "P", "out", "M", "in"),
+      ],
+      bindings: [decides],
+    });
+    expect(codesOf(run(g))).toContain("merge-together-uncertain");
+  });
+
+  it("does not let a join read a leg that one port of an If skips", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        ifX(),
+        echo("t0"),
+        echo("Y"),
+        echo("T"),
+        node("A", "test.consumer_noreq"),
+        node("J", "test.consumer"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "X", "in"),
+        edge("e2", "X", "then", "t0", "in"),
+        edge("e3", "X", "otherwise", "Y", "in"),
+        edge("e4", "Y", "out", "t0", "in"),
+        edge("e5", "t0", "out", "T", "in"),
+        edge("e6", "X", "then", "A", "in"),
+        edge("e7", "A", "out", "J", "in"),
+        edge("e8", "T", "out", "J", "in"),
+      ],
+      bindings: [decides, nodeOutputBinding("J", "value", "A", "out", ["value"])],
+    });
+    expect(codesOf(run(g)).filter((code) => code === "binding-unavailable")).toHaveLength(1);
+  });
+});
+
+describe("a merge's duplicate edges", () => {
+  it("are refused whichever way the merge waits", () => {
+    const base = mergedFork({ wait_for: "all" });
+    const dup = { ...base, edges: [...base.edges, edge("again", "A", "out", "M", "in")] };
+    expect(codesOf(run(dup))).toEqual(["merge-duplicate-branch"]);
+    const parallel = mergedFork();
+    const dupOne = {
+      ...parallel,
+      edges: [...parallel.edges, edge("again", "A", "out", "M", "in")],
+    };
+    expect(codesOf(run(dupOne))).toEqual(["merge-duplicate-branch", "merge-wait-for-all"]);
+  });
+});
+
+describe("a merge judged by run conditions", () => {
+  const ifA = (id: string) => node(id, "logic.if");
+  const decides = (id: string) => literalBinding(id, "value", true);
+
+  it("publishes a merge after a nested If with a shared else", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), ifA("X"), ifA("Y"), echo("A"), echo("T"), node("M", "logic.merge")],
+      edges: [
+        edge("e1", "entry", "out", "X", "in"),
+        edge("e2", "X", "then", "Y", "in"),
+        edge("e3", "Y", "then", "A", "in"),
+        edge("e4", "Y", "otherwise", "T", "in"),
+        edge("e5", "X", "otherwise", "T", "in"),
+        edge("e6", "A", "out", "M", "in"),
+        edge("e7", "T", "out", "M", "in"),
+      ],
+      bindings: [decides("X"), decides("Y")],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("publishes a merge after a Switch whose cases share a step", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("S", "logic.switch", { rules: [{ name: "a" }, { name: "b" }] }),
+        echo("Shared"),
+        echo("C"),
+        node("M", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "S", "in"),
+        edge("e2", "S", "a", "Shared", "in"),
+        edge("e3", "S", "b", "Shared", "in"),
+        edge("e4", "S", "otherwise", "C", "in"),
+        edge("e5", "Shared", "out", "M", "in"),
+        edge("e6", "C", "out", "M", "in"),
+      ],
+      bindings: [decides("S")],
+    });
+    expect(run(g)).toEqual([]);
+  });
+
+  it("names a branch that may not arrive at a merge waiting for all", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        splitNode("P", "x", "y"),
+        node("S", "logic.switch", { rules: [{ name: "r1" }, { name: "r2" }] }),
+        { ...echo("A"), label: "A" },
+        { ...echo("B"), label: "B" },
+        { ...echo("D"), label: "D" },
+        node("M", "logic.merge", { wait_for: "all" }),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "P", "in"),
+        edge("e2", "P", "x", "S", "in"),
+        edge("e3", "P", "y", "D", "in"),
+        edge("e4", "S", "r1", "A", "in"),
+        edge("e5", "S", "r2", "B", "in"),
+        edge("e6", "A", "out", "M", "in"),
+        edge("e7", "B", "out", "M", "in"),
+        edge("e8", "D", "out", "M", "in"),
+      ],
+      bindings: [decides("S")],
+    });
+    const problems = run(g).filter((p) => p.code === "merge-leg-not-guaranteed");
+    expect(problems.map((p) => p.message)).toEqual([
+      expect.stringContaining('"name":"a"'),
+      expect.stringContaining('"name":"b"'),
+    ]);
+  });
+
+  it("publishes a merge joining a routed step's out and its handler", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        { ...echo("R"), policy: { on_error: "route" as const } },
+        node("H", "error.handle"),
+        node("M", "logic.merge"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "R", "in"),
+        edge("e2", "R", "out", "M", "in"),
+        edge("e3", "R", "error", "H", "in"),
+        edge("e4", "H", "default", "M", "in"),
+      ],
+    });
+    expect(joinCodes(run(g))).toEqual([]);
+  });
+
+  it("publishes a handler fed by two steps that cannot both fail", () => {
+    const routedStep = (id: string) => ({
+      ...echo(id),
+      policy: { on_error: "route" as const },
+    });
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        ifA("I"),
+        routedStep("A"),
+        routedStep("B"),
+        node("H", "error.handle"),
+        echo("after"),
+      ],
+      edges: [
+        edge("e1", "entry", "out", "I", "in"),
+        edge("e2", "I", "then", "A", "in"),
+        edge("e3", "I", "otherwise", "B", "in"),
+        edge("e4", "A", "error", "H", "in"),
+        edge("e5", "B", "error", "H", "in"),
+        edge("e6", "H", "default", "after", "in"),
+      ],
+      bindings: [decides("I")],
+    });
+    expect(codesOf(run(g))).not.toContain("error-handler-shared");
+  });
+
+  it("publishes an action fed from both outcomes of an If without a merge", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), ifA("I"), echo("A"), echo("B"), echo("J")],
+      edges: [
+        edge("e1", "entry", "out", "I", "in"),
+        edge("e2", "I", "then", "A", "in"),
+        edge("e3", "I", "otherwise", "B", "in"),
+        edge("e4", "A", "out", "J", "in"),
+        edge("e5", "B", "out", "J", "in"),
+      ],
+      bindings: [decides("I")],
+    });
+    expect(joinCodes(run(g))).toEqual([]);
   });
 });

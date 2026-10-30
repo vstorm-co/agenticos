@@ -1,7 +1,7 @@
 /**
  * Graph topology the rules run over — the client mirror of the structural parts
- * of `validate.py` that precede the rules: scope derivation, node→scope ownership,
- * Kahn's ordering and dominator sets.
+ * of `validate.py` that precede the rules: scope derivation, node→scope ownership
+ * and Kahn's ordering.
  *
  * Like the backend, the mirror **derives** scopes from the graph's own edges
  * rather than trusting whatever `scopes` a draft carries — a freshly-edited graph's
@@ -206,90 +206,4 @@ export function kahn(nodes: readonly string[], edges: readonly WorkflowEdge[]): 
   const ordered = new Set(order);
   const cyclic = new Set(nodes.filter((nodeId) => !ordered.has(nodeId)));
   return { predecessors, order, cyclic };
-}
-
-/**
- * Iterative dominator sets over a topological order — the analog of `_dominators`.
- * `Dom(root) = {root}`; `Dom(n) = {n} ∪ ⋂ Dom(p)` over resolved predecessors.
- */
-export function dominators(
-  order: readonly string[],
-  predecessors: Map<string, Set<string>>,
-  root: string,
-): Map<string, Set<string>> {
-  const dom = new Map<string, Set<string>>([[root, new Set([root])]]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const nodeId of order) {
-      if (nodeId === root) continue;
-      const preds = [...(predecessors.get(nodeId) ?? [])].filter((p) => dom.has(p));
-      if (preds.length === 0) continue;
-      const intersection = intersectAll(preds.map((p) => dom.get(p) as Set<string>));
-      intersection.add(nodeId);
-      if (!sameSet(dom.get(nodeId), intersection)) {
-        dom.set(nodeId, intersection);
-        changed = true;
-      }
-    }
-  }
-  return dom;
-}
-
-function intersectAll(sets: Set<string>[]): Set<string> {
-  const [first, ...rest] = sets;
-  let result = new Set(first);
-  for (const set of rest) result = new Set([...result].filter((value) => set.has(value)));
-  return result;
-}
-
-function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
-  return (
-    left !== undefined && left.size === right.size && [...right].every((value) => left.has(value))
-  );
-}
-
-/**
- * Dominator sets for the whole graph — outer nodes rooted at the entry, plus each
- * scope body rooted at its control node. The analog of `_all_dominators`. Empty
- * when the outer graph has a cycle or the entry is not a real node, because there
- * is then no order to compute over.
- */
-export function allDominators(
-  graph: WorkflowGraph,
-  scopes: readonly ScopeBoundary[],
-  outerPredecessors: Map<string, Set<string>>,
-  outerOrder: string[] | null,
-): Map<string, Set<string>> {
-  if (outerOrder === null || !nodeIds(graph).has(graph.entry_node_id)) return new Map();
-  const result = dominators(outerOrder, outerPredecessors, graph.entry_node_id);
-
-  for (const scope of scopes) {
-    const body = new Set(scope.body_node_ids);
-    const bodyEdges = graph.edges.filter(
-      (edge) => body.has(edge.source_node_id) && body.has(edge.target_node_id),
-    );
-    const { predecessors, order, cyclic } = kahn(scope.body_node_ids, bodyEdges);
-    if (cyclic.size > 0) continue;
-    const entryTargets = graph.edges
-      .filter(
-        (edge) =>
-          edge.source_node_id === scope.scope_node_id && edge.source_port === scope.entry_port,
-      )
-      .map((edge) => edge.target_node_id);
-    for (const nodeId of entryTargets) {
-      const preds = predecessors.get(nodeId) ?? new Set<string>();
-      preds.add(scope.scope_node_id);
-      predecessors.set(nodeId, preds);
-    }
-    const bodyDominators = dominators(
-      [scope.scope_node_id, ...order],
-      predecessors,
-      scope.scope_node_id,
-    );
-    for (const [nodeId, doms] of bodyDominators) {
-      if (body.has(nodeId)) result.set(nodeId, doms);
-    }
-  }
-  return result;
 }

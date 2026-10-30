@@ -40,11 +40,22 @@ export type ValidationCode =
   // Rule 4 — branch-local data availability.
   | "binding-self-reference"
   | "binding-unavailable"
-  // Rule 5 — exclusive merge.
+  // Rule 5 — a merge takes one edge from each branch; its mode follows from how they reach it.
   | "merge-duplicate-branch"
-  | "merge-no-common-dominator"
-  | "merge-not-from-if"
-  | "merge-not-exclusive"
+  | "merge-wait-for-all"
+  | "merge-wait-for-one"
+  | "merge-key-invalid"
+  | "merge-key-unknown"
+  // Parallel branches.
+  | "merge-together-uncertain"
+  | "merge-leg-not-guaranteed"
+  | "error-handler-shared"
+  | "error-handler-default-unwired"
+  | "error-port-unwired"
+  | "outputs-both-run"
+  | "respond-both-run"
+  | "split-routes-errors"
+  | "merge-setting-bound"
   // A name an author gave to an output the step already has.
   | "port-name-taken"
   // A quick log naming an output its step does not have.
@@ -58,9 +69,8 @@ export type ValidationCode =
   // Rule 7 — no cycles.
   | "node-in-cycle"
   | "node-in-scope-cycle"
-  // Rule 8 — no parallel fan-out.
+  // Rule 8 — one port.
   | "fanout-multiple-ports"
-  | "fanout-port-multiple-edges"
   // Rule 9 — every required input bound exactly once.
   | "input-bound-twice"
   | "input-not-bound"
@@ -97,9 +107,19 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "binding-self-reference": "validationBindingSelfReference",
   "binding-unavailable": "validationBindingUnavailable",
   "merge-duplicate-branch": "validationMergeDuplicateBranch",
-  "merge-no-common-dominator": "validationMergeNoCommonDominator",
-  "merge-not-from-if": "validationMergeNotFromIf",
-  "merge-not-exclusive": "validationMergeNotExclusive",
+  "merge-wait-for-all": "validationMergeWaitForAll",
+  "merge-wait-for-one": "validationMergeWaitForOne",
+  "merge-key-invalid": "validationMergeKeyInvalid",
+  "merge-key-unknown": "validationMergeKeyUnknown",
+  "merge-together-uncertain": "validationMergeTogetherUncertain",
+  "merge-leg-not-guaranteed": "validationMergeLegNotGuaranteed",
+  "error-handler-shared": "validationErrorHandlerShared",
+  "error-handler-default-unwired": "validationErrorHandlerDefaultUnwired",
+  "error-port-unwired": "validationErrorPortUnwired",
+  "outputs-both-run": "validationOutputsBothRun",
+  "respond-both-run": "validationRespondBothRun",
+  "split-routes-errors": "validationSplitRoutesErrors",
+  "merge-setting-bound": "validationMergeSettingBound",
   "port-name-taken": "validationPortNameTaken",
   "quick-log-output-unknown": "validationQuickLogOutputUnknown",
   "quick-log-not-here": "validationQuickLogNotHere",
@@ -110,7 +130,6 @@ export const MESSAGE_KEYS: Record<ValidationCode, string> = {
   "node-in-cycle": "validationNodeInCycle",
   "node-in-scope-cycle": "validationNodeInScopeCycle",
   "fanout-multiple-ports": "validationFanoutMultiplePorts",
-  "fanout-port-multiple-edges": "validationFanoutPortMultipleEdges",
   "input-bound-twice": "validationInputBoundTwice",
   "input-not-bound": "validationInputNotBound",
   "config-not-set": "validationConfigNotSet",

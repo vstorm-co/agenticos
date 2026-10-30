@@ -140,7 +140,7 @@ async def test_a_single_node_graph_with_no_bindings_publishes(mock_db_session):
 async def test_a_graph_over_the_node_ceiling_is_refused_before_anything_else(
     mock_db_session, monkeypatch
 ):
-    """The ceiling exists to keep `_dominators`' O(n^2) retained dominator
+    """The ceiling exists to keep `analyze_graph`'s O(n^2) retained ancestor
     sets bounded, so it is checked ahead of every other pass - a graph this
     oversized never even reaches `derive_scopes`' own per-scope BFS."""
     monkeypatch.setattr(settings, "WORKFLOW_GRAPH_MAX_NODES", 1)
@@ -558,28 +558,36 @@ async def test_a_binding_to_a_node_with_an_unresolvable_definition_is_left_to_th
 
 
 async def test_a_binding_to_a_node_not_on_every_path_is_refused(mock_db_session, registered_node):
-    """`c` binds to `b`'s output, but `b` is only reachable on one of two
-    branches into `c` - so `b` does not dominate `c`."""
-    merge = registered_node(_action_definition("test.branch_merge"))
-    a = _echo_node()
-    b = _echo_node()
+    """`c` binds to `b`'s output, but `b` runs only when the If takes `true` and `c` only
+    when it takes `false` - so `b` has not necessarily run when `c` does."""
+    source = registered_node(_action_definition("test.branch_source", requires_input=False))
+    consumer = registered_node(_action_definition("test.branch_consumer"))
+    entry, branch = _echo_node(), _if_node("I")
+    b = NodeInstance(
+        id=uuid4(), definition_id=source.id, definition_version=1, config={}, layout=_pos()
+    )
     c = NodeInstance(
-        id=uuid4(), definition_id=merge.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(), definition_id=consumer.id, definition_version=1, config={}, layout=_pos()
     )
     edges = (
-        _edge(a.id, "out", b.id, "in"),
-        _edge(a.id, "out", c.id, "in"),
-        _edge(b.id, "out", c.id, "in"),
+        _edge(entry.id, "out", branch.id, "in"),
+        _edge(branch.id, "true", b.id, "in"),
+        _edge(branch.id, "false", c.id, "in"),
     )
     binding = Binding(
         target_node_id=c.id,
         target_field="value",
         source=NodeOutputRef(node_id=b.id, port="out", field_path=("value",)),
     )
-    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b, c), edges=edges, bindings=(binding,))
-    with pytest.raises(GraphValidationError) as excinfo:
-        await validate_graph(mock_db_session, _owner_ctx(), graph)
-    assert any(f["field"] == "bindings.0" for f in excinfo.value.details["fields"])
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, branch, b, c),
+        edges=edges,
+        bindings=(_decides_on(branch.id), binding),
+    )
+    fields = await _fields(graph, mock_db_session)
+    assert _has(fields, "bindings.1", "has not necessarily run")
+    assert not _has(fields, "bindings.1", "does not exist")
 
 
 async def test_a_binding_to_the_nodes_own_output_is_refused(mock_db_session, registered_node):
@@ -640,12 +648,13 @@ async def test_a_merges_branches_not_from_one_if_are_refused(mock_db_session, re
     c = NodeInstance(
         id=uuid4(), definition_id="logic.merge", definition_version=1, config={}, layout=_pos()
     )
-    # Two independent predecessors, no shared `logic.if` ancestor at all.
+    # Two independent predecessors, no shared `logic.if` ancestor at all: `b` is not
+    # reachable, which is what is refused (a Wait for hint would not mend that).
     edges = (_edge(a.id, "out", c.id, "in"), _edge(b.id, "out", c.id, "in"))
     graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b, c), edges=edges)
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
-    assert any(f"nodes.{c.id}" == f["field"] for f in excinfo.value.details["fields"])
+    assert any(f"nodes.{b.id}" == f["field"] for f in excinfo.value.details["fields"])
 
 
 async def test_a_merge_from_one_logic_if_publishes(mock_db_session, registered_node):
@@ -713,7 +722,8 @@ async def test_a_merges_branches_from_the_same_if_port_are_refused(
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "same port" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}"
+        and "Several branches reach this merge together" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -815,7 +825,8 @@ async def test_a_merge_taking_a_port_straight_and_through_a_leg_of_it_is_refused
         await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert any(
-        f["field"] == f"nodes.{merge}" and "same port" in f["message"]
+        f["field"] == f"nodes.{merge}"
+        and "Several branches reach this merge together" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -862,7 +873,8 @@ async def test_a_merge_taking_two_ports_of_a_step_that_branches_not_exclusively_
         await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "single way out" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}"
+        and "Several branches reach this merge together" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -923,7 +935,8 @@ async def test_a_merge_fed_through_two_ports_of_a_step_that_is_not_exclusive_is_
         await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "single way out" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}"
+        and "Several branches reach this merge together" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -1035,7 +1048,8 @@ async def test_a_merge_branch_reconverged_from_both_if_arms_is_refused(
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "mutually exclusive" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}"
+        and "Several branches reach this merge together" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 
@@ -1311,16 +1325,6 @@ async def test_a_non_control_node_sending_through_two_ports_is_refused(
         f["field"] == f"nodes.{a.id}" and "one port" in f["message"]
         for f in excinfo.value.details["fields"]
     )
-
-
-async def test_a_non_control_node_with_two_edges_on_one_port_is_refused(mock_db_session):
-    a = _echo_node()
-    b, c = _echo_node(), _echo_node()
-    edges = (_edge(a.id, "out", b.id, "in"), _edge(a.id, "out", c.id, "in"))
-    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b, c), edges=edges)
-    with pytest.raises(GraphValidationError) as excinfo:
-        await validate_graph(mock_db_session, _owner_ctx(), graph)
-    assert any(f["field"] == f"nodes.{a.id}" for f in excinfo.value.details["fields"])
 
 
 async def test_a_control_node_fanning_out_two_branches_is_allowed(mock_db_session, registered_node):
@@ -1643,3 +1647,799 @@ async def test_only_one_key_of_an_open_object_can_be_bound(mock_db_session, regi
         await validate_graph(mock_db_session, _owner_ctx(), graph)
 
     assert any("does not exist" in f["message"] for f in excinfo.value.details["fields"])
+
+
+# Parallel branches
+
+
+def _named(
+    label: str, definition_id: str, config: dict | None = None, **extra: Any
+) -> NodeInstance:
+    return NodeInstance(
+        id=uuid4(),
+        definition_id=definition_id,
+        definition_version=1,
+        config=config or {},
+        layout=_pos(),
+        label=label,
+        **extra,
+    )
+
+
+def _split_node(label: str, *branches: str) -> NodeInstance:
+    return _named(label, "logic.split", {"branches": [{"name": b} for b in branches]})
+
+
+def _if_node(label: str) -> NodeInstance:
+    return _named(label, "logic.if", {"condition": "value"})
+
+
+def _step(label: str, **extra: Any) -> NodeInstance:
+    return _named(
+        label, "data.map", {"mappings": [{"target_field": "a", "source_path": "'x'"}]}, **extra
+    )
+
+
+def _graph(*nodes: NodeInstance, edges: list[tuple[NodeInstance, str, NodeInstance]], bindings=()):
+    return WorkflowGraph(
+        entry_node_id=nodes[0].id,
+        nodes=nodes,
+        edges=tuple(_edge(s.id, p, t.id, "in") for s, p, t in edges),
+        bindings=tuple(bindings),
+    )
+
+
+async def _fields(graph: WorkflowGraph, db) -> list[dict]:
+    with pytest.raises(GraphValidationError) as excinfo:
+        await validate_graph(db, _owner_ctx(), graph)
+    return excinfo.value.details["fields"]
+
+
+def _has(fields: list[dict], field: str, text: str) -> bool:
+    return any(f["field"] == field and text in f["message"] for f in fields)
+
+
+def _two_ins(registered_node) -> NodeDefinition:
+    class _Two(BaseModel):
+        model_config = ConfigDict(frozen=True, extra="forbid")
+
+        a: str
+        b: str
+
+    return registered_node(
+        NodeDefinition(
+            id="test.two_inputs",
+            version=1,
+            name="Two inputs",
+            category="test",
+            description="test",
+            kind="action",
+            config_schema=None,
+            input_schema=_Two,
+            output_schema=_PlainOutput,
+            ports=(
+                Port(id="in", label="In", kind="input"),
+                Port(id="out", label="Out", kind="output", schema=_PlainOutput),
+            ),
+            effect_kind="pure",
+            retry_guarantee="idempotent",
+        )
+    )
+
+
+def _fork_graph(*, joined: bool = True) -> tuple[WorkflowGraph, dict[str, NodeInstance]]:
+    entry, split = _echo_node(), _split_node("S", "a", "b")
+    a, b = _step("A"), _step("B")
+    nodes = {"entry": entry, "S": split, "A": a, "B": b}
+    edges = [(entry, "out", split), (split, "a", a), (split, "b", b)]
+    if joined:
+        join = _step("J")
+        nodes["J"] = join
+        edges += [(a, "out", join), (b, "out", join)]
+    return _graph(*nodes.values(), edges=edges), nodes
+
+
+class TestParallelBranches:
+    async def test_a_step_may_send_one_port_to_several_steps(self, mock_db_session):
+        entry, a, b = _echo_node(), _step("A"), _step("B")
+        graph = _graph(entry, a, b, edges=[(entry, "out", a), (entry, "out", b)])
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_an_error_port_may_feed_several_steps(self, mock_db_session):
+        entry = _echo_node()
+        routed = _step("R", policy=NodePolicy(on_error="route"))
+        first, second = _step("E1"), _step("E2")
+        graph = _graph(
+            entry,
+            routed,
+            first,
+            second,
+            edges=[(entry, "out", routed), (routed, "error", first), (routed, "error", second)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_split_publishes_without_becoming_a_scope(self, mock_db_session):
+        graph, nodes = _fork_graph()
+        validated = await validate_graph(mock_db_session, _owner_ctx(), graph)
+        assert validated.scopes == ()
+        assert nodes["S"].id in {node.id for node in validated.nodes}
+
+    async def test_a_join_may_bind_to_every_parallel_leg(self, mock_db_session, registered_node):
+        both = _two_ins(registered_node)
+        leg = registered_node(_action_definition("test.leg", requires_input=False))
+        entry, split = _echo_node(), _split_node("S", "a", "b")
+        a, b, join = _named("A", leg.id), _named("B", leg.id), _named("J", both.id)
+        graph = _graph(
+            entry,
+            split,
+            a,
+            b,
+            join,
+            edges=[
+                (entry, "out", split),
+                (split, "a", a),
+                (split, "b", b),
+                (a, "out", join),
+                (b, "out", join),
+            ],
+            bindings=[
+                Binding(
+                    target_node_id=join.id,
+                    target_field=field,
+                    source=NodeOutputRef(node_id=source.id, port="out", field_path=("value",)),
+                )
+                for field, source in (("a", a), ("b", b))
+            ],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_join_may_not_bind_to_one_exclusive_branch(
+        self, mock_db_session, registered_node
+    ):
+        both = _two_ins(registered_node)
+        entry, branch = _echo_node(), _if_node("I")
+        a, b, join = _step("A"), _step("B"), _named("J", both.id)
+        graph = _graph(
+            entry,
+            branch,
+            a,
+            b,
+            join,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", a),
+                (branch, "false", b),
+                (a, "out", join),
+                (b, "out", join),
+            ],
+            bindings=[
+                _decides_on(branch.id),
+                Binding(
+                    target_node_id=join.id,
+                    target_field="a",
+                    source=NodeOutputRef(node_id=a.id, port="out", field_path=("value",)),
+                ),
+                Binding(target_node_id=join.id, target_field="b", source=LiteralValue(value="x")),
+            ],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, "bindings.1", "has not necessarily run")
+
+    async def test_a_step_fed_by_legs_one_of_which_may_turn_away_publishes(self, mock_db_session):
+        """An implicit join runs when any wire is live: partial liveness is not refused."""
+        entry = _echo_node()
+        switch = _named("W", "logic.switch", {"rules": [{"name": "r", "condition": "value"}]})
+        a, b, join = _step("A"), _if_node("B"), _step("J")
+        graph = _graph(
+            entry,
+            switch,
+            a,
+            b,
+            join,
+            edges=[
+                (entry, "out", switch),
+                (switch, "r", a),
+                (switch, "r", b),
+                (a, "out", join),
+                (b, "true", join),
+            ],
+            bindings=[_decides_on(switch.id), _decides_on(b.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_an_action_fed_from_both_outcomes_of_an_if_without_a_merge_publishes(
+        self, mock_db_session
+    ):
+        entry, branch = _echo_node(), _if_node("I")
+        a, b, join = _step("A"), _step("B"), _step("J")
+        graph = _graph(
+            entry,
+            branch,
+            a,
+            b,
+            join,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", a),
+                (branch, "false", b),
+                (a, "out", join),
+                (b, "out", join),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_two_parallel_error_routes_into_one_handler_are_refused(self, mock_db_session):
+        entry, split = _echo_node(), _split_node("S", "a", "b")
+        a = _step("A", policy=NodePolicy(on_error="route"))
+        b = _step("B", policy=NodePolicy(on_error="route"))
+        handler, after = _named("H", "error.handle"), _step("After")
+        graph = _graph(
+            entry,
+            split,
+            a,
+            b,
+            handler,
+            after,
+            edges=[
+                (entry, "out", split),
+                (split, "a", a),
+                (split, "b", b),
+                (a, "error", handler),
+                (b, "error", handler),
+                (handler, "default", after),
+            ],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{handler.id}", "give each branch its own error handler")
+
+    async def test_one_handler_per_branch_publishes(self, mock_db_session):
+        entry, split = _echo_node(), _split_node("S", "a", "b")
+        a = _step("A", policy=NodePolicy(on_error="route"))
+        b = _step("B", policy=NodePolicy(on_error="route"))
+        first, second = _named("H1", "error.handle"), _named("H2", "error.handle")
+        after_a, after_b = _step("AfterA"), _step("AfterB")
+        graph = _graph(
+            entry,
+            split,
+            a,
+            b,
+            first,
+            second,
+            after_a,
+            after_b,
+            edges=[
+                (entry, "out", split),
+                (split, "a", a),
+                (split, "b", b),
+                (a, "error", first),
+                (b, "error", second),
+                (first, "default", after_a),
+                (second, "default", after_b),
+            ],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    @pytest.mark.parametrize(
+        ("definition_id", "config", "text"),
+        [
+            ("core.output", {}, "a run answers once"),
+            ("webhook.respond", {}, "a webhook is answered once"),
+        ],
+    )
+    async def test_two_answering_steps_that_can_both_run_are_refused(
+        self, mock_db_session, definition_id, config, text
+    ):
+        entry, split = _echo_node(), _split_node("S", "a", "b")
+        first, second = _named("O1", definition_id, config), _named("O2", definition_id, config)
+        graph = _graph(
+            entry,
+            split,
+            first,
+            second,
+            edges=[(entry, "out", split), (split, "a", first), (split, "b", second)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{second.id}", text)
+        assert not any(f["field"] == f"nodes.{first.id}" for f in fields)
+
+    @pytest.mark.parametrize("definition_id", ["core.output", "webhook.respond"])
+    async def test_two_answering_steps_on_the_two_sides_of_an_if_publish(
+        self, mock_db_session, definition_id
+    ):
+        entry, branch = _echo_node(), _if_node("I")
+        first, second = _named("O1", definition_id), _named("O2", definition_id)
+        graph = _graph(
+            entry,
+            branch,
+            first,
+            second,
+            edges=[(entry, "out", branch), (branch, "true", first), (branch, "false", second)],
+            bindings=[_decides_on(branch.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_binding_beside_a_parallel_leg_reads_it_after_the_join_only(
+        self, mock_db_session
+    ):
+        """A leg is not available to its sibling: only to what follows the join."""
+        graph, nodes = _fork_graph(joined=False)
+        graph = graph.model_copy(
+            update={
+                "bindings": (
+                    Binding(
+                        target_node_id=nodes["B"].id,
+                        target_field="mappings",
+                        source=NodeOutputRef(node_id=nodes["A"].id, port="out"),
+                    ),
+                )
+            }
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, "bindings.0", "has not necessarily run")
+
+
+def _merged_fork(*, wait_for: str | None, config: dict | None = None):
+    """`S.a -> A -> M`, `S.b -> B -> M`, then `After`; `wait_for` set on the merge."""
+    entry, split = _echo_node(), _split_node("S", "a", "b")
+    a, b, after = _step("A"), _step("B"), _step("After")
+    merge_config = dict(config or {})
+    if wait_for is not None:
+        merge_config["wait_for"] = wait_for
+    merge = _named("M", "logic.merge", merge_config)
+    graph = _graph(
+        entry,
+        split,
+        a,
+        b,
+        merge,
+        after,
+        edges=[
+            (entry, "out", split),
+            (split, "a", a),
+            (split, "b", b),
+            (a, "out", merge),
+            (b, "out", merge),
+            (merge, "out", after),
+        ],
+    )
+    return graph, merge, (a, b, after)
+
+
+class TestSplitAndMerge:
+    async def test_a_split_that_routes_its_errors_is_refused(self, mock_db_session):
+        graph, nodes = _fork_graph()
+        split = nodes["S"].model_copy(update={"policy": NodePolicy(on_error="route")})
+        graph = graph.model_copy(
+            update={"nodes": tuple(split if n.id == split.id else n for n in graph.nodes)}
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{split.id}.policy", "A Split cannot route its errors")
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("wait_for", "all"), ("branch_keys", []), ("branch_keys/a", "x")],
+    )
+    async def test_a_merge_setting_cannot_be_bound(self, mock_db_session, field: str, value):
+        """The executor reads these from the stored config, so a binding would be
+        applied to the handler's call but not to when the merge runs."""
+        graph, merge, _ = _merged_fork(wait_for="all")
+        bound = Binding(
+            target_node_id=merge.id, target_field=field, source=LiteralValue(value=value)
+        )
+        graph = graph.model_copy(update={"bindings": (bound,)})
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}.{field}", "cannot be bound")
+
+    async def test_a_merge_waiting_for_one_behind_a_split_is_refused(self, mock_db_session):
+        graph, merge, _ = _merged_fork(wait_for=None)
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "set Wait for to All branches")
+        assert len([f for f in fields if f["field"] == f"nodes.{merge.id}"]) == 1
+
+    async def test_a_merge_waiting_for_all_behind_a_split_publishes(self, mock_db_session):
+        graph, _merge, _ = _merged_fork(wait_for="all")
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_merge_waiting_for_all_behind_an_if_is_refused(self, mock_db_session):
+        entry, branch = _echo_node(), _if_node("I")
+        a, b = _step("A"), _step("B")
+        merge = _named("M", "logic.merge", {"wait_for": "all"})
+        graph = _graph(
+            entry,
+            branch,
+            a,
+            b,
+            merge,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", a),
+                (branch, "false", b),
+                (a, "out", merge),
+                (b, "out", merge),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "set Wait for to The branch that ran")
+
+    async def test_a_merge_waiting_for_one_behind_an_if_still_publishes(self, mock_db_session):
+        entry, branch = _echo_node(), _if_node("I")
+        a, b = _step("A"), _step("B")
+        merge = _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            branch,
+            a,
+            b,
+            merge,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", a),
+                (branch, "false", b),
+                (a, "out", merge),
+                (b, "out", merge),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_stored_merge_with_empty_config_still_publishes(self, mock_db_session):
+        entry = _echo_node()
+        merge = _named("M", "logic.merge", {})
+        graph = _graph(entry, merge, edges=[(entry, "out", merge)])
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_merge_waiting_for_all_with_one_input_is_not_judged(self, mock_db_session):
+        entry = _echo_node()
+        merge = _named("M", "logic.merge", {"wait_for": "all"})
+        graph = _graph(entry, merge, edges=[(entry, "out", merge)])
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_two_merge_branches_with_one_key_are_refused(self, mock_db_session):
+        graph, merge, (a, b, _after) = _merged_fork(wait_for="all")
+        keys = [
+            {"source_node_id": str(a.id), "source_port": "out", "key": "same"},
+            {"source_node_id": str(b.id), "source_port": "out", "key": "same"},
+        ]
+        merge = merge.model_copy(update={"config": {"wait_for": "all", "branch_keys": keys}})
+        graph = graph.model_copy(
+            update={"nodes": tuple(merge if n.id == merge.id else n for n in graph.nodes)}
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}.config.branch_keys", "a name of its own")
+
+    async def test_a_merge_branch_with_no_usable_name_is_refused(self, mock_db_session):
+        graph, merge, (a, _b, _after) = _merged_fork(wait_for="all")
+        a_named = a.model_copy(update={"label": "!!!"})
+        graph = graph.model_copy(
+            update={"nodes": tuple(a_named if n.id == a.id else n for n in graph.nodes)}
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}.config.branch_keys", "a name of its own")
+
+    async def test_reading_an_unknown_merge_branch_is_refused(
+        self, mock_db_session, registered_node
+    ):
+        consumer = registered_node(_action_definition("test.reads_branch"))
+        graph, merge, _ = _merged_fork(wait_for="all")
+        reader = _named("Reader", consumer.id)
+
+        def reading(key: str) -> WorkflowGraph:
+            binding = Binding(
+                target_node_id=reader.id,
+                target_field="value",
+                source=NodeOutputRef(
+                    node_id=merge.id, port="out", field_path=("branches", key, "value")
+                ),
+            )
+            return graph.model_copy(
+                update={
+                    "nodes": (*graph.nodes, reader),
+                    "edges": (*graph.edges, _edge(merge.id, "out", reader.id, "in")),
+                    "bindings": (binding,),
+                }
+            )
+
+        assert await validate_graph(mock_db_session, _owner_ctx(), reading("a"))
+        fields = await _fields(reading("nope"), mock_db_session)
+        assert _has(fields, "bindings.0", "This merge has no branch called 'nope'")
+
+
+class TestStepsReachedFromSeveralPorts:
+    """A step that hangs from one port by dominance may still be reached from another."""
+
+    async def test_two_outputs_after_a_step_reached_from_both_ports_are_refused(
+        self, mock_db_session
+    ):
+        """`X.true -> P -> {O1, T}`, `X.false -> T -> O2`: with X true both outputs run."""
+        entry, branch = _echo_node(), _if_node("X")
+        p, t = _step("P"), _step("T")
+        first, second = _named("O1", "core.output"), _named("O2", "core.output")
+        graph = _graph(
+            entry,
+            branch,
+            p,
+            t,
+            first,
+            second,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", p),
+                (p, "out", first),
+                (p, "out", t),
+                (branch, "false", t),
+                (t, "out", second),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{second.id}", "a run answers once")
+
+    async def test_a_merge_waiting_for_one_beside_a_step_reached_from_both_ports_is_refused(
+        self, mock_db_session
+    ):
+        """`X.true -> P -> T`, `X.false -> T`, `T -> M`, `P -> M`: with X true both reach M."""
+        entry, branch = _echo_node(), _if_node("X")
+        p, t, merge = _step("P"), _step("T"), _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            branch,
+            p,
+            t,
+            merge,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", p),
+                (p, "out", t),
+                (branch, "false", t),
+                (t, "out", merge),
+                (p, "out", merge),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "Several branches reach this merge together")
+
+    async def test_a_join_may_not_read_a_leg_that_one_port_of_an_if_skips(
+        self, mock_db_session, registered_node
+    ):
+        """`X.true -> t`, `X.false -> Y -> t`, `t -> T`, `X.true -> A`; `A, T -> J`: A can be dead."""
+        leg = registered_node(_action_definition("test.leg", requires_input=False))
+        consumer = registered_node(_action_definition("test.joined"))
+        entry, branch = _echo_node(), _if_node("X")
+        t0, y, t = _step("t0"), _step("Y"), _step("T")
+        a, join = _named("A", leg.id), _named("J", consumer.id)
+        graph = _graph(
+            entry,
+            branch,
+            t0,
+            y,
+            t,
+            a,
+            join,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", t0),
+                (branch, "false", y),
+                (y, "out", t0),
+                (t0, "out", t),
+                (branch, "true", a),
+                (a, "out", join),
+                (t, "out", join),
+            ],
+            bindings=[
+                _decides_on(branch.id),
+                Binding(
+                    target_node_id=join.id,
+                    target_field="value",
+                    source=NodeOutputRef(node_id=a.id, port="out", field_path=("value",)),
+                ),
+            ],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, "bindings.1", "has not necessarily run")
+
+
+class TestMergeEdgeCases:
+    async def test_a_merge_waiting_for_all_still_refuses_two_edges_from_one_branch(
+        self, mock_db_session
+    ):
+        graph, merge, (a, _b, _after) = _merged_fork(wait_for="all")
+        graph = graph.model_copy(
+            update={"edges": (*graph.edges, _edge(a.id, "out", merge.id, "in"))}
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "more than one edge from the same branch")
+
+    async def test_a_merge_fed_by_parallel_branches_still_refuses_two_edges_from_one_branch(
+        self, mock_db_session
+    ):
+        graph, merge, (a, _b, _after) = _merged_fork(wait_for=None)
+        graph = graph.model_copy(
+            update={"edges": (*graph.edges, _edge(a.id, "out", merge.id, "in"))}
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "more than one edge from the same branch")
+        assert _has(fields, f"nodes.{merge.id}", "Several branches reach this merge together")
+
+    async def test_the_wait_for_hint_is_not_offered_for_an_unreachable_branch(
+        self, mock_db_session
+    ):
+        entry, a, unreachable = _echo_node(), _step("A"), _step("Z")
+        merge = _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            a,
+            unreachable,
+            merge,
+            edges=[(entry, "out", a), (a, "out", merge), (unreachable, "out", merge)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert any(f["field"] == f"nodes.{unreachable.id}" for f in fields)
+        assert not any("Wait for" in f["message"] for f in fields)
+
+
+class TestMergeJudgedByRunConditions:
+    async def test_a_merge_after_a_nested_if_with_a_shared_else_publishes(self, mock_db_session):
+        """`X.true -> Y`, `Y.true -> A`, `Y.false -> T`, `X.false -> T`: A and T never run together."""
+        entry, x, y = _echo_node(), _if_node("X"), _if_node("Y")
+        a, t, merge = _step("A"), _step("T"), _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            x,
+            y,
+            a,
+            t,
+            merge,
+            edges=[
+                (entry, "out", x),
+                (x, "true", y),
+                (y, "true", a),
+                (y, "false", t),
+                (x, "false", t),
+                (a, "out", merge),
+                (t, "out", merge),
+            ],
+            bindings=[_decides_on(x.id), _decides_on(y.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_merge_after_a_switch_whose_cases_share_a_step_publishes(self, mock_db_session):
+        entry = _echo_node()
+        switch = _named(
+            "S",
+            "logic.switch",
+            {"rules": [{"name": "a", "condition": "value"}, {"name": "b", "condition": "value"}]},
+        )
+        shared, other, merge = _step("Shared"), _step("C"), _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            switch,
+            shared,
+            other,
+            merge,
+            edges=[
+                (entry, "out", switch),
+                (switch, "a", shared),
+                (switch, "b", shared),
+                (switch, "otherwise", other),
+                (shared, "out", merge),
+                (other, "out", merge),
+            ],
+            bindings=[_decides_on(switch.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_merge_waiting_for_all_names_a_branch_that_may_not_arrive(
+        self, mock_db_session
+    ):
+        """An unwired `otherwise` can be taken and reach nothing: neither branch is certain."""
+        entry = _echo_node()
+        switch = _named(
+            "S",
+            "logic.switch",
+            {"rules": [{"name": "r1", "condition": "value"}, {"name": "r2", "condition": "value"}]},
+        )
+        a, b = _step("A"), _step("B")
+        d = _step("D")
+        split = _split_node("P", "x", "y")
+        merge = _named("M", "logic.merge", {"wait_for": "all"})
+        graph = _graph(
+            entry,
+            split,
+            switch,
+            d,
+            a,
+            b,
+            merge,
+            edges=[
+                (entry, "out", split),
+                (split, "x", switch),
+                (split, "y", d),
+                (switch, "r1", a),
+                (switch, "r2", b),
+                (a, "out", merge),
+                (b, "out", merge),
+                (d, "out", merge),
+            ],
+            bindings=[_decides_on(switch.id)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "'a' is not certain to reach this merge")
+        assert _has(fields, f"nodes.{merge.id}", "'b' is not certain to reach this merge")
+        assert not _has(fields, f"nodes.{merge.id}", "'d' is not certain")
+
+    async def test_a_merge_waiting_for_one_names_a_branch_that_may_not_arrive(
+        self, mock_db_session
+    ):
+        entry, split = _echo_node(), _split_node("S", "a", "b")
+        branch = _if_node("I")
+        a, b, merge = _step("A"), _step("B"), _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            split,
+            branch,
+            a,
+            b,
+            merge,
+            edges=[
+                (entry, "out", split),
+                (split, "a", branch),
+                (split, "b", b),
+                (branch, "true", a),
+                (a, "out", merge),
+                (b, "out", merge),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        fields = await _fields(graph, mock_db_session)
+        assert _has(fields, f"nodes.{merge.id}", "Several branches reach this merge together")
+        assert _has(fields, f"nodes.{merge.id}", "'a' is not certain to arrive")
+        assert not _has(fields, f"nodes.{merge.id}", "set Wait for to All branches")
+
+    async def test_a_merge_joining_a_routed_steps_out_and_its_handler_publishes(
+        self, mock_db_session
+    ):
+        entry = _echo_node()
+        routed = _step("R", policy=NodePolicy(on_error="route"))
+        handler, merge = _named("H", "error.handle"), _named("M", "logic.merge")
+        graph = _graph(
+            entry,
+            routed,
+            handler,
+            merge,
+            edges=[
+                (entry, "out", routed),
+                (routed, "out", merge),
+                (routed, "error", handler),
+                (handler, "default", merge),
+            ],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+    async def test_a_handler_fed_by_two_steps_that_cannot_both_fail_publishes(
+        self, mock_db_session
+    ):
+        entry, branch = _echo_node(), _if_node("I")
+        a = _step("A", policy=NodePolicy(on_error="route"))
+        b = _step("B", policy=NodePolicy(on_error="route"))
+        handler, after = _named("H", "error.handle"), _step("After")
+        graph = _graph(
+            entry,
+            branch,
+            a,
+            b,
+            handler,
+            after,
+            edges=[
+                (entry, "out", branch),
+                (branch, "true", a),
+                (branch, "false", b),
+                (a, "error", handler),
+                (b, "error", handler),
+                (handler, "default", after),
+            ],
+            bindings=[_decides_on(branch.id)],
+        )
+        assert await validate_graph(mock_db_session, _owner_ctx(), graph)

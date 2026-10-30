@@ -13,7 +13,7 @@ import {
   INTEGER,
   OPTIONAL_STRING,
 } from "./fixtures";
-import { rule8NoParallelFanout } from "./rules";
+import { rule8OnePort } from "./rules";
 import {
   ANY_SCHEMA,
   isDynamic,
@@ -66,7 +66,42 @@ describe("isDynamic", () => {
   });
 });
 
+const MERGE_OUT = makeDefinition({
+  id: "logic.merge",
+  ports: [
+    port("out", "output", {
+      type: "object",
+      title: "LogicMergeOutput",
+      properties: {
+        branches: {
+          anyOf: [
+            {
+              type: "object",
+              additionalProperties: {
+                anyOf: [{ type: "object", additionalProperties: true }, { type: "null" }],
+              },
+            },
+            { type: "null" },
+          ],
+        },
+      },
+    }),
+  ],
+});
+
 describe("resolveFieldType", () => {
+  it("reads a branch of a Merge by name", () => {
+    expect(resolveFieldType(MERGE_OUT, "out", ["branches", "left"])).toBe(ANY_SCHEMA);
+    expect(
+      isDynamic({ type: "object", additionalProperties: { anyOf: [STRING, { type: "null" }] } }),
+    ).toBe(false);
+  });
+
+  it("still refuses an unknown field of a source that is not dynamic", () => {
+    expect(resolveFieldType(GET, "out", ["record", "nope"])).toBe(UNKNOWN);
+    expect(resolveFieldType(GET, "out", ["missing"])).toBe(UNKNOWN);
+  });
+
   it("resolves anything past a dynamic value to Any", () => {
     expect(resolveFieldType(LOOP_ITEM, "out", ["item", "record_id"])).toBe(ANY_SCHEMA);
   });
@@ -113,6 +148,6 @@ describe("rule 8 and a routed failure", () => {
       edges: [edge("e1", "A", "out", "B", "in"), edge("e2", "A", ERROR_PORT, "C", "in")],
     });
     const definitions: DefinitionMap = new Map([["A", routed]]);
-    expect(rule8NoParallelFanout(g, definitions)).toEqual([]);
+    expect(rule8OnePort(g, definitions)).toEqual([]);
   });
 });

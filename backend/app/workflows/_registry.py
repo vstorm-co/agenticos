@@ -141,6 +141,7 @@ def load_builtins() -> None:
         knowledge_search,
         logic_if,
         logic_merge,
+        logic_split,
         logic_switch,
         loop_item,
         loop_yield,

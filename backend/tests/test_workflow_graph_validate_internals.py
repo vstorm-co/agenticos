@@ -25,9 +25,10 @@ from app.workflows.graph.model import Edge, NodeInstance, NodePosition, Workflow
 from app.workflows.graph.validate import (
     _UNKNOWN,
     _kahn,
-    _nearest_common_dominator,
     _reached_through,
+    _resolve_definitions,
     _resolve_field_path,
+    _rule_8_one_port,
     _rule_12_policies,
     _types_compatible,
     derive_scopes,
@@ -602,35 +603,16 @@ async def test_a_binding_crossing_out_of_a_scope_body_is_refused(mock_db_session
     assert any(f["field"] == "bindings.0" for f in excinfo.value.details["fields"])
 
 
-async def test_a_non_control_node_with_two_edges_on_one_port_is_refused(mock_db_session):
+def test_rule_8_reports_no_edge_count():
+    """One port feeding several steps is parallel fan-out now: only a second port is refused."""
     a = _echo_node()
     b, c = _echo_node(), _echo_node()
-    edges = (_edge(a.id, "out", b.id, "in"), _edge(a.id, "out", c.id, "in"))
-    # Both edges use the same source port, so this exercises the "more than
-    # one edge on one port" branch rather than the "more than one port" one.
-    graph = WorkflowGraph(entry_node_id=a.id, nodes=(a, b, c), edges=edges)
-    with pytest.raises(GraphValidationError) as excinfo:
-        await validate_graph(mock_db_session, _owner_ctx(), graph)
-    assert any("more than one edge" in f["message"] for f in excinfo.value.details["fields"])
-
-
-def test_nearest_common_dominator_with_no_intersection_returns_none():
-    x, y = uuid4(), uuid4()
-    dominators = {x: frozenset({x}), y: frozenset({y})}
-    assert _nearest_common_dominator([x, y], dominators) is None
-
-
-def test_nearest_common_dominator_with_no_single_nearest_candidate_returns_none():
-    """A hand-built, deliberately non-tree-shaped dominators map: `common` is
-    non-empty but no member of it dominates every other member, which a real
-    dominator tree (nested chains from the root) never produces but the
-    function must still answer safely rather than raising."""
-    p, q, x, y = uuid4(), uuid4(), uuid4(), uuid4()
-    dominators = {
-        x: frozenset({p, q, x}),
-        y: frozenset({p, q, y}),
-    }
-    assert _nearest_common_dominator([x, y], dominators) is None
+    graph = WorkflowGraph(
+        entry_node_id=a.id,
+        nodes=(a, b, c),
+        edges=(_edge(a.id, "out", b.id, "in"), _edge(a.id, "out", c.id, "in")),
+    )
+    assert _rule_8_one_port(graph, _resolve_definitions(graph)) == []
 
 
 async def test_an_edge_to_a_node_id_that_does_not_exist_is_refused_as_a_dangling_reference(
@@ -758,7 +740,8 @@ async def test_a_merges_common_dominator_that_is_not_logic_if_is_refused(
     with pytest.raises(GraphValidationError) as excinfo:
         await validate_graph(mock_db_session, _owner_ctx(), graph)
     assert any(
-        f["field"] == f"nodes.{merge_node.id}" and "single way out" in f["message"]
+        f["field"] == f"nodes.{merge_node.id}"
+        and "Several branches reach this merge together" in f["message"]
         for f in excinfo.value.details["fields"]
     )
 

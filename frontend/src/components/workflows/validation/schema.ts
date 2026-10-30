@@ -199,7 +199,7 @@ function isAny(schema: JsonSchema): boolean {
 
 /**
  * Whether a path may reach into this value with no schema to follow - the analog
- * of `_is_dynamic`: `Any`, or an object of `Any` (optionally `| None`), such as a
+ * of `_is_dynamic`: `Any`, or an object of dynamic values (optionally `| None`), such as a
  * trigger's payload, a mapped record or a loop's current item. What such a path
  * finds is only known once the run has it, so the backend checks it when the node
  * is dispatched, and here it resolves to {@link ANY_SCHEMA}.
@@ -211,7 +211,7 @@ export function isDynamic(schema: ResolvedType): boolean {
   if (isAny(schema)) return true;
   if (schema["type"] !== "object" || isObject(schema["properties"])) return false;
   const values = schema["additionalProperties"];
-  return values === undefined || values === true || (isObject(values) && isAny(values));
+  return values === undefined || values === true || (isObject(values) && isDynamic(values));
 }
 
 /** An optional value's own schema - `X | None` read as `X` - or the schema unchanged. */

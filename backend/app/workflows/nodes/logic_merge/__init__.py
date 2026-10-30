@@ -2,9 +2,14 @@
 
 from app.workflows._registry import register
 from app.workflows.contracts.definition import NodeDefinition, Port
-from app.workflows.nodes.logic_merge._handler import LogicMergeOutput, handle
+from app.workflows.nodes.logic_merge._handler import (
+    LogicMergeConfig,
+    LogicMergeOutput,
+    MergeBranchKey,
+    handle,
+)
 
-__all__ = ["LogicMergeOutput"]
+__all__ = ["LogicMergeConfig", "LogicMergeOutput", "MergeBranchKey"]
 
 register(
     NodeDefinition(
@@ -14,7 +19,7 @@ register(
         category="logic",
         description="Join branches back into one path.",
         kind="control",
-        config_schema=None,
+        config_schema=LogicMergeConfig,
         input_schema=None,
         output_schema=LogicMergeOutput,
         ports=(
