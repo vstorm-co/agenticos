@@ -1460,10 +1460,74 @@ remembered, and a trigger can name one of the organization's team channels or
 group chats: every fire's answer is then posted there as a new message, under the
 trigger's name. A personal chat is never offered — it is somebody's own.
 
+## Discord
+
+A Discord bot is an application in the Discord Developer Portal, spoken to over
+Discord's own Gateway and REST API with no library between (#2079). Messages,
+slash commands and button presses all arrive over the bot's one Gateway
+connection, so **a deployment needs no public address for Discord**, and a
+Discord bot has no webhook mode.
+
+1. In the [Developer Portal](https://discord.com/developers/applications), create
+   an application. Under **Bot**, reset and copy the **token**, and switch on
+   **Message Content Intent**. Without it Discord refuses the connection, and the
+   bot's row says which switch to turn on. Under **Installation**, set **Install
+   Link** to *None*, then switch off **Public Bot** under **Bot**. Anyone can add
+   a public bot to their own server and talk to the agent there, so the bot
+   refuses to connect while it is public. One made public while connected stops
+   the next time it is added to a server.
+2. Under **OAuth2 → URL Generator**, tick the `bot` and `applications.commands`
+   scopes and the permissions **View Channels**, **Send Messages**, **Send
+   Messages in Threads**, **Create Public Threads**, **Read Message History** and
+   **Attach Files**, then open the URL to add the bot to a server. Without
+   **Attach Files** a file or chart the agent sends is refused, and the text
+   posted with it is lost too.
+3. Register it: **Channels → Add channel**, platform `discord`, with the token.
+
+The bot registers its commands when it connects: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` and `/help`, and **Ask the agent** under *Apps* on any message.
+Discord can take a while to show new commands in every server.
+
+| Where | When it answers |
+|---|---|
+| A direct message | Every message. The direct message is one conversation, and `/new` starts it over |
+| A server channel | When it is @mentioned or a message replies to it. The answer opens a thread on the question, and the thread is the conversation |
+| A thread the bot opened | Every message in it |
+| `/ask` | Anywhere: the question, up to 2,000 characters, is posted and the answer is threaded under it |
+| *Apps → Ask the agent* | On any message: the agent is asked about that message, in a thread on it |
+
+`/agents`, `/link` and the other commands answer privately, to whoever ran them.
+`/new` starts a thread's conversation over; in a server channel, where every
+mention already starts a new one, it says so instead.
+In a channel where the bot may not open threads, the answer is a reply to the
+question instead, and replying to the answer continues that conversation.
+
+**The answer is written in place.** The bot posts one message and edits it as the
+answer streams, running past 2,000 characters into further messages. Only text the
+guardrails have already screened is written, so a redacted secret is never shown,
+even for a moment. Nothing the bot posts can ping anybody: `@everyone` and role
+mentions in an answer stay plain text.
+
+**Approvals and questions are buttons**, or selects for a question with more than
+25 options. Thumbs go under every answer, and a thumbs-down opens a Discord form
+asking what was wrong. Discord has no reaction on the question.
+
+**Who is speaking** is the Discord user ID, linked to a member with `/link` as on
+every platform. A conversation from a server channel is shown in the console to
+those who can still see that channel, by the server's roles and the channel's
+permission overwrites, which is what being in a channel means on Discord. A
+private thread is invite-only, so it is a room of its own: a conversation from
+it is shown only to those still in that thread, and the notes the agent keeps
+there are not shared with the channel.
+
+Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
+asks for sharding and the bot stops with that reason. The directory tools are not
+offered on Discord, and a server's roles are not mapped to organization groups.
+
 ## A bot that cannot start stops, rather than retrying
 
-Telegram polling, Slack Socket Mode and the Mattermost event stream all run
-under one supervisor that reconnects a dropped session. A missing or rejected
+Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
+Gateway all run under one supervisor that reconnects a dropped session. A missing or rejected
 configuration value is not a dropped session, and the supervisor treats it
 differently: it records the bot as down with the reason, logs once and stops.
 Nothing it does would change the row — an operator has to add the Slack `xapp-`
@@ -1482,13 +1546,13 @@ A dropped session is different: that one is retried, waiting five seconds and
 doubling to a minute, so a server down for an hour is not hammered 720 times by
 every bot on it. A session that ended cleanly starts the ladder over. The line
 logged before each wait names the delay it is about to wait, and the same loop
-serves all three platforms, so the policy cannot drift between them.
+serves every one of these platforms, so the policy cannot drift between them.
 
 ---
 
 ## Approvals and questions as buttons
 
-A run started in Slack, Telegram, Mattermost or Teams can stop for a person: a gated
+A run started in Slack, Telegram, Mattermost, Teams or Discord can stop for a person: a gated
 tool call waits for a decision, or the agent asks an `ask_user` question. The
 chat is offered the choices where it is — a message per approval with
 **Approve** and **Reject**, a message per question with its options and **Skip**.
@@ -1949,7 +2013,7 @@ surface, so a difference between the console and Mattermost remains visible.
 
 - **Choose whether group mentions start a run.** In the bot's create or edit dialog, *Respond to group mentions* is off by default. Direct invocations continue to work. Enabling it also admits Mattermost `@all`, `@here` and `@channel`, Slack's native room mentions, and structured Teams channel/team mentions. Sender identity, access checks and rate limits still apply. Quoted code and unrelated users' mentions do not count.
 
-    Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity.
+    Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity. Discord counts `@everyone` and `@here` only when the sender may ping them, which is when Discord notifies the room.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
 - **All MCP calls require approval in chat apps, including reads and organization or platform connections.** A linked account identifies whose connection is used; it does not grant automatic permission to publish personal results to a conversation. The same rule applies to delegated agents and resumed calls.

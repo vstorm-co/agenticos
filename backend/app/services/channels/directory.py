@@ -71,6 +71,9 @@ PLATFORM_TOOLS: dict[str, tuple[str, ...]] = {
     # The Bot Connector answers a conversation's roster, and nothing that would
     # search a tenant's channels or read what was said before the bot was asked.
     "teams": ("get_channel_info", "list_channel_members", "send_channel_file"),
+    # Discord posts a file like any reply. Its directory questions are not
+    # answered yet (#2079).
+    "discord": ("send_channel_file",),
 }
 """What each platform can actually answer, as the Builder offers it.
 

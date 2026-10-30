@@ -117,8 +117,10 @@ class TestClosing:
     async def test_a_platform_with_no_adapter_is_logged_rather_than_raised_at(self):
         """This runs after a transaction committed. Raising would leave a bot
         deleted and a background task failing about it."""
-        with patch("app.services.channels.supervisor.get_adapter", side_effect=KeyError("discord")):
-            await close_inbound_stream(bot_id="b-1", platform="discord")
+        with patch(
+            "app.services.channels.supervisor.get_adapter", side_effect=KeyError("whatsapp")
+        ):
+            await close_inbound_stream(bot_id="b-1", platform="whatsapp")
 
 
 class TestShutdown:

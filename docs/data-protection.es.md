@@ -1,5 +1,5 @@
 ---
-source_sha: "f04a97d799b3"
+source_sha: "0b3da5845c8d"
 ---
 
 # Protección de datos { #data-protection }
@@ -210,7 +210,7 @@ una laguna, y así queda dicho.
 | En tránsito, hacia los almacenes | `POSTGRES_SSLMODE` y `REDIS_SSL`; `agenticos cmd doctor` informa de si la conexión que estableció iba cifrada | [Conexiones cifradas](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | En tránsito, hacia los providers | HTTPS a todo endpoint catalogado. Una `base_url` propia se rechaza sin host o con credenciales dentro, pero **`http://` se acepta**, para un Ollama o una pasarela en la propia red del deployment; un perfil en HTTP plano que apunte fuera de esa red envía los prompts y la clave en claro. El punto 4 de la lista de comprobación enumera todos esos perfiles | `refused_field("base_url", ...)` en el servicio de perfiles de modelo; el esquema es control del operador |
 | Secretos en respuestas, logs, auditoría, exportaciones | Ningún endpoint devuelve un texto en claro; `SecretStr` en todas partes; los specs referencian secretos por id | [Secretos](secrets.md#what-never-happens) |
-| Datos personales en los logs | `app/core/logging.py` redacta direcciones de correo, JWT, claves de API, tokens bearer y pares `password=` de cada registro de log, tanto en la API como en el worker | `tests/test_logging.py`; el worker lo instala en `app/worker/__main__.py`, y cada proceso hijo de ingesta en `app/worker/child.py` (#440) |
+| Datos personales en los logs | `app/core/logging.py` redacta direcciones de correo, JWT, claves de API, tokens bearer, tokens de interacción de Discord y pares `password=` de cada registro de log, tanto en la API como en el worker. Una llamada a Discord autenticada con un token de interacción, que viaja en su URL, no se traza | `tests/test_logging.py`, `test_an_interaction_token_never_reaches_a_trace`; el worker lo instala en `app/worker/__main__.py`, y cada proceso hijo de ingesta en `app/worker/child.py` (#440) |
 | Datos personales que llegan al modelo | La capability `guardrails` redacta IBAN, números de tarjeta, números de seguridad social estadounidenses, números de teléfono y direcciones de correo de los prompts, las respuestas, los resultados y los argumentos de herramientas cuando está configurada | [Capabilities](reference/capabilities.md); sus pruebas bajo `tests/` |
 | Datos personales en una columna de fallo | `rag_documents.error_message` y similares registran la etapa y la clase, nunca el texto del cliente | `app/services/rag/failures.py` (#423) |
 | Rendición de cuentas | Las entradas de auditoría comparten la transacción que actúa y fallan en cerrado; la suplantación nombra a ambas personas; las exportaciones masivas quedan registradas | [Gobernanza](governance.md#audit) |

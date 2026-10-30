@@ -40,6 +40,7 @@ const CHANNEL_LABEL: Record<string, string> = {
   slack: "Slack",
   telegram: "Telegram",
   mattermost: "Mattermost",
+  discord: "Discord",
 };
 
 /**

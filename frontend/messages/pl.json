@@ -2906,7 +2906,7 @@
         "knowledge": "Dokumenty, z których odpowiada.",
         "departments": "Grupy decydują, kto widzi którego agenta.",
         "teammate": "Z agentów lepiej korzystać razem.",
-        "channel": "Slack, Teams, Telegram albo Mattermost."
+        "channel": "Slack, Teams, Telegram, Mattermost albo Discord."
       },
       "left": "{count, plural, =1 {Został 1 krok} few {Zostały # kroki} many {Zostało # kroków} other {Zostało # kroków}}",
       "ratio": "{done}/{total}",
@@ -4804,7 +4804,7 @@
       "broadcastsTeamsHint": "Po włączeniu pobierz zaktualizowany pakiet aplikacji Teams i zainstaluj go ponownie lub uaktualnij w danym zespole albo czacie. Właściciel musi wyrazić zgodę na odbieranie wiadomości rozmowy.",
       "broadcastsTelegramHint": "Telegram używa tekstowych aliasów @all, @here, @channel i @everyone. Nie powiadamiają one całej grupy. Bot musi otrzymywać wiadomości grupy; sprawdź tryb prywatności w BotFather.",
       "addChannel": "Dodaj kanał",
-      "addChannelDescription": "Zarejestruj bota Slack, Telegram lub Mattermost dla organizacji. Każde poświadczenie jest tu szyfrowane w spoczynku i nigdy nie jest odczytywane z powrotem.",
+      "addChannelDescription": "Zarejestruj bota Slack, Teams, Telegram, Mattermost lub Discord dla organizacji. Każde poświadczenie jest tu szyfrowane w spoczynku i nigdy nie jest odczytywane z powrotem.",
       "addOneBecomesBindable": "Zarejestruj go, a agentów będzie można na nim udostępnić z zakładki Dostępność.",
       "appLevelToken": "Token aplikacji",
       "appLevelTokenHint": "Token xapp-, dla Socket Mode w trakcie developmentu. Opcjonalny.",
@@ -4816,6 +4816,7 @@
       "botTokenHintMattermost": "Token dostępu konta bota",
       "botTokenHintSlack": "Token OAuth użytkownika-bota (xoxb-...) z Twojej aplikacji Slack",
       "botTokenHintTeams": "Sekret klienta rejestracji aplikacji Azure Bot (Certyfikaty i wpisy tajne w Entra).",
+      "botTokenHintDiscord": "Token z sekcji Bot w Discord Developer Portal. Włącz tam Message Content Intent, wyłącz Public Bot i zaproś bota z zakresami bot oraz applications.commands.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "W zasobie Azure Bot, w sekcji Konfiguracja. Utwórz bota jako jednodzierżawowego.",
       "teamsTenantId": "Identyfikator dzierżawy",
@@ -4907,7 +4908,7 @@
       "transcriptionInheritsFromOrg": "{pair}, od organizacji",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
+      "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} discord {Discord wysyła wiadomości głosowe jako Ogg/Opus} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "transcriptionProviderNoKey": "{name} (brak pasującego klucza)",
       "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
     },
@@ -5331,6 +5332,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceDiscord": "Discord",
       "surfaceFollowUps": "Następne kroki",
       "surfaceSchedule": "Harmonogram",
       "surfaceSlack": "Slack",

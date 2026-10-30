@@ -737,6 +737,8 @@ include = [
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
@@ -1243,6 +1245,8 @@ include = [
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    # What the Discord adapter says and reads, without the I/O (#2079).
+    "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",

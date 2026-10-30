@@ -41,6 +41,17 @@ export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
   ["hourglass", "⌛"],
 ];
 
+/**
+ * Where the bot can react to a question. Teams and Discord answer without one,
+ * so a reaction chosen there would be saved and never drawn.
+ */
+const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost"];
+
+/** Whether the bot can react to a question on `platform`. */
+export function reactsOn(platform: ChannelPlatform): boolean {
+  return REACTS.includes(platform);
+}
+
 /** The select's value for "no reaction" - a name no platform spells. */
 const NONE = "none";
 
@@ -74,36 +85,38 @@ export function AnswerStyleFields({
   return (
     <div className="space-y-4">
       <p className="text-sm font-medium">{t("answerStyle")}</p>
-      <FormField
-        label={t("ackReaction")}
-        htmlFor={`${idPrefix}-ack-reaction`}
-        description={t("ackReactionHint")}
-      >
-        <Select
-          value={reaction ?? NONE}
-          onValueChange={(next) =>
-            onChange({ ...value, ack_reaction: next === NONE ? null : next })
-          }
+      {reactsOn(platform) && (
+        <FormField
+          label={t("ackReaction")}
+          htmlFor={`${idPrefix}-ack-reaction`}
+          description={t("ackReactionHint")}
         >
-          <SelectTrigger id={`${idPrefix}-ack-reaction`} className="max-w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>{t("noReaction")}</SelectItem>
-            {options.map(([name, emoji]) => (
-              <SelectItem key={name} value={name} textValue={name}>
-                {/* i18n-exempt: an emoji and its platform name, the same in every language */}
-                <span className="flex items-center gap-2">
-                  <span aria-hidden className="w-5 text-center text-base leading-none">
-                    {emoji}
+          <Select
+            value={reaction ?? NONE}
+            onValueChange={(next) =>
+              onChange({ ...value, ack_reaction: next === NONE ? null : next })
+            }
+          >
+            <SelectTrigger id={`${idPrefix}-ack-reaction`} className="max-w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>{t("noReaction")}</SelectItem>
+              {options.map(([name, emoji]) => (
+                <SelectItem key={name} value={name} textValue={name}>
+                  {/* i18n-exempt: an emoji and its platform name, the same in every language */}
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden className="w-5 text-center text-base leading-none">
+                      {emoji}
+                    </span>
+                    <span className="font-mono text-xs">{name}</span>
                   </span>
-                  <span className="font-mono text-xs">{name}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FormField>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
 
       <div className="flex items-start gap-3">
         <Switch

@@ -1,5 +1,5 @@
 ---
-source_sha: "968f30d76fa2"
+source_sha: "6c3d5f80e3c5"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1615,10 +1615,84 @@ Organisation nennen: Die Antwort jeder Ausführung wird dann dort als neue Nachr
 gepostet, unter dem Namen des Triggers. Ein persönlicher Chat wird nie angeboten — er
 gehört jemandem.
 
+## Discord { #discord }
+
+Ein Discord-Bot ist eine Anwendung im Discord Developer Portal, angesprochen über
+Discords eigenes Gateway und die REST-API, ohne Bibliothek dazwischen (#2079).
+Nachrichten, Slash-Befehle und Schaltflächen-Klicks kommen alle über die eine
+Gateway-Verbindung des Bots, sodass **ein Deployment für Discord keine öffentliche
+Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
+
+1. Erstellen Sie im [Developer Portal](https://discord.com/developers/applications)
+   eine Anwendung. Setzen Sie unter **Bot** das **Token** zurück, kopieren Sie es
+   und schalten Sie **Message Content Intent** ein. Ohne den lehnt Discord die
+   Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt. Setzen Sie
+   unter **Installation** den **Install Link** auf *None* und schalten Sie dann
+   unter **Bot** **Public Bot** aus. Einen öffentlichen Bot kann jeder zu seinem
+   eigenen Server hinzufügen und dort mit dem Agenten sprechen, deshalb verweigert
+   der Bot die Verbindung, solange er öffentlich ist. Ein Bot, der während der
+   Verbindung öffentlich wird, hält an, sobald er das nächste Mal einem Server
+   hinzugefügt wird.
+2. Kreuzen Sie unter **OAuth2 → URL Generator** die Scopes `bot` und
+   `applications.commands` an sowie die Berechtigungen **View Channels**, **Send
+   Messages**, **Send Messages in Threads**, **Create Public Threads**, **Read
+   Message History** und **Attach Files**, und öffnen Sie dann die URL, um den Bot
+   einem Server hinzuzufügen. Ohne **Attach Files** wird eine Datei oder ein
+   Diagramm des Agenten abgelehnt, und der Text, der damit gesendet wurde, geht
+   ebenfalls verloren.
+3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `discord`,
+   mit dem Token.
+
+Der Bot registriert seine Befehle beim Verbinden: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` und `/help`, dazu **Ask the agent** unter *Apps* auf jeder
+Nachricht. Discord kann eine Weile brauchen, bis neue Befehle auf jedem Server
+erscheinen.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Eine Direktnachricht | Auf jede Nachricht. Die Direktnachricht ist eine Unterhaltung, und `/new` beginnt sie neu |
+| Ein Serverkanal | Wenn er @erwähnt wird oder eine Nachricht auf ihn antwortet. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
+| Ein Thread, den der Bot geöffnet hat | Auf jede Nachricht darin |
+| `/ask` | Überall: die Frage, bis zu 2.000 Zeichen, wird gepostet und die Antwort im Thread darunter gegeben |
+| *Apps → Ask the agent* | Auf jeder Nachricht: der Agent wird zu dieser Nachricht gefragt, in einem Thread darauf |
+
+`/agents`, `/link` und die anderen Befehle antworten privat, nur dem, der sie
+ausgeführt hat. `/new` beginnt die Unterhaltung eines Threads neu; in einem
+Server-Kanal, in dem jede Erwähnung ohnehin eine neue beginnt, sagt es das
+stattdessen. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
+Antwort stattdessen eine Antwort auf die Frage, und wer darauf antwortet, setzt
+dieses Gespräch fort.
+
+**Die Antwort wird an Ort und Stelle geschrieben.** Der Bot postet eine Nachricht
+und bearbeitet sie, während die Antwort einströmt, und läuft nach 2.000 Zeichen in
+weitere Nachrichten über. Geschrieben wird nur Text, den die Guardrails schon
+geprüft haben, sodass ein geschwärztes Geheimnis nie zu sehen ist, auch nicht für
+einen Moment. Nichts, was der Bot postet, kann jemanden anpingen: `@everyone` und
+Rollenerwähnungen in einer Antwort bleiben einfacher Text.
+
+**Freigaben und Fragen sind Schaltflächen**, bei einer Frage mit mehr als 25
+Optionen Auswahllisten. Unter jeder Antwort stehen Daumen, und ein Daumen nach
+unten öffnet ein Discord-Formular, das fragt, was falsch war. Eine Reaktion auf die
+Frage gibt es auf Discord nicht.
+
+**Wer spricht**, ist die Discord-Benutzer-ID, mit `/link` wie auf jeder Plattform
+mit einem Mitglied verknüpft. Eine Unterhaltung aus einem Serverkanal wird in der
+Konsole denen gezeigt, die den Kanal noch sehen können, nach den Rollen des Servers
+und den Berechtigungsüberschreibungen des Kanals, denn das heißt auf Discord, in
+einem Kanal zu sein. Ein privater Thread ist nur auf Einladung zugänglich und
+daher ein eigener Raum: Eine Unterhaltung daraus wird nur denen gezeigt, die
+noch in diesem Thread sind, und die Notizen, die der Agent dort führt, werden
+nicht mit dem Kanal geteilt.
+
+Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
+verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die
+Verzeichnis-Tools werden auf Discord nicht angeboten, und die Rollen eines Servers
+werden nicht auf Gruppen der Organisation abgebildet.
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Telegram-Polling, Slack Socket Mode und der Mattermost-Event-Stream laufen alle
-unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
+Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream und das
+Discord-Gateway laufen alle unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
 oder zurückgewiesener Konfigurationswert ist keine abgerissene Session, und der
 Supervisor behandelt ihn anders: er vermerkt den Bot mit dem Grund als
 ausgefallen, protokolliert einmal und hört auf. Nichts, was er tut, würde die
@@ -1640,14 +1714,14 @@ Sekunden Wartezeit, verdoppelt bis zu einer Minute, sodass ein Server, der eine
 Stunde ausfällt, nicht von jedem Bot darauf 720-mal bearbeitet wird. Eine Session,
 die sauber endete, beginnt die Leiter von vorn. Die Zeile, die vor jedem Warten
 protokolliert wird, benennt die Verzögerung, die sie gleich abwartet, und dieselbe
-Schleife bedient alle drei Plattformen, sodass die Regel zwischen ihnen nicht
+Schleife bedient jede dieser Plattformen, sodass die Regel zwischen ihnen nicht
 auseinanderlaufen kann.
 
 ---
 
 ## Freigaben und Fragen als Schaltflächen { #approvals-and-questions-as-buttons }
 
-Ein in Slack, Teams, Telegram oder Mattermost gestarteter Run kann für einen Menschen
+Ein in Slack, Teams, Telegram, Mattermost oder Discord gestarteter Run kann für einen Menschen
 anhalten: Ein freigabepflichtiger Tool-Aufruf wartet auf eine Entscheidung, oder
 der Agent stellt eine `ask_user`-Frage. Der Chat bekommt die Auswahl dort, wo er
 ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachricht
@@ -2163,7 +2237,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 
 - **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
 
-    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
+    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft. Discord zählt `@everyone` und `@here` nur, wenn der Absender sie verwenden darf, also wenn Discord den Raum tatsächlich benachrichtigt.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
 - **Alle MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe und Organisations- oder Plattformverbindungen.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.

@@ -165,6 +165,12 @@ describe("editing a bot", () => {
     expect(onSubmit).toHaveBeenCalledWith("b1", { webhook_mode: true });
   });
 
+  it.each(["discord", "teams"] as const)("offers %s no reaction it would not draw", (platform) => {
+    render(<Harness platform={platform} onChange={vi.fn()} />);
+    expect(screen.queryByLabelText("React to a question with")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Thumbs under answers")).toBeInTheDocument();
+  });
+
   it("offers no reaction, and keeps one stored before the list existed", async () => {
     const onChange = vi.fn();
     render(<Harness platform="slack" onChange={onChange} initial={{ ack_reaction: "rocket" }} />);

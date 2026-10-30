@@ -98,6 +98,7 @@ _SURFACES: dict[str, RunSurface] = {
     "telegram": RunSurface.TELEGRAM,
     "mattermost": RunSurface.MATTERMOST,
     "teams": RunSurface.TEAMS,
+    "discord": RunSurface.DISCORD,
 }
 
 

@@ -188,10 +188,10 @@ async def test_a_comment_is_kept_in_the_background_and_a_failure_only_logged() -
     ):
         db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_context.return_value.__aexit__ = AsyncMock(return_value=False)
-        feedback.return_value.comment = AsyncMock()
-        await process_feedback_comment(_said())
+        feedback.return_value.comment = AsyncMock(return_value=True)
+        assert await process_feedback_comment(_said()) is True
         feedback.return_value.comment.side_effect = RuntimeError("boom")
-        await process_feedback_comment(_said())
+        assert await process_feedback_comment(_said()) is False
 
     assert feedback.return_value.comment.await_count == 2
 

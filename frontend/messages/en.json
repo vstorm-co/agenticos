@@ -2906,7 +2906,7 @@
         "knowledge": "The documents it answers from.",
         "departments": "Groups decide who sees which agent.",
         "teammate": "Agents are worth more shared.",
-        "channel": "Slack, Teams, Telegram or Mattermost."
+        "channel": "Slack, Teams, Telegram, Mattermost or Discord."
       },
       "left": "{count, plural, =1 {1 step left} other {# steps left}}",
       "ratio": "{done}/{total}",
@@ -5034,7 +5034,7 @@
       "broadcastsTeamsHint": "After enabling, download the updated Teams app package and reinstall or upgrade it in the target team or chat. Its owner must consent to receiving conversation messages.",
       "broadcastsTelegramHint": "Telegram uses literal @all, @here, @channel or @everyone aliases. It does not notify the whole group. The bot must receive group messages; check privacy mode in BotFather.",
       "addChannel": "Add channel",
-      "addChannelDescription": "Register a Slack, Telegram or Mattermost bot for the organization. Every credential here is sealed at rest and never read back.",
+      "addChannelDescription": "Register a Slack, Teams, Telegram, Mattermost or Discord bot for the organization. Every credential here is sealed at rest and never read back.",
       "addOneBecomesBindable": "Register one and agents can be made available on it from their Availability tab.",
       "appLevelToken": "App-level token",
       "appLevelTokenHint": "The xapp- token, for Socket Mode in development. Optional.",
@@ -5046,6 +5046,7 @@
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
       "botTokenHintTeams": "The client secret of the Azure Bot's app registration (Certificates & secrets in Entra).",
+      "botTokenHintDiscord": "The token under Bot in the Discord Developer Portal. Switch on Message Content Intent and switch off Public Bot there, then invite the bot with the bot and applications.commands scopes.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "On the Azure Bot resource, under Configuration. Create the bot as single-tenant.",
       "teamsTenantId": "Tenant ID",
@@ -5136,7 +5137,7 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
@@ -5560,6 +5561,7 @@
       "surfaceMattermost": "Mattermost",
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceDiscord": "Discord",
       "surfaceFollowUps": "Follow-ups",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
