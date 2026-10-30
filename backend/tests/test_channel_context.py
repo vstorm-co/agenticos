@@ -258,6 +258,7 @@ def test_explicit_all_policy_is_preserved_in_channels(surface: str) -> None:
     )
 
 
+@pytest.mark.security
 async def test_existing_default_approval_text_is_refreshed_without_losing_custom_guidance() -> None:
     from app.services.channels.formatting import LEGACY_MCP_APPROVAL_GUIDANCE, MCP_APPROVAL_GUIDANCE
 
@@ -294,6 +295,7 @@ def test_author_labels_are_quoted_as_data_and_missing_names_are_unknown() -> Non
 
 
 @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.security
 def test_unlinked_channel_senders_still_need_approval_for_mcp_reads(surface: str) -> None:
     from uuid import uuid4
 

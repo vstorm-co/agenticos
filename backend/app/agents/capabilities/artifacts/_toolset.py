@@ -306,7 +306,7 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         ).model_dump_json()
 
     async def read_artifact(ctx: RunContext[AgentDeps], name: str) -> str:
-        """Read the current version of a page this agent published, as it was written.
+        """Read a published app's source across conversations and sandboxes before updating it.
 
         The published source persists across conversations and sandboxes. Use this
         even when the original workspace file is missing. Then call publish_artifact

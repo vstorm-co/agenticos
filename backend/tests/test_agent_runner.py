@@ -3379,6 +3379,7 @@ class TestResume:
         return build
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_channel_reference_context_is_restored_for_approval_resumption(self):
         build = await self._resumed(
             paused_state={
