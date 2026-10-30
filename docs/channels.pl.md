@@ -1,5 +1,5 @@
 ---
-source_sha: "968f30d76fa2"
+source_sha: "4a73f274580f"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2021,7 +2021,12 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
-- **Wszystkie narzędzia MCP wymagają zatwierdzenia w komunikatorach, także odczyty oraz połączenia organizacyjne i platformowe.** Powiązanie konta wskazuje, czyje połączenie jest używane; nie daje automatycznej zgody na publikowanie prywatnych wyników w rozmowie. Reguła obejmuje też delegatów i wznowione wywołania.
+- **Odczyty MCP podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
+
+Każda wiadomość przenosi identyfikator autora na platformie, nazwę użytkownika, nazwę wyświetlaną i identyfikator wiadomości w zapisanym prompcie użytkownika, poza instrukcjami systemowymi. Brakujące nazwy pozostają nieznane. Etykiety autora nie nadają dostępu do narzędzi. Agent odpowiada bieżącemu nadawcy, rozdziela prośby uczestników i pisze ogłoszenia bezpośrednio do odbiorców.
+
+Opublikowaną aplikację można zmienić z innej rozmowy bez pierwotnego sandboxa. `read_artifact` odzyskuje zapisane źródło, a `publish_artifact` z tą samą nazwą oraz poprawkami lub nową treścią aktualizuje aplikację. Link i historia wersji pozostają wspólne. Dostęp do odczytu nie nadaje prawa edycji; dotychczasowe kontrole uprawnień nadal obowiązują.
+
 - **Agent wie, gdzie odpowiada i czyje konto jest dostępne.** Wskazówki runtime podają komunikator i konsolę wdrożenia, wyjaśniają zarządzany workspace oraz odróżniają organizacyjne połączenia MCP od usług osobistych. Te ostatnie wymagają zarówno powiązanej tożsamości nadawcy, jak i jego autoryzowanego połączenia z usługą. Łączenie zaczyna się od samego `link` w wiadomości prywatnej; prywatny URL połączenia nie trafia na kanał. Agent relacjonuje rzeczywiste wyniki narzędzi i wskazuje jeden konkretny następny krok, jeśli brakuje autoryzacji lub możliwości.
 - **Ponownie dostarczona wiadomość dostaje odpowiedź raz.** Każda platforma
   dostarcza co najmniej raz: route'y webhooków odpowiadają 200 przed jakąkolwiek

@@ -7,16 +7,27 @@ local directory, so a version's bytes can be seen to land and to leave.
 """
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.tools import RunContext
+from pydantic_ai.usage import RunUsage
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.audience import RunAudience
+from app.agents.capabilities.artifacts._toolset import (
+    ArtifactEdit,
+    build_artifacts_toolset,
+    parse_published_artifact,
+)
+from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
@@ -765,3 +776,70 @@ class TestAProjectsApps:
 
         assert total == 1
         assert [item.id for item in items] == [made_here.artifact_id]
+
+
+async def test_another_conversation_edits_stored_source_without_the_original_sandbox(
+    db: AsyncSession, storage: LocalFileStorage
+) -> None:
+    from app.db.models.agent_run import AgentRun, RunStatus
+    from app.db.models.conversation import Conversation
+
+    organization, user, agent = await _tenant(db)
+    tools = build_artifacts_toolset().tools
+
+    @asynccontextmanager
+    async def session() -> AsyncIterator[AsyncSession]:
+        yield db
+
+    async def context() -> RunContext[AgentDeps]:
+        conversation = Conversation(organization_id=organization.id, user_id=user.id)
+        db.add(conversation)
+        await db.flush()
+        run = AgentRun(
+            organization_id=organization.id,
+            agent_id=agent.id,
+            conversation_id=conversation.id,
+            status=RunStatus.COMPLETED.value,
+        )
+        db.add(run)
+        await db.flush()
+        return RunContext(
+            deps=AgentDeps(
+                organization_id=organization.id,
+                agent_id=agent.id,
+                user_id=str(user.id),
+                audience=RunAudience(user_id=user.id),
+                conversation_id=conversation.id,
+                run_id=run.id,
+            ),
+            model=TestModel(),
+            usage=RunUsage(),
+        )
+
+    original, followup = await context(), await context()
+    assert original.deps.conversation_id != followup.deps.conversation_id
+    with patch("app.services.artifact.get_db_context", session):
+        first = parse_published_artifact(
+            await tools["publish_artifact"].function(
+                original,
+                name="town-hall",
+                content="<h1>Overlapping map</h1>",
+            )
+        )
+        source = await tools["read_artifact"].function(followup, name="town-hall")
+        assert "<h1>Overlapping map</h1>" in source
+        updated = parse_published_artifact(
+            await tools["publish_artifact"].function(
+                followup,
+                name="town-hall",
+                edits=[ArtifactEdit(old="Overlapping map", new="Readable map")],
+            )
+        )
+    assert first is not None and updated is not None
+    assert updated.artifact_id == first.artifact_id
+    assert updated.url == first.url
+    assert updated.version == 2 and not updated.created
+    assert await _versions(db, first.artifact_id) == [1, 2]
+    version = await artifact_repo.latest_version(db, first.artifact_id)
+    assert version is not None
+    assert await storage.load(version.storage_path) == b"<h1>Readable map</h1>"

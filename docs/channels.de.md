@@ -1,5 +1,5 @@
 ---
-source_sha: "968f30d76fa2"
+source_sha: "4a73f274580f"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2166,7 +2166,12 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
-- **Alle MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe und Organisations- oder Plattformverbindungen.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.
+- **MCP-Lesezugriffe folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
+
+Jede Nachricht enthält die Plattform-ID des Autors, Benutzername, Anzeigename und Nachrichten-ID im gespeicherten Benutzerprompt außerhalb der Systemanweisungen. Fehlende Namen bleiben unbekannt. Autorenbezeichnungen erteilen keinen Werkzeugzugriff. Der Agent antwortet dem aktuellen Absender, hält die Anliegen der Teilnehmer getrennt und richtet Ankündigungen direkt an ihr Publikum.
+
+Veröffentlichte Apps lassen sich aus einer anderen Unterhaltung ohne die ursprüngliche Sandbox ändern. `read_artifact` liest den gespeicherten Quelltext; `publish_artifact` mit demselben Namen und Änderungen oder neuem Inhalt aktualisiert die App. Link und Versionshistorie bleiben erhalten. Lesezugriff erteilt keine Bearbeitungsrechte; die bestehenden Berechtigungsprüfungen gelten weiterhin.
+
 - **Der Agent kennt den Ort und das verfügbare Konto.** Laufzeitinstruktionen nennen Plattform und Deployment-Konsole, erklären den verwalteten Workspace und unterscheiden organisatorische MCP-Verbindungen von persönlichen Diensten. Persönliche Dienste benötigen eine verknüpfte Absenderidentität und deren autorisierte Dienstverbindung. Die Verknüpfung beginnt mit `link` ohne Schrägstrich in einer Direktnachricht; der private Verbindungslink gehört nicht in einen Channel. Der Agent nennt tatsächliche Tool-Ergebnisse und einen konkreten nächsten Schritt bei fehlender Anmeldung oder Funktion.
 - **Eine erneut zugestellte Nachricht wird einmal beantwortet.** Jede Plattform
   liefert mindestens einmal: die Webhook-Routen antworten mit 200, bevor

@@ -781,12 +781,16 @@ class TestOneMessageOneStoredFile:
         assert adapter.download_attachment.await_count == 1
         assert upload.await_count == 1
         assert agents.answer_default.await_args.kwargs["attachments"] == [upload.return_value]
+        author = agents.answer_default.await_args.kwargs["incoming"]
+        assert author.platform_user_id == "U1" and author.message_id == "m1"
 
     async def test_a_mention_still_gets_the_file_it_came_with(self):
         adapter, agents, upload = await _route_one_file("@support what is in this")
 
         assert adapter.download_attachment.await_count == 1
         assert agents.answer.await_args.kwargs["attachments"] == [upload.return_value]
+        author = agents.answer.await_args.kwargs["incoming"]
+        assert author.platform_user_id == "U1" and author.message_id == "m1"
         agents.answer_default.assert_not_awaited()
 
 

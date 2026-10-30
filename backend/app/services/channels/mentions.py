@@ -64,9 +64,14 @@ from app.services import generated_media, visual_render
 from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.attachments import MAX_OUTBOUND_BYTES
-from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
+from app.services.channels.base import (
+    ROOM_HANDLES,
+    IncomingMessage,
+    OutgoingAttachment,
+    channel_key,
+)
 from app.services.channels.chart_png import render_chart_png
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
+from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, authored_prompt
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
@@ -375,6 +380,7 @@ class ChannelAgentRouter:
         text: str,
         *,
         platform: str,
+        incoming: IncomingMessage | None = None,
         organization_id: UUID,
         bot_id: UUID,
         user_id: UUID | None,
@@ -484,7 +490,7 @@ class ChannelAgentRouter:
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
-            mention.prompt,
+            authored_prompt(mention.prompt, incoming),
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
@@ -549,6 +555,7 @@ class ChannelAgentRouter:
         text: str,
         *,
         platform: str,
+        incoming: IncomingMessage | None = None,
         organization_id: UUID,
         bot_id: UUID,
         user_id: UUID | None,
@@ -612,7 +619,7 @@ class ChannelAgentRouter:
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
-            text,
+            authored_prompt(text, incoming),
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,

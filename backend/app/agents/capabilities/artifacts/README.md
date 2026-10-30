@@ -4,7 +4,10 @@ Exposes two tools. `publish_artifact` publishes a finished page - a report, a sm
 dashboard, a one-page summary - as an **artifact**: a shared resource with an owner,
 a visibility and grants, opened in a browser under a link that stays put.
 `read_artifact` reads the current version back, so a small change is an edit rather
-than the whole page again.
+than the whole page again. Source lives in artifact storage, independently of a
+conversation's sandbox: a later conversation reads it by the same name and
+republishes edits or replacement content behind the existing link. It needs no
+access to the original workspace. View and edit permissions remain separate.
 
 ## Layout
 

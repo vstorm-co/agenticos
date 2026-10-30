@@ -583,6 +583,7 @@ class ChannelMessageRouter:
             db,
             run=ChannelAgentRouter(db).answer_default(
                 incoming.text,
+                incoming=incoming,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
@@ -719,6 +720,7 @@ class ChannelMessageRouter:
             db,
             run=ChannelAgentRouter(db).answer(
                 incoming.text,
+                incoming=incoming,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
                 bot_id=bot.id,

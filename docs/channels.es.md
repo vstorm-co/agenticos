@@ -1,5 +1,5 @@
 ---
-source_sha: "968f30d76fa2"
+source_sha: "4a73f274580f"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2056,7 +2056,12 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Todas las llamadas MCP requieren aprobación en apps de chat, incluidas las lecturas y conexiones de organización o plataforma.** Vincular una cuenta identifica la conexión utilizada; no autoriza publicar automáticamente resultados personales. La misma regla se aplica a agentes delegados y llamadas reanudadas.
+- **Las lecturas MCP siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
+
+Cada mensaje incluye el ID del autor en la plataforma, nombre de usuario, nombre visible e ID del mensaje en el prompt de usuario guardado, fuera de las instrucciones del sistema. Los nombres ausentes siguen siendo desconocidos. Las etiquetas del autor no autorizan herramientas. El agente responde al remitente actual, separa las peticiones de los participantes y dirige los anuncios directamente a su audiencia.
+
+Las Apps publicadas se pueden editar desde otra conversación sin el sandbox original. `read_artifact` recupera el código guardado y `publish_artifact` con el mismo nombre y cambios o contenido de reemplazo actualiza la app. Conserva su enlace e historial de versiones. Poder verla no concede permiso de edición; siguen aplicándose los controles existentes.
+
 - **El agent conoce dónde responde y qué cuenta está disponible.** Las indicaciones de ejecución identifican el comunicador y la consola del despliegue, explican el workspace gestionado y distinguen conexiones MCP de la organización y servicios personales. Estos necesitan la identidad vinculada del remitente y su propia conexión autorizada al servicio. Para vincular se envía `link`, sin barra, en un mensaje directo; el enlace privado no pertenece a un canal. El agent comunica resultados reales y un siguiente paso concreto si falta autorización o capacidad.
 - **Un mensaje reentregado se responde una vez.** Todas las plataformas entregan al
   menos una vez: las rutas de webhook responden 200 antes de hacer ningún trabajo,

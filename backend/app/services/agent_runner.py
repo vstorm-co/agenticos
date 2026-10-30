@@ -272,7 +272,9 @@ from app.services.channels.base import OutgoingAttachment, channel_key
 from app.services.channels.directory import restore_directory
 from app.services.channels.formatting import (
     CHANNEL_BEHAVIOR,
+    LEGACY_MCP_APPROVAL_GUIDANCE,
     LINK_ACCOUNT_INSTRUCTION,
+    MCP_APPROVAL_GUIDANCE,
     runtime_context,
 )
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
@@ -1621,6 +1623,7 @@ async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None)
     added = "" if exposure is None else (exposure.prompt or "").strip()
     # Metadata belongs in a lower-trust message, never in system instructions.
     added = added.replace(CHANNEL_CONTEXT, "").strip()
+    added = added.replace(LEGACY_MCP_APPROVAL_GUIDANCE, MCP_APPROVAL_GUIDANCE)
     if not added:
         return spec
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
@@ -2026,12 +2029,20 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
 
 
 def _with_channel_mcp_approval(spec: AgentSpec, surface: RunSurface) -> AgentSpec:
-    """Channel metadata cannot authorize any MCP connection to act without approval."""
+    """Require approval for channel writes, preserving an operator's stricter policy.
+
+    Read-only hints use the same classification as web chat. An explicit `all`
+    still asks before reads; `none` cannot waive approval for channel writes.
+    This also applies to delegates and resumed runs through the shared factory.
+    """
     if surface not in _CHANNEL_SURFACES:
         return spec
     return spec.model_copy(
         update={
-            "mcp_servers": [ref.model_copy(update={"approval": "all"}) for ref in spec.mcp_servers]
+            "mcp_servers": [
+                ref.model_copy(update={"approval": "all" if ref.approval == "all" else "writes"})
+                for ref in spec.mcp_servers
+            ]
         }
     )
 
