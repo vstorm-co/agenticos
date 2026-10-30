@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.29.2] - 2026-10-30
+
 ### Fixed
 
 - Upgrade the sandbox client and `sandboxd` image together to 0.2.39. Runtime
