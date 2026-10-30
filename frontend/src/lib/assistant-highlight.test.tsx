@@ -34,16 +34,49 @@ describe("consoleLink", () => {
     });
   });
 
+  it("keeps a locale prefix, the rest of the query and the hash", () => {
+    expect(consoleLink("/pl/agents?highlight=agents-new", ORIGIN)).toEqual({
+      path: "/pl/agents",
+      anchor: "agents-new",
+    });
+    expect(consoleLink("/en/runs?tab=spend&highlight=runs-filter#top", ORIGIN)).toEqual({
+      path: "/en/runs?tab=spend#top",
+      anchor: "runs-filter",
+    });
+  });
+
   it("leaves every other link an ordinary link", () => {
     for (const href of [
       null,
       "https://evil.example/agents",
       "//evil.example",
       "#cite-1",
+      "agents",
       "/api/v1/agents",
+      "/a/../api/v1/agents",
     ]) {
       expect(consoleLink(href, ORIGIN)).toBeNull();
     }
+  });
+
+  // #2544: each of these passes a check on the raw string and leaves the
+  // console once the URL parser has normalised it.
+  it.each([
+    "/a/..//evil.example/x",
+    "/.//evil.example/x",
+    "/%2e%2e//evil.example",
+    "/.\\/evil.example",
+    "/\\evil.example",
+    "/\\\\evil.example",
+    "/\t/evil.example",
+    "/\n/evil.example",
+    "/\r/evil.example",
+  ])("refuses %j, which normalises off the console", (href) => {
+    expect(consoleLink(href, ORIGIN)).toBeNull();
+  });
+
+  it("refuses an href the URL parser rejects rather than throwing", () => {
+    expect(consoleLink("/\\[", ORIGIN)).toBeNull();
   });
 });
 

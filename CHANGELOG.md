@@ -19,18 +19,42 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [1.29.1] - 2026-10-30
+### Added
+
+- A new agent starts on the organization's model when the organization has
+  exactly one model an agent can run on: a chat model with a key, or a
+  self-hosted one saved without a key, that publish accepts (#2483). This
+  applies to **New agent**, `POST /agents` without a `model_profile_id`,
+  templates, copies and promoted specialists. The model is written into the
+  draft, so the agent publishes without opening **Model**, and the draft counts
+  as using the model. With no model or several, the draft has no model as
+  before. A model on a ChatGPT sign-in is never chosen for somebody, and
+  neither is a model that falls back to one; the Architect no longer chooses
+  either for its first publish (#2545). See
+  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
+
+### Changed
+
+- Publish's refusal of an agent with no model now reads *No model selected -
+  pick one under Build > Model before publishing* and also marks
+  `model_profile_id` in `details.fields` (#2483). The Builder shows **Go to
+  Model** beside it, which opens the Model card on the Build tab.
 
 ### Fixed
 
-- An upload or a sync still indexing a file for a knowledge base that is deleted
-  while another base keeps its collection name no longer writes chunks after the
-  cleanup job has removed the base's chunks. The write checks that the base
-  exists under a row lock that conflicts with the delete's, in the transaction
-  that inserts the chunks; the file fails at the index step and an upload is not
-  retried. A local directory sync queued for a base deleted before it runs now
-  ends with an error instead of writing its files into the deployment-wide
-  scope (#2561).
+- The Architect, the organization's assistant, is no longer published on a
+  model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's
+  subscription: on the Architect, runs by members who could not see it in the
+  vault were refused, and runs by those who could, such as the organization's
+  owners and admins, spent it. The Architect now publishes on the first chat
+  model publish accepts that is not a sign-in, and with only a sign-in it waits
+  for another model, as a new agent does (#2483). A sign-in somebody picked in
+  its draft, or a model that falls back to one (#2545), stays there, but is
+  published only when somebody who may change the organization's settings
+  publishes it in the Builder. An Architect already published on a sign-in is
+  not changed: such a person moves it under **Build > Model** and publishes it.
+  See
+  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 - Knowledge bases that share a collection name and a vector tenant keep their
   chunks apart. An app-scoped base and a personal base outside any organization,
   or an organization's base and a member's personal base in it, no longer return,
@@ -62,6 +86,106 @@ Two things are versioned separately from this file and worth knowing about:
   only under the older one, which is where its documents have always been
   written, and the newer base no longer finds that synced content in search.
   Create the newer base under a name of its own to give it sources of its own.
+- When the Architect points at a control on a tab that is not open, the tab now
+  switches and the control is highlighted. This includes a control that the
+  page keeps hidden in the document while its tab is closed: the Approvals,
+  Runs and Spend tabs on the Activity page and every tab on the organization
+  page. A link to another page no longer switches a tab on the page being left,
+  a tab switch leaves keyboard focus in the Architect's panel, and the scroll
+  respects a reduced-motion preference (#2536).
+- A file attached to a chat turn that stopped before completing (failed,
+  cancelled, or stopped by a budget or the loop guard) is now written back to
+  `uploads/` by the same agent's next turn for that person in that
+  conversation, instead of staying missing until a new conversation and upload.
+  Only the person's own files are restored, until that agent completes a later
+  turn for them that looked for them. Files of a turn a guardrail blocked are
+  not restored, and on an agent with an input guardrail each file is screened
+  first: a file the guardrail refuses is not written back.
+- An agent with `allow_dynamic` no longer fails for a caller who may not use some
+  ChatGPT sign-in in the organization - every API-key and widget run, and members
+  it is not shared with. A model the caller may not use is left off the
+  specialist's list of models with a warning, as a model with no key already was
+  (#2546).
+- An upload or a sync still indexing a file for a knowledge base that is deleted
+  while another base keeps its collection name no longer writes chunks after the
+  cleanup job has removed the base's chunks. The write checks that the base
+  exists under a row lock that conflicts with the delete's, in the transaction
+  that inserts the chunks; the file fails at the index step and an upload is not
+  retried. A local directory sync queued for a base deleted before it runs now
+  ends with an error instead of writing its files into the deployment-wide
+  scope (#2561).
+- A file attached to a turn that the input guardrail blocks is no longer written
+  to the agent's workspace. The input edge now screens the message and each
+  file's opening lines before the file is copied to `uploads/`, so a later turn
+  in a `conversation`-, `user`- or `agent`-scoped workspace cannot open it. The
+  blocked turn still ends as `guardrail_blocked`. A picture sent inline is still
+  written when the edge blocks the turn because of the picture's bytes (#2559).
+- Dropping a collection (`DELETE /api/v1/rag/collections/{name}`) deletes only the
+  document rows and stored files of the knowledge base it resolved to. Before, it
+  deleted every document row under the collection name, with no organization or
+  base predicate, so a drop also removed the documents of another organization
+  whose base shared the name and queued their files for deletion. When another
+  base still holds the name, the shared vector table stays and the cleanup job
+  now removes the dropped base's chunks from it. A default base keeps its row and
+  takes uploads again, so the job removes only the chunks of the documents the
+  drop deleted; chunks with no document row are not removed from it. Document
+  rows filed under no base, from before documents recorded their base, go with
+  the drop too, with their files and chunks, when they are the dropped base's
+  organization's and no other base of that organization holds the name. Before,
+  a cleared default base kept listing and serving them (#2560).
+- Deleting a knowledge base (`DELETE /api/v1/kb/{id}`) while another base still
+  holds its collection name deletes the unfiled document rows of its organization
+  too, with their files and chunks, unless another base of that organization holds
+  the name. Before, they stayed, and the organization's next base on the name
+  listed and served them again (#2560).
+- `rag-drop` goes through the knowledge-base teardown. Before, it dropped the
+  vector table directly, with no reference check, lock or reservation, and left
+  the document rows behind, so it could destroy a table another knowledge base,
+  possibly another organization's, still used. It now clears the knowledge base
+  that holds the name, or drops a name no base holds with its document rows, and
+  a worker removes the table and the files after the command commits. A name
+  several knowledge bases hold is refused with their ids; pass
+  `--knowledge-base <id>` to clear one of them, and the table stays for the
+  others (#2560).
+
+### Security
+
+- Publishing an agent on somebody else's ChatGPT sign-in is refused. Publish,
+  rollback, the Builder's draft check and promoting a version to an environment
+  now refuse a model a run can reach - the agent's own, a reviewer's, an inline
+  specialist's, the one an enabled web browser or follow-ups capability runs
+  on, a pinned delegate's and what that delegate reaches in turn, or one of the
+  first three fallbacks of any of them - when it runs on a ChatGPT sign-in the
+  person doing it cannot see in the vault. The refusal names the model field,
+  or the pin. Before, a builder could publish on a colleague's private sign-in,
+  directly or by pinning a delegate on it, and its owner's and the admins' runs
+  then spent that subscription. The rule is the one runs already follow: the
+  sign-in's owner, owners and admins, and anybody it was shared with may, and
+  an API key may not, whatever its issuer can see. Agents already published on
+  such a sign-in keep running, but republishing, rolling back to or promoting
+  that version now takes somebody who can see it (#2546).
+- A specialist the model invents under `allow_dynamic` no longer runs on
+  somebody's ChatGPT sign-in the agent never named. Its list of models leaves out
+  a profile on a sign-in, and one whose first three fallbacks reach one, unless
+  the agent's spec names that exact profile. Before, the list offered every chat
+  model in the organization, so a run by the sign-in's owner, an owner or an
+  admin could spend that person's subscription on an agent nobody chose it for
+  (#2546).
+- A run resumed after an approval resolves its delegates' and specialists'
+  models for the person whose run it is, as it already did for the agent's own
+  model. Before, they were resolved for the approver, so a resumed run could
+  spend the approver's ChatGPT sign-in, or lose its owner's (#2546).
+- A link in an agent's answer that looks like a console page can no longer send
+  the console tab to another site. A path such as `/a/..//evil.example`
+  normalises to `//evil.example`, and the console opened that in place as if it
+  were one of its own pages. Such a link is now an ordinary link and stays on
+  the console. Answers can be shaped by content the agent reads, so this was a
+  phishing route.
+
+## [1.29.1] - 2026-10-30
+
+### Fixed
+
 - Deliver model-generated photos on Mattermost, Slack, Teams and Telegram,
   including after channel approval; report missing or invalid media instead of
   silently posting only a success message. Ordinary workspace files still need
@@ -71,22 +195,6 @@ Two things are versioned separately from this file and worth knowing about:
   relative-time requests are not presented as current events. Existing threads
   refresh text context once on the next turn after migration, without
   downloading their earlier files again.
-
-### Fixed
-
-- The Architect, the organization's assistant, is no longer published on a
-  model that runs on a ChatGPT sign-in (#2535). A sign-in is one person's
-  subscription: on the Architect, runs by members who could not see it in the
-  vault were refused, and runs by those who could, such as the organization's
-  owners and admins, spent it. The Architect now publishes on the first chat
-  model publish accepts that is not a sign-in, and with only a sign-in it waits
-  for another model, as a new agent does (#2483). A sign-in somebody picked in
-  its draft, or a model that falls back to one (#2545), stays there, but is
-  published only when somebody who may change the organization's settings
-  publishes it in the Builder. An Architect already published on a sign-in is
-  not changed: such a person moves it under **Build > Model** and publishes it.
-  See
-  [The model a new agent starts on](docs/models.md#the-model-a-new-agent-starts-on).
 
 ## [1.29.0] - 2026-10-29
 
