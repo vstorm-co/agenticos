@@ -688,6 +688,16 @@ class ChannelAdapter(ABC):
             f"{self.platform} cannot say whether an account is in a channel."
         )
 
+    def membership_chat(self, platform_chat_id: str) -> str:
+        """What :meth:`is_channel_member` is asked about for a conversation in `platform_chat_id`.
+
+        The channel, with any thread stripped: Slack and Mattermost answer
+        `channel_not_found` for a composite id, and a channel's many threads are
+        then one question. A platform whose threads have members of their own
+        keeps the thread.
+        """
+        return channel_key(platform_chat_id)
+
     async def search_channels(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, query: str, limit: int
     ) -> list[ChannelSummary]:

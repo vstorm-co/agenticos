@@ -1,5 +1,5 @@
 ---
-source_sha: "1821fee02ec2"
+source_sha: "6604b66f7686"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1584,7 +1584,9 @@ reacción sobre la pregunta.
 como en todas las plataformas. Una conversación de un canal de servidor se muestra
 en la consola a quienes todavía pueden ver ese canal, según los roles del servidor
 y las sobrescrituras de permisos del canal, que es lo que significa estar en un
-canal en Discord.
+canal en Discord. Un hilo privado es solo por invitación, así que una
+conversación de un hilo privado se muestra únicamente a quienes además siguen en
+ese hilo.
 
 Todavía no: una conexión sirve a un bot en como mucho 2500 servidores, por encima
 de los cuales Discord exige sharding y el bot se detiene con ese motivo. Las

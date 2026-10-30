@@ -63,6 +63,7 @@ from app.services.channels.discord_protocol import (
     GATEWAY_QUERY,
     MESSAGE_LIMIT,
     NO_MENTIONS,
+    PRIVATE_THREAD,
     THREAD_TYPES,
     Recent,
     attachment_type,
@@ -489,9 +490,29 @@ class DiscordAdapter(ChannelAdapter):
 
         A server channel has no member list; anybody whose roles let them view it
         is in it. So the answer is computed from the server's roles, the
-        member's and the channel's overwrites. A thread is judged by its parent.
+        member's and the channel's overwrites. A thread is judged by its parent,
+        and a private thread also by its own members: it is invite-only, so
+        seeing the parent is not being in it.
+
+        `channel_id` may be a whole conversation key, `parent:thread` (see
+        `membership_chat`). A thread Discord does not know is one never opened -
+        the answer went as a reply in the channel - or deleted since, and the
+        conversation is judged by the channel it was in.
         """
-        found = await self._call("GET", f"/channels/{channel_id}", bot_token)
+        parent, thread = split_thread(channel_id)
+        if thread:
+            found = await self._call("GET", f"/channels/{thread}", bot_token)
+            if found.status_code != 404:
+                return await self._sees(bot_token, found, platform_user_id)
+        found = await self._call("GET", f"/channels/{parent}", bot_token)
+        return await self._sees(bot_token, found, platform_user_id)
+
+    def membership_chat(self, platform_chat_id: str) -> str:
+        """The whole key: a private thread's members are not its channel's."""
+        return platform_chat_id
+
+    async def _sees(self, bot_token: str, found: httpx.Response, platform_user_id: str) -> bool:
+        """Whether the account can see the channel `found` is Discord's answer about."""
         if found.status_code in (403, 404):
             return False
         found.raise_for_status()
@@ -501,9 +522,15 @@ class DiscordAdapter(ChannelAdapter):
                 user.get("id") == platform_user_id for user in channel.get("recipients") or []
             )
         if channel.get("type") in THREAD_TYPES and channel.get("parent_id"):
-            return await self.is_channel_member(
-                bot_token, channel["parent_id"], platform_user_id, api_base_url=api_base_url
-            )
+            if channel.get("type") == PRIVATE_THREAD:
+                joined = await self._call(
+                    "GET", f"/channels/{channel['id']}/thread-members/{platform_user_id}", bot_token
+                )
+                if joined.status_code == 404:
+                    return False
+                joined.raise_for_status()
+            parent = await self._call("GET", f"/channels/{channel['parent_id']}", bot_token)
+            return await self._sees(bot_token, parent, platform_user_id)
         guild_id = str(channel.get("guild_id") or "")
         guild = await self._call("GET", f"/guilds/{guild_id}", bot_token)
         guild.raise_for_status()
@@ -694,15 +721,17 @@ class DiscordAdapter(ChannelAdapter):
 
         A bulk overwrite, so a command removed here is removed from Discord too.
         Global commands take a while to show in every server; that is Discord's.
+        Remembered per application rather than per bot, because a row whose
+        token is replaced may now be a different application with none.
         """
         app_id = self._app_ids.get(bot_id)
-        if not app_id or bot_id in self._registered:
+        if not app_id or app_id in self._registered:
             return
         response = await self._call(
             "PUT", f"/applications/{app_id}/commands", bot_token, body=commands()
         )
         if response.is_success:
-            self._registered.add(bot_id)
+            self._registered.add(app_id)
         else:
             logger.warning(
                 "discord_commands_not_registered", extra={"status": response.status_code}
@@ -760,18 +789,7 @@ class DiscordAdapter(ChannelAdapter):
                 self._thread_names.put(key, thread_name(text))
         if own:
             text = without_mention(text, own)
-        attachments = [
-            IncomingAttachment(
-                filename=str(item.get("filename") or "file"),
-                mime_type=attachment_type(
-                    item.get("content_type"), str(item.get("filename") or "file")
-                ),
-                size=int(item.get("size") or 0),
-                handle=str(item.get("url") or ""),
-            )
-            for item in raw_payload.get("attachments") or []
-            if item.get("url")
-        ]
+        attachments = _attachments(raw_payload)
         if not text and not attachments:
             return None
         member = raw_payload.get("member") or {}
@@ -805,28 +823,50 @@ class DiscordAdapter(ChannelAdapter):
             await self._on_press(data, bot_id, interaction_id, token)
         elif kind == 5:
             parsed = read_comment(data.get("data") or {})
-            await self._answer_interaction(
-                interaction_id,
-                token,
-                {
-                    "type": 4,
-                    "data": {"content": "Thanks - that goes to the agent's builders.", "flags": 64},
-                },
-            )
-            if parsed is not None:
-                run_id, text = parsed
-                spawn(
-                    process_feedback_comment(
-                        FeedbackComment(
-                            platform=self.platform,
-                            bot_id=bot_id,
-                            platform_user_id=str(interaction_user(data).get("id") or ""),
-                            run_id=run_id,
-                            text=text,
-                        )
-                    ),
-                    name=f"discord-feedback:{bot_id}",
+            if parsed is None:
+                await self._answer_interaction(
+                    interaction_id,
+                    token,
+                    {"type": 4, "data": {"content": "There was no comment to keep.", "flags": 64}},
                 )
+                return
+            # Deferred: only saving it finds out whether it can be kept - an
+            # unlinked account, a run that is gone - and the answer says which.
+            await self._answer_interaction(
+                interaction_id, token, {"type": 5, "data": {"flags": 64}}
+            )
+            run_id, text = parsed
+            spawn(
+                self._keep_comment(
+                    self._app_ids.get(bot_id) or str(data.get("application_id") or ""),
+                    token,
+                    FeedbackComment(
+                        platform=self.platform,
+                        bot_id=bot_id,
+                        platform_user_id=str(interaction_user(data).get("id") or ""),
+                        run_id=run_id,
+                        text=text,
+                    ),
+                ),
+                name=f"discord-feedback:{bot_id}",
+            )
+
+    async def _keep_comment(self, app_id: str, token: str, comment: FeedbackComment) -> None:
+        """Save a comment from the thumbs-down form, then tell its writer whether it was kept."""
+        kept = await process_feedback_comment(comment)
+        response = await self._call(
+            "PATCH",
+            f"/webhooks/{app_id}/{token}/messages/@original",
+            None,
+            body={
+                "content": "Thanks - that goes to the agent's builders."
+                if kept
+                else "That comment could not be kept. If your Discord account is not linked "
+                "yet, run /link and try again.",
+                "allowed_mentions": NO_MENTIONS,
+            },
+        )
+        response.raise_for_status()
 
     def _interaction_key(self, data: dict[str, Any], *, message_id: str | None) -> tuple[str, bool]:
         """The conversation an interaction belongs to, and whether it is in a server."""
@@ -843,6 +883,7 @@ class DiscordAdapter(ChannelAdapter):
         command = data.get("data") or {}
         name = str(command.get("name") or "")
         user = interaction_user(data)
+        attachments: list[IncomingAttachment] = []
         if command.get("type") == 3 and name == ASK_ABOUT:
             target = (
                 (command.get("resolved") or {})
@@ -859,6 +900,7 @@ class DiscordAdapter(ChannelAdapter):
                 {"type": 4, "data": {"content": "On it.", "flags": 64}},
             )
             text = f"Help me with this message:\n{quoted}"
+            attachments = _attachments(target)
         elif name == ASK:
             options = command.get("options") or []
             question = str(options[0].get("value") or "") if options else ""
@@ -902,6 +944,7 @@ class DiscordAdapter(ChannelAdapter):
                     platform_display_name=user.get("global_name"),
                     message_id=interaction_id,
                     addressed=True,
+                    attachments=attachments,
                 )
             ),
             name=f"discord-command:{bot_id}",
@@ -949,6 +992,22 @@ class DiscordAdapter(ChannelAdapter):
     ) -> bool:
         """No webhook route accepts Discord traffic, so nothing verifies as Discord's."""
         return False
+
+
+def _attachments(message: dict[str, Any]) -> list[IncomingAttachment]:
+    """The files on a message, typed by `attachment_type` and fetched later from the CDN."""
+    return [
+        IncomingAttachment(
+            filename=str(item.get("filename") or "file"),
+            mime_type=attachment_type(
+                item.get("content_type"), str(item.get("filename") or "file")
+            ),
+            size=int(item.get("size") or 0),
+            handle=str(item.get("url") or ""),
+        )
+        for item in message.get("attachments") or []
+        if item.get("url")
+    ]
 
 
 def _error_code(response: httpx.Response) -> int | None:

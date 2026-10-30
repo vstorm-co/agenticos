@@ -21,6 +21,7 @@ from app.agents.capabilities.guardrails import GuardrailsConfig
 from app.services.channels import discord
 from app.services.channels.base import (
     ChannelChoice,
+    FeedbackComment,
     IncomingAttachment,
     IncomingMessage,
     IncomingPress,
@@ -594,6 +595,47 @@ class TestInteractions:
         assert incoming.platform_chat_id == f"{CHANNEL}:{MESSAGE}"
         assert incoming.text == "Help me with this message:\n> deploy failed\n> exit 1"
         assert adapter._thread_names.get(f"{CHANNEL}:{MESSAGE}") == "deploy failed"
+        assert incoming.attachments == []
+
+    async def test_ask_about_a_message_with_only_a_file_hands_over_the_file(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
+    ):
+        url = "https://cdn.discordapp.com/attachments/1/2/image.png"
+        await adapter._on_interaction(
+            {
+                "type": 2,
+                "id": "i3",
+                "token": "itok",
+                "guild_id": GUILD,
+                "channel_id": CHANNEL,
+                "member": {"user": {"id": USER}},
+                "data": {
+                    "name": "Ask the agent",
+                    "type": 3,
+                    "target_id": MESSAGE,
+                    "resolved": {
+                        "messages": {
+                            MESSAGE: {
+                                "content": "",
+                                "attachments": [
+                                    {
+                                        "filename": "image.png",
+                                        "content_type": "image/webp",
+                                        "size": 10,
+                                        "url": url,
+                                    }
+                                ],
+                            }
+                        }
+                    },
+                },
+            },
+            BOT,
+        )
+        [incoming] = spawned
+        assert incoming.attachments == [
+            IncomingAttachment(filename="image.png", mime_type="image/png", size=10, handle=url)
+        ]
 
     async def test_an_unknown_command_is_ignored(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
@@ -665,13 +707,35 @@ class TestInteractions:
         await adapter._on_interaction(
             {"type": 5, "id": "i7", "token": "itok", "user": {"id": USER}, "data": {}}, BOT
         )
-        [comment] = spawned
+        assert api.posted("/interactions/i6/itok/callback") == [{"type": 5, "data": {"flags": 64}}]
+        assert api.posted("/interactions/i7/itok/callback") == [
+            {"type": 4, "data": {"content": "There was no comment to keep.", "flags": 64}}
+        ]
+        [keeping] = spawned
+        kept = AsyncMock(return_value=True)
+        with patch.object(discord, "process_feedback_comment", kept):
+            await keeping
+        [comment] = kept.await_args.args
         assert (comment.run_id, comment.text, comment.platform_user_id) == (
             "run-1",
             "wrong date",
             USER,
         )
-        assert len(api.posted("/interactions/i7/itok/callback")) == 1
+        [(method, path, body)] = api.calls[2:]
+        assert (method, path) == ("PATCH", f"/webhooks/{APP}/itok/messages/@original")
+        assert body["content"] == "Thanks - that goes to the agent's builders."
+
+    async def test_a_comment_that_could_not_be_kept_does_not_say_thanks(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        comment = FeedbackComment(
+            platform="discord", bot_id=BOT, platform_user_id=USER, run_id="run-1", text="no"
+        )
+        with patch.object(discord, "process_feedback_comment", AsyncMock(return_value=False)):
+            await adapter._keep_comment(APP, "itok", comment)
+        [(_, _, body)] = api.calls
+        assert "/link" in body["content"]
+        assert body["allowed_mentions"] == {"parse": []}
 
 
 class _Socket:
@@ -895,6 +959,17 @@ class TestGateway:
         await adapter._register_commands("other", "tok")
         assert len(api.calls) == 2
 
+    async def test_a_bot_given_another_application_s_token_registers_its_commands_there(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        await adapter._register_commands(BOT, "tok")
+        adapter._app_ids[BOT] = "801"
+        await adapter._register_commands(BOT, "tok")
+        assert [p for m, p, _ in api.calls if m == "PUT"] == [
+            f"/applications/{APP}/commands",
+            "/applications/801/commands",
+        ]
+
     async def test_polling_starts_once_and_stops(self, adapter: DiscordAdapter):
         with patch.object(adapter, "_supervise", AsyncMock()):
             await adapter.start_polling(BOT, "tok")
@@ -964,6 +1039,30 @@ class TestMembership:
             httpx.Response(200, json={"type": 11, "parent_id": CHANNEL}),
         )
         assert await adapter.is_channel_member("tok", THREAD, USER, api_base_url=None)
+
+    async def test_a_private_thread_holds_only_its_members(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        self._routes(api, overwrites=[], member=httpx.Response(200, json={"roles": []}))
+        api.answer(
+            "GET",
+            f"/channels/{THREAD}",
+            httpx.Response(200, json={"id": THREAD, "type": 12, "parent_id": CHANNEL}),
+        )
+        key = adapter.membership_chat(f"{CHANNEL}:{THREAD}")
+        api.answer("GET", f"/channels/{THREAD}/thread-members/{USER}", httpx.Response(200))
+        assert await adapter.is_channel_member("tok", key, USER, api_base_url=None)
+        api.answer("GET", f"/channels/{THREAD}/thread-members/{USER}", httpx.Response(404))
+        assert not await adapter.is_channel_member("tok", key, USER, api_base_url=None)
+
+    async def test_a_thread_never_opened_is_judged_by_its_channel(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        self._routes(api, overwrites=[], member=httpx.Response(200, json={"roles": []}))
+        api.answer("GET", f"/channels/{MESSAGE}", httpx.Response(404))
+        assert await adapter.is_channel_member(
+            "tok", f"{CHANNEL}:{MESSAGE}", USER, api_base_url=None
+        )
 
     async def test_a_direct_message_holds_its_recipient(
         self, adapter: DiscordAdapter, api: _Discord

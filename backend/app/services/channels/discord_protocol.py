@@ -43,7 +43,8 @@ notify anybody.
 
 # Channel types (https://discord.com/developers/docs/resources/channel).
 DM = 1
-THREAD_TYPES = frozenset({10, 11, 12})
+PRIVATE_THREAD = 12
+THREAD_TYPES = frozenset({10, 11, PRIVATE_THREAD})
 
 VIEW_CHANNEL = 1 << 10
 ADMINISTRATOR = 1 << 3

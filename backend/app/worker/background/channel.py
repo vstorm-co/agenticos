@@ -56,13 +56,18 @@ async def process_channel_press(press: Any) -> None:
         logger.exception("channel_press_processing_failed")
 
 
-async def process_feedback_comment(comment: FeedbackComment) -> None:
-    """Keep what somebody said was wrong with an answer (#2084); failures are logged."""
+async def process_feedback_comment(comment: FeedbackComment) -> bool:
+    """Keep what somebody said was wrong with an answer (#2084), and say whether it was.
+
+    False for a refusal - an unlinked account, a run that is gone - and for a
+    failure, which is logged.
+    """
     try:
         async with get_db_context() as db:
-            await ChannelFeedback(db).comment(comment)
+            return await ChannelFeedback(db).comment(comment)
     except Exception:
         logger.exception("channel_feedback_comment_failed")
+        return False
 
 
 async def process_slack_surface(payload: dict[str, Any], bot_id: str) -> None:

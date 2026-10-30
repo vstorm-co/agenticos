@@ -14,6 +14,8 @@ import pytest
 from app.repositories.conversation import ParticipationClaim
 from app.services.channels import membership
 from app.services.channels.base import ChannelDirectoryUnsupported
+from app.services.channels.discord import DiscordAdapter
+from app.services.channels.slack import SlackAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -325,6 +327,40 @@ class TestConfirmedParticipantThreads:
 
         assert confirmed == {thread}
         assert is_still_member.await_args.args[1] == "C1"
+
+    @pytest.mark.parametrize(
+        ("platform", "asked"), [("discord", "C1:T1"), ("slack", "C1"), ("unregistered", "C1")]
+    )
+    async def test_a_discord_thread_is_asked_about_itself(self, platform: str, asked: str):
+        """A private Discord thread is invite-only, so seeing its channel is not
+        being in it; elsewhere a thread's members are its channel's."""
+        bot = _bot(platform)
+        thread = uuid4()
+
+        with (
+            patch(
+                "app.services.channels.membership.conversation_repo.participation_claims",
+                AsyncMock(return_value=[_claim(thread, bot.id, chat="C1:T1")]),
+            ),
+            patch(
+                "app.services.channels.membership.channel_bot_repo.get_by_ids",
+                AsyncMock(return_value={bot.id: bot}),
+            ),
+            patch(
+                "app.services.channels.membership.is_still_member", AsyncMock(return_value=True)
+            ) as is_still_member,
+            patch.dict(
+                "app.services.channels._adapters",
+                {"discord": DiscordAdapter(), "slack": SlackAdapter()},
+                clear=True,
+            ),
+        ):
+            confirmed = await membership.confirmed_participant_threads(
+                AsyncMock(), user_id=uuid4(), organization_id=uuid4()
+            )
+
+        assert confirmed == {thread}
+        assert is_still_member.await_args.args[1] == asked
 
     async def test_two_threads_of_one_channel_are_one_question(self):
         """Different thread suffixes, one channel: one platform call answers

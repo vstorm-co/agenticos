@@ -1507,7 +1507,9 @@ asking what was wrong. Discord has no reaction on the question.
 **Who is speaking** is the Discord user ID, linked to a member with `/link` as on
 every platform. A conversation from a server channel is shown in the console to
 those who can still see that channel, by the server's roles and the channel's
-permission overwrites, which is what being in a channel means on Discord.
+permission overwrites, which is what being in a channel means on Discord. A
+private thread is invite-only, so one from a private thread is shown only to
+those still in that thread as well.
 
 Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
 asks for sharding and the bot stops with that reason. The directory tools are not
