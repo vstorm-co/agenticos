@@ -59,6 +59,20 @@ class DevicePairingService:
         await self.redis.set(_KEY.format(code=code), grant, ttl=PAIRING_TTL_SECONDS)
         return PairingCode(code=code, expires_in=PAIRING_TTL_SECONDS)
 
+    async def preview(self, code: str) -> User:
+        """Identify the target account without consuming its code or creating a session."""
+        raw = await self.redis.get(_KEY.format(code=code))
+        if raw is None:
+            raise AuthenticationError(message="This pairing code has expired. Show a new one.")
+        return await self._user(raw)
+
+    async def _user(self, raw: str) -> User:
+        grant = json.loads(raw)
+        user = await self.users.get_by_id(UUID(grant["user_id"]))
+        if not user.is_active or user.credential_version != grant["credential_version"]:
+            raise AuthenticationError(message="This pairing code has expired. Show a new one.")
+        return user
+
     async def redeem(
         self, code: str, *, ip_address: str | None, user_agent: str | None
     ) -> PairedSession:
@@ -73,10 +87,7 @@ class DevicePairingService:
         raw = await self.redis.getdel(_KEY.format(code=code))
         if raw is None:
             raise AuthenticationError(message="This pairing code has expired. Show a new one.")
-        grant = json.loads(raw)
-        user = await self.users.get_by_id(UUID(grant["user_id"]))
-        if not user.is_active or user.credential_version != grant["credential_version"]:
-            raise AuthenticationError(message="This pairing code has expired. Show a new one.")
+        user = await self._user(raw)
         refresh_token = create_refresh_token(
             subject=str(user.id), credential_version=user.credential_version
         )

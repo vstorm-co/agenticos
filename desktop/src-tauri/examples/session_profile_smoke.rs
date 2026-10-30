@@ -14,7 +14,7 @@ async fn verify(app: &tauri::AppHandle, write: bool) -> Result<(), String> {
     if write {
         main.set_cookie(
             Cookie::parse(format!(
-                "{COOKIE}=fixture; Domain=session-smoke.invalid; Path=/; Max-Age=600; HttpOnly; SameSite=Lax"
+                "{COOKIE}=fixture; Domain=session-smoke.invalid; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax"
             ))
             .map_err(|e| e.to_string())?
             .into_owned(),
@@ -28,10 +28,9 @@ async fn verify(app: &tauri::AppHandle, write: bool) -> Result<(), String> {
             let cookies = window
                 .cookies_for_url(ADDRESS.parse().unwrap())
                 .map_err(|e| e.to_string())?;
-            if cookies
-                .iter()
-                .any(|cookie| cookie.name() == COOKIE && cookie.http_only() == Some(true))
-            {
+            if cookies.iter().any(|cookie| {
+                cookie.name() == COOKIE && cookie.http_only() == Some(true) && cookie.secure() == Some(true)
+            }) {
                 found = true;
                 break;
             }
@@ -57,6 +56,7 @@ async fn verify(app: &tauri::AppHandle, write: bool) -> Result<(), String> {
         main.delete_cookie(
             Cookie::build((COOKIE, ""))
                 .domain("session-smoke.invalid")
+                .secure(true)
                 .path("/")
                 .build(),
         )

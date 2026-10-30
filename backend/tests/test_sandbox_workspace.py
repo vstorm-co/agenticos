@@ -5436,12 +5436,10 @@ async def test_browser_only_selection_keeps_the_agents_sandbox(
     monkeypatch.setattr(service, "_open_local", local)
     monkeypatch.setattr(service, "_open_config", cloud)
     target = LocalTarget(browser=not computer, computer=computer)
-    assert (
-        await service.open(
-            AgentSpec(name="Browser"), ctx=_ctx(), identity=_identity(), local=target
-        )
-        is None
+    result = await service.open(
+        AgentSpec(name="Browser"), ctx=_ctx(), identity=_identity(), local=target
     )
+    assert result is None
     local.assert_not_awaited()
     cloud.assert_not_awaited()
     await service.open(_spec(), ctx=_ctx(), identity=_identity(), local=target)

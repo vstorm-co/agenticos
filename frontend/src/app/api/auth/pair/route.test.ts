@@ -28,7 +28,10 @@ describe("POST /api/auth/pair", () => {
       .mockResolvedValueOnce({ id: "u1" });
 
     const response = await POST(
-      request({ code: "c0de" }, { "user-agent": "AgenticOS iOS", "x-forwarded-for": "10.0.0.9" }),
+      request(
+        { code: "c0de", confirmed: true },
+        { "user-agent": "AgenticOS iOS", "x-forwarded-for": "10.0.0.9" },
+      ),
     );
 
     expect(response.status).toBe(200);
@@ -56,16 +59,20 @@ describe("POST /api/auth/pair", () => {
     const response = await POST(request({}));
     expect(response.status).toBe(400);
     expect(backendFetch).not.toHaveBeenCalled();
+    expect((await POST(request({ code: "c0de" }))).status).toBe(400);
+    expect(backendFetch).not.toHaveBeenCalled();
   });
 
   it("passes a spent code's refusal, a rate limit, and a failure through as refusals", async () => {
     vi.mocked(backendFetch).mockRejectedValueOnce(
       new BackendApiError(401, "Unauthorized", { detail: "expired" }),
     );
-    expect((await POST(request({ code: "x" }))).status).toBe(401);
+    expect((await POST(request({ code: "x", confirmed: true }))).status).toBe(401);
     vi.mocked(backendFetch).mockRejectedValueOnce(new BackendApiError(429, "Too Many", {}));
-    expect((await POST(request({ code: "x" }, { "user-agent": "" }))).status).toBe(429);
+    expect((await POST(request({ code: "x", confirmed: true }, { "user-agent": "" }))).status).toBe(
+      429,
+    );
     vi.mocked(backendFetch).mockRejectedValueOnce(new Error("down"));
-    expect((await POST(request({ code: "x" }))).status).toBe(500);
+    expect((await POST(request({ code: "x", confirmed: true }))).status).toBe(500);
   });
 });

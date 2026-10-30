@@ -45,6 +45,8 @@ tauri-plugin-updater = "2"
 xcap = "0.9.8"
 enigo = "0.6.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
+cap-std = "=4.0.3"
+cap-fs-ext = "=4.0.3"
 
 # Desktop only, which is what the plugin supports - and this shell is desktop
 # only anyway. On Windows and Linux a registered scheme starts the executable

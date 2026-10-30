@@ -1,6 +1,7 @@
 """Token schemas."""
 
 from typing import Literal
+from uuid import UUID
 
 from app.schemas.base import BaseSchema
 
@@ -59,3 +60,11 @@ class PairingRedeem(BaseSchema):
     """The code a phone scanned, redeemed for a session of its own."""
 
     code: str
+
+
+class PairingIdentityRead(BaseSchema):
+    """Identity shown before a device explicitly accepts a scanned sign-in."""
+
+    id: UUID
+    email: str
+    full_name: str | None

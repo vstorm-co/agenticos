@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "./api-client";
-import { createPairingCode, pairingLink, redeemPairingCode } from "./pairing-api";
+import {
+  createPairingCode,
+  pairingLink,
+  previewPairingCode,
+  redeemPairingCode,
+} from "./pairing-api";
 
 vi.mock("./api-client", () => ({ apiClient: { post: vi.fn() } }));
 
@@ -12,8 +17,10 @@ describe("pairing", () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({ code: "c", expires_in: 60 });
     await expect(createPairingCode()).resolves.toEqual({ code: "c", expires_in: 60 });
     expect(apiClient.post).toHaveBeenCalledWith("/auth/pairing-codes");
+    await previewPairingCode("c");
+    expect(apiClient.post).toHaveBeenLastCalledWith("/auth/pair/preview", { code: "c" });
     await redeemPairingCode("c");
-    expect(apiClient.post).toHaveBeenLastCalledWith("/auth/pair", { code: "c" });
+    expect(apiClient.post).toHaveBeenLastCalledWith("/auth/pair", { code: "c", confirmed: true });
   });
 
   it("links the app to this console with the code, escaped", () => {

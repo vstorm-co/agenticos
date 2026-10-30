@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- Require explicit account confirmation before a scanned pairing link replaces a device session. Previewing the account neither redeems nor extends the code.
+- Anchor local file operations to an approved directory handle so concurrent symlink substitutions cannot redirect writes or previews outside the grant.
+
 ### Added
 
 - Branded desktop installers: a guided macOS disk image and localized Windows setup for the current user. The macOS app bundles small and medium launcher widgets for Quick Ask, Chat, Inbox and Activity.

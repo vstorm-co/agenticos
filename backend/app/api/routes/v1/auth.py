@@ -37,6 +37,7 @@ from app.schemas.password_reset import (
 from app.schemas.token import (
     MagicLinkToken,
     PairingCodeRead,
+    PairingIdentityRead,
     PairingRedeem,
     RefreshTokenRequest,
     Token,
@@ -89,6 +90,19 @@ async def create_pairing_code(
     await enforce_auth_limit(request, surface="auth_pairing", identifier=str(current_user.id))
     issued = await pairing.issue(current_user)
     return PairingCodeRead(code=issued.code, expires_in=issued.expires_in)
+
+
+@router.post("/pairing-codes/preview", response_model=PairingIdentityRead)
+async def preview_pairing_code(
+    request: Request, body: PairingRedeem, pairing: DevicePairingSvc
+) -> Any:
+    """Show which account a scanned code opens, without changing any session.
+
+    The device must show this identity and ask for confirmation before redeeming
+    the code. Preview does not consume the code or extend its one-minute lifetime.
+    """
+    await enforce_auth_limit(request, surface="auth_pairing_redeem")
+    return await pairing.preview(body.code)
 
 
 @router.post("/pairing-codes/redeem", response_model=Token)

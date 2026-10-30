@@ -23,6 +23,7 @@ mod device;
 mod docker_install;
 mod dropped;
 mod local_browser;
+mod local_fs;
 mod local_instances;
 mod local_services;
 mod local_stack;

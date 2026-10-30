@@ -8944,6 +8944,13 @@
       "testAccepted": "Der Push-Dienst hat den Test angenommen.",
       "testHint": "Ein erfolgreicher Test bestätigt die Annahme durch den Push-Dienst, nicht die Anzeige auf diesem Telefon. Prüfe die Mitteilungszentrale oder den Sperrbildschirm.",
       "continue": "Weiter"
+    },
+    "pair": {
+      "confirmTitle": "Bei diesem Konto anmelden?",
+      "confirmHint": "Fahre nur fort, wenn dies dein Konto ist. Die Bestätigung ersetzt das auf diesem Gerät angemeldete Konto.",
+      "confirm": "Anmeldung bestätigen",
+      "cancel": "Abbrechen",
+      "loading": "Gescanntes Konto wird geprüft"
     }
   },
   "desktop": {

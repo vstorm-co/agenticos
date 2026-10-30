@@ -14,9 +14,11 @@ Swift for iOS, Kotlin for Android - under `mobile/src-tauri/`.
 
 ## Signing in
 
+Scanning shows the target account’s name and email first. Confirm the account to sign in; cancel leaves the current session unchanged. Previewing never consumes the code or extends its one-minute lifetime.
+
 **Settings → Mobile app** in the console shows a QR code; scanning it with the app
-signs the app in as you. A code works once, for a minute, and the phone's session
-is opened only when it scans, under the phone's own name. Typing the server's
+lets you confirm signing in as you. A code works once, for a minute, and the phone's session
+is opened only after confirmation, under the phone's own name. Typing the server's
 address and signing in works too. The session survives restarts, and the app
 locks behind Face ID, Touch ID or the fingerprint after five minutes away.
 

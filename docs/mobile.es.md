@@ -1,5 +1,5 @@
 ---
-source_sha: "155922214d1d"
+source_sha: "0b10688013ea"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -19,9 +19,11 @@ Swift para iOS, Kotlin para Android - en `mobile/src-tauri/`.
 
 ## Iniciar sesión { #signing-in }
 
+Al escanear se muestran primero el nombre y el correo de la cuenta de destino. Confirma la cuenta para iniciar sesión; cancelar mantiene la sesión actual. La vista previa no consume el código ni prolonga su minuto de validez.
+
 **Ajustes → App móvil** en la consola muestra un código QR; al escanearlo con la
-app, esta inicia sesión como tú. Un código sirve una vez, durante un minuto, y la
-sesión del móvil se abre solo al escanearlo, con el nombre del propio móvil.
+app, puedes confirmar el inicio de sesión con tu cuenta. Un código sirve una vez, durante un minuto, y la
+sesión del móvil se abre solo tras confirmarlo, con el nombre del propio móvil.
 También funciona escribir la dirección del servidor e iniciar sesión. La sesión
 sobrevive a los reinicios, y la app se bloquea tras Face ID, Touch ID o la huella
 después de cinco minutos fuera.

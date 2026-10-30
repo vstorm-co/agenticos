@@ -16,13 +16,19 @@ export async function createPairingCode(): Promise<PairingCode> {
   return apiClient.post<PairingCode>("/auth/pairing-codes");
 }
 
+export type PairingIdentity = Pick<User, "id" | "email" | "full_name">;
+
+export function previewPairingCode(code: string): Promise<PairingIdentity> {
+  return apiClient.post<PairingIdentity>("/auth/pair/preview", { code });
+}
+
 export interface Paired {
   user: User;
   access_token: string;
 }
 
 export async function redeemPairingCode(code: string): Promise<Paired> {
-  return apiClient.post<Paired>("/auth/pair", { code });
+  return apiClient.post<Paired>("/auth/pair", { code, confirmed: true });
 }
 
 /**

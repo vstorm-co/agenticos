@@ -256,6 +256,8 @@ lasts for the current desktop session, including page reloads.
 
 ## Work on this computer
 
+Local file operations stay relative to an open handle for the approved directory. Replacing a directory or file with a symlink cannot redirect a write outside it. The grant itself and its parent directories are opened without following symlinks; previews and file lists use the same boundary.
+
 The one thing a browser cannot do: a desktop chat can work in a
 folder on the computer the app runs on instead of in the cloud. The agent's file
 and shell tools - list, read, write, edit, run - reach that folder through the app.
@@ -469,6 +471,8 @@ one-way notification that the person took control. A binding with
 `connection: local` still requires the local browser selection.
 
 ## Installers and updates
+
+The Apps workflow also builds development installers and tests installation without UI automation: copying the Mac app from its DMG, silent installation and removal on Windows, Debian installation and removal, and portable AppImage extraction. It verifies the embedded macOS widget and signatures, persistent session isolation, and rejection of tampered updater downloads. These checks use ad-hoc or unsigned builds and do not establish public notarization or store approval.
 
 The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
 Linux and builds Android debug APKs and an iOS simulator app. Full native checks

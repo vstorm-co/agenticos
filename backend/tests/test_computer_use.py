@@ -990,7 +990,9 @@ class TestFit:
         image, screen = fit(Capture(image=_png(2560, 1600), width=1280, height=800), 1280, 800)
 
         assert screen == Screen(width=1280, height=800, native_width=1280, native_height=800)
-        assert Image.open(io.BytesIO(image)).format == "JPEG"
+        with Image.open(io.BytesIO(image)) as decoded:
+            image_format = decoded.format
+        assert image_format == "JPEG"
 
     def test_a_small_screen_is_not_enlarged(self):
         _, screen = fit(Capture(image=_png(800, 600), width=800, height=600), 1280, 800)

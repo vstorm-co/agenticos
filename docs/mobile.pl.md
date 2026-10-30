@@ -1,5 +1,5 @@
 ---
-source_sha: "155922214d1d"
+source_sha: "0b10688013ea"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -18,9 +18,11 @@ dla iOS, Kotlin dla Androida - w `mobile/src-tauri/`.
 
 ## Logowanie { #signing-in }
 
+Skanowanie najpierw pokazuje nazwę i e-mail konta docelowego. Potwierdź konto, aby się zalogować; anulowanie pozostawia obecną sesję bez zmian. Podgląd nie zużywa kodu ani nie przedłuża jego minutowej ważności.
+
 **Ustawienia → Aplikacja mobilna** w konsoli pokazuje kod QR; zeskanowanie go
-aplikacją loguje ją jako ciebie. Kod działa raz, przez minutę, a sesja telefonu
-jest otwierana dopiero przy skanie, pod własną nazwą telefonu. Wpisanie adresu
+aplikacją pozwala potwierdzić logowanie na Twoje konto. Kod działa raz, przez minutę, a sesja telefonu
+jest otwierana dopiero po potwierdzeniu, pod własną nazwą telefonu. Wpisanie adresu
 serwera i zalogowanie się też działa. Sesja przetrwa restarty, a aplikacja
 blokuje się za Face ID, Touch ID albo odciskiem palca po pięciu minutach
 nieobecności.

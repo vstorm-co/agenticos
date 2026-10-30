@@ -1,67 +1,94 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { UserRound } from "lucide-react";
 
-import { Spinner } from "@/components/ui";
+import { Button, Spinner } from "@/components/ui";
 import { useAdoptSession } from "@/hooks/use-auth";
 import { useRouter } from "@/lib/locale-navigation";
-import { redeemPairingCode, type Paired } from "@/lib/pairing-api";
+import { previewPairingCode, redeemPairingCode, type PairingIdentity } from "@/lib/pairing-api";
 
-// A single-use code must be POSTed exactly once; a remount - Strict Mode, a
-// re-render of the page - shares the request rather than spending the code twice.
-const redemptions = new Map<string, Promise<Paired>>();
-
-function redeemOnce(code: string): Promise<Paired> {
-  let pending = redemptions.get(code);
-  if (pending === undefined) {
-    pending = redeemPairingCode(code).finally(() => redemptions.delete(code));
-    redemptions.set(code, pending);
-  }
-  return pending;
+/** A scanned link previews an identity; only the person's button adopts its session. */
+export function PairDevice() {
+  const code = useSearchParams().get("code");
+  return <ConfirmPairing key={code} code={code} />;
 }
 
-/**
- * The phone signing in with the code it scanned: redeem it, adopt the session,
- * open the console. A spent or expired code says so and points back to the
- * console that showed it, where a new one is a click away.
- */
-export function PairDevice() {
+function ConfirmPairing({ code }: { code: string | null }) {
   const t = useTranslations("mobile.pair");
   const router = useRouter();
   const adoptSession = useAdoptSession();
-  const code = useSearchParams().get("code");
+  const [identity, setIdentity] = useState<{ code: string; user: PairingIdentity } | null>(null);
   const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const current = useRef<string | null>(null);
+  const submitting = useRef(false);
 
   useEffect(() => {
+    current.current = code;
     if (!code) return;
     let cancelled = false;
-    redeemOnce(code)
-      .then((paired) => {
-        if (cancelled) return;
-        adoptSession(paired.user, paired.access_token);
-        router.replace("/dashboard");
-      })
-      .catch(() => {
+    previewPairingCode(code).then(
+      (user) => {
+        if (!cancelled) setIdentity({ code, user });
+      },
+      () => {
         if (!cancelled) setFailed(true);
-      });
+      },
+    );
     return () => {
       cancelled = true;
+      current.current = null;
     };
-  }, [adoptSession, code, router]);
+  }, [code]);
+
+  async function confirm() {
+    if (!identity || identity.code !== code || submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    try {
+      const paired = await redeemPairingCode(identity.code);
+      if (current.current !== identity.code) return;
+      adoptSession(paired.user, paired.access_token);
+      router.replace("/dashboard");
+    } catch {
+      if (current.current === identity.code) setFailed(true);
+    } finally {
+      if (current.current === identity.code) setBusy(false);
+    }
+  }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
       {!code || failed ? (
         <>
           <h1 className="text-lg font-semibold">{t("failed")}</h1>
           <p className="text-muted-foreground max-w-xs text-sm">{t("failedHint")}</p>
         </>
+      ) : identity?.code === code ? (
+        <>
+          <UserRound aria-hidden className="text-muted-foreground size-8" />
+          <h1 className="text-lg font-semibold">{t("confirmTitle")}</h1>
+          <div className="max-w-sm break-all">
+            <p className="font-medium">{identity.user.full_name}</p>
+            <p>{identity.user.email}</p>
+          </div>
+          <p className="text-muted-foreground max-w-sm text-sm">{t("confirmHint")}</p>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" disabled={busy} onClick={() => router.replace("/login")}>
+              {t("cancel")}
+            </Button>
+            <Button disabled={busy} onClick={() => void confirm()}>
+              {busy ? <Spinner /> : t("confirm")}
+            </Button>
+          </div>
+        </>
       ) : (
         <>
           <Spinner />
-          <p className="text-muted-foreground text-sm">{t("signingIn")}</p>
+          <p className="text-muted-foreground text-sm">{t("loading")}</p>
         </>
       )}
     </main>

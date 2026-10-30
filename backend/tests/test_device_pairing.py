@@ -37,6 +37,9 @@ class _FakeRedis:
         self.ttls[key] = ttl
         return True
 
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
     async def getdel(self, key: str) -> str | None:
         return self.store.pop(key, None)
 
@@ -151,3 +154,40 @@ async def test_issuing_needs_a_signed_in_caller_and_a_bad_code_answers_401(
 def test_the_service_is_wired_over_redis_and_the_request_session() -> None:
     service = deps.get_device_pairing_service(MagicMock(), MagicMock())
     assert isinstance(service, DevicePairingService)
+
+
+async def test_preview_preserves_the_code_and_never_creates_a_session() -> None:
+    user = _user()
+    service, sessions = _service(user)
+    issued = await service.issue(user)
+    assert await service.preview(issued.code) is user
+    assert await service.preview(issued.code) is user
+    sessions.create_session.assert_not_awaited()
+    await service.redeem(issued.code, ip_address=None, user_agent=None)
+    with pytest.raises(AuthenticationError):
+        await service.preview(issued.code)
+
+
+async def test_preview_refuses_missing_and_revoked_codes() -> None:
+    user = _user()
+    service, sessions = _service(user)
+    with pytest.raises(AuthenticationError):
+        await service.preview("unknown")
+    issued = await service.issue(user)
+    user.credential_version += 1
+    with pytest.raises(AuthenticationError):
+        await service.preview(issued.code)
+    sessions.create_session.assert_not_awaited()
+
+
+async def test_preview_route_returns_only_the_target_identity(client: AsyncClient) -> None:
+    user = _user()
+    user.email = "owner@example.com"
+    user.full_name = "Owner"
+    pairing = MagicMock(preview=AsyncMock(return_value=user))
+    app.dependency_overrides[deps.get_device_pairing_service] = lambda: pairing
+    response = await client.post(f"{_ISSUE}/preview", json={"code": "c0de"})
+    assert response.status_code == 200
+    assert response.json() == {"id": str(user.id), "email": user.email, "full_name": "Owner"}
+    assert "set-cookie" not in response.headers
+    pairing.preview.assert_awaited_once_with("c0de")

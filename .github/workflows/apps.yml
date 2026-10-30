@@ -18,13 +18,14 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - name: Linux native libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
       - name: Rust toolchain
         run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy
       - name: Native contracts and tests
@@ -48,6 +49,44 @@ jobs:
           else
             cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
           fi
+      - name: Persistent console session smoke
+        timeout-minutes: 3
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          set -euo pipefail
+          for mode in write read; do
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              xvfb-run -a cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example session_profile_smoke -- "$mode"
+            else
+              cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example session_profile_smoke -- "$mode"
+            fi
+          done
+      - name: Build desktop installer packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd desktop
+          bun install --frozen-lockfile
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            bunx tauri build --debug --ci --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}' -- --locked
+          else
+            bunx tauri build --debug --ci -- --locked
+          fi
+      - name: Install and remove desktop packages
+        run: python scripts/check_desktop_installation.py desktop/src-tauri/target/debug/bundle
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-installers-${{ runner.os }}
+          path: |
+            desktop/src-tauri/target/debug/bundle/**/*.dmg
+            desktop/src-tauri/target/debug/bundle/**/*.exe
+            desktop/src-tauri/target/debug/bundle/**/*.msi
+            desktop/src-tauri/target/debug/bundle/**/*.deb
+            desktop/src-tauri/target/debug/bundle/**/*.rpm
+            desktop/src-tauri/target/debug/bundle/**/*.AppImage
+          if-no-files-found: error
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 35

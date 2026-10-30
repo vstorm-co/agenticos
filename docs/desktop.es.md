@@ -1,5 +1,5 @@
 ---
-source_sha: "9bb1c0d1c454"
+source_sha: "0c159750e7a4"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -272,6 +272,8 @@ incluso si se recarga la página.
 
 ## Trabajar en este ordenador { #work-on-this-computer }
 
+Las operaciones locales usan un descriptor abierto del directorio autorizado. Sustituir un directorio o archivo por un enlace simbólico no puede redirigir una escritura fuera de él. El directorio autorizado y sus directorios superiores se abren sin seguir enlaces simbólicos; las vistas previas y listas usan el mismo límite.
+
 Lo único que un navegador no puede hacer: un chat de escritorio puede
 trabajar en una carpeta del ordenador donde corre la app, en vez de en la nube.
 Las herramientas de archivos y shell del agent - listar, leer, escribir, editar,
@@ -499,6 +501,8 @@ permisos de consola ni archivos; solo pueden notificar una toma de control.
 `connection: local` sigue requiriendo la selección del navegador local.
 
 ## Instaladores y actualizaciones { #installers-and-updates }
+
+El workflow Apps también genera instaladores de desarrollo y comprueba la instalación sin automatizar la interfaz: copia de la app Mac desde el DMG, instalación y desinstalación silenciosas en Windows, instalación y eliminación de Debian y extracción del AppImage portátil. Verifica el widget integrado de macOS y las firmas, el aislamiento de la sesión persistente y el rechazo de descargas de actualización modificadas. Usa compilaciones ad-hoc o sin firma y no acredita notarización pública ni aprobación de tiendas.
 
 El workflow **Apps** de GitHub Actions comprueba los crates nativos en macOS,
 Windows y Linux y construye APK de depuración Android y la aplicación del

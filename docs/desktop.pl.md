@@ -1,5 +1,5 @@
 ---
-source_sha: "9bb1c0d1c454"
+source_sha: "0c159750e7a4"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -263,6 +263,8 @@ obowiązuje podczas bieżącej sesji aplikacji, także po przeładowaniu strony.
 
 ## Praca na tym komputerze { #work-on-this-computer }
 
+Lokalne operacje plikowe korzystają z otwartego uchwytu zatwierdzonego katalogu. Zastąpienie katalogu lub pliku symlinkiem nie przekieruje zapisu poza niego. Sam katalog i jego katalogi nadrzędne są otwierane bez podążania za symlinkami; podgląd i listowanie plików korzystają z tej samej granicy.
+
 Jedyna rzecz, której przeglądarka nie potrafi: czat desktopowy
 może pracować w folderze na komputerze, na którym działa aplikacja, zamiast w
 chmurze. Narzędzia agenta do plików i powłoki - listowanie, czytanie, zapis,
@@ -478,6 +480,8 @@ plików; mogą tylko zgłosić przejęcie sterowania. Konfiguracja `connection: 
 nadal wymaga wyboru lokalnej przeglądarki.
 
 ## Instalatory i aktualizacje { #installers-and-updates }
+
+Workflow Apps buduje też instalatory deweloperskie i testuje instalację bez automatyzacji interfejsu: kopiowanie aplikacji Mac z DMG, cichą instalację i usunięcie na Windowsie, instalację i usunięcie pakietu Debian oraz rozpakowanie przenośnego AppImage. Sprawdza osadzony widget macOS i podpisy, izolację trwałej sesji oraz odrzucenie zmodyfikowanego pliku aktualizacji. Te kontrole używają buildów ad-hoc lub niepodpisanych i nie potwierdzają publicznej notaryzacji ani akceptacji sklepu.
 
 Workflow **Apps** w GitHub Actions sprawdza natywne crate'y na macOS, Windows i
 Linuksie, buduje debug APK Androida i aplikację symulatora iOS. Pełne sprawdzenia

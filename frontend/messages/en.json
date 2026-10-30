@@ -9368,7 +9368,7 @@
       "description": "Sign the AgenticOS app in as you by scanning a code. The code works once, for a minute.",
       "step1": "Install AgenticOS on your phone and open it.",
       "step2": "Choose Scan a code, or point the phone's camera here.",
-      "step3": "Scan the code. The phone signs in as you.",
+      "step3": "Scan the code and confirm your account on the phone.",
       "show": "Show a code",
       "again": "Show a new code",
       "expiresIn": "{seconds, plural, =1 {Works for 1 more second} other {Works for # more seconds}}",
@@ -9377,9 +9377,13 @@
       "qrLabel": "A code that signs the AgenticOS app in as you"
     },
     "pair": {
-      "signingIn": "Signing you in",
       "failed": "This code no longer works",
-      "failedHint": "Codes work once, for a minute. Show a new one in the console, under Settings, Mobile app, and scan it again."
+      "failedHint": "Codes work once, for a minute. Show a new one in the console, under Settings, Mobile app, and scan it again.",
+      "confirmTitle": "Sign in to this account?",
+      "confirmHint": "Continue only if this is your account. Confirming replaces the account signed in on this device.",
+      "confirm": "Confirm sign-in",
+      "cancel": "Cancel",
+      "loading": "Checking the scanned account"
     },
     "activity": {
       "approvalTitle": "{agent} wants to run {tool}",

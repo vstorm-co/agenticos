@@ -1,5 +1,5 @@
 ---
-source_sha: "9bb1c0d1c454"
+source_sha: "0c159750e7a4"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -278,6 +278,8 @@ für die aktuelle Desktop-Sitzung, auch nach einem Neuladen der Seite.
 
 ## Auf diesem Computer arbeiten { #work-on-this-computer }
 
+Lokale Dateioperationen arbeiten relativ zu einem offenen Handle des freigegebenen Verzeichnisses. Ein durch einen symbolischen Link ersetztes Verzeichnis oder eine Datei kann Schreibzugriffe nicht nach außen umleiten. Das freigegebene Verzeichnis und seine übergeordneten Verzeichnisse werden ohne Folgen symbolischer Links geöffnet; Vorschau und Dateilisten nutzen dieselbe Grenze.
+
 Das eine, was ein Browser nicht kann: Ein Desktop-Chat
 kann statt in der Cloud in einem Ordner auf dem Computer arbeiten, auf dem die App
 läuft. Die Datei- und Shell-Werkzeuge des Agents - auflisten, lesen, schreiben,
@@ -507,6 +509,8 @@ Seiten erhalten keine Konsolen- oder Dateiberechtigungen; sie dürfen nur eine
 Übernahme melden. `connection: local` benötigt weiterhin die lokale Browserauswahl.
 
 ## Installationspakete und Updates { #installers-and-updates }
+
+Der Apps-Workflow baut auch Entwicklungsinstaller und prüft die Installation ohne UI-Automatisierung: Kopieren der Mac-App aus dem DMG, stille Installation und Entfernung unter Windows, Installation und Entfernung des Debian-Pakets sowie Entpacken der portablen AppImage. Er prüft das eingebettete macOS-Widget und Signaturen, die Isolation persistenter Sitzungen und die Ablehnung veränderter Update-Downloads. Diese Prüfungen nutzen Ad-hoc- oder unsignierte Builds und bestätigen keine öffentliche Beglaubigung oder Store-Freigabe.
 
 Der GitHub-Actions-Workflow **Apps** prüft native Crates auf macOS, Windows und
 Linux und baut Android-Debug-APKs sowie die iOS-Simulator-App. Vollständige native

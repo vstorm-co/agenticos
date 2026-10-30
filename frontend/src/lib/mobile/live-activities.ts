@@ -38,7 +38,7 @@ export type ActivityAsk =
   | { kind: "start"; mode: ComposerIntent };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /** The app's answer to `take_activity_action`: nothing waiting, or one ask. */

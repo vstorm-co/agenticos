@@ -9153,7 +9153,7 @@
       "description": "Zaloguj aplikację AgenticOS na swoje konto, skanując kod. Kod działa raz, przez minutę.",
       "step1": "Zainstaluj AgenticOS na telefonie i otwórz aplikację.",
       "step2": "Wybierz Zeskanuj kod albo skieruj tu aparat telefonu.",
-      "step3": "Zeskanuj kod. Telefon zaloguje się na twoje konto.",
+      "step3": "Zeskanuj kod i potwierdź swoje konto na telefonie.",
       "show": "Pokaż kod",
       "again": "Pokaż nowy kod",
       "expiresIn": "{seconds, plural, one {Działa jeszcze 1 sekundę} few {Działa jeszcze # sekundy} many {Działa jeszcze # sekund} other {Działa jeszcze # sekundy}}",
@@ -9162,9 +9162,13 @@
       "qrLabel": "Kod, który loguje aplikację AgenticOS na twoje konto"
     },
     "pair": {
-      "signingIn": "Logowanie",
       "failed": "Ten kod już nie działa",
-      "failedHint": "Kod działa raz, przez minutę. Pokaż nowy w konsoli, w Ustawieniach, w zakładce Aplikacja mobilna, i zeskanuj go ponownie."
+      "failedHint": "Kod działa raz, przez minutę. Pokaż nowy w konsoli, w Ustawieniach, w zakładce Aplikacja mobilna, i zeskanuj go ponownie.",
+      "confirmTitle": "Zalogować na to konto?",
+      "confirmHint": "Kontynuuj tylko, jeśli to Twoje konto. Potwierdzenie zastąpi konto zalogowane na tym urządzeniu.",
+      "confirm": "Potwierdź logowanie",
+      "cancel": "Anuluj",
+      "loading": "Sprawdzanie zeskanowanego konta"
     },
     "activity": {
       "approvalTitle": "{agent} chce uruchomić {tool}",

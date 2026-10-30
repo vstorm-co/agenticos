@@ -1,5 +1,5 @@
 ---
-source_sha: "155922214d1d"
+source_sha: "0b10688013ea"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -18,9 +18,11 @@ Swift für iOS, Kotlin für Android - unter `mobile/src-tauri/`.
 
 ## Anmelden { #signing-in }
 
+Beim Scannen erscheinen zuerst Name und E-Mail-Adresse des Zielkontos. Bestätige das Konto, um dich anzumelden; Abbrechen lässt die aktuelle Sitzung unverändert. Die Vorschau verbraucht den Code nicht und verlängert seine Gültigkeit von einer Minute nicht.
+
 **Einstellungen → Mobile App** in der Konsole zeigt einen QR-Code; scannt die App
-ihn, ist sie als Sie angemeldet. Ein Code gilt einmal, eine Minute lang, und die
-Sitzung des Telefons wird erst beim Scannen geöffnet, unter dem eigenen Namen des
+ihn, können Sie die Anmeldung bei Ihrem Konto bestätigen. Ein Code gilt einmal, eine Minute lang, und die
+Sitzung des Telefons wird erst nach Bestätigung geöffnet, unter dem eigenen Namen des
 Telefons. Die Adresse des Servers einzugeben und sich anzumelden geht auch. Die
 Sitzung übersteht Neustarts, und die App sperrt sich nach fünf Minuten Abwesenheit
 hinter Face ID, Touch ID oder dem Fingerabdruck.

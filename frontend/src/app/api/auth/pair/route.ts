@@ -24,8 +24,16 @@ interface TokenPair {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { code?: unknown };
-    if (typeof body.code !== "string" || !body.code) {
+    const body: unknown = await request.json();
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("code" in body) ||
+      !("confirmed" in body) ||
+      typeof body.code !== "string" ||
+      !body.code ||
+      body.confirmed !== true
+    ) {
       return bffRefusal("MISSING_AUTHORIZATION_CODE", 400);
     }
     const tokens = await backendFetch<TokenPair>("/api/v1/auth/pairing-codes/redeem", {

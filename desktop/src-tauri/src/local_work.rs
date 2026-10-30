@@ -175,11 +175,14 @@ pub async fn local_files(app: AppHandle, root: String) -> Result<Vec<LocalFile>,
 
 fn list_files(root: &Path) -> Result<Vec<LocalFile>, String> {
     let mut found = Vec::new();
-    let mut pending = vec![root.to_path_buf()];
+    let directory = crate::local_fs::open(root).map_err(|e| e.to_string())?;
+    let mut pending = vec![PathBuf::from(".")];
     // Bound traversal as well as the response: a generated tree must not hold
     // the blocking pool or let a symlink take the panel outside its grant.
     'walk: while let Some(dir) = pending.pop() {
-        let entries = std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let entries = directory
+            .read_dir(&dir)
+            .map_err(|e| format!("{}: {e}", dir.display()))?;
         for entry in entries {
             let entry = entry.map_err(|e| e.to_string())?;
             let kind = entry.file_type().map_err(|e| e.to_string())?;
@@ -190,10 +193,10 @@ fn list_files(root: &Path) -> Result<Vec<LocalFile>, String> {
             if kind.is_dir() && SKIPPED.contains(&name.as_str()) {
                 continue;
             }
-            let path = inside(root, &entry.path().to_string_lossy()).map_err(|e| e.message)?;
-            let metadata = std::fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-            let relative = path.strip_prefix(root).map_err(|e| e.to_string())?;
-            let modified = metadata.modified().ok();
+            let path = dir.join(entry.file_name());
+            let metadata = directory.symlink_metadata(&path).map_err(|e| e.to_string())?;
+            let relative = path.strip_prefix(".").unwrap_or(&path);
+            let modified = metadata.modified().ok().map(|time| time.into_std());
             found.push((
                 modified,
                 LocalFile {
@@ -225,25 +228,24 @@ fn list_files(root: &Path) -> Result<Vec<LocalFile>, String> {
 const FILE_LIMIT: u64 = 10 * 1024 * 1024;
 
 async fn read_file(root: &Path, path: &str) -> Result<Vec<u8>, String> {
-    let file = inside(root, path).map_err(|refusal| refusal.message)?;
-    // Opening a named pipe can wait for a writer before File::metadata is ever
-    // reached. Refuse special files first, then verify the opened file too.
-    if !tokio::fs::metadata(&file).await.map_err(|e| e.to_string())?.is_file() {
-        return Err("Only regular files can be opened.".into());
-    }
-    let file = tokio::fs::File::open(&file).await.map_err(|e| format!("{path}: {e}"))?;
-    if !file.metadata().await.map_err(|e| e.to_string())?.is_file() {
-        return Err("Only regular files can be opened.".into());
-    }
-    let mut data = Vec::new();
-    file.take(FILE_LIMIT + 1)
-        .read_to_end(&mut data)
-        .await
-        .map_err(|e| e.to_string())?;
-    if data.len() as u64 > FILE_LIMIT {
-        return Err("This file exceeds the 10 MiB local preview limit.".into());
-    }
-    Ok(data)
+    let root = root.to_path_buf();
+    let path = path.to_owned();
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::io::Read;
+        let directory = crate::local_fs::open(&root).map_err(|e| e.to_string())?;
+        let relative = crate::local_fs::relative(&root, &path).map_err(|e| e.to_string())?;
+        let file = crate::local_fs::regular(&directory, &relative, false).map_err(|e| e.to_string())?;
+        let mut data = Vec::new();
+        file.take(FILE_LIMIT + 1)
+            .read_to_end(&mut data)
+            .map_err(|e| e.to_string())?;
+        if data.len() as u64 > FILE_LIMIT {
+            return Err("This file exceeds the 10 MiB local preview limit.".into());
+        }
+        Ok(data)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// One file in a granted folder, base64, for the chat's file viewer.
@@ -352,7 +354,7 @@ fn writable(mode: Mode) -> Result<(), Refusal> {
     }
 }
 
-fn entry(path: &Path, metadata: &std::fs::Metadata) -> Value {
+fn entry(path: &Path, metadata: &cap_std::fs::Metadata) -> Value {
     serde_json::json!({
         "name": path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
         "path": path.to_string_lossy(),
@@ -385,21 +387,47 @@ async fn files_unrestricted(
         .ancestors()
         .last()
         .ok_or_else(|| Refusal::new("denied", "No filesystem root."))?;
+    let absolute = inside(boundary, &absolute.to_string_lossy())?;
     let mut args = args.clone();
     args.insert("path".into(), absolute.to_string_lossy().into_owned().into());
     files(op, boundary, mode, &args).await
 }
 
 async fn files(op: &str, root: &Path, mode: Mode, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
+    let op = op.to_owned();
+    let root = root.to_path_buf();
+    let args = args.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let asked = text(&args, "path")?;
+        let failed = |error: std::io::Error| io_refusal(&error, &asked);
+        let directory = crate::local_fs::open(&root).map_err(failed)?;
+        files_at(&directory, &op, &root, mode, &args)
+    })
+    .await
+    .map_err(|error| Refusal::new("io", error.to_string()))?
+}
+
+fn files_at(
+    directory: &cap_std::fs::Dir,
+    op: &str,
+    root: &Path,
+    mode: Mode,
+    args: &Map<String, Value>,
+) -> Result<Map<String, Value>, Refusal> {
     let asked = text(args, "path")?;
-    let path = inside(root, &asked)?;
+    let path = crate::local_fs::relative(root, &asked).map_err(|error| io_refusal(&error, &asked))?;
     let failed = |error: std::io::Error| io_refusal(&error, &asked);
     match op {
         "fs.read" => {
-            if path.is_dir() {
+            if directory.metadata(&path).map_err(failed)?.is_dir() {
                 return Err(Refusal::new("is_dir", format!("{asked} is a folder")));
             }
-            let data = tokio::fs::read(&path).await.map_err(failed)?;
+            use std::io::Read;
+            let mut data = Vec::new();
+            crate::local_fs::regular(directory, &path, false)
+                .map_err(failed)?
+                .read_to_end(&mut data)
+                .map_err(failed)?;
             Ok(object(
                 serde_json::json!({ "data": base64::engine::general_purpose::STANDARD.encode(data) }),
             ))
@@ -410,45 +438,52 @@ async fn files(op: &str, root: &Path, mode: Mode, args: &Map<String, Value>) -> 
                 .decode(text(args, "data")?)
                 .map_err(|_| Refusal::new("io", "The file arrived damaged."))?;
             if let Some(parent) = path.parent() {
-                tokio::fs::create_dir_all(parent).await.map_err(failed)?;
+                directory.create_dir_all(parent).map_err(failed)?;
             }
-            tokio::fs::write(&path, data).await.map_err(failed)?;
+            use std::io::Write;
+            let mut file = crate::local_fs::regular(directory, &path, true).map_err(failed)?;
+            file.set_len(0).map_err(failed)?;
+            file.write_all(&data).map_err(failed)?;
             Ok(Map::new())
         }
         "fs.stat" => {
-            let metadata = tokio::fs::metadata(&path).await.map_err(failed)?;
-            Ok(object(entry(&path, &metadata)))
+            let metadata = directory.metadata(&path).map_err(failed)?;
+            Ok(object(entry(&root.join(&path), &metadata)))
         }
         "fs.list" => {
-            let mut reader = tokio::fs::read_dir(&path).await.map_err(failed)?;
             let mut entries = Vec::new();
-            while let Some(item) = reader.next_entry().await.map_err(failed)? {
-                if let Ok(metadata) = item.metadata().await {
-                    entries.push(entry(&item.path(), &metadata));
+            for item in directory.read_dir(&path).map_err(failed)? {
+                let item = item.map_err(failed)?;
+                if let Ok(metadata) = item.metadata() {
+                    entries.push(entry(&root.join(&path).join(item.file_name()), &metadata));
                 }
             }
             Ok(object(serde_json::json!({ "entries": entries })))
         }
         "fs.mkdir" => {
             writable(mode)?;
-            tokio::fs::create_dir_all(&path).await.map_err(failed)?;
+            directory.create_dir_all(&path).map_err(failed)?;
             Ok(Map::new())
         }
         "fs.remove" => {
             writable(mode)?;
-            if path == root {
+            if path == Path::new(".") {
                 return Err(Refusal::new("denied", "The folder itself cannot be removed."));
             }
-            let metadata = tokio::fs::symlink_metadata(&path).await.map_err(failed)?;
+            let metadata = directory.symlink_metadata(&path).map_err(failed)?;
             if metadata.is_dir() {
-                tokio::fs::remove_dir_all(&path).await.map_err(failed)?;
+                directory.remove_dir_all(&path).map_err(failed)?;
             } else {
-                tokio::fs::remove_file(&path).await.map_err(failed)?;
+                directory.remove_file(&path).map_err(failed)?;
             }
             Ok(Map::new())
         }
-        "fs.exists" => Ok(object(serde_json::json!({ "exists": path.exists() }))),
-        "fs.realpath" => Ok(object(serde_json::json!({ "path": path.to_string_lossy() }))),
+        "fs.exists" => Ok(object(
+            serde_json::json!({ "exists": directory.try_exists(&path).map_err(failed)? }),
+        )),
+        "fs.realpath" => Ok(object(
+            serde_json::json!({ "path": root.join(&path).to_string_lossy() }),
+        )),
         other => Err(Refusal::new(
             "denied",
             format!("This app does not do {other} yet. Update AgenticOS."),
@@ -708,6 +743,92 @@ mod tests {
         assert!(validate_mode(Mode::WorkspaceWrite).is_err());
         #[cfg(target_os = "macos")]
         assert!(validate_mode(Mode::WorkspaceWrite).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_replaced_grant_cannot_redirect_an_already_open_operation() {
+        let base = folder();
+        let root = base.join("approved");
+        let outside = base.join("outside");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("answer.txt"), "private").unwrap();
+        let directory = crate::local_fs::open(&root).unwrap();
+        std::fs::rename(&root, base.join("original")).unwrap();
+        std::os::unix::fs::symlink(&outside, &root).unwrap();
+        let args = object(serde_json::json!({"path":"answer.txt", "data":"ZG9uZQ=="}));
+        files_at(&directory, "fs.write", &root, Mode::WorkspaceWrite, &args).unwrap();
+        assert_eq!(std::fs::read(outside.join("answer.txt")).unwrap(), b"private");
+        assert_eq!(std::fs::read(base.join("original/answer.txt")).unwrap(), b"done");
+        assert!(crate::local_fs::open(&root).is_err());
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn replaced_child_directories_and_files_cannot_escape_the_grant() {
+        let root = folder();
+        let outside = folder();
+        std::fs::write(outside.join("answer.txt"), "private").unwrap();
+        std::fs::create_dir(root.join("child")).unwrap();
+        let directory = crate::local_fs::open(&root).unwrap();
+        let checked = inside(&root, "child/answer.txt").unwrap();
+        std::fs::rename(root.join("child"), root.join("original")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("child")).unwrap();
+        let args = object(serde_json::json!({"path":checked.to_string_lossy(), "data":"ZG9uZQ=="}));
+        assert!(files_at(&directory, "fs.write", &root, Mode::WorkspaceWrite, &args).is_err());
+        assert!(files_at(&directory, "fs.read", &root, Mode::ReadOnly, &args).is_err());
+        assert!(read_file(&root, "child/answer.txt").await.is_err());
+        std::os::unix::fs::symlink(outside.join("answer.txt"), root.join("leaf")).unwrap();
+        let args = object(serde_json::json!({"path":"leaf", "data":"ZG9uZQ=="}));
+        assert!(files_at(&directory, "fs.write", &root, Mode::WorkspaceWrite, &args).is_err());
+        files_at(&directory, "fs.remove", &root, Mode::WorkspaceWrite, &args).unwrap();
+        assert_eq!(std::fs::read(outside.join("answer.txt")).unwrap(), b"private");
+        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[tokio::test]
+    async fn confined_file_operations_preserve_normal_workspace_behaviour() {
+        let root = folder();
+        let args = object(serde_json::json!({"path":"notes/answer.txt", "data":"ZG9uZQ=="}));
+        assert!(files("fs.write", &root, Mode::ReadOnly, &args).await.is_err());
+        files("fs.write", &root, Mode::WorkspaceWrite, &args).await.unwrap();
+        assert_eq!(
+            files("fs.read", &root, Mode::ReadOnly, &args).await.unwrap()["data"],
+            "ZG9uZQ=="
+        );
+        assert_eq!(files("fs.stat", &root, Mode::ReadOnly, &args).await.unwrap()["size"], 4);
+        assert_eq!(
+            files("fs.exists", &root, Mode::ReadOnly, &args).await.unwrap()["exists"],
+            true
+        );
+        let directory = object(serde_json::json!({"path":"notes"}));
+        assert_eq!(
+            files("fs.list", &root, Mode::ReadOnly, &directory).await.unwrap()["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        files("fs.remove", &root, Mode::WorkspaceWrite, &directory)
+            .await
+            .unwrap();
+        assert_eq!(
+            files("fs.exists", &root, Mode::ReadOnly, &args).await.unwrap()["exists"],
+            false
+        );
+        let root_args = object(serde_json::json!({"path":"."}));
+        assert!(files("fs.remove", &root, Mode::WorkspaceWrite, &root_args)
+            .await
+            .is_err());
+        files("fs.mkdir", &root, Mode::WorkspaceWrite, &directory)
+            .await
+            .unwrap();
+        let path = files("fs.realpath", &root, Mode::ReadOnly, &directory).await.unwrap();
+        assert_eq!(Path::new(path["path"].as_str().unwrap()), root.join("notes"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
