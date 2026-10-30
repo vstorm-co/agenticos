@@ -546,8 +546,12 @@ async def _run_sync(
             # Deleted while the job waited. Falling through would write its files
             # under the deployment-wide scope below, unfiled where any same-named
             # app-scoped base reads them and no base's purge removes them (#2561).
+            # Settled in this session, as the budget refusal below is: a write
+            # that fails raises into a retry rather than leaving the log running.
             reason = "The knowledge base was deleted before this sync ran"
-            await _update_sync_log(sync_log_id, "error", error_message=reason)
+            await RAGSyncService(db).complete_sync(
+                sync_log_id, status="error", error_message=reason
+            )
             return {"status": "error", "message": reason}
         organization_id = None if kb is None else kb.organization_id
         scope = VectorScope(tenant=None) if kb is None else kb.vector_scope
