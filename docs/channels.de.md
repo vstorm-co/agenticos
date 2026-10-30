@@ -1,5 +1,5 @@
 ---
-source_sha: "d2221cd84fea"
+source_sha: "623d27b2de5f"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2166,9 +2166,11 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
-- **MCP-Lesezugriffe folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
+- **MCP-Lesezugriffe verknüpfter Absender folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
 
 Jede Nachricht enthält die Plattform-ID des Autors, Benutzername, Anzeigename und Nachrichten-ID im gespeicherten Benutzerprompt außerhalb der Systemanweisungen. Fehlende Namen bleiben unbekannt. Autorenbezeichnungen erteilen keinen Werkzeugzugriff. Der Agent antwortet dem aktuellen Absender, hält die Anliegen der Teilnehmer getrennt und richtet Ankündigungen direkt an ihr Publikum.
+
+Autorenreferenzen werden getrennt von der aktuellen Nachricht übergeben, damit Eingabe-Guardrails die eigentliche Frage prüfen. Nicht verknüpfte Kanalteilnehmer benötigen weiterhin eine Genehmigung für jeden MCP-Aufruf, auch für Organisationslesezugriffe.
 
 Sowohl ausdrückliche `@slug`-Aufrufe als auch Standardantworten erhalten den gespeicherten Gesprächsverlauf zusammen mit dem anfänglichen Kontext des Kanal-Threads.
 

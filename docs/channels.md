@@ -1952,9 +1952,11 @@ surface, so a difference between the console and Mattermost remains visible.
     Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
-- **MCP reads use the binding's approval policy; writes still require approval.** Read-only tools do not ask solely because a run is in a chat app. Tools without a `readOnlyHint: true` still ask, and an explicit `all` policy includes reads. This applies to personal, organization and platform connections, delegates and resumed calls. Personal connections still belong to the current sender, never the publisher or another participant.
+- **Linked senders' MCP reads use the binding's approval policy; writes still require approval.** Read-only tools do not ask solely because a run is in a chat app. Tools without a `readOnlyHint: true` still ask, and an explicit `all` policy includes reads. This applies to personal, organization and platform connections, delegates and resumed calls. Personal connections still belong to the current sender, never the publisher or another participant.
 
 Each incoming message carries its platform author ID, username, display name and message ID in the saved user prompt, outside system instructions. Missing names remain unknown. The author labels do not authorize tool access. The agent answers the current sender, keeps participants' requests separate and writes announcements directly to their audience.
+
+Author reference data is supplied separately from the current message, so input guardrails screen the actual question. Unlinked channel participants still need approval for every MCP call, including organization reads.
 
 Both explicit `@slug` invocations and default replies receive the saved conversation history together with the initial channel thread context.
 

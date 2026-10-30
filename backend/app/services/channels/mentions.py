@@ -71,7 +71,10 @@ from app.services.channels.base import (
     channel_key,
 )
 from app.services.channels.chart_png import render_chart_png
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, authored_prompt
+from app.services.channels.formatting import (
+    LINK_ACCOUNT_INSTRUCTION,
+    authored_prompt,
+)
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
@@ -492,7 +495,8 @@ class ChannelAgentRouter:
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
-            authored_prompt(mention.prompt, incoming),
+            mention.prompt,
+            said=authored_prompt(mention.prompt, incoming),
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
@@ -517,6 +521,7 @@ class ChannelAgentRouter:
             # Without it a named agent answered an existing thread as though it
             # were empty, because only the default path prepended the backfill.
             message_history=message_history,
+            channel_author_context="" if incoming is None else authored_prompt("", incoming),
             # The same rule as the default path: a mention from a member speaks
             # through that person's own MCP accounts, and the room reads the
             # answer exactly as it reads the question. `sender`, not `user_id`,
@@ -621,7 +626,8 @@ class ChannelAgentRouter:
         answer, run = await self.runner.execute(
             ctx,
             agent.id,
-            authored_prompt(text, incoming),
+            text,
+            said=authored_prompt(text, incoming),
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
@@ -650,6 +656,7 @@ class ChannelAgentRouter:
             # room's to use.
             acts_for_sender=sender is not None,
             message_history=message_history,
+            channel_author_context="" if incoming is None else authored_prompt("", incoming),
             exposure=exposure,
         )
         return AnsweredTurn(

@@ -131,8 +131,10 @@ always enforces at least `writes`, with deliberate exceptions in `HELD` and
 
 Channel runs, including delegates and resumptions, enforce at least `writes` on
 all MCP bindings. Read-only calls no longer acquire an extra approval merely by
-running in a chat app. Personal connections still resolve for each message's
-linked sender, never the publisher or a different participant.
+running in a chat app for a linked member. Unlinked room participants still
+require approval for every MCP call, including organization reads. Personal
+connections resolve for each message's linked sender, never the publisher or a
+different participant.
 
 Cost is the same story: what a server does on its own side is outside this platform's
 budget. Only model tokens are counted.

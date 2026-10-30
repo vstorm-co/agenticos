@@ -27,9 +27,11 @@ Two things are versioned separately from this file and worth knowing about:
 - Channel replies retain each message's author, answer the current request without
   reviving unrelated tasks, and explain how to revise a published App when its
   original sandbox is unavailable. Existing channel prompts receive the updated
-  MCP guidance without losing custom instructions.
-- Read-only MCP tools no longer require approval solely because a run is in
-  Mattermost, Slack, Teams or Telegram. Writes and tools without a read-only hint
+  guidance without duplicate default blocks or losing custom instructions.
+  Author metadata stays outside the actual prompt screened by input guardrails.
+- Read-only MCP tools no longer require approval solely because a linked
+  member's run is in Mattermost, Slack, Teams or Telegram. Unlinked senders still
+  require approval for every MCP call. Writes and tools without a read-only hint
   still require approval; an explicit all-tools policy continues to include reads.
 
 ## [1.29.2] - 2026-10-30

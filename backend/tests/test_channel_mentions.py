@@ -1213,9 +1213,28 @@ async def test_each_turn_persists_its_own_author_after_mention_parsing(
                 incoming=incoming,
             )
             prompt = router.runner.execute.await_args.args[2]
-            assert f'"username": "{author}"' in prompt
-            assert f'"user_id": "{author}-id"' in prompt
-            assert f'"message_id": "{author}-post"' in prompt
-            assert prompt.endswith("announce this")
+            recorded = router.runner.execute.await_args.kwargs["said"]
+            context = router.runner.execute.await_args.kwargs["channel_author_context"]
+            for metadata in [recorded, context]:
+                assert f'"username": "{author}"' in metadata
+                assert f'"user_id": "{author}-id"' in metadata
+                assert f'"message_id": "{author}-post"' in metadata
+            assert prompt == "announce this"
             assert "@support" not in prompt
             assert router.runner.execute.await_args.args[0].user_id == person
+            from pydantic_ai import Agent
+            from pydantic_ai.models.test import TestModel
+
+            from app.agents.capabilities.guardrails._capability import (
+                GuardrailsConfig,
+                build_guardrails,
+            )
+            from app.services.channels.formatting import ChannelReference
+
+            guardrails = build_guardrails(GuardrailsConfig(blocked_keywords_in="group"))
+            assert guardrails is not None
+            guarded = Agent(TestModel(), capabilities=[ChannelReference(context), guardrails])
+            await guarded.run(
+                prompt,
+                message_history=router.runner.execute.await_args.kwargs.get("message_history"),
+            )

@@ -1,5 +1,5 @@
 ---
-source_sha: "d2221cd84fea"
+source_sha: "623d27b2de5f"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2056,9 +2056,11 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Las lecturas MCP siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
+- **Las lecturas MCP de remitentes vinculados siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
 
 Cada mensaje incluye el ID del autor en la plataforma, nombre de usuario, nombre visible e ID del mensaje en el prompt de usuario guardado, fuera de las instrucciones del sistema. Los nombres ausentes siguen siendo desconocidos. Las etiquetas del autor no autorizan herramientas. El agente responde al remitente actual, separa las peticiones de los participantes y dirige los anuncios directamente a su audiencia.
+
+Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real. Los participantes sin cuenta vinculada siguen necesitando aprobación para todas las llamadas MCP, incluidas las lecturas de organización.
 
 Tanto las invocaciones explícitas `@slug` como las respuestas predeterminadas reciben el historial guardado de la conversación junto con el contexto inicial del hilo del canal.
 

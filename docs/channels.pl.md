@@ -1,5 +1,5 @@
 ---
-source_sha: "d2221cd84fea"
+source_sha: "623d27b2de5f"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2021,9 +2021,11 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
-- **Odczyty MCP podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
+- **Odczyty MCP powiązanego nadawcy podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
 
 Każda wiadomość przenosi identyfikator autora na platformie, nazwę użytkownika, nazwę wyświetlaną i identyfikator wiadomości w zapisanym prompcie użytkownika, poza instrukcjami systemowymi. Brakujące nazwy pozostają nieznane. Etykiety autora nie nadają dostępu do narzędzi. Agent odpowiada bieżącemu nadawcy, rozdziela prośby uczestników i pisze ogłoszenia bezpośrednio do odbiorców.
+
+Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie. Niepowiązani uczestnicy kanału nadal potrzebują zatwierdzenia każdego wywołania MCP, także odczytów organizacyjnych.
 
 Zarówno jawne wywołania `@slug`, jak i odpowiedzi domyślne dostają zapisaną historię rozmowy wraz z początkowym kontekstem wątku kanału.
 
