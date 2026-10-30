@@ -51,7 +51,7 @@ use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use agenticos_shell_core::{
-    deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn,
+    deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce, parse_server_url, PendingSignIn, SignInProof,
 };
 use base64::Engine;
 
@@ -441,6 +441,11 @@ fn startup_notice(notice: tauri::State<'_, StartupNotice>) -> Option<String> {
 }
 
 #[tauri::command]
+fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
+    app.state::<SignInProof>().take(&code)
+}
+
+#[tauri::command]
 async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(), String> {
     let server = parse_server_url(&url)?;
     let probed = server.clone();
@@ -455,6 +460,8 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
 async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
     let _transition = device::transition(app).await;
     managed::check(app, &server)?;
+    app.state::<SignInProof>().clear()?;
+    app.state::<PendingSignIn>().0.lock().map_err(|e| e.to_string())?.take();
     device::clear_authority(app).await?;
     let (settings, ()) = settings::update(app, |settings| {
         settings.server_url = Some(server.clone());
@@ -779,6 +786,10 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             let server = settings::current(&handle).server_url;
             if !is_oauth_start(server.as_ref(), url) {
                 return true;
+            }
+            if let Err(error) = handle.state::<SignInProof>().clear() {
+                eprintln!("Could not start sign-in: {error}");
+                return false;
             }
             let nonce = mint_nonce();
             if let Ok(mut pending) = handle.state::<PendingSignIn>().0.lock() {
@@ -1384,6 +1395,7 @@ pub fn run() {
             context::take_context_files,
             context::open_accessibility_settings,
             dropped::take_shared,
+            oauth_verifier,
             device::device_status,
             device::device_link,
             device::device_unlink,
@@ -1399,6 +1411,7 @@ pub fn run() {
             local_services::local_remove_service
         ])
         .manage(PendingSignIn::default())
+        .manage(SignInProof::default())
         .manage(console::Granted::default())
         .manage(screen::ScreenState::default())
         .manage(notify::Delivered::default())
@@ -1486,6 +1499,13 @@ pub fn run() {
                     .and_then(|mut slot| slot.take());
                 for link in links {
                     if let Some(destination) = deep_link_return(chosen.as_ref(), expected.as_deref(), link.as_str()) {
+                        if let Some(verifier) = expected.as_deref() {
+                            if let Err(error) = deep_link_handle.state::<SignInProof>().remember(&destination, verifier)
+                            {
+                                eprintln!("Could not finish signing in: {error}");
+                                return;
+                            }
+                        }
                         if let Some(console) = deep_link_handle.get_webview_window(WINDOW) {
                             if let Err(e) = console.navigate(destination) {
                                 eprintln!("Could not finish signing in: {e}");

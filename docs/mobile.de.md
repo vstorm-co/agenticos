@@ -1,8 +1,10 @@
 ---
-source_sha: "20c345dd22a5"
+source_sha: "39d07d6f0165"
 ---
 
 # Die Telefon-App { #the-phone-app }
+
+Die native OAuth-Anmeldung verwendet S256 PKCE. Die App behält einen privaten Verifier; der Callback enthält nur dessen öffentliche Challenge. Der Verifier wird im Inhalt der Austauschanfrage gesendet, niemals in einer URL. Abmelden entfernt native Benachrichtigungsvorschauen auf dem Telefon.
 
 Die Konsole funktioniert im Browser eines Telefons und lässt sich als App zum
 Startbildschirm hinzufügen. Die AgenticOS-App für iOS und Android ergänzt, was nur

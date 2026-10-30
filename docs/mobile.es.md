@@ -1,8 +1,10 @@
 ---
-source_sha: "20c345dd22a5"
+source_sha: "39d07d6f0165"
 ---
 
 # La app del móvil { #the-phone-app }
+
+El inicio de sesión OAuth nativo utiliza PKCE S256. La aplicación conserva un verificador privado; el callback solo contiene su desafío público. El verificador se envía en el cuerpo de la solicitud de intercambio, nunca en una URL. Cerrar sesión elimina las vistas previas nativas de las notificaciones del teléfono.
 
 La consola funciona en el navegador de un móvil y se puede añadir a la pantalla de
 inicio como app. La app de AgenticOS para iOS y Android añade lo que solo una app

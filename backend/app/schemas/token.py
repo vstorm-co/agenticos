@@ -3,6 +3,8 @@
 from typing import Literal
 from uuid import UUID
 
+from pydantic import Field
+
 from app.schemas.base import BaseSchema
 
 
@@ -44,6 +46,9 @@ class OAuthExchangeRequest(BaseSchema):
     """Request body swapping a single-use OAuth code for its token pair."""
 
     code: str
+    code_verifier: str | None = Field(
+        default=None, min_length=43, max_length=128, pattern=r"^[A-Za-z0-9._~-]+$"
+    )
 
 
 class PairingCodeRead(BaseSchema):

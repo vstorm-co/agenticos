@@ -6,6 +6,7 @@
 const COMMANDS: &[&str] = &[
     "native_browser_view",
     "native_browser_input",
+    "oauth_verifier",
     "server_url",
     "startup_notice",
     "connect",

@@ -1,8 +1,10 @@
 ---
-source_sha: "2173ddb6c019"
+source_sha: "66166a4481ba"
 ---
 
 # La app de escritorio { #the-desktop-app }
+
+El inicio de sesión OAuth nativo utiliza PKCE S256. La aplicación conserva un verificador privado; el callback solo contiene su desafío público. El verificador se envía en el cuerpo de la solicitud de intercambio, nunca en una URL. Cerrar sesión elimina las vistas previas nativas de las notificaciones del teléfono.
 
 Al desconectar, cerrar sesión, volver a vincular o cambiar de servidor se eliminan los permisos de carpetas, servicios locales, todo el equipo y pantalla. La vinculación muestra la cuenta antes de consumir el código de un solo uso. Cancelar un comando o superar su tiempo límite también termina sus procesos secundarios.
 

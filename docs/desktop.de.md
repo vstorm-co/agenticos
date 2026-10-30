@@ -1,8 +1,10 @@
 ---
-source_sha: "2173ddb6c019"
+source_sha: "66166a4481ba"
 ---
 
 # Die Desktop-App { #the-desktop-app }
+
+Die native OAuth-Anmeldung verwendet S256 PKCE. Die App behält einen privaten Verifier; der Callback enthält nur dessen öffentliche Challenge. Der Verifier wird im Inhalt der Austauschanfrage gesendet, niemals in einer URL. Abmelden entfernt native Benachrichtigungsvorschauen auf dem Telefon.
 
 Beim Trennen, Abmelden, erneuten Koppeln oder Serverwechsel werden Freigaben für Ordner, lokale Dienste, den gesamten Computer und den Bildschirm gelöscht. Die Kopplung zeigt das Konto an, bevor der Einmalcode verbraucht wird. Abbruch oder Zeitüberschreitung eines Befehls beendet auch seine untergeordneten Prozesse.
 

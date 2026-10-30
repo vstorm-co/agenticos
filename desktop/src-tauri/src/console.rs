@@ -54,6 +54,7 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-take-shared",
             "allow-pin-agent",
             "allow-unpin-agent",
+            "allow-oauth-verifier",
             "allow-device-status",
             "allow-device-link",
             "allow-device-unlink",

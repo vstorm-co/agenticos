@@ -1,5 +1,7 @@
 # The phone app
 
+Native OAuth uses S256 PKCE. The app retains a private verifier; the callback carries only its public challenge. The verifier is sent in the exchange request body, never a URL. Signing out clears native phone notification previews.
+
 The console works in a phone's browser, and it can be added to a home screen as an
 app. The AgenticOS phone app, for iOS and Android, adds what only an app can do:
 the lock screen, the Dynamic Island, widgets, the Share sheet, push while it is

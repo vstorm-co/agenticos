@@ -9,6 +9,8 @@ pub mod device;
 
 use std::sync::Mutex;
 
+use base64::Engine;
+use sha2::{Digest, Sha256};
 use url::Url;
 
 /// The address a person typed, as the URL the webview will be pointed at.
@@ -289,8 +291,8 @@ pub fn is_oauth_start(server: Option<&Url>, url: &Url) -> bool {
 /// callback; the backend never takes it off the return, because it builds a
 /// redirect out of it.
 ///
-/// `desktop_nonce` is minted per attempt and is what makes the deep link
-/// answerable only by the window that asked. Without it any local process holding
+/// `desktop_nonce` carries the public S256 challenge of an app-held verifier.
+/// The callback can be redeemed only with that private verifier. Without it any local process holding
 /// a code from this deployment could invoke `agenticos://auth/callback?code=…`
 /// and replace the webview's cookies with its own session - moving the person
 /// into an account somebody else controls.
@@ -308,7 +310,7 @@ pub fn external_sign_in_url(url: &Url, nonce: &str) -> Url {
             query.append_pair(name, value);
         }
         query.append_pair("client", "desktop");
-        query.append_pair("desktop_nonce", nonce);
+        query.append_pair("desktop_nonce", &sign_in_challenge(nonce));
     }
     opened
 }
@@ -319,6 +321,46 @@ pub fn external_sign_in_url(url: &Url, nonce: &str) -> Url {
 /// abandons the first, which is what a person clicking the button again means.
 #[derive(Default)]
 pub struct PendingSignIn(pub Mutex<Option<String>>);
+
+/// S256 proof challenge; the verifier itself never leaves app memory in a URL.
+pub fn sign_in_challenge(verifier: &str) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+}
+
+/// A validated callback exposes its verifier only to that code, once.
+#[derive(Default)]
+pub struct SignInProof(Mutex<Option<(String, String)>>);
+
+impl SignInProof {
+    pub fn remember(&self, destination: &Url, verifier: &str) -> Result<(), String> {
+        let code = destination
+            .query_pairs()
+            .find(|(key, _)| key == "code")
+            .map(|(_, value)| value.into_owned())
+            .ok_or("Missing sign-in code")?;
+        *self.0.lock().map_err(|e| e.to_string())? = Some((code, verifier.to_owned()));
+        Ok(())
+    }
+
+    pub fn take(&self, code: &str) -> Result<String, String> {
+        let mut proof = self.0.lock().map_err(|e| e.to_string())?;
+        if !proof
+            .as_ref()
+            .is_some_and(|(pending, _)| constant_time_eq(pending, code))
+        {
+            return Err("No app sign-in is waiting for that code.".into());
+        }
+        proof
+            .take()
+            .map(|(_, verifier)| verifier)
+            .ok_or_else(|| "The sign-in was already used.".into())
+    }
+
+    pub fn clear(&self) -> Result<(), String> {
+        self.0.lock().map_err(|e| e.to_string())?.take();
+        Ok(())
+    }
+}
 
 /// Compare two nonces without leaking which byte differed.
 ///
@@ -340,9 +382,14 @@ pub fn constant_time_eq(left: &str, right: &str) -> bool {
 
 /// A fresh, unguessable nonce for one sign-in attempt.
 pub fn mint_nonce() -> String {
-    // 128 bits from the OS, hex-encoded. `getrandom` is already in the tree
-    // through `uuid`'s `v4` feature, which is how every other id here is made.
-    uuid::Uuid::new_v4().simple().to_string()
+    // Independent OS-random UUIDs provide more than 256 bits, hex-encoded.
+    // The verifier stays within PKCE's 43–128 character range.
+    format!(
+        "{}{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
 }
 
 /// Where the console window goes when the browser hands a sign-in back.
@@ -377,7 +424,7 @@ pub fn deep_link_return(server: Option<&Url>, expected: Option<&str>, link: &str
         .find(|(name, _)| name == "desktop_nonce")
         .map(|(_, value)| value.into_owned());
     match (expected, returned.as_deref()) {
-        (Some(mine), Some(theirs)) if constant_time_eq(mine, theirs) => {}
+        (Some(mine), Some(theirs)) if constant_time_eq(&sign_in_challenge(mine), theirs) => {}
         _ => return None,
     }
     let code = parsed
@@ -400,8 +447,8 @@ mod tests {
 
     use super::{
         activity_link, constant_time_eq, deep_link_return, external_sign_in_url, is_oauth_start,
-        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, ActivityAction,
-        ManagedPolicy, Mode,
+        mint_nonce, pairing_link, parse_server_url, parse_server_url_with, sign_in_challenge,
+        ActivityAction, ManagedPolicy, Mode, SignInProof,
     };
 
     fn url(spelled: &str) -> Url {
@@ -484,6 +531,7 @@ mod tests {
         // also the weaker test: a real one proves the value is carried through
         // rather than that one particular string is.
         let nonce = mint_nonce();
+        let challenge = sign_in_challenge(&nonce);
         let opened = external_sign_in_url(
             &url("https://acme.example/api/v1/oauth/google/login"),
             &nonce,
@@ -491,13 +539,14 @@ mod tests {
 
         assert_eq!(
             opened.as_str(),
-            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={nonce}")
+            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={challenge}")
         );
     }
 
     #[test]
     fn a_staged_invitation_survives_the_handoff() {
         let nonce = mint_nonce();
+        let challenge = sign_in_challenge(&nonce);
         let opened = external_sign_in_url(
             &url("https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123"),
             &nonce,
@@ -506,7 +555,7 @@ mod tests {
         assert_eq!(
             opened.as_str(),
             format!(
-                "https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123&client=desktop&desktop_nonce={nonce}"
+                "https://acme.example/api/v1/oauth/google/login?invitation_handle=abc123&client=desktop&desktop_nonce={challenge}"
             )
         );
     }
@@ -515,6 +564,7 @@ mod tests {
     fn markers_the_page_already_carried_are_replaced_rather_than_doubled() {
         let stale = mint_nonce();
         let fresh = mint_nonce();
+        let challenge = sign_in_challenge(&fresh);
         let opened = external_sign_in_url(
             &url(&format!(
                 "https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={stale}"
@@ -524,7 +574,32 @@ mod tests {
 
         assert_eq!(
             opened.as_str(),
-            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={fresh}")
+            format!("https://acme.example/api/v1/oauth/google/login?client=desktop&desktop_nonce={challenge}")
+        );
+    }
+
+    #[test]
+    fn proof_is_bound_to_one_callback_and_is_never_carried_in_its_url() {
+        let verifier = mint_nonce();
+        assert_eq!(verifier.len(), 96);
+        let challenge = sign_in_challenge(&verifier);
+        assert_ne!(verifier, challenge);
+        let link = format!("agenticos://auth/callback?code=issued&desktop_nonce={challenge}");
+        let destination =
+            deep_link_return(Some(&url("https://acme.example/")), Some(&verifier), &link).unwrap();
+        assert!(!link.contains(&verifier));
+        assert!(!destination.as_str().contains(&verifier));
+        let proof = SignInProof::default();
+        proof.remember(&destination, &verifier).unwrap();
+        assert!(proof.take("another-code").is_err());
+        assert_eq!(proof.take("issued").unwrap(), verifier);
+        assert!(proof.take("issued").is_err());
+        proof.remember(&destination, &verifier).unwrap();
+        proof.clear().unwrap();
+        assert!(proof.take("issued").is_err());
+        assert_eq!(
+            sign_in_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+            "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
         );
     }
 
@@ -541,7 +616,10 @@ mod tests {
         let destination = deep_link_return(
             Some(&server),
             Some("n0nce"),
-            "agenticos://auth/callback?code=abc123&desktop_nonce=n0nce",
+            &format!(
+                "agenticos://auth/callback?code=abc123&desktop_nonce={}",
+                sign_in_challenge("n0nce")
+            ),
         )
         .expect("a URL");
 

@@ -1,8 +1,10 @@
 ---
-source_sha: "20c345dd22a5"
+source_sha: "39d07d6f0165"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
+
+Natywne logowanie OAuth korzysta z PKCE S256. Aplikacja zachowuje prywatny weryfikator, a callback przenosi tylko jego publiczny skrót. Weryfikator jest wysyłany w treści żądania wymiany, nigdy w adresie URL. Wylogowanie usuwa natywne podglądy powiadomień telefonu.
 
 Konsola działa w przeglądarce telefonu i można ją dodać do ekranu głównego jako
 aplikację. Aplikacja AgenticOS na iOS i Androida dodaje to, co potrafi tylko

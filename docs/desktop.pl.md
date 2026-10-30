@@ -1,8 +1,10 @@
 ---
-source_sha: "2173ddb6c019"
+source_sha: "66166a4481ba"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
+
+Natywne logowanie OAuth korzysta z PKCE S256. Aplikacja zachowuje prywatny weryfikator, a callback przenosi tylko jego publiczny skrót. Weryfikator jest wysyłany w treści żądania wymiany, nigdy w adresie URL. Wylogowanie usuwa natywne podglądy powiadomień telefonu.
 
 Odłączenie, wylogowanie, ponowne sparowanie lub zmiana serwera usuwa zgody na foldery, lokalne usługi, cały komputer i ekran. Parowanie pokazuje konto przed zużyciem jednorazowego kodu. Anulowanie lub przekroczenie limitu czasu komendy zatrzymuje też jej procesy potomne.
 

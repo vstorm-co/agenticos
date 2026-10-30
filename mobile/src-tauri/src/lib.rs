@@ -34,7 +34,7 @@ use std::time::{Duration, Instant};
 use agenticos_shell_core::{
     activity_link, deep_link_return, external_sign_in_url, is_oauth_start, mint_nonce,
     pairing_link, parse_server_url_with, ActivityAction, ManagedPolicy, Mode, Pairing,
-    PendingSignIn,
+    PendingSignIn, SignInProof,
 };
 use serde::Serialize;
 use tauri::webview::PageLoadEvent;
@@ -279,6 +279,10 @@ fn open_window(app: &AppHandle, url: WebviewUrl) -> tauri::Result<WebviewWindow>
             if !is_oauth_start(server.as_ref(), url) {
                 return true;
             }
+            if let Err(error) = handle.state::<SignInProof>().clear() {
+                eprintln!("Could not start sign-in: {error}");
+                return false;
+            }
             let nonce = mint_nonce();
             if let Ok(mut pending) = handle.state::<PendingSignIn>().0.lock() {
                 *pending = Some(nonce.clone());
@@ -307,6 +311,7 @@ fn grant_console(app: &AppHandle, server: &Url) -> Result<(), String> {
             .window(WINDOW)
             .permission("allow-unlock")
             .permission("allow-mobile-settings")
+            .permission("allow-oauth-verifier")
             .permission("allow-bind-push-session")
             .permission("allow-clear-push-session")
             .permission("allow-open-mobile-settings")
@@ -376,6 +381,11 @@ fn pair(app: &AppHandle, pairing: &Pairing) -> Result<(), String> {
 }
 
 /// What the onboarding page shows first: an address already chosen, if any.
+#[tauri::command]
+fn oauth_verifier(app: AppHandle, code: String) -> Result<String, String> {
+    app.state::<SignInProof>().take(&code)
+}
+
 #[tauri::command]
 fn server_url(app: AppHandle) -> Option<Url> {
     settings(&app).server_url
@@ -550,6 +560,7 @@ async fn choose_server(app: AppHandle) -> Result<(), String> {
     if managed(&app).server_locked {
         return Err("Your organization manages which server this app connects to.".to_owned());
     }
+    app.state::<SignInProof>().clear()?;
     let handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         clear_push_binding(&handle)?;
@@ -782,6 +793,12 @@ fn on_deep_link(app: &AppHandle, links: Vec<Url>) {
             expected.as_deref(),
             link.as_str(),
         ) {
+            if let Some(verifier) = expected.as_deref() {
+                if let Err(error) = app.state::<SignInProof>().remember(&destination, verifier) {
+                    eprintln!("Could not finish signing in: {error}");
+                    return;
+                }
+            }
             if let Err(e) = navigate_console(app, destination) {
                 eprintln!("Could not finish signing in: {e}");
             }
@@ -813,6 +830,7 @@ pub fn run() {
             server_url,
             mobile_settings,
             mobile_servers,
+            oauth_verifier,
             bind_push_session,
             clear_push_session,
             open_mobile_settings,
@@ -839,6 +857,7 @@ pub fn run() {
             apns::apns_unregister
         ])
         .manage(PendingSignIn::default())
+        .manage(SignInProof::default())
         .manage(Lock::default())
         .manage(navigation::Navigation::default())
         .on_window_event(|window, event| {

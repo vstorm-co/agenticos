@@ -40,6 +40,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
+- Bind native OAuth code redemption to an app-held S256 verifier so intercepting a custom-scheme callback cannot redeem its session.
+
 - Require explicit account confirmation before a scanned pairing link replaces a device session. Previewing the account neither redeems nor extends the code.
 - Anchor local file operations to an approved directory handle so concurrent symlink substitutions cannot redirect writes or previews outside the grant.
 

@@ -5,6 +5,7 @@
 fn main() {
     let mut attributes =
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
+            "oauth_verifier",
             "server_url",
             "mobile_settings",
             "mobile_servers",
