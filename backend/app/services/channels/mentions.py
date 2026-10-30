@@ -403,7 +403,7 @@ class ChannelAgentRouter:
         Args:
             text: The raw incoming message, handle included.
             platform: Which channel it arrived on, for the run's surface.
-            incoming: Normalized platform event for author labels in the saved prompt;
+            incoming: Normalized platform event for request-only author labels;
                 authorization still uses the separately resolved channel identity.
             organization_id: The bot's organization; the slug is resolved here
                 and nowhere else, so one workspace cannot reach another's agents.
@@ -496,7 +496,7 @@ class ChannelAgentRouter:
             ctx,
             agent.id,
             mention.prompt,
-            said=authored_prompt(mention.prompt, incoming),
+            said=mention.prompt,
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
@@ -627,7 +627,7 @@ class ChannelAgentRouter:
             ctx,
             agent.id,
             text,
-            said=authored_prompt(text, incoming),
+            said=text,
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,

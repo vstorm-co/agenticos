@@ -1154,7 +1154,7 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
 
 @pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
 @pytest.mark.parametrize("mentioned", [True, False])
-async def test_each_turn_persists_its_own_author_after_mention_parsing(
+async def test_each_turn_keeps_author_context_separate_from_persisted_text_after_mention_parsing(
     platform: str, mentioned: bool
 ) -> None:
     from app.services.channels.base import IncomingMessage
@@ -1215,10 +1215,10 @@ async def test_each_turn_persists_its_own_author_after_mention_parsing(
             prompt = router.runner.execute.await_args.args[2]
             recorded = router.runner.execute.await_args.kwargs["said"]
             context = router.runner.execute.await_args.kwargs["channel_author_context"]
-            for metadata in [recorded, context]:
-                assert f'"username": "{author}"' in metadata
-                assert f'"user_id": "{author}-id"' in metadata
-                assert f'"message_id": "{author}-post"' in metadata
+            assert recorded == "announce this"
+            assert f'"username": "{author}"' in context
+            assert f'"user_id": "{author}-id"' in context
+            assert f'"message_id": "{author}-post"' in context
             assert prompt == "announce this"
             assert "@support" not in prompt
             assert router.runner.execute.await_args.args[0].user_id == person

@@ -283,6 +283,7 @@ from app.services.channels.formatting import (
     CHANNEL_BEHAVIOR,
     LINK_ACCOUNT_INSTRUCTION,
     ChannelReference,
+    channel_author_references,
     house_style,
     runtime_context,
 )
@@ -764,6 +765,7 @@ class PausedRunState(BaseModel):
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
     channel_context: str = ""
+    channel_authors: dict[str, UUID] = Field(default_factory=dict)
 
     questions: list[str] = Field(
         default_factory=list,
@@ -1324,6 +1326,8 @@ class PreparedRun:
 
     channel_destination: ChannelDestination | None = None
     channel_context: str = ""
+    channel_author_context: str = ""
+    channel_authors: dict[str, UUID] = field(default_factory=dict)
     channel_file_budget: ChannelFileBudget = field(default_factory=ChannelFileBudget)
     automatic_outbound: bool = True
     outbound: list[OutgoingAttachment] = field(default_factory=list)
@@ -1418,6 +1422,28 @@ class PreparedRun:
     def deps(self) -> AgentDeps:
         return self.built.deps
 
+    def _channel_references(self, history: Sequence[ModelMessage] | None) -> list[ChannelReference]:
+        # A restored map is authoritative: normalization can merge requests
+        # and replace their metadata while retaining the individual user parts.
+        if not self.channel_authors:
+            self.channel_authors.update(channel_author_references(list(history or [])))
+        if not (
+            self.channel_context
+            or self.channel_author_context
+            or self.run.channel_identity_id is not None
+            or self.channel_authors
+        ):
+            return []
+        return [
+            ChannelReference(
+                self.channel_context,
+                author_context=self.channel_author_context,
+                author_identity_id=self.run.channel_identity_id,
+                screen=input_screen_for(self.spec),
+                authors_by_timestamp=self.channel_authors,
+            )
+        ]
+
     async def execute(
         self,
         user_prompt: str | Sequence[UserContent] | None,
@@ -1438,9 +1464,7 @@ class PreparedRun:
                 deferred_tool_results=deferred_tool_results,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
-                capabilities=[ChannelReference(self.channel_context)]
-                if self.channel_context
-                else [],
+                capabilities=self._channel_references(message_history),
             )
 
     @asynccontextmanager
@@ -1480,9 +1504,7 @@ class PreparedRun:
                 message_history=message_history,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
-                capabilities=[ChannelReference(self.channel_context)]
-                if self.channel_context
-                else [],
+                capabilities=self._channel_references(message_history),
             ) as iteration:
                 yield iteration
 
@@ -3054,6 +3076,7 @@ class AgentRunnerService:
         on_sandbox_wait: SandboxWaitSink | None = None,
         channel_file_attempts: int = 0,
         restored_channel_context: str = "",
+        restored_channel_authors: dict[str, UUID] | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -3727,6 +3750,7 @@ class AgentRunnerService:
                 if channel_directory is None
                 else await resolve_prompt_variables(CHANNEL_CONTEXT, channel_directory)
             ),
+            channel_authors=dict(restored_channel_authors or {}),
             channel_file_budget=ChannelFileBudget(channel_file_attempts),
             channel_destination=None
             if channel_directory is None
@@ -5039,6 +5063,7 @@ class AgentRunnerService:
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
                 "channel_context": prepared.channel_context,
+                "channel_authors": dict(prepared.channel_authors),
             }
         )
 
@@ -5267,10 +5292,7 @@ class AgentRunnerService:
             aside=aside,
             draft=draft,
         )
-        if channel_author_context:
-            prepared.channel_context = "\n\n".join(
-                value for value in (prepared.channel_context, channel_author_context) if value
-            )
+        prepared.channel_author_context = channel_author_context
         prepared.built.deps.steering = steering
         input_edge = input_screen_for(prepared.spec)
         if steering is not None:
@@ -5511,6 +5533,7 @@ class AgentRunnerService:
             exposure=exposure,
             channel_file_attempts=state.channel_file_attempts,
             restored_channel_context=state.channel_context,
+            restored_channel_authors=state.channel_authors,
             channel_directory=directory,
             channel_key=(
                 None

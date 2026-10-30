@@ -30,18 +30,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Account deletion removes automatically inserted channel author metadata from
-  the person's retained turns before deleting their linked channel identities,
-  preserving message bodies and other participants' messages. Concurrent turns
-  cannot insert an author snapshot between cleanup and identity deletion.
-
+- Channel messages store only the sender's text. Author context is assembled
+  from erasable channel identities at dispatch, so the console,
+  copy, pin and shortcut actions do not expose JSON envelopes or platform IDs.
+  Account deletion removes those author labels from future model history while
+  preserving shared message bodies. Manifests omit request-only channel parts;
+  paused runs retain opaque author references instead of platform labels.
+- Editable channel reference values follow the configured input guardrails.
+  Protected values are redacted or withheld without treating fixed metadata
+  syntax or platform identifiers as the user's question.
 
 - Rolling back the channel prompt migration restores the preceding release's
   defaults while retaining custom additions, including bindings created after
   upgrade.
 - Bulk `refresh-assistant` runs skip organizations without an owner and continue
   refreshing the remaining organizations. A targeted run still fails explicitly.
-
 
 - Explicit `@slug` channel invocations retain saved conversation history, just
   like default bot replies, so follow-up requests keep earlier results and App

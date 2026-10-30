@@ -1,5 +1,5 @@
 ---
-source_sha: "e1b10c5747f0"
+source_sha: "100c831482ac"
 ---
 
 # Ochrona danych { #data-protection }
@@ -248,7 +248,7 @@ harmonogramu to [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Usunięcie dokumentu albo kolekcji | Wiersze, tabelę wektorową i zapisany plik, przez trwały flow po commicie | Nic, gdy flow już przebiegł; liczniki `sync_logs` zostają |
 | Usunięcie organizacji | Wszystko do niej ograniczone, tym samym odroczonym rozmontowaniem - jej wygenerowane media po prefiksie, łącznie z plikami zapisanymi, zanim zaczęto je rejestrować | Kolekcje osobiste, które jedynie niosły to id |
 
-Usunięcie konta usuwa również automatycznie dopisaną metrykę autora z wiadomości powiązanej osoby w zachowanych rozmowach kanałowych. Treść wiadomości i wpisy pozostałych uczestników zostają. Wiersze tożsamości są blokowane przed czyszczeniem, aby równoległa wiadomość nie dopisała metryki pomiędzy czyszczeniem a usunięciem odwołania do autora.
+Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
 
 Żadne z tych nie sięga kopii zapasowej. Odtworzenie przywraca to, co usunięto,
 więc wygaśnięcie kopii jest częścią polityki retencji i jest spisane razem z nią.

@@ -195,6 +195,7 @@ def _prepared(
             agent_id=uuid.uuid4(),
             agent_version_id=uuid.uuid4(),
             conversation_id=conversation_id,
+            channel_identity_id=None,
         ),
         agent=MagicMock(),
         spec=MagicMock(),
@@ -3162,6 +3163,7 @@ class TestParking:
             "channel_destination": None,
             "channel_file_attempts": 0,
             "channel_context": "",
+            "channel_authors": {},
             "tool_call_ids": {"approval-1": "call-1"},
             # No question asked, so nothing waits on an answer (#2064).
             "questions": [],
@@ -3665,6 +3667,22 @@ class TestResume:
         )
         (reference,) = build.return_value.agent.run.await_args.kwargs["capabilities"]
         assert reference.text == "Author: Ada"
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_approval_resumption_restores_only_opaque_channel_author_references(self):
+        identity_id = uuid.uuid4()
+        timestamp = "2026-10-30T10:00:00+00:00"
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "channel_authors": {timestamp: str(identity_id)},
+            }
+        )
+        (reference,) = build.return_value.agent.run.await_args.kwargs["capabilities"]
+        assert reference.authors_by_timestamp == {timestamp: identity_id}
+        assert reference.author_context == ""
 
     @pytest.mark.anyio
     async def test_a_run_parked_under_ask_all_is_rebuilt_with_the_gate_it_parked_behind(self):
@@ -6767,7 +6785,8 @@ def test_parked_channel_state_keeps_destination_without_credentials():
     )
     prepared.channel_destination = destination
     prepared.channel_file_budget.attempts = 2
-    prepared.channel_context = "Author: Ada"
+    prepared.channel_context = "Name: Support"
+    prepared.channel_author_context = "Private username and platform id"
     parked = AgentRunnerService._parked_tree(
         prepared, PausedRunState(messages=[], tool_call_ids={}), []
     )
@@ -6775,7 +6794,8 @@ def test_parked_channel_state_keeps_destination_without_credentials():
     assert payload["channel_destination"]["platform_chat_id"] == "C1:T1"
     assert PausedRunState.model_validate(payload).channel_destination == destination
     assert PausedRunState.model_validate(payload).channel_file_attempts == 2
-    assert PausedRunState.model_validate(payload).channel_context == "Author: Ada"
+    assert PausedRunState.model_validate(payload).channel_context == "Name: Support"
+    assert "Private username and platform id" not in str(payload)
     assert PausedRunState(messages=[], tool_call_ids={}).channel_context == ""
     assert PausedRunState(messages=[], tool_call_ids={}).channel_destination is None
 
@@ -6805,7 +6825,8 @@ async def test_channel_author_context_is_not_part_of_the_guarded_user_prompt():
         await service.execute(_ctx(), uuid.uuid4(), "hello", channel_author_context="Author: Ada")
     assert prepared.built.agent.run.await_args.args[0] == "hello"
     (reference,) = prepared.built.agent.run.await_args.kwargs["capabilities"]
-    assert reference.text == "Room: Support\n\nAuthor: Ada"
+    assert reference.text == "Room: Support"
+    assert reference.author_context == "Author: Ada"
 
 
 @pytest.mark.anyio

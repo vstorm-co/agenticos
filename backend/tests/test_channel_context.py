@@ -329,7 +329,7 @@ async def test_surface_defaults_follow_code_updates_without_rewriting_custom_add
 
 
 @pytest.mark.parametrize("resuming", [True, False])
-async def test_author_context_is_not_screened_but_the_actual_prompt_still_is(
+async def test_fixed_author_metadata_does_not_block_allowed_questions(
     resuming: bool,
 ) -> None:
     from pydantic_ai import Agent
@@ -353,9 +353,12 @@ async def test_author_context_is_not_screened_but_the_actual_prompt_still_is(
         text="hello",
         platform_display_name="group",
     )
-    guards = build_guardrails(GuardrailsConfig(blocked_keywords_in="group"))
+    from app.agents.capabilities.guardrails._capability import input_screen
+
+    config = GuardrailsConfig(blocked_keywords_in="group")
+    guards = build_guardrails(config)
     assert guards is not None
-    reference = ChannelReference(authored_prompt("", incoming))
+    reference = ChannelReference(authored_prompt("", incoming), screen=input_screen(config))
     agent = Agent(TestModel(), capabilities=[reference, guards])
     history = []
     if resuming:
@@ -366,26 +369,40 @@ async def test_author_context_is_not_screened_but_the_actual_prompt_still_is(
         await agent.run("group")
 
 
-async def test_input_redaction_changes_the_question_without_rewriting_author_identifiers() -> None:
+async def test_input_redaction_changes_text_values_without_rewriting_platform_identifiers() -> None:
     from pydantic_ai import Agent
-    from pydantic_ai.messages import ModelRequest, UserPromptPart
-    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
 
-    from app.agents.capabilities.guardrails._capability import GuardrailsConfig, build_guardrails
-    from app.services.channels.formatting import ChannelReference
+    from app.agents.capabilities.guardrails._capability import (
+        GuardrailsConfig,
+        build_guardrails,
+        input_screen,
+    )
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.formatting import ChannelReference, authored_prompt
 
-    reference = ChannelReference("Author: alice@example.com; platform ID: 1234567890")
-    guards = build_guardrails(GuardrailsConfig(redact_pii_in=True))
+    incoming = IncomingMessage(
+        platform="slack",
+        bot_id="bot",
+        platform_user_id="1234567890",
+        platform_chat_id="room",
+        chat_type="group",
+        text="",
+        platform_display_name="alice@example.com",
+    )
+    config = GuardrailsConfig(redact_pii_in=True)
+    reference = ChannelReference(authored_prompt("", incoming), screen=input_screen(config))
+    guards = build_guardrails(config)
     assert guards is not None
-    result = await Agent(TestModel(), capabilities=[reference, guards]).run(
+    seen = []
+
+    def answer(messages, info):
+        seen.extend(messages)
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    await Agent(FunctionModel(answer), capabilities=[reference, guards]).run(
         "Contact bob@example.com"
     )
-    prompts = [
-        part.content
-        for message in result.all_messages()
-        if isinstance(message, ModelRequest)
-        for part in message.parts
-        if isinstance(part, UserPromptPart)
-    ]
-    assert prompts and "bob@example.com" not in str(prompts)
-    assert reference.text == "Author: alice@example.com; platform ID: 1234567890"
+    assert "alice@example.com" not in str(seen) and "bob@example.com" not in str(seen)
+    assert '"user_id": "1234567890"' in str(seen)

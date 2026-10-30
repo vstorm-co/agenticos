@@ -2812,7 +2812,7 @@ class _Turn:
         # Real `None` rather than a mock: Pydantic AI reads this per request.
         built.usage_limits = None
         return PreparedRun(
-            run=MagicMock(id=uuid4(), agent_version_id=uuid4()),
+            run=MagicMock(id=uuid4(), agent_version_id=uuid4(), channel_identity_id=None),
             agent=MagicMock(id=uuid4()),
             spec=MagicMock(budget=None),
             built=built,

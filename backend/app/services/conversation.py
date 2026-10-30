@@ -122,6 +122,11 @@ def _as_history(
                 # compaction estimator measures against, in place of counting
                 # characters - see `agent.build_message_history`.
                 "context_used_tokens": row.context_used_tokens,
+                **(
+                    {"channel_identity_id": row.channel_identity_id}
+                    if row.channel_identity_id is not None
+                    else {}
+                ),
             }
         )
     return history

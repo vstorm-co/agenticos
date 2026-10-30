@@ -17,7 +17,6 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
@@ -329,46 +328,17 @@ async def purge_memory_about(db: AsyncSession, owner_key: str) -> int:
 
 
 async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
-    """Erase platform identities and their generated author envelopes in messages.
+    """Delete their platform identities rather than unlinking them.
 
     The foreign key is `SET NULL`, which leaves the row: a Slack user id, a
     username and a display name, about a person whose account is gone, linked to
     nobody and reachable by nothing. That is personal data retained for no
     purpose, which is the one thing art. 17 is unambiguous about.
 
-    Generated author labels in surviving user turns are scrubbed before the
-    identity foreign key is cleared; their actual message body stays intact.
-
     Returns:
         How many identities were removed, for the audit entry.
     """
-    # A message insert takes FOR KEY SHARE on its channel identity. Lock before
-    # scrubbing so an in-flight turn cannot retain an envelope between this
-    # update and the identity deletion that nulls its foreign key.
-    identity_ids = (
-        await db.scalars(
-            select(ChannelIdentity.id)
-            .where(ChannelIdentity.user_id == user_id)
-            .order_by(ChannelIdentity.id)
-            .with_for_update()
-        )
-    ).all()
-    if not identity_ids:
-        return 0
-    await db.execute(
-        sa_update(Message)
-        .where(Message.channel_identity_id.in_(identity_ids), Message.role == "user")
-        .values(
-            content=func.regexp_replace(
-                Message.content,
-                "^Current channel message author [^\n]*\n[^\n]*\n\nMessage:\n",
-                "",
-            )
-        )
-    )
-    result = await db.execute(
-        sa_delete(ChannelIdentity).where(ChannelIdentity.id.in_(identity_ids))
-    )
+    result = await db.execute(sa_delete(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 

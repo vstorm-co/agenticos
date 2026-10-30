@@ -18,7 +18,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -926,131 +926,84 @@ class TestDeletingYourOwnChatHistory:
 
 
 @pytest.mark.security
-async def test_account_erasure_removes_channel_author_envelopes_from_other_peoples_threads(
+async def test_channel_authors_are_erased_without_copying_labels_into_message_bodies(
     db: AsyncSession,
 ) -> None:
-    from app.services.channels.base import IncomingMessage
-    from app.services.channels.formatting import authored_prompt
+    from app.schemas.conversation import MessageRead
 
     going = await _person(db, "channel-author-gone@example.com")
     staying = await _person(db, "channel-author-kept@example.com")
     going_id = going.id
     organization, _ = await _org_and_agent(db)
     own_identity = await _identity_for(db, going.id, platform_user_id="U-GONE")
+    own_identity.platform_display_name = "Deleted Person"
     other_identity = await _identity_for(db, staying.id, platform_user_id="U-STAYS")
-    anonymous = await _identity_for(db, None, platform_user_id="U-UNLINKED")
+    other_identity.platform_display_name = "Remaining Person"
     chat = await conversation_repo.create_conversation(
         db, organization_id=organization.id, user_id=staying.id
     )
-    incoming = IncomingMessage(
-        platform="slack",
-        bot_id=str(uuid4()),
-        platform_chat_id="room",
-        platform_user_id="U-GONE",
-        platform_username="deleted-user",
-        platform_display_name="Deleted Person",
-        message_id="message-gone",
-        chat_type="group",
-        text="",
-    )
-    # The body can itself quote an envelope; only the platform-added outer one
-    # is personal metadata to scrub, not text the person actually submitted.
-    body = "My text.\n\n" + authored_prompt("Quoted example.", incoming)
-    rows = []
-    for identity, text in [
-        (own_identity, authored_prompt(body, incoming)),
-        (own_identity, "An older plain turn."),
-        (other_identity, authored_prompt("Another author.", incoming)),
-        (anonymous, authored_prompt("Unlinked author.", incoming)),
-    ]:
-        row = await conversation_repo.create_message(
-            db, conversation_id=chat.id, role="user", content=text, channel_identity_id=identity.id
-        )
-        rows.append((row, text))
-    assistant = await conversation_repo.create_message(
+    own = await conversation_repo.create_message(
         db,
         conversation_id=chat.id,
-        role="assistant",
-        content=authored_prompt("Unrelated model output.", incoming),
+        role="user",
+        content="My actual text.",
+        channel_identity_id=own_identity.id,
     )
-    assistant_text = assistant.content
+    other = await conversation_repo.create_message(
+        db,
+        conversation_id=chat.id,
+        role="user",
+        content="A colleague's text.",
+        channel_identity_id=other_identity.id,
+    )
+    import json
+
+    from pydantic_ai import Agent
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from app.agents.manifest import RecordingModel, RunRecorder, as_payload
+    from app.services.channels.formatting import ChannelReference, channel_author_references
+    from app.services.message_history import CHANNEL_AUTHOR_ID
+
+    await db.commit()
+    conversations = ConversationService(db)
+    history = await conversations.model_history(chat.id, limit=20)
+    assert history[0].metadata[CHANNEL_AUTHOR_ID] == str(own_identity.id)
+    assert "U-GONE" not in str(history) and "Deleted Person" not in str(history)
+    recorder = RunRecorder()
+    seen = []
+
+    def respond(messages, info):
+        seen.append(messages)
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    agent = Agent(
+        RecordingModel(FunctionModel(respond), recorder),
+        capabilities=[
+            ChannelReference("", authors_by_timestamp=channel_author_references(history))
+        ],
+    )
+    await agent.run("Who said what?", message_history=history)
+    assert "U-GONE" in str(seen) and "Deleted Person" in str(seen)
+    assert "U-STAYS" in str(seen) and "Remaining Person" in str(seen)
+    assert own.content == "My actual text."
+    assert MessageRead.model_validate(own).model_dump(mode="json")["content"] == "My actual text."
+    for private in ["U-GONE", "Deleted Person", "U-STAYS", "Remaining Person"]:
+        assert private not in json.dumps(as_payload(recorder), default=str)
 
     await UserService(db).delete(going_id)
-
-    await db.refresh(rows[0][0])
-    assert rows[0][0].content == body
-    assert rows[0][0].channel_identity_id is None
-    for row, original in rows[1:]:
-        await db.refresh(row)
-        assert row.content == original
-    await db.refresh(assistant)
-    assert assistant.content == assistant_text
+    await db.commit()
+    await db.refresh(own)
+    await db.refresh(other)
+    assert own.channel_identity_id is None
+    assert own.content == "My actual text."
+    seen.clear()
+    # A parked history can still carry an opaque identity reference. A new
+    # dispatch cannot turn a deleted row back into personal platform labels.
+    await agent.run("Continue", message_history=history)
+    assert "U-GONE" not in str(seen) and "Deleted Person" not in str(seen)
+    assert "U-STAYS" in str(seen) and "Remaining Person" in str(seen)
+    assert other.content == "A colleague's text."
     assert await db.get(User, going_id) is None
     assert await db.get(Conversation, chat.id) is not None
-
-
-@pytest.mark.security
-async def test_identity_erasure_blocks_late_channel_messages_before_scrubbing_finishes(
-    db: AsyncSession,
-    engine: AsyncEngine,
-    database_url: str,
-) -> None:
-    from sqlalchemy import create_engine, event, insert, text
-    from sqlalchemy.engine import Connection, ExecutionContext
-    from sqlalchemy.exc import DBAPIError
-
-    user = await _person(db, "channel-erasure-race@example.com")
-    user_id = user.id
-    organization, _ = await _org_and_agent(db)
-    identity = await _identity_for(db, user.id, platform_user_id="U-RACE")
-    identity_id = identity.id
-    conversation = await conversation_repo.create_conversation(db, organization_id=organization.id)
-    conversation_id = conversation.id
-    await db.commit()
-    writer_engine = create_engine(database_url.replace("+asyncpg", "+psycopg2"))
-    attempted = False
-
-    def late_insert(
-        _connection: Connection,
-        _cursor: object,
-        statement: str,
-        _parameters: object,
-        _context: ExecutionContext,
-        _executemany: bool,
-    ) -> None:
-        nonlocal attempted
-        if not statement.startswith("DELETE FROM channel_identities"):
-            return
-        attempted = True
-        # Pause precisely between the scrub and DELETE. The identity lock must
-        # already exclude a new message whose author envelope would survive.
-        with writer_engine.connect() as writer:
-            writer.execute(text("SET LOCAL lock_timeout = '200ms'"))
-            with pytest.raises(DBAPIError, match="lock timeout"):
-                writer.execute(
-                    insert(Message).values(
-                        id=uuid4(),
-                        conversation_id=conversation_id,
-                        role="user",
-                        content="A late turn",
-                        channel_identity_id=identity_id,
-                    )
-                )
-
-    event.listen(engine.sync_engine, "before_cursor_execute", late_insert)
-    try:
-        assert await personal_data_repo.purge_identities_of(db, user_id) == 1
-        assert attempted
-        await db.commit()
-        with writer_engine.connect() as reader:
-            assert (
-                reader.scalar(
-                    select(func.count())
-                    .select_from(Message)
-                    .where(Message.conversation_id == conversation_id)
-                )
-                == 0
-            )
-    finally:
-        event.remove(engine.sync_engine, "before_cursor_execute", late_insert)
-        writer_engine.dispose()

@@ -50,6 +50,8 @@ from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
 
+from app.agents.channel_reference import recorded_channel_messages
+
 # What a model setting may be, when it is written down. Everything else on
 # `ModelSettings` - `extra_headers`, `extra_body` - is provider passthrough, and
 # passthrough is exactly where a credential travels.
@@ -171,7 +173,9 @@ class RunRecorder:
         self.system_prompts = _system_prompts(messages) or self.system_prompts
         self.tools = _tools(parameters)
         self.settings = _settings(model_settings)
-        self.messages = ModelMessagesTypeAdapter.dump_python(messages, mode="json")
+        self.messages = ModelMessagesTypeAdapter.dump_python(
+            recorded_channel_messages(messages), mode="json"
+        )
 
     def observe_response(
         self, response: ModelResponse, *, started: datetime, elapsed_ms: int, messages: int

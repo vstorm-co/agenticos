@@ -1,5 +1,5 @@
 ---
-source_sha: "e1b10c5747f0"
+source_sha: "100c831482ac"
 ---
 
 # Datenschutz { #data-protection }
@@ -259,7 +259,7 @@ Aufbewahrung ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Ein Dokument oder eine Collection löschen | Die Zeilen, die Vektortabelle und die gespeicherte Datei, über einen dauerhaften Flow nach dem Commit | Nichts, sobald der Flow gelaufen ist; die Zählstände in `sync_logs` bleiben |
 | Eine Organisation löschen | Alles, was auf sie gescoped ist, mit demselben aufgeschobenen Abbau - ihre erzeugten Medien per Präfix, einschließlich der Dateien, die geschrieben wurden, bevor sie erfasst wurden | Persönliche Collections, die die Id lediglich mitführten |
 
-Beim Löschen eines Kontos werden automatisch eingefügte Autorenmetadaten aus den Kanalnachrichten der verknüpften Person in erhaltenen Gesprächen entfernt. Der eigentliche Nachrichtentext und Beiträge anderer Personen bleiben erhalten. Die Identitätszeilen werden vorher gesperrt, damit keine gleichzeitige Nachricht zwischen Bereinigung und Löschung des Autorenverweises neue Metadaten speichern kann.
+Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
 
 Keines davon erreicht ein Backup. Eine Wiederherstellung bringt zurück, was
 gelöscht wurde, der Backup-Ablauf gehört also zur Aufbewahrungsrichtlinie und

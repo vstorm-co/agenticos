@@ -1,5 +1,5 @@
 ---
-source_sha: "e1b10c5747f0"
+source_sha: "100c831482ac"
 ---
 
 # Protección de datos { #data-protection }
@@ -256,7 +256,7 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Borrar un documento o una colección | Las filas, la tabla vectorial y el archivo almacenado, mediante un flow duradero tras el commit | Nada, una vez que el flow ha corrido; los recuentos de `sync_logs` permanecen |
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido - sus medios generados por prefijo, incluidos los archivos escritos antes de que se registraran | Las colecciones personales que solo llevaban el id |
 
-Al eliminar una cuenta, también se borran los metadatos de autor añadidos automáticamente a los mensajes de la persona vinculada en conversaciones de canal que se conservan. El texto original y los mensajes de otras personas permanecen intactos. Las identidades se bloquean antes de limpiarlas, para impedir que un mensaje concurrente guarde metadatos entre la limpieza y la eliminación de la referencia al autor.
+Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
 
 Ninguno de estos alcanza una copia de seguridad. Una restauración devuelve lo
 que se había borrado, así que la caducidad de las copias forma parte de la
