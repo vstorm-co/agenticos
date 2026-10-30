@@ -330,3 +330,37 @@ class TestTheWorkerEndsARefusal:
             await rag_tasks.ingest_document(_job())
 
         worker["documents"].fail_ingestion.assert_not_awaited()
+
+
+class TestASyncSettlesARowItsBaseTookWithIt:
+    """A source sync opens its row before the ingest; a base deleted meanwhile
+    deletes the row too. Settling it raised `NotFoundError`, and the per-file
+    loop's handler settled it again from inside `except`, so the second one
+    escaped the loop and failed the whole run with a traceback."""
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            IngestionResult(status=IngestionStatus.ERROR, error_message=REFUSAL, refused=True),
+            IngestionResult(status=IngestionStatus.DONE, document_id="vec-1", chunk_count=1),
+        ],
+        ids=["refused", "done"],
+    )
+    async def test_a_row_already_gone_is_noted_and_not_raised(
+        self, result: IngestionResult, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        gone = NotFoundError(message="Document not found")
+        documents = MagicMock(
+            fail_ingestion=AsyncMock(side_effect=gone),
+            complete_ingestion=AsyncMock(side_effect=gone),
+        )
+
+        with (
+            patch.object(rag_tasks, "get_worker_db_context", new=_session),
+            patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+            caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"),
+        ):
+            await rag_tasks._settle_document_row(str(uuid4()), result)
+
+        assert max(r.levelno for r in caplog.records) == logging.INFO
+        assert all(r.exc_info is None for r in caplog.records)

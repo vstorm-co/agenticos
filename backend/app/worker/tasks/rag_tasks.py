@@ -892,26 +892,31 @@ async def _settle_document_row(
     """
     from app.services.rag_document import RAGDocumentService
 
-    async with get_worker_db_context() as db:
-        documents = RAGDocumentService(db)
-        # A sync's row is opened fresh per file, every run (#992) - there is
-        # no `retry_ingestion` on this path, so `attempt` is always `1`, the
-        # column's own default; re-syncing the same source another night
-        # opens another row rather than resubmitting this one.
-        if result.status is IngestionStatus.DONE and result.document_id:
-            await documents.complete_ingestion(
-                row_id,
-                vector_document_id=result.document_id,
-                chunk_count=result.chunk_count,
-                replaced_document_id=result.replaced_document_id,
-                attempt=1,
-            )
-        else:
-            await documents.fail_ingestion(
-                row_id, result.error_message or "Ingestion failed", attempt=1
-            )
-        if inherited:
-            await documents.add_claims(row_id, sync_source_ids=set(inherited))
+    try:
+        async with get_worker_db_context() as db:
+            documents = RAGDocumentService(db)
+            # A sync's row is opened fresh per file, every run (#992) - there is
+            # no `retry_ingestion` on this path, so `attempt` is always `1`, the
+            # column's own default; re-syncing the same source another night
+            # opens another row rather than resubmitting this one.
+            if result.status is IngestionStatus.DONE and result.document_id:
+                await documents.complete_ingestion(
+                    row_id,
+                    vector_document_id=result.document_id,
+                    chunk_count=result.chunk_count,
+                    replaced_document_id=result.replaced_document_id,
+                    attempt=1,
+                )
+            else:
+                await documents.fail_ingestion(
+                    row_id, result.error_message or "Ingestion failed", attempt=1
+                )
+            if inherited:
+                await documents.add_claims(row_id, sync_source_ids=set(inherited))
+    except NotFoundError:
+        # The base was deleted mid-sync and took the row with it (#2561). Raising
+        # here escaped the per-file loop's own handler and failed the whole run.
+        logger.info("Document %s is gone; nothing to settle", row_id)
 
 
 async def _notify_sync_start_failure(
