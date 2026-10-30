@@ -173,8 +173,7 @@ describe("MobileBridge", () => {
         body: "to: a@b.c",
         path: "/runs?tab=approvals",
         approvalId: "ap1",
-        approveLabel: "Approve",
-        rejectLabel: "Reject",
+        approveLabel: "Review approval",
       },
       expect.objectContaining({ id: "approval:ap2", title: "An agent wants to run send_email" }),
       {
@@ -304,7 +303,7 @@ describe("MobileBridge", () => {
     await waitFor(() => expect(env.push).toHaveBeenCalledWith("/runs?run=r1"));
   });
 
-  it("makes the decision a button asked for when the app says one is waiting", async () => {
+  it("opens review instead of making the decision a legacy link asks for", async () => {
     mount();
     await act(async () => {});
     env.take.mockImplementation(async () => ({
@@ -313,9 +312,8 @@ describe("MobileBridge", () => {
       approved: false,
     }));
     env.listeners.get("mobile:activity")?.(null);
-    await waitFor(() =>
-      expect(env.decide.mutate).toHaveBeenCalledWith({ id: "ap1", approved: false }),
-    );
+    await waitFor(() => expect(env.push).toHaveBeenCalledWith("/runs?tab=approvals"));
+    expect(env.decide.mutate).not.toHaveBeenCalled();
   });
 
   it("opens the chat to start the call or dictation a shortcut asked for", async () => {
@@ -371,7 +369,7 @@ describe("MobileBridge", () => {
     expect(env.takeShared).toHaveBeenCalledTimes(2);
   });
 
-  it("reads nothing a person may not, and leaves refusing a decision to the server", async () => {
+  it("reads nothing a person may not, and opens review without deciding", async () => {
     env.can = false;
     env.take.mockImplementation(async () => ({
       kind: "decide",
@@ -379,9 +377,8 @@ describe("MobileBridge", () => {
       approved: true,
     }));
     mount();
-    await waitFor(() =>
-      expect(env.decide.mutate).toHaveBeenCalledWith({ id: "ap1", approved: true }),
-    );
+    await waitFor(() => expect(env.push).toHaveBeenCalledWith("/runs?tab=approvals"));
+    expect(env.decide.mutate).not.toHaveBeenCalled();
     expect(env.runsQuery).toMatchObject({ enabled: false });
   });
 

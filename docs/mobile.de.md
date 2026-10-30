@@ -1,5 +1,5 @@
 ---
-source_sha: "4cb7704db561"
+source_sha: "e84c0975e059"
 ---
 
 # Die Telefon-App { #the-phone-app }
@@ -161,12 +161,13 @@ Frist, gilt der Versand als erfolgt und wird nicht erneut versucht.
 Benachrichtigung auf Android - zeigen, was für Sie gerade läuft:
 
 - Ihre laufenden Runs, mit einer Uhr;
-- eine Freigabe, die auf Sie wartet, mit Reject und Approve;
+- eine wartende Freigabe mit Freigabe prüfen;
 - eine Frage, auf deren Antwort ein Agent wartet, die ihre Unterhaltung öffnet;
 - ein laufender Sprachanruf, mit seiner Uhr, der sagt, wenn der Agent etwas fragt.
 
-Eine Entscheidung vom Sperrbildschirm wartet auf Face ID oder den Fingerabdruck und
-geht dann über dieselbe Anfrage wie die Knöpfe der Warteschlange.
+Aktivitätslinks öffnen die Freigabewarteschlange. Sie genehmigen oder verweigern
+ein Werkzeug niemals selbst: Prüfen Sie die Argumente und entscheiden Sie in der
+App. Auch ältere Genehmigungs- und Ablehnungslinks öffnen nur die Prüfung.
 
 **Widgets.** Das Übersichts-Widget zählt die auf Sie wartenden Freigaben und Ihre
 laufenden Runs, mit dem Zeitpunkt der Zählung, und den verbleibenden Anteil des

@@ -38,8 +38,8 @@ struct AgentLiveActivity: Widget {
           .frame(maxWidth: .infinity, alignment: .leading)
         }
         DynamicIslandExpandedRegion(.bottom) {
-          if let approvalId = attributes.approvalId, attributes.isApproval {
-            Decision(approvalId: approvalId, state: state)
+          if attributes.approvalId != nil, attributes.isApproval {
+            Decision(state: state)
               .padding(.top, 6)
           }
         }
@@ -94,26 +94,17 @@ private struct Trailing: View {
   }
 }
 
-/// Reject and Approve, as links back into the app.
+/// Open the queue so the person can inspect the tool and choose explicitly.
 private struct Decision: View {
-  let approvalId: String
   let state: AgentActivityAttributes.ContentState
 
   var body: some View {
-    HStack(spacing: 8) {
-      Link(destination: ActivityLink.decide(approvalId, approve: false)) {
-        Text(state.rejectLabel ?? "Reject")
-          .font(.subheadline.weight(.semibold))
-          .frame(maxWidth: .infinity, minHeight: 40)
-          .background(Color.secondary.opacity(0.25), in: Capsule())
-      }
-      Link(destination: ActivityLink.decide(approvalId, approve: true)) {
-        Text(state.approveLabel ?? "Approve")
-          .font(.subheadline.weight(.semibold))
-          .frame(maxWidth: .infinity, minHeight: 40)
-          .background(Color.primary, in: Capsule())
-          .foregroundStyle(Color(uiColor: .systemBackground))
-      }
+    Link(destination: ActivityLink.open("/runs?tab=approvals")) {
+      Text(state.approveLabel ?? "Review approval")
+        .font(.subheadline.weight(.semibold))
+        .frame(maxWidth: .infinity, minHeight: 40)
+        .background(Color.primary, in: Capsule())
+        .foregroundStyle(Color(uiColor: .systemBackground))
     }
   }
 }
@@ -138,8 +129,8 @@ private struct LockScreenActivity: View {
         Spacer(minLength: 0)
         Trailing(attributes: attributes, state: state, compact: false)
       }
-      if let approvalId = attributes.approvalId, attributes.isApproval {
-        Decision(approvalId: approvalId, state: state)
+      if attributes.approvalId != nil, attributes.isApproval {
+        Decision(state: state)
       }
     }
     .padding(16)

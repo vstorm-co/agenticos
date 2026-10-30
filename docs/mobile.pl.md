@@ -1,5 +1,5 @@
 ---
-source_sha: "4cb7704db561"
+source_sha: "e84c0975e059"
 ---
 
 # Aplikacja na telefon { #the-phone-app }
@@ -156,12 +156,13 @@ uznawana za wysłaną, bez ponawiania na już powiadomionych urządzeniach.
 na Androidzie - pokazują to, co dla ciebie trwa:
 
 - twoje runy w toku, z zegarem;
-- akceptację czekającą na ciebie, z Reject i Approve;
+- akceptację czekającą na ciebie, z przyciskiem Sprawdź akceptację;
 - pytanie, na którego odpowiedź czeka agent, otwierające jego rozmowę;
 - rozmowę głosową w toku, z zegarem, mówiącą, kiedy agent o coś pyta.
 
-Decyzja podjęta z ekranu blokady czeka na Face ID albo odcisk palca, a potem idzie
-tym samym żądaniem co przyciski kolejki.
+Link aktywności otwiera kolejkę akceptacji. Sam nigdy nie zatwierdza ani nie
+odrzuca narzędzia: sprawdź argumenty i wybierz w aplikacji. Starsze linki
+zatwierdzenia i odrzucenia również otwierają podgląd bez podejmowania decyzji.
 
 **Widżety.** Widżet podglądu liczy akceptacje czekające na ciebie i twoje runy w
 toku, z czasem, kiedy je policzono, oraz część miesięcznego budżetu organizacji,

@@ -79,7 +79,6 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     total: waiting,
     isLoading: approvalsLoading,
     error: approvalsError,
-    decide,
   } = useApprovals({ enabled: canDecide });
   const {
     runs,
@@ -109,8 +108,7 @@ function Bridge({ shell }: { shell: ShellInfo }) {
       body: argumentsPreview(approval.tool_args),
       path: APPROVALS_PATH,
       approvalId: approval.id,
-      approveLabel: t("approve"),
-      rejectLabel: t("reject"),
+      approveLabel: t("reviewApproval"),
     }));
     // An agent's question is the person's to answer, so it is drawn like an
     // approval - up front - and opens the conversation it was asked in.
@@ -221,10 +219,9 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     takeActivityAction()
       .then((ask) => {
         if (ask?.kind === "open") router.push(ask.path);
-        // Not gated on `canDecide`: on a cold start the permissions may not have
-        // arrived yet, and a decision taken then would be dropped. The server
-        // refuses one this person may not make, and the refusal is its toast.
-        if (ask?.kind === "decide") decide.mutate({ id: ask.approval_id, approved: ask.approved });
+        // Older shells can still emit this action. A URI proves no approval
+        // intent, so review the tool and arguments before choosing in the UI.
+        if (ask?.kind === "decide") router.push(APPROVALS_PATH);
         if (ask?.kind === "start") {
           requestIntent(ask.mode);
           router.push("/chat");

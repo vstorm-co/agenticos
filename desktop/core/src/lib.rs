@@ -125,7 +125,7 @@ pub fn pairing_link(link: &str, lan_http: bool) -> Result<Pairing, String> {
 pub enum ActivityAction {
     /// Show this page of the console.
     Open(String),
-    /// Approve or reject this approval, as the console's own buttons would.
+    /// Legacy decision link; consumers must open review, never decide from a URI.
     Decide { approval_id: String, approved: bool },
     /// Open the chat and start talking to its agent.
     Start(Mode),
@@ -151,7 +151,7 @@ impl ActivityAction {
 ///
 /// A path must be one of the console's own, as a notification's must
 /// (`is_console_path`): the link is text any app on the phone can fire, and
-/// all it may do is move the console within itself, ask it to decide or open
+/// all it may do is move the console within itself, open approval review or open
 /// the chat - the last two only after the app's own lock.
 pub fn activity_link(link: &str) -> Option<ActivityAction> {
     let parsed = Url::parse(link).ok()?;

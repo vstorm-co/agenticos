@@ -96,15 +96,6 @@ public enum ActivityLink {
     return link.url!
   }
 
-  public static func decide(_ approvalId: String, approve: Bool) -> URL {
-    var link = URLComponents()
-    link.scheme = "agenticos"
-    link.host = "activity"
-    link.path = approve ? "/approve" : "/reject"
-    link.queryItems = [URLQueryItem(name: "approval", value: approvalId)]
-    return link.url!
-  }
-
   /// `call` or `dictate`.
   public static func start(_ mode: String) -> URL {
     var link = URLComponents()

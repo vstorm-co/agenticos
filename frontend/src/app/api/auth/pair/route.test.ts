@@ -14,7 +14,7 @@ vi.mock("@/lib/server-api", async () => {
 function request(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost:3000/api/auth/pair", {
     method: "POST",
-    headers,
+    headers: { "content-type": "application/json", "x-agenticos-pairing": "confirm", ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -22,6 +22,20 @@ function request(body: unknown, headers: Record<string, string> = {}) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("POST /api/auth/pair", () => {
+  it.each<Record<string, string>>([
+    { "content-type": "text/plain" },
+    { "content-type": "application/x-www-form-urlencoded" },
+    { "content-type": "" },
+    { "x-agenticos-pairing": "" },
+    { "sec-fetch-site": "cross-site" },
+    { "sec-fetch-site": "same-site" },
+  ])("refuses cross-origin session replacement before redemption: %j", async (headers) => {
+    const response = await POST(request({ code: "attacker", confirmed: true }, headers));
+    expect(response.status).toBe(403);
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(backendFetch).not.toHaveBeenCalled();
+  });
+
   it("redeems the code under the phone's user agent and sets the session's cookies", async () => {
     vi.mocked(backendFetch)
       .mockResolvedValueOnce({ access_token: "acc", refresh_token: "ref" })

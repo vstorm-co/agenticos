@@ -8910,7 +8910,8 @@
       "questionBody": "Tippen Sie, um in AgenticOS zu antworten.",
       "callTitle": "Im Gespräch mit {agent}",
       "callBody": "Tippen Sie, um zum Gespräch zurückzukehren.",
-      "callAsking": "Es fragt Sie etwas - tippen Sie, um zu antworten."
+      "callAsking": "Es fragt Sie etwas - tippen Sie, um zu antworten.",
+      "reviewApproval": "Freigabe prüfen"
     },
     "share": {
       "notAttached": "Konnte nicht angehängt werden: {names}"

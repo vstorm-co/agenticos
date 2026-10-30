@@ -20,7 +20,13 @@ describe("pairing", () => {
     await previewPairingCode("c");
     expect(apiClient.post).toHaveBeenLastCalledWith("/auth/pair/preview", { code: "c" });
     await redeemPairingCode("c");
-    expect(apiClient.post).toHaveBeenLastCalledWith("/auth/pair", { code: "c", confirmed: true });
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/auth/pair",
+      { code: "c", confirmed: true },
+      {
+        headers: { "x-agenticos-pairing": "confirm" },
+      },
+    );
   });
 
   it("links the app to this console with the code, escaped", () => {

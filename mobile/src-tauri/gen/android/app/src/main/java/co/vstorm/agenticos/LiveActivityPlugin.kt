@@ -124,9 +124,7 @@ class LiveActivityPlugin(private val activity: Activity) : Plugin(activity) {
         }
         if (args.kind == "run") builder.setProgress(0, 0, true)
         if (deciding) {
-            val id = Uri.encode(args.approvalId)
-            builder.addAction(0, args.rejectLabel ?: "Reject", link("agenticos://activity/reject?approval=$id"))
-            builder.addAction(0, args.approveLabel ?: "Approve", link("agenticos://activity/approve?approval=$id"))
+            builder.addAction(0, args.approveLabel ?: "Review approval", link("agenticos://activity/open?path=${Uri.encode(args.path)}"))
         }
         manager.notify(args.id.hashCode(), builder.build())
         invoke.resolve()

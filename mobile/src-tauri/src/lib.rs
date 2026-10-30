@@ -118,12 +118,11 @@ struct LockState {
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum Asked {
     Open { path: String },
-    Decide { approval_id: String, approved: bool },
     Start { mode: &'static str },
 }
 
 /// Hand the console what was asked - except, while it is locked, what needs
-/// the person: an approval made from the lock screen, or a microphone opened
+/// the person: approval review from a legacy link, or a microphone opened
 /// from it, waits for the face behind it.
 fn take_asked(state: &mut LockState) -> Option<Asked> {
     if state.locked
@@ -136,12 +135,9 @@ fn take_asked(state: &mut LockState) -> Option<Asked> {
     }
     state.asked.take().map(|action| match action {
         ActivityAction::Open(path) => Asked::Open { path },
-        ActivityAction::Decide {
-            approval_id,
-            approved,
-        } => Asked::Decide {
-            approval_id,
-            approved,
+        // Any process can invoke an activity URI; presence is not a decision.
+        ActivityAction::Decide { .. } => Asked::Open {
+            path: "/runs?tab=approvals".into(),
         },
         ActivityAction::Start(Mode::Call) => Asked::Start { mode: "call" },
         ActivityAction::Start(Mode::Dictate) => Asked::Start { mode: "dictate" },
@@ -950,9 +946,8 @@ mod tests {
         state.locked = false;
         assert_eq!(
             take_asked(&mut state),
-            Some(Asked::Decide {
-                approval_id: "ap1".into(),
-                approved: true
+            Some(Asked::Open {
+                path: "/runs?tab=approvals".into(),
             })
         );
         assert_eq!(take_asked(&mut state), None, "taken once");

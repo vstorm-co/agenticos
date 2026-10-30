@@ -23,6 +23,17 @@ interface TokenPair {
  * way the OAuth return sets them; the access token is echoed for the chat socket.
  */
 export async function POST(request: NextRequest) {
+  // Forms cannot set this header or JSON MIME type. Cross-origin scripts must
+  // preflight, and this BFF does not grant CORS access to the pairing endpoint.
+  const site = request.headers.get("sec-fetch-site");
+  if (
+    request.headers.get("x-agenticos-pairing") !== "confirm" ||
+    request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !==
+      "application/json" ||
+    (site !== null && site !== "same-origin" && site !== "none")
+  ) {
+    return bffRefusal("FORBIDDEN", 403);
+  }
   try {
     const body: unknown = await request.json();
     if (

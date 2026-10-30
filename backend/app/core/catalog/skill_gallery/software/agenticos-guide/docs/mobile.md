@@ -150,12 +150,13 @@ marks it sent rather than retrying devices already notified.
 notification on Android - show what is live for you:
 
 - your runs in progress, with a clock;
-- an approval waiting for you, with Reject and Approve;
+- an approval waiting for you, with Review approval;
 - a question an agent is waiting on you to answer, which opens its conversation;
 - a voice call in progress, with its clock, saying when the agent asks something.
 
-A decision taken from the lock screen waits for Face ID or the fingerprint, then
-goes through the same request as the queue's buttons.
+Activity links open the approval queue. They never approve or reject a tool by
+themselves: inspect its arguments and choose explicitly in the app. Legacy
+approve/reject links also open review without making a decision.
 
 **Widgets.** The glance widget counts the approvals waiting for you and your runs
 in flight, with the time they were counted, and the share of the organization's

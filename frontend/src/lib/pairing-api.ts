@@ -28,7 +28,13 @@ export interface Paired {
 }
 
 export async function redeemPairingCode(code: string): Promise<Paired> {
-  return apiClient.post<Paired>("/auth/pair", { code, confirmed: true });
+  return apiClient.post<Paired>(
+    "/auth/pair",
+    { code, confirmed: true },
+    {
+      headers: { "x-agenticos-pairing": "confirm" },
+    },
+  );
 }
 
 /**

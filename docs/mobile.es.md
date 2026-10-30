@@ -1,5 +1,5 @@
 ---
-source_sha: "4cb7704db561"
+source_sha: "e84c0975e059"
 ---
 
 # La app del móvil { #the-phone-app }
@@ -159,13 +159,14 @@ Las **live activities** - la pantalla de bloqueo y la Dynamic Island en iOS, una
 notificación permanente en Android - muestran lo que está en marcha para ti:
 
 - tus runs en curso, con un reloj;
-- una aprobación que te espera, con Reject y Approve;
+- una aprobación pendiente, con Revisar aprobación;
 - una pregunta cuya respuesta espera un agent, que abre su conversación;
 - una llamada de voz en curso, con su reloj, que avisa cuando el agent pregunta
   algo.
 
-Una decisión tomada desde la pantalla de bloqueo espera a Face ID o a la huella y
-luego va por la misma petición que los botones de la cola.
+Los enlaces de actividad abren la cola de aprobaciones. Nunca aprueban ni
+rechazan una herramienta por sí solos: revisa los argumentos y decide en la app.
+Los enlaces antiguos de aprobación o rechazo también abren la revisión sin decidir.
 
 **Widgets.** El widget de resumen cuenta las aprobaciones que te esperan y tus runs
 en curso, con la hora del recuento, y la parte del budget mensual de la

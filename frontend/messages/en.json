@@ -9401,7 +9401,8 @@
       "questionBody": "Tap to answer it in AgenticOS.",
       "callTitle": "On a call with {agent}",
       "callBody": "Tap to go back to the call.",
-      "callAsking": "It is asking you something - tap to answer."
+      "callAsking": "It is asking you something - tap to answer.",
+      "reviewApproval": "Review approval"
     },
     "share": {
       "notAttached": "Could not attach: {names}"

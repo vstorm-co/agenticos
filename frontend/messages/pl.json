@@ -9186,7 +9186,8 @@
       "questionBody": "Stuknij, aby odpowiedzieć w AgenticOS.",
       "callTitle": "Rozmowa z {agent}",
       "callBody": "Stuknij, aby wrócić do rozmowy.",
-      "callAsking": "Agent o coś pyta - stuknij, aby odpowiedzieć."
+      "callAsking": "Agent o coś pyta - stuknij, aby odpowiedzieć.",
+      "reviewApproval": "Sprawdź akceptację"
     },
     "share": {
       "notAttached": "Nie udało się dołączyć: {names}"
