@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-10-30
+
 ### Fixed
 
 - Refuse oversized local writes before encoding, preserve pending native sign-ins across unrelated deep links, hide mobile task previews before background snapshots and serialize desktop updater-manifest publishing. Clear native notification bindings on automatic session loss as well as explicit sign-out.
