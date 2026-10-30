@@ -311,6 +311,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     <div>
       <PageHeader
         title={table.name}
+        descriptionMode="summary"
         description={table.description ?? undefined}
         breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}
         // Facts about the table, under its name rather than among the controls.
@@ -331,7 +332,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </span>
         }
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canEdit && (
               <Button
                 variant="outline"

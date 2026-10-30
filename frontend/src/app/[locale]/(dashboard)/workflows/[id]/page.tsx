@@ -206,6 +206,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             onRename={(name) => actions.update.mutate({ id: workflow.id, update: { name } })}
           />
         }
+        descriptionMode="summary"
         description={
           // An editor is offered one to write; a reader sees none that is not there.
           editing || workflow.description ? (
@@ -221,7 +222,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canEdit && (
               <Button variant="outline" onClick={() => setViewing(!viewing)}>
                 {viewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
