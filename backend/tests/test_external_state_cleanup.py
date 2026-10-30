@@ -12,11 +12,12 @@ name before dropping it.
 from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.db.vector_tables import VectorScope
 from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge, CleanupExternalState, Restamp
 from app.worker.tasks import teardown_tasks
 from app.worker.tasks.teardown_tasks import (
@@ -101,6 +102,17 @@ class TestQueueing:
         assert carrying.model_dump(mode="json")["base_purges"] == [
             {"collection": "handbook", "knowledge_base_id": str(_KB)}
         ]
+
+    async def test_a_kept_bases_purge_carries_its_documents(self) -> None:
+        """A cleared default is purged by the documents its drop deleted, not by
+        its id alone, which later uploads share (#2560); a whole-base purge keeps
+        the shape it had."""
+        named = BasePurge(collection="handbook", knowledge_base_id=_KB, vector_document_ids=[])
+        assert named.model_dump(mode="json")["vector_document_ids"] == []
+        assert _purge().model_dump(mode="json") == {
+            "collection": "handbook",
+            "knowledge_base_id": str(_KB),
+        }
 
     async def test_prefixes_ride_the_first_job_only(self) -> None:
         """An organization's generated media goes by prefix, in the purge's own
@@ -348,10 +360,33 @@ class TestTheCleanup:
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state([], [], [], [], [], [_purge()])
 
-        store.delete_knowledge_base_chunks.assert_awaited_once_with("handbook", _KB)
+        store.delete_knowledge_base_chunks.assert_awaited_once_with(
+            "handbook", _KB, vector_document_ids=None, unfiled_of=None
+        )
         store.delete_collection.assert_not_awaited()
         engine.dispose.assert_awaited_once()
         assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 1}
+
+    @pytest.mark.security
+    async def test_a_purge_taking_unfiled_chunks_names_their_tenant(self) -> None:
+        """A cleared base's unfiled document rows went with it, so the purge also
+        takes those documents' unfiled chunks - within the base's tenant, which
+        is all that keeps another tenant's document of the same id out (#2560)."""
+        tenant = uuid4()
+        purge = BasePurge(
+            collection="handbook",
+            knowledge_base_id=_KB,
+            vector_document_ids=["legacy"],
+            takes_unfiled=True,
+            tenant=tenant,
+        )
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            await cleanup_external_state([], [], [], [], [], [purge])
+
+        store.delete_knowledge_base_chunks.assert_awaited_once_with(
+            "handbook", _KB, vector_document_ids=["legacy"], unfiled_of=VectorScope(tenant=tenant)
+        )
 
     async def test_a_failed_base_purge_attempts_the_rest_then_fails_the_job(self) -> None:
         """Nothing else would remove those chunks, so a failure is raised after the

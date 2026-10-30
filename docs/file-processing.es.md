@@ -1,5 +1,5 @@
 ---
-source_sha: "86223097fd0d"
+source_sha: "9ddf1315e0a4"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -853,7 +853,23 @@ que los documentos borrados con ella dejan de ser buscables en vez de quedarse e
 una tabla que nada lista (#1361). Una búsqueda lee la tabla ausente como vacía y
 la siguiente subida la recrea. La tabla se salva únicamente cuando una base
 hermana sigue teniendo el mismo nombre, ya que el espacio de nombres de vectores
-no es único por tenant y eliminarla se llevaría también sus fragmentos (#913).
+no es único por tenant y eliminarla se llevaría también sus fragmentos (#913). Entonces
+solo se van las filas de documentos y los archivos de la base eliminada, y sus
+fragmentos se quitan de la tabla conservada, como para una base borrada más abajo.
+Las filas de documentos sin asignar de la organización de la base (subidas de antes de
+que los documentos registraran su base) también se van, con sus archivos y fragmentos,
+salvo que otra base de esa organización tenga el nombre y aún las liste. Eliminar una
+colección borraba antes todas las filas de documentos con ese nombre, también las de
+otra organización (#2560).
+
+`rag-drop <name>` pasa por el mismo teardown. Antes borraba la tabla de vectores
+directamente, sin comprobar referencias, sin bloqueo ni reserva, y dejaba las filas de
+documentos, así que podía destruir una tabla que otra base aún usaba. Ahora vacía la
+única base que tiene el nombre, o elimina un nombre que ninguna base tiene (uno que
+llenó `rag-ingest`) con sus filas de documentos. Si varias bases tienen el nombre, lo
+rechaza y lista sus ids; `--knowledge-base <id>` indica la base que vaciar, y la tabla
+se queda para las demás. Un worker borra la tabla y los archivos después del commit
+del comando (#2560).
 
 `documents` era además la colección **predeterminada**, así que el inicio rápido
 de la CLI apuntaba a la tabla de seguimiento; ahora el predeterminado es
@@ -957,9 +973,19 @@ personal fuera de toda organización, cuya búsqueda y recuento no toman ninguno
 Borrar una base de conocimiento cuyo nombre de colección aún tiene otra base conserva
 la tabla compartida, y el trabajo de limpieza encolado con el borrado elimina los
 fragmentos asignados a la base borrada. Borrar una organización y borrar una cuenta
-hacen lo mismo con las bases que eliminan. Los fragmentos sin asignar se quedan y
-coinciden por su tenant
-([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+hacen lo mismo con las bases que eliminan, y también eliminar una colección
+(`DELETE /rag/collections/{name}`), que además borra solo las filas de documentos de
+esa base; en una base predeterminada conservada quita solo los fragmentos de los
+documentos borrados, así que una subida hecha después conserva los suyos, y un
+fragmento sin fila de documento se queda
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Borrar una base de conocimiento (`DELETE /kb/{id}`) mientras otra base tiene su
+nombre también borra las filas de documentos sin asignar de su organización, con sus
+archivos y fragmentos, salvo que otra base de esa organización tenga el nombre y aún
+las liste: la misma regla que al eliminar una colección ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). En los demás casos,
+los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
+documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Una subida o una sincronización que aún indexa un archivo para la base cuando se
 borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que

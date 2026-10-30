@@ -101,13 +101,18 @@ def in_collection_scope(scope: CollectionScope) -> ColumnElement[bool]:
     """
     owned: ColumnElement[bool] = RAGDocument.knowledge_base_id == scope.knowledge_base_id
     if scope.takes_unfiled:
-        tag = (
-            RAGDocument.organization_id.is_(None)
-            if scope.tenant is None
-            else RAGDocument.organization_id == scope.tenant
-        )
-        owned = or_(owned, and_(RAGDocument.knowledge_base_id.is_(None), tag))
+        owned = or_(owned, _unfiled_of(scope.tenant))
     return and_(RAGDocument.collection_name == scope.collection_name, owned)
+
+
+def _unfiled_of(tenant: UUID | None) -> ColumnElement[bool]:
+    """The rows filed under no base whose tag is `tenant`'s."""
+    tag = (
+        RAGDocument.organization_id.is_(None)
+        if tenant is None
+        else RAGDocument.organization_id == tenant
+    )
+    return and_(RAGDocument.knowledge_base_id.is_(None), tag)
 
 
 async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
@@ -677,7 +682,11 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     """Delete a collection's document rows, returning their stored file paths.
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
-    that physical collection - which is what the collection-drop route means. The
+    that physical collection, in every organization. Only for a name no base
+    other than the one being cleared holds - the last holder's drop, or
+    `rag-drop` of a name no base holds, under the teardown lock - where every
+    row left is one nothing can read once the table is dropped; a base of its
+    own goes by `delete_by_knowledge_base` (#913, #2560). The
     returned `storage_path`s are the uploads the caller still has to unlink; a
     `NULL` one (nothing was stored) is dropped. The bulk delete used to return
     only a rowcount, so the files were orphaned on disk (#1265).
@@ -701,10 +710,51 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
     still has to delete from storage - a `NULL` one (nothing was stored) is
     dropped from the list (#1116).
     """
+    return (await delete_by_knowledge_base_with_vectors(db, kb_id)).storage_paths
+
+
+@dataclass(frozen=True)
+class DeletedDocuments:
+    """What a base's deleted document rows leave behind outside the database."""
+
+    storage_paths: list[str]
+    vector_document_ids: list[str]
+
+
+async def delete_by_knowledge_base_with_vectors(db: AsyncSession, kb_id: UUID) -> DeletedDocuments:
+    """`delete_by_knowledge_base`, also returning the deleted rows' vector document ids.
+
+    For a base that is kept: its chunks are removed by these ids rather than by
+    the base's, which a document uploaded after the delete is filed under too
+    (#2560). Taken from the delete itself, so a row updated between a read and
+    the delete cannot be missed. A row whose ingest never completed has none.
+    """
+    return await _delete_returning(db, RAGDocument.knowledge_base_id == kb_id)
+
+
+async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
+    """Delete the unfiled rows a base takes under its name - its tenant's.
+
+    For a base cleared while other bases hold the name, none of them taking these
+    rows: left behind, a kept default would go on listing and serving them, and
+    a deleted base's would come back with the tenant's next base on the name
+    (#2560). Only for a scope that `takes_unfiled`; the caller decides that.
+    """
+    return await _delete_returning(
+        db,
+        and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
+    )
+
+
+async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> DeletedDocuments:
     result = await db.execute(
         sql_delete(RAGDocument)
-        .where(RAGDocument.knowledge_base_id == kb_id)
-        .returning(RAGDocument.storage_path)
+        .where(where)
+        .returning(RAGDocument.storage_path, RAGDocument.vector_document_id)
     )
     await db.flush()
-    return [path for path in result.scalars().all() if path]
+    rows = result.all()
+    return DeletedDocuments(
+        storage_paths=[path for path, _ in rows if path],
+        vector_document_ids=[doc_id for _, doc_id in rows if doc_id],
+    )

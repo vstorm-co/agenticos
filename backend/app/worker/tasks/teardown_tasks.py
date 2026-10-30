@@ -2,8 +2,8 @@
 
 Two callers hand work here, and for the same reason. `OrganizationService.purge`
 commits an organization's relational teardown - its rows, its knowledge bases, its
-document records - and the RAG delete paths (`KnowledgeBaseService.delete`,
-`RAGDocumentService.delete_by_collection` / `_retire_superseded`) commit the removal
+document records - and the RAG delete paths (`KnowledgeBaseService.delete` /
+`delete_for_rag_collection`, `RAGDocumentService._retire_superseded`) commit the removal
 of a collection's or a base's document rows. Both then have external side effects
 left over: the stored uploads to unlink and the physical `rag_<collection>` vector
 tables to drop.
@@ -27,6 +27,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import settings
+from app.db.vector_tables import VectorScope
 from app.services.background_jobs import enqueue
 from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge, CleanupExternalState, Restamp
 
@@ -285,7 +286,12 @@ async def cleanup_external_state(
             for purge in base_purges:
                 try:
                     await store.delete_knowledge_base_chunks(
-                        purge.collection, purge.knowledge_base_id
+                        purge.collection,
+                        purge.knowledge_base_id,
+                        vector_document_ids=purge.vector_document_ids,
+                        unfiled_of=VectorScope(tenant=purge.tenant)
+                        if purge.takes_unfiled
+                        else None,
                     )
                 except SQLAlchemyError as exc:
                     logger.warning("Failed to purge collection %s: %s", purge.collection, exc)

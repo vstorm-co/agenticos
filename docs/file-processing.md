@@ -787,7 +787,20 @@ all the same, so the documents deleted with it stop being searchable rather than
 lingering in a table nothing lists (#1361). A search reads the absent table as empty
 and the next upload recreates it. The table is spared only when a sibling base still
 holds the same name, since the vector namespace is not tenant-unique and dropping it
-would take their chunks too (#913).
+would take their chunks too (#913). Then only the dropped base's own document rows and
+files go, and its chunks are removed from the kept table, as for a deleted base below.
+Unfiled document rows of the base's organization (uploads from before documents
+recorded their base) go too, with their files and chunks, unless another base of that
+organization holds the name and still lists them. A drop used to delete every
+document row under the name, another organization's included (#2560).
+
+`rag-drop <name>` goes through the same teardown. It used to drop the vector table
+directly, with no reference check, lock or reservation, and left the document rows
+behind, so it could destroy a table another base still used. Now it clears the one
+base that holds the name, or drops a name no base holds (one `rag-ingest` filled) with
+its document rows. When several bases hold the name it refuses and lists their ids;
+`--knowledge-base <id>` names the one to clear, and the table stays for the others.
+A worker drops the table and removes the files after the command commits (#2560).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -885,7 +898,17 @@ outside any organization, whose search and count take none of those
 Deleting a knowledge base whose collection name another base still holds keeps the
 shared table, and the cleanup job queued with the delete removes the chunks filed under
 the deleted base. An organization purge and an account deletion do the same for the
-bases they remove. Unfiled chunks stay, matched by their tenant
+bases they remove, and so does dropping a collection (`DELETE /rag/collections/{name}`),
+which also deletes only that base's document rows; for a kept default it removes
+only the chunks of the documents it deleted, so an upload made after the drop keeps
+its own, and a chunk with no document row stays
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Deleting a knowledge base (`DELETE /kb/{id}`) while another base holds its name also
+deletes the unfiled document rows of its organization, with their files and chunks,
+unless another base of that organization holds the name and still lists them - the
+same rule as a collection drop ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). Otherwise unfiled chunks stay, matched by
+their tenant, and unfiled document rows stay listed under the bases of their tenant
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 An upload or a sync still indexing a file for the base when it is deleted leaves

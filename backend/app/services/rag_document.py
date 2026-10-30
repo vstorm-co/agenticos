@@ -661,10 +661,10 @@ class RAGDocumentService:
         this request's session, so the deferred coroutine may hold it safely.
 
         A single document's cleanup stays in-process, where the bulk teardown paths
-        (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
-        queue theirs as a durable job (#1349): the leak a lost single-document task
-        would strand is one file and one document's vectors, and a durable job per
-        document delete is disproportionate to that.
+        (`_retire_superseded`, `KnowledgeBaseService.delete` and
+        `delete_for_rag_collection`) queue theirs as a durable job (#1349): the leak
+        a lost single-document task would strand is one file and one document's
+        vectors, and a durable job per document delete is disproportionate to that.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -796,24 +796,6 @@ class RAGDocumentService:
         rather than vectors nothing tracks. A synced document stores no file.
         """
         await rag_document_repo.delete(self.db, UUID(doc_id))
-
-    async def delete_by_collection(self, collection_name: str) -> None:
-        """Delete a collection's document rows and unlink their stored uploads.
-
-        The bulk row delete used to return only a count, so nothing removed the
-        uploaded files and every one was orphaned on disk when a collection was
-        dropped (#1265). The unlink is a cleanup job queued in this transaction
-        (`queue_external_state_cleanup`), so a rollback keeps the files beside the
-        rows it restores (#1293) and a worker restart mid-drain no longer loses the
-        ones still queued - the job is retried (#1349). Best-effort: the cleanup
-        resolves the storage backend only when it runs, so a misconfigured backend
-        fails the job, not the drop.
-        """
-        storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
-        if storage_paths:
-            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
-
-            await queue_external_state_cleanup(self.db, storage_paths, [])
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

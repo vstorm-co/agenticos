@@ -143,15 +143,26 @@ class BaseVectorStore(ABC):
 
     @abstractmethod
     async def delete_knowledge_base_chunks(
-        self, collection_name: str, knowledge_base_id: UUID
+        self,
+        collection_name: str,
+        knowledge_base_id: UUID,
+        *,
+        vector_document_ids: list[str] | None = None,
+        unfiled_of: VectorScope | None = None,
     ) -> None:
-        """Remove every chunk filed under a deleted knowledge base.
+        """Remove the chunks filed under a deleted knowledge base, or a cleared one.
 
         For a base deleted while another base still holds its collection name, so
         the shared table is kept (#913): the chunks filed under it are no longer
         read by any scope, and nothing else would ever remove them (#2537). Only
         filed chunks: an unfiled one cannot be attributed to this base and stays
         matched by its tenant. A missing table is a no-op, so a retry is safe.
+
+        `vector_document_ids` narrows it to those documents' chunks, for a base
+        that is kept and may hold documents uploaded since (#2560). With them,
+        `unfiled_of` also takes those documents' unfiled chunks within its tenant:
+        the unfiled document rows the base took went with it, when no other base
+        on the name takes them (#2560). It has no effect without the ids.
         """
 
     @abstractmethod
@@ -1072,7 +1083,12 @@ class PgVectorStore(BaseVectorStore):
             await session.commit()
 
     async def delete_knowledge_base_chunks(
-        self, collection_name: str, knowledge_base_id: UUID
+        self,
+        collection_name: str,
+        knowledge_base_id: UUID,
+        *,
+        vector_document_ids: list[str] | None = None,
+        unfiled_of: VectorScope | None = None,
     ) -> None:
         if not await self._collection_exists(collection_name):
             return
@@ -1081,11 +1097,21 @@ class PgVectorStore(BaseVectorStore):
         # chunk filed under it is its own whatever tenant tag it carries. The
         # btree `_kb_idx` serves the predicate. The only interpolated token is
         # `table`, validated by `_table`.
+        clause = "(metadata->>'knowledge_base_id') = :kb"
+        params: dict[str, str | list[str]] = {"kb": str(knowledge_base_id)}
+        if vector_document_ids is not None:
+            if unfiled_of is not None:
+                # An unfiled chunk carries no base, so its tenant tag is what
+                # keeps another tenant's document of the same id out (#1684).
+                tenant_clause, tenant_params = _vector_scope_clause(unfiled_of, prefix="unfiled_")
+                params.update(tenant_params)
+                clause = (
+                    f"({clause} OR ((metadata->>'knowledge_base_id') IS NULL AND {tenant_clause}))"
+                )
+            clause += " AND parent_doc_id = ANY(:docs)"
+            params["docs"] = vector_document_ids
         async with self.async_session() as session:
-            await session.execute(
-                text(f"DELETE FROM {table} WHERE (metadata->>'knowledge_base_id') = :kb"),
-                {"kb": str(knowledge_base_id)},
-            )
+            await session.execute(text(f"DELETE FROM {table} WHERE {clause}"), params)
             await session.commit()
 
     async def restamp_documents_to_untagged(
