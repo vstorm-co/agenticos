@@ -19,6 +19,23 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Explicit `@slug` channel invocations retain saved conversation history, just
+  like default bot replies, so follow-up requests keep earlier results and App
+  references after the initial thread backfill.
+- Channel replies retain each message's author, answer the current request without
+  reviving unrelated tasks, and explain how to revise a published App when its
+  original sandbox is unavailable. Existing channel prompts receive the updated
+  guidance without duplicate default blocks or losing custom instructions.
+  Author metadata stays outside the actual prompt screened by input guardrails.
+- Read-only MCP tools no longer require approval solely because a linked
+  member's run is in Mattermost, Slack, Teams or Telegram. Unlinked senders still
+  require approval for every MCP call. Writes and tools without a read-only hint
+  still require approval; an explicit all-tools policy continues to include reads.
+
+## [1.30.0] - 2026-10-30
+
 ### Added
 
 - A new agent starts on the organization's model when the organization has
@@ -41,20 +58,6 @@ Two things are versioned separately from this file and worth knowing about:
   Model** beside it, which opens the Model card on the Build tab.
 
 ### Fixed
-
-- Explicit `@slug` channel invocations retain saved conversation history, just
-  like default bot replies, so follow-up requests keep earlier results and App
-  references after the initial thread backfill.
-- Channel replies retain each message's author, answer the current request without
-  reviving unrelated tasks, and explain how to revise a published App when its
-  original sandbox is unavailable. Existing channel prompts receive the updated
-  guidance without duplicate default blocks or losing custom instructions.
-  Author metadata stays outside the actual prompt screened by input guardrails.
-- Read-only MCP tools no longer require approval solely because a linked
-  member's run is in Mattermost, Slack, Teams or Telegram. Unlinked senders still
-  require approval for every MCP call. Writes and tools without a read-only hint
-  still require approval; an explicit all-tools policy continues to include reads.
-
 
 - Architect highlighting follows locale-cookie redirects and skips controls
   hidden by a responsive stylesheet.
