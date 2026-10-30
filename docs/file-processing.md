@@ -138,15 +138,15 @@ to say a file could not be put back if it is still not there.
 
 Only the person's own files are put back, only from that agent's interrupted turns,
 the newest 50 at most, and only until that agent completes a turn for the same
-person that started after the interrupted one ended and actually checked prior attachments.
-A completed turn without a workspace leaves this window open. A turn run with an API key, for
+person that started after the interrupted one ended and actually reached attachment setup in its workspace.
+A completed turn without a workspace, or without using its sandbox, leaves this window open. A turn run with an API key, for
 a widget visitor or released from an approval by somebody else does not end that
 period. A file removed after that stays removed.
 
 Some files are not put back: those of a turn a guardrail blocked, since the input
 guardrail refused what that turn carried; those of a prompt whose run was never
 opened, which belongs to no agent; files on a turn run with an API key or for a
-widget visitor; and files whose next turn completed without ever using its sandbox.
+widget visitor.
 
 When the agent has an input guardrail, each file is also screened before it is put
 back, over what the guardrail would read of it: its name, its path and its first

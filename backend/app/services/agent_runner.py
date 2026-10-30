@@ -1275,6 +1275,9 @@ class PreparedRun:
     """A call's text twin, when the call hands work off (#54): the session points
     its steps at the call's event pump."""
 
+    earlier_attachments_checked: bool = False
+    """The workspace actually reached its attachment setup, persisted with the terminal run."""
+
     materialised_skills: MaterialisedSkills | None = None
     """The skill files written into that workspace, as they were written.
 
@@ -1752,6 +1755,7 @@ def _start_turn_on_first_use(
     *,
     earlier: EarlierAttachments | None = None,
     can_parse: bool = False,
+    checked_earlier: bool = False,
 ) -> None:
     """Write the run's skills, put back the thread's attachments and take the
     run's snapshot when the sandbox is first used.
@@ -1767,6 +1771,7 @@ def _start_turn_on_first_use(
         prepared.materialised_skills = await materialise_skills(workspace, skills)
         if earlier is not None:
             await restore_earlier_attachments(workspace, earlier, can_parse=can_parse)
+        prepared.earlier_attachments_checked = checked_earlier
         prepared.workspace_at_start = await workspace_snapshot(workspace)
 
     workspace.prepare_on_first_use(start)
@@ -3425,6 +3430,7 @@ class AgentRunnerService:
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         earlier: EarlierAttachments | None = None
+        checked_earlier = False
         if workspace is not None:
             resources[WORKSPACE_RESOURCE] = workspace.workspace
             resources[WORKSPACE_SHARED_RESOURCE] = await self._workspace_shared(
@@ -3484,7 +3490,7 @@ class AgentRunnerService:
                     # (#2481): its turn may have stopped before the edge ran.
                     screen=input_screen_for(spec),
                 )
-                await agent_run_repo.record_attachment_lookup(self.db, run)
+                checked_earlier = True
             if earlier is not None:
                 spec = _with_earlier_attachments_briefing(spec)
             if isinstance(workspace.workspace, RecordingWorkspace):
@@ -3689,6 +3695,11 @@ class AgentRunnerService:
             approvals=channel,
             workspace=workspace,
             hand_off=hand_off,
+            earlier_attachments_checked=(
+                checked_earlier
+                and workspace is not None
+                and not isinstance(workspace.workspace, RecordingWorkspace)
+            ),
             materialised_skills=materialised,
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
@@ -3741,6 +3752,7 @@ class AgentRunnerService:
                 resources["skills"],
                 earlier=earlier,
                 can_parse=workspace.parses_documents,
+                checked_earlier=checked_earlier,
             )
         return prepared
 
@@ -4860,6 +4872,8 @@ class AgentRunnerService:
                 if agent_id == prepared.run.agent_id
             ),
         )
+        if prepared.earlier_attachments_checked:
+            await agent_run_repo.record_attachment_lookup(self.db, prepared.run)
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,

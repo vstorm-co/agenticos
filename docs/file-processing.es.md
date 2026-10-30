@@ -1,5 +1,5 @@
 ---
-source_sha: "82eda889e960"
+source_sha: "4583c2b65bee"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -158,7 +158,7 @@ archivo, y que diga que no se pudo reponer si sigue sin estar.
 Solo se reponen los archivos de la propia persona, solo de los turnos interrumpidos
 de ese agente, como mucho los 50 más recientes, y solo hasta que ese agente complete
 para la misma persona un turno que empezó después de que terminara el interrumpido y comprobó
-realmente los archivos anteriores. Un turno completado sin workspace deja abierto este plazo.
+la preparación de los archivos anteriores dentro del workspace. Un turno completado sin workspace o sin usar su sandbox deja abierto este plazo.
 Un turno ejecutado con una clave de API, para un visitante del widget o liberado de
 una aprobación por otra persona no cierra ese plazo. Un archivo eliminado después
 sigue eliminado.
@@ -166,8 +166,7 @@ sigue eliminado.
 Algunos archivos no se reponen: los de un turno que bloqueó un guardrail, porque el
 guardrail de entrada rechazó lo que llevaba; los de un prompt cuyo run nunca se
 abrió, que no pertenece a ningún agente; los de un turno ejecutado con una clave de
-API o para un visitante del widget; y los cuyo turno siguiente se completó sin usar
-nunca su sandbox.
+API o para un visitante del widget.
 
 Cuando el agente tiene un guardrail de entrada, cada archivo se revisa además antes
 de reponerlo, sobre lo que el guardrail leería de él: su nombre, su ruta y sus

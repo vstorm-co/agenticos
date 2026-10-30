@@ -273,7 +273,7 @@ class AgentRun(Base, TimestampMixin):
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
-    # Only a completed run that actually checked prior attachments closes their window.
+    # Only a completed run that reached workspace attachment setup closes their window.
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )

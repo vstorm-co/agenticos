@@ -2039,6 +2039,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         *,
         resumed: MagicMock | None = None,
         spec: AgentSpec | None = None,
+        use_workspace: bool = True,
     ):
         """`prepare`, or with `resumed` the same assembly continuing that parked run."""
         service = AgentRunnerService(_db())
@@ -2098,10 +2099,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             prepared_only = list(restored)
             # The run's first operation in the workspace, inside the patches: a
             # sandbox's set-up waits for it.
-            await workspace.workspace.exists("anything")
+            if use_workspace:
+                await workspace.workspace.exists("anything")
 
         if find.await_count:
-            assert prepared.run.earlier_attachments_checked is True
+            assert prepared.earlier_attachments_checked is use_workspace
             kwargs = dict(find.await_args.kwargs)
             screen = kwargs.pop("screen")
             # Without a guardrail, nothing is screened.
@@ -2114,6 +2116,15 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 "can_parse": workspace.parses_documents,
             }
         return prepared, build.call_args.args[0].instructions, prepared_only, restored, find
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_untouched_sandbox_leaves_restoration_open(self):
+        prepared, _, _, restored, _ = await self._prepare(
+            _sandbox(StateBackend()), earlier=MagicMock(), use_workspace=False
+        )
+        assert prepared.earlier_attachments_checked is False
+        assert restored == []
 
     @pytest.mark.anyio
     @pytest.mark.security
@@ -2452,12 +2463,14 @@ class TestRunAccounting:
         ledger = SpendLedger()
         ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
         prepared = _prepared(ledger)
+        prepared.earlier_attachments_checked = True
 
         with patch(
             "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
         ) as finish:
             await service.finish(prepared, status=RunStatus.FAILED, error="boom")
 
+        assert prepared.run.earlier_attachments_checked is True
         recorded = finish.call_args.kwargs
         assert recorded["status"] == RunStatus.FAILED.value
         assert recorded["cost_usd"] == Decimal("2.00")

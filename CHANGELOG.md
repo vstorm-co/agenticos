@@ -46,8 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
   moving them into a same-named base. Queued syncs recheck their assignment;
   CLI ingestion refuses names reserved for a pending collection drop.
 - Interrupted attachments remain eligible after a completed turn without a
-  workspace. Only a turn that actually checked prior attachments closes their
-  restoration window.
+  workspace or without using its sandbox. Only a turn that reaches attachment
+  setup in its workspace closes their restoration window.
 
 - Clearing a shared default knowledge base also removes chunks committed before
   their tracking rows settle, including unfiled CLI ingestion. Stale writes

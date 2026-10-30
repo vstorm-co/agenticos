@@ -1,5 +1,5 @@
 ---
-source_sha: "82eda889e960"
+source_sha: "4583c2b65bee"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -163,7 +163,7 @@ nicht zurückgelegt werden konnte, wenn sie dann noch fehlt.
 Zurückgelegt werden nur die eigenen Dateien der Person, nur aus abgebrochenen Zügen
 dieses Agenten, höchstens die 50 neuesten, und nur, bis dieser Agent für dieselbe
 Person einen Zug abschließt, der nach dem Ende des abgebrochenen begann und frühere Anhänge
-tatsächlich geprüft hat. Ein abgeschlossener Zug ohne Workspace lässt dieses Zeitfenster offen. Ein Zug mit
+im Workspace tatsächlich vorbereitet hat. Ein abgeschlossener Zug ohne Workspace oder ohne Sandbox-Nutzung lässt dieses Zeitfenster offen. Ein Zug mit
 einem API-Schlüssel, für einen Widget-Besucher oder von jemand anderem aus einer
 Freigabe entlassen beendet diesen Zeitraum nicht. Eine danach entfernte Datei bleibt
 entfernt.
@@ -171,8 +171,7 @@ entfernt.
 Manche Dateien kommen nicht zurück: die eines Zugs, den eine Guardrail blockiert
 hat, weil die Eingabe-Guardrail abgelehnt hat, was er mitbrachte; die eines Prompts,
 dessen Run nie geöffnet wurde und der keinem Agenten gehört; Dateien eines Zugs mit
-einem API-Schlüssel oder für einen Widget-Besucher; und Dateien, deren nächster Zug
-abgeschlossen wurde, ohne die Sandbox je zu nutzen.
+einem API-Schlüssel oder für einen Widget-Besucher.
 
 Hat der Agent eine Eingabe-Guardrail, wird jede Datei vor dem Zurücklegen auch
 daraufhin geprüft, was die Guardrail von ihr lesen würde: ihren Namen, ihren Pfad

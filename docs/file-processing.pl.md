@@ -1,5 +1,5 @@
 ---
-source_sha: "82eda889e960"
+source_sha: "4583c2b65bee"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -154,16 +154,15 @@ brakuje, a jeśli pliku nadal nie ma — by powiedział, że nie dało się go p
 
 Wracają tylko własne pliki tej osoby, tylko z przerwanych tur tego agenta, najwyżej
 50 najnowszych, i tylko do chwili, gdy ten agent ukończy dla tej samej osoby turę,
-która zaczęła się po zakończeniu przerwanej i faktycznie sprawdziła wcześniejsze załączniki.
-Ukończona tura bez workspace’u nie zamyka tego okresu. Tura uruchomiona kluczem API, dla
+która zaczęła się po zakończeniu przerwanej i faktycznie wykonała przygotowanie załączników w workspace.
+Ukończona tura bez workspace’u lub bez użycia sandboxa nie zamyka tego okresu. Tura uruchomiona kluczem API, dla
 gościa widgetu albo zwolniona z akceptacji przez kogoś innego tego okresu nie
 kończy. Plik usunięty później zostaje usunięty.
 
 Niektóre pliki nie wracają: pliki tury zablokowanej przez guardrail, bo guardrail
 wejścia odrzucił to, co niosła; pliki promptu, którego run nigdy się nie otworzył —
 nie należy on do żadnego agenta; pliki z tury uruchomionej kluczem API albo dla
-gościa widgetu; oraz pliki, których następna tura ukończyła się, nie używając
-sandboxa.
+gościa widgetu.
 
 Gdy agent ma guardrail wejścia, każdy plik jest też sprawdzany, zanim wróci, na
 tym, co guardrail by z niego przeczytał: nazwie, ścieżce i pierwszych liniach. Tura
