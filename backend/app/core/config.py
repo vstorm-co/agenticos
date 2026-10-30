@@ -863,6 +863,14 @@ class Settings(BaseSettings):
     # and is not on a hosted browser; empty sends the browser straight out.
     BROWSER_EGRESS_PROXY: str = ""
 
+    # Hosts a computer-use agent may drive a desktop at - a `computerd` daemon on
+    # a Linux container or a Mac. `daemon_url` is in the agent spec, like
+    # `cdp_url`, and a run sends the daemon's token to whatever it names, so the
+    # operator lists the hosts; checked at publish and when a run opens the
+    # daemon. The token is the organization's, in its vault. Empty refuses the
+    # daemon backend.
+    COMPUTER_DAEMON_ALLOWED_HOSTS: list[str] = []
+
     # Hosts an MCP connection's own URL may name although they resolve inside the
     # deployment's network, such as a compose service. A listed host skips the
     # address check in `app.agents.mcp.validate_mcp_url` for a connection's own

@@ -36,13 +36,13 @@ async function openSubmenu(name: RegExp) {
 beforeEach(() => {
   env.mounted = true;
   env.push.mockClear();
-  useThemeStore.setState({ theme: "system" });
+  useThemeStore.setState({ theme: "system", look: "standard" });
 });
 
 describe("AppearanceMenu", () => {
   it("switches the theme", async () => {
     inMenu(<AppearanceMenu />);
-    expect(screen.getByRole("menuitem", { name: /Appearance/ })).toHaveTextContent("System");
+    expect(screen.getByRole("menuitem", { name: /Appearance/ })).toHaveTextContent("Standard");
     await openSubmenu(/Appearance/);
 
     await userEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
@@ -56,6 +56,38 @@ describe("AppearanceMenu", () => {
     inMenu(<AppearanceMenu />);
 
     expect(screen.getByRole("menuitem", { name: /Appearance/ })).not.toHaveTextContent("Dark");
+  });
+
+  it.each(["Standard", "Glass", "Graphite", "Midnight", "Paper"])(
+    "selects %s without changing the light/dark preference",
+    async (name) => {
+      useThemeStore.setState({ theme: "dark", look: "paper" });
+      inMenu(<AppearanceMenu />);
+      expect(screen.getByRole("menuitem", { name: /Appearance/ })).toHaveTextContent("Paper");
+      await openSubmenu(/Appearance/);
+      expect(screen.getByRole("menuitemradio", { name: "Paper" })).toBeChecked();
+
+      await userEvent.click(screen.getByRole("menuitemradio", { name }));
+
+      expect(useThemeStore.getState().look).toBe(name.toLowerCase());
+      expect(useThemeStore.getState().theme).toBe("dark");
+    },
+  );
+
+  it("lets the keyboard select a style", async () => {
+    inMenu(<AppearanceMenu />);
+    await openSubmenu(/Appearance/);
+    screen.getByRole("menuitemradio", { name: "Standard" }).focus();
+    await userEvent.keyboard("{ArrowDown}{Enter}");
+    expect(useThemeStore.getState().look).toBe("glass");
+  });
+
+  it("checks no style before mount", async () => {
+    env.mounted = false;
+    useThemeStore.setState({ look: "midnight" });
+    inMenu(<AppearanceMenu />);
+    await openSubmenu(/Appearance/);
+    for (const item of screen.getAllByRole("menuitemradio")) expect(item).not.toBeChecked();
   });
 });
 

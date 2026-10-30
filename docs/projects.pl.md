@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "1723f797c360"
+source_sha: "3f798c416272"
 ---
 
 # Projekty { #projects }
@@ -55,7 +55,6 @@ i zewnętrzni klienci MCP zachowują własny sposób pracy.
 Aktualizacja nie nadpisuje własnych instrukcji agentów ani zainstalowanych
 skillów z galerii; nowy szablon i dołączony przewodnik Projects dotyczą nowych
 instalacji.
-
 
 ## Czat w projekcie { #starting-a-chat-in-a-project }
 
@@ -140,17 +139,42 @@ aplikacje opublikowane przez run w jednym z nich, te, które czytający może
 otworzyć. **Instrukcje** edytuje się w Markdownie, ze Źródłem i Podglądem, jak
 instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem projektu.
 
+Upuść pliki z komputera na folder, aby przesłać je do niego, albo w innym miejscu zakładki Pliki, aby dodać je do głównego katalogu projektu. Zatrzymanie przeciąganego elementu nad zwiniętym folderem rozwija go po krótkiej chwili. Podpowiedź pozostaje w obszarze plików, akcje wiersza mają stałe miejsce, a foldery nie pokazują liczników. Długa kolejka przesyłania pokazuje pierwsze trzy pozycje i liczbę oczekujących. Ikony rozróżniają kod, JSON, markup, dokumenty, arkusze i multimedia w projektach, załącznikach czatu, RAG oraz plikach skilli.
+
+Desktop przekazuje przeciągane pliki do tych samych celów co aplikacja webowa.
+Upuszczenie na plik wybiera folder, w którym się on znajduje, a upuszczenie na pusty
+obszar dowolnego panelu wybiera główny katalog projektu. Blobby i Dock zachowują
+osobne dodawanie plików do czatu.
+
+## Lokalne foldery w aplikacji desktopowej { #local-folders-in-the-desktop-app }
+
+Karta **Pliki** rozdziela **Wspólne pliki projektu** i **Ten komputer**. Folder zatwierdzony przy tworzeniu projektu otwiera się automatycznie na tej instalacji; bez powiązania najpierw widać wspólne pliki. Wybierz Ten komputer, aby podłączyć folder. **Ustawienia folderu** pozwalają go zmienić lub odłączyć; ścieżka i tryb dostępu są widoczne bez powtarzania formularza konfiguracji.
+
+Wspólne pliki projektu to wgrane kopie dostępne dla osób z dostępem do projektu. Aby udostępnić lokalny plik, wybierz to źródło i wgraj kopię. Te miejsca nie synchronizują się: edycja lokalna nie aktualizuje wgranej kopii, a udostępnienie projektu nie daje dostępu do dysku. **Wspólne środowisko projektu** na karcie Instrukcje zmienia wyłącznie miejsce na serwerze; nie podłącza ani nie odłącza osobistego folderu.
+
+Natywne okno potwierdza dostęp, początkowo tylko do odczytu. Powiązanie należy do bieżącego konta i organizacji na tym komputerze. Odłączenie pozostawia uprawnienia innych czatów. Podgląd obejmuje do 500 elementów, pomija generowane foldery, np. `.git` i `node_modules`, i pokazuje błędy odczytu bez cichego przełączania do chmury.
+
+Nowe czaty projektu na desktopie dziedziczą folder i zatwierdzony tryb dostępu.
+Instrukcje projektu nadal obowiązują, a narzędzia sandboxa pracują lokalnie zamiast
+we wspólnym kontenerze. Ustawienie **Pracuj na** można zmienić dla pojedynczego
+czatu; istniejące rozmowy zachowują swoje ustawienia. Skrót folderu przy polu
+wiadomości otwiera te opcje. Niedostępny komputer lub cofnięte uprawnienie nie
+przełącza wykonania do chmury. Telefony i przeglądarki nadal używają wspólnych
+plików; powiązanie nie daje im zdalnego dostępu do komputera. Odpowiedzi agenta
+i wyniki narzędzi zapisane w czacie projektu są widoczne dla osób mogących czytać
+ten czat, więc uwzględnij jego odbiorców przed omawianiem prywatnych plików.
+
 ## Udostępnianie i uprawnienia { #sharing-and-permissions }
 
 Projekt jest prywatny dla swojego twórcy, dopóki go nie udostępni - tym samym
 oknem **Udostępnij**, którego używa agent czy skill: osobom,
 [działom](departments.md) albo całej organizacji, każdemu na jakimś poziomie.
 
-| Poziom grantu | Uprawnienie | Na co pozwala |
-|---|---|---|
-| `read` | `projects:view` | Widzieć projekt, jego pliki i instrukcje |
-| `use` | `projects:use` | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki |
-| `edit` | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
+| Poziom grantu | Uprawnienie     | Na co pozwala                                                |
+| ------------- | --------------- | ------------------------------------------------------------ |
+| `read`        | `projects:view` | Widzieć projekt, jego pliki i instrukcje                     |
+| `use`         | `projects:use`  | Czatować w nim; dodawać, edytować, przenosić i usuwać pliki  |
+| `edit`        | `projects:edit` | Zmieniać instrukcje i domyślnego agenta, udostępniać, usuwać |
 
 Role mają te uprawnienia w zwykłych zakresach: Owner i Admin sięgają każdego
 projektu, Builder pracuje w udostępnionych mu projektach i je edytuje, Member

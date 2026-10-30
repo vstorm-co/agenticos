@@ -251,6 +251,34 @@ describe("the queue above the composer", () => {
 
     expect(screen.getByText("Waiting for the answer")).toBeInTheDocument();
   });
+
+  it("says it waits for the network when there is none", () => {
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} waitingForNetwork />);
+
+    expect(screen.getByText("Waiting for the network")).toBeInTheDocument();
+    expect(screen.queryByText("Waiting for the answer")).toBeNull();
+  });
+
+  it("marks a message the server refused, says why, and sends it again on request", async () => {
+    const onRetry = vi.fn();
+    render(
+      <PendingMessages
+        messages={[{ id: "q-1", content: "First question", refused: "The budget is spent." }]}
+        onCancel={vi.fn()}
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByText("Not sent: The budget is spent.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send again" }));
+    expect(onRetry).toHaveBeenCalledWith("q-1");
+  });
+
+  it("offers no retry for a message nobody refused", () => {
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onRetry={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "Send again" })).toBeNull();
+  });
 });
 
 describe("the slash command palette", () => {

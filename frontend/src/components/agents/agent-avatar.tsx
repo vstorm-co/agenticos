@@ -104,7 +104,7 @@ export function AgentAvatar({
           colorSlot={colorSlot}
           thinking={thinking}
           background={!unframed}
-          className={unframed ? "scale-125" : undefined}
+          className={unframed ? "scale-110" : undefined}
         />
       </AvatarFallback>
     </Avatar>

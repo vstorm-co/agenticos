@@ -23,14 +23,14 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 99 | 241 |
-| Apache-2.0 | 67 | 24 |
+| MIT | 102 | 242 |
+| Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 23 | 4 |
 | ISC | 3 | 16 |
 | BSD-2-Clause | 7 | 0 |
+| MPL-2.0 | 5 | 0 |
 | Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
-| MPL-2.0 | 3 | 0 |
 | PSF-2.0 | 3 | 0 |
 | 0BSD | 1 | 1 |
 | AGPL-3.0-only | 1 | 0 |
@@ -49,7 +49,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-219 distributions.
+228 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -86,6 +86,7 @@ names no author is in the evidence column below.
 | charset-normalizer | 3.5.2 | MIT | https://charset-normalizer.readthedocs.io/ | License field |
 | click | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
 | cohere | 7.3.0 | MIT | https://github.com/cohere-ai/cohere-python | License field |
+| connectrpc | 0.12.1 | Apache-2.0 | https://github.com/connectrpc/connect-py | License-Expression |
 | croniter | 6.2.4 | MIT | https://github.com/pallets-eco/croniter | License-Expression |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ | License-Expression |
 | cyclopts | 5.3.1 | Apache-2.0 | https://github.com/BrianPugh/cyclopts | License-Expression |
@@ -102,6 +103,8 @@ names no author is in the evidence column below.
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
 | dnspython | 2.9.0 | ISC | https://github.com/rthalley/dnspython.git | License-Expression; no licence file, attributed to Bob Halley |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
+| e2b | 2.59.0 | MIT | https://github.com/e2b-dev/e2b/tree/main/packages/python-sdk | License-Expression; no licence file, attributed to e2b |
+| e2b-dockerfile-utils | 0.1.1 | Apache-2.0 | https://github.com/e2b-dev/e2b/tree/main/packages/dockerfile-utils-python | License-Expression |
 | email-validator | 2.3.0 | Unlicense | https://github.com/JoshData/python-email-validator | License field |
 | et-xmlfile | 2.0.0 | MIT | https://foss.heptapod.net/openpyxl/et_xmlfile | License field |
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
@@ -126,6 +129,7 @@ names no author is in the evidence column below.
 | h2 | 4.4.1 | MIT | https://github.com/python-hyper/h2/ | License-Expression |
 | hf-xet | 1.4.3 | Apache-2.0 | https://github.com/huggingface/xet-core.git | License-Expression |
 | hpack | 4.2.0 | MIT | https://github.com/python-hyper/hpack/ | License-Expression |
+| http-ece | 1.2.1 | MIT | https://github.com/martinthomson/encrypted-content-encoding | License field; no licence file, attributed to Martin Thomson |
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
 | httpcore2 | 2.16.0 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
@@ -196,9 +200,12 @@ names no author is in the evidence column below.
 | primp | 2.0.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
 | propcache | 0.5.4 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
 | protobuf | 6.33.6 | BSD-3-Clause | https://developers.google.com/protocol-buffers/ | License field |
+| protobuf-py | 0.6.0 | Apache-2.0 | https://github.com/bufbuild/protobuf-py | License-Expression |
+| protobuf-py-ext | 0.6.0 | Apache-2.0 | https://github.com/bufbuild/protobuf-py | override: protobuf-py-ext 0.6.0 (pulled in by e2b, for E2B sandboxes) is the native half of protobuf-py and ships no licence metadata of its own; its Project-URLs name github.com/bufbuild/protobuf-py, whose LICENSE is Apache-2.0, and protobuf-py 0.6.0 from the same source declares License-Expression: Apache-2.0 and ships that LICENSE.; no licence file, attributed to Buf Technologies, Inc. |
 | psutil | 7.2.2 | BSD-3-Clause | https://github.com/giampaolo/psutil | License field |
 | psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.6 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.6/ | License-Expression |
+| py-vapid | 1.9.6 | MPL-2.0 | https://github.com/mozilla-services/vapid | License field; review accepted |
 | pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
@@ -217,6 +224,7 @@ names no author is in the evidence column below.
 | pyjwt | 2.15.1 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
 | pyperclip | 1.11.0 | BSD-3-Clause | https://github.com/asweigart/pyperclip | licence file text |
+| pyqwest | 0.12.0 | MIT | https://github.com/curioswitch/pyqwest.git | classifier |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
 | python-dotenv | 1.2.4 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
@@ -225,6 +233,7 @@ names no author is in the evidence column below.
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pytz | 2026.5 | MIT | https://github.com/stub42/pytz.git | License field |
+| pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
 | qdrant-client | 1.20.0 | Apache-2.0 | https://github.com/qdrant/qdrant-client | License field |
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |
@@ -275,7 +284,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-292 distributions.
+293 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -560,6 +569,7 @@ names no author is in the evidence column below.
 | unist-util-stringify-position | 4.0.0 | MIT | https://github.com/syntax-tree/unist-util-stringify-position | package.json license |
 | unist-util-visit | 5.1.0 | MIT | https://github.com/syntax-tree/unist-util-visit | package.json license |
 | unist-util-visit-parents | 6.0.2 | MIT | https://github.com/syntax-tree/unist-util-visit-parents | package.json license |
+| uqr | 0.1.3 | MIT | https://github.com/unjs/uqr | package.json license |
 | use-callback-ref | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref/ | package.json license |
 | use-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | use-sidecar | 1.1.3 | MIT | https://github.com/theKashey/use-sidecar | package.json license |

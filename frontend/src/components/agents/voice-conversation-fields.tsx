@@ -294,19 +294,15 @@ function VoiceField({
 }: PartProps & { model: RealtimeModel; agentId?: string }) {
   const t = useTranslations("agents");
   return (
-    <FormField
-      label={t("voiceConversationVoice")}
-      htmlFor="agent-voice-call-voice"
-      description={t("voiceConversationVoiceHint")}
-    >
-      {/* An id of its own, so `FormField` leaves the label on the trigger below. */}
+    <div className="space-y-1.5">
+      <Label htmlFor="agent-voice-call-voice">{t("voiceConversationVoice")}</Label>
       <div id="agent-voice-call-voice-row" className="flex items-center gap-2">
         <Select
           value={block.voice ?? model.default_voice}
           disabled={disabled}
           onValueChange={(voice) => write({ voice })}
         >
-          <SelectTrigger id="agent-voice-call-voice">
+          <SelectTrigger id="agent-voice-call-voice" aria-describedby="agent-voice-call-voice-desc">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -321,7 +317,13 @@ function VoiceField({
         </Select>
         {agentId !== undefined && <VoicePreviewButton agentId={agentId} block={block} />}
       </div>
-    </FormField>
+      <p
+        id="agent-voice-call-voice-desc"
+        className="text-muted-foreground text-[13px] leading-relaxed"
+      >
+        {t("voiceConversationVoiceHint")}
+      </p>
+    </div>
   );
 }
 

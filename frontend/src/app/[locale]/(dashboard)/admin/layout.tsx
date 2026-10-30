@@ -11,13 +11,13 @@ import { useTranslations } from "next-intl";
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("pages.admin");
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         title={t("workspaceAdministration")}
         description={t("usersConversationsOrgsSystem")}
       />
       <PageTabs tabs={ADMIN_TABS} />
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

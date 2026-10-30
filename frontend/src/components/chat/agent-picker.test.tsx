@@ -289,3 +289,16 @@ describe("a link asking for one agent", () => {
     expect(select).not.toHaveBeenCalled();
   });
 });
+
+it("opens without focusing a clipped agent outline and supports deliberate keyboard navigation", async () => {
+  await open();
+  expect(screen.getByRole("radiogroup")).toHaveFocus();
+  await userEvent.keyboard("{ArrowDown}");
+  expect(screen.getByRole("radio", { name: /Support/ })).toHaveFocus();
+  await userEvent.keyboard("{End}");
+  expect(screen.getByRole("radio", { name: /Sales/ })).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  expect(select).toHaveBeenCalledWith("a2");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("button", { name: /^Agent:/ })).toHaveFocus();
+});

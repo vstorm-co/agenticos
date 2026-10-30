@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown, FileText, Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FileIcon } from "@/components/files/file-icon";
 import { useTranslations } from "next-intl";
 
 interface RAGResultItem {
@@ -109,7 +110,7 @@ function RAGSourceGroup({
   return (
     <div>
       <div className="bg-foreground/[0.02] flex items-center gap-2 px-3 py-2">
-        <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+        <FileIcon name={source} className="text-muted-foreground size-4 shrink-0" />
         <span className="text-foreground truncate text-xs font-medium" title={source}>
           {source}
         </span>

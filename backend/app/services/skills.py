@@ -72,7 +72,6 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         name=skill.name,
         description=skill.description,
         category=skill.category,
-        enabled=skill.enabled,
         visibility=skill.visibility,
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
@@ -317,7 +316,7 @@ class SkillService:
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
 
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
-        """The enabled skills an agent is bound to.
+        """The skills an agent is bound to.
 
         Scoped to the run's organization and **not** to the runner's own access,
         which is deliberate and is the same rule delegates and collections follow:
@@ -334,7 +333,7 @@ class SkillService:
         same published version than a builder does, with the difference visible
         nowhere.
 
-        A skill deleted or disabled after publish is skipped rather than failing
+        A skill deleted after publish is skipped rather than failing
         the run: the agent is less capable, not broken. Named in the log with the
         organization, because from inside one tenant a row that was deleted and a
         row that belongs to another tenant leave the same absence - and the second
@@ -346,9 +345,9 @@ class SkillService:
         resolved = []
         for skill_id in skill_ids:
             skill = found.get(skill_id)
-            if skill is None or not skill.enabled:
+            if skill is None:
                 logger.warning(
-                    "Agent references skill %s which is disabled, deleted, or not org %s's",
+                    "Agent references skill %s which is deleted or not org %s's",
                     skill_id,
                     ctx.organization_id,
                 )

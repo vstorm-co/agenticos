@@ -31,7 +31,6 @@ import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
   CornerUpLeft,
-  FileText,
   Mic,
   OctagonPause,
   Paperclip,
@@ -42,11 +41,11 @@ import {
   UserRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
+import { KeptImage } from "./kept-image";
 import { isRenderSafeImage } from "@/lib/file-kinds";
-import { FileCard } from "@/components/files";
+import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
@@ -293,13 +292,12 @@ export const MessageItem = memo(function MessageItem({
                       className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-all"
                       title={t("openFile", { name: att.file.filename })}
                     >
-                      <Image
-                        src={getFileUrl(att.file.id)}
+                      <KeptImage
+                        fileId={att.file.id}
                         alt={att.file.filename}
                         width={320}
                         height={256}
                         className="h-auto max-h-64 w-auto max-w-xs object-contain"
-                        unoptimized
                       />
                     </button>
                   ) : "file" in att ? (
@@ -642,7 +640,7 @@ function FileChip({ filename, href }: { filename: string; href: string }) {
       className="border-foreground/15 bg-card hover:border-foreground/40 inline-flex max-w-xs items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors"
     >
       <span className="bg-foreground/8 text-foreground/65 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <FileText className="h-4 w-4" />
+        <FileIcon name={filename} className="size-4" />
       </span>
       <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
         {filename}

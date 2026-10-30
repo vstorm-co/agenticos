@@ -4,9 +4,11 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { ChoiceGroup } from "@/components/settings/choice-group";
+import { LookPicker } from "@/components/settings/look-picker";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useMounted } from "@/hooks/use-mounted";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import { useMotionStore, type MotionPreference } from "@/stores/motion-store";
 import { useThemeStore, type Theme } from "@/stores/theme-store";
 import { useVoiceGlowStore, type VoiceGlowStyle } from "@/stores/voice-glow-store";
@@ -28,8 +30,8 @@ function Setting({ id, label, children }: { id: string; label: string; children:
 }
 
 /**
- * How the console looks and moves for this person: the theme, the voice glow
- * and the Motion preference, side by side.
+ * How the console looks and moves for this person: the theme, the style, the
+ * voice glow and the Motion preference, side by side.
  *
  * All three are kept in this browser rather than on the account, like the
  * theme always was, so each applies the moment it is picked and there is
@@ -46,7 +48,8 @@ export function AppearanceSettings() {
   const tTheme = useTranslations("theme");
   const tGlow = useTranslations("voiceGlow");
   const mounted = useMounted();
-  const { theme, setTheme } = useThemeStore();
+  const { theme, setTheme, look, setLook } = useThemeStore();
+  const resolved = useResolvedTheme();
   const { style, setStyle } = useVoiceGlowStore();
   const { motion, setMotion } = useMotionStore();
   const reduced = useReducedMotion();
@@ -63,6 +66,15 @@ export function AppearanceSettings() {
               options={THEMES.map((value) => ({ value, label: tTheme(value) }))}
               onChange={setTheme}
             />
+          </Setting>
+          <Setting id="appearance-look" label={t("look")}>
+            <LookPicker
+              labelledBy="appearance-look"
+              value={mounted ? look : undefined}
+              dark={resolved === "dark"}
+              onChange={setLook}
+            />
+            <p className="text-muted-foreground mt-1.5 text-xs">{t("lookHint")}</p>
           </Setting>
           <Setting id="appearance-voice-glow" label={tGlow("title")}>
             <ChoiceGroup

@@ -146,7 +146,10 @@ def domain_allowed(url: str, patterns: list[str] | None) -> bool:
     works. The port is deliberately not matched - a host is a trust boundary and a
     port is not - and a URL with no host at all is refused either way.
     """
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
     if parsed.scheme not in BROWSABLE_SCHEMES:
         return False
     host = (parsed.hostname or "").lower()

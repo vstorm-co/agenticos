@@ -4,7 +4,16 @@ import { UsedBy } from "@/components/agents/used-by";
 import { AudienceChip } from "@/components/sharing/audience-chip";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Database, Plus, Sparkles, UserRound, Users } from "lucide-react";
+import {
+  ArrowUpRight,
+  Database,
+  Plus,
+  Sparkles,
+  UserRound,
+  Users,
+  Search,
+  Plug,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
@@ -117,12 +126,19 @@ export default function RAGPage() {
         onValueChange={(next) => setTab(next as RagTab)}
       >
         <TabsList data-tour="knowledge-tabs">
-          <TabsTrigger value="bases">{t("knowledgeBases")}</TabsTrigger>
-          <TabsTrigger value="search">{t("search")}</TabsTrigger>
+          <TabsTrigger value="bases">
+            <Database className="size-4 shrink-0" aria-hidden />
+            {t("knowledgeBases")}
+          </TabsTrigger>
+          <TabsTrigger value="search">
+            <Search className="size-4 shrink-0" aria-hidden />
+            {t("search")}
+          </TabsTrigger>
           {/* A page-level concern, so a tab beside the other two rather than a
               section below a grid three rows deep - and reachable without first
               choosing Knowledge bases (#939). */}
           <TabsTrigger value="integrations" data-tour="knowledge-tab-integrations">
+            <Plug className="size-4 shrink-0" aria-hidden />
             {t("integrations")}
           </TabsTrigger>
         </TabsList>
@@ -217,7 +233,7 @@ export default function RAGPage() {
             rather than a second one. */}
         <TabsContent
           value="integrations"
-          className="grid min-w-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-2"
+          className="grid min-w-0 flex-1 grid-cols-1 content-start items-start gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,1fr)]"
         >
           <div data-tour="knowledge-integrations" className="flex min-h-0 flex-col">
             <ReusableIntegrations targets={kbs} />

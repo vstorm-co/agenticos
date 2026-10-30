@@ -197,6 +197,14 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
     };
   }
   switch (path) {
+    case "/admin/background-jobs/activity":
+      return {
+        window: "day",
+        bucket_seconds: 3600,
+        buckets: [],
+        kinds: [],
+        oldest_wait_seconds: null,
+      };
     case "/sandbox-connections":
       return {
         items: [
@@ -495,7 +503,9 @@ describe("the app admin's dashboard", () => {
     render(<DashboardPage />, { wrapper });
 
     await waitFor(() => expect(callsTo("/admin/stats").length).toBeGreaterThan(0));
+    await userEvent.click(screen.getAllByRole("button", { name: "common.moreInformation" })[0]!);
     expect(screen.getByText("dashboard.views.deployment.description")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
   });
 });
 
@@ -867,7 +877,9 @@ describe("dashboard links while the page stays mounted", () => {
     params.set("period", "2026-09-01..2026-09-07");
     page.rerender(<DashboardPage />);
 
+    await userEvent.click(screen.getAllByRole("button", { name: "common.moreInformation" })[0]!);
     expect(screen.getByText("dashboard.views.org.description")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(
         callsTo("/stats/usage").some(([, options]) => {

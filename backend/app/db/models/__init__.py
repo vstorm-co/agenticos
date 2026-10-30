@@ -62,6 +62,8 @@ from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.push_subscription import PushSubscription
+from app.db.models.apns_device import ApnsDevice
 from app.db.models.announcement import Announcement
 from app.db.models.api_key import ApiKey
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -190,6 +192,8 @@ __all__ = [
     "NotificationDelivery",
     "DeliveryStatus",
     "NotificationChannelPreference",
+    "PushSubscription",
+    "ApnsDevice",
     "Announcement",
     "VoiceCall",
     "GeneratedMedia",

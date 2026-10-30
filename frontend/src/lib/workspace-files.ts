@@ -15,6 +15,7 @@
  */
 
 import { readConversationFile, readConversationFileBytes } from "./conversation-workspace-api";
+import { readLocalFile } from "./desktop/commands";
 import { saveBlob, type FileAccess, type FileText } from "./file-access";
 import { readProjectBytes, readProjectText } from "./projects-api";
 import { qk } from "./query-keys";
@@ -24,7 +25,19 @@ import { readWorkspaceBytes, readWorkspaceFile } from "./sandbox-workspaces-api"
 export type FileSource =
   | { readonly kind: "conversation"; readonly id: string }
   | { readonly kind: "workspace"; readonly id: string }
-  | { readonly kind: "project"; readonly id: string };
+  | { readonly kind: "project"; readonly id: string }
+  /** A folder on this computer the person granted, read through the desktop app (#2305). */
+  | { readonly kind: "local"; readonly root: string };
+
+/** The most of a local file shown as text; the rest is there to download. */
+const LOCAL_TEXT_LIMIT = 512 * 1024;
+
+async function readLocalText(root: string, path: string): Promise<FileText> {
+  const bytes = await readLocalFile(root, path);
+  const truncated = bytes.length > LOCAL_TEXT_LIMIT;
+  const content = new TextDecoder().decode(truncated ? bytes.slice(0, LOCAL_TEXT_LIMIT) : bytes);
+  return { content, truncated };
+}
 
 export function readFileText(source: FileSource, path: string): Promise<FileText> {
   switch (source.kind) {
@@ -34,6 +47,8 @@ export function readFileText(source: FileSource, path: string): Promise<FileText
       return readProjectText(source.id, path);
     case "workspace":
       return readWorkspaceFile(source.id, path);
+    case "local":
+      return readLocalText(source.root, path);
   }
 }
 
@@ -49,6 +64,8 @@ export function readFileBytes(
       return readProjectBytes(source.id, path, options);
     case "workspace":
       return readWorkspaceBytes(source.id, path, options);
+    case "local":
+      return readLocalFile(source.root, path).then((bytes) => new Blob([bytes]));
   }
 }
 
@@ -60,6 +77,8 @@ export function textKey(source: FileSource, path: string) {
       return qk.projects.file(source.id, path);
     case "workspace":
       return qk.sandboxWorkspaces.file(source.id, path);
+    case "local":
+      return qk.desktop.localFile(source.root, path);
   }
 }
 
@@ -71,6 +90,8 @@ export function bytesKey(source: FileSource, path: string) {
       return qk.projects.bytes(source.id, path);
     case "workspace":
       return qk.sandboxWorkspaces.bytes(source.id, path);
+    case "local":
+      return [...qk.desktop.localFile(source.root, path), "bytes"] as const;
   }
 }
 

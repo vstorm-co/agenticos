@@ -109,6 +109,7 @@ export function ArtifactViewer({ artifactId, initialVersionId }: ArtifactViewerP
         <Button
           size="sm"
           variant="outline"
+          className="max-sm:size-11 max-sm:p-0"
           aria-pressed={artifact.following}
           disabled={follow.isPending}
           onClick={() => follow.mutate(!artifact.following)}

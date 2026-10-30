@@ -1061,6 +1061,12 @@ The **AgenticOS** template binds it this way, and so does every agent created fr
 scratch, so an agent can look the platform up - and set up a routine, or switch the
 console's language when asked - out of the box.
 
+### Desktop, mobile and local environments
+
+The platform MCP server explains the same app and environment distinctions as agent runs: Desktop can use an approved local folder, browser, model or HTTP MCP service selected for the conversation. Mobile does not provide desktop execution. A native grant is still required; MCP cannot choose a folder or grant access on the person's behalf.
+
+`create_project` accepts `backend` (`auto`, `state`, `service`) and an optional `sandbox_connection_id` for the shared server workspace. Its returned backend does not describe a personal Computer selection. Local folders remain separate from shared uploads, and shared chat replies may still disclose local content. Architect's guide includes the Desktop, Mobile and Sandbox pages; each run is briefed on the local resources actually selected after validation.
+
 ## What MCP does not get you
 
 - **A coverage guarantee.** Catalog entries are metadata. The tools are the

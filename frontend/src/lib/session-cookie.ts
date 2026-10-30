@@ -1,8 +1,24 @@
 import type { NextRequest } from "next/server";
 
 // App-specific names avoid overwriting another app's cookies on the same host.
-export const ACCESS_TOKEN_COOKIE = "agenticos_access_token";
-export const REFRESH_TOKEN_COOKIE = "agenticos_refresh_token";
+/** Local Compose instances share localhost, so each gets its own session-cookie names. */
+export function sessionCookieName(
+  kind: "access_token" | "refresh_token",
+  namespace?: string,
+): string {
+  if (!namespace) return `agenticos_${kind}`;
+  // i18n-exempt: server startup configuration error for deployment operators
+  if (!/^[a-z0-9-]{1,48}$/.test(namespace)) throw new Error("Invalid session cookie namespace");
+  return `agenticos_${namespace}_${kind}`;
+}
+export const ACCESS_TOKEN_COOKIE = sessionCookieName(
+  "access_token",
+  process.env.SESSION_COOKIE_NAMESPACE,
+);
+export const REFRESH_TOKEN_COOKIE = sessionCookieName(
+  "refresh_token",
+  process.env.SESSION_COOKIE_NAMESPACE,
+);
 
 /**
  * Whether a session cookie set in answer to this request may carry `Secure`.

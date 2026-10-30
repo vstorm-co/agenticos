@@ -47,5 +47,24 @@
     ],
     "mem_limit": "2g",
     "needs_network": true
+  },
+  {
+    "alias": "desktop",
+    "description": "A Linux desktop (XFCE and Firefox) for computer use, with Python and a shell",
+    "base_image": "python:3.12-slim",
+    "setup_commands": [
+      "apt-get update && apt-get install -y --no-install-recommends xvfb x11-utils xfce4 xfce4-terminal dbus-x11 xdotool scrot firefox-esr fonts-dejavu-core fonts-noto-color-emoji git curl ca-certificates jq procps unzip && rm -rf /var/lib/apt/lists/*"
+    ],
+    "env_vars": {
+      "PYTHONUNBUFFERED": "1",
+      "PYTHONUTF8": "1",
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+    },
+    "briefing": [
+      "A Linux desktop (XFCE, with Firefox) runs on display `:0` of this same machine once a computer use tool has looked at it, and the computer use tools drive it. Files you write here are the files on that desktop.",
+      "To open something on the desktop from the shell, start it detached on that display - `DISPLAY=:0 setsid nohup firefox-esr https://example.com >/dev/null 2>&1 &` - then look with `computer_screenshot`. Reading or writing a file with the file tools is quicker and more precise than doing it through the screen, so use the screen for what has no other way in."
+    ],
+    "mem_limit": "2g",
+    "needs_network": true
   }
 ]

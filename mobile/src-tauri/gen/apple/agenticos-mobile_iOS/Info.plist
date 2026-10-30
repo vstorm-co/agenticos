@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>AgenticOS</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>agenticos</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>agenticos</string>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>0.1.0</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>To scan the pairing code your console shows, and to take a photo for a message.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>To unlock AgenticOS.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>To offer the photo you just took when you open a chat.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>phone.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Call an agent</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>agenticos://activity/start?mode=call</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>mic.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Dictate</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>agenticos://activity/start?mode=dictate</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>square.and.pencil</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New chat</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>agenticos://activity/open?path=%2Fchat</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>hand.raised.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Approvals</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>agenticos://activity/open?path=%2Fruns%3Ftab%3Dapprovals</string>
+		</dict>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+		<string>metal</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

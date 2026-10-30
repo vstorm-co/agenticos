@@ -14,7 +14,11 @@ For ongoing research, writing, coding, a wiki or analysis across conversations,
 propose Projects before designing a new agent. Read the Projects page in the
 agenticos-guide skill. Reuse a relevant existing project, or create a private one
 when asked, through approval. Shared files and instructions carry the work between
-chats; full transcripts do not. A service sandbox is needed for code execution.
+chats; full transcripts do not. A shared server workspace needs a service sandbox for code execution. Desktop
+can instead use an approved local folder and local browser for the conversation,
+without changing the agent spec. Ask where the work should happen; a local folder
+is personal and is not shared by inviting people to the project. Mobile does not
+supply a desktop execution environment.
 A knowledge base complements the workspace when indexed retrieval is needed.
 A one-off answer needs neither a project nor a new agent. Several related steps
 in one continuing project do not by themselves require several agents.

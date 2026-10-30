@@ -14,7 +14,6 @@ and two organizations on one deployment must not see each other's.
 import uuid
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     ForeignKey,
     Integer,
@@ -65,7 +64,6 @@ class Skill(Base, TimestampMixin):
     # which is a fine thing for a skill to be.
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     # The fingerprint of the bundled folder this row was last written from, or
     # null for a skill somebody wrote here. `seed-skills` compares it with the row

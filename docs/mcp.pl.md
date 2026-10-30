@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf6eb0fde8e"
+source_sha: "c8ff8031efa5"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1097,6 +1097,12 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
 konsoli, gdy się go o to poprosi.
+
+### Desktop, mobile i lokalne środowiska { #desktop-mobile-and-local-environments }
+
+Serwer MCP wyjaśnia te same rozróżnienia co instrukcje agentów: Desktop może korzystać z zatwierdzonego folderu, przeglądarki, modelu lub usługi HTTP MCP wybranych dla rozmowy. Mobile nie udostępnia wykonania desktopowego. Nadal potrzebna jest natywna zgoda; MCP nie wybiera folderu ani nie nadaje dostępu za użytkownika.
+
+`create_project` przyjmuje `backend` (`auto`, `state`, `service`) i opcjonalne `sandbox_connection_id` wspólnego środowiska serwerowego. Zwrócony backend nie opisuje osobistego wyboru Komputer. Lokalne foldery i wspólne kopie pozostają osobne, a odpowiedzi we wspólnym czacie mogą ujawniać lokalną treść. Przewodnik Architecta zawiera strony Desktop, Mobile i Sandbox; każde uruchomienie otrzymuje opis faktycznie wybranych lokalnych zasobów po ich walidacji.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 

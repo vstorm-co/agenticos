@@ -74,14 +74,16 @@ export const DIALOG_CANVAS = "sm:max-w-[80rem]";
  * body, so a dialog whose header carries steps or whose footer carries the
  * button that advances them wants `DIALOG_FRAMED` instead.
  */
-export const DIALOG_SCROLL = "max-h-[90vh] scrollbar-thin overflow-y-auto";
+export const DIALOG_SCROLL =
+  "max-h-[var(--dialog-available-height)] scrollbar-thin overflow-y-auto";
 
 /**
  * A fixed header, a body that scrolls, and whatever is below it staying put.
  *
  * The body owes itself `DIALOG_BODY`.
  */
-export const DIALOG_COLUMN = "flex max-h-[90vh] min-h-0 flex-col overflow-hidden";
+export const DIALOG_COLUMN =
+  "flex max-h-[var(--dialog-available-height)] min-h-0 flex-col overflow-hidden";
 
 /**
  * The scrolling body of a `DIALOG_COLUMN` dialog.
@@ -116,7 +118,8 @@ export const DIALOG_SCROLL_GUTTER = "-mr-4 pr-4 scrollbar-thin [scrollbar-gutter
  * height is the design. Everything else wants `DIALOG_COLUMN`, because a height
  * is a floor as much as a cap and a three-field form does not want one (#1069).
  */
-export const DIALOG_FILL = "flex h-[90vh] min-h-0 flex-col overflow-hidden";
+export const DIALOG_FILL =
+  "flex h-[var(--dialog-available-height)] min-h-0 flex-col overflow-hidden";
 
 /**
  * A stepper: a bordered header, a scrolling middle, a bordered footer.
@@ -127,7 +130,8 @@ export const DIALOG_FILL = "flex h-[90vh] min-h-0 flex-col overflow-hidden";
  * button that advances the wizard with it. The middle band owes itself
  * `min-h-0 overflow-y-auto`.
  */
-export const DIALOG_FRAMED = "max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0";
+export const DIALOG_FRAMED =
+  "max-h-[var(--dialog-available-height)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0";
 
 /**
  * Nearly the whole window, with a gutter.
@@ -137,4 +141,4 @@ export const DIALOG_FRAMED = "max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto] o
  * width and must not be combined with one of the tokens above.
  */
 export const DIALOG_WINDOW =
-  "flex h-[calc(100vh-4rem)] max-h-none w-[calc(100vw-4rem)] max-w-none flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6";
+  "flex h-[var(--dialog-available-height)] max-h-none w-[calc(100%-1.5rem)] max-w-none sm:w-[calc(100%-4rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-none sm:p-6";

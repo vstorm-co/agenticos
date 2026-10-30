@@ -1,10 +1,14 @@
 "use client";
 
+import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  SlidersHorizontal,
+  Wrench,
+  ShieldCheck,
   Archive,
   ArchiveRestore,
   Copy,
@@ -23,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   AgentMap,
@@ -363,6 +368,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+  const resourceCreation = useResourceCreation({
+    mayCreateSkill: canEdit && can(Perm.skillsEdit),
+    mayCreateContext: canEdit && can(Perm.contextEdit),
+    setSpec,
+  });
   useTestShortcut(canEdit, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
@@ -968,6 +978,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -1333,21 +1354,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
+              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+              <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("mcpServers")}
             </TabsTrigger>
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
+              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             <TabsTrigger value="availability" data-tour="agent-tab-availability">
+              <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("availability")}
             </TabsTrigger>
             <TabsTrigger value="history" data-tour="agent-tab-history">
+              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
@@ -1551,7 +1578,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // on with the first pick, because bound without it the resources
                   // are resolved and then discarded.
                   resources={{
-                    contextFiles,
+                    contextFiles: mergeResourceChoices(contextFiles, resourceCreation.context),
+                    onCreateContext: resourceCreation.createContext,
                     contextTotal: contextCount,
                     contextIds: spec.context_ids,
                     onContextToggle: (fileId: string) =>
@@ -1560,7 +1588,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     collectionIds: spec.collection_ids,
                     onCollectionToggle: (collectionId: string) =>
                       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills,
+                    skills: mergeResourceChoices(skills, resourceCreation.skills),
+                    onCreateSkill: resourceCreation.createSkill,
                     skillTotal: skillCount,
                     skillIds: spec.skill_ids,
                     onSkillToggle: (skillId: string) =>
@@ -1847,6 +1876,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
+      {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel
           agentId={id}

@@ -6,6 +6,9 @@
 
 import type { MentionKind, Mentionable } from "@/types/mention";
 
+/** The server refuses messages above this limit (agent_chat.MAX_MENTIONS). */
+export const MAX_MENTIONS = 10;
+
 /** The order the menu groups them in: servers, who it hands work to, what it can do, how, and what it reads. */
 export const MENTION_KIND_ORDER: readonly MentionKind[] = [
   "mcp",

@@ -62,14 +62,16 @@ export function LabelFilter({
           variant="outline"
           size="sm"
           aria-label={ariaLabel}
-          className="rounded-lg px-2.5 font-normal"
+          className="max-w-full rounded-lg px-2.5 font-normal"
         >
           <ListFilter />
-          {selected.length === 0
-            ? allLabel
-            : selected.length === 1
-              ? selected[0]
-              : countLabel(selected.length)}
+          <span className="min-w-0 flex-1 truncate text-start">
+            {selected.length === 0
+              ? allLabel
+              : selected.length === 1
+                ? selected[0]
+                : countLabel(selected.length)}
+          </span>
           <ChevronDown className="opacity-60" />
         </Button>
       </DropdownMenuTrigger>

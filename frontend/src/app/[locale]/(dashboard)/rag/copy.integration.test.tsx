@@ -277,11 +277,11 @@ describe("what a collection's own page says", () => {
     await mountDetail();
 
     fireEvent.dragEnter(screen.getByRole("heading", { name: "Handbook", level: 1 }), {
-      dataTransfer: { types: ["Files"] },
+      dataTransfer: { types: ["Files"], items: [{ kind: "file", type: "text/plain" }] },
     });
 
-    const overlay = await screen.findByText(`${MARK}Drop to upload`);
-    expect(overlay.parentElement).toHaveTextContent(`${MARK}Files will be added to Handbook`);
+    const overlay = await screen.findByTestId("project-file-drop-overlay");
+    expect(overlay).toHaveTextContent(`${MARK}Drop to upload · Handbook`);
   });
 });
 

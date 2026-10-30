@@ -1,5 +1,7 @@
 "use client";
 
+import { Activity, ShieldCheck, Wallet } from "lucide-react";
+
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -200,16 +202,19 @@ export default function RunsPage() {
                   keeps its count badge, so what is waiting is visible from the
                   strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
+                <Activity className="size-4 shrink-0" aria-hidden />
                 {t("runs2")}
                 {runCount > 0 && <TabCount>{runCount.toLocaleString()}</TabCount>}
               </TabsTrigger>
               {canDecide && (
                 <TabsTrigger value="approvals" data-tour="activity-tab-approvals">
+                  <ShieldCheck className="size-4 shrink-0" aria-hidden />
                   {t("approvals")}
                   {waiting > 0 && <TabCount>{waiting}</TabCount>}
                 </TabsTrigger>
               )}
               <TabsTrigger value="spend" data-tour="activity-tab-spend">
+                <Wallet className="size-4 shrink-0" aria-hidden />
                 {t("spend")}
                 {spent > 0 && <TabCount>{`$${spent.toFixed(2)}`}</TabCount>}
               </TabsTrigger>

@@ -66,16 +66,16 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "relative flex items-center rounded-lg text-sm font-medium transition-colors",
+        "touch:min-h-11 relative flex items-center rounded-xl text-sm font-medium transition-colors",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "h-8 w-9 justify-center" : "h-8 gap-2.5 px-2.5",
+        collapsed ? "h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
           ? "bg-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+          : "text-foreground/90 hover:bg-accent/60 hover:text-foreground",
       )}
     >
       <NavIcon icon={item.icon} />
@@ -216,7 +216,7 @@ function NavGroupBlock({
             onClick={() => toggleGroup(key)}
             disabled={holdsActive}
             aria-expanded={open}
-            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex h-6 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
+            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground touch:min-h-11 flex h-7 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
           >
             <span className="flex-1">{t(group.labelKey)}</span>
             <ChevronRight
@@ -225,7 +225,7 @@ function NavGroupBlock({
             />
           </button>
         ) : (
-          <div className="text-muted-foreground flex h-6 items-center px-2.5 text-xs font-medium">
+          <div className="text-muted-foreground flex h-7 items-center px-2.5 text-xs font-medium">
             {t(group.labelKey)}
           </div>
         ))}
@@ -262,19 +262,28 @@ export function AppSidebar() {
     // deepest of the four surfaces in both themes, and a deployment can
     // retheme it.
     <aside
+      data-collapsed={collapsed ? "" : undefined}
       className={cn(
         "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
         mounted && "transition-[width] duration-200",
         collapsed ? "w-14" : "w-[240px]",
       )}
     >
+      {/* Native macOS window controls need their own draggable row, including
+          when the navigation is collapsed. Hidden on every other surface. */}
+      <div aria-hidden className="macos-window-controls" data-tauri-drag-region />
       {/* The brand heads the column because there is no top bar above `md` for
           it to head instead, and the collapse control sits beside it: the one
           control that is about the column rather than about anything in it,
           on the column's own title bar - where every editor and console with a
           collapsible panel puts one. Search and the bell are actions and live
           with the account at the foot, where a hand rests. */}
+      {/* In the desktop app this row also drags the window. "deep", so its
+          empty space drags and its controls still click -
+          Tauri's drag script skips buttons and links on its own. */}
       <div
+        data-titlebar
+        data-tauri-drag-region="deep"
         className={cn(
           "flex h-14 shrink-0 items-center border-b",
           collapsed ? "justify-center px-2" : "gap-1 px-3",

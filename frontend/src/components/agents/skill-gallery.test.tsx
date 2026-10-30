@@ -11,7 +11,6 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
     name: "refund-policy",
     description: "How refunds are handled.",
     category: null,
-    enabled: true,
     visibility: "org",
     file_count: 0,
     built_in: false,
@@ -133,19 +132,6 @@ describe("SkillGallery", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "refund-policy" }));
 
     expect(onToggle).not.toHaveBeenCalled();
-  });
-
-  it("marks a skill that is switched off, because attaching it changes nothing", () => {
-    render(
-      <SkillGallery
-        skills={[skill({ enabled: false })]}
-        total={1}
-        selectedIds={[]}
-        onToggle={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("disabled")).toBeInTheDocument();
   });
 
   it("shows the description, which is what the decision is made on", () => {

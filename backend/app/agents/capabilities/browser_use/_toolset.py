@@ -13,16 +13,17 @@ model request the host agent's `BudgetGuard` never sees (agenticos#802,
 agenticos#1808). There is no second vendor and no second key: page content goes
 where the conversation already goes.
 
-**One tab per run.** The first call opens it; later calls in the same run continue
-in it - on the same page, signed in, with the model's memory - unless they name a
-new `start_url`, which navigates the same tab. The toolset is entered for the run
-and closes the tab when the run ends, whatever ended it.
+The selected tab is shared by direct tools and browse_web. Explicit tab tools
+retain up to eight pages during a run. Remote pages close at the end; private
+conversations keep an encrypted, expiring checkpoint for a later reload.
 """
 
 import asyncio
 import base64
 import functools
+import hashlib
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
@@ -46,6 +47,7 @@ from app.agents.browser_events import (
 )
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.background_tools._capability import BACKGROUND
+from app.agents.capabilities.browser_use import _sessions
 from app.agents.capabilities.browser_use._decision import (
     INSTRUCTIONS,
     Action,
@@ -75,6 +77,7 @@ from app.agents.capabilities.browser_use._loop import (
     RememberSignIn,
     run_browse,
 )
+from app.agents.capabilities.browser_use._native import NativePage
 from app.agents.capabilities.browser_use._page import (
     MISSING_EXTRA,
     DomainRefused,
@@ -83,6 +86,7 @@ from app.agents.capabilities.browser_use._page import (
     open_page,
 )
 from app.agents.capabilities.browser_use._plans import plan_key
+from app.agents.capabilities.browser_use._preview import Preview
 from app.agents.capabilities.browser_use._route import BrowserRoute, recheck
 from app.agents.deps import AgentDeps
 from app.core.sanitize import UrlRefusedError
@@ -174,12 +178,34 @@ async def _live(
         ),
     )
 
+    checked_at = float("-inf")
+    viewers = False
+    last_image: BrowserEvent | None = None
+
     async def sink(event: BrowserEvent) -> bool:
+        nonlocal checked_at, viewers, last_image
+        if event.kind == "browser_frame":
+            if event.image is not None:
+                last_image = event
+            now = time.monotonic()
+            if now - checked_at >= 1.0:
+                viewers = await live_browse.has_viewers(run, call_id)
+                checked_at = now
+            # A resumable chat's event buffer may accept frames without an
+            # attached reader. Only the image-view socket proves someone watches.
+            if event.image is not None and not viewers:
+                return False
+            await live_browse.publish(run, call_id, event)
+            if chat is not None and event.image is None:
+                await chat(event)
+            return viewers
+        if event.kind == "browser_finished" and last_image is not None:
+            # Keep one final preview even when nobody watched the live stream.
+            await live_browse.publish(run, call_id, last_image)
+            last_image = None
         await live_browse.publish(run, call_id, event)
         if chat is not None:
             await chat(event)
-        # Somebody may be watching the live view whether or not a chat is, so
-        # the pictures keep coming.
         return True
 
     return sink, live_browse.LiveControl(run, call_id), run
@@ -247,6 +273,11 @@ class BrowserToolset(FunctionToolset[Any]):
         """The live view the agent's own actions are drawn in, once one acted."""
         self._stack: AsyncExitStack | None = None
         self._entered = 0
+        self.tab_id = "main"
+        self.restore_checked = False
+        self.parked: dict[str, tuple[BrowseSession, AsyncExitStack]] = {}
+        self.checkpoint: Callable[[], Awaitable[None]] | None = None
+        self._preview_stack: AsyncExitStack | None = None
 
     async def __aenter__(self) -> BrowserToolset:
         self._entered += 1
@@ -255,7 +286,11 @@ class BrowserToolset(FunctionToolset[Any]):
     async def __aexit__(self, *args: object) -> bool | None:
         self._entered -= 1
         if self._entered == 0:
-            await self.close()
+            try:
+                if self.checkpoint is not None:
+                    await self.checkpoint()
+            finally:
+                await self.close()
         return None
 
     async def open(self, factory: PageFactory, **kwargs: Any) -> BrowseSession:
@@ -267,10 +302,73 @@ class BrowserToolset(FunctionToolset[Any]):
             await stack.aclose()
             raise
         self._stack = stack
-        self.session = BrowseSession(page=page)
+        self.session = BrowseSession(
+            page=page,
+            tab_id=self.tab_id,
+            resumable=self.checkpoint is not None and live_browse.available(),
+        )
         return self.session
 
+    async def watch(self, view: DirectView) -> None:
+        """Keep the direct view painting between tools until its tab closes."""
+        if (
+            self._preview_stack is not None
+            or not view.preview
+            or view.sink is None
+            or self.session is None
+        ):
+            return
+        session = self.session
+        stack = AsyncExitStack()
+        await stack.enter_async_context(
+            Preview(session.page, view.emit, view.call_id, lambda: session.steps)
+        )
+        self._preview_stack = stack
+
+    async def stop_watching(self) -> None:
+        """Stop paints before closing the view or handing its page to browse_web."""
+        stack, self._preview_stack = self._preview_stack, None
+        if stack is not None:
+            await stack.aclose()
+
+    def sessions(self) -> dict[str, BrowseSession]:
+        """All tabs, keyed by stable ids, including the selected one."""
+        tabs = {key: entry[0] for key, entry in self.parked.items()}
+        if self.session is not None:
+            tabs[self.tab_id] = self.session
+        return tabs
+
+    async def park(self) -> None:
+        """End the selected view and pause its paints, retaining its isolated page."""
+        await self.stop_watching()
+        if self.view is not None:
+            await close_view(self.view, self.session)
+        self.view = None
+        if self.session is not None and self._stack is not None:
+            self.parked[self.tab_id] = (self.session, self._stack)
+        self.session, self._stack = None, None
+
+    async def select(self, tab_id: str) -> bool:
+        """Select an existing tab. Read its DOM before the next numbered action."""
+        if self.session is not None and tab_id == self.tab_id:
+            return True
+        if tab_id not in self.parked:
+            return False
+        await self.park()
+        self.session, self._stack = self.parked.pop(tab_id)
+        self.tab_id = tab_id
+        self.session.last = None
+        return True
+
     async def close(self) -> None:
+        """Release every tab even when another tab's teardown raises."""
+        parked, self.parked = self.parked, {}
+        async with AsyncExitStack() as cleanup:
+            for _, stack in parked.values():
+                cleanup.push_async_callback(stack.aclose)
+            await self.close_active()
+
+    async def close_active(self) -> None:
         """Close the tab, if one is open. Safe to call twice.
 
         A view the agent drove directly has no step that ends it, so the run's
@@ -278,11 +376,15 @@ class BrowserToolset(FunctionToolset[Any]):
         there to name.
         """
         view, self.view = self.view, None
-        if view is not None:
-            await close_view(view, self.session)
-        stack, self._stack, self.session = self._stack, None, None
-        if stack is not None:
-            await stack.aclose()
+        stack, self._stack = self._stack, None
+        session, self.session = self.session, None
+        try:
+            await self.stop_watching()
+            if view is not None:
+                await close_view(view, session)
+        finally:
+            if stack is not None:
+                await stack.aclose()
 
 
 logger = logging.getLogger(__name__)
@@ -317,6 +419,7 @@ def build_toolset(
     page_factory: PageFactory | None = None,
     step_model: Model | None = None,
     route: BrowserRoute | None = None,
+    resume_local: bool = False,
 ) -> BrowserToolset:
     """`browse_web` and the agent's own browser tools, bound to the browser seam."""
     open_browser = page_factory if page_factory is not None else open_page
@@ -354,9 +457,10 @@ def build_toolset(
         """
         # Refused at publish, so reaching this means an agent published before the
         # check or edited around it. A sentence the model can relay, not a raise.
-        if not cdp_url and (route is None or route.remote_url is None):
+        if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
 
+        await toolset.stop_watching()
         call_id = ctx.tool_call_id or str(uuid4())
         sink, control, run_id = await _live(ctx.deps, call_id, task)
         person = _signed_in_as(ctx.deps)
@@ -406,7 +510,7 @@ def build_toolset(
         try:
             session = toolset.session
             if session is None:
-                if not start_url:
+                if not start_url and not resume_local:
                     return (
                         "There is no browser tab open in this turn yet. Call again "
                         "with a start_url to open one."
@@ -436,7 +540,9 @@ def build_toolset(
                 policy=loop_policy,
                 call_id=call_id,
                 sink=sink,
-                control=control,
+                control=session.page.control(control, ctx.deps.user_id or "")
+                if isinstance(session.page, NativePage)
+                else control,
                 run_id=run_id,
                 remember=remember,
                 plan=plan,
@@ -465,8 +571,24 @@ def build_toolset(
             raise
         return _outcome_text(result, task)
 
-    async def open_tab(ctx: RunContext[AgentDeps], url: str) -> BrowseSession | str:
+    def conversation_scope(deps: AgentDeps) -> str | None:
+        if (
+            deps.organization_id is None
+            or deps.user_id is None
+            or deps.agent_id is None
+            or deps.conversation_id is None
+        ):
+            return None
+        identity = f"{deps.organization_id}:{deps.user_id}:{deps.agent_id}:{deps.conversation_id}"
+        return hashlib.sha256(identity.encode()).hexdigest()
+
+    async def open_tab(
+        ctx: RunContext[AgentDeps],
+        url: str | None,
+        restored: _sessions.SavedTab | None = None,
+    ) -> BrowseSession | str:
         """Open the run's tab on `url`, or say in a sentence why the browser is not there."""
+        toolset.restore_checked = True
         person = _signed_in_as(ctx.deps)
         # Never into a hosted browser: its address is the agent's author's choice,
         # not an operator's, and a kept sign-in sent there is a person's session
@@ -483,9 +605,42 @@ def build_toolset(
                 pinned_route = await recheck(route)
             except UrlRefusedError as exc:
                 return f"This agent's browser connection cannot be used: {exc}"
+        options: dict[str, object] = {}
+        scope = conversation_scope(ctx.deps)
+        if resume_local:
+            if scope is not None:
+                options["consent_scope"] = scope
+                options["conversation_scope"] = (
+                    scope
+                    if toolset.tab_id == "main"
+                    else hashlib.sha256(f"{scope}:{toolset.tab_id}".encode()).hexdigest()
+                )
+            elif url is None:
+                return NO_TAB
+        if scope is not None and person is not None and not hosted:
+
+            async def checkpoint() -> None:
+                tabs: list[_sessions.SavedTab] = []
+                for tab_id, session in toolset.sessions().items():
+                    try:
+                        url, _ = await session.page.location()
+                        if not url or urlsplit(url).scheme not in ("http", "https"):
+                            continue
+                        state = await session.page.capture_sign_in()
+                    except DomainRefused, EndpointError:
+                        logger.warning("Browser checkpoint skipped an unavailable page")
+                        continue
+                    tabs.append(_sessions.SavedTab(id=tab_id, url=url, sign_in=state))
+                await _sessions.save(scope, person.user_id, tabs, toolset.tab_id)
+
+            toolset.checkpoint = checkpoint
+        if restored is not None and restored.sign_in is not None and not hosted:
+            sign_ins = [entry for entry in sign_ins if entry.site != restored.sign_in.site]
+            sign_ins.append(restored.sign_in)
         try:
             return await toolset.open(
                 open_browser,
+                **options,
                 cdp_url=cdp_url,
                 start_url=url,
                 policy=page_policy,
@@ -516,7 +671,9 @@ def build_toolset(
         toolset.view = DirectView(
             call_id=call_id,
             sink=sink,
-            control=control,
+            control=toolset.session.page.control(control, ctx.deps.user_id or "")
+            if toolset.session is not None and isinstance(toolset.session.page, NativePage)
+            else control,
             run_id=run_id,
             remember=None if person is None else _remembering(person),
             preview=loop_policy.preview,
@@ -532,6 +689,7 @@ def build_toolset(
             view, fresh = await direct_view(ctx, WORKING)
             if fresh:
                 await open_view(view, session, WORKING)
+            await toolset.watch(view)
             return await act_directly(view, session, action)
         except (DomainRefused, EndpointError) as exc:
             await toolset.close()
@@ -557,7 +715,7 @@ def build_toolset(
             The page's address and title, a numbered table of what can be acted
             on, and its text.
         """
-        if not cdp_url and (route is None or route.remote_url is None):
+        if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
         try:
             if toolset.session is None:
@@ -567,6 +725,7 @@ def build_toolset(
                 # A new tab is always a new view: closing a tab ends its view.
                 view, _ = await direct_view(ctx, f"Open {url}")
                 snapshot = await open_view(view, opened, f"Open {url}")
+                await toolset.watch(view)
                 return page_report(snapshot, f"opened {url}")
             return await drive(ctx, Navigate(action="navigate", url=url))
         except (DomainRefused, EndpointError) as exc:
@@ -577,17 +736,124 @@ def build_toolset(
                 return MISSING_EXTRA
             raise
 
+    async def restore_tabs(ctx: RunContext[AgentDeps]) -> str | None:
+        if toolset.restore_checked:
+            return None
+        toolset.restore_checked = True
+        person = _signed_in_as(ctx.deps)
+        scope = conversation_scope(ctx.deps)
+        if person is None or scope is None or (route and route.remote_url):
+            return None
+        state = await _sessions.load(scope, person.user_id)
+        if state is None:
+            return None
+        for saved in state.tabs:
+            await toolset.park()
+            toolset.tab_id = saved.id
+            opened = await open_tab(ctx, None if resume_local else saved.url, saved)
+            if isinstance(opened, str):
+                return opened
+        await toolset.select(state.active)
+        return None
+
+    async def browser_new_tab(ctx: RunContext[AgentDeps], url: str) -> str:
+        """Open a separate browser tab and select it, retaining other pages.
+
+        Args:
+            url: The full https:// address for the new tab.
+
+        Returns:
+            The new tab id and a fresh page read, or a refusal at the eight-tab limit.
+        """
+        if len(toolset.sessions()) >= _sessions.MAX_TABS:
+            return "Eight tabs are open. Close one with browser_close_tab first."
+        await toolset.park()
+        toolset.tab_id = str(uuid4())
+        result = await browser_open(ctx, url)
+        return f"TAB: {toolset.tab_id}\n{result}"
+
+    async def browser_tabs(ctx: RunContext[AgentDeps]) -> str:
+        """List this conversation's open tabs, restoring its checkpoint if needed.
+
+        Returns:
+            Stable tab ids, selected marker, page titles and URLs; no page contents.
+        """
+        if not toolset.sessions():
+            failure = await restore_tabs(ctx)
+            if failure:
+                return failure
+        lines: list[str] = []
+        for tab_id, session in toolset.sessions().items():
+            url, title = await session.page.location()
+            lines.append(f"{'*' if tab_id == toolset.tab_id else '-'} {tab_id}: {title} - {url}")
+        return "\n".join(lines) or NO_TAB
+
+    async def browser_switch_tab(ctx: RunContext[AgentDeps], tab_id: str) -> str:
+        """Select an existing tab and read its current elements.
+
+        Args:
+            tab_id: An id returned by browser_tabs or browser_new_tab.
+
+        Returns:
+            A fresh page read, or a sentence saying the tab does not exist.
+        """
+        if not await toolset.select(tab_id):
+            return "That tab is not open. Use browser_tabs to list tabs."
+        return await browser_read(ctx)
+
+    async def browser_close_tab(ctx: RunContext[AgentDeps], tab_id: str) -> str:
+        """Close one tab, then select another if any remain.
+
+        Args:
+            tab_id: An id returned by browser_tabs or browser_new_tab.
+
+        Returns:
+            Confirmation and the remaining tabs, or a refusal for an unknown id.
+        """
+        if not await toolset.select(tab_id):
+            return "That tab is not open. Use browser_tabs to list tabs."
+        if toolset.session is not None and isinstance(toolset.session.page, NativePage):
+            toolset.session.page.close_on_release = True
+        await toolset.close_active()
+        if toolset.parked:
+            await toolset.select(next(reversed(toolset.parked)))
+        return "Closed tab.\n" + await browser_tabs(ctx)
+
     async def browser_read(ctx: RunContext[AgentDeps]) -> str:
-        """Read the open page again - after waiting for it, or to see it as it is now.
+        """Read the open page again, or resume this conversation's browser session.
+
+        Use this before continuing work from an earlier turn. Remote sessions
+        reload saved URLs, cookies and local storage for up to an hour; unsaved
+        forms and JavaScript memory are not retained. Native tabs may persist.
+        Element numbers always come from a fresh page read.
 
         Returns:
             The page's address and title, its numbered elements and its text.
         """
         session = toolset.session
         if session is None:
+            failure = await restore_tabs(ctx)
+            if failure:
+                return failure
+            session = toolset.session
+        if session is None and resume_local:
+            try:
+                opened = await open_tab(ctx, None)
+            except (DomainRefused, EndpointError) as exc:
+                return str(exc)
+            if isinstance(opened, str):
+                return opened
+            session = opened
+            view, _ = await direct_view(ctx, WORKING)
+            await open_view(view, session, WORKING)
+        if session is None:
             return NO_TAB
+        view, fresh = await direct_view(ctx, WORKING)
+        if fresh:
+            await open_view(view, session, WORKING)
         snapshot = await session.page.snapshot()
         session.last = snapshot
+        await toolset.watch(view)
         return page_report(snapshot)
 
     async def browser_click(ctx: RunContext[AgentDeps], element: int) -> str:
@@ -662,6 +928,10 @@ def build_toolset(
     )
     for direct in (
         browser_open,
+        browser_new_tab,
+        browser_tabs,
+        browser_switch_tab,
+        browser_close_tab,
         browser_read,
         browser_click,
         browser_type,

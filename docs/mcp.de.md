@@ -1,5 +1,5 @@
 ---
-source_sha: "5bf6eb0fde8e"
+source_sha: "c8ff8031efa5"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1147,6 +1147,12 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
 Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bittet.
+
+### Desktop, Mobile und lokale Umgebungen { #desktop-mobile-and-local-environments }
+
+Der MCP-Server erklärt dieselben Unterschiede wie Agentenläufe: Desktop kann einen genehmigten lokalen Ordner, Browser, ein Modell oder einen HTTP-MCP-Dienst für die Unterhaltung nutzen. Mobile bietet keine Desktop-Ausführung. Eine native Freigabe bleibt erforderlich; MCP wählt keinen Ordner und erteilt keinen Zugriff im Namen der Person.
+
+`create_project` akzeptiert `backend` (`auto`, `state`, `service`) und optional `sandbox_connection_id` für die gemeinsame Serverumgebung. Der zurückgegebene Backend-Wert beschreibt keine persönliche Computerauswahl. Lokale Ordner bleiben von gemeinsamen Uploads getrennt; gemeinsame Chatantworten können dennoch lokale Inhalte offenlegen. Der Architect-Leitfaden enthält Desktop-, Mobile- und Sandbox-Seiten; jeder Lauf erhält nach der Validierung Informationen über die tatsächlich ausgewählten lokalen Ressourcen.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

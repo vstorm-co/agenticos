@@ -1,0 +1,263 @@
+/* The first run on a phone, drawn the way the system draws its own: system type
+   and colours, a large title, full-width buttons within reach of a thumb at the
+   bottom, the safe areas respected. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --label: #000000;
+  --secondary: rgb(60 60 67 / 60%);
+  --tint: #1c1c1e;
+  --tint-fg: #ffffff;
+  --fill: rgb(120 120 128 / 16%);
+  --error: #ff3b30;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Roboto", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --label: #ffffff;
+    --secondary: rgb(235 235 245 / 60%);
+    --tint: #f2f2f7;
+    --tint-fg: #000000;
+    --fill: rgb(120 120 128 / 32%);
+    --error: #ff453a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--label);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+section {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Android's edge-to-edge reports no inset for its gesture bar to a webview,
+     so the bottom keeps room of its own beside whatever the system says. */
+  padding: calc(env(safe-area-inset-top) + 0.5rem) 1.25rem
+    max(calc(env(safe-area-inset-bottom) + 1rem), 2.25rem);
+  animation: arrive 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.app-icon {
+  width: 104px;
+  height: 104px;
+  border-radius: 23px;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.lead {
+  margin: 0;
+  max-width: 18rem;
+  color: var(--secondary);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.bottom {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: auto;
+}
+
+button {
+  font: inherit;
+  border: 0;
+}
+
+.filled,
+.tinted {
+  width: 100%;
+  height: 50px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 600;
+  transition: opacity 120ms;
+}
+
+.filled:active,
+.tinted:active {
+  opacity: 0.7;
+}
+
+.filled {
+  background: var(--tint);
+  color: var(--tint-fg);
+}
+
+.tinted {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.filled:disabled {
+  opacity: 0.45;
+}
+
+.footnote {
+  margin: 0.25rem 0.25rem 0;
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+form .footnote {
+  text-align: start;
+}
+
+.error {
+  margin: 0;
+  color: var(--error);
+  font-size: 15px;
+  text-align: center;
+}
+
+.navbar {
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.back {
+  background: none;
+  color: var(--label);
+  font-size: 17px;
+  padding: 0;
+}
+
+.back::before {
+  content: "‹";
+  font-size: 28px;
+  line-height: 0;
+  margin-inline-end: 0.3rem;
+  vertical-align: -3px;
+}
+
+.large-title {
+  margin: 0.25rem 0 1.25rem;
+}
+
+form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.group {
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+input {
+  width: 100%;
+  height: 48px;
+  padding: 0 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: 17px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+input:focus {
+  outline: none;
+}
+
+.saved-servers {
+  margin-bottom: 1.5rem;
+}
+.saved-servers > div {
+  display: flex;
+  border-bottom: 1px solid var(--fill);
+}
+.saved-servers > div:last-child {
+  border-bottom: 0;
+}
+.saved-server {
+  flex: 1;
+  min-width: 0;
+  padding: 1rem;
+  text-align: start;
+  background: transparent;
+  color: var(--label);
+}
+.saved-server strong,
+.saved-server span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-server span {
+  color: var(--secondary);
+  font-size: 13px;
+  margin-top: 0.25rem;
+}
+.remove-server {
+  padding: 0.75rem;
+  background: transparent;
+  color: var(--secondary);
+}
+button:focus-visible {
+  outline: 2px solid var(--label);
+  outline-offset: -3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  section {
+    animation: none;
+  }
+}
