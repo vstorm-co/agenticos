@@ -417,6 +417,11 @@ fn files_at(
     let asked = text(args, "path")?;
     let path = crate::local_fs::relative(root, &asked).map_err(|error| io_refusal(&error, &asked))?;
     let failed = |error: std::io::Error| io_refusal(&error, &asked);
+    let absolute = if path == Path::new(".") {
+        root.to_path_buf()
+    } else {
+        root.join(&path)
+    };
     match op {
         "fs.read" => {
             if directory.metadata(&path).map_err(failed)?.is_dir() {
@@ -448,14 +453,14 @@ fn files_at(
         }
         "fs.stat" => {
             let metadata = directory.metadata(&path).map_err(failed)?;
-            Ok(object(entry(&root.join(&path), &metadata)))
+            Ok(object(entry(&absolute, &metadata)))
         }
         "fs.list" => {
             let mut entries = Vec::new();
             for item in directory.read_dir(&path).map_err(failed)? {
                 let item = item.map_err(failed)?;
                 if let Ok(metadata) = item.metadata() {
-                    entries.push(entry(&root.join(&path).join(item.file_name()), &metadata));
+                    entries.push(entry(&absolute.join(item.file_name()), &metadata));
                 }
             }
             Ok(object(serde_json::json!({ "entries": entries })))
@@ -481,9 +486,14 @@ fn files_at(
         "fs.exists" => Ok(object(
             serde_json::json!({ "exists": directory.try_exists(&path).map_err(failed)? }),
         )),
-        "fs.realpath" => Ok(object(
-            serde_json::json!({ "path": root.join(&path).to_string_lossy() }),
-        )),
+        "fs.realpath" => {
+            let resolved = match directory.canonicalize(&path) {
+                Ok(path) => root.join(path),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => absolute,
+                Err(error) => return Err(failed(error)),
+            };
+            Ok(object(serde_json::json!({ "path": resolved.to_string_lossy() })))
+        }
         other => Err(Refusal::new(
             "denied",
             format!("This app does not do {other} yet. Update AgenticOS."),
@@ -787,6 +797,26 @@ mod tests {
         assert_eq!(std::fs::read(outside.join("answer.txt")).unwrap(), b"private");
         std::fs::remove_dir_all(root).unwrap();
         std::fs::remove_dir_all(outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn realpath_resolves_internal_links_and_keeps_new_file_paths() {
+        let root = folder();
+        std::fs::write(root.join("target.txt"), "content").unwrap();
+        std::os::unix::fs::symlink("target.txt", root.join("alias")).unwrap();
+        let args = object(serde_json::json!({"path":"alias"}));
+        let resolved = files("fs.realpath", &root, Mode::ReadOnly, &args).await.unwrap();
+        assert_eq!(resolved["path"], root.join("target.txt").to_string_lossy().as_ref());
+        let args = object(serde_json::json!({"path":"new.txt"}));
+        let resolved = files("fs.realpath", &root, Mode::ReadOnly, &args).await.unwrap();
+        assert_eq!(resolved["path"], root.join("new.txt").to_string_lossy().as_ref());
+        let args = object(serde_json::json!({"path":"."}));
+        let entries = files("fs.list", &root, Mode::ReadOnly, &args).await.unwrap();
+        for entry in entries["entries"].as_array().unwrap() {
+            assert!(!entry["path"].as_str().unwrap().contains("/./"));
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]
