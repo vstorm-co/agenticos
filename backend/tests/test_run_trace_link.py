@@ -61,7 +61,7 @@ class TestReadingTheTraceIdOffTheCurrentSpan:
 class TestTheIdIsWrittenHoweverTheRunEnded:
     @staticmethod
     def _prepared() -> MagicMock:
-        prepared = MagicMock()
+        prepared = MagicMock(earlier_attachments_checked=False)
         prepared.run = MagicMock(id=uuid.uuid4(), conversation_id=None)
         prepared.built.ledger = MagicMock(
             input_tokens=10,

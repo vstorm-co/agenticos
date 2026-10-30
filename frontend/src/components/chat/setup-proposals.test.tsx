@@ -162,7 +162,7 @@ describe("SetupProposals", () => {
     await take("Connect Gmail");
 
     expect(push).toHaveBeenCalledWith("/mcp-servers");
-    expect(pointAt).toHaveBeenCalledWith("mcp-add");
+    expect(pointAt).toHaveBeenCalledWith("mcp-add", "/mcp-servers");
   });
 
   describe("a connection naming its server", () => {

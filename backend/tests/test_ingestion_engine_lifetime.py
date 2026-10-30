@@ -55,7 +55,7 @@ class EngineLedger:
 
 @asynccontextmanager
 async def _worker_db() -> Any:
-    yield MagicMock()
+    yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
 
 def _ingest_result(status: IngestionStatus = IngestionStatus.DONE) -> MagicMock:
@@ -66,6 +66,7 @@ def _ingest_result(status: IngestionStatus = IngestionStatus.DONE) -> MagicMock:
         replaced_document_id=None,
         error_message=None,
         message="",
+        refused=False,
     )
 
 

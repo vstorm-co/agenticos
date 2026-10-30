@@ -12,12 +12,13 @@ name before dropping it.
 from contextlib import ExitStack, asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.worker.jobs import CLEANUP_EXTERNAL_STATE, CleanupExternalState, Restamp
+from app.db.vector_tables import VectorScope
+from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge, CleanupExternalState, Restamp
 from app.worker.tasks import teardown_tasks
 from app.worker.tasks.teardown_tasks import (
     cleanup_external_state,
@@ -35,6 +36,10 @@ _KB = UUID("22222222-2222-2222-2222-222222222222")
 
 def _restamp(collection: str = "handbook") -> Restamp:
     return Restamp(collection=collection, organization_id=_ORG, knowledge_base_id=_KB)
+
+
+def _purge(collection: str = "handbook") -> BasePurge:
+    return BasePurge(collection=collection, knowledge_base_id=_KB)
 
 
 class TestQueueing:
@@ -79,6 +84,35 @@ class TestQueueing:
         first, second = (call[2] for call in await self._queued([], [], restamps))
         assert len(first.restamps) == teardown_tasks._MAX_RESTAMPS_PER_JOB
         assert second.restamps == [restamps[-1]]
+
+    async def test_base_purges_are_chunked_on_their_own_and_zipped_onto_the_jobs(self) -> None:
+        """Deleted bases whose table is kept spread across jobs like re-stamps (#2537)."""
+        purges = [_purge(f"kb-{i}") for i in range(teardown_tasks._MAX_RESTAMPS_PER_JOB + 1)]
+        first, second = (call[2] for call in await self._queued([], [], base_purges=purges))
+        assert len(first.base_purges) == teardown_tasks._MAX_RESTAMPS_PER_JOB
+        assert second.base_purges == [purges[-1]]
+
+    async def test_base_purges_are_dumped_only_when_there_are_some(self) -> None:
+        """A job with none keeps the shape a previous-release worker parses."""
+        dumped = CleanupExternalState(storage_paths=[], collections=[], restamps=[]).model_dump()
+        assert "base_purges" not in dumped
+        carrying = CleanupExternalState(
+            storage_paths=[], collections=[], restamps=[], base_purges=[_purge()]
+        )
+        assert carrying.model_dump(mode="json")["base_purges"] == [
+            {"collection": "handbook", "knowledge_base_id": str(_KB)}
+        ]
+
+    async def test_a_kept_bases_purge_carries_its_documents(self) -> None:
+        """A cleared default is purged by the documents its drop deleted, not by
+        its id alone, which later uploads share (#2560); a whole-base purge keeps
+        the shape it had."""
+        named = BasePurge(collection="handbook", knowledge_base_id=_KB, vector_document_ids=[])
+        assert named.model_dump(mode="json")["vector_document_ids"] == []
+        assert _purge().model_dump(mode="json") == {
+            "collection": "handbook",
+            "knowledge_base_id": str(_KB),
+        }
 
     async def test_prefixes_ride_the_first_job_only(self) -> None:
         """An organization's generated media goes by prefix, in the purge's own
@@ -167,7 +201,11 @@ def _patch_cleanup() -> Any:
     and reserved it, so the cleanup drops unconditionally, then releases the name's
     reservation (#1362)."""
     storage = MagicMock(delete=AsyncMock())
-    store = MagicMock(delete_collection=AsyncMock(), restamp_documents_to_untagged=AsyncMock())
+    store = MagicMock(
+        delete_collection=AsyncMock(),
+        restamp_documents_to_untagged=AsyncMock(),
+        delete_knowledge_base_chunks=AsyncMock(),
+    )
     engine = MagicMock(dispose=AsyncMock())
     release = AsyncMock()
 
@@ -191,7 +229,7 @@ class TestTheCleanup:
         assert storage.delete.await_count == 2
         assert store.delete_collection.await_count == 2
         assert [call.args[1] for call in release.await_args_list] == ["docs", "wiki"]
-        assert result == {"unlinked": 2, "dropped": 2, "restamped": 0}
+        assert result == {"unlinked": 2, "dropped": 2, "restamped": 0, "purged": 0}
         engine.dispose.assert_awaited_once()
 
     async def test_a_failed_drop_leaves_the_reservation_for_a_retry(self) -> None:
@@ -204,7 +242,7 @@ class TestTheCleanup:
             result = await cleanup_external_state([], ["docs"])
 
         release.assert_not_awaited()
-        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 0}
 
     async def test_a_failed_unlink_does_not_abort_the_rest(self) -> None:
         """Best-effort: a file already gone is not a reason to abandon the cleanup."""
@@ -213,7 +251,7 @@ class TestTheCleanup:
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state(["u/a.txt"], ["docs"])
 
-        assert result == {"unlinked": 1, "dropped": 1, "restamped": 0}
+        assert result == {"unlinked": 1, "dropped": 1, "restamped": 0, "purged": 0}
 
     async def test_no_collections_touches_no_store(self) -> None:
         """A purge that only left files behind builds no vector-store engine."""
@@ -229,7 +267,7 @@ class TestTheCleanup:
             result = await cleanup_external_state(["u/a.txt"], [])
 
         make_engine.assert_not_called()
-        assert result == {"unlinked": 1, "dropped": 0, "restamped": 0}
+        assert result == {"unlinked": 1, "dropped": 0, "restamped": 0, "purged": 0}
 
     async def test_it_locks_and_releases_each_collection_it_drops(self) -> None:
         """The drop takes the advisory lock it shares with the claim path (#1355), and
@@ -280,7 +318,7 @@ class TestTheCleanup:
 
         store.delete_collection.assert_not_awaited()
         release.assert_not_awaited()
-        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 0}
 
     async def test_it_untags_each_orphaned_personal_bases_own_documents(self) -> None:
         """A purge orphans a personal base by nulling its org; the cleanup hands the
@@ -291,7 +329,7 @@ class TestTheCleanup:
             result = await cleanup_external_state([], [], [_restamp()])
 
         store.restamp_documents_to_untagged.assert_awaited_once_with("handbook", _ORG, _KB)
-        assert result == {"unlinked": 0, "dropped": 0, "restamped": 1}
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 1, "purged": 0}
 
     async def test_a_failed_restamp_attempts_the_rest_then_fails_the_flow(self) -> None:
         """A re-stamp has no sweep to reattempt it, so a failure is isolated per entry
@@ -313,6 +351,62 @@ class TestTheCleanup:
             await cleanup_external_state([], [], [_restamp("bad"), _restamp("good")])
 
         assert store.restamp_documents_to_untagged.await_count == 2
+        assert excinfo.value.details == {"collections": ["bad"]}
+
+    async def test_it_deletes_each_deleted_bases_chunks_from_its_kept_table(self) -> None:
+        """A base deleted while another holds its name leaves its chunks in the kept
+        table; the cleanup deletes them by the base's id (#2537)."""
+        _storage, store, engine, _release, patches = _patch_cleanup()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            result = await cleanup_external_state([], [], [], [], [], [_purge()])
+
+        store.delete_knowledge_base_chunks.assert_awaited_once_with(
+            "handbook", _KB, vector_document_ids=None, unfiled_of=None
+        )
+        store.delete_collection.assert_not_awaited()
+        engine.dispose.assert_awaited_once()
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 1}
+
+    @pytest.mark.security
+    async def test_a_purge_taking_unfiled_chunks_names_their_tenant(self) -> None:
+        """A cleared base's unfiled document rows went with it, so the purge also
+        takes those documents' unfiled chunks - within the base's tenant, which
+        is all that keeps another tenant's document of the same id out (#2560)."""
+        tenant = uuid4()
+        purge = BasePurge(
+            collection="handbook",
+            knowledge_base_id=_KB,
+            vector_document_ids=["legacy"],
+            takes_unfiled=True,
+            tenant=tenant,
+        )
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            await cleanup_external_state([], [], [], [], [], [purge])
+
+        store.delete_knowledge_base_chunks.assert_awaited_once_with(
+            "handbook", _KB, vector_document_ids=["legacy"], unfiled_of=VectorScope(tenant=tenant)
+        )
+
+    async def test_a_failed_base_purge_attempts_the_rest_then_fails_the_job(self) -> None:
+        """Nothing else would remove those chunks, so a failure is raised after the
+        other entries ran, and the job's retries re-run the idempotent delete."""
+        from app.core.exceptions import DatabaseError
+
+        _storage, store, _engine, _release, patches = _patch_cleanup()
+        store.delete_knowledge_base_chunks = AsyncMock(side_effect=[SQLAlchemyError("blip"), None])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patches[5],
+            pytest.raises(DatabaseError) as excinfo,
+        ):
+            await cleanup_external_state([], [], [], [], [], [_purge("bad"), _purge("good")])
+
+        assert store.delete_knowledge_base_chunks.await_count == 2
         assert excinfo.value.details == {"collections": ["bad"]}
 
     async def test_restamps_alone_still_build_the_store(self) -> None:
@@ -342,7 +436,7 @@ class TestPrefixes:
             "generated_b",
         ]
         make_engine.assert_not_called()
-        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0}
+        assert result == {"unlinked": 0, "dropped": 0, "restamped": 0, "purged": 0}
 
     async def test_a_prefix_the_store_refuses_fails_the_job_after_the_rest(self) -> None:
         """Its rows are gone, so the job's retries are the only thing that will ever
@@ -395,20 +489,20 @@ class TestRequiredPaths:
             result = await cleanup_external_state([], [], [], [], ["generated_o/a.png"])
 
         storage.delete.assert_awaited_once_with("generated_o/a.png")
-        assert result == {"unlinked": 1, "dropped": 0, "restamped": 0}
+        assert result == {"unlinked": 1, "dropped": 0, "restamped": 0, "purged": 0}
 
 
 class TestTheJob:
     async def test_it_runs_the_cleanup_with_what_the_job_carries(self) -> None:
-        impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1, "restamped": 1})
+        impl = AsyncMock(return_value={"unlinked": 1, "dropped": 1, "restamped": 1, "purged": 0})
         job = CleanupExternalState(
             storage_paths=["u/a.txt"], collections=["docs"], restamps=[_restamp()]
         )
         with patch.object(teardown_tasks, "cleanup_external_state", impl):
             result = await run_external_state_cleanup(job)
 
-        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()], [], [])
-        assert result == {"unlinked": 1, "dropped": 1, "restamped": 1}
+        impl.assert_awaited_once_with(["u/a.txt"], ["docs"], [_restamp()], [], [], [])
+        assert result == {"unlinked": 1, "dropped": 1, "restamped": 1, "purged": 0}
 
 
 def _patch_sweep(stale: list[Any], *, reserved: bool = True) -> Any:

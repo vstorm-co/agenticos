@@ -32,6 +32,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.field_errors import refused_field
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import PARSER_FORMATS
 from app.services.rag.models import VectorDocumentId
 
@@ -169,6 +170,8 @@ class TenantScope(BaseModel):
 
     `organization_id` is non-null by construction — the store ANDs it into
     every query, and there is no default and no fallback to an unscoped search.
+    `knowledge_base_id` narrows that to one base's chunks (#2537), with the
+    unfiled ones of the tenant when `takes_unfiled`.
     `authorized_document_ids` is the FA-037 per-document authorization slot:
     `None` means the slot is unset (no per-document narrowing), while a
     **populated-but-empty** set means match nothing (empty-denies-all), so a
@@ -180,6 +183,20 @@ class TenantScope(BaseModel):
     kind: Literal["tenant"] = "tenant"
     organization_id: UUID
     authorized_document_ids: frozenset[VectorDocumentId] | None = None
+    # The knowledge base searched, when the caller resolved one: its chunks, and
+    # the unfiled ones of this tenant when `takes_unfiled` (#2537, `VectorScope`).
+    knowledge_base_id: UUID | None = None
+    takes_unfiled: bool = True
+    additional_knowledge_base_ids: tuple[UUID, ...] = ()
+
+    def vectors(self) -> VectorScope:
+        """The same restriction as the store's row-level operations take it."""
+        return VectorScope(
+            tenant=self.organization_id,
+            knowledge_base_id=self.knowledge_base_id,
+            takes_unfiled=self.takes_unfiled,
+            additional_knowledge_base_ids=self.additional_knowledge_base_ids,
+        )
 
 
 class AppScope(BaseModel):
@@ -194,9 +211,14 @@ class AppScope(BaseModel):
     equality, so it narrows exactly as `TenantScope` does and reads no other
     organization's rows.
 
+    It is also the shape of a personal base outside any organization, which has
+    no tenant either: `knowledge_base_id` keeps the two apart, and such a base has
+    `takes_unfiled` off, since the unfiled rows with no tenant are the app
+    scope's (#2537).
+
     Unlike `UnscopedScope`, this is reachable by an ordinary caller - whenever the
     knowledge base it resolved to (through `CollectionAccessService`, or the
-    store's own `resolve_tenant`) is app-scoped - not only the named maintenance
+    store's own `resolve_scope`) has no tenant - not only the named maintenance
     paths.
     """
 
@@ -204,6 +226,20 @@ class AppScope(BaseModel):
 
     kind: Literal["app"] = "app"
     authorized_document_ids: frozenset[VectorDocumentId] | None = None
+    # As on `TenantScope`. A personal base outside any organization also has no
+    # tenant and searches through this shape, with `takes_unfiled` off (#2537).
+    knowledge_base_id: UUID | None = None
+    takes_unfiled: bool = True
+    additional_knowledge_base_ids: tuple[UUID, ...] = ()
+
+    def vectors(self) -> VectorScope:
+        """The same restriction as the store's row-level operations take it."""
+        return VectorScope(
+            tenant=None,
+            knowledge_base_id=self.knowledge_base_id,
+            takes_unfiled=self.takes_unfiled,
+            additional_knowledge_base_ids=self.additional_knowledge_base_ids,
+        )
 
 
 class UnscopedScope(BaseModel):
@@ -226,20 +262,29 @@ class UnscopedScope(BaseModel):
 RetrievalScope = Annotated[TenantScope | AppScope | UnscopedScope, Field(discriminator="kind")]
 
 
-def scope_for_tenant(tenant: UUID | None) -> TenantScope | AppScope:
-    """The scope matching a knowledge base's own resolved tenant (#1684, FA-039).
+def scope_for(vectors: VectorScope) -> TenantScope | AppScope:
+    """The search scope matching a knowledge base's own vector scope (#1684, #2537).
 
-    `tenant` is a `KnowledgeBase.vector_tenant`, or the equivalent
-    `BaseVectorStore.resolve_tenant` returns: an organization's own id for an org
-    base, `None` for an app-scoped one every organization reads or a collection no
-    base claims. Built from the *base's* tenant, already authorized by the caller
-    - never from a caller's own organization id directly, which is what let a
-    caller's raw `organization_id` stand in for an app-scoped base's `None` and
-    search it as always-empty.
+    `vectors` is a `KnowledgeBase.vector_scope`, or what
+    `BaseVectorStore.resolve_scope` returns: the base's tenant - an organization's
+    id, `None` for an app-scoped base every organization reads or a collection no
+    base claims - and the base itself. Built from the *base*, already authorized
+    by the caller - never from a caller's own organization id directly, which is
+    what let a caller's raw `organization_id` stand in for an app-scoped base's
+    `None` and search it as always-empty.
     """
-    if tenant is None:
-        return AppScope()
-    return TenantScope(organization_id=tenant)
+    if vectors.tenant is None:
+        return AppScope(
+            knowledge_base_id=vectors.knowledge_base_id,
+            takes_unfiled=vectors.takes_unfiled,
+            additional_knowledge_base_ids=vectors.additional_knowledge_base_ids,
+        )
+    return TenantScope(
+        organization_id=vectors.tenant,
+        knowledge_base_id=vectors.knowledge_base_id,
+        takes_unfiled=vectors.takes_unfiled,
+        additional_knowledge_base_ids=vectors.additional_knowledge_base_ids,
+    )
 
 
 class RetrievalQuery(BaseModel):
@@ -321,5 +366,5 @@ __all__ = [
     "UnscopedScope",
     "compose",
     "resolve_legacy_filter",
-    "scope_for_tenant",
+    "scope_for",
 ]

@@ -67,7 +67,7 @@ export function SetupProposals({
       ask(t("agentAsk", { request: proposal.request }));
     } else {
       router.push(ROUTES.MCP_SERVERS);
-      void pointAt("mcp-add");
+      void pointAt("mcp-add", ROUTES.MCP_SERVERS);
     }
   };
 

@@ -2328,3 +2328,10 @@ async def associate_auxiliary_conversation(
     """
     run.conversation_id = conversation_id
     await db.flush()
+
+
+async def record_attachment_lookup(db: AsyncSession, run: AgentRun) -> None:
+    """Record a real earlier-attachment lookup, so workspace-less turns close nothing."""
+    run.earlier_attachments_checked = True
+    db.add(run)
+    await db.flush()

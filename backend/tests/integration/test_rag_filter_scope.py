@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.agents.capabilities.knowledge._search import search_knowledge_base
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import (
     RetrievalFilters,
@@ -76,7 +77,7 @@ async def _insert(
             parent_doc_id=document.id,
         )
     ]
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, VectorScope(tenant=None))
     return document.id
 
 

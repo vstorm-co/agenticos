@@ -176,8 +176,9 @@ async def install_agent_template(
     """Create a draft agent from a template, installing the skills it expects.
 
     A draft, not a published agent: the template names no model - there is no
-    organization-wide default here - and may name no collection. The result says
-    what is still to attach.
+    organization-wide default here, so the draft starts on the organization's
+    model only when it has exactly one an agent can run on - and may name no
+    collection. The result says what is still to attach.
     """
     return await service.install_template(ctx, data.key)
 

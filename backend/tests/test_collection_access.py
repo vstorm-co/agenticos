@@ -778,7 +778,9 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         self, service: CollectionAccessService, rows: Rows
     ) -> None:
         """An app base and a personal base outside any organization share no tenant,
-        so a source the sync files under the personal base is not the app base's."""
+        so a source belongs to the one its sync writes into. For an organization
+        with no base of its own that is the app base - never the older personal
+        base, which has no organization either but is one person's (#2537)."""
         mine = _kb("handbook", scope=KBScope.PERSONAL, organization_id=None, owner_user_id=CALLER)
         app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
         source = self._source(organization_id=OTHER_ORG)
@@ -786,8 +788,8 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         rows.sources = [source]
 
         with pytest.raises(NotFoundError):
-            await service.kb_sync_source(app_kb, str(source.id))
-        assert (await service.kb_sync_source(mine, str(source.id))).id == source.id
+            await service.kb_sync_source(mine, str(source.id))
+        assert (await service.kb_sync_source(app_kb, str(source.id))).id == source.id
 
     @pytest.mark.security
     async def test_a_source_of_another_collection_or_organization_is_refused(
@@ -810,6 +812,65 @@ class TestResolvingASyncSourceInAKnowledgeBase:
             await service.kb_sync_source(_kb("handbook"), "not-an-id")
 
         assert refusal.value.message == "Sync source not found"
+
+
+class TestPointingASyncSourceAtACollectionByName:
+    """`source_target`: the base checked is the one the sync writes into (#2537)."""
+
+    async def test_the_base_its_sync_writes_into_is_returned(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        kb = _kb("handbook")
+        rows.collections = [kb]
+
+        assert (await service.source_target(_ctx(), "handbook")).id == kb.id
+
+    @pytest.mark.security
+    async def test_owning_a_newer_same_named_base_does_not_reach_the_target(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """The member can write their own personal base but not the organization's
+        older base, which is where a source naming the collection syncs into."""
+        theirs = _kb("handbook", owner_user_id=uuid.uuid4())
+        mine = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        rows.collections = [theirs, mine]
+
+        with pytest.raises(NotFoundError):
+            await service.source_target(_ctx(role=OrgRoleName.MEMBER.value), "handbook")
+
+    async def test_a_name_no_base_holds_is_not_found(
+        self, service: CollectionAccessService
+    ) -> None:
+        with pytest.raises(NotFoundError):
+            await service.source_target(_ctx(), "handbook")
+
+
+class TestAddingASyncSourceToAKnowledgeBase:
+    """`new_source_feeds`: a source names a collection, not a base, so it may only
+    be added to the base its sync writes into (#2537)."""
+
+    async def test_the_base_its_sync_writes_into_takes_it(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        kb = _kb("handbook")
+        rows.collections = [kb]
+
+        await service.new_source_feeds(_ctx(), kb)
+
+    @pytest.mark.security
+    async def test_a_newer_same_named_base_is_refused(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """Bases of one organization no longer share rows, so a source added to
+        the newer base would sync into the older one and not be listed here."""
+        older = _kb("handbook")
+        mine = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        rows.collections = [older, mine]
+
+        with pytest.raises(BadRequestError) as refusal:
+            await service.new_source_feeds(_ctx(), mine)
+
+        assert refusal.value.details == {"kb_id": str(mine.id), "collection": "handbook"}
 
 
 class TestListingAKnowledgeBasesSyncSources:

@@ -119,6 +119,42 @@ class TestTheLookupStaysInsideTheOrganization:
             await knowledge_base_repo.get_for_collection(db, "shared", org_c.id)
         ).id == kb_app.id
 
+    @pytest.mark.security
+    async def test_a_personal_base_outside_any_organization_is_never_the_fallback(self, db) -> None:
+        """It has no organization either, but it is one person's: resolving to it
+        would search and embed through it for every organization without a base of
+        its own. Only an app-scoped base is the fallback (#2537)."""
+        org_c, _ = await _org(db, name="Gamma")
+        _, person = await _org(db, name="Delta")
+        personal = _kb(None, "shared", scope=KBScope.PERSONAL.value)
+        personal.owner_user_id = person.id
+        db.add(personal)
+        await db.flush()
+
+        assert await knowledge_base_repo.get_for_collection(db, "shared", org_c.id) is None
+
+        kb_app = _kb(None, "shared", scope=KBScope.APP.value)
+        db.add(kb_app)
+        await db.flush()
+
+        resolved = await knowledge_base_repo.get_for_collection(db, "shared", org_c.id)
+        assert resolved is not None and resolved.id == kb_app.id
+
+    async def test_a_members_personal_base_is_the_organizations_only_base_by_the_name(
+        self, db
+    ) -> None:
+        """With no organization base by the name, the personal base in the
+        organization is still what its sync writes into, as before."""
+        org_a, member = await _org(db, name="Alpha")
+        personal = _kb(org_a.id, "shared", scope=KBScope.PERSONAL.value)
+        personal.owner_user_id = member.id
+        db.add(personal)
+        await db.flush()
+
+        resolved = await knowledge_base_repo.get_for_collection(db, "shared", org_a.id)
+
+        assert resolved is not None and resolved.id == personal.id
+
 
 class TestTheEmbeddingResolverUnsealsOnlyTheCallersKey:
     @pytest.mark.security
