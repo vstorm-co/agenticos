@@ -395,7 +395,7 @@ Webhook and GitHub delivery IDs survive run-content retention as minimal tombsto
 
 Unattended trigger publication and authority changes require a member session (`403` for an organization API key). Keys may publish manual workflows, start runs within their scopes and pause exposures, but cannot enable them, rotate secrets/form links, retime schedules or choose a new error-workflow identity. These operations retain a user's authority for future events.
 
-Public workflow form submissions enforce the workflow input byte limit while reading the request stream, before JSON parsing or token lookup. Oversized declared or chunked bodies return `413`; malformed JSON and invalid submission fields return `422`.
+Public workflow form submissions enforce the workflow input byte limit while reading the request stream, before JSON parsing or token lookup. Oversized declared or chunked bodies return `413`; malformed JSON and invalid submission fields return `422`. Each entry of a `422`'s `details.problems` is `{field, message, type}`, where `type` is the validator's own error type (`missing`, `int_type`, `extra_forbidden`, ...), so a form can say per answer what it needed.
 
 
 A workflow whose trigger node is a webhook or a schedule gets its exposure when

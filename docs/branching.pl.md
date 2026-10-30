@@ -1,5 +1,5 @@
 ---
-source_sha: "f89434252ef2"
+source_sha: "f82996cb48c3"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -200,12 +200,13 @@ job, opisano niżej.
 | `lint` | 10 | 22s |
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
-| `test-frontend` | 20 | 5m08s |
-| `docker` | 20 | 2m30s |
-| `test` | 25 | 7m43s |
+| `test-frontend` | 45 | 20m07s |
+| `test` | 90 | 22m25s |
 | `e2e` | 25 | 8m01s |
 
-Zaobserwowane czasy pochodzą z przebiegu 31116003994, pełnej macierzy na `main`.
+Większość czasów pochodzi z przebiegu 31116003994, pełnej macierzy na `main`.
+Czas backendu pochodzi z przebiegu 41102882122, a frontendu z 41108431368, obu
+z 30 października 2026. Obrazy budują się osobno w `images.yml`.
 Każde ograniczenie jest kilka razy większe od swojego jobu, a nie tuż nad nim:
 timeout istnieje po to, żeby zakończyć zawieszenie, a taki, który jest dość
 ciasny, by przyciąć legalnie zimny cache, to czerwony build z powodu niemającego
