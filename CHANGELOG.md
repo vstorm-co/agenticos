@@ -19,6 +19,51 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- `refresh-assistant [--org <id>] [--dry-run] [--replace-edited]` reports and
+  refreshes installed Architect instructions and its AgenticOS guide. New
+  instructions publish as a new agent version, preserving configuration and
+  history. Organization edits are skipped unless explicitly replaced; unrelated
+  pending draft changes block the refresh. After upgrading, run the command to
+  adopt updated templates in existing organizations (#2520).
+
+### Fixed
+
+- Update the locked pyasn1 parser to 0.6.5 to fix four ASN.1 decoding denial-of-service advisories.
+
+- Refresh recognizes the stock desktop-era Architect from 1.31.x while preserving organization edits.
+
+- Channel messages store only the sender's text. Author context is assembled
+  from erasable channel identities at dispatch, so the console,
+  copy, pin and shortcut actions do not expose JSON envelopes or platform IDs.
+  Account deletion removes those author labels from future model history while
+  preserving shared message bodies. Manifests omit request-only channel parts;
+  paused runs retain opaque author references instead of platform labels.
+- Replay saved channel user turns through the current agent's input guardrails before model dispatch, preserving stored messages while withholding blocked values and redacting protected text.
+- Editable channel reference values follow the configured input guardrails.
+  Protected values are redacted or withheld without treating fixed metadata
+  syntax or platform identifiers as the user's question.
+
+- Rolling back the channel prompt migration restores the preceding release's
+  defaults while retaining custom additions, including bindings created after
+  upgrade.
+- Bulk `refresh-assistant` runs skip organizations without an owner and continue
+  refreshing the remaining organizations. A targeted run still fails explicitly.
+
+- Explicit `@slug` channel invocations retain saved conversation history, just
+  like default bot replies, so follow-up requests keep earlier results and App
+  references after the initial thread backfill.
+- Channel replies retain each message's author, answer the current request without
+  reviving unrelated tasks, and explain how to revise a published App when its
+  original sandbox is unavailable. Channel defaults now come from the current deployment; a one-time
+  migration removes recognized stored copies while preserving custom additions.
+  Author metadata stays outside the actual prompt screened by input guardrails.
+- Read-only MCP tools no longer require approval solely because a linked
+  member's run is in Mattermost, Slack, Teams or Telegram. Unlinked senders still
+  require approval for every MCP call. Writes and tools without a read-only hint
+  still require approval; an explicit all-tools policy continues to include reads.
+
 ## [1.31.3] - 2026-10-30
 
 ### Fixed

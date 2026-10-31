@@ -543,6 +543,12 @@ class ChannelMessageRouter:
         files += earlier
         file_refusals += earlier_refusals
 
+        # Loaded before the run, so the turn being run is the prompt and
+        # everything before it is the history. The turn itself is written by the
+        # runner, which is also what records the tool calls, the model and the
+        # version this bot's own write dropped.
+        history = thread_history + await self._load_history(db, session.conversation_id)
+
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
         # silent - a "…" posted up front would be left hanging under two people's
@@ -559,7 +565,7 @@ class ChannelMessageRouter:
             admit_unlinked,
             files=files,
             file_refusals=file_refusals,
-            thread_history=thread_history,
+            message_history=history,
         ):
             return
 
@@ -572,17 +578,13 @@ class ChannelMessageRouter:
         else:
             live, handle = await self._open_reply(bot, incoming)
 
-        # Loaded before the run, so the turn being run is the prompt and
-        # everything before it is the history. The turn itself is written by the
-        # runner, which is also what records the tool calls, the model and the
-        # version this bot's own write dropped.
-        history = thread_history + await self._load_history(db, session.conversation_id)
         await self._run_turn(
             bot,
             incoming,
             db,
             run=ChannelAgentRouter(db).answer_default(
                 incoming.text,
+                incoming=incoming,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
@@ -689,7 +691,7 @@ class ChannelMessageRouter:
         *,
         files: list[Any],
         file_refusals: list[str],
-        thread_history: list[ModelMessage] | None = None,
+        message_history: list[ModelMessage] | None = None,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -719,6 +721,7 @@ class ChannelMessageRouter:
             db,
             run=ChannelAgentRouter(db).answer(
                 incoming.text,
+                incoming=incoming,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
@@ -734,7 +737,7 @@ class ChannelMessageRouter:
                 turn=session.turn_count,
                 attachments=files,
                 stream=channel_stream(live),
-                message_history=thread_history or None,
+                message_history=message_history or None,
             ),
             handle=handle_of,
             files=files,

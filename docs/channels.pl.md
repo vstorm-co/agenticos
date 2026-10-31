@@ -1,5 +1,5 @@
 ---
-source_sha: "968f30d76fa2"
+source_sha: "ef05ac38d95b"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1980,14 +1980,13 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
   przepisywana krok po kroku, a każdy krok trafia na kanał dopiero po
   sprawdzeniu.
 - **Każde powiązanie niesie własne dodatkowe instrukcje**, dopisywane do
-  instrukcji agenta wyłącznie na tej powierzchni. Nowe otwiera się z tym, co ten
-  klient faktycznie renderuje: Slack nie rysuje Markdowna i zapisuje link jako
-  `<url|text>`, Mattermost renderuje nagłówki i tabele, Telegram odrzuca
-  wiadomość z niedomkniętą `*` — plus to, jak podać tam link, poprzedzony emoji,
-  gdy jest akcją albo miejscem docelowym. Od tej pory jest to tekst powiązania:
-  zmień go, dopisz do niego albo go wyczyść. Kształtuje sposób dostarczenia
-  odpowiedzi i nigdy nie może zastąpić tego, do czego agent służy — to należy do
-  opublikowanej wersji.
+  instrukcji agenta tylko na tej powierzchni. Aktualne domyślne formatowanie
+  pochodzi z wdrożenia: Slack zapisuje linki jako `<url|text>`, Mattermost
+  renderuje nagłówki i tabele, a Telegram odrzuca niedomknięte formatowanie.
+  Nowe powiązanie nie zapisuje kopii tych zasad. Własne instrukcje można dodać,
+  edytować lub wyczyścić bez zatrzymywania domyślnych zasad na wersji z dnia
+  instalacji. Kształtują sposób dostarczenia odpowiedzi; przeznaczenie agenta
+  należy do jego opublikowanej wersji.
 - **Bot odpowiada, gdy tylko zostanie zarejestrowany.** Bot pollujący — Telegram
   na long-pollingu, Socket Mode Slacka, strumień eventów Mattermosta — jest
   osiągalny przez połączenie, które trzyma proces API, a to połączenie jest
@@ -2021,7 +2020,18 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
-- **Wszystkie narzędzia MCP wymagają zatwierdzenia w komunikatorach, także odczyty oraz połączenia organizacyjne i platformowe.** Powiązanie konta wskazuje, czyje połączenie jest używane; nie daje automatycznej zgody na publikowanie prywatnych wyników w rozmowie. Reguła obejmuje też delegatów i wznowione wywołania.
+- **Odczyty MCP powiązanego nadawcy podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
+
+Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
+
+Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
+
+Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie. Niepowiązani uczestnicy kanału nadal potrzebują zatwierdzenia każdego wywołania MCP, także odczytów organizacyjnych.
+
+Zarówno jawne wywołania `@slug`, jak i odpowiedzi domyślne dostają zapisaną historię rozmowy wraz z początkowym kontekstem wątku kanału.
+
+Opublikowaną aplikację można zmienić z innej rozmowy bez pierwotnego sandboxa. `read_artifact` odzyskuje zapisane źródło, a `publish_artifact` z tą samą nazwą oraz poprawkami lub nową treścią aktualizuje aplikację. Link i historia wersji pozostają wspólne. Dostęp do odczytu nie nadaje prawa edycji; dotychczasowe kontrole uprawnień nadal obowiązują.
+
 - **Agent wie, gdzie odpowiada i czyje konto jest dostępne.** Wskazówki runtime podają komunikator i konsolę wdrożenia, wyjaśniają zarządzany workspace oraz odróżniają organizacyjne połączenia MCP od usług osobistych. Te ostatnie wymagają zarówno powiązanej tożsamości nadawcy, jak i jego autoryzowanego połączenia z usługą. Łączenie zaczyna się od samego `link` w wiadomości prywatnej; prywatny URL połączenia nie trafia na kanał. Agent relacjonuje rzeczywiste wyniki narzędzi i wskazuje jeden konkretny następny krok, jeśli brakuje autoryzacji lub możliwości.
 - **Ponownie dostarczona wiadomość dostaje odpowiedź raz.** Każda platforma
   dostarcza co najmniej raz: route'y webhooków odpowiadają 200 przed jakąkolwiek
@@ -2688,3 +2698,9 @@ flowchart TD
   transport, więc podpinany jest tylko tam, gdzie istnieje odbiornik.
 
 Wiadomość kanałowa zawierająca tylko wzmiankę bota lub białe znaki jest pomijana po usunięciu wzmianki, przed przejęciem dostarczenia i uruchomieniem tury. Dzięki temu do API modelu nie trafia pusta wiadomość użytkownika, której pominięcie powodowałoby odrzucenie poprzedniej odpowiedzi asystenta jako prefill. Wiadomość zawierająca same załączniki nadal przechodzi ścieżką przetwarzania załączników.
+
+## Aktualne domyślne instrukcje kanałów {#current-channel-defaults}
+
+Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Prompt powiązania przechowuje tylko własne dodatki. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
+
+Cofnięcie migracji przywraca zapisane domyślne instrukcje kanałów z poprzedniej wersji i zachowuje własne dodatki, także dla powiązań utworzonych po aktualizacji. Pozostałe powierzchnie pozostają bez zmian.

@@ -206,7 +206,7 @@ names no author is in the evidence column below.
 | psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.6 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.6/ | License-Expression |
 | py-vapid | 1.9.6 | MPL-2.0 | https://github.com/mozilla-services/vapid | License field; review accepted |
-| pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
+| pyasn1 | 0.6.5 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.14.1 | MIT | https://github.com/pydantic/pydantic | License-Expression |

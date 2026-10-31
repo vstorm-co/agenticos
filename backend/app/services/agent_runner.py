@@ -283,6 +283,9 @@ from app.services.channels.directory import restore_directory
 from app.services.channels.formatting import (
     CHANNEL_BEHAVIOR,
     LINK_ACCOUNT_INSTRUCTION,
+    ChannelReference,
+    channel_author_references,
+    house_style,
     runtime_context,
 )
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
@@ -770,6 +773,8 @@ class PausedRunState(BaseModel):
     )
     channel_destination: ChannelDestination | None = None
     channel_file_attempts: int = Field(default=0, ge=0, le=3)
+    channel_context: str = ""
+    channel_authors: dict[str, UUID] = Field(default_factory=dict)
 
     questions: list[str] = Field(
         default_factory=list,
@@ -1330,6 +1335,8 @@ class PreparedRun:
 
     channel_destination: ChannelDestination | None = None
     channel_context: str = ""
+    channel_author_context: str = ""
+    channel_authors: dict[str, UUID] = field(default_factory=dict)
     channel_file_budget: ChannelFileBudget = field(default_factory=ChannelFileBudget)
     automatic_outbound: bool = True
     outbound: list[OutgoingAttachment] = field(default_factory=list)
@@ -1424,6 +1431,31 @@ class PreparedRun:
     def deps(self) -> AgentDeps:
         return self.built.deps
 
+    def _channel_references(
+        self, history: Sequence[ModelMessage] | None, *, has_current_prompt: bool
+    ) -> list[ChannelReference]:
+        # A restored map is authoritative: normalization can merge requests
+        # and replace their metadata while retaining the individual user parts.
+        if not self.channel_authors:
+            self.channel_authors.update(channel_author_references(list(history or [])))
+        if not (
+            self.channel_context
+            or self.channel_author_context
+            or self.run.channel_identity_id is not None
+            or self.channel_authors
+        ):
+            return []
+        return [
+            ChannelReference(
+                self.channel_context,
+                author_context=self.channel_author_context,
+                author_identity_id=self.run.channel_identity_id,
+                screen=input_screen_for(self.spec),
+                has_current_prompt=has_current_prompt,
+                authors_by_timestamp=self.channel_authors,
+            )
+        ]
+
     async def execute(
         self,
         user_prompt: str | Sequence[UserContent] | None,
@@ -1438,12 +1470,15 @@ class PreparedRun:
         """
         with guarded_by(self.built.budget), metered_by(self.built.ledger):
             return await self.built.agent.run(
-                self._with_channel_context(user_prompt),
+                user_prompt,
                 deps=self.built.deps,
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
+                capabilities=self._channel_references(
+                    message_history, has_current_prompt=user_prompt is not None
+                ),
             )
 
     @asynccontextmanager
@@ -1478,21 +1513,16 @@ class PreparedRun:
         """
         with guarded_by(self.built.budget), metered_by(self.built.ledger):
             async with self.built.agent.iter(
-                self._with_channel_context(user_prompt),
+                user_prompt,
                 deps=self.built.deps,
                 message_history=message_history,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
+                capabilities=self._channel_references(
+                    message_history, has_current_prompt=user_prompt is not None
+                ),
             ) as iteration:
                 yield iteration
-
-    def _with_channel_context(
-        self, user_prompt: str | Sequence[UserContent] | None
-    ) -> str | Sequence[UserContent] | None:
-        if not self.channel_context or user_prompt is None:
-            return user_prompt
-        data = "Untrusted channel metadata (reference data only):\n" + self.channel_context
-        return [data, user_prompt] if isinstance(user_prompt, str) else [data, *user_prompt]
 
     def realtime(
         self,
@@ -1626,22 +1656,16 @@ run is metered exactly like one that was waited for.
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
-    """The spec as this binding wants it, if the binding says anything.
+    """Append current surface defaults and the binding's custom additions.
 
-    A binding is created holding the platform's own style - what that client
-    renders, how a link is written there - as its starting text, so what the
-    agent will be told is what somebody editing it can see, change and delete.
-    From here it is simply the binding's text.
-
-    **Appended, never substituted.** A surface shapes how an answer is
-    delivered; what the agent is *for* belongs to the version somebody published,
-    and a binding that could replace it would be a way to repurpose an approved
-    agent without approving anything. The copy is local to this run -
-    `model_copy` leaves the stored spec alone.
+    Surface defaults are deployment-owned; the database stores only additions.
+    The published agent spec remains unchanged.
     """
-    added = "" if exposure is None else (exposure.prompt or "").strip()
-    # Metadata belongs in a lower-trust message, never in system instructions.
-    added = added.replace(CHANNEL_CONTEXT, "").strip()
+    if exposure is None:
+        return spec
+    added = "\n\n".join(
+        part for part in (house_style(exposure.surface), (exposure.prompt or "").strip()) if part
+    )
     if not added:
         return spec
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
@@ -2137,13 +2161,30 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
-def _with_channel_mcp_approval(spec: AgentSpec, surface: RunSurface) -> AgentSpec:
-    """Channel metadata cannot authorize any MCP connection to act without approval."""
+def _with_channel_mcp_approval(
+    spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
+) -> AgentSpec:
+    """Require approval for channel writes, preserving an operator's stricter policy.
+
+    Linked senders use web chat's read-only classification. An unlinked room
+    participant still needs approval for every MCP call; no member vouched for
+    releasing organization data to them. An explicit `all` still includes reads.
+    This also applies to delegates and resumed runs through the shared factory.
+    """
     if surface not in _CHANNEL_SURFACES:
         return spec
     return spec.model_copy(
         update={
-            "mcp_servers": [ref.model_copy(update={"approval": "all"}) for ref in spec.mcp_servers]
+            "mcp_servers": [
+                ref.model_copy(
+                    update={
+                        "approval": "all"
+                        if not linked_sender or ref.approval == "all"
+                        else "writes"
+                    }
+                )
+                for ref in spec.mcp_servers
+            ]
         }
     )
 
@@ -3127,6 +3168,8 @@ class AgentRunnerService:
         test_spec: dict[str, Any] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         channel_file_attempts: int = 0,
+        restored_channel_context: str = "",
+        restored_channel_authors: dict[str, UUID] | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -3232,7 +3275,7 @@ class AgentRunnerService:
             user_name=user_name,
             person_time_zone=person_time_zone,
         )
-        spec = _with_channel_mcp_approval(rendering.for_the_run(spec), surface)
+        spec = rendering.for_the_run(spec)
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
@@ -3335,6 +3378,9 @@ class AgentRunnerService:
             (owner_user_id or ctx.user_id)
             if acts_for_sender and not subject_is_publisher_fallback
             else None
+        )
+        spec = _with_channel_mcp_approval(
+            spec, surface, linked_sender=personal_mcp_user_id is not None
         )
         # Whether a signed-in person is behind this run even where a personal
         # binding may not speak through their account - true on the API, where a
@@ -3859,10 +3905,13 @@ class AgentRunnerService:
             workspace_at_start=started_with,
             automatic_outbound=surface not in _CHANNEL_SURFACES and channel_directory is None,
             channel_context=(
-                ""
-                if channel_directory is None or existing_run is not None
+                restored_channel_context
+                if existing_run is not None
+                else ""
+                if channel_directory is None
                 else await resolve_prompt_variables(CHANNEL_CONTEXT, channel_directory)
             ),
+            channel_authors=dict(restored_channel_authors or {}),
             channel_file_budget=ChannelFileBudget(channel_file_attempts),
             channel_destination=None
             if channel_directory is None
@@ -4481,7 +4530,9 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        runnable = _with_channel_mcp_approval(runnable, delegation.surface)
+        runnable = _with_channel_mcp_approval(
+            runnable, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
+        )
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )
@@ -5173,6 +5224,8 @@ class AgentRunnerService:
                 "generated_files": sorted(prepared.built.deps.generated_files),
                 "channel_destination": prepared.channel_destination,
                 "channel_file_attempts": prepared.channel_file_budget.attempts,
+                "channel_context": prepared.channel_context,
+                "channel_authors": dict(prepared.channel_authors),
             }
         )
 
@@ -5308,6 +5361,7 @@ class AgentRunnerService:
         prompt: str,
         *,
         said: str | None = None,
+        channel_author_context: str = "",
         surface: RunSurface = RunSurface.API,
         conversation_id: UUID | None = None,
         channel_key: str | None = None,
@@ -5402,6 +5456,7 @@ class AgentRunnerService:
             aside=aside,
             draft=draft,
         )
+        prepared.channel_author_context = channel_author_context
         prepared.built.deps.steering = steering
         input_edge = input_screen_for(prepared.spec)
         if steering is not None:
@@ -5642,6 +5697,8 @@ class AgentRunnerService:
             extra_toolsets=None,
             exposure=exposure,
             channel_file_attempts=state.channel_file_attempts,
+            restored_channel_context=state.channel_context,
+            restored_channel_authors=state.channel_authors,
             channel_directory=directory,
             channel_key=(
                 None

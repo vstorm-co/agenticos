@@ -1,5 +1,5 @@
 ---
-source_sha: "968f30d76fa2"
+source_sha: "ef05ac38d95b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2016,14 +2016,14 @@ para mostrar diferencias entre la consola y Mattermost.
   simplemente la respuesta terminada, como antes. La respuesta de un agent con un
   [guardrail de salida](reference/capabilities.md#guardrails) se reescribe en
   cambio paso a paso, y cada paso se publica solo después de comprobarse.
-- **Cada vinculación lleva sus propias instrucciones extra**, añadidas a las del
-  agent solo en esa superficie. Una nueva se abre con lo que ese cliente renderiza
-  de verdad: Slack no dibuja Markdown y escribe un enlace como `<url|text>`,
-  Mattermost renderiza encabezados y tablas, Telegram rechaza un mensaje con un `*`
-  sin cerrar — más cómo dar un enlace allí, encabezado con un emoji cuando es una
-  acción o un destino. A partir de ahí es el texto de la vinculación: cámbialo,
-  añádele o bórralo. Da forma a cómo se entrega una respuesta y nunca puede
-  sustituir a para qué sirve el agent — eso pertenece a la versión publicada.
+- **Cada vinculación lleva sus propias instrucciones extra**, añadidas solo en
+  esa superficie. Las pautas actuales de formato proceden del despliegue: Slack
+  escribe enlaces como `<url|text>`, Mattermost renderiza encabezados y tablas,
+  y Telegram rechaza el formato sin cerrar. Un vínculo nuevo no guarda una copia
+  de esas pautas. Puedes añadir, editar o vaciar instrucciones propias sin
+  congelar las pautas de la plataforma en la versión del día de instalación.
+  Esto configura la entrega; el propósito del agente pertenece a su versión
+  publicada.
 - **Un bot responde en cuanto se registra.** Un bot de polling - long-polling de
   Telegram, Socket Mode de Slack, un stream de events de Mattermost - se alcanza
   por una conexión que mantiene el proceso de la API, y esa conexión se abre cuando
@@ -2056,7 +2056,18 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Todas las llamadas MCP requieren aprobación en apps de chat, incluidas las lecturas y conexiones de organización o plataforma.** Vincular una cuenta identifica la conexión utilizada; no autoriza publicar automáticamente resultados personales. La misma regla se aplica a agentes delegados y llamadas reanudadas.
+- **Las lecturas MCP de remitentes vinculados siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
+
+Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
+
+Los nombres de canal, temas, descripciones y etiquetas de autor editables pasan las comprobaciones de entrada antes de llegar al modelo. Los valores redactados sustituyen a los originales; los valores de referencia bloqueados se ocultan y una pregunta permitida puede continuar. La sintaxis fija, los identificadores de plataforma y los tipos de chat no se examinan como texto de la pregunta.
+
+Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real. Los participantes sin cuenta vinculada siguen necesitando aprobación para todas las llamadas MCP, incluidas las lecturas de organización.
+
+Tanto las invocaciones explícitas `@slug` como las respuestas predeterminadas reciben el historial guardado de la conversación junto con el contexto inicial del hilo del canal.
+
+Las Apps publicadas se pueden editar desde otra conversación sin el sandbox original. `read_artifact` recupera el código guardado y `publish_artifact` con el mismo nombre y cambios o contenido de reemplazo actualiza la app. Conserva su enlace e historial de versiones. Poder verla no concede permiso de edición; siguen aplicándose los controles existentes.
+
 - **El agent conoce dónde responde y qué cuenta está disponible.** Las indicaciones de ejecución identifican el comunicador y la consola del despliegue, explican el workspace gestionado y distinguen conexiones MCP de la organización y servicios personales. Estos necesitan la identidad vinculada del remitente y su propia conexión autorizada al servicio. Para vincular se envía `link`, sin barra, en un mensaje directo; el enlace privado no pertenece a un canal. El agent comunica resultados reales y un siguiente paso concreto si falta autorización o capacidad.
 - **Un mensaje reentregado se responde una vez.** Todas las plataformas entregan al
   menos una vez: las rutas de webhook responden 200 antes de hacer ningún trabajo,
@@ -2710,3 +2721,9 @@ flowchart TD
   transporte, así que solo se engancha donde existe un sumidero.
 
 Una publicación que solo contiene la mención del bot o espacios se ignora después de eliminar la mención, antes de reclamar la entrega o iniciar una ejecución. Esto evita enviar un mensaje de usuario vacío que la API del modelo omitiría, rechazando después la respuesta anterior del asistente como prefill. Un mensaje con solo adjuntos sigue pasando por el procesamiento de archivos.
+
+## Instrucciones predeterminadas actuales de los canales {#current-channel-defaults}
+
+El formato y las pautas de conversación proceden del despliegue actual en cada ejecución. El prompt del vínculo guarda solo añadidos propios. La migración elimina copias exactas reconocidas de instrucciones anteriores y conserva el texto propio que las rodea; el texto modificado o desconocido permanece intacto. Vaciar el prompt propio conserva las pautas de la plataforma y el contexto del canal. No se reescriben cadenas antiguas de prompts durante la ejecución.
+
+Al revertir la migración, se restauran las pautas de canal guardadas de la versión anterior y se conservan los añadidos propios, incluso en vínculos creados tras actualizar. Las demás superficies permanecen intactas.

@@ -306,17 +306,20 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         ).model_dump_json()
 
     async def read_artifact(ctx: RunContext[AgentDeps], name: str) -> str:
-        """Read the current version of a page this agent published, as it was written.
+        """Read a published app's source across conversations and sandboxes before updating it.
 
-        Use this before changing part of a published page, then pass `edits` to
-        `publish_artifact` with text copied exactly from what this returns. Not for
+        The published source persists across conversations and sandboxes. Use this
+        even when the original workspace file is missing. Then call publish_artifact
+        with the same name and edits copied exactly from this source, or content for
+        a full rewrite. Both update the existing app link; no old sandbox is needed.
+        Reading a page does not grant permission to edit it. Not for
         answering a question about the page's numbers - rebuild those from the data.
 
         Args:
             name: The page's handle, as it was published - e.g. `weekly-sales-report`.
 
         Returns:
-            A header line with the version, the format and the size, then the page's
+            A header line with the name, version, format and size, then the page's
             source. A page over 100,000 characters is cut there and the header says so;
             an edit can still name text past the cut. When there is no page of that
             name this run may open, a sentence saying so.

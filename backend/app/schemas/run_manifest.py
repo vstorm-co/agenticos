@@ -139,7 +139,9 @@ class RunManifestRead(BaseSchema):
             credential rides.
         requests: One entry per model request, in order. The waterfall.
         messages: The last request's messages, dumped - the whole of what the
-            model saw at the end of the run, retries and tool returns included.
+            model saw at the end of the run, retries and tool returns included,
+            excluding request-only channel reference parts with personal
+            transport metadata. Channel author references remain opaque.
         truncated: Whether the record was trimmed to fit its size ceiling. A
             reader must be able to tell a run that sent little from a record that
             was cut.
