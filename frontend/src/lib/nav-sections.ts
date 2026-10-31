@@ -17,6 +17,7 @@ import {
   Network,
   Plug,
   Workflow,
+  TimerReset,
   ShieldCheck,
   Table2,
   UsersRound,
@@ -129,7 +130,12 @@ export const NAV_GROUPS: NavGroup[] = [
       // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
       // the floor for seeing an agent's schedule; the create controls inside gate
       // further on `agents:run`, so a viewer sees the list without the buttons.
-      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Workflow, permission: Perm.agentsView },
+      {
+        labelKey: "routines",
+        href: ROUTES.ROUTINES,
+        icon: TimerReset,
+        permission: Perm.agentsView,
+      },
       {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,
