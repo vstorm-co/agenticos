@@ -34,7 +34,7 @@ export function TableCard({ table }: { table: TableListItem }) {
       onHoverChange={setHovered}
       className="h-full rounded-xl"
     >
-      <div className="border-border bg-card hover:border-foreground/25 relative flex h-full flex-col rounded-xl border p-4 transition-colors">
+      <div className="border-border bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
         <Link
           href={ROUTES.TABLE_DETAIL(table.id)}
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
@@ -56,12 +56,12 @@ export function TableCard({ table }: { table: TableListItem }) {
             <p className="text-muted-foreground text-xs">
               {t("cardSize", { records: table.record_count, columns: table.column_count })}
             </p>
-            {table.description && (
-              <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">{table.description}</p>
-            )}
+            <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
+              {table.description}
+            </p>
           </div>
         </div>
-        <div className="text-muted-foreground pointer-events-none relative mt-3 flex items-center gap-2 border-t pt-3 text-xs">
+        <div className="text-muted-foreground pointer-events-none relative mt-auto flex items-center gap-2 border-t pt-3 text-xs">
           <span
             role="img"
             aria-label={t(`visibility.${table.visibility}`)}

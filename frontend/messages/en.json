@@ -5139,7 +5139,6 @@
       "runStepList": "Steps",
       "runLogsFailed": "The lines the steps logged could not be read.",
       "runStepIteration": "Iteration {index}",
-      "runStepTopLevel": "Top level",
       "runAttempts": "{count} tries",
       "triggers": "Trigger",
       "copied": "Copied",
@@ -5556,7 +5555,9 @@
       "importChooseFile": "Choose a workflow file",
       "importDropHint": "Drop a .workflow.json file here or click to browse",
       "templatesNeedTables": "Requires permission to create and edit tables.",
-      "cardNoDescription": "No description."
+      "cardNoDescription": "No description.",
+      "importPasteTab": "Paste JSON",
+      "importFormat": "Format JSON"
     },
     "retention": {
       "title": "Data retention",
@@ -9515,7 +9516,9 @@
       "csvColumn": "Column {n}",
       "firstColumn": "Name",
       "columnsHeading": "Columns",
-      "moreOptions": "More options"
+      "moreOptions": "More options",
+      "options": "Options, one per line",
+      "defaultValue": "Default value"
     },
     "schema": {
       "title": "Columns",
@@ -9772,6 +9775,22 @@
           "label": "Project brief",
           "body": "# Project brief\n\n## Goal\n\n\n## Scope\n\n\n## Success criteria\n\n- \n"
         }
+      }
+    },
+    "defaults": {
+      "value": "Default value",
+      "none": "No default value",
+      "clear": "Clear default",
+      "hint": "Used for new records when this field is omitted. Existing records stay unchanged.",
+      "optionColor": "Color for {name}",
+      "colors": {
+        "auto": "Automatic",
+        "gray": "Gray",
+        "blue": "Blue",
+        "green": "Green",
+        "yellow": "Yellow",
+        "purple": "Purple",
+        "red": "Red"
       }
     }
   },

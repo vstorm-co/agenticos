@@ -1,5 +1,5 @@
 ---
-source_sha: "a872dd6dda4a"
+source_sha: "078231ef2689"
 ---
 
 # Workflows { #workflows }
@@ -44,6 +44,8 @@ versión publicada.
 Las automatizaciones listas para ejecutar son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla privada y un borrador completamente configurado en una transacción. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown con frontmatter. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
 
 El historial ocupa automáticamente el espacio disponible de la página, sin un control para ampliarlo. El catálogo ocupa el espacio disponible y ofrece su propio botón de pantalla completa. Solo muestra paginación si hay más páginas. La importación ofrece una zona etiquetada para seleccionar o soltar un archivo JSON.
+
+La paginación del historial está al pie del panel. Los detalles de un run tienen un resumen compacto, una canvas que ocupa el espacio de trabajo y un panel lateral con Steps, Output y archivos disponibles. Pulsa un paso para consultar sus datos guardados. Importar un archivo y pegar JSON tienen pestañas separadas; el campo de código JSON ofrece formato y conserva el contenido si no es válido.
 
 **Export workflow**, en **More** en la cabecera del editor, exporta el borrador como un
 archivo `.workflow.json`. El archivo no lleva ningún id de este despliegue: cada

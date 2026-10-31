@@ -129,7 +129,7 @@ describe("who sees Resolve and Cancel", () => {
     state.can = true;
     seed({ can_cancel: false }, "needs_attention");
     await renderPage();
-    await screen.findByText("Flow");
+    await screen.findByRole("heading", { name: "Flow" });
     expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
   });
@@ -137,7 +137,7 @@ describe("who sees Resolve and Cancel", () => {
   it("shows no Resolve on a run that has ended", async () => {
     seed({ status: "failed", can_cancel: true }, "needs_attention");
     await renderPage();
-    await screen.findByText("Flow");
+    await screen.findByRole("heading", { name: "Flow" });
     expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
   });
 });
@@ -146,7 +146,7 @@ describe("who sees Retry", () => {
   it("hides Retry on a test run from someone who cannot edit, and shows it to an editor", async () => {
     seed({ status: "failed", mode: "test" }, "failed");
     await renderPage();
-    await screen.findByText("Flow");
+    await screen.findByRole("heading", { name: "Flow" });
     expect(screen.queryByRole("button", { name: "Retry from failed step" })).toBeNull();
   });
 

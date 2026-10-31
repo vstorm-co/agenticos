@@ -1,5 +1,5 @@
 ---
-source_sha: "db7ac36e1d5a"
+source_sha: "2b21138a3f3c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -17,7 +17,13 @@ Diese Seite beschreibt den Service und seine HTTP-Routen unter `/api/v1/tables`;
 OpenAPI-Dokument ist ihr Vertrag.
 
 
-Die Tabellenleiste bietet **Full screen** für den gesamten Arbeitsbereich; Escape kehrt zur Seite zurück. Das Datensatzpanel hat einen eigenen **Full screen**-Knopf, der alle Felder ohne Verlust laufender Änderungen vergrößert; **Exit full screen** stellt das Seitenpanel wieder her. Zeilen liegen direkt unter der Leiste, ohne zweiten Rahmen oder leeres gepolstertes Panel. Der Katalog füllt den verfügbaren Seitenbereich, bietet einen eigenen Vollbildknopf und zeigt Seitennavigation nur bei mehreren Seiten.
+Der Tabellenbereich füllt den verfügbaren Platz automatisch, ohne Vergrößerungsknopf. Das Datensatzpanel hat einen eigenen **Full screen**-Knopf, der alle Felder ohne Verlust laufender Änderungen vergrößert; **Exit full screen** stellt das Seitenpanel wieder her. Zeilen liegen direkt unter der Leiste, ohne zweiten Rahmen oder leeres gepolstertes Panel. Der Katalog füllt den verfügbaren Seitenbereich, bietet einen eigenen Vollbildknopf und zeigt Seitennavigation nur bei mehreren Seiten.
+
+Jede Tabelle zeigt die gesperrten Datensatzfelder `created_at`, `updated_at`, `created_by` und `updated_by`. Es sind dieselben Eigenschaften wie über Markdown, keine bearbeitbaren Kopien in Zellen. Vor der ersten Aktualisierung zeigt `updated_at` das Erstellungsdatum. Die Felder bleiben sichtbar, wenn eigene Spalten ausgeblendet werden. Ihre Namen sind beim Hinzufügen und Umbenennen von Spalten reserviert; bestehende ältere Namen bleiben lesbar.
+
+Lege einen typisierten **Standardwert** in den Spalteneinstellungen oder beim Hinzufügen einer Spalte fest. Neue Datensätze verwenden ihn nur, wenn das Feld fehlt; ein expliziter Wert oder null hat Vorrang. Auswahl-Standardwerte dürfen beim Einreichen eines Schemas IDs oder Bezeichnungen nennen; der Server speichert IDs. Wähle die Farbe jeder Option in ihrer Liste; **Automatisch** behält die bisherige Palette. Farbänderungen erhalten Options-IDs und die Bedeutungsrevision der Spalte.
+
+Die Schnelleingabe steht direkt hinter den geladenen Zeilen in deren Scrollbereich. Der CSV-Export der Konsole enthält die vier Datensatzeigenschaften. API-Exporte behalten ihr bisheriges Format, sofern nicht `include_metadata: true` angefordert wird.
 
 ## Externe Clients { #external-clients }
 

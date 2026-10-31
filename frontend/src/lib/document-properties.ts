@@ -1,12 +1,8 @@
 import { isMap, isScalar, parseDocument } from "yaml";
+import { SYSTEM_COLUMN_KEYS } from "./table-system-columns";
 import { markdownDocument } from "./markdown-document";
 
-export const SYSTEM_DOCUMENT_PROPERTIES = new Set([
-  "created_at",
-  "updated_at",
-  "created_by",
-  "updated_by",
-]);
+export const SYSTEM_DOCUMENT_PROPERTIES: ReadonlySet<string> = new Set(SYSTEM_COLUMN_KEYS);
 
 /** Body edits retain even legacy or invalid YAML byte for byte. */
 export function withDocumentBody(source: string, body: string): string {

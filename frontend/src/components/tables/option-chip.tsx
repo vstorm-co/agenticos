@@ -1,3 +1,4 @@
+import { OPTION_TONES } from "@/lib/table-option-colors";
 import { cn } from "@/lib/utils";
 import type { ColumnDef } from "@/types/tables";
 
@@ -29,7 +30,11 @@ export function OptionChip({
     <span
       className={cn(
         "inline-flex max-w-full items-center truncate rounded-md px-1.5 py-0.5 text-xs font-medium",
-        index === -1 ? "bg-muted text-muted-foreground" : TONES[index % TONES.length],
+        option?.color
+          ? OPTION_TONES[option.color]
+          : index === -1
+            ? "bg-muted text-muted-foreground"
+            : TONES[index % TONES.length],
         option?.archived && "line-through opacity-70",
       )}
     >

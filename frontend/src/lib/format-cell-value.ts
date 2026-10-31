@@ -1,3 +1,4 @@
+import { systemCellValue } from "./table-system-columns";
 import { markdownDocument } from "@/lib/markdown-document";
 import { MAX_RATING, type CellValue, type ColumnDef, type RecordRead } from "@/types/tables";
 
@@ -87,6 +88,8 @@ export function recordCellText(
   boolLabel: (value: boolean) => string,
   locale?: string,
 ): string {
+  if (column.system)
+    return formatCellValue(column, systemCellValue(column.system, record), boolLabel, locale);
   if (column.type === "link") {
     return (record.links?.[column.id] ?? []).map((linked) => linked.label).join(", ");
   }

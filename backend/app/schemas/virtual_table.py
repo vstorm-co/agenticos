@@ -49,6 +49,8 @@ ColumnTypeName = Literal[
     "rollup",
     "formula",
 ]
+OptionColor = Literal["gray", "blue", "green", "yellow", "purple", "red"]
+
 Aggregate = Literal["count", "sum", "avg", "min", "max"]
 """What a rollup column makes of the values it reads from the linked records."""
 FilterOp = Literal["eq", "ne", "lt", "lte", "gt", "gte", "contains", "starts_with", "in", "is_null"]
@@ -105,6 +107,8 @@ ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=255), Pla
 SearchTerm = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200), NoNul]
 OperationKey = Annotated[str, StringConstraints(min_length=1, max_length=128), PlainKey]
 
+RECORD_METADATA_FIELDS = ("created_at", "updated_at", "created_by", "updated_by")
+
 MAX_COLUMNS = 100
 """Columns per table, archived ones included: an archived column keeps its id and its values."""
 MAX_OPTIONS = 100
@@ -129,6 +133,9 @@ class OptionDef(_Schema):
 
     id: UUID
     label: Label
+    color: OptionColor | None = Field(
+        default=None, description="Display color; null uses the automatic palette"
+    )
     archived: bool = False
 
 
@@ -137,6 +144,9 @@ class OptionInput(_Request):
 
     id: UUID | None = None
     label: Label
+    color: OptionColor | None = Field(
+        default=None, description="Display color; null uses the automatic palette"
+    )
     archived: bool = False
 
 
@@ -438,6 +448,11 @@ class RecordCountQuery(_Request):
 
 class RecordExportQuery(_Request):
     """What an export writes: the records a query matches, in its order, as CSV."""
+
+    include_metadata: bool = Field(
+        default=False,
+        description="Append immutable created_at, updated_at, created_by and updated_by fields",
+    )
 
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
     search: SearchTerm | None = Field(default=None, description="As a `RecordQuery`'s.")

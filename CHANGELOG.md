@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Column defaults, choice colors and system properties.** Configure typed defaults and select colors in the console. New select defaults may name labels before option IDs exist. Every table shows immutable creation/update dates and actors from its record metadata, also included in console CSV exports.
+
 - **Document templates and properties.** Rich-text columns offer editable default templates for notes, meetings and project briefs. New records apply the template automatically; existing documents can apply it after confirmation. Dates and author are shown above Markdown from authoritative record metadata, and custom frontmatter properties have their own controls.
 
 - **Full-screen workspaces and ready templates.** Expand a table, an entire record or workflow run history without remounting editors. Catalogs fill the workspace and expand over the shell, cards align their metadata and actions, tables lose redundant frames and workflow import accepts a dropped file. Public API and Markdown notebook templates provision a private table and a valid draft automatically; later runs reuse it and upsert the example record.
@@ -944,6 +946,8 @@ Two things are versioned separately from this file and worth knowing about:
   with a growing delay. (#1800)
 
 ### Fixed
+
+- Align table-card footers, put quick add immediately after table rows and pin run-history pagination to the panel bottom. Remove the table workspace expansion toggle, simplify run details and give pasted JSON a dedicated import editor.
 
 - Workflow run history fills the available workspace by default, without a separate expansion toggle.
 

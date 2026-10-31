@@ -51,6 +51,8 @@ const hideBelowClass = {
 interface DataTableProps<T> {
   columns: Column<T>[];
   rows: T[] | undefined;
+  /** An action row directly after the records, inside the same scroll container. */
+  afterRows?: ReactNode;
   getRowKey: (row: T, index: number) => string;
   loading?: boolean;
   /** Shown when not loading and rows is empty. */
@@ -138,6 +140,7 @@ function compare(a: string | number | null, b: string | number | null, dir: "asc
 export function DataTable<T>({
   columns,
   rows,
+  afterRows,
   getRowKey,
   loading,
   empty,
@@ -339,6 +342,13 @@ export function DataTable<T>({
               ))}
             {!loading && last < total && (
               <tr aria-hidden="true" style={{ height: (total - last) * (rowHeight as number) }} />
+            )}
+            {!loading && !showError && afterRows && (
+              <tr>
+                <td colSpan={columns.length} className="p-0">
+                  {afterRows}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

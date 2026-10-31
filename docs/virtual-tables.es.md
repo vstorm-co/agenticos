@@ -1,5 +1,5 @@
 ---
-source_sha: "db7ac36e1d5a"
+source_sha: "2b21138a3f3c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -17,7 +17,13 @@ describe el servicio y sus rutas HTTP bajo `/api/v1/tables`; el documento OpenAP
 contrato.
 
 
-La barra de la tabla ofrece **Full screen** para todo el espacio de trabajo; Escape vuelve a la página. El panel de registro tiene su propio botón **Full screen**, que amplía todos los campos conservando las modificaciones; **Exit full screen** restaura el panel lateral. Las filas quedan directamente bajo la barra, sin un segundo marco ni un panel vacío con márgenes. El catálogo ocupa el espacio disponible, ofrece su propio botón de pantalla completa y solo muestra paginación cuando hay varias páginas.
+El espacio de la tabla ocupa automáticamente el área disponible, sin botón de ampliación. El panel de registro tiene su propio botón **Full screen**, que amplía todos los campos conservando las modificaciones; **Exit full screen** restaura el panel lateral. Las filas quedan directamente bajo la barra, sin un segundo marco ni un panel vacío con márgenes. El catálogo ocupa el espacio disponible, ofrece su propio botón de pantalla completa y solo muestra paginación cuando hay varias páginas.
+
+Cada tabla muestra los campos bloqueados `created_at`, `updated_at`, `created_by` y `updated_by` del registro. Son las mismas propiedades que aparecen sobre Markdown, no copias editables en celdas. Antes de la primera actualización, `updated_at` muestra la fecha de creación. Permanecen visibles al ocultar columnas propias. Sus nombres están reservados al añadir o renombrar columnas; los nombres antiguos existentes siguen siendo legibles.
+
+Configura un **Default value** con su tipo en los ajustes o al añadir una columna. Los registros nuevos lo usan solo si se omite el campo; un valor explícito o null tiene prioridad. Al enviar un esquema, los valores predeterminados de selección pueden usar IDs o etiquetas; el servidor guarda IDs. Elige el color de cada opción en su lista; **Automatic** conserva la paleta original. Cambiar el color mantiene los IDs y la revisión de significado de la columna.
+
+La entrada rápida está justo después de las filas cargadas, en su área de desplazamiento. El CSV de la consola incluye las cuatro propiedades del registro. Las exportaciones API mantienen su formato salvo que se solicite `include_metadata: true`.
 
 ## Clientes externos { #external-clients }
 

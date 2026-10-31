@@ -21,11 +21,10 @@ import {
   AlertDescription,
   AlertTitle,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  FigureCard,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
   Skeleton,
 } from "@/components/ui";
 import {
@@ -86,6 +85,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
     useWorkflowRun(runId);
   const [resolving, setResolving] = useState<string | null>(null);
   const { can } = usePermissions();
+  const inspectNode = useWorkflowEditorStore((state) => state.editNode);
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const teardown = useWorkflowEditorStore((state) => state.teardown);
@@ -127,7 +127,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
     return nodeDisplayName(
       definition?.name ?? instance?.definition_id ?? nodeId,
       nodeId,
-      true,
+      false,
       instance?.label,
     );
   };
@@ -148,7 +148,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
   // As the editor does, the canvas waits for the catalog its cards are drawn from.
   if (isLoading || catalogLoading || run === null || !workflow) {
     return (
-      <div className="space-y-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96 w-full" />
       </div>
@@ -171,9 +171,9 @@ export default function WorkflowRunPage({ params }: PageProps) {
     Date.parse(node.ended_at) > Date.parse(run.ended_at);
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
-        title={title}
+        title={workflow?.name ?? title}
         description={run.mode === "test" ? t("runTestDescription") : t("runRealDescription")}
         breadcrumbs={[
           { label: t("title"), href: ROUTES.WORKFLOWS },
@@ -227,27 +227,37 @@ export default function WorkflowRunPage({ params }: PageProps) {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <FigureCard
-          icon={Clock}
-          label={t("runDuration")}
-          value={formatRunDuration(run.started_at, run.ended_at)}
-          caption={run.started_at ? formatDateTime(run.started_at, locale) : undefined}
-        />
-        <FigureCard
-          icon={CircleDollarSign}
-          label={t("runCost")}
-          value={formatRunCostUsd(run.spent_cost, run.cost_is_partial)}
-          caption={
-            run.budget_limit !== null ? t("runBudget", { limit: run.budget_limit }) : undefined
-          }
-        />
-        <FigureCard
-          icon={ListChecks}
-          label={t("runSteps")}
-          value={t("runStepsOf", { done: stepsRun, count: nodes.length })}
-        />
-      </div>
+      <dl className="bg-card grid shrink-0 gap-4 rounded-xl border px-5 py-3 sm:grid-cols-3">
+        {[
+          {
+            icon: Clock,
+            label: t("runDuration"),
+            value: formatRunDuration(run.started_at, run.ended_at),
+            caption: run.started_at ? formatDateTime(run.started_at, locale) : undefined,
+          },
+          {
+            icon: CircleDollarSign,
+            label: t("runCost"),
+            value: formatRunCostUsd(run.spent_cost, run.cost_is_partial),
+            caption:
+              run.budget_limit !== null ? t("runBudget", { limit: run.budget_limit }) : undefined,
+          },
+          {
+            icon: ListChecks,
+            label: t("runSteps"),
+            value: t("runStepsOf", { done: stepsRun, count: nodes.length }),
+          },
+        ].map(({ icon: Icon, label, value, caption }) => (
+          <div key={label} className="flex items-start gap-3">
+            <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+            <div>
+              <dt className="text-muted-foreground text-xs">{label}</dt>
+              <dd className="mt-1 text-sm font-semibold tabular-nums">{value}</dd>
+              {caption && <dd className="text-muted-foreground mt-1 text-xs">{caption}</dd>}
+            </div>
+          </div>
+        ))}
+      </dl>
 
       {run.retry_of_run_id !== null && (
         <p className="text-muted-foreground text-sm">
@@ -273,8 +283,8 @@ export default function WorkflowRunPage({ params }: PageProps) {
         </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <div className="border-border bg-card h-[32rem] overflow-hidden rounded-xl border">
+      <div className="grid min-h-[34rem] flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="border-border bg-card min-h-[28rem] overflow-hidden rounded-xl border lg:min-h-0">
           {graph === null ? (
             <Skeleton className="h-full w-full" />
           ) : (
@@ -286,85 +296,99 @@ export default function WorkflowRunPage({ params }: PageProps) {
             <NodeEditorDialog workflowId={id} catalog={catalog} readOnly runData />
           )}
         </div>
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{t("runOutput")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {run.output ? (
-                <RunAnswer output={run.output} />
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  {live ? t("runOutputPending") : t("runOutputNone")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{t("runStepList")}</CardTitle>
-            </CardHeader>
-            <CardContent className="max-h-80 overflow-y-auto">
-              {logsError !== null && (
-                <p role="alert" className="text-destructive pb-2 text-xs">
-                  {t("runLogsFailed")}
-                </p>
-              )}
-              <ul className="divide-border divide-y">
-                {nodes.map((node, index) => (
-                  <li key={node.id} className="space-y-0.5 py-2">
+        <Tabs
+          defaultValue="steps"
+          className="bg-card flex min-h-0 flex-col overflow-hidden rounded-xl border"
+        >
+          <div className="shrink-0 border-b px-3 pt-3">
+            <TabsList>
+              <TabsTrigger value="steps">{t("runStepList")}</TabsTrigger>
+              <TabsTrigger value="output">{t("runOutput")}</TabsTrigger>
+              {files.length > 0 && <TabsTrigger value="files">{t("runFiles")}</TabsTrigger>}
+            </TabsList>
+          </div>
+          <TabsContent value="output" className="min-h-0 flex-1 overflow-auto p-4">
+            {run.output ? (
+              <RunAnswer output={run.output} />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                {live ? t("runOutputPending") : t("runOutputNone")}
+              </p>
+            )}
+          </TabsContent>
+          {files.length > 0 && (
+            <TabsContent value="files" className="min-h-0 flex-1 overflow-auto p-4">
+              <RunFiles runId={run.id} files={files} />
+            </TabsContent>
+          )}
+          <TabsContent value="steps" className="min-h-0 flex-1 overflow-auto p-4">
+            {logsError !== null && (
+              <p role="alert" className="text-destructive pb-2 text-xs">
+                {t("runLogsFailed")}
+              </p>
+            )}
+            <ul className="divide-border divide-y">
+              {nodes.map((node, index) => (
+                <li key={node.id} className="space-y-0.5 py-2">
+                  <button
+                    type="button"
+                    className="hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left outline-none focus-visible:ring-2"
+                    onClick={() => inspectNode(node.node_instance_id)}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">
+                        {nameOf(node.node_instance_id)}
+                      </span>
+                      <span className="text-muted-foreground mt-1 block text-xs tabular-nums">
+                        {formatRunDuration(node.started_at, node.ended_at)}
+                      </span>
+                    </span>
+                    <NodeRunStatusLabel status={node.status} />
+                  </button>
+                  {(finishedLate(node) ||
+                    (live && node.status === "needs_attention" && run.can_cancel)) && (
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm">{nameOf(node.node_instance_id)}</span>
-                      <NodeRunStatusLabel status={node.status} />
+                      {finishedLate(node) && (
+                        <p className="text-muted-foreground text-xs">{t("runStepFinishedLate")}</p>
+                      )}
+                      {live && node.status === "needs_attention" && run.can_cancel && (
+                        <Button size="sm" variant="outline" onClick={() => setResolving(node.id)}>
+                          {t("runStepResolve")}
+                        </Button>
+                      )}
                     </div>
-                    {(finishedLate(node) ||
-                      (live && node.status === "needs_attention" && run.can_cancel)) && (
-                      <div className="flex items-center justify-between gap-2">
-                        {finishedLate(node) && (
-                          <p className="text-muted-foreground text-xs">
-                            {t("runStepFinishedLate")}
-                          </p>
-                        )}
-                        {live && node.status === "needs_attention" && run.can_cancel && (
-                          <Button size="sm" variant="outline" onClick={() => setResolving(node.id)}>
-                            {t("runStepResolve")}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                    <p className="text-muted-foreground text-xs">
+                  )}
+                  {(node.scope_path.length > 0 || node.attempts > 1) && (
+                    <p className="text-muted-foreground px-2 text-xs">
                       {node.scope_path.length > 0
                         ? t("runStepIteration", {
                             index: (node.scope_path[node.scope_path.length - 1]?.index ?? 0) + 1,
                           })
-                        : t("runStepTopLevel")}
+                        : ""}
                       {node.attempts > 1 ? ` · ${t("runAttempts", { count: node.attempts })}` : ""}
                     </p>
-                    {node.error && <StepProblem problem={node.error} />}
-                    <CalledRun
-                      config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
-                      output={node.output}
-                    />
-                    {/* A step's lines are one list, under its first row - a loop's
+                  )}
+                  {node.error && <StepProblem problem={node.error} />}
+                  <CalledRun
+                    config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
+                    output={node.output}
+                  />
+                  {/* A step's lines are one list, under its first row - a loop's
                         iterations are rows of the same step. */}
-                    {nodes.findIndex(
-                      (entry) => entry.node_instance_id === node.node_instance_id,
-                    ) === index && (
-                      <StepLogs
-                        entries={logs.filter(
-                          (entry) => entry.node_instance_id === node.node_instance_id,
-                        )}
-                        labels={labelsOf(node.node_instance_id)}
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-          <RunFiles runId={run.id} files={files} />
-        </div>
+                  {nodes.findIndex((entry) => entry.node_instance_id === node.node_instance_id) ===
+                    index && (
+                    <StepLogs
+                      entries={logs.filter(
+                        (entry) => entry.node_instance_id === node.node_instance_id,
+                      )}
+                      labels={labelsOf(node.node_instance_id)}
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {resolvingNode?.status === "needs_attention" && resolvingInstance !== undefined && (

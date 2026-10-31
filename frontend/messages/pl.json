@@ -3447,7 +3447,6 @@
       "runStepList": "Kroki",
       "runLogsFailed": "Nie udało się odczytać wierszy zapisanych przez kroki.",
       "runStepIteration": "Iteracja {index}",
-      "runStepTopLevel": "Najwyższy poziom",
       "runAttempts": "{count, plural, one {# próba} few {# próby} many {# prób} other {# próby}}",
       "triggers": "Wyzwalacz",
       "copied": "Skopiowano",
@@ -3893,7 +3892,9 @@
       "importChooseFile": "Wybierz plik workflow",
       "importDropHint": "Upuść plik .workflow.json lub kliknij, aby go wybrać",
       "templatesNeedTables": "Wymaga uprawnień do tworzenia i edycji tabel.",
-      "cardNoDescription": "Brak opisu."
+      "cardNoDescription": "Brak opisu.",
+      "importPasteTab": "Wklej JSON",
+      "importFormat": "Formatuj JSON"
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -10197,7 +10198,9 @@
       "csvColumn": "Kolumna {n}",
       "firstColumn": "Nazwa",
       "columnsHeading": "Kolumny",
-      "moreOptions": "Więcej opcji"
+      "moreOptions": "Więcej opcji",
+      "options": "Opcje, po jednej w wierszu",
+      "defaultValue": "Wartość domyślna"
     },
     "schema": {
       "title": "Kolumny",
@@ -10454,6 +10457,22 @@
           "label": "Opis projektu",
           "body": "# Projekt\n\n## Cel\n\n\n## Zakres\n\n\n## Kryteria sukcesu\n\n- \n"
         }
+      }
+    },
+    "defaults": {
+      "value": "Wartość domyślna",
+      "none": "Brak wartości domyślnej",
+      "clear": "Usuń wartość domyślną",
+      "hint": "Stosowana w nowych rekordach, jeśli pominięto to pole. Istniejące rekordy pozostają bez zmian.",
+      "optionColor": "Kolor opcji {name}",
+      "colors": {
+        "auto": "Automatyczny",
+        "gray": "Szary",
+        "blue": "Niebieski",
+        "green": "Zielony",
+        "yellow": "Żółty",
+        "purple": "Fioletowy",
+        "red": "Czerwony"
       }
     }
   },

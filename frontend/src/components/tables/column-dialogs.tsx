@@ -25,6 +25,8 @@ import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { ErrorState } from "@/components/states";
 import { useTable, useAllTables } from "@/hooks";
 
+import { ColumnDefaultField } from "./column-default-field";
+import { OptionColorPicker } from "./option-color-picker";
 import { DocumentTemplateField } from "./document-template-field";
 import { FormulaField } from "./formula-field";
 import { AGGREGATES, COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
@@ -320,6 +322,10 @@ export function AddColumnDialog({
   const labels = [...new Set(options.split("\n").map((line) => line.trim()))].filter(Boolean);
   const [reference, setReference] = useState<Reference>(NO_REFERENCE);
   const [formula, setFormula] = useState("");
+  const [defaultValue, setDefaultValue] = useState<import("@/types/tables").CellValue>(null);
+  const [optionColors, setOptionColors] = useState<
+    Record<string, import("@/types/tables").OptionColor | null>
+  >({});
   const needsOptions = SELECTS.has(type);
   const ready =
     label.trim() !== "" &&
@@ -335,6 +341,8 @@ export function AddColumnDialog({
     setOptions("");
     setReference(NO_REFERENCE);
     setFormula("");
+    setDefaultValue(null);
+    setOptionColors({});
     setTemplate(tm("templates.note.body"));
   }
 
@@ -354,8 +362,17 @@ export function AddColumnDialog({
               label: label.trim(),
               type,
               nullable: true,
-              ...(type === "rich_text" ? { default: template } : {}),
-              options: needsOptions ? labels.map((option) => ({ label: option })) : [],
+              ...(type === "rich_text"
+                ? { default: template }
+                : defaultValue !== null
+                  ? { default: defaultValue }
+                  : {}),
+              options: needsOptions
+                ? labels.map((option) => ({
+                    label: option,
+                    ...(optionColors[option] ? { color: optionColors[option] } : {}),
+                  }))
+                : [],
               ...referenceInput(type, reference),
               ...(type === "formula" ? { formula: formula.trim() } : {}),
             });
@@ -372,7 +389,13 @@ export function AddColumnDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="new-column-type">{t("type")}</Label>
-            <Select value={type} onValueChange={(next) => setType(next as ColumnTypeName)}>
+            <Select
+              value={type}
+              onValueChange={(next) => {
+                setType(next as ColumnTypeName);
+                setDefaultValue(null);
+              }}
+            >
               <SelectTrigger id="new-column-type">
                 <SelectValue />
               </SelectTrigger>
@@ -416,10 +439,36 @@ export function AddColumnDialog({
                 value={options}
                 rows={4}
                 placeholder={t("optionsPlaceholder")}
-                onChange={(event) => setOptions(event.target.value)}
+                onChange={(event) => {
+                  setOptions(event.target.value);
+                  setDefaultValue(null);
+                }}
               />
             </div>
           )}
+          {needsOptions &&
+            labels.map((option) => (
+              <div key={option} className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm">{option}</span>
+                <OptionColorPicker
+                  label={option}
+                  value={optionColors[option]}
+                  onChange={(color) =>
+                    setOptionColors((current) => ({ ...current, [option]: color }))
+                  }
+                />
+              </div>
+            ))}
+          <ColumnDefaultField
+            id="new-column"
+            column={{
+              label,
+              type,
+              default: defaultValue,
+              options: labels.map((label) => ({ label, color: optionColors[label] ?? null })),
+            }}
+            onChange={setDefaultValue}
+          />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("cancel")}

@@ -15,9 +15,12 @@ import {
   DialogTitle,
   Input,
   Label,
-  MoreOptions,
-  Textarea,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from "@/components/ui";
+import { CodeArea } from "@/components/ui/code-area";
 import { useWorkflows } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -92,55 +95,89 @@ export function ImportWorkflowDialog({
         </DialogHeader>
         <div className={DIALOG_BODY}>
           {imported === null ? (
-            <div className="space-y-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInput.current?.click()}
-                className="border-border hover:bg-accent/40 focus-within:ring-ring flex h-auto w-full cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed px-5 py-9 text-center whitespace-normal focus-within:ring-2"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const file = event.dataTransfer.files[0];
-                  if (file) void readFile(file);
-                }}
-              >
-                {fileName ? (
-                  <FileJson className="text-muted-foreground size-7" />
-                ) : (
-                  <Upload className="text-muted-foreground size-7" />
-                )}
-                <span className="text-sm font-medium">{fileName ?? t("importChooseFile")}</span>
-                <span className="text-muted-foreground text-xs">{t("importDropHint")}</span>
-              </Button>
-              <Input
-                ref={fileInput}
-                id="workflow-import-file"
-                className="sr-only"
-                aria-label={t("importFile")}
-                type="file"
-                accept="application/json,.json"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void readFile(file);
-                }}
-              />
-              <MoreOptions label={t("importPaste")} open={pasting} onOpenChange={setPasting}>
-                <Label htmlFor="workflow-import-json">{t("importJson")}</Label>
-                <Textarea
-                  id="workflow-import-json"
-                  aria-label={t("importPaste")}
-                  placeholder={t("importPaste")}
-                  value={text}
-                  onChange={(event) => {
-                    setText(event.target.value);
-                    setProblem(null);
+            <Tabs
+              value={pasting ? "json" : "file"}
+              onValueChange={(value) => setPasting(value === "json")}
+            >
+              <TabsList>
+                <TabsTrigger value="file">{t("importFile")}</TabsTrigger>
+                <TabsTrigger value="json">{t("importPasteTab")}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="file" className="mt-4 space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInput.current?.click()}
+                  className="border-border hover:bg-accent/40 focus-within:ring-ring flex h-auto w-full cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed px-5 py-9 text-center whitespace-normal focus-within:ring-2"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const file = event.dataTransfer.files[0];
+                    if (file) void readFile(file);
                   }}
-                  className="min-h-40 font-mono text-xs"
+                >
+                  {fileName ? (
+                    <FileJson className="text-muted-foreground size-7" />
+                  ) : (
+                    <Upload className="text-muted-foreground size-7" />
+                  )}
+                  <span className="text-sm font-medium">{fileName ?? t("importChooseFile")}</span>
+                  <span className="text-muted-foreground text-xs">{t("importDropHint")}</span>
+                </Button>
+                <Input
+                  ref={fileInput}
+                  id="workflow-import-file"
+                  className="sr-only"
+                  aria-label={t("importFile")}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void readFile(file);
+                  }}
                 />
-              </MoreOptions>
-              {problem !== null && <p className="text-destructive text-xs">{problem}</p>}
-            </div>
+              </TabsContent>
+              <TabsContent value="json" className="mt-4 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="workflow-import-json">{t("importJson")}</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={!text.trim()}
+                    onClick={() => {
+                      try {
+                        setText(JSON.stringify(JSON.parse(text), null, 2));
+                        setProblem(null);
+                      } catch {
+                        setProblem(t("importNotJson"));
+                      }
+                    }}
+                  >
+                    {t("importFormat")}
+                  </Button>
+                </div>
+                <div className="h-80 overflow-hidden rounded-lg border sm:h-96">
+                  <CodeArea
+                    id="workflow-import-json"
+                    name="workflow.json"
+                    aria-label={t("importPaste")}
+                    value={text}
+                    onChange={(value) => {
+                      setText(value);
+                      setProblem(null);
+                    }}
+                    invalid={problem !== null}
+                    describedBy={problem ? "workflow-import-error" : undefined}
+                  />
+                </div>
+              </TabsContent>
+              {problem !== null && (
+                <p id="workflow-import-error" role="alert" className="text-destructive text-xs">
+                  {problem}
+                </p>
+              )}
+            </Tabs>
           ) : imported.unresolved.length > 0 ? (
             <div className="space-y-2">
               <p className="text-sm">{t("importUnresolved")}</p>

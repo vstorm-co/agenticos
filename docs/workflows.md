@@ -40,6 +40,8 @@ The ready-to-run automations are **Public API → table** and **Markdown noteboo
 
 Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
 
+Run history keeps pagination at the bottom of its panel. A run detail uses a compact summary, a canvas that fills the workspace and one side panel with Steps, Output and available files. Click a step to inspect its recorded data. File and pasted-JSON imports have separate tabs; pasted JSON has a code field and a format action that reports invalid JSON without discarding it.
+
 **Export workflow**, under **More** in the editor's header, exports the draft as a
 `.workflow.json` file. The file carries no ids of this deployment: every agent,
 table, secret, member, bot or workflow a step picked is left out and listed,

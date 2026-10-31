@@ -13,7 +13,9 @@ import { isRequired } from "./new-record-dialog";
 
 /** The column a new line types into: the first one that holds a line of text. */
 function firstTextColumn(columns: ColumnDef[]): ColumnDef | null {
-  return columns.find((column) => column.type === "text" && !column.archived) ?? null;
+  return (
+    columns.find((column) => column.type === "text" && !column.archived && !column.system) ?? null
+  );
 }
 
 /**
@@ -76,7 +78,7 @@ export function NewRecordRow({
   };
 
   return (
-    <div className="border-border mt-1 flex items-center gap-2 rounded-lg border border-dashed px-3">
+    <div className="border-border hover:bg-muted/30 flex items-center gap-2 border-t px-4">
       <Plus aria-hidden className="text-muted-foreground size-3.5 shrink-0" />
       <Input
         aria-label={t("newRecordLine", { column: target.label })}

@@ -33,6 +33,16 @@ function renderTable(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) 
 }
 
 describe("DataTable", () => {
+  it("keeps an add action immediately after the rows in the same table body", () => {
+    renderTable({
+      rows: [{ id: "one", name: "Existing row" }],
+      afterRows: <button>Add row</button>,
+    });
+    const action = screen.getByRole("button", { name: "Add row" }).closest("tr");
+    expect(action?.parentElement?.tagName).toBe("TBODY");
+    expect(action?.previousElementSibling).toHaveTextContent("Existing row");
+  });
+
   it("draws the rows it was given", () => {
     renderTable({ rows: [{ id: "1", name: "Billing clerk" }] });
 

@@ -228,13 +228,15 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
           )
         }
       />
-      <PaginationBar
-        page={page}
-        pageSize={RUN_HISTORY_PAGE}
-        total={total}
-        isLoading={isLoading}
-        onPage={(next) => setPage(next === 0 ? null : String(next))}
-      />
+      <div className="mt-auto shrink-0 pt-4">
+        <PaginationBar
+          page={page}
+          pageSize={RUN_HISTORY_PAGE}
+          total={total}
+          isLoading={isLoading}
+          onPage={(next) => setPage(next === 0 ? null : String(next))}
+        />
+      </div>
     </ListCard>
   );
 }

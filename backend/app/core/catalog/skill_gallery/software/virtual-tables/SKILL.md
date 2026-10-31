@@ -24,7 +24,11 @@ custom properties above the body; created/updated dates and author come from the
 record itself, so never fabricate them in Markdown. For a reusable document
 template, set the rich-text column’s `default`. Omit that cell on creation to
 apply the template; explicit content, including an empty string, takes priority.
-Changing the default affects new records only.
+Changing the default affects new records only. Select defaults in a schema may
+name live option labels or IDs; stored defaults use IDs. Options accept `color`
+as gray, blue, green, yellow, purple or red; null chooses the automatic palette.
+The console always shows immutable record dates and actors. These remain in the
+API record envelope, not writable cell values.
 
 `create_virtual_table` creates a private table through approval. For a schema
 change, submit the complete existing column list through

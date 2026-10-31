@@ -48,6 +48,7 @@ from app.repositories import virtual_table_trigger as trigger_repo
 from app.repositories.virtual_table import FilterClause, SearchClause, SortClause
 from app.schemas.virtual_table import (
     MAX_COUNT,
+    RECORD_METADATA_FIELDS,
     CellValue,
     ColumnDef,
     ExternalId,
@@ -909,7 +910,10 @@ class RecordOperations(Operations):
 
         async def lines() -> AsyncGenerator[str]:
             # A byte-order mark, so a spreadsheet reads the file as UTF-8.
-            yield "\ufeff" + _csv_line([_neutralized(column.label) for column in chosen])
+            yield "\ufeff" + _csv_line(
+                [_neutralized(column.label) for column in chosen]
+                + (list(RECORD_METADATA_FIELDS) if query.include_metadata else [])
+            )
             async with aclosing(
                 virtual_table_repo.stream_export_records(
                     self.db,
@@ -928,7 +932,19 @@ class RecordOperations(Operations):
                         self.db, ctx, columns, [RecordRead.model_validate(row) for row in rows]
                     )
                     for record in read:
-                        yield _csv_line([_export_cell(column, record) for column in chosen])
+                        yield _csv_line(
+                            [_export_cell(column, record) for column in chosen]
+                            + (
+                                [
+                                    record.created_at.isoformat(),
+                                    (record.updated_at or record.created_at).isoformat(),
+                                    str(record.created_by) if record.created_by else "",
+                                    str(record.updated_by) if record.updated_by else "",
+                                ]
+                                if query.include_metadata
+                                else []
+                            )
+                        )
 
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", table.name).strip("-") or "table"
         return RecordExport(filename=f"{name}.csv", lines=lines())

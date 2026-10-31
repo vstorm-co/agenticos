@@ -21,6 +21,8 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
+import { ColumnDefaultField } from "./column-default-field";
+import { OptionColorPicker } from "./option-color-picker";
 import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
 import { FormulaField } from "./formula-field";
@@ -34,6 +36,7 @@ import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
 interface OptionRow {
   id?: string;
   label: string;
+  color?: import("@/types/tables").OptionColor | null;
   archived: boolean;
 }
 
@@ -62,6 +65,7 @@ function toRows(table: TableRead): Row[] {
     options: column.options.map((option) => ({
       id: option.id,
       label: option.label,
+      color: option.color,
       archived: option.archived,
     })),
     archived: column.archived,
@@ -176,8 +180,17 @@ export function SchemaEditorDialog({
         const options = [...row.options];
         // `index` always comes from mapping over this same `options` array
         // (see the JSX below), so it is always a valid index into it.
-        options[index] = { ...(options[index] as OptionRow), label };
-        return { ...row, options };
+        const previous = options[index];
+        options[index] = { ...(previous as OptionRow), label };
+        const defaultValue =
+          previous?.id === undefined
+            ? Array.isArray(row.default)
+              ? row.default.map((value) => (value === previous?.label ? label : value))
+              : row.default === previous?.label
+                ? label
+                : row.default
+            : row.default;
+        return { ...row, options, default: defaultValue };
       }),
     );
   }
@@ -331,6 +344,12 @@ export function SchemaEditorDialog({
                 {problemFor(index, "nullable") && (
                   <p className="text-destructive text-xs">{problemFor(index, "nullable")}</p>
                 )}
+                <ColumnDefaultField
+                  showHint={false}
+                  id={row.key}
+                  column={row}
+                  onChange={(value) => updateRow(row.key, { default: value })}
+                />
                 {row.type === "rich_text" && (
                   <DocumentTemplateField
                     id={`${row.key}-template`}
@@ -371,6 +390,17 @@ export function SchemaEditorDialog({
                               updateOption(row.key, optionIndex, event.target.value)
                             }
                             aria-label={t("optionLabel")}
+                          />
+                          <OptionColorPicker
+                            label={option.label}
+                            value={option.color}
+                            onChange={(color) =>
+                              updateRow(row.key, {
+                                options: row.options.map((entry, at) =>
+                                  at === optionIndex ? { ...entry, color } : entry,
+                                ),
+                              })
+                            }
                           />
                           {option.id ? (
                             <Button

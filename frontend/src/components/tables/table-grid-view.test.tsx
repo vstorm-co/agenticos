@@ -5,6 +5,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TABLE_SYSTEM_COLUMNS } from "@/lib/table-system-columns";
 import { TableGridView } from "./table-grid-view";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useTableViewStore } from "@/stores";
@@ -85,6 +86,13 @@ beforeEach(() => {
 });
 
 describe("TableGridView", () => {
+  it("shows system metadata without exposing a cell editor", () => {
+    renderEditable({ columns: [...columns, ...TABLE_SYSTEM_COLUMNS] });
+    expect(screen.getByRole("columnheader", { name: /created_at/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Edit created_at" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /updated_at/ })).toBeVisible();
+  });
+
   it("opens a Markdown cell in the record panel instead of squeezing its editor into a row", async () => {
     const rich: ColumnDef = { ...columns[0]!, type: "rich_text", label: "Notes" };
     const props = renderEditable({ columns: [rich] });

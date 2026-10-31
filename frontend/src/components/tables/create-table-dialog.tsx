@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { FileUp, Plus, Trash2 } from "lucide-react";
 
+import { ColumnDefaultField } from "./column-default-field";
+import { OptionColorPicker } from "./option-color-picker";
 import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
 import { inferType, readCsvFile } from "./csv-cells";
@@ -41,8 +43,24 @@ interface DraftColumn {
   label: string;
   type: ColumnTypeName;
   template?: string;
+  default?: import("@/types/tables").CellValue;
+  optionText?: string;
+  optionColors?: Record<string, import("@/types/tables").OptionColor | null>;
   /** The file column it was read from, for a table started from a CSV file. */
   source?: number;
+}
+
+function draftOptions(
+  column: DraftColumn,
+): { label: string; color: import("@/types/tables").OptionColor | null }[] {
+  return [
+    ...new Set(
+      (column.optionText ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  ].map((label) => ({ label, color: column.optionColors?.[label] ?? null }));
 }
 
 /** A file a new table was started from: its rows are imported once the table exists. */
@@ -169,6 +187,12 @@ export function CreateTableDialog({
         columns: kept.map((column) => ({
           label: column.label.trim(),
           type: column.type,
+          ...(column.type === "single_select" || column.type === "multi_select"
+            ? { options: draftOptions(column) }
+            : {}),
+          ...(column.type !== "rich_text" && column.default != null
+            ? { default: column.default }
+            : {}),
           ...(column.type === "rich_text"
             ? { default: column.template ?? tm("templates.note.body") }
             : {}),
@@ -265,7 +289,9 @@ export function CreateTableDialog({
                     onValueChange={(value) =>
                       setColumns((current) =>
                         current.map((c) =>
-                          c.key === column.key ? { ...c, type: value as ColumnTypeName } : c,
+                          c.key === column.key
+                            ? { ...c, type: value as ColumnTypeName, default: null }
+                            : c,
                         ),
                       )
                     }
@@ -296,6 +322,71 @@ export function CreateTableDialog({
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+                {(column.type === "single_select" || column.type === "multi_select") && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`${column.key}-options`}>{t("options")}</Label>
+                    <Textarea
+                      id={`${column.key}-options`}
+                      value={column.optionText ?? ""}
+                      rows={3}
+                      onChange={(event) =>
+                        setColumns((current) =>
+                          current.map((entry) =>
+                            entry.key === column.key
+                              ? { ...entry, optionText: event.target.value, default: null }
+                              : entry,
+                          ),
+                        )
+                      }
+                    />
+                    {draftOptions(column).map((option) => (
+                      <div key={option.label} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm">{option.label}</span>
+                        <OptionColorPicker
+                          label={option.label}
+                          value={option.color}
+                          onChange={(color) =>
+                            setColumns((current) =>
+                              current.map((entry) =>
+                                entry.key === column.key
+                                  ? {
+                                      ...entry,
+                                      optionColors: {
+                                        ...entry.optionColors,
+                                        [option.label]: color,
+                                      },
+                                    }
+                                  : entry,
+                              ),
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {column.type !== "rich_text" &&
+                  !REFERENCE_TYPES.has(column.type) &&
+                  column.type !== "formula" && (
+                    <MoreOptions label={t("defaultValue")}>
+                      <ColumnDefaultField
+                        id={column.key}
+                        column={{
+                          label: column.label,
+                          type: column.type,
+                          default: column.default,
+                          options: draftOptions(column),
+                        }}
+                        onChange={(value) =>
+                          setColumns((current) =>
+                            current.map((entry) =>
+                              entry.key === column.key ? { ...entry, default: value } : entry,
+                            ),
+                          )
+                        }
+                      />
+                    </MoreOptions>
+                  )}
                 {column.type === "rich_text" && (
                   <DocumentTemplateField
                     id={`${column.key}-template`}

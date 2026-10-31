@@ -44,6 +44,33 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
 }
 
 describe("SchemaEditorDialog", () => {
+  it("saves a choice color and default together", async () => {
+    const status = table().columns[1]!;
+    const onSave = vi.fn();
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table({ columns: [status] })}
+        onSave={onSave}
+        isSaving={false}
+        error={null}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "1 option" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Color for Open" }));
+    await userEvent.click(screen.getByRole("option", { name: "Green" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Default value" }));
+    await userEvent.click(screen.getByRole("option", { name: "Open" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({
+        default: "o1",
+        options: [expect.objectContaining({ id: "o1", color: "green" })],
+      }),
+    ]);
+  });
+
   it("saves a customized rich-text template as the shared column default", async () => {
     const onSave = vi.fn();
     const existing = table();

@@ -25,10 +25,24 @@ function answer(result: WorkflowImported) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("ImportWorkflowDialog", () => {
+  it("formats pasted JSON and keeps invalid input available for correction", async () => {
+    render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Paste JSON" }));
+    const editor = screen.getByRole("textbox", { name: "Or paste the file's JSON here" });
+    fireEvent.change(editor, { target: { value: '{"name":"Example"}' } });
+    await userEvent.click(screen.getByRole("button", { name: "Format JSON" }));
+    expect(editor).toHaveValue('{\n  "name": "Example"\n}');
+    fireEvent.change(editor, { target: { value: "{broken" } });
+    await userEvent.click(screen.getByRole("button", { name: "Format JSON" }));
+    expect(editor).toHaveValue("{broken");
+    expect(screen.getByRole("alert")).toHaveTextContent("This is not a JSON file.");
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   it("imports a pasted file and lists the pins to choose, then opens the draft", async () => {
     answer(IMPORTED);
     render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Paste JSON" }));
     fireEvent.change(screen.getByLabelText("Or paste the file's JSON here"), {
       target: { value: '{"name": "Leads"}' },
     });
@@ -48,7 +62,7 @@ describe("ImportWorkflowDialog", () => {
     const file = new File(['{"name": "From disk"}'], "leads.workflow.json", {
       type: "application/json",
     });
-    await userEvent.upload(screen.getByLabelText("Workflow file"), file);
+    await userEvent.upload(screen.getByLabelText("Workflow file", { selector: "input" }), file);
     await userEvent.click(screen.getByRole("button", { name: "Import" }));
 
     expect(mutate.mock.calls[0]?.[0]).toEqual({ name: "From disk" });
@@ -60,11 +74,11 @@ describe("ImportWorkflowDialog", () => {
     render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
     const bad = new File(["{}"], "unreadable.json", { type: "application/json" });
     vi.spyOn(bad, "text").mockRejectedValueOnce(new Error("disk read failed"));
-    await userEvent.upload(screen.getByLabelText("Workflow file"), bad);
+    await userEvent.upload(screen.getByLabelText("Workflow file", { selector: "input" }), bad);
     expect(await screen.findByText(/Could not read this file/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
     const good = new File(['{"name":"Replacement"}'], "good.json", { type: "application/json" });
-    await userEvent.upload(screen.getByLabelText("Workflow file"), good);
+    await userEvent.upload(screen.getByLabelText("Workflow file", { selector: "input" }), good);
     await waitFor(() => expect(screen.getByRole("button", { name: "Import" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Import" }));
     expect(mutate.mock.calls[0]?.[0]).toEqual({ name: "Replacement" });
@@ -72,8 +86,10 @@ describe("ImportWorkflowDialog", () => {
 
   it("refuses text that is not JSON, and ignores a file dialog closed empty", async () => {
     render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText("Workflow file"), { target: { files: [] } });
-    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
+    fireEvent.change(screen.getByLabelText("Workflow file", { selector: "input" }), {
+      target: { files: [] },
+    });
+    await userEvent.click(screen.getByRole("tab", { name: "Paste JSON" }));
     fireEvent.change(screen.getByLabelText("Or paste the file's JSON here"), {
       target: { value: "not json" },
     });
@@ -85,14 +101,14 @@ describe("ImportWorkflowDialog", () => {
   it("forgets what was pasted when it is closed", async () => {
     const onOpenChange = vi.fn();
     render(<ImportWorkflowDialog open onOpenChange={onOpenChange} />);
-    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Paste JSON" }));
     fireEvent.change(screen.getByLabelText("Or paste the file's JSON here"), {
       target: { value: "{}" },
     });
     await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0] as HTMLElement);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.queryByLabelText("Or paste the file's JSON here")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Paste JSON" }));
     expect(screen.getByLabelText("Or paste the file's JSON here")).toHaveValue("");
   });
 });

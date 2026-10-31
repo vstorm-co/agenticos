@@ -6543,7 +6543,6 @@
       "runStepList": "Schritte",
       "runLogsFailed": "Die von den Schritten protokollierten Zeilen konnten nicht gelesen werden.",
       "runStepIteration": "Iteration {index}",
-      "runStepTopLevel": "Oberste Ebene",
       "runAttempts": "{count, plural, one {# Versuch} other {# Versuche}}",
       "triggers": "Auslöser",
       "copied": "Kopiert",
@@ -6989,7 +6988,9 @@
       "importChooseFile": "Workflow-Datei auswählen",
       "importDropHint": ".workflow.json hier ablegen oder zum Auswählen klicken",
       "templatesNeedTables": "Benötigt Rechte zum Erstellen und Bearbeiten von Tabellen.",
-      "cardNoDescription": "Keine Beschreibung."
+      "cardNoDescription": "Keine Beschreibung.",
+      "importPasteTab": "JSON einfügen",
+      "importFormat": "JSON formatieren"
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -9394,7 +9395,9 @@
       "csvColumn": "Spalte {n}",
       "firstColumn": "Name",
       "columnsHeading": "Spalten",
-      "moreOptions": "Weitere Optionen"
+      "moreOptions": "Weitere Optionen",
+      "options": "Optionen, eine pro Zeile",
+      "defaultValue": "Standardwert"
     },
     "schema": {
       "title": "Spalten",
@@ -9651,6 +9654,22 @@
           "label": "Projektbeschreibung",
           "body": "# Projektbeschreibung\n\n## Ziel\n\n\n## Umfang\n\n\n## Erfolgskriterien\n\n- \n"
         }
+      }
+    },
+    "defaults": {
+      "value": "Standardwert",
+      "none": "Kein Standardwert",
+      "clear": "Standardwert entfernen",
+      "hint": "Wird bei neuen Datensätzen verwendet, wenn dieses Feld fehlt. Bestehende Datensätze bleiben unverändert.",
+      "optionColor": "Farbe für {name}",
+      "colors": {
+        "auto": "Automatisch",
+        "gray": "Grau",
+        "blue": "Blau",
+        "green": "Grün",
+        "yellow": "Gelb",
+        "purple": "Violett",
+        "red": "Rot"
       }
     }
   },

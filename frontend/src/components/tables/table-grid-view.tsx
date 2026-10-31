@@ -1,8 +1,11 @@
 "use client";
 
+import { useAuthStore } from "@/stores/auth-store";
+import { markdownDocument } from "@/lib/markdown-document";
+
 import { type KeyboardEvent, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, Maximize2, Plus, Trash2 } from "lucide-react";
+import { Check, Maximize2, Plus, Trash2, Lock, FileText } from "lucide-react";
 
 import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
 import { ColumnTypeIcon, isNumeric } from "./column-type-icon";
@@ -110,6 +113,7 @@ export function TableGridView({
   const locale = useLocale();
   const tGrid = useTranslations("tables.grid");
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
+  const user = useAuthStore((state) => state.user);
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
   const { commit } = useRecordMutation(tableId);
   const deleteLater = useDeferredDelete(tableId);
@@ -149,11 +153,49 @@ export function TableGridView({
   };
 
   const display = (column: ColumnDef, record: RecordRead) => {
+    if (column.system === "created_by" || column.system === "updated_by") {
+      const actor = record[column.system];
+      return (
+        <span className="block max-w-40 truncate" title={actor ?? undefined}>
+          {actor === user?.id ? user?.full_name || user?.email : actor?.slice(0, 8) || "—"}
+        </span>
+      );
+    }
+    if (column.type === "rich_text") {
+      const source = record.values[column.id];
+      const title =
+        typeof source === "string"
+          ? markdownDocument(source)
+              .body.split("\n")
+              .find((line) => line.trim())
+              ?.replace(/^#{1,6}\s+/, "")
+          : null;
+      return title ? (
+        <span className="flex max-w-72 items-center gap-2">
+          <FileText className="text-muted-foreground size-3.5 shrink-0" />
+          <span className="truncate">{title}</span>
+        </span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      );
+    }
     const value = record.values[column.id] ?? null;
     if (column.type === "boolean" && typeof value === "boolean") {
       return <BoolMark on={value} label={boolLabel(value)} />;
     }
-    return selectChips(column, value) ?? (recordCellText(column, record, boolLabel, locale) || "—");
+    const chips = selectChips(column, value);
+    if (chips)
+      return (
+        <span className="flex max-h-7 max-w-60 overflow-hidden whitespace-nowrap [&>span]:flex-nowrap">
+          {chips}
+        </span>
+      );
+    const text = recordCellText(column, record, boolLabel, locale);
+    return (
+      <span className="block max-w-60 min-w-32 truncate" title={text}>
+        {text || "—"}
+      </span>
+    );
   };
 
   /**
@@ -182,7 +224,8 @@ export function TableGridView({
 
   const renderCell = (column: ColumnDef, record: RecordRead) => {
     // A worked-out column is read, never edited: what it shows comes from its link.
-    if (!canEdit || COMPUTED_TYPES.has(column.type)) return display(column, record);
+    if (!canEdit || column.system || COMPUTED_TYPES.has(column.type))
+      return display(column, record);
     const value = record.values[column.id] ?? null;
     if (editing?.recordId === record.id && editing.columnId === column.id) {
       return (
@@ -225,20 +268,27 @@ export function TableGridView({
   };
 
   const tableColumns: Column<RecordRead>[] = columns.map((column) => ({
-    key: column.id,
-    header: columnActions ? (
-      <ColumnHeaderMenu column={column} sort={sort} actions={columnActions} />
-    ) : (
-      <span className="inline-flex items-center gap-1.5">
-        <ColumnTypeIcon type={column.type} />
-        {column.label}
-      </span>
-    ),
+    key: column.system ?? column.id,
+    header:
+      columnActions && !column.system ? (
+        <ColumnHeaderMenu column={column} sort={sort} actions={columnActions} />
+      ) : (
+        <span className="inline-flex items-center gap-1.5">
+          {column.system ? (
+            <Lock className="text-muted-foreground size-3.5" />
+          ) : (
+            <ColumnTypeIcon type={column.type} />
+          )}
+          {column.label}
+        </span>
+      ),
     // Numbers read right-aligned, so their digits line up down the column.
     align: isNumeric(column.type) ? ("right" as const) : undefined,
     className: isNumeric(column.type) ? "tabular-nums" : undefined,
     cell: (record) => renderCell(column, record),
-    sortable: !columnActions && !UNSORTABLE_TYPES.has(column.type),
+    sortable: column.system
+      ? column.system.endsWith("_at")
+      : !columnActions && !UNSORTABLE_TYPES.has(column.type),
   }));
 
   if (canEdit) {
@@ -321,8 +371,13 @@ export function TableGridView({
         onRowClick={canEdit ? undefined : onOpenRecord}
         isRowActive={canEdit ? (record) => selected.has(record.id) : undefined}
         fillHeight
+        afterRows={
+          onAddRecord && records.length > 0 ? (
+            <NewRecordRow tableId={tableId} columns={columns} onNeedsMore={onAddRecord} />
+          ) : undefined
+        }
         // Every row is one height, so only the rows in view are drawn.
-        className="rounded-none border-0 [&_tbody_td]:h-12"
+        className="rounded-none border-0 [&_tbody_td]:h-[52px]"
         rowHeight={ROW_HEIGHT}
         onEndReached={onEndReached}
         sort={{ by: sort.by, dir: sort.direction }}
@@ -335,9 +390,6 @@ export function TableGridView({
           />
         }
       />
-      {onAddRecord && records.length > 0 && (
-        <NewRecordRow tableId={tableId} columns={columns} onNeedsMore={onAddRecord} />
-      )}
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}

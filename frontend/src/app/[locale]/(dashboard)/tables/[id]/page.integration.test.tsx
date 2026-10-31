@@ -366,6 +366,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockReset();
   vi.mocked(apiClient.post).mockReset();
+  vi.mocked(apiClient.put).mockReset();
   arriveAt("");
 });
 
@@ -425,7 +426,10 @@ describe("the table detail page", () => {
     renderPage();
 
     const grid = await screen.findByTestId("grid-view");
-    expect(grid).toHaveAttribute("data-column-ids", "c1,c2");
+    expect(grid).toHaveAttribute(
+      "data-column-ids",
+      "c1,c2,__created_at,__updated_at,__created_by,__updated_by",
+    );
   });
 
   it("seeds the grid's sort from the active view, then still honours a header click", async () => {
@@ -677,6 +681,7 @@ describe("the table detail page", () => {
           filters: [],
           search: null,
           sort: { by: "created_at", direction: "asc" },
+          include_metadata: true,
           columns: ["c1", "c2"],
         }),
       );
@@ -903,21 +908,35 @@ describe("the table detail page", () => {
       const grid = await screen.findByTestId("grid-view");
 
       await user.click(screen.getByRole("button", { name: "hide-c2" }));
-      expect(grid).toHaveAttribute("data-column-ids", "c1");
+      expect(grid).toHaveAttribute(
+        "data-column-ids",
+        "c1,__created_at,__updated_at,__created_by,__updated_by",
+      );
       await user.click(screen.getByRole("button", { name: "1 hidden" }));
       await user.click(screen.getByRole("button", { name: "Status" }));
-      expect(grid).toHaveAttribute("data-column-ids", "c1,c2");
+      expect(grid).toHaveAttribute(
+        "data-column-ids",
+        "c1,c2,__created_at,__updated_at,__created_by,__updated_by",
+      );
 
       await user.click(screen.getByRole("button", { name: "hide-c2" }));
       await user.click(screen.getByRole("button", { name: "hide-c1" }));
-      expect(grid).toHaveAttribute("data-column-ids", "");
+      expect(grid).toHaveAttribute(
+        "data-column-ids",
+        "__created_at,__updated_at,__created_by,__updated_by",
+      );
       await user.click(screen.getByRole("button", { name: "add-column" }));
       await user.type(screen.getByLabelText("Name"), "Region");
       // The table read again after the save has the new column.
       serve({ tableFixture: withRegion });
       await user.click(screen.getByRole("button", { name: "Add column" }));
 
-      await waitFor(() => expect(grid).toHaveAttribute("data-column-ids", "c4"));
+      await waitFor(() =>
+        expect(grid).toHaveAttribute(
+          "data-column-ids",
+          "c4,__created_at,__updated_at,__created_by,__updated_by",
+        ),
+      );
       expect(savedWith().columns.at(-1)).toEqual({
         label: "Region",
         type: "text",
@@ -926,7 +945,10 @@ describe("the table detail page", () => {
       });
       await user.click(screen.getByRole("button", { name: "2 hidden" }));
       await user.click(screen.getByRole("button", { name: "Show all columns" }));
-      expect(grid).toHaveAttribute("data-column-ids", "c1,c2,c4");
+      expect(grid).toHaveAttribute(
+        "data-column-ids",
+        "c1,c2,c4,__created_at,__updated_at,__created_by,__updated_by",
+      );
     });
 
     it("adds a column to a screen that shows every one without narrowing it", async () => {
@@ -941,7 +963,10 @@ describe("the table detail page", () => {
       await user.click(screen.getByRole("button", { name: "Add column" }));
 
       await waitFor(() => expect(apiClient.put).toHaveBeenCalled());
-      expect(grid).toHaveAttribute("data-column-ids", "c1,c2");
+      expect(grid).toHaveAttribute(
+        "data-column-ids",
+        "c1,c2,__created_at,__updated_at,__created_by,__updated_by",
+      );
     });
   });
 
@@ -1339,7 +1364,9 @@ describe("the table detail page", () => {
     serve();
     vi.mocked(apiClient.put).mockRejectedValueOnce(new ApiError(409, "Schema changed"));
     const user = userEvent.setup();
-    renderPage();
+    await act(async () => {
+      renderPage();
+    });
     await screen.findByTestId("grid-view");
     await user.click(screen.getByRole("button", { name: /columns/i }));
     await user.click(screen.getByRole("button", { name: "save-schema" }));

@@ -1,5 +1,5 @@
 ---
-source_sha: "db7ac36e1d5a"
+source_sha: "2b21138a3f3c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -16,7 +16,13 @@ workflow i publiczne API mają te same reguły. Ta strona opisuje serwis i jego 
 HTTP pod `/api/v1/tables`; dokument OpenAPI jest ich kontraktem.
 
 
-Pasek tabeli oferuje **Full screen** dla całego obszaru pracy; Escape przywraca stronę. Panel rekordu ma osobny przycisk **Full screen**, który powiększa wszystkie pola bez utraty edycji; **Exit full screen** przywraca panel boczny. Wiersze leżą bezpośrednio pod paskiem, bez drugiej ramki i pustego panelu z marginesami. Katalog wypełnia dostępną wysokość strony, ma własny przycisk pełnego ekranu i pokazuje paginację dopiero przy wielu stronach.
+Obszar tabeli domyślnie wypełnia dostępne miejsce, bez przycisku rozszerzania. Panel rekordu ma osobny przycisk **Full screen**, który powiększa wszystkie pola bez utraty edycji; **Exit full screen** przywraca panel boczny. Wiersze leżą bezpośrednio pod paskiem, bez drugiej ramki i pustego panelu z marginesami. Katalog wypełnia dostępną wysokość strony, ma własny przycisk pełnego ekranu i pokazuje paginację dopiero przy wielu stronach.
+
+Każda tabela pokazuje zablokowane pola `created_at`, `updated_at`, `created_by` i `updated_by` z rekordu. To te same właściwości, które są nad Markdownem, a nie edytowalne kopie w komórkach. Przed pierwszą aktualizacją `updated_at` pokazuje datę utworzenia. Pola pozostają widoczne po ukryciu kolumn użytkownika. Ich nazwy są zarezerwowane przy dodawaniu i zmianie nazw kolumn; istniejące starsze nazwy pozostają czytelne.
+
+Typowaną **Wartość domyślną** ustawisz w ustawieniach lub przy dodawaniu kolumny. Nowe rekordy używają jej tylko po pominięciu pola; jawna wartość lub null ma pierwszeństwo. Domyślne opcje select mogą przy wysyłaniu schematu wskazywać ID albo etykiety; serwer zapisuje ID. Kolor opcji wybierzesz na liście opcji; **Automatyczny** zachowuje dotychczasową paletę. Zmiana koloru zachowuje identyfikatory i rewizję znaczenia kolumny.
+
+Szybkie dodawanie jest bezpośrednio za załadowanymi wierszami, w ich obszarze przewijania. Eksport CSV w konsoli zawiera cztery właściwości rekordu. Eksport API zachowuje dotychczasowy format, chyba że podasz `include_metadata: true`.
 
 ## Klienci zewnętrzni { #external-clients }
 

@@ -598,3 +598,109 @@ class TestRevision:
         )
 
         assert (rebuilt.formula, rebuilt.revision) == ("{Price} + {Price}", 1)
+
+
+def test_select_colors_and_label_defaults_are_stored_as_option_ids() -> None:
+    columns = build_columns(
+        [
+            ColumnInput(
+                label="Status",
+                type="single_select",
+                options=[
+                    OptionInput(label="Todo", color="blue"),
+                    OptionInput(label="Done", color="green"),
+                ],
+                default="Todo",
+            ),
+            ColumnInput(
+                label="Tags",
+                type="multi_select",
+                options=[
+                    OptionInput(label="API", color="purple"),
+                    OptionInput(label="Docs", color="yellow"),
+                ],
+                default=["API", "Docs"],
+            ),
+        ],
+        [],
+    )
+    status, tags = columns
+    assert status.default == str(status.options[0].id)
+    assert status.options[0].color == "blue"
+    assert tags.default == [str(option.id) for option in tags.options]
+    assert tags.options[1].color == "yellow"
+    changed = build_columns(
+        [
+            ColumnInput(
+                id=status.id,
+                label="Status",
+                type="single_select",
+                options=[OptionInput(id=status.options[0].id, label="Todo")],
+                default=status.default,
+            )
+        ],
+        [status],
+    )[0]
+    assert changed.options[0].color == "blue"
+    assert changed.options[1].archived
+    assert changed.options[1].color == "green"
+    reset = build_columns(
+        [
+            ColumnInput(
+                id=status.id,
+                label="Status",
+                type="single_select",
+                options=[OptionInput(id=status.options[0].id, label="Todo", color=None)],
+                default=None,
+            )
+        ],
+        [status],
+    )[0]
+    assert reset.options[0].color is None
+
+
+def test_default_option_ids_take_precedence_over_colliding_labels() -> None:
+    first, second = uuid.uuid4(), uuid.uuid4()
+    previous = ColumnDef(
+        id=uuid.uuid4(),
+        label="Status",
+        type="single_select",
+        options=[OptionDef(id=first, label="First"), OptionDef(id=second, label=str(first))],
+    )
+    (column,) = build_columns(
+        [
+            ColumnInput(
+                id=previous.id,
+                label="Status",
+                type="single_select",
+                default=str(first),
+                options=[
+                    OptionInput(id=first, label="First"),
+                    OptionInput(id=second, label=str(first)),
+                ],
+            )
+        ],
+        [previous],
+    )
+    assert column.default == str(first)
+
+
+def test_an_unknown_default_option_label_is_refused() -> None:
+    with pytest.raises(InvalidSchemaError):
+        build_columns(
+            [
+                ColumnInput(
+                    label="Status",
+                    type="single_select",
+                    options=[OptionInput(label="Todo")],
+                    default="Unknown",
+                )
+            ],
+            [],
+        )
+
+
+@pytest.mark.parametrize("name", ["created_at", "updated_at", "created_by", "updated_by"])
+def test_record_metadata_names_belong_to_system_fields(name: str) -> None:
+    with pytest.raises(InvalidSchemaError):
+        build_columns([ColumnInput(label=name, type="text")], [])

@@ -111,13 +111,20 @@ export type CellValue = string | number | boolean | string[] | null;
 
 type FilterValue = CellValue | CellValue[];
 
+export type OptionColor = "gray" | "blue" | "green" | "yellow" | "purple" | "red";
+
 export interface OptionDef {
   id: string;
   label: string;
+  color?: OptionColor | null;
   archived: boolean;
 }
 
+export type SystemColumnKey = "created_at" | "updated_at" | "created_by" | "updated_by";
+
 export interface ColumnDef {
+  /** A console projection of immutable record metadata, not a schema column. */
+  system?: SystemColumnKey;
   id: string;
   label: string;
   type: ColumnTypeName;
@@ -144,7 +151,7 @@ export interface ColumnInput {
   type: ColumnTypeName;
   nullable?: boolean;
   default?: CellValue;
-  options?: { id?: string; label: string; archived?: boolean }[];
+  options?: { id?: string; label: string; color?: OptionColor | null; archived?: boolean }[];
   archived?: boolean;
   /** A link column: the table whose records it links to. */
   link_table_id?: string | null;
@@ -263,6 +270,7 @@ export interface RecordBatchResult {
 }
 
 export interface RecordExportQuery extends RecordCountQuery {
+  include_metadata?: boolean;
   sort?: RecordSort;
   /** The live columns to write, in order; `null` writes every live one. */
   columns?: string[] | null;

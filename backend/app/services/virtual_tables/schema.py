@@ -24,6 +24,8 @@ from uuid import UUID, uuid4
 from app.schemas.virtual_table import (
     MAX_COLUMNS,
     MAX_OPTIONS,
+    RECORD_METADATA_FIELDS,
+    CellValue,
     ColumnDef,
     ColumnInput,
     OptionDef,
@@ -74,11 +76,21 @@ def _options(
             if option.id in seen:
                 raise InvalidSchemaError(f"{where}.id", "This option is listed twice")
             seen.add(option.id)
+        old = known.get(option.id) if option.id is not None else None
         options.append(
-            OptionDef(id=option.id or uuid4(), label=option.label, archived=option.archived)
+            OptionDef(
+                id=option.id or uuid4(),
+                label=option.label,
+                color=(
+                    old.color
+                    if old is not None and "color" not in option.model_fields_set
+                    else option.color
+                ),
+                archived=option.archived,
+            )
         )
     options.extend(
-        OptionDef(id=old.id, label=old.label, archived=True)
+        OptionDef(id=old.id, label=old.label, color=old.color, archived=True)
         for old in previous
         if old.id not in seen
     )
@@ -95,8 +107,29 @@ def _options(
     return options
 
 
+def _option_default(value: CellValue, options: Sequence[OptionDef]) -> CellValue:
+    """Defaults may name option labels before new options have server-generated IDs."""
+    labels = {option.label: str(option.id) for option in options if not option.archived}
+    ids = {str(option.id) for option in options}
+
+    def resolve(item: str) -> str:
+        return item if item in ids else labels.get(item, item)
+
+    if isinstance(value, str):
+        return resolve(value)
+    if isinstance(value, list):
+        return [resolve(item) for item in value]
+    return value
+
+
 def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> ColumnDef:
     where = f"columns.{index}"
+    if submitted.label.casefold() in RECORD_METADATA_FIELDS and (
+        previous is None or previous.label != submitted.label
+    ):
+        raise InvalidSchemaError(
+            f"{where}.label", "This name belongs to an automatically managed record property"
+        )
     if (
         previous is not None
         and previous.type != submitted.type
@@ -124,7 +157,9 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         label=submitted.label,
         type=submitted.type,
         nullable=submitted.nullable,
-        default=submitted.default,
+        default=_option_default(submitted.default, options)
+        if submitted.type in OPTION_TYPES
+        else submitted.default,
         options=options,
         archived=submitted.archived,
         link_table_id=submitted.link_table_id,
