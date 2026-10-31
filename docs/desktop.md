@@ -46,6 +46,8 @@ On macOS 14 or later, launch the installed app once, then right-click the deskto
 
 Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. By default, macOS packages use ad-hoc signing and are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
 
+After an ad-hoc update, macOS may request microphone, Screen Recording, Accessibility or Keychain access again. If device pairing is lost, reconnect the device. Updater signatures verify the package but do not provide a stable Apple signing identity.
+
 ## Running it
 
 Before choosing a local installation or connecting to a server, the first-run wizard

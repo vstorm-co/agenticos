@@ -1,5 +1,5 @@
 ---
-source_sha: "9d050c1e66ae"
+source_sha: "8d5ef23b70de"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -50,6 +50,8 @@ El primer inicio te guía para conectarte a un servidor o crear una instancia lo
 En macOS 14 o posterior, inicia una vez la aplicación instalada, haz clic derecho en el escritorio, elige **Editar widgets** y busca **AgenticOS**. El pequeño abre Quick Ask; el mediano también Chat, Inbox y Activity. Siguen la apariencia del sistema y solo contienen accesos directos, sin datos de la cuenta. Un clic nunca inicia una grabación ni una llamada.
 
 La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windows y Linux. Por defecto, los paquetes macOS usan firma ad-hoc sin notarización de Apple. Copia la aplicación a Applications e intenta abrirla. Si macOS la bloquea porque no puede verificar al desarrollador, selecciona **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente** y confirma. Los ordenadores administrados pueden impedir esta excepción. Consulta las [instrucciones de Apple](https://support.apple.com/es-es/102445). Las actualizaciones descargadas siguen requiriendo una firma válida con la clave de actualización de la versión.
+
+Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
 
 ## Ejecutarla { #running-it }
 
