@@ -1,5 +1,5 @@
 ---
-source_sha: "89182bbe5236"
+source_sha: "db7ac36e1d5a"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -97,7 +97,11 @@ la columna.
 
 Elige **Rich text (Markdown)** para notas con encabezados, listas, tareas, tablas, enlaces y código. Al pulsar la celda se abre el panel del registro. **Write** edita el Markdown con resaltado de sintaxis; **Preview** muestra la vista previa y **Expand editor** abre un espacio mayor. Los registros de solo lectura empiezan en vista previa y permiten leer la fuente. Las imágenes remotas aparecen como enlaces y no se cargan automáticamente.
 
-El frontmatter YAML opcional va entre líneas `---` al inicio del documento. La vista previa muestra ese bloque bajo **Frontmatter**, separado del cuerpo. Se conserva como fuente, sin validar YAML ni convertirlo en columnas de tabla. La API, la exportación y la importación CSV mantienen juntos Markdown y frontmatter, incluidos espacios y saltos de línea. Los filtros de texto, la búsqueda y el orden usan la fuente. Una columna `text` o `long_text` puede convertirse a `rich_text` y volver; al volver a `text`, cada valor debe caber en su límite de 1.000 caracteres.
+Las propiedades del documento aparecen encima del editor Markdown. **Created**, **Last updated** y **Created by** proceden del registro y no se pueden modificar mediante Markdown. La fecha de actualización sigue las escrituras de todo el registro, incluidas otras celdas; antes de la primera actualización se muestra la fecha de creación.
+
+Las propiedades de texto propias se añaden, editan y eliminan sin escribir YAML. Las propiedades estructuradas importadas se conservan en modo de solo lectura. El frontmatter importado no válido se conserva con un aviso; editar el contenido no lo elimina. Editar el contenido conserva los bytes originales de la cabecera; cambiar una propiedad serializa solo la cabecera YAML. La API y CSV siguen incluyendo el frontmatter propio con Markdown, mientras las fechas y el autor permanecen en los metadatos del registro.
+
+Elige una plantilla predeterminada al crear una columna de texto enriquecido o en **Columns**. Puedes personalizar un documento vacío, una nota, notas de reunión o una descripción de proyecto. Se utiliza el `default` existente de la columna: consola, API y workflow lo aplican al crear cuando se omite la celda. Un valor explícito, incluida una cadena vacía, tiene prioridad. Cambiar la plantilla solo afecta a registros nuevos. **Use column template** sustituye el contenido de un documento existente tras confirmar y conserva sus propiedades. Las consultas de texto y las conversiones mantienen sus contratos anteriores.
 
 ## Enlaces, búsquedas y resúmenes { #links-lookups-and-rollups }
 

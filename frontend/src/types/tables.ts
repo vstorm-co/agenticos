@@ -275,6 +275,8 @@ export interface RecordRead {
   schema_version: number;
   values: Record<string, CellValue>;
   revision: number;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at?: string | null;
   /**

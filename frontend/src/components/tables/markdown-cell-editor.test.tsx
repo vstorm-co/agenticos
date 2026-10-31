@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { RecordCellEditor } from "./record-cell-editor";
+import { markdownDocument } from "@/lib/markdown-document";
 import type { ColumnDef } from "@/types/tables";
 
 const column: ColumnDef = {
@@ -17,6 +18,71 @@ const source =
   "---\ntitle: Example\ntags: [team, notes]\n---\n# Meeting\n\n**Important**\n\n- [x] Done\n";
 
 describe("Markdown table cells", () => {
+  it("edits properties above Markdown and protects automatic metadata", async () => {
+    const change = vi.fn();
+    render(
+      <>
+        <RecordCellEditor
+          column={column}
+          value={source}
+          metadata={{
+            created_at: "2026-10-01T10:00:00Z",
+            updated_at: "2026-10-02T10:00:00Z",
+            created_by: "member-1",
+          }}
+          onChange={change}
+        />
+        <button>Outside</button>
+      </>,
+    );
+    expect(screen.getByText("Created")).toBeVisible();
+    expect(screen.getByText("Last updated")).toBeVisible();
+    expect(screen.getByText("member-1")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(
+      markdownDocument(source).body,
+    );
+    await userEvent.click(screen.getByText("Custom properties"));
+    fireEvent.change(screen.getByRole("textbox", { name: "title" }), {
+      target: { value: "Revised" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Property name" }), {
+      target: { value: "created_at" },
+    });
+    expect(screen.getByRole("button", { name: "Add property" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Property name" }), {
+      target: { value: "owner" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Property value" }), {
+      target: { value: "Sam" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("owner: Sam"));
+    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("title: Revised"));
+  });
+
+  it("confirms applying a new template without replacing document properties", async () => {
+    const change = vi.fn();
+    render(
+      <>
+        <RecordCellEditor
+          column={{ ...column, default: "# New note" }}
+          value={source}
+          onChange={change}
+        />
+        <button>Outside</button>
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Use column template" }));
+    const confirm = within(screen.getByRole("dialog", { name: "Replace document content?" }));
+    await userEvent.click(confirm.getByRole("button", { name: "Use column template" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Notes" })).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("# New note");
+    await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("title: Example"));
+    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("# New note"));
+  });
+
   it("buffers Markdown and frontmatter, switches views without saving and commits on leaving", async () => {
     const change = vi.fn();
     render(
@@ -31,10 +97,12 @@ describe("Markdown table cells", () => {
     expect(change).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", { name: "Meeting" })).toBeVisible();
     expect(screen.getByText("Important").tagName).toBe("STRONG");
-    await userEvent.click(screen.getByText("Frontmatter"));
-    expect(screen.getByText(/title: Example/)).toBeVisible();
+    await userEvent.click(screen.getByText("Custom properties"));
+    expect(screen.getByRole("textbox", { name: "title", hidden: true })).toHaveValue("Example");
     await userEvent.click(screen.getByRole("button", { name: "Write" }));
-    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(source);
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(
+      markdownDocument(source).body,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Outside" }));
     expect(change).toHaveBeenCalledTimes(1);
     expect(change).toHaveBeenCalledWith(source);
@@ -46,13 +114,15 @@ describe("Markdown table cells", () => {
     await userEvent.click(screen.getByRole("button", { name: "Expand editor" }));
     const dialog = within(screen.getByRole("dialog", { name: "Notes" }));
     fireEvent.change(dialog.getByRole("textbox", { name: "Notes" }), {
-      target: { value: source + "More\n" },
+      target: { value: markdownDocument(source).body + "More\n" },
     });
     await userEvent.click(dialog.getByRole("button", { name: "Done" }));
     expect(change).toHaveBeenCalledTimes(1);
     expect(change).toHaveBeenCalledWith(source + "More\n");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(source + "More\n");
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(
+      markdownDocument(source).body + "More\n",
+    );
   });
 
   it("commits once on Escape and returns focus from the expanded dialog", async () => {
@@ -61,7 +131,7 @@ describe("Markdown table cells", () => {
     await userEvent.click(screen.getByRole("button", { name: "Expand editor" }));
     const editor = within(screen.getByRole("dialog")).getByRole("textbox", { name: "Notes" });
     await userEvent.click(editor);
-    fireEvent.change(editor, { target: { value: source + "Updated" } });
+    fireEvent.change(editor, { target: { value: markdownDocument(source).body + "Updated" } });
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(change).toHaveBeenCalledTimes(1);

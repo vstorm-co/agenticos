@@ -19,7 +19,12 @@ queries and next action: a short name, a status, dates, identifiers, required
 values and useful defaults. Use numeric/date types for comparisons, select types
 for a controlled status, links for actual record relationships and `rich_text`
 for Markdown notes, including optional YAML frontmatter. Frontmatter stays part
-of the document; it does not create queryable table columns.
+of the document; it does not create queryable table columns. The console edits
+custom properties above the body; created/updated dates and author come from the
+record itself, so never fabricate them in Markdown. For a reusable document
+template, set the rich-text column’s `default`. Omit that cell on creation to
+apply the template; explicit content, including an empty string, takes priority.
+Changing the default affects new records only.
 
 `create_virtual_table` creates a private table through approval. For a schema
 change, submit the complete existing column list through

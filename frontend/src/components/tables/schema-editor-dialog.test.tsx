@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -44,6 +44,34 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
 }
 
 describe("SchemaEditorDialog", () => {
+  it("saves a customized rich-text template as the shared column default", async () => {
+    const onSave = vi.fn();
+    const existing = table();
+    const first = existing.columns[0]!;
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table({ columns: [{ ...first, type: "rich_text", default: "# Original" }] })}
+        onSave={onSave}
+        isSaving={false}
+        error={null}
+      />,
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Choose a starting template" }));
+    await userEvent.click(screen.getByRole("option", { name: "Meeting notes" }));
+    expect(screen.getByRole("textbox", { name: "Default document template" })).toHaveValue(
+      "# Meeting notes\n\n## Agenda\n\n- \n\n## Decisions\n\n- \n\n## Action items\n\n- \n",
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Default document template" }), {
+      target: { value: "# My template" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({ id: first.id, type: "rich_text", default: "# My template" }),
+    ]);
+  });
+
   it("seeds one row per existing column", () => {
     render(
       <SchemaEditorDialog

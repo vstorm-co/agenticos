@@ -1,5 +1,7 @@
 "use client";
 
+import type { DocumentMetadata } from "./document-properties";
+
 import { useState } from "react";
 import { Star } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -159,6 +161,8 @@ function RatingCellInput({
 }
 
 function RichTextCellInput({
+  metadata,
+  template,
   fillEditor,
   id,
   label,
@@ -175,11 +179,15 @@ function RichTextCellInput({
   disabled?: boolean;
   errorId: string;
   error?: string;
+  metadata?: DocumentMetadata;
+  template?: string;
   fillEditor?: boolean;
 }) {
   const buffer = useTextBuffer(value, onChange);
   return (
     <MarkdownCellEditor
+      metadata={metadata}
+      template={template}
       fill={fillEditor}
       id={id}
       label={label}
@@ -265,6 +273,7 @@ function NumberCellInput({
  * is shown); `null` means explicitly cleared.
  */
 export function RecordCellEditor({
+  metadata,
   fillEditor,
   column,
   value,
@@ -275,6 +284,7 @@ export function RecordCellEditor({
   placeholder,
 }: {
   column: ColumnDef;
+  metadata?: DocumentMetadata;
   fillEditor?: boolean;
   value: CellValue;
   /** A link column's records, named as the record was read. */
@@ -328,6 +338,8 @@ export function RecordCellEditor({
 
       {column.type === "rich_text" && (
         <RichTextCellInput
+          metadata={metadata}
+          template={typeof column.default === "string" ? column.default : undefined}
           fillEditor={fillEditor}
           id={id}
           label={column.label}

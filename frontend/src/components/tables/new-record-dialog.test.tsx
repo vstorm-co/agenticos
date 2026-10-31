@@ -53,6 +53,29 @@ describe("isRequired", () => {
 });
 
 describe("NewRecordDialog", () => {
+  it("shows the document template immediately and allows an explicitly blank body", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ id: "r1" });
+    render(
+      <NewRecordDialog
+        tableId="t1"
+        columns={[
+          { ...base, id: "body", label: "Document", type: "rich_text", default: "# Default note" },
+        ]}
+        open
+        onOpenChange={vi.fn()}
+      />,
+      { wrapper },
+    );
+    const input = screen.getByRole("textbox", { name: "Document" });
+    expect(input).toHaveValue("# Default note");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    fireEvent.click(screen.getByRole("button", { name: "Add record" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(expect.anything(), { values: { body: "" } }),
+    );
+  });
+
   it("starts from a value typed on the grid's new-record line", () => {
     render(
       <NewRecordDialog

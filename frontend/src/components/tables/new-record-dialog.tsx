@@ -42,8 +42,12 @@ export function isRequired(column: ColumnDef): boolean {
 function seed(columns: ColumnDef[]): Record<string, CellValue> {
   return Object.fromEntries(
     columns
-      .filter((column) => column.type === "boolean" && isRequired(column))
-      .map((column) => [column.id, false]),
+      .filter(
+        (column) =>
+          (column.type === "boolean" && isRequired(column)) ||
+          (column.type === "rich_text" && typeof column.default === "string"),
+      )
+      .map((column) => [column.id, column.type === "rich_text" ? column.default : false]),
   );
 }
 
@@ -97,7 +101,11 @@ export function NewRecordDialog({
     setTried(true);
     if (missing.length > 0) return;
     const filled = Object.fromEntries(
-      Object.entries(values).filter(([, value]) => !isEmpty(value)),
+      Object.entries(values).filter(
+        ([key, value]) =>
+          !isEmpty(value) ||
+          live.some((column) => column.id === key && column.type === "rich_text"),
+      ),
     );
     try {
       await create.mutateAsync({ values: filled });

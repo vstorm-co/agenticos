@@ -90,7 +90,11 @@ option is refused with the options the column has.
 
 Choose **Rich text (Markdown)** for a note with headings, lists, task lists, tables, links and code. In the grid, clicking its cell opens the record panel. **Write** edits the Markdown source with syntax highlighting; **Preview** reads it, and **Expand editor** opens a larger workspace. Read-only records start in preview and allow reading the source. Remote images appear as links rather than loading automatically.
 
-Optional YAML frontmatter goes between `---` lines at the start of the document. Preview shows that block under **Frontmatter**, separately from the body. It is preserved as source, without YAML validation or conversion to table columns. The API, CSV export and import keep the Markdown and frontmatter together, including whitespace and newlines. Text filters, search and sorting use the source. A `text` or `long_text` column can become `rich_text` and back; converting back to `text` still requires every value to fit its 1,000-character limit.
+Document properties sit above the Markdown editor. **Created**, **Last updated** and **Created by** come from the record and cannot be changed through Markdown. The last-update date follows record writes, including changes to other cells; it falls back to the creation date before the first update.
+
+Custom string properties can be added, edited and removed without writing YAML. Imported structured properties remain preserved and read-only. Invalid imported frontmatter is retained with a notice, so editing the body does not discard it. Body edits preserve the original header bytes; changing a custom property serializes only the YAML header. The API and CSV continue to carry custom frontmatter with the Markdown, while system dates and author remain record metadata.
+
+Choose a default document template when creating a rich-text column or in **Columns**. Start from a blank document, note, meeting notes or project brief and customize the text. This uses the column's existing `default`: console, API and workflow creation apply it when the cell is omitted. An explicitly supplied value, including an empty string, wins. Changing the template affects new records only. **Use column template** replaces an existing document body after confirmation and keeps its properties. Text queries and conversions retain their existing contracts.
 
 ## Links, lookups and rollups { #links-lookups-and-rollups }
 

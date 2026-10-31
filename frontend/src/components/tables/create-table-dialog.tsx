@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { FileUp, Plus, Trash2 } from "lucide-react";
 
+import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
 import { inferType, readCsvFile } from "./csv-cells";
 import {
@@ -39,6 +40,7 @@ interface DraftColumn {
   key: string;
   label: string;
   type: ColumnTypeName;
+  template?: string;
   /** The file column it was read from, for a table started from a CSV file. */
   source?: number;
 }
@@ -104,6 +106,7 @@ export function CreateTableDialog({
 }) {
   const t = useTranslations("tables.create");
   const tErrors = useTranslations("errors");
+  const tm = useTranslations("tables.markdown");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<TableVisibility>("private");
@@ -163,7 +166,13 @@ export function CreateTableDialog({
         name: name.trim(),
         description: description.trim() || null,
         visibility,
-        columns: kept.map((column) => ({ label: column.label.trim(), type: column.type })),
+        columns: kept.map((column) => ({
+          label: column.label.trim(),
+          type: column.type,
+          ...(column.type === "rich_text"
+            ? { default: column.template ?? tm("templates.note.body") }
+            : {}),
+        })),
       },
       csv && {
         ...csv,
@@ -232,59 +241,72 @@ export function CreateTableDialog({
           <div className="space-y-2" data-tour="table-dialog-columns">
             <p className="text-sm font-medium">{t("columnsHeading")}</p>
             {columns.map((column) => (
-              <div
-                key={column.key}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
-              >
-                <Input
-                  className="col-span-2 min-w-0 sm:col-span-1"
-                  maxLength={MAX_LABEL}
-                  value={column.label}
-                  placeholder={t("columnPlaceholder")}
-                  aria-label={t("columnLabel")}
-                  onChange={(event) =>
-                    setColumns((current) =>
-                      current.map((c) =>
-                        c.key === column.key ? { ...c, label: event.target.value } : c,
-                      ),
-                    )
-                  }
-                />
-                <Select
-                  value={column.type}
-                  onValueChange={(value) =>
-                    setColumns((current) =>
-                      current.map((c) =>
-                        c.key === column.key ? { ...c, type: value as ColumnTypeName } : c,
-                      ),
-                    )
-                  }
+              <div key={column.key} className="space-y-3">
+                <div
+                  key={column.key}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
                 >
-                  <SelectTrigger className="w-full" aria-label={t("columnType")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COLUMN_TYPES.filter((type) => !REFERENCE_TYPES.has(type)).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        <span className="inline-flex items-center gap-2">
-                          <ColumnTypeIcon type={type} />
-                          {t(`types.${type}`)}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t("removeColumn")}
-                  onClick={() =>
-                    setColumns((current) => current.filter((c) => c.key !== column.key))
-                  }
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <Input
+                    className="col-span-2 min-w-0 sm:col-span-1"
+                    maxLength={MAX_LABEL}
+                    value={column.label}
+                    placeholder={t("columnPlaceholder")}
+                    aria-label={t("columnLabel")}
+                    onChange={(event) =>
+                      setColumns((current) =>
+                        current.map((c) =>
+                          c.key === column.key ? { ...c, label: event.target.value } : c,
+                        ),
+                      )
+                    }
+                  />
+                  <Select
+                    value={column.type}
+                    onValueChange={(value) =>
+                      setColumns((current) =>
+                        current.map((c) =>
+                          c.key === column.key ? { ...c, type: value as ColumnTypeName } : c,
+                        ),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-full" aria-label={t("columnType")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COLUMN_TYPES.filter((type) => !REFERENCE_TYPES.has(type)).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          <span className="inline-flex items-center gap-2">
+                            <ColumnTypeIcon type={type} />
+                            {t(`types.${type}`)}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("removeColumn")}
+                    onClick={() =>
+                      setColumns((current) => current.filter((c) => c.key !== column.key))
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                {column.type === "rich_text" && (
+                  <DocumentTemplateField
+                    id={`${column.key}-template`}
+                    value={column.template ?? tm("templates.note.body")}
+                    onChange={(template) =>
+                      setColumns((current) =>
+                        current.map((c) => (c.key === column.key ? { ...c, template } : c)),
+                      )
+                    }
+                  />
+                )}
               </div>
             ))}
             <Button

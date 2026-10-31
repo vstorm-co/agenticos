@@ -1,5 +1,5 @@
 ---
-source_sha: "89182bbe5236"
+source_sha: "db7ac36e1d5a"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -99,7 +99,11 @@ aktive Option nennt, wird mit den Optionen der Spalte abgelehnt.
 
 Wähle **Rich text (Markdown)** für Notizen mit Überschriften, Listen, Aufgabenlisten, Tabellen, Links und Code. Ein Klick auf die Zelle öffnet das Datensatz-Panel. **Write** bearbeitet den Markdown-Quelltext mit Syntaxhervorhebung; **Preview** zeigt die Vorschau und **Expand editor** öffnet einen größeren Arbeitsbereich. Schreibgeschützte Datensätze starten in der Vorschau und erlauben das Lesen des Quelltexts. Externe Bilder erscheinen als Links und werden nicht automatisch geladen.
 
-Optionales YAML-Frontmatter steht zwischen `---` am Dokumentanfang. Die Vorschau zeigt diesen Block unter **Frontmatter**, getrennt vom Inhalt. Er bleibt Quelltext, ohne YAML-Validierung oder Umwandlung in Tabellenspalten. API, CSV-Export und Import erhalten Markdown und Frontmatter zusammen, einschließlich Leerzeichen und Zeilenumbrüchen. Textfilter, Suche und Sortierung verwenden den Quelltext. Eine Spalte `text` oder `long_text` kann zu `rich_text` und zurück wechseln; beim Wechsel zu `text` muss jeder Wert weiterhin in die Grenze von 1.000 Zeichen passen.
+Dokumenteigenschaften stehen über dem Markdown-Editor. **Erstellt**, **Zuletzt geändert** und **Erstellt von** stammen aus dem Datensatz und lassen sich nicht über Markdown ändern. Das Änderungsdatum folgt Schreibvorgängen am gesamten Datensatz, auch an anderen Zellen; vor der ersten Änderung gilt das Erstellungsdatum.
+
+Eigene Texteigenschaften lassen sich ohne YAML hinzufügen, ändern und entfernen. Importierte strukturierte Eigenschaften bleiben erhalten und schreibgeschützt. Ungültiges importiertes Frontmatter bleibt mit einem Hinweis erhalten; Änderungen am Inhalt verwerfen es nicht. Inhaltsänderungen erhalten die ursprünglichen Header-Bytes; Eigenschaftsänderungen serialisieren nur den YAML-Header. API und CSV enthalten eigenes Frontmatter weiterhin zusammen mit Markdown; Systemdatum und Autor bleiben Datensatzmetadaten.
+
+Wähle die Standardvorlage beim Erstellen einer Rich-Text-Spalte oder unter **Columns**. Leeres Dokument, Notiz, Besprechungsnotizen und Projektbeschreibung sind anpassbare Startpunkte. Die Vorlage nutzt den vorhandenen Spaltenwert `default`: Konsole, API und Workflow übernehmen ihn beim Erstellen, wenn die Zelle fehlt. Ein ausdrücklich angegebener Wert, auch eine leere Zeichenfolge, hat Vorrang. Eine Vorlagenänderung betrifft nur neue Datensätze. **Spaltenvorlage verwenden** ersetzt nach Bestätigung den Inhalt eines bestehenden Dokuments und behält seine Eigenschaften. Textabfragen und Konvertierungen behalten ihre bisherigen Verträge.
 
 ## Verknüpfungen, Nachschlagen und Zusammenfassungen { #links-lookups-and-rollups }
 

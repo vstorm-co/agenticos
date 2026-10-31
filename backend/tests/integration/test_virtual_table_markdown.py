@@ -78,3 +78,57 @@ async def test_markdown_preserves_frontmatter_through_storage_queries_conversion
     rows = list(csv.reader(StringIO(content.lstrip("\ufeff"), newline="")))
     # The CSV shield prefixes leading '-' for spreadsheet safety; import removes it.
     assert rows == [["Body"], ["'" + source + "Next\r\n"]]
+
+
+async def test_document_template_applies_only_on_creation_and_system_metadata_stays_authoritative(
+    db: AsyncSession,
+) -> None:
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    ctx = ctx_for(owner, org)
+    service = VirtualTableService(db)
+    first_template = "# Notes\n\n## Summary\n\n- [ ] Follow up\n"
+    table = await service.create_table(
+        ctx,
+        TableCreate(
+            name="Templated notes",
+            columns=[ColumnInput(label="Document", type="rich_text", default=first_template)],
+        ),
+    )
+    column = table.columns[0]
+    key = str(column.id)
+    first = (await service.create_record(ctx, table.id, RecordCreate())).record
+    assert first.values[key] == first_template
+    assert first.created_by == owner.id
+    assert first.created_at is not None
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=table.schema_version,
+            columns=[
+                ColumnInput(
+                    id=column.id, label="Document", type="rich_text", default="# New template"
+                )
+            ],
+        ),
+    )
+    assert (await service.get_record(ctx, table.id, first.id)).values[key] == first_template
+    second = (await service.create_record(ctx, table.id, RecordCreate())).record
+    assert second.values[key] == "# New template"
+    explicit = (await service.create_record(ctx, table.id, RecordCreate(values={key: ""}))).record
+    assert explicit.values[key] == ""
+    spoofed = "---\ncreated_at: spoofed\ncreated_by: somebody else\n---\n# Actual content"
+    updated = (
+        await service.update_record(
+            ctx,
+            table.id,
+            first.id,
+            RecordUpdate(expected_revision=first.revision, values={key: spoofed}),
+        )
+    ).record
+    assert updated.values[key] == spoofed
+    assert updated.created_at == first.created_at
+    assert updated.created_by == owner.id
+    assert updated.updated_by == owner.id
+    assert updated.updated_at is not None

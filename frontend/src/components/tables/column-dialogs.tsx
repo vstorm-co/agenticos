@@ -25,6 +25,7 @@ import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { ErrorState } from "@/components/states";
 import { useTable, useAllTables } from "@/hooks";
 
+import { DocumentTemplateField } from "./document-template-field";
 import { FormulaField } from "./formula-field";
 import { AGGREGATES, COLUMN_TYPES, REFERENCE_TYPES } from "@/types/tables";
 import type { Aggregate, ColumnDef, ColumnInput, ColumnTypeName } from "@/types/tables";
@@ -311,6 +312,8 @@ export function AddColumnDialog({
 }) {
   const t = useTranslations("tables.columnMenu");
   const tTypes = useTranslations("tables.schema.types");
+  const tm = useTranslations("tables.markdown");
+  const [template, setTemplate] = useState(tm("templates.note.body"));
   const [label, setLabel] = useState("");
   const [type, setType] = useState<ColumnTypeName>("text");
   const [options, setOptions] = useState("");
@@ -332,6 +335,7 @@ export function AddColumnDialog({
     setOptions("");
     setReference(NO_REFERENCE);
     setFormula("");
+    setTemplate(tm("templates.note.body"));
   }
 
   return (
@@ -350,6 +354,7 @@ export function AddColumnDialog({
               label: label.trim(),
               type,
               nullable: true,
+              ...(type === "rich_text" ? { default: template } : {}),
               options: needsOptions ? labels.map((option) => ({ label: option })) : [],
               ...referenceInput(type, reference),
               ...(type === "formula" ? { formula: formula.trim() } : {}),
@@ -380,6 +385,13 @@ export function AddColumnDialog({
               </SelectContent>
             </Select>
           </div>
+          {type === "rich_text" && (
+            <DocumentTemplateField
+              id="new-column-template"
+              value={template}
+              onChange={setTemplate}
+            />
+          )}
           {REFERENCE_TYPES.has(type) && (
             <ReferenceFields
               type={type}

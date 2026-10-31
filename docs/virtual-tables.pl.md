@@ -1,5 +1,5 @@
 ---
-source_sha: "89182bbe5236"
+source_sha: "db7ac36e1d5a"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -95,7 +95,11 @@ odczytują jako etykiety, także opcji zarchiwizowanej. Wartość, która nie ws
 
 Wybierz **Rich text (Markdown)** dla notatki z nagłówkami, listami, zadaniami, tabelami, linkami i kodem. Kliknięcie komórki w siatce otwiera panel rekordu. **Write** edytuje źródło Markdown z podświetleniem składni; **Preview** pokazuje podgląd, a **Expand editor** otwiera większy obszar pracy. Rekordy tylko do odczytu zaczynają od podglądu i pozwalają czytać źródło. Zdalne obrazy są linkami i nie ładują się automatycznie.
 
-Opcjonalny frontmatter YAML umieść między liniami `---` na początku dokumentu. Podgląd pokazuje ten blok pod **Frontmatter**, oddzielnie od treści. Jest zachowywany jako źródło, bez walidacji YAML ani zamiany na kolumny tabeli. API, eksport i import CSV zachowują Markdown i frontmatter razem, ze spacjami i końcami linii. Filtry tekstowe, wyszukiwanie i sortowanie używają źródła. Kolumnę `text` lub `long_text` można zmienić na `rich_text` i odwrotnie; powrót do `text` nadal wymaga, by każda wartość mieściła się w limicie 1000 znaków.
+Właściwości dokumentu są nad edytorem Markdown. **Utworzono**, **Ostatnia zmiana** i **Autor** pochodzą z rekordu i nie można ich zmienić przez Markdown. Data ostatniej zmiany uwzględnia zapis całego rekordu, także innych komórek; przed pierwszą zmianą pokazuje datę utworzenia.
+
+Własne właściwości tekstowe można dodawać, edytować i usuwać bez pisania YAML. Importowane właściwości złożone są zachowane i tylko do odczytu. Nieprawidłowy importowany frontmatter pozostaje zachowany z komunikatem, więc zmiana treści go nie usuwa. Edycja treści zachowuje bajty nagłówka; zmiana właściwości serializuje tylko nagłówek YAML. API i CSV nadal przenoszą własny frontmatter razem z Markdown, a daty i autor pozostają metadanymi rekordu.
+
+Domyślny szablon dokumentu wybierzesz przy tworzeniu kolumny rich text lub w **Columns**. Dostępne są pusty dokument, notatka, spotkanie i opis projektu; treść można dostosować. Szablon korzysta z istniejącego `default` kolumny: konsola, API i workflow stosują go przy tworzeniu, jeśli pominięto komórkę. Jawnie podana wartość, także pusty tekst, ma pierwszeństwo. Zmiana szablonu wpływa wyłącznie na nowe rekordy. **Użyj szablonu kolumny** zastępuje treść istniejącego dokumentu po potwierdzeniu i zachowuje właściwości. Zapytania tekstowe i konwersje działają jak wcześniej.
 
 ## Powiązania, odczyty i podsumowania { #links-lookups-and-rollups }
 

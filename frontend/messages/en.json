@@ -9734,10 +9734,45 @@
       "write": "Write",
       "preview": "Preview",
       "expand": "Expand editor",
-      "properties": "Frontmatter",
-      "hint": "Write Markdown. Optional YAML frontmatter goes between --- lines at the start.",
+      "properties": "Custom properties",
+      "hint": "Write Markdown below. Dates and author are managed automatically; custom properties are above the content.",
       "empty": "Nothing to preview yet.",
-      "done": "Done"
+      "done": "Done",
+      "createdAt": "Created",
+      "updatedAt": "Last updated",
+      "createdBy": "Created by",
+      "onCreation": "Set on creation",
+      "automatic": "Automation or unknown author",
+      "legacyProperties": "These imported properties cannot be edited here. Their original content is preserved when you edit the document.",
+      "propertyName": "Property name",
+      "propertyValue": "Property value",
+      "addProperty": "Add property",
+      "removeProperty": "Remove {name}",
+      "chooseTemplate": "Choose a starting template",
+      "template": "Default document template",
+      "templateHint": "Applied automatically to new records when no value is supplied. Existing documents stay unchanged. Customize the content below.",
+      "applyTemplate": "Use column template",
+      "replaceTitle": "Replace document content?",
+      "replaceDescription": "This replaces the document body with the current column template. Its properties and history are preserved.",
+      "complexProperty": "Structured property (preserved)",
+      "templates": {
+        "blank": {
+          "label": "Blank",
+          "body": ""
+        },
+        "note": {
+          "label": "Note",
+          "body": "# Notes\n\n## Summary\n\n\n## Next steps\n\n- \n"
+        },
+        "meeting": {
+          "label": "Meeting notes",
+          "body": "# Meeting notes\n\n## Agenda\n\n- \n\n## Decisions\n\n- \n\n## Action items\n\n- \n"
+        },
+        "brief": {
+          "label": "Project brief",
+          "body": "# Project brief\n\n## Goal\n\n\n## Scope\n\n\n## Success criteria\n\n- \n"
+        }
+      }
     }
   },
   "groups": {

@@ -9613,10 +9613,45 @@
       "write": "Schreiben",
       "preview": "Vorschau",
       "expand": "Editor vergrößern",
-      "properties": "Frontmatter",
-      "hint": "Schreibe Markdown. Optionales YAML-Frontmatter steht zwischen --- am Anfang.",
+      "properties": "Eigene Eigenschaften",
+      "hint": "Schreibe unten Markdown. Datum und Autor werden automatisch verwaltet; eigene Eigenschaften stehen über dem Inhalt.",
       "empty": "Noch kein Inhalt für die Vorschau.",
-      "done": "Fertig"
+      "done": "Fertig",
+      "createdAt": "Erstellt",
+      "updatedAt": "Zuletzt geändert",
+      "createdBy": "Erstellt von",
+      "onCreation": "Bei der Erstellung",
+      "automatic": "Automatisierung oder unbekannter Autor",
+      "legacyProperties": "Diese importierten Eigenschaften können hier nicht bearbeitet werden. Ihr ursprünglicher Inhalt bleibt bei Änderungen am Dokument erhalten.",
+      "propertyName": "Eigenschaftsname",
+      "propertyValue": "Eigenschaftswert",
+      "addProperty": "Eigenschaft hinzufügen",
+      "removeProperty": "{name} entfernen",
+      "chooseTemplate": "Startvorlage wählen",
+      "template": "Standardvorlage für Dokumente",
+      "templateHint": "Wird bei neuen Datensätzen ohne angegebenen Wert automatisch verwendet. Bestehende Dokumente bleiben unverändert. Passe den Inhalt unten an.",
+      "applyTemplate": "Spaltenvorlage verwenden",
+      "replaceTitle": "Dokumentinhalt ersetzen?",
+      "replaceDescription": "Ersetzt den Dokumentinhalt durch die aktuelle Spaltenvorlage. Eigenschaften und Verlauf bleiben erhalten.",
+      "complexProperty": "Strukturierte Eigenschaft (erhalten)",
+      "templates": {
+        "blank": {
+          "label": "Leer",
+          "body": ""
+        },
+        "note": {
+          "label": "Notiz",
+          "body": "# Notizen\n\n## Zusammenfassung\n\n\n## Nächste Schritte\n\n- \n"
+        },
+        "meeting": {
+          "label": "Besprechungsnotizen",
+          "body": "# Besprechung\n\n## Tagesordnung\n\n- \n\n## Entscheidungen\n\n- \n\n## Aufgaben\n\n- \n"
+        },
+        "brief": {
+          "label": "Projektbeschreibung",
+          "body": "# Projektbeschreibung\n\n## Ziel\n\n\n## Umfang\n\n\n## Erfolgskriterien\n\n- \n"
+        }
+      }
     }
   },
   "groups": {

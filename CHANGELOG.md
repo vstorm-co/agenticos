@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Document templates and properties.** Rich-text columns offer editable default templates for notes, meetings and project briefs. New records apply the template automatically; existing documents can apply it after confirmation. Dates and author are shown above Markdown from authoritative record metadata, and custom frontmatter properties have their own controls.
+
 - **Full-screen workspaces and ready templates.** Expand a table, an entire record or workflow run history without remounting editors. Catalogs fill the workspace and expand over the shell, cards align their metadata and actions, tables lose redundant frames and workflow import accepts a dropped file. Public API and Markdown notebook templates provision a private table and a valid draft automatically; later runs reuse it and upsert the example record.
 
 - **Independent workflow starts.** Add different triggers to the same canvas, choose a start for a test, and run only its reachable branch. Publication retains each webhook or schedule registration; Active controls all of them. Existing single-entry workflows remain compatible.

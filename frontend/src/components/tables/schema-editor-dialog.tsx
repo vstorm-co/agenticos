@@ -21,6 +21,7 @@ import {
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
+import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
 import { FormulaField } from "./formula-field";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -123,6 +124,7 @@ export function SchemaEditorDialog({
 }) {
   const t = useTranslations("tables.schema");
   const tErrors = useTranslations("errors");
+  const tm = useTranslations("tables.markdown");
   const [rows, setRows] = useState<Row[]>(() => toRows(table));
   // Re-seeded from the table each time the dialog opens on a schema version it
   // has not shown yet - adjusted during render (React's own pattern for this,
@@ -215,7 +217,7 @@ export function SchemaEditorDialog({
           ...column,
           // A default of the old type is not one of the new; a choice's options
           // are not text's, and text becoming a choice takes its own values.
-          default: retyped ? null : column.default,
+          default: retyped && column.type !== "rich_text" ? null : column.default,
           options: OPTION_TYPES.has(column.type) ? column.options : [],
           formula: column.type === "formula" ? (column.formula ?? "") : null,
         };
@@ -244,7 +246,12 @@ export function SchemaEditorDialog({
                   />
                   <Select
                     value={row.type}
-                    onValueChange={(value) => updateRow(row.key, { type: value as ColumnTypeName })}
+                    onValueChange={(value) =>
+                      updateRow(row.key, {
+                        type: value as ColumnTypeName,
+                        default: value === "rich_text" ? tm("templates.note.body") : null,
+                      })
+                    }
                   >
                     <SelectTrigger
                       className="w-40 min-w-0 flex-1 sm:flex-none"
@@ -323,6 +330,13 @@ export function SchemaEditorDialog({
                 )}
                 {problemFor(index, "nullable") && (
                   <p className="text-destructive text-xs">{problemFor(index, "nullable")}</p>
+                )}
+                {row.type === "rich_text" && (
+                  <DocumentTemplateField
+                    id={`${row.key}-template`}
+                    value={typeof row.default === "string" ? row.default : ""}
+                    onChange={(value) => updateRow(row.key, { default: value })}
+                  />
                 )}
                 {row.type === "formula" && (
                   <FormulaField

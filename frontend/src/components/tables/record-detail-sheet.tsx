@@ -210,6 +210,7 @@ export function RecordDetailSheet({
                     </Label>
                     <RecordCellEditor
                       column={column}
+                      metadata={record}
                       fillEditor={expanded && column.type === "rich_text"}
                       value={value}
                       links={record.links?.[column.id]}

@@ -10416,10 +10416,45 @@
       "write": "Pisz",
       "preview": "Podgląd",
       "expand": "Powiększ edytor",
-      "properties": "Frontmatter",
-      "hint": "Pisz w Markdown. Opcjonalny frontmatter YAML umieść między liniami --- na początku.",
+      "properties": "Własne właściwości",
+      "hint": "Pisz Markdown poniżej. Daty i autor są uzupełniane automatycznie; własne właściwości są nad treścią.",
       "empty": "Nie ma jeszcze treści do podglądu.",
-      "done": "Gotowe"
+      "done": "Gotowe",
+      "createdAt": "Utworzono",
+      "updatedAt": "Ostatnia zmiana",
+      "createdBy": "Autor",
+      "onCreation": "Przy tworzeniu",
+      "automatic": "Automatyzacja lub nieznany autor",
+      "legacyProperties": "Tych importowanych właściwości nie można tutaj edytować. Zmiany dokumentu zachowają ich oryginalną treść.",
+      "propertyName": "Nazwa właściwości",
+      "propertyValue": "Wartość właściwości",
+      "addProperty": "Dodaj właściwość",
+      "removeProperty": "Usuń {name}",
+      "chooseTemplate": "Wybierz szablon początkowy",
+      "template": "Domyślny szablon dokumentu",
+      "templateHint": "Stosowany automatycznie w nowych rekordach, jeśli nie podano wartości. Istniejące dokumenty pozostają bez zmian. Treść szablonu możesz edytować poniżej.",
+      "applyTemplate": "Użyj szablonu kolumny",
+      "replaceTitle": "Zastąpić treść dokumentu?",
+      "replaceDescription": "Treść dokumentu zostanie zastąpiona aktualnym szablonem kolumny. Właściwości i historia zostaną zachowane.",
+      "complexProperty": "Złożona właściwość (zachowana)",
+      "templates": {
+        "blank": {
+          "label": "Pusty",
+          "body": ""
+        },
+        "note": {
+          "label": "Notatka",
+          "body": "# Notatki\n\n## Podsumowanie\n\n\n## Kolejne kroki\n\n- \n"
+        },
+        "meeting": {
+          "label": "Notatka ze spotkania",
+          "body": "# Spotkanie\n\n## Agenda\n\n- \n\n## Decyzje\n\n- \n\n## Zadania\n\n- \n"
+        },
+        "brief": {
+          "label": "Opis projektu",
+          "body": "# Projekt\n\n## Cel\n\n\n## Zakres\n\n\n## Kryteria sukcesu\n\n- \n"
+        }
+      }
     }
   },
   "groups": {
