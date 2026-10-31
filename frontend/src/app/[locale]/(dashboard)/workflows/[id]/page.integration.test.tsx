@@ -387,7 +387,7 @@ describe("the workflow editor page header", () => {
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
 
-    await userEvent.click(await screen.findByRole("button", { name: "Remove tag sales" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Remove sales" }));
     expect(actions.update.mutate).toHaveBeenCalledWith({ id: "w1", update: { tags: [] } });
 
     await userEvent.click(screen.getByRole("button", { name: "Tag" }));
@@ -417,7 +417,7 @@ describe("the workflow editor page header", () => {
     expect(await screen.findByText("Paused")).toBeInTheDocument();
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "My Workflow" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Remove tag sales" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove sales" })).not.toBeInTheDocument();
   });
 });
 
