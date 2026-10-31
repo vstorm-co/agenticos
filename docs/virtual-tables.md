@@ -18,7 +18,7 @@ Every table shows locked `created_at`, `updated_at`, `created_by` and `updated_b
 
 Set a typed **Default value** in column settings or when adding a column. New records use it only when the field is omitted; an explicit value or null wins. Select defaults can name option IDs or labels when submitting a schema; the server stores IDs. Choose each option's color in its options list; **Automatic** keeps the original palette. Changing a color preserves option IDs and the column's meaning revision.
 
-Quick add sits directly after the loaded rows in their scroll area. The console's CSV export includes the four record properties. API exports keep their existing shape unless `include_metadata: true` is requested.
+Quick add sits directly after the loaded rows in their scroll area. The console's CSV export includes the four record properties. API exports keep their existing shape unless `include_metadata: true` is requested. System properties are skipped when creating a table from an exported CSV; imported records receive fresh system metadata.
 
 ## External clients { #external-clients }
 

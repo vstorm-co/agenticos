@@ -388,6 +388,19 @@ describe("CreateTableDialog", () => {
       });
     }
 
+    it("imports a console export without turning system metadata into editable columns", async () => {
+      const onCreate = renderDialog();
+      await choose(
+        "Name,created_at,updated_at,created_by,updated_by\nExample,2026-10-31,2026-10-31,user-1,user-1\n",
+      );
+      expect(screen.getAllByLabelText("Column label")).toHaveLength(1);
+      await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ columns: [{ label: "Name", type: "text" }] }),
+        expect.objectContaining({ labels: ["Name", null, null, null, null] }),
+      );
+    });
+
     it("reads the name, the columns and their types from the file", async () => {
       const user = userEvent.setup();
       const onCreate = renderDialog();

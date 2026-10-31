@@ -1,5 +1,5 @@
 ---
-source_sha: "2b21138a3f3c"
+source_sha: "2adc37c143bf"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -22,7 +22,7 @@ Każda tabela pokazuje zablokowane pola `created_at`, `updated_at`, `created_by`
 
 Typowaną **Wartość domyślną** ustawisz w ustawieniach lub przy dodawaniu kolumny. Nowe rekordy używają jej tylko po pominięciu pola; jawna wartość lub null ma pierwszeństwo. Domyślne opcje select mogą przy wysyłaniu schematu wskazywać ID albo etykiety; serwer zapisuje ID. Kolor opcji wybierzesz na liście opcji; **Automatyczny** zachowuje dotychczasową paletę. Zmiana koloru zachowuje identyfikatory i rewizję znaczenia kolumny.
 
-Szybkie dodawanie jest bezpośrednio za załadowanymi wierszami, w ich obszarze przewijania. Eksport CSV w konsoli zawiera cztery właściwości rekordu. Eksport API zachowuje dotychczasowy format, chyba że podasz `include_metadata: true`.
+Szybkie dodawanie jest bezpośrednio za załadowanymi wierszami, w ich obszarze przewijania. Eksport CSV w konsoli zawiera cztery właściwości rekordu. Eksport API zachowuje dotychczasowy format, chyba że podasz `include_metadata: true`. Przy tworzeniu tabeli z eksportowanego CSV pola systemowe są pomijane; importowane rekordy dostają nowe metadane systemowe.
 
 ## Klienci zewnętrzni { #external-clients }
 

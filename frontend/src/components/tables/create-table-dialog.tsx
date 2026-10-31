@@ -8,6 +8,7 @@ import { ColumnDefaultField } from "./column-default-field";
 import { OptionColorPicker } from "./option-color-picker";
 import { DocumentTemplateField } from "./document-template-field";
 import { ColumnTypeIcon } from "./column-type-icon";
+import { SYSTEM_COLUMN_KEYS } from "@/lib/table-system-columns";
 import { inferType, readCsvFile } from "./csv-cells";
 import {
   Button,
@@ -37,6 +38,7 @@ const FORM = { fields: ["name"], identifiedBy: "name" } as const;
 const MAX_COLUMNS = 100;
 /** The longest table or column name; `Label` in the service's schema. */
 const MAX_LABEL = 64;
+const SYSTEM_HEADERS: ReadonlySet<string> = new Set(SYSTEM_COLUMN_KEYS);
 
 interface DraftColumn {
   key: string;
@@ -83,7 +85,8 @@ function columnsFrom(
   unnamed: (n: number) => string,
 ): DraftColumn[] {
   const taken = new Set<string>();
-  return headers.map((header, at) => {
+  return headers.flatMap((header, at) => {
+    if (SYSTEM_HEADERS.has(header.trim().toLowerCase())) return [];
     const base = header.trim().slice(0, MAX_LABEL).trim() || unnamed(at + 1);
     let label = base;
     for (let n = 2; taken.has(label); n += 1) {
@@ -164,7 +167,11 @@ export function CreateTableDialog({
 
   async function startFrom(file: File) {
     const read = await readCsvFile(file);
-    if (read === null || read.headers.length > MAX_COLUMNS) {
+    if (
+      read === null ||
+      read.headers.filter((header) => !SYSTEM_HEADERS.has(header.trim().toLowerCase())).length >
+        MAX_COLUMNS
+    ) {
       setCsvError(read === null ? t("csvEmpty") : t("csvTooWide", { max: MAX_COLUMNS }));
       return;
     }

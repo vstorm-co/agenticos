@@ -1,5 +1,5 @@
 ---
-source_sha: "2b21138a3f3c"
+source_sha: "2adc37c143bf"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -23,7 +23,7 @@ Jede Tabelle zeigt die gesperrten Datensatzfelder `created_at`, `updated_at`, `c
 
 Lege einen typisierten **Standardwert** in den Spalteneinstellungen oder beim Hinzufügen einer Spalte fest. Neue Datensätze verwenden ihn nur, wenn das Feld fehlt; ein expliziter Wert oder null hat Vorrang. Auswahl-Standardwerte dürfen beim Einreichen eines Schemas IDs oder Bezeichnungen nennen; der Server speichert IDs. Wähle die Farbe jeder Option in ihrer Liste; **Automatisch** behält die bisherige Palette. Farbänderungen erhalten Options-IDs und die Bedeutungsrevision der Spalte.
 
-Die Schnelleingabe steht direkt hinter den geladenen Zeilen in deren Scrollbereich. Der CSV-Export der Konsole enthält die vier Datensatzeigenschaften. API-Exporte behalten ihr bisheriges Format, sofern nicht `include_metadata: true` angefordert wird.
+Die Schnelleingabe steht direkt hinter den geladenen Zeilen in deren Scrollbereich. Der CSV-Export der Konsole enthält die vier Datensatzeigenschaften. API-Exporte behalten ihr bisheriges Format, sofern nicht `include_metadata: true` angefordert wird. Beim Erstellen einer Tabelle aus einem exportierten CSV werden Systemeigenschaften übersprungen; importierte Datensätze erhalten neue Systemmetadaten.
 
 ## Externe Clients { #external-clients }
 

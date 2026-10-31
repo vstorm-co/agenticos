@@ -1,5 +1,5 @@
 ---
-source_sha: "2b21138a3f3c"
+source_sha: "2adc37c143bf"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -23,7 +23,7 @@ Cada tabla muestra los campos bloqueados `created_at`, `updated_at`, `created_by
 
 Configura un **Default value** con su tipo en los ajustes o al añadir una columna. Los registros nuevos lo usan solo si se omite el campo; un valor explícito o null tiene prioridad. Al enviar un esquema, los valores predeterminados de selección pueden usar IDs o etiquetas; el servidor guarda IDs. Elige el color de cada opción en su lista; **Automatic** conserva la paleta original. Cambiar el color mantiene los IDs y la revisión de significado de la columna.
 
-La entrada rápida está justo después de las filas cargadas, en su área de desplazamiento. El CSV de la consola incluye las cuatro propiedades del registro. Las exportaciones API mantienen su formato salvo que se solicite `include_metadata: true`.
+La entrada rápida está justo después de las filas cargadas, en su área de desplazamiento. El CSV de la consola incluye las cuatro propiedades del registro. Las exportaciones API mantienen su formato salvo que se solicite `include_metadata: true`. Al crear una tabla desde un CSV exportado se omiten las propiedades del sistema; los registros importados reciben nuevos metadatos del sistema.
 
 ## Clientes externos { #external-clients }
 
