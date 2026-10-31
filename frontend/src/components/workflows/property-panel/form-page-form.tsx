@@ -2,7 +2,22 @@
 
 import { useTranslations } from "next-intl";
 
-import { Input, Label, Textarea } from "@/components/ui";
+import { FormSurface } from "../form-surface";
+import { PublicForm } from "../public-form";
+import { formPageOf } from "../form-page-config";
+import { FormLinks } from "../form-links";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { isRecord } from "./schema-model";
+import {
+  Input,
+  Label,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import type { NodeInstance, Uuid } from "@/lib/workflows/types";
 
 /** The words a Form trigger's page shows, and the most each may hold - `FormTriggerConfig`. */
@@ -27,6 +42,18 @@ interface FormPageFormProps {
  */
 export function FormPageForm({ node, disabled, updateNodeConfig }: FormPageFormProps) {
   const t = useTranslations("workflows.formPage");
+  const workflowId = useWorkflowEditorStore((state) => state.workflowId);
+  const isDirty = useWorkflowEditorStore((state) => state.isDirty);
+  const appearance = isRecord(node.config.appearance) ? node.config.appearance : {};
+  const page = formPageOf(node.config, {
+    title: t("title.placeholder"),
+    submit: t("submit_label.placeholder"),
+  });
+  const setAppearance = (key: string, value: string) =>
+    updateNodeConfig(node.id, {
+      ...node.config,
+      appearance: { ...appearance, [key]: value },
+    });
 
   const write = (key: string, value: string) => {
     const { [key]: _dropped, ...rest } = node.config;
@@ -34,7 +61,10 @@ export function FormPageForm({ node, disabled, updateNodeConfig }: FormPageFormP
   };
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-5">
+      {workflowId && (
+        <FormLinks workflowId={workflowId} entryId={node.id} saving={isDirty} canTest={!disabled} />
+      )}
       {PAGE_TEXT.map(({ key, max, long }) => {
         const id = `form-page-${key}`;
         const value = typeof node.config[key] === "string" ? String(node.config[key]) : "";
@@ -53,6 +83,49 @@ export function FormPageForm({ node, disabled, updateNodeConfig }: FormPageFormP
           </div>
         );
       })}
+      <div className="space-y-4 rounded-xl border p-4">
+        <h3 className="text-sm font-medium">{t("appearance")}</h3>
+        <div className="space-y-2">
+          <Label htmlFor="form-accent">{t("accent")}</Label>
+          <Input
+            type="color"
+            id="form-accent"
+            className="h-10 w-16 p-1"
+            disabled={disabled}
+            value={typeof appearance.accent === "string" ? appearance.accent : "#52525b"}
+            onChange={(event) => setAppearance("accent", event.target.value)}
+          />
+        </div>
+        {(["width", "layout"] as const).map((key) => (
+          <div className="space-y-2" key={key}>
+            <Label htmlFor={`form-${key}`}>{t(key)}</Label>
+            <Select
+              disabled={disabled}
+              value={String(appearance[key] ?? (key === "width" ? "standard" : "card"))}
+              onValueChange={(value) => setAppearance(key, value)}
+            >
+              <SelectTrigger id={`form-${key}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(key === "width" ? ["standard", "wide"] : ["card", "plain"]).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(value)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </div>
+      <details className="rounded-xl border">
+        <summary className="cursor-pointer p-4 text-sm font-medium">{t("preview")}</summary>
+        <div className="bg-muted/20 p-4">
+          <FormSurface appearance={page.appearance} preview>
+            <PublicForm page={page} preview />
+          </FormSurface>
+        </div>
+      </details>
     </section>
   );
 }

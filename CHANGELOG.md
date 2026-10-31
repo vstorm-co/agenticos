@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Workflow forms have configurable appearance, an authenticated draft preview and direct test and public links. Test draft opens the form or chat surface for those triggers.
+
 - **Review an automation once.** Prepare a private workflow and its table atomically with one MCP approval, then check its graph without executing actions. Run pages state the scope of test verification.
 
 - **People, agents and document libraries in Tables.** Reference one or many organization members or accessible AI agents, choosing names with avatars. Save named Markdown templates per column, customize and reuse them, and choose an automatic default for new records.
@@ -968,6 +970,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
 
 ### Fixed
+
+- Workflow prompt visibility, agent picker width, catalog version pins, model creation permissions, notification channel labels and shared file inputs. New Run an agent steps use catalog agents; existing inline configurations remain executable.
 
 - **Architect workflow construction.** Refreshing shipped Architects binds workflow and table skills, runtime guidance removes the obsolete workflow denial, required columns work when creating empty tables, schedule tests prepare their trigger input, planning returns step IDs immediately, and expected MCP refusals retain safe field errors in chat history.
 

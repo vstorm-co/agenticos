@@ -1,7 +1,7 @@
 "use client";
 
 import { type DragEvent, type ReactNode, useMemo, useState } from "react";
-import { Braces, X } from "lucide-react";
+import { Braces, File, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ import type { SourceCandidate } from "./bindings";
 import { DataSourceMenu, sourceText } from "./data-source";
 import { nodeNames } from "./problems";
 import {
+  isRecord,
   labelOf,
   singleFieldSchema,
   takesJson,
@@ -110,6 +111,7 @@ export function BindingField({
   const [dropping, setDropping] = useState(false);
   const [dropProblem, setDropProblem] = useState<string | null>(null);
   const reads = isNodeOutput(binding);
+  const fileLiteral = literalValueOf(binding);
   const textual = !reads && (takesText(schema) || binding?.source.kind === "template");
   const drop = (event: DragEvent) => {
     event.preventDefault();
@@ -223,6 +225,31 @@ export function BindingField({
         {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
       </div>
     );
+  } else if (own["x-workflow-file"] === true) {
+    control = (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label>
+            {label}
+            {required && " *"}
+          </Label>
+          {!disabled && menu}
+        </div>
+        <div className="bg-muted/20 flex items-start gap-3 rounded-xl border border-dashed p-4">
+          <File className="text-muted-foreground mt-0.5 size-5 shrink-0" aria-hidden />
+          <p className="text-muted-foreground text-sm">
+            {isRecord(fileLiteral) && typeof fileLiteral.file_id === "string"
+              ? String(fileLiteral.content_type ?? fileLiteral.file_id)
+              : t("fileBindingHint")}
+          </p>
+        </div>
+        {error && (
+          <p role="alert" className="text-destructive text-xs">
+            {error}
+          </p>
+        )}
+      </div>
+    );
   } else if (textual) {
     control = (
       <TextValueField
@@ -232,7 +259,11 @@ export function BindingField({
         required={required}
         hint={description}
         placeholder={typeof own["x-placeholder"] === "string" ? own["x-placeholder"] : undefined}
-        multiline={own["x-multiline"] === true || own["x-textarea"] === true}
+        multiline={
+          own["x-multiline"] === true ||
+          own["x-textarea"] === true ||
+          ["prompt", "message", "instructions", "system_prompt", "body"].includes(name)
+        }
         binding={binding}
         graph={graph}
         catalog={catalog}
@@ -264,8 +295,8 @@ export function BindingField({
           }
         />
       ) : (
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
+        <div className="relative">
+          <div className="min-w-0 [&_label]:pr-16">
             <SchemaForm
               schema={singleFieldSchema(name, schema, required)}
               value={literalValue === undefined ? {} : { [name]: literalValue }}
@@ -279,7 +310,7 @@ export function BindingField({
               }}
             />
           </div>
-          {!disabled && <div className="shrink-0">{menu}</div>}
+          {!disabled && <div className="absolute top-0 right-0">{menu}</div>}
         </div>
       );
   }

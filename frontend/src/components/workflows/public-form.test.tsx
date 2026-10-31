@@ -37,12 +37,29 @@ function answer(status: number, body: unknown = {}) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("PublicForm", () => {
+  it("sends draft answers through the authenticated test adapter", async () => {
+    const submit = vi.fn().mockResolvedValue("Run started");
+    const publicRequest = vi.fn();
+    vi.stubGlobal("fetch", publicRequest);
+    render(<PublicForm page={PAGE} onSubmitValues={submit} />);
+    await userEvent.type(screen.getByLabelText("Your name"), "Ada");
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Run started");
+    expect(submit).toHaveBeenCalledWith({ name: "Ada" });
+    expect(publicRequest).not.toHaveBeenCalled();
+  });
+  it("keeps the appearance preview inert", () => {
+    render(<PublicForm page={PAGE} preview />);
+    expect(screen.getByLabelText("Your name")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send request" })).toBeDisabled();
+  });
+
   it("names a missing answer before sending anything", async () => {
     const fetchMock = answer(201);
     render(<PublicForm page={PAGE} token="tok" />);
 
     expect(screen.getByRole("heading", { name: "Talk to our team" })).toBeVisible();
-    expect(screen.getByText("We answer within a day.")).toBeVisible();
+    expect(await screen.findByText("We answer within a day.")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Send request" }));
 
     expect(fetchMock).not.toHaveBeenCalled();

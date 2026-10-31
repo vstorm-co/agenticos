@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -9,6 +10,32 @@ const node = (config: Record<string, unknown>) =>
   ({ id: "n1", definition_id: "trigger.form", config }) as unknown as NodeInstance;
 
 describe("FormPageForm", () => {
+  it("edits appearance while keeping content and previews that same form", async () => {
+    const update = vi.fn();
+    render(
+      <FormPageForm
+        node={node({ title: "Project brief", fields: [], appearance: { width: "standard" } })}
+        updateNodeConfig={update}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Accent color"), { target: { value: "#345678" } });
+    expect(update).toHaveBeenCalledWith(
+      "n1",
+      expect.objectContaining({
+        title: "Project brief",
+        appearance: { width: "standard", accent: "#345678" },
+      }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Page width" }));
+    await userEvent.click(screen.getByRole("option", { name: "Wide" }));
+    expect(update).toHaveBeenLastCalledWith(
+      "n1",
+      expect.objectContaining({ appearance: { width: "wide" } }),
+    );
+    await userEvent.click(screen.getByText("Preview appearance"));
+    expect(screen.getByRole("heading", { name: "Project brief" })).toBeVisible();
+  });
+
   it("shows the page's words and writes an edit into the config", () => {
     const update = vi.fn();
     render(

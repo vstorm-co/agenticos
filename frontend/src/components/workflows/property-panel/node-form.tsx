@@ -32,11 +32,18 @@ import {
   TableColumnPicker,
   type AgentVersionRef,
 } from "@/components/workflows/pickers";
-import { useKnowledgeBases, useMembers, useModelProviders, useWorkflowTable } from "@/hooks";
+import {
+  useKnowledgeBases,
+  useMembers,
+  useModelProviders,
+  useWorkflowTable,
+  usePermissions,
+} from "@/hooks";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { useOrgStore } from "@/stores";
 import { COMPUTED_TYPES, type ColumnDef } from "@/types/tables";
 import { cn } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
 import {
   bindingFieldPath,
   type Binding,
@@ -66,6 +73,7 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
 import { HttpAuthField } from "./http-auth-field";
 import { InputFieldsForm } from "./input-fields-form";
@@ -283,10 +291,12 @@ function ModelProfilePin({
   onChange: (value: unknown) => void;
 }) {
   const { profiles, profilesStatus } = useModelProviders();
+  const { can } = usePermissions();
   return (
     <ModelProfilePicker
       profiles={profiles}
       profilesStatus={profilesStatus}
+      allowAdd={can(Perm.connectionsManage)}
       value={strOrNull(value)}
       onChange={(id) => onChange(id ?? undefined)}
       disabled={disabled}
@@ -451,6 +461,10 @@ function ConfigLeaf({
   const error = ctx.errors.get(field);
   const label = labelOf(schema, name);
   const resource = resourceKind(schema);
+
+  if (ctx.node.definition_id === "notification.send" && name === "channels") {
+    return <NotificationChannels value={value} disabled={ctx.disabled} onChange={onChange} />;
+  }
 
   if (resource !== null) {
     // Only the collection and member pins leave their label to the form: the
@@ -1035,6 +1049,61 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
   const shape = classify(schema, defs);
   const label = labelOf(schema, name);
 
+  if (
+    shape.kind === "object" &&
+    shape.entries.some((entry) => entry.name === "file_id") &&
+    shape.entries.some((entry) => entry.name === "byte_size")
+  ) {
+    const field = bindingFieldPath(path);
+    const legacy = ctx.bindings.some(
+      (binding) =>
+        binding.target_node_id === ctx.node.id && binding.target_field.startsWith(`${field}/`),
+    );
+    return (
+      <div className="space-y-3" data-field={field}>
+        <BindingField
+          targetNodeId={ctx.node.id}
+          targetField={field}
+          name={name}
+          schema={{
+            $ref: "#/$defs/FileRef",
+            type: "object",
+            title: label,
+            properties: Object.fromEntries(
+              shape.entries.map((entry) => [entry.name, entry.schema]),
+            ),
+            required: shape.entries.filter((entry) => entry.required).map((entry) => entry.name),
+            "x-workflow-file": true,
+          }}
+          required={required}
+          bindings={ctx.bindings}
+          graph={ctx.graph}
+          catalog={ctx.catalog}
+          error={ctx.errors.get(field)}
+          disabled={ctx.disabled}
+          onUpsert={ctx.upsertBinding}
+          onRemove={ctx.removeBinding}
+        />
+        {legacy && (
+          <details>
+            <summary className="text-muted-foreground cursor-pointer text-xs">{label}</summary>
+            <div className="space-y-3 pt-3">
+              {shape.entries.map((child) => (
+                <InputNode
+                  key={child.name}
+                  {...child}
+                  path={[...path, child.name]}
+                  defs={defs}
+                  ctx={ctx}
+                />
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+    );
+  }
+
   if (shape.kind === "object") {
     return (
       <Fieldset label={label}>
@@ -1337,7 +1406,6 @@ function NodeFields({
             {agentStep && entry.name === AGENT_SOURCE ? (
               <AgentSourceField
                 config={node.config}
-                stepName={node.label || definition.name}
                 error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
                 disabled={disabled}
                 onChange={(next) => updateNodeConfig(node.id, next)}

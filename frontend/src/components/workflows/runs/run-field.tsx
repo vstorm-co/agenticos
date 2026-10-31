@@ -21,6 +21,7 @@ import {
 
 interface RunFieldProps {
   field: InputField;
+  idPrefix?: string;
   value: FormValue | undefined;
   problem: FieldProblem | undefined;
   onChange: (value: FormValue) => void;
@@ -30,9 +31,15 @@ interface RunFieldProps {
  * One declared field, as the input its type calls for - in the Run form, and on
  * a Form trigger's public page.
  */
-export function RunField({ field, value, problem, onChange }: RunFieldProps) {
+export function RunField({
+  field,
+  value,
+  problem,
+  onChange,
+  idPrefix = "run-field",
+}: RunFieldProps) {
   const t = useTranslations("pages.workflows");
-  const id = `run-field-${field.name}`;
+  const id = `${idPrefix}-${field.name}`;
   const caption = fieldCaption(field);
   const text = typeof value === "string" ? value : "";
 

@@ -136,3 +136,21 @@ def test_node_output_ref_field_path_walks_a_nested_field():
     ref = NodeOutputRef(node_id=uuid4(), port="out", field_path=("text",))
     restored = NodeOutputRef.model_validate(ref.model_dump(mode="json"))
     assert restored.field_path == ("text",)
+
+
+def test_form_appearance_is_bounded_and_optional():
+    from app.workflows.contracts.form import FormAppearance
+    from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
+
+    config = FormTriggerConfig.model_validate({"fields": [{"name": "email", "type": "text"}]})
+    assert config.appearance == FormAppearance()
+    appearance = FormAppearance(accent="#394b65", width="wide", layout="plain")
+    assert appearance.model_dump() == {"accent": "#394b65", "width": "wide", "layout": "plain"}
+    for invalid in (
+        {"accent": "url(javascript:evil)"},
+        {"width": "999px"},
+        {"layout": "html"},
+        {"css": "body{}"},
+    ):
+        with pytest.raises(ValidationError):
+            FormAppearance.model_validate(invalid)

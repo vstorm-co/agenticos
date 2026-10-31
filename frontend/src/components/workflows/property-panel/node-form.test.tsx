@@ -19,21 +19,19 @@ import type { Schema } from "./schema-model";
 vi.mock("@/components/workflows/agent-step/agent-source-field", () => ({
   AgentSourceField: ({
     config,
-    stepName,
     error,
     onChange,
   }: {
     config: Record<string, unknown>;
-    stepName: string;
     error?: string;
     onChange: (next: Record<string, unknown>) => void;
   }) => (
     <div>
-      <span>{`agent-source:${stepName}:${JSON.stringify(config)}:${error ?? ""}`}</span>
+      <span>{`agent-source:${JSON.stringify(config)}:${error ?? ""}`}</span>
       <button
         type="button"
-        aria-label="go-inline"
-        onClick={() => onChange({ inline: { name: "x" } })}
+        aria-label="go-catalog"
+        onClick={() => onChange({ agent: { agent_id: "a", version_id: "v" } })}
       />
     </div>
   ),
@@ -202,7 +200,9 @@ vi.mock("@/components/orgs/member-picker", () => ({
   ),
 }));
 
+const permission = vi.hoisted(() => ({ canManage: true }));
 vi.mock("@/hooks", () => ({
+  usePermissions: () => ({ can: () => permission.canManage }),
   useWorkflowTable: () => ({
     table: {
       columns: [
@@ -226,11 +226,13 @@ vi.mock("@/components/agents/model-profile-picker", () => ({
   ModelProfilePicker: ({
     value,
     onChange,
+    allowAdd,
   }: {
     value: string | null;
     onChange: (id: string | null) => void;
+    allowAdd: boolean;
   }) => (
-    <div>
+    <div data-testid="model-picker" data-allow-add={allowAdd}>
       <span>{`model:${value}`}</span>
       <button type="button" onClick={() => onChange("m1")}>
         pick-model
@@ -346,6 +348,33 @@ function renderForm(
 }
 
 describe("NodeForm sections", () => {
+  it("binds a file as one object rather than asking for its metadata", () => {
+    renderForm({
+      definition: makeDefinition({
+        id: "convert.json_to_csv",
+        input_schema: {
+          type: "object",
+          properties: { file: { $ref: "#/$defs/FileRef" } },
+          required: ["file"],
+          $defs: {
+            FileRef: {
+              type: "object",
+              properties: {
+                file_id: { type: "string" },
+                content_type: { type: "string" },
+                byte_size: { type: "integer" },
+              },
+              required: ["file_id", "content_type", "byte_size"],
+            },
+          },
+        },
+      }),
+    });
+    expect(screen.getByText(/type and size are included automatically/)).toBeVisible();
+    expect(screen.queryByLabelText(/File ID/)).toBeNull();
+    expect(screen.queryByLabelText(/Byte size/)).toBeNull();
+  });
+
   it("lists the list a step works on first, then its settings, then what else it reads", () => {
     const filter = makeDefinition({
       id: "data.filter",
@@ -451,12 +480,14 @@ describe("NodeForm sections", () => {
     });
 
     expect(
-      screen.getByText('agent-source:Agent:{"inline":{"name":"Scorer"}}:No model selected'),
+      screen.getByText('agent-source:{"inline":{"name":"Scorer"}}:No model selected'),
     ).toBeVisible();
     // `inline` is the same field, never a second control or a folded option.
     expect(screen.getByRole("button", { name: "1 more option" })).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "go-inline" }));
-    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { inline: { name: "x" } });
+    await userEvent.click(screen.getByRole("button", { name: "go-catalog" }));
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      agent: { agent_id: "a", version_id: "v" },
+    });
   });
 
   it("draws an MCP step's server and tool as one field, writing both", async () => {
@@ -566,6 +597,21 @@ describe("NodeForm sections", () => {
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { server: "c2" });
     await userEvent.click(screen.getByRole("button", { name: "unpick-server" }));
     expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {});
+  });
+
+  it("does not offer model creation without connection management", () => {
+    permission.canManage = false;
+    renderForm({
+      definition: makeDefinition({
+        id: "ai.prompt",
+        config_schema: {
+          type: "object",
+          properties: { model_profile_id: { type: "string", "x-resource": "model_profile" } },
+        },
+      }),
+    });
+    expect(screen.getByTestId("model-picker")).toHaveAttribute("data-allow-add", "false");
+    permission.canManage = true;
   });
 
   it("picks a model step's model from the organization's models", async () => {

@@ -403,24 +403,12 @@ flight, the monthly budget spent - is marked failed with the reason. Try the cas
 after changing the prompt, the model or the instructions. A step holds up to 50
 cases, and trying them needs `workflows:edit`, like testing the draft.
 
-### An agent configured in the step { #an-agent-configured-in-the-step }
+### Catalog agents { #an-agent-configured-in-the-step }
 
-An **Agent** step either pins an agent from the catalog or, with **Configure
-here**, defines its own: a name, a model, instructions, capabilities with the
-knowledge, skills and context files they read, and MCP servers - the same editors
-the Builder uses. Delegation is the one capability it is not offered, because the
-workflow is already where work is handed from step to step.
+**Run an agent** selects a published agent from the catalog. Choosing it pins its current published version; the version picker can choose an older one. A published workflow keeps that immutable pin. For an existing incomplete step, **Use published version** fills the missing pin before testing. Create or edit agents in the Agent Builder.
 
-That agent belongs to the workflow. It is versioned with the graph and never
-appears in the catalog. Its first run creates it, and a run after its
-configuration changed publishes a new version of it first, checked as publishing
-any agent is. Its runs show in Activity with its budget, approvals and history
-like any other agent's, and its page there sends you back to the workflow.
+Older graphs containing an agent configured inside a step remain executable. The editor preserves that configuration until you deliberately replace it with a catalog agent. New inline agents cannot be built in workflows. **Max cost (USD)** still caps an execution alongside the other applicable budgets.
 
-**Copy its configuration into this step** starts from a catalog agent to adjust
-it, and **Save as an agent** puts the step's agent in the catalog as a draft for
-other workflows and people. **Max cost (USD)** caps what one execution of the step may
-spend, beside the agent's, the workflow's and the organization's limits.
 
 ### When a step is slow or fails { #when-a-step-is-slow-or-fails }
 
@@ -987,6 +975,10 @@ resumes them, and shows what each decided about every record. See
 [Virtual Tables](virtual-tables.md#triggers).
 
 ### From a form { #from-a-form }
+
+**Test draft** opens an authenticated form preview for a single Form trigger. Its URL includes the entry node so independent forms stay distinct. Submitting uses the saved draft and starts a test run with the entered answers; open that run to inspect its result. Previewing does not publish a public link. A viewer can inspect the page but cannot execute a draft.
+
+The Form step shows test and published links beside its configuration. **Appearance** controls the accent, standard or wide page width, and card or plain layout. **Preview appearance** uses the same renderer as the public page. Descriptions support Markdown; input fields, button text and the success message remain configurable. Test runs can still execute the workflow's actions.
 
 A **Form** trigger gives the workflow a public page: a title, a description and one
 box per field it declares, typed as **Manual**'s fields are, with its own words on

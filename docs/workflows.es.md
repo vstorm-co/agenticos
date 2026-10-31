@@ -1,5 +1,5 @@
 ---
-source_sha: "471c1b95b199"
+source_sha: "1a481370eb5a"
 ---
 
 # Workflows { #workflows }
@@ -426,25 +426,12 @@ como no superado con el motivo. Prueba los casos tras cambiar el prompt, el mode
 las instrucciones. Un paso admite hasta 50 casos, y probarlos requiere
 `workflows:edit`, como probar el borrador.
 
-### Un agent configurado en el paso { #an-agent-configured-in-the-step }
+### Agentes del catálogo { #an-agent-configured-in-the-step }
 
-Un paso **Agent** fija un agent del catálogo o, con **Configurar aquí**, define el
-suyo: un nombre, un modelo, instrucciones, capabilities con el conocimiento, los
-skills y los archivos de contexto que leen, y servidores MCP, con los mismos
-editores que el Builder. La delegación es la única capability que no se le ofrece,
-porque el workflow ya es donde el trabajo pasa de un paso a otro.
+**Run an agent** selecciona un agente publicado del catálogo y fija su versión publicada actual. Puede elegir una versión anterior; los workflows publicados mantienen esa versión inmutable. **Use published version** completa una versión ausente antes de probar. Cree y edite agentes en Agent Builder.
 
-Ese agent pertenece al workflow. Se versiona con el grafo y nunca aparece en el
-catálogo. Su primer run lo crea, y un run tras cambiar su configuración publica
-primero una nueva versión, comprobada como cualquier publicación de un agent. Sus
-runs aparecen en Activity con su presupuesto, aprobaciones e historial como los de
-cualquier agent, y su página allí te devuelve al workflow.
+Los grafos antiguos con un agente configurado dentro de un paso siguen ejecutándose. El editor conserva esa configuración hasta que se sustituya deliberadamente por un agente del catálogo. Ya no se crean agentes dentro de workflows. **Max cost (USD)** sigue limitando cada ejecución junto con los demás presupuestos.
 
-**Copiar su configuración a este paso** parte de un agent del catálogo para
-ajustarlo, y **Guardar como agent** pone el agent del paso en el catálogo como
-borrador para otros workflows y personas. **Max cost (USD)** limita lo que puede gastar
-una ejecución del paso, junto a los límites del agent, del workflow y de la
-organización.
 
 ### Cuando un paso es lento o falla { #when-a-step-is-slow-or-fails }
 
@@ -1050,6 +1037,10 @@ pausa y reanuda, y muestra lo que cada uno decidió sobre cada registro. Consult
 [Virtual Tables](virtual-tables.md#triggers).
 
 ### Desde un formulario { #from-a-form }
+
+**Test draft** abre una vista previa autenticada para un único trigger Form. La URL incluye el nodo de entrada para separar formularios independientes. El envío inicia una prueba del borrador guardado con las respuestas; abra el run para comprobar el resultado. La vista previa no publica un enlace público. Los lectores pueden ver la página, pero no ejecutar el borrador.
+
+El paso Form muestra los enlaces de prueba y publicado junto a la configuración. **Appearance** controla el acento, la anchura estándar o amplia y el diseño de tarjeta o página sencilla. La vista previa utiliza el mismo renderizador que la página pública. Las descripciones admiten Markdown; los campos, el texto del botón y el mensaje de éxito siguen siendo configurables. Las pruebas pueden ejecutar las acciones del workflow.
 
 Un trigger **Form** da al workflow una página pública: un título, una descripción y
 un campo por cada campo que declara, tipado como los de **Manual**, con sus propias

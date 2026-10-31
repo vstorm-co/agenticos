@@ -4,7 +4,9 @@ import { useState } from "react";
 import { Bot, RotateCcw, SendHorizontal, User } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, Spinner, Textarea } from "@/components/ui";
+import { Button, Spinner } from "@/components/ui";
+import { ComposerEditor } from "@/components/chat/composer-editor";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useWorkflowRun, useWorkflowRuns } from "@/hooks";
 import { isRunTerminal } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -33,7 +35,7 @@ function Answer({ runId }: { runId: string }) {
   }
   const text = run.output?.["text"];
   return typeof text === "string" && text !== "" ? (
-    <span className="text-sm whitespace-pre-wrap">{text}</span>
+    <MarkdownContent content={text} />
   ) : (
     <span className="text-muted-foreground text-sm">{t("chatPanelNoAnswer")}</span>
   );
@@ -65,7 +67,7 @@ export function ChatPanel({
 
   const send = () => {
     const text = prompt.trim();
-    if (text === "" || blocked !== null) return;
+    if (text === "" || blocked !== null || start.isPending) return;
     start.mutate(
       {
         workflow_id: workflowId,
@@ -120,28 +122,36 @@ export function ChatPanel({
         ))}
       </ol>
       {blocked !== null && <p className="text-muted-foreground text-xs">{blocked}</p>}
-      <div className="flex items-end gap-2">
-        <Textarea
-          aria-label={t("chatPanelMessage")}
-          placeholder={t("chatPanelPlaceholder")}
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              send();
-            }
-          }}
-          className="min-h-10 flex-1 resize-none"
-        />
-        <Button
-          size="icon"
-          aria-label={t("chatPanelSend")}
-          disabled={prompt.trim() === "" || blocked !== null || start.isPending}
-          onClick={send}
-        >
-          {start.isPending ? <Spinner className="size-4" /> : <SendHorizontal className="size-4" />}
-        </Button>
+      <div className="bg-background rounded-2xl border p-3 shadow-sm">
+        <div className="min-h-20">
+          <ComposerEditor
+            placeholder={t("chatPanelMessage")}
+            value={prompt}
+            mentions={[]}
+            disabled={blocked !== null || start.isPending}
+            onChange={(text) => setPrompt(text)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                send();
+              }
+            }}
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button
+            size="icon"
+            aria-label={t("chatPanelSend")}
+            disabled={prompt.trim() === "" || blocked !== null || start.isPending}
+            onClick={send}
+          >
+            {start.isPending ? (
+              <Spinner className="size-4" />
+            ) : (
+              <SendHorizontal className="size-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

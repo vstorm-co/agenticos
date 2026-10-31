@@ -1,5 +1,5 @@
 ---
-source_sha: "471c1b95b199"
+source_sha: "1a481370eb5a"
 ---
 
 # Workflows { #workflows }
@@ -413,24 +413,12 @@ miesięczny - jest oznaczany jako niezaliczony z powodem. Uruchamiaj przypadki p
 promptu, modelu lub instrukcji. Krok mieści do 50 przypadków, a ich uruchomienie wymaga
 `workflows:edit`, jak testowanie szkicu.
 
-### Agent skonfigurowany w kroku { #an-agent-configured-in-the-step }
+### Agenci z katalogu { #an-agent-configured-in-the-step }
 
-Krok **Agent** albo przypina agenta z katalogu, albo - po wybraniu **Skonfiguruj
-tutaj** - definiuje własnego: nazwę, model, instrukcje, capabilities razem z
-wiedzą, skillami i plikami kontekstu, z których korzystają, oraz serwery MCP, w
-tych samych edytorach co Builder. Jedyną capability, której nie dostaje, jest
-delegowanie, bo to workflow przekazuje pracę z kroku do kroku.
+**Run an agent** wybiera opublikowanego agenta z katalogu i przypina jego aktualną opublikowaną wersję. Możesz wybrać starszą wersję; opublikowany workflow zachowuje niezmienne przypięcie. W istniejącym niekompletnym kroku **Użyj opublikowanej wersji** uzupełnia brak przed testem. Agentów tworzysz i edytujesz w Agent Builderze.
 
-Taki agent należy do workflow. Jest wersjonowany razem z grafem i nie pojawia się
-w katalogu. Tworzy go pierwszy run, a run po zmianie konfiguracji najpierw
-publikuje jego nową wersję, sprawdzaną tak jak publikacja każdego agenta. Jego
-runy widać w Activity z budżetem, zatwierdzeniami i historią jak u każdego agenta,
-a jego strona odsyła z powrotem do workflow.
+Starsze grafy z agentem skonfigurowanym wewnątrz kroku nadal działają. Edytor zachowuje tę konfigurację, dopóki świadomie nie zastąpisz jej agentem z katalogu. Nowych agentów nie buduje się w workflows. **Max cost (USD)** nadal ogranicza wykonanie obok pozostałych budżetów.
 
-**Skopiuj jego konfigurację do tego kroku** zaczyna od agenta z katalogu, żeby go
-dopasować, a **Zapisz jako agenta** umieszcza agenta kroku w katalogu jako szkic
-dla innych workflow i osób. **Max cost (USD)** ogranicza, ile może wydać jedno wykonanie
-kroku, obok limitów agenta, workflow i organizacji.
 
 ### Gdy krok jest wolny albo zawodzi { #when-a-step-is-slow-or-fails }
 
@@ -1021,6 +1009,10 @@ wznawia oraz pokazuje, co każdy zdecydował o każdym rekordzie. Zobacz
 [Virtual Tables](virtual-tables.md#triggers).
 
 ### Z formularza { #from-a-form }
+
+**Test draft** otwiera podgląd formularza po zalogowaniu dla pojedynczego triggera Form. URL wskazuje konkretny node, więc niezależne formularze mają osobne podglądy. Wysłanie odpowiedzi uruchamia test zapisanego szkicu; otwórz run, aby sprawdzić wynik. Podgląd nie publikuje linku publicznego. Użytkownik z prawem odczytu może obejrzeć stronę, ale nie wykonać szkicu.
+
+Krok Form pokazuje link testowy i opublikowany przy konfiguracji. **Wygląd** ustawia akcent, standardową lub szeroką stronę oraz kartę lub prosty układ. Podgląd wyglądu korzysta z tego samego renderera co strona publiczna. Opis obsługuje Markdown; pola, tekst przycisku i komunikat po wysłaniu są konfigurowalne. Test może wykonać akcje workflow.
 
 Wyzwalacz **Form** daje workflow publiczną stronę: tytuł, opis i jedno pole na
 każde zadeklarowane pole, typowane tak jak pola **Manual**, z własnymi słowami na

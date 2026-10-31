@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { FormSurface } from "@/components/workflows/form-surface";
 import { PublicForm, type PublicFormPage } from "@/components/workflows/public-form";
 
 /**
@@ -51,10 +52,10 @@ export default async function WorkflowFormPage({ params }: PublicFormPageProps) 
   const page = await fetchForm(token);
   if (page === null) notFound();
   return (
-    <main className="bg-muted/30 flex min-h-screen items-start justify-center px-4 py-10 sm:items-center">
-      <div className="bg-background w-full max-w-lg rounded-2xl border p-6 shadow-sm sm:p-8">
+    <main className="bg-muted/20 min-h-screen px-4 py-10 sm:px-6 sm:py-20">
+      <FormSurface appearance={page.appearance}>
         <PublicForm page={page} token={token} />
-      </div>
+      </FormSurface>
     </main>
   );
 }

@@ -63,6 +63,18 @@ describe("AgentVersionPicker", () => {
     expect(onChange).toHaveBeenCalledWith({ agent_id: "a2", version_id: null });
   });
 
+  it("pins the published version when choosing an agent", async () => {
+    const onChange = mount({ agent_id: "a2", version_id: null });
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(screen.getByRole("option", { name: /Support/ }));
+    expect(onChange).toHaveBeenCalledWith({ agent_id: "a1", version_id: "v2" });
+  });
+  it("repairs a missing version only when requested", async () => {
+    const onChange = mount({ agent_id: "a1", version_id: null });
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Use published version" }));
+    expect(onChange).toHaveBeenCalledWith({ agent_id: "a1", version_id: "v2" });
+  });
   it("pins the chosen version of the chosen agent", async () => {
     const onChange = mount({ agent_id: "a1", version_id: null });
 

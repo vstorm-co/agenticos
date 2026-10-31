@@ -8,6 +8,8 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { RunButton } from "./run-button";
 
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 const mutate = vi.fn();
 const start = { mutate, isPending: false };
 vi.mock("@/hooks", () => ({ useWorkflowRuns: () => ({ start }) }));
@@ -40,6 +42,31 @@ beforeEach(() => {
 afterEach(() => store.getState().teardown());
 
 describe("RunButton", () => {
+  it("opens the real form preview instead of testing sample answers", async () => {
+    seed({ fields: [{ name: "name", type: "text" }] }, "trigger.form");
+    const form = makeDefinition({
+      id: "trigger.form",
+      category: "triggers",
+      ports: [port("out", "output", null)],
+    });
+    render(<RunButton workflowId="wf" catalog={[form]} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    expect(router.push).toHaveBeenCalledWith("/workflows/wf/form-preview?entry=t");
+    expect(mutate).not.toHaveBeenCalled();
+  });
+  it("opens chat and waits for a real message", async () => {
+    seed({}, "trigger.chat");
+    const chat = makeDefinition({
+      id: "trigger.chat",
+      category: "triggers",
+      ports: [port("out", "output", null)],
+    });
+    render(<RunButton workflowId="wf" catalog={[chat]} onStarted={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeVisible();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   it("starts a test run of the draft at once, and on Ctrl or Cmd + Enter", async () => {
     seed();
     const onStarted = vi.fn();

@@ -1594,7 +1594,17 @@ class TestForms:
 
     async def test_the_page_shows_the_forms_words_and_fields(self, db, tenant):
         owner, org, workflow = tenant
-        token = (await _form(db, _ctx(owner, org), workflow)).exposure.form_token
+        token = (
+            await _form(
+                db,
+                _ctx(owner, org),
+                workflow,
+                {
+                    **FORM,
+                    "appearance": {"accent": "#394b65", "width": "wide", "layout": "plain"},
+                },
+            )
+        ).exposure.form_token
 
         page = await WorkflowExposureService(db).form_page(token)
 
@@ -1604,6 +1614,11 @@ class TestForms:
             "Submit",
         )
         assert [field.name for field in page.fields] == ["name", "seats", "topic"]
+        assert page.appearance.model_dump() == {
+            "accent": "#394b65",
+            "width": "wide",
+            "layout": "plain",
+        }
 
     async def test_answers_that_fit_start_one_run_as_the_publisher(self, db, tenant):
         owner, org, workflow = tenant

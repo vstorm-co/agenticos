@@ -37,6 +37,12 @@ function mount(
 }
 
 describe("TemplateBox", () => {
+  it("keeps the syntax backdrop visible through the editable control", () => {
+    const { backdrop } = mount("A visible prompt");
+    expect(screen.getByRole("textbox")).toHaveClass("bg-transparent");
+    expect(backdrop).toHaveClass("bg-card", "text-foreground");
+  });
+
   it("draws each placeholder as code: its step and its path coloured apart", () => {
     const { backdrop, placeholders, part } = mount(
       "Ticket {{Triage the ticket.category}} from {{ Form.payload.name }}",

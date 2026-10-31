@@ -20,7 +20,7 @@ import {
  * secret and replacing a form's link. Rotate resolves with the secret the server
  * returns once; the caller shows it, since nothing reads it back later.
  */
-export function useWorkflowExposure(workflowId: string, trigger?: string | null) {
+export function useWorkflowExposure(workflowId: string, trigger?: string | null, nodeId?: string) {
   const t = useTranslations("pages.workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -60,7 +60,10 @@ export function useWorkflowExposure(workflowId: string, trigger?: string | null)
   });
   const adapter = trigger?.replace("trigger.", "").replace("channel_message", "channel");
   const exposure = Array.isArray(data)
-    ? (data.find((item) => item.adapter === adapter) ?? null)
+    ? (data.find(
+        (item) =>
+          item.adapter === adapter && (nodeId === undefined || item.node_instance_id === nodeId),
+      ) ?? null)
     : (data ?? null);
   return { exposure, isLoading, setActive, rotate, renewLink };
 }

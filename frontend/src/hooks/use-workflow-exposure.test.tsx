@@ -11,6 +11,7 @@ import { useWorkflowExposure } from "./use-workflow-exposure";
 
 vi.mock("@/lib/workflows/exposures-api", () => ({
   getWorkflowExposure: vi.fn(),
+  listWorkflowExposures: vi.fn(),
   updateWorkflowExposure: vi.fn(),
   rotateWorkflowExposureSecret: vi.fn(),
   renewWorkflowFormLink: vi.fn(),
@@ -27,6 +28,17 @@ const exposure = { id: "e1", is_active: true } as WorkflowExposureRead;
 beforeEach(() => vi.clearAllMocks());
 
 describe("useWorkflowExposure", () => {
+  it("keeps independent form links attached to their own trigger", async () => {
+    vi.mocked(api.listWorkflowExposures).mockResolvedValue([
+      { ...exposure, id: "form-a", adapter: "form", node_instance_id: "a" },
+      { ...exposure, id: "form-b", adapter: "form", node_instance_id: "b" },
+    ]);
+    const { result } = renderHook(() => useWorkflowExposure("wf", "trigger.form", "b"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.exposure?.id).toBe("form-b"));
+  });
+
   it("reads the exposure, pauses and resumes it, and rotates its secret", async () => {
     vi.mocked(api.getWorkflowExposure).mockResolvedValue(exposure);
     vi.mocked(api.updateWorkflowExposure)

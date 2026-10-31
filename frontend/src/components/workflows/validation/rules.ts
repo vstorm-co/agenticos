@@ -716,6 +716,19 @@ export function rule9RequiredInputsBound(
         problems.push(nodeField(n.id, fieldName, "input-not-bound"));
       }
     }
+    if (definition.id === "agent.run" && !n.config.inline) {
+      const agent = n.config.agent;
+      if (
+        typeof agent !== "object" ||
+        agent === null ||
+        !("agent_id" in agent) ||
+        typeof agent.agent_id !== "string" ||
+        !("version_id" in agent) ||
+        typeof agent.version_id !== "string"
+      ) {
+        problems.push(nodeField(n.id, "agent", "config-not-set"));
+      }
+    }
     // A required setting - an agent, a table, the people to tell - left empty is
     // what the server's config check refuses first; a bindable one set by a
     // binding counts as set.

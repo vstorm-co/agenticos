@@ -831,6 +831,7 @@ class WorkflowExposureService:
             title=config.title,
             description=config.description,
             submit_label=config.submit_label,
+            appearance=config.appearance,
             fields=list(config.fields),
         )
 

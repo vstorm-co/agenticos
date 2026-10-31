@@ -1,5 +1,5 @@
 ---
-source_sha: "471c1b95b199"
+source_sha: "1a481370eb5a"
 ---
 
 # Workflows { #workflows }
@@ -443,26 +443,12 @@ Lauf nicht starten kann - zu viel Arbeit in Bearbeitung, das Monatsbudget aufgeb
 Änderung von Prompt, Modell oder Anweisungen aus. Ein Schritt hält bis zu 50 Fälle,
 und sie auszuführen braucht `workflows:edit`, wie das Testen des Drafts.
 
-### Ein im Schritt konfigurierter Agent { #an-agent-configured-in-the-step }
+### Katalogagenten { #an-agent-configured-in-the-step }
 
-Ein **Agent**-Schritt legt entweder einen Agent aus dem Katalog fest oder
-definiert mit **Hier konfigurieren** einen eigenen: einen Namen, ein Modell,
-Anweisungen, Capabilities mit dem Wissen, den Skills und Kontextdateien, die sie
-lesen, und MCP-Server - in denselben Editoren wie der Builder. Delegation ist die
-eine Capability, die er nicht erhält, denn der Workflow reicht die Arbeit bereits
-von Schritt zu Schritt weiter.
+**Run an agent** wählt einen veröffentlichten Katalogagenten und fixiert dessen aktuelle Version. Eine ältere Version kann gewählt werden; veröffentlichte Workflows behalten ihre unveränderliche Version. **Veröffentlichte Version verwenden** ergänzt eine fehlende Version vor dem Test. Agenten werden im Agent Builder erstellt und bearbeitet.
 
-Dieser Agent gehört dem Workflow. Er wird mit dem Graphen versioniert und erscheint
-nie im Katalog. Sein erster Run legt ihn an, und ein Run nach einer Änderung seiner
-Konfiguration veröffentlicht zuerst eine neue Version, geprüft wie jede
-Veröffentlichung eines Agents. Seine Runs stehen in Activity mit Budget, Freigaben
-und Verlauf wie bei jedem Agent, und seine Seite dort führt zurück zum Workflow.
+Ältere Graphen mit einem im Schritt konfigurierten Agenten bleiben ausführbar. Der Editor bewahrt diese Konfiguration bis zum bewussten Austausch gegen einen Katalogagenten. Neue Agenten werden nicht mehr im Workflow gebaut. **Max cost (USD)** begrenzt weiterhin eine Ausführung neben den anderen Budgets.
 
-**Seine Konfiguration in diesen Schritt kopieren** beginnt mit einem Agent aus dem
-Katalog, um ihn anzupassen, und **Als Agent speichern** legt den Agent des Schritts
-als Entwurf in den Katalog, für andere Workflows und Personen. **Max cost (USD)** begrenzt,
-was eine Ausführung des Schritts ausgeben darf, neben den Limits des Agents, des
-Workflows und der Organisation.
 
 ### Wenn ein Schritt langsam ist oder fehlschlägt { #when-a-step-is-slow-or-fails }
 
@@ -1111,6 +1097,10 @@ und setzt sie fort und zeigt, was jeder über jeden Datensatz entschieden hat. S
 [Virtual Tables](virtual-tables.md#triggers).
 
 ### Über ein Formular { #from-a-form }
+
+**Test draft** öffnet für einen einzelnen Form-Trigger eine authentifizierte Formularvorschau. Die URL enthält den Einstiegsknoten, damit unabhängige Formulare getrennt bleiben. Das Absenden startet einen Test des gespeicherten Entwurfs mit den Antworten; öffnen Sie den Lauf zur Prüfung. Die Vorschau veröffentlicht keinen öffentlichen Link. Lesende dürfen die Seite ansehen, aber keinen Entwurf ausführen.
+
+Der Form-Schritt zeigt Test- und veröffentlichte Links direkt bei der Konfiguration. **Darstellung** steuert Akzent, Standard- oder breite Seite und Karten- oder schlichtes Layout. Die Vorschau verwendet denselben Renderer wie die öffentliche Seite. Beschreibungen unterstützen Markdown; Felder, Schaltflächentext und Erfolgsmeldung bleiben konfigurierbar. Tests können Workflow-Aktionen ausführen.
 
 Ein Trigger **Form** gibt dem Workflow eine öffentliche Seite: einen Titel, eine
 Beschreibung und ein Feld je deklariertem Feld, typisiert wie die Felder von

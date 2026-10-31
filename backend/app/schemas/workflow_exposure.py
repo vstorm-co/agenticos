@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.models.workflow_exposure import ExposureAdapter, ExposureScheduleKind
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.workflows.contracts.fields import InputField
+from app.workflows.contracts.form import FormAppearance
 
 
 def delivery_url(adapter: ExposureAdapter, exposure_id: UUID) -> str | None:
@@ -168,6 +169,7 @@ class WorkflowFormPage(BaseSchema):
     description: str | None
     submit_label: str
     fields: list[InputField]
+    appearance: FormAppearance = Field(default_factory=FormAppearance)
 
 
 class WorkflowFormSubmission(BaseSchema):

@@ -44,7 +44,7 @@ describe("ChatPanel", () => {
     expect(Object.keys(first)).toEqual(["workflow_id", "mode", "input"]);
     expect(onStarted).toHaveBeenLastCalledWith("run-2");
     expect(useWorkflowEditorStore.getState().watchedRunId).toBe("run-2");
-    expect(screen.getByRole("textbox", { name: "Message" })).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Message" })).toHaveTextContent("");
   });
 
   it("shows each answer, a failure, a run still going and a run with nothing to say", async () => {

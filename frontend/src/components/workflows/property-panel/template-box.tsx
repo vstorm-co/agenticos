@@ -149,7 +149,7 @@ export const TemplateBox = forwardRef<HTMLInputElement & HTMLTextAreaElement, Te
           aria-hidden="true"
           data-template-backdrop
           className={cn(
-            "pointer-events-none absolute inset-0 overflow-hidden rounded-lg border-[1.5px] border-transparent px-3",
+            "bg-card text-foreground pointer-events-none absolute inset-0 overflow-hidden rounded-lg border-[1.5px] border-transparent px-3",
             multiline
               ? // A box several lines tall reserves its scrollbar's room; the copy the same.
                 "[scrollbar-gutter:stable] py-2 text-sm break-words whitespace-pre-wrap"
@@ -187,7 +187,7 @@ export const TemplateBox = forwardRef<HTMLInputElement & HTMLTextAreaElement, Te
           placeholder={placeholder}
           aria-invalid={invalid}
           className={cn(
-            "selection:bg-primary/20 caret-foreground relative text-transparent",
+            "selection:bg-primary/20 caret-foreground relative bg-transparent text-transparent",
             multiline && "[scrollbar-gutter:stable]",
           )}
           // A text box throughout, as a textarea must be: a role switched while

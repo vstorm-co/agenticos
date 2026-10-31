@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowRight, ClipboardList } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
+import { formButtonStyle, type FormAppearance } from "./form-surface";
 import { Button } from "@/components/ui";
 import { RunField } from "@/components/workflows/runs/run-field";
 import {
@@ -21,6 +23,7 @@ export interface PublicFormPage {
   description: string | null;
   submit_label: string;
   fields: InputField[];
+  appearance?: FormAppearance;
 }
 
 /** Why the form could not take the answers, as the page says it. */
@@ -49,6 +52,16 @@ async function detailsOf(response: Response): Promise<Record<string, unknown>> {
   }
 }
 
+type PublicFormProps = { page: PublicFormPage } & (
+  | { token: string; onSubmitValues?: never; preview?: false }
+  | {
+      token?: never;
+      onSubmitValues: (values: Record<string, unknown>) => Promise<string>;
+      preview?: false;
+    }
+  | { token?: never; onSubmitValues?: never; preview: true }
+);
+
 /**
  * A workflow's form, filled in by somebody with its link.
  *
@@ -57,7 +70,7 @@ async function detailsOf(response: Response): Promise<Record<string, unknown>> {
  * `website` box is out of sight and out of the tab order: a person leaves it
  * empty, and the API thanks a submission that fills it in without starting anything.
  */
-export function PublicForm({ page, token }: { page: PublicFormPage; token: string }) {
+export function PublicForm({ page, token, onSubmitValues, preview = false }: PublicFormProps) {
   const t = useTranslations("publicForm");
   const [values, setValues] = useState<Record<string, FormValue>>(() => initialValues(page.fields));
   const [website, setWebsite] = useState("");
@@ -74,12 +87,16 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setTried(true);
-    if (!("input" in answers)) return;
+    if (!("input" in answers) || preview) return;
     setSending(true);
     setRefusal(null);
     setServerProblems({});
     try {
-      const response = await fetch(`/api/forms/${encodeURIComponent(token)}`, {
+      if (onSubmitValues) {
+        setThanks(await onSubmitValues(answers.input));
+        return;
+      }
+      const response = await fetch(`/api/forms/${encodeURIComponent(token ?? "")}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ values: answers.input, website: website || null }),
@@ -116,18 +133,24 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
   }
 
   return (
-    <form className="space-y-6" onSubmit={submit} noValidate>
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{page.title}</h1>
+    <form className="space-y-8" onSubmit={submit} noValidate>
+      <header className="space-y-3">
+        <div className="bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-xl">
+          <ClipboardList aria-hidden className="size-5" />
+        </div>
+        <h1 className="text-3xl font-semibold tracking-tight break-words">{page.title}</h1>
         {page.description !== null && (
-          <p className="text-muted-foreground text-sm whitespace-pre-line">{page.description}</p>
+          <div className="text-muted-foreground text-sm leading-relaxed">
+            <MarkdownContent content={page.description} inertImages />
+          </div>
         )}
       </header>
-      <div className="space-y-4">
+      <fieldset disabled={preview || sending} className="min-w-0 space-y-6">
         {page.fields.map((field) => (
           <RunField
             key={field.name}
             field={field}
+            idPrefix={preview ? "form-preview" : "run-field"}
             value={values[field.name]}
             problem={problems[field.name] ?? serverProblems[field.name]}
             onChange={(value) => {
@@ -139,7 +162,7 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
             }}
           />
         ))}
-      </div>
+      </fieldset>
       <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
         <label htmlFor="form-website">{t("trapLabel")}</label>
         <input
@@ -156,9 +179,15 @@ export function PublicForm({ page, token }: { page: PublicFormPage; token: strin
           {t(`refused.${refusal}`)}
         </p>
       )}
-      <Button type="submit" className="w-full" disabled={sending}>
+      <Button
+        type="submit"
+        className="h-11 w-full"
+        disabled={sending || preview}
+        style={formButtonStyle(page.appearance?.accent)}
+      >
         {sending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         {page.submit_label}
+        {!sending && <ArrowRight className="size-4" aria-hidden />}
       </Button>
     </form>
   );

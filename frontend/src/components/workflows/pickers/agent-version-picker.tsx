@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   Badge,
+  Button,
   Label,
   Select,
   SelectContent,
@@ -42,15 +43,7 @@ export interface AgentVersionPickerProps {
   error?: string;
 }
 
-/**
- * Two steps, because the version is meaningless without the agent and stale the
- * moment the agent changes. Choosing an agent therefore *clears* the pinned
- * version (the #1781 lab finding): keeping the old version id would pin a version
- * belonging to a different agent, which the graph would carry until publish
- * refused it. The version step stays disabled until an agent is chosen, and a
- * chosen agent with no version pinned is surfaced as unfinished rather than
- * silently defaulted.
- */
+/** Choose an agent and pin its currently published version; older pins stay explicit. */
 export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVersionPickerProps) {
   const t = useTranslations("workflows");
   const locale = useLocale();
@@ -77,13 +70,18 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
         <Label>{t("pickerAgentLabel")}</Label>
         <Select
           value={value.agent_id ?? ""}
-          onValueChange={(agentId) => onChange({ agent_id: agentId, version_id: null })}
+          onValueChange={(agentId) =>
+            onChange({
+              agent_id: agentId,
+              version_id: agents.find((agent) => agent.id === agentId)?.current_version_id ?? null,
+            })
+          }
           disabled={disabled}
         >
           <SelectTrigger aria-label={t("pickerAgentLabel")}>
             <SelectValue placeholder={t("pickerAgentPlaceholder")} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" className="w-[var(--radix-select-trigger-width)]">
             {agents.map((agent) => (
               // The face, in the list and the field alike, and the description
               // beside it in the list, are what tell two agents apart.
@@ -91,9 +89,10 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
                 key={agent.id}
                 value={agent.id}
                 textValue={agent.name}
+                className="flex-col items-start gap-0.5 [&>span]:max-w-full [&>span:first-child]:top-3"
                 trailing={
                   agent.description && (
-                    <span className="text-muted-foreground ml-3 max-w-[55%] truncate text-xs">
+                    <span className="text-muted-foreground block w-full truncate pl-8 text-xs">
                       {agent.description}
                     </span>
                   )
@@ -136,7 +135,7 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
           <SelectTrigger aria-label={t("pickerVersionLabel")}>
             <SelectValue placeholder={t("pickerVersionPlaceholder")} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper" className="w-[var(--radix-select-trigger-width)]">
             {versions.map((version) => (
               <SelectItem
                 key={version.id}
@@ -166,6 +165,19 @@ export function AgentVersionPicker({ value, onChange, disabled, error }: AgentVe
         </Select>
         {value.agent_id !== null && !agentOrphaned && versions.length === 0 && !versionsLoading && (
           <p className="text-muted-foreground text-xs">{t("pickerVersionEmpty")}</p>
+        )}
+        {versionMissing && chosenAgent?.current_version_id && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            onClick={() =>
+              onChange({ agent_id: chosenAgent.id, version_id: chosenAgent.current_version_id })
+            }
+          >
+            {t("pickerUsePublishedVersion")}
+          </Button>
         )}
         {versionMissing && !agentOrphaned && versions.length > 0 && (
           <p className="text-foreground/70 flex items-center gap-1.5 text-xs">

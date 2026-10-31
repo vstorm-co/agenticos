@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChatPanel } from "./chat-panel";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui";
 import { Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -8,7 +11,14 @@ import { Button } from "@/components/ui";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { validateGraph } from "@/components/workflows/validation";
 import { useWorkflowRuns } from "@/hooks";
-import { declaredFields, sampleRunInput, entryNodes, entryGraph } from "@/lib/workflows/triggers";
+import {
+  declaredFields,
+  sampleRunInput,
+  entryNodes,
+  entryGraph,
+  FORM_TRIGGER,
+  CHAT_TRIGGER,
+} from "@/lib/workflows/triggers";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -29,6 +39,8 @@ interface RunButtonProps {
  * while the draft has problems.
  */
 export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
+  const router = useRouter();
+  const [chatOpen, setChatOpen] = useState(false);
   const t = useTranslations("pages.workflows");
   const tw = useTranslations("workflows");
   const graph = useWorkflowEditorStore((state) => state.graph);
@@ -76,6 +88,15 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const run = () => {
     revealProblems();
     if (blocked) return;
+    const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
+    if (entries.length === 1 && entry?.definition_id === FORM_TRIGGER) {
+      router.push(`/workflows/${workflowId}/form-preview?entry=${encodeURIComponent(entry.id)}`);
+      return;
+    }
+    if (entries.length === 1 && entry?.definition_id === CHAT_TRIGGER) {
+      setChatOpen(true);
+      return;
+    }
     if (fields.length > 0 || entries.length > 1) setAsking(true);
     else begin(sampleRunInput(graph));
   };
@@ -107,6 +128,20 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
         <Play className="h-4 w-4" />
         {t("runDraft")}
       </Button>
+      <Sheet open={chatOpen} onOpenChange={setChatOpen}>
+        <SheetContent className="flex w-full flex-col sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>{tw("chatPanelTitle")}</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1">
+            <ChatPanel
+              workflowId={workflowId}
+              blocked={blocked ? reason : null}
+              onStarted={onStarted}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
       {asking && (
         <StartRunDialog
           open

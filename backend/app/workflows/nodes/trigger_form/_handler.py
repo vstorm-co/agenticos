@@ -9,6 +9,7 @@ the fields, and `triggered_by` naming the form.
 
 from pydantic import Field, model_validator
 
+from app.workflows.contracts.form import FormAppearance
 from app.workflows.nodes.core_input._handler import (
     STATIC_PORTS,
     TriggerInputConfig,
@@ -40,6 +41,8 @@ class FormTriggerConfig(TriggerInputConfig):
         max_length=MAX_TEXT,
         description="What the page says once the answers are in",
     )
+
+    appearance: FormAppearance = Field(default_factory=FormAppearance)
 
     @model_validator(mode="after")
     def _asks_for_something(self) -> FormTriggerConfig:
