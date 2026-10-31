@@ -221,11 +221,11 @@ describe("a wire on a run's canvas", () => {
     durationMs: null,
     startedAt: null,
   });
-  const wire = (into: NodeRunSummary["status"] | null, live = true) => {
+  const wire = (into: NodeRunSummary["status"] | null, live = true, watched = true) => {
     const summaries = new Map([["a", summary("succeeded")]]);
     if (into !== null) summaries.set("b", summary(into));
     const { container } = render(
-      <NodeRunOverlayProvider value={{ summaries, live, watched: true }}>
+      <NodeRunOverlayProvider value={{ summaries, live, watched }}>
         <svg>
           <WorkflowEdge
             id="e1"
@@ -242,11 +242,17 @@ describe("a wire on a run's canvas", () => {
         </svg>
       </NodeRunOverlayProvider>,
     );
+    expect(container.querySelector("[data-run-packet]") !== null).toBe(
+      ((into === "running" && live) || into === "succeeded") && watched,
+    );
     return container.querySelector("path")?.getAttribute("class") ?? "";
   };
 
   it("moves green into the step running, solid green along the path taken", () => {
-    expect(wire("running")).toContain("run-flow");
+    expect(wire("running")).toContain("stroke-success/35");
+    wire("running", true, false);
+    wire("running", false, false);
+    wire("succeeded", false, false);
     expect(wire("running")).toContain("stroke-success");
     expect(wire("succeeded")).toContain("stroke-success");
     expect(wire("succeeded")).not.toContain("run-flow");

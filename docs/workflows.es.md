@@ -1,5 +1,5 @@
 ---
-source_sha: "a92668fd4c2a"
+source_sha: "4a79bbcf30b6"
 ---
 
 # Workflows { #workflows }
@@ -1287,6 +1287,8 @@ Los atajos del lienzo se disparan solo mientras el foco está dentro del editor,
 que nunca roban una tecla a un campo en otra parte de la página:
 
 Arrastra con el botón izquierdo para seleccionar objetos. Mantén Mayús al arrastrar para mover la vista; los botones central y derecho también la mueven. `Ctrl`/`Cmd` + `A` selecciona todos los objetos del ámbito actual, incluidas las notas en el nivel principal.
+
+Las ejecuciones observadas muestran un pulso hacia el paso activo y un barrido en el borde de su tarjeta. Un breve barrido al finalizar permite leer ejecuciones rápidas sin cambiar su estado ni sus tiempos reales. Las ejecuciones históricas permanecen quietas; la preferencia del sistema de movimiento reducido desactiva la animación. La duración, el coste y los pasos completados quedan alineados, con la hora de inicio junto al estado.
 
 | Teclas | Hace |
 |---|---|

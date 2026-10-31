@@ -15,6 +15,7 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { PrincipalCell } from "./principal-cell";
 import { MarkdownCellEditor } from "./markdown-cell-editor";
 import { DateCell } from "./date-cell";
 import { DatetimeCell } from "./datetime-cell";
@@ -25,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { formatCellValue } from "@/lib/format-cell-value";
 import {
   COMPUTED_TYPES,
+  PRINCIPAL_COLUMN_TYPES,
   MAX_RATING,
   type CellValue,
   type ColumnDef,
@@ -162,9 +164,11 @@ function RatingCellInput({
 
 function RichTextCellInput({
   tableId,
+  columnId,
   metadata,
   template,
   fillEditor,
+  showDocumentMetadata,
   id,
   label,
   value,
@@ -174,6 +178,7 @@ function RichTextCellInput({
   error,
 }: {
   tableId?: string;
+  columnId: string;
   id: string;
   label: string;
   value: string;
@@ -184,15 +189,18 @@ function RichTextCellInput({
   metadata?: DocumentMetadata;
   template?: string;
   fillEditor?: boolean;
+  showDocumentMetadata?: boolean;
 }) {
   const buffer = useTextBuffer(value, onChange);
   return (
     <MarkdownCellEditor
       tableId={tableId}
+      columnId={columnId}
       onCommitValue={onChange}
       metadata={metadata}
       template={template}
       fill={fillEditor}
+      showMetadata={showDocumentMetadata}
       id={id}
       label={label}
       value={buffer.draft}
@@ -280,6 +288,7 @@ export function RecordCellEditor({
   tableId,
   metadata,
   fillEditor,
+  showDocumentMetadata,
   column,
   value,
   links,
@@ -292,6 +301,7 @@ export function RecordCellEditor({
   column: ColumnDef;
   metadata?: DocumentMetadata;
   fillEditor?: boolean;
+  showDocumentMetadata?: boolean;
   value: CellValue;
   /** A link column's records, named as the record was read. */
   links?: LinkedRecord[];
@@ -309,6 +319,17 @@ export function RecordCellEditor({
 
   return (
     <div className="space-y-1.5">
+      {PRINCIPAL_COLUMN_TYPES.has(column.type) && (
+        <PrincipalCell
+          id={id}
+          label={column.label}
+          value={value}
+          kind={column.type === "user" || column.type === "multi_user" ? "user" : "agent"}
+          multiple={column.type === "multi_user" || column.type === "multi_agent"}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
       {column.type === "text" && (
         <TextCellInput
           id={id}
@@ -345,9 +366,11 @@ export function RecordCellEditor({
       {column.type === "rich_text" && (
         <RichTextCellInput
           tableId={tableId}
+          columnId={column.id}
           metadata={metadata}
           template={typeof column.default === "string" ? column.default : undefined}
           fillEditor={fillEditor}
+          showDocumentMetadata={showDocumentMetadata}
           id={id}
           label={column.label}
           value={typeof value === "string" ? value : ""}

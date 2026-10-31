@@ -8,7 +8,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import type { EdgeVariant, WorkflowFlowEdge } from "./graph-adapter";
-import { type WireRunState, useNodeRunSummary, useWireRunState } from "./run-overlay";
+import { type WireRunState, useNodeRunSummary, useWireRunState, useRunMotion } from "./run-overlay";
 
 /** The stroke each edge variant draws with — data muted, error red, branch accented. */
 const VARIANT_CLASS: Record<EdgeVariant, string> = {
@@ -27,7 +27,7 @@ const VARIANT_CLASS: Record<EdgeVariant, string> = {
  */
 const RUN_WIRE: Record<WireRunState, string> = {
   pending: "!stroke-warning [stroke-dasharray:6_6] ![stroke-width:2]",
-  running: "!stroke-success run-flow [stroke-dasharray:8_7] ![stroke-width:2]",
+  running: "!stroke-success/35 ![stroke-width:2]",
   done: "!stroke-success ![stroke-width:2]",
   failed: "!stroke-destructive ![stroke-width:2.5]",
   // Still a visible connection - only the steps it leads to are faded.
@@ -77,6 +77,9 @@ export function WorkflowEdge({
   });
   const variant = data?.variant ?? "data";
   const wire = useWireRunState(source, target);
+  const motion = useRunMotion();
+  const moving = motion === "live" && wire === "running";
+  const completed = motion !== null && wire === "done";
   // On a run's canvas, how many items the step before handed along this wire.
   const items = useNodeRunSummary(source)?.items ?? null;
   const counted = items === null ? null : t("edgeItems", { count: items });
@@ -115,6 +118,22 @@ export function WorkflowEdge({
         labelX={labelX}
         labelY={labelY}
       />
+      {(moving || completed) && (
+        <path
+          data-run-packet
+          aria-hidden="true"
+          d={path}
+          pathLength={1}
+          fill="none"
+          stroke="var(--color-success)"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeDasharray="0.09 0.91"
+          className={
+            completed ? "run-packet-finished pointer-events-none" : "run-packet pointer-events-none"
+          }
+        />
+      )}
       {selected && (
         <g
           role="button"

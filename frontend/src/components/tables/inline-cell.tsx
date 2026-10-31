@@ -42,7 +42,13 @@ export function InlineCell({
   const change = (next: CellValue) => {
     if (cancelled.current) return;
     onCommit(next);
-    if (column.type === "single_select" || column.type === "boolean" || column.type === "rating") {
+    if (
+      column.type === "single_select" ||
+      column.type === "user" ||
+      column.type === "agent" ||
+      column.type === "boolean" ||
+      column.type === "rating"
+    ) {
       onDone();
     }
   };

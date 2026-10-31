@@ -9463,7 +9463,11 @@
         "lookup": "Nachschlagen",
         "rollup": "Zusammenfassung",
         "formula": "Formel",
-        "rich_text": "Formatierter Text (Markdown)"
+        "rich_text": "Formatierter Text (Markdown)",
+        "user": "Person",
+        "multi_user": "Personen",
+        "agent": "KI-Agent",
+        "multi_agent": "Mehrere KI-Agenten"
       },
       "required": "Erforderlich",
       "archiveColumn": "{column} archivieren",
@@ -9645,6 +9649,25 @@
       "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     },
     "markdown": {
+      "library": "Dokumentvorlagen",
+      "libraryHint": "Erstellen Sie eigene Vorlagen für diese Spalte. Die Standardvorlage wird auf neue Datensätze automatisch angewendet.",
+      "loadingTemplates": "Vorlagen werden geladen…",
+      "templateName": "Vorlagenname",
+      "templateBody": "Markdown-Inhalt",
+      "makeDefault": "Standard für neue Datensätze",
+      "backToTemplates": "Zurück",
+      "saveTemplate": "Vorlage speichern",
+      "yourTemplates": "Eigene Vorlagen",
+      "newTemplate": "Neue Vorlage",
+      "defaultTemplate": "Standard für neue Datensätze",
+      "useTemplate": "Vorlage verwenden",
+      "setDefault": "Als Standard festlegen",
+      "editTemplate": "{name} bearbeiten",
+      "deleteTemplate": "{name} löschen",
+      "noCustomTemplates": "Speichern Sie das aktuelle Dokument als Vorlage oder passen Sie eine Vorlage unten an.",
+      "customizeTemplate": "Anpassen",
+      "defaultActive": "Neue Datensätze verwenden die konfigurierte Standardvorlage.",
+      "clearDefault": "Standard entfernen",
       "insertBlock": "Block einfügen",
       "noBlocks": "Keine passenden Blöcke",
       "uploadingImage": "Bild wird hochgeladen…",
@@ -9678,7 +9701,7 @@
       "templateHint": "Wird bei neuen Datensätzen ohne angegebenen Wert automatisch verwendet. Bestehende Dokumente bleiben unverändert. Passe den Inhalt unten an.",
       "applyTemplate": "Spaltenvorlage verwenden",
       "replaceTitle": "Dokumentinhalt ersetzen?",
-      "replaceDescription": "Ersetzt den Dokumentinhalt durch die aktuelle Spaltenvorlage. Eigenschaften und Verlauf bleiben erhalten.",
+      "replaceDescription": "Ersetzt den Dokumentinhalt durch die ausgewählte Vorlage. Eigenschaften und Verlauf bleiben erhalten.",
       "templates": {
         "blank": {
           "label": "Leer",
@@ -9759,6 +9782,16 @@
       "descending": "Absteigend",
       "reset": "Standardreihenfolge: älteste zuerst",
       "active": "Sortieren: {column}, {direction}"
+    },
+    "principals": {
+      "choosePeople": "Person auswählen",
+      "chooseAgents": "Agenten auswählen",
+      "search": "Nach Namen suchen…",
+      "loading": "Wird geladen…",
+      "loadError": "Das Organisationsverzeichnis konnte nicht geladen werden.",
+      "empty": "Keine Ergebnisse",
+      "clear": "Auswahl löschen",
+      "unavailable": "Nicht verfügbar"
     }
   },
   "groups": {

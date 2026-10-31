@@ -1,6 +1,7 @@
 import { OPTION_TONES } from "@/lib/table-option-colors";
 import { cn } from "@/lib/utils";
-import type { ColumnDef } from "@/types/tables";
+import { PrincipalBadges } from "./principal-cell";
+import { PRINCIPAL_COLUMN_TYPES, type ColumnDef } from "@/types/tables";
 
 /**
  * Tints for a select column's options, by the option's place in the column - so
@@ -45,6 +46,18 @@ export function OptionChip({
 
 /** A select cell's chips, or null when the column is not a select or holds nothing. */
 export function selectChips(column: ColumnDef, value: unknown): React.ReactNode | null {
+  if (
+    PRINCIPAL_COLUMN_TYPES.has(column.type) &&
+    (typeof value === "string" ||
+      (Array.isArray(value) && value.every((item): item is string => typeof item === "string")))
+  ) {
+    return (
+      <PrincipalBadges
+        value={value}
+        kind={column.type === "user" || column.type === "multi_user" ? "user" : "agent"}
+      />
+    );
+  }
   if (column.type === "single_select" && typeof value === "string") {
     return <OptionChip column={column} optionId={value} />;
   }

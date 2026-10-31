@@ -62,6 +62,8 @@ function toRows(table: TableRead): Row[] {
     savedType: column.type,
     nullable: column.nullable,
     default: column.default,
+    document_templates: column.document_templates ?? [],
+    default_template_id: column.default_template_id ?? null,
     options: column.options.map((option) => ({
       id: option.id,
       label: option.label,
@@ -228,6 +230,8 @@ export function SchemaEditorDialog({
         const retyped = savedType !== undefined && column.type !== savedType;
         return {
           ...column,
+          document_templates: column.type === "rich_text" ? column.document_templates : [],
+          default_template_id: column.type === "rich_text" ? column.default_template_id : null,
           // A default of the old type is not one of the new; a choice's options
           // are not text's, and text becoming a choice takes its own values.
           default: retyped && column.type !== "rich_text" ? null : column.default,
@@ -348,13 +352,17 @@ export function SchemaEditorDialog({
                   showHint={false}
                   id={row.key}
                   column={row}
-                  onChange={(value) => updateRow(row.key, { default: value })}
+                  onChange={(value) =>
+                    updateRow(row.key, { default: value, default_template_id: null })
+                  }
                 />
                 {row.type === "rich_text" && (
                   <DocumentTemplateField
                     id={`${row.key}-template`}
                     value={typeof row.default === "string" ? row.default : ""}
-                    onChange={(value) => updateRow(row.key, { default: value })}
+                    onChange={(value) =>
+                      updateRow(row.key, { default: value, default_template_id: null })
+                    }
                   />
                 )}
                 {row.type === "formula" && (

@@ -130,12 +130,18 @@ describe("RecordDetailSheet", () => {
       record: { ...record, updated_at: "2026-09-24T10:00:00Z" },
     });
     expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
-    expect(screen.getByText(/^Added .* · changed /)).toBeTruthy();
+    for (const label of ["Created", "Last updated", "Created by", "Updated by"])
+      expect(screen.getByText(label, { exact: true })).toBeVisible();
+    expect(screen.getByText("Created", { exact: true }).nextElementSibling?.textContent).not.toBe(
+      screen.getByText("Last updated", { exact: true }).nextElementSibling?.textContent,
+    );
 
     // Nothing in the first column, and never changed: the plain title, only its adding.
     rerender(sheet({ record: { ...record, values: {} } }));
     expect(screen.getByRole("heading", { name: "Record" })).toBeTruthy();
-    expect(screen.queryByText(/changed/)).toBeNull();
+    expect(screen.getByText("Created", { exact: true }).nextElementSibling?.textContent).toBe(
+      screen.getByText("Last updated", { exact: true }).nextElementSibling?.textContent,
+    );
 
     // A yes/no first column is titled by how it reads.
     const done: ColumnDef = { ...columns[0]!, id: "b1", label: "Done", type: "boolean" };
@@ -656,4 +662,18 @@ it("expands the whole record while preserving the current editor", async () => {
   expect(screen.getByRole("textbox", { name: "Name" })).toBe(input);
   await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
   expect(screen.getByRole("dialog").className).toContain("sm:w-[44rem]");
+});
+
+it("places every property before document bodies, preserving property order", () => {
+  const document = { ...columns[0]!, id: "doc", label: "Notes", type: "rich_text" as const };
+  const owner = { ...columns[0]!, id: "owner", label: "Owner" };
+  const kind = { ...columns[0]!, id: "kind", label: "Kind" };
+  renderSheet({ columns: [columns[0]!, document, owner, kind] });
+  const fields = screen.getAllByRole("textbox");
+  expect(fields.map((input) => input.id)).toEqual([
+    "cell-c1",
+    "cell-owner",
+    "cell-kind",
+    "cell-doc",
+  ]);
 });

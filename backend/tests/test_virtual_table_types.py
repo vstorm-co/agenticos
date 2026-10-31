@@ -44,6 +44,10 @@ def test_every_declared_type_is_registered():
         "datetime",
         "single_select",
         "multi_select",
+        "user",
+        "multi_user",
+        "agent",
+        "multi_agent",
         "link",
         "lookup",
         "rollup",
@@ -285,3 +289,25 @@ def test_a_worked_out_column_is_never_written_or_filtered(type_):
 def test_malformed_bracketed_url_hosts_are_cell_problems(value):
     with pytest.raises(CellProblem, match="web address"):
         validate_cell(_column("url"), value)
+
+
+@pytest.mark.parametrize("kind", ["user", "agent"])
+def test_single_identity_values_and_filters_are_canonical_uuids(kind):
+    value = uuid.uuid4()
+    column = _column(kind)
+    assert validate_cell(column, value.hex) == str(value)
+    assert validate_filter(column, "eq", str(value)) == str(value)
+    for wrong in ["Anna", 3, [str(value)]]:
+        with pytest.raises(CellProblem):
+            validate_cell(column, wrong)
+
+
+@pytest.mark.parametrize("kind", ["multi_user", "multi_agent"])
+def test_multiple_identity_values_are_distinct_bounded_lists(kind):
+    value = str(uuid.uuid4())
+    column = _column(kind)
+    assert validate_cell(column, [value]) == [value]
+    assert validate_filter(column, "contains", value) == value
+    for wrong in [value, [value, value], [str(uuid.uuid4()) for _ in range(101)]]:
+        with pytest.raises(CellProblem):
+            validate_cell(column, wrong)

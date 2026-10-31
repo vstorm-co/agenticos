@@ -62,6 +62,10 @@ CONVERSIONS: dict[ColumnTypeName, frozenset[ColumnTypeName]] = {
     "multi_select": frozenset({"text", "long_text", "single_select"}),
     # A link's values are ids of one table's records, and a worked-out column has
     # no values of its own: neither reads as anything else, nor anything as them.
+    "user": frozenset({"multi_user"}),
+    "multi_user": frozenset({"user"}),
+    "agent": frozenset({"multi_agent"}),
+    "multi_agent": frozenset({"agent"}),
     "link": frozenset(),
     "lookup": frozenset(),
     "rollup": frozenset(),
@@ -151,9 +155,9 @@ def convert(value: CellValue, old: ColumnDef, new: ColumnDef) -> CellValue:
         converted = _from_text(text, new)
     elif old.type == "date":
         converted = f"{value}T00:00:00+00:00"
-    elif old.type == "single_select":
+    elif old.type in {"single_select", "user", "agent"}:
         converted = [value]
-    elif old.type == "multi_select":
+    elif old.type in {"multi_select", "multi_user", "multi_agent"}:
         chosen = value if isinstance(value, list) else []
         if len(chosen) > 1:
             raise CellProblem("Holds more than one choice")

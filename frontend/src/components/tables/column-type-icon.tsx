@@ -1,5 +1,9 @@
 import {
   AlignLeft,
+  UserRound,
+  UsersRound,
+  Bot,
+  Network,
   FileText,
   Calendar,
   CalendarClock,
@@ -23,6 +27,10 @@ import type { ColumnTypeName } from "@/types/tables";
 import { cn } from "@/lib/utils";
 
 const ICON: Record<ColumnTypeName, LucideIcon> = {
+  user: UserRound,
+  multi_user: UsersRound,
+  agent: Bot,
+  multi_agent: Network,
   text: Type,
   long_text: AlignLeft,
   rich_text: FileText,

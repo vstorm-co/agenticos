@@ -184,3 +184,9 @@ export function useWireRunState(from: string, into: string): WireRunState | null
   const state = (id: string) => nodeRunState(overlay.summaries.get(id) ?? null, overlay.live);
   return wireRunState(state(from), state(into));
 }
+
+/** Live movement and one completion sweep belong only to a watched run. */
+export function useRunMotion(): "live" | "finished" | null {
+  const overlay = useContext(NodeRunOverlayContext);
+  return overlay?.watched ? (overlay.live ? "live" : "finished") : null;
+}

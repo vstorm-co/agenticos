@@ -181,7 +181,16 @@ export default function WorkflowRunPage({ params }: PageProps) {
           { label: t("runsTitle"), href: ROUTES.WORKFLOW_RUNS(id) },
           { label: title },
         ]}
-        badges={<WorkflowRunStatusBadge status={run.status} />}
+        badges={
+          <>
+            <WorkflowRunStatusBadge status={run.status} />
+            {run.started_at && (
+              <span className="text-muted-foreground text-xs">
+                {formatDateTime(run.started_at, locale)}
+              </span>
+            )}
+          </>
+        }
         actions={
           <>
             {live && run.can_cancel && (
@@ -227,13 +236,12 @@ export default function WorkflowRunPage({ params }: PageProps) {
         }
       />
 
-      <dl className="bg-card grid shrink-0 gap-4 rounded-xl border px-5 py-3 sm:grid-cols-3">
+      <dl className="bg-card grid shrink-0 divide-y overflow-hidden rounded-xl border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {[
           {
             icon: Clock,
             label: t("runDuration"),
             value: formatRunDuration(run.started_at, run.ended_at),
-            caption: run.started_at ? formatDateTime(run.started_at, locale) : undefined,
           },
           {
             icon: CircleDollarSign,
@@ -248,12 +256,16 @@ export default function WorkflowRunPage({ params }: PageProps) {
             value: t("runStepsOf", { done: stepsRun, count: nodes.length }),
           },
         ].map(({ icon: Icon, label, value, caption }) => (
-          <div key={label} className="flex items-start gap-3">
-            <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+          <div key={label} className="flex items-center gap-3 px-5 py-4">
+            <Icon className="text-muted-foreground size-5 shrink-0" />
             <div>
               <dt className="text-muted-foreground text-xs">{label}</dt>
-              <dd className="mt-1 text-sm font-semibold tabular-nums">{value}</dd>
-              {caption && <dd className="text-muted-foreground mt-1 text-xs">{caption}</dd>}
+              <dd className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-lg leading-6 font-semibold tabular-nums">
+                {value}
+                {caption && (
+                  <span className="text-muted-foreground text-xs font-normal">{caption}</span>
+                )}
+              </dd>
             </div>
           </div>
         ))}

@@ -1,5 +1,5 @@
 ---
-source_sha: "a92668fd4c2a"
+source_sha: "4a79bbcf30b6"
 ---
 
 # Workflows { #workflows }
@@ -1356,6 +1356,8 @@ Die Tastenkürzel der Zeichenfläche feuern nur, solange der Fokus im Editor ist
 sodass sie nie eine Taste einem Feld anderswo auf der Seite stehlen:
 
 Ziehen Sie mit der linken Maustaste, um Objekte auszuwählen. Halten Sie beim Ziehen die Umschalttaste gedrückt, um die Ansicht zu verschieben; die mittlere und rechte Maustaste verschieben sie ebenfalls. `Ctrl`/`Cmd` + `A` wählt alle Objekte im aktuellen Bereich aus, einschließlich Notizen auf der obersten Ebene.
+
+Beobachtete Ausführungen zeigen einen bewegten Impuls zum aktiven Schritt und eine wandernde Randbeleuchtung seiner Karte. Eine kurze Abschlussanimation macht schnelle Ausführungen lesbar, ohne Status oder Zeitangaben zu verändern. Historische Ausführungen bleiben still; die Systemeinstellung für reduzierte Bewegung deaktiviert Animationen. Dauer, Kosten und abgeschlossene Schritte sind im Überblick ausgerichtet, die Startzeit steht neben dem Status.
 
 | Tasten | Tut |
 |---|---|

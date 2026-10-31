@@ -9584,7 +9584,11 @@
         "lookup": "Lookup",
         "rollup": "Rollup",
         "formula": "Formula",
-        "rich_text": "Rich text (Markdown)"
+        "rich_text": "Rich text (Markdown)",
+        "user": "Person",
+        "multi_user": "People",
+        "agent": "AI agent",
+        "multi_agent": "Multiple AI agents"
       },
       "required": "Required",
       "archiveColumn": "Archive {column}",
@@ -9766,6 +9770,25 @@
       "hint": "Name a column in braces. Use + - * / %, = <> < > and, or, not, and IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     },
     "markdown": {
+      "library": "Document templates",
+      "libraryHint": "Create reusable templates for this column. The default is applied automatically to new records.",
+      "loadingTemplates": "Loading templates…",
+      "templateName": "Template name",
+      "templateBody": "Markdown content",
+      "makeDefault": "Use by default for new records",
+      "backToTemplates": "Back",
+      "saveTemplate": "Save template",
+      "yourTemplates": "Your templates",
+      "newTemplate": "New template",
+      "defaultTemplate": "Default for new records",
+      "useTemplate": "Use template",
+      "setDefault": "Set as default",
+      "editTemplate": "Edit {name}",
+      "deleteTemplate": "Delete {name}",
+      "noCustomTemplates": "Save your current document as a template, or customize a starting template below.",
+      "customizeTemplate": "Customize",
+      "defaultActive": "New records use the configured default.",
+      "clearDefault": "Clear default",
       "insertBlock": "Insert a block",
       "noBlocks": "No matching blocks",
       "uploadingImage": "Uploading image…",
@@ -9799,7 +9822,7 @@
       "templateHint": "Applied automatically to new records when no value is supplied. Existing documents stay unchanged. Customize the content below.",
       "applyTemplate": "Use column template",
       "replaceTitle": "Replace document content?",
-      "replaceDescription": "This replaces the document body with the current column template. Its properties and history are preserved.",
+      "replaceDescription": "This replaces the document body with the selected template. Its properties and history are preserved.",
       "templates": {
         "blank": {
           "label": "Blank",
@@ -9880,6 +9903,16 @@
       "descending": "Descending",
       "reset": "Default order: oldest first",
       "active": "Sort: {column}, {direction}"
+    },
+    "principals": {
+      "choosePeople": "Choose a person",
+      "chooseAgents": "Choose agents",
+      "search": "Search by name…",
+      "loading": "Loading…",
+      "loadError": "Could not load the organization directory.",
+      "empty": "No matches",
+      "clear": "Clear selection",
+      "unavailable": "Unavailable"
     }
   },
   "groups": {

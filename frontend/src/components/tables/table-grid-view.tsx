@@ -7,7 +7,7 @@ import { markdownDocument } from "@/lib/markdown-document";
 
 import { type KeyboardEvent, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, Maximize2, Plus, Trash2, Lock, FileText } from "lucide-react";
+import { Check, PanelRightOpen, Plus, Trash2, Lock, FileText } from "lucide-react";
 
 import { type ColumnActions, ColumnHeaderMenu } from "./column-header-menu";
 import { ColumnTypeIcon, isNumeric } from "./column-type-icon";
@@ -323,7 +323,7 @@ export function TableGridView({
   if (canEdit) {
     tableColumns.unshift({
       key: "__select",
-      className: "w-10 pr-0",
+      className: "bg-card sticky left-0 z-20 w-12 min-w-12 px-3 sm:px-3",
       header: (
         <Checkbox
           aria-label={tGrid("selectAll")}
@@ -342,23 +342,10 @@ export function TableGridView({
         />
       ),
     });
-    tableColumns.push({
+    tableColumns.splice(1, 0, {
       key: "__open",
-      className: "w-12 px-2",
-      header: onAddColumn ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground size-7"
-          aria-label={tGrid("addColumn")}
-          title={tGrid("addColumn")}
-          onClick={onAddColumn}
-        >
-          <Plus className="size-3.5" />
-        </Button>
-      ) : (
-        <span className="sr-only">{tGrid("openRecord")}</span>
-      ),
+      className: "bg-card sticky left-12 z-20 w-10 min-w-10 px-1 sm:px-1",
+      header: <span className="sr-only">{tGrid("openRecord")}</span>,
       cell: (record) => (
         <Button
           variant="ghost"
@@ -368,16 +355,38 @@ export function TableGridView({
           title={tGrid("openRecord")}
           onClick={() => onOpenRecord(record)}
         >
-          <Maximize2 className="size-3.5" />
+          <PanelRightOpen className="size-3.5" />
         </Button>
       ),
     });
+    if (onAddColumn)
+      tableColumns.push({
+        key: "__add",
+        className: "w-12 px-2",
+        header: (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground size-7"
+            aria-label={tGrid("addColumn")}
+            title={tGrid("addColumn")}
+            onClick={onAddColumn}
+          >
+            <Plus className="size-3.5" />
+          </Button>
+        ),
+        cell: () => null,
+      });
   }
 
   return (
-    <>
+    <div className="relative flex min-h-0 flex-1 flex-col">
       {chosen.length > 0 && (
-        <div className="border-border bg-card mb-2 flex items-center gap-3 rounded-lg border px-3 py-1.5 text-sm">
+        <div
+          role="toolbar"
+          aria-label={tGrid("selected", { count: chosen.length })}
+          className="border-border bg-popover/95 absolute bottom-5 left-1/2 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm whitespace-nowrap shadow-lg backdrop-blur"
+        >
           <span className="tabular-nums">{tGrid("selected", { count: chosen.length })}</span>
           <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
             {tGrid("clearSelection")}
@@ -437,6 +446,6 @@ export function TableGridView({
         destructive
         onConfirm={deleteChosen}
       />
-    </>
+    </div>
   );
 }

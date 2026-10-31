@@ -485,6 +485,7 @@ function WorkflowCard({
           (runState.state === "running" || runState.state === "starting") &&
           "run-breathe",
         runState?.watched && crashed && "run-crash",
+        runState?.watched && runState.state === "done" && "run-finished",
         // Switched off: still on the canvas, visibly out of the run.
         instance.disabled && "border-dashed opacity-60",
         change === "added" && "border-emerald-500/60",
@@ -493,6 +494,12 @@ function WorkflowCard({
         change === "changed" && "border-[var(--domain-use)]",
       )}
     >
+      {runState?.watched && (runState.state === "running" || runState.state === "starting") && (
+        <span
+          aria-hidden="true"
+          className="run-node-halo pointer-events-none absolute -inset-0.5 rounded-[inherit]"
+        />
+      )}
       {logged !== null && ring !== "" && (
         // One rounded outline around the card and its strip, with no seam: the strip's
         // 20px past the card's own edge.

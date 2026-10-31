@@ -69,7 +69,7 @@ describe("Markdown table cells", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Use column template" }));
     const confirm = within(screen.getByRole("dialog", { name: "Replace document content?" }));
-    await userEvent.click(confirm.getByRole("button", { name: "Use column template" }));
+    await userEvent.click(confirm.getByRole("button", { name: "Use template" }));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Notes" })).toHaveFocus());
     expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("# New note");
     await userEvent.click(screen.getByRole("button", { name: "Outside" }));
@@ -261,4 +261,28 @@ it("ignores a completed image upload after the record editor unmounts", async ()
   finish?.({ id: "late", url: "/api/tables/table/media/late" });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(change).not.toHaveBeenCalled();
+});
+
+it("opens a full-page document in Write and returns to Preview in its side panel", () => {
+  const metadata = { created_at: "2026-10-31T00:00:00Z", updated_at: null };
+  const { rerender } = render(
+    <RecordCellEditor
+      column={column}
+      value="# A document"
+      metadata={metadata}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+  rerender(
+    <RecordCellEditor
+      column={column}
+      value="# A document"
+      metadata={metadata}
+      fillEditor
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("# A document");
+  expect(screen.getByRole("button", { name: "Write" })).toHaveAttribute("aria-pressed", "true");
 });

@@ -19,6 +19,10 @@ export const COLUMN_TYPES = [
   "datetime",
   "single_select",
   "multi_select",
+  "user",
+  "multi_user",
+  "agent",
+  "multi_agent",
   "link",
   "lookup",
   "rollup",
@@ -39,6 +43,10 @@ export const COMPUTED_TYPES: ReadonlySet<ColumnTypeName> = new Set(["lookup", "r
 /** Types the service cannot sort by. */
 export const UNSORTABLE_TYPES: ReadonlySet<ColumnTypeName> = new Set([
   "multi_select",
+  "user",
+  "multi_user",
+  "agent",
+  "multi_agent",
   "link",
   "lookup",
   "rollup",
@@ -93,6 +101,10 @@ export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[
   datetime: ["text", "long_text"],
   single_select: ["text", "long_text", "multi_select"],
   multi_select: ["text", "long_text", "single_select"],
+  user: ["multi_user"],
+  multi_user: ["user"],
+  agent: ["multi_agent"],
+  multi_agent: ["agent"],
   link: [],
   lookup: [],
   rollup: [],
@@ -122,7 +134,22 @@ export interface OptionDef {
 
 export type SystemColumnKey = "created_at" | "updated_at" | "created_by" | "updated_by";
 
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  body: string;
+}
+
+export const PRINCIPAL_COLUMN_TYPES: ReadonlySet<ColumnTypeName> = new Set([
+  "user",
+  "multi_user",
+  "agent",
+  "multi_agent",
+]);
+
 export interface ColumnDef {
+  document_templates?: DocumentTemplate[];
+  default_template_id?: string | null;
   /** A console projection of immutable record metadata, not a schema column. */
   system?: SystemColumnKey;
   id: string;
@@ -146,6 +173,8 @@ export interface ColumnDef {
 
 /** A column as the client submits it on a schema change - no id for a new one. */
 export interface ColumnInput {
+  document_templates?: DocumentTemplate[];
+  default_template_id?: string | null;
   id?: string;
   label: string;
   type: ColumnTypeName;

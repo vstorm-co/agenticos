@@ -10266,7 +10266,11 @@
         "lookup": "Odczyt z powiązania",
         "rollup": "Podsumowanie powiązań",
         "formula": "Formuła",
-        "rich_text": "Tekst formatowany (Markdown)"
+        "rich_text": "Tekst formatowany (Markdown)",
+        "user": "Osoba",
+        "multi_user": "Osoby",
+        "agent": "Agent AI",
+        "multi_agent": "Wielu agentów AI"
       },
       "required": "Wymagana",
       "archiveColumn": "Zarchiwizuj {column}",
@@ -10448,6 +10452,25 @@
       "hint": "Kolumnę podaj w nawiasach klamrowych. Działa + - * / %, = <> < > and, or, not oraz IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     },
     "markdown": {
+      "library": "Szablony dokumentów",
+      "libraryHint": "Twórz własne szablony dla tej kolumny. Domyślny szablon jest automatycznie stosowany do nowych rekordów.",
+      "loadingTemplates": "Wczytywanie szablonów…",
+      "templateName": "Nazwa szablonu",
+      "templateBody": "Treść Markdown",
+      "makeDefault": "Używaj domyślnie w nowych rekordach",
+      "backToTemplates": "Wstecz",
+      "saveTemplate": "Zapisz szablon",
+      "yourTemplates": "Twoje szablony",
+      "newTemplate": "Nowy szablon",
+      "defaultTemplate": "Domyślny dla nowych rekordów",
+      "useTemplate": "Użyj szablonu",
+      "setDefault": "Ustaw jako domyślny",
+      "editTemplate": "Edytuj {name}",
+      "deleteTemplate": "Usuń {name}",
+      "noCustomTemplates": "Zapisz bieżący dokument jako szablon lub dostosuj jeden z szablonów poniżej.",
+      "customizeTemplate": "Dostosuj",
+      "defaultActive": "Nowe rekordy korzystają z ustawionego szablonu.",
+      "clearDefault": "Usuń domyślny",
       "insertBlock": "Wstaw blok",
       "noBlocks": "Brak pasujących bloków",
       "uploadingImage": "Przesyłanie zdjęcia…",
@@ -10481,7 +10504,7 @@
       "templateHint": "Stosowany automatycznie w nowych rekordach, jeśli nie podano wartości. Istniejące dokumenty pozostają bez zmian. Treść szablonu możesz edytować poniżej.",
       "applyTemplate": "Użyj szablonu kolumny",
       "replaceTitle": "Zastąpić treść dokumentu?",
-      "replaceDescription": "Treść dokumentu zostanie zastąpiona aktualnym szablonem kolumny. Właściwości i historia zostaną zachowane.",
+      "replaceDescription": "Zastępuje treść dokumentu wybranym szablonem. Właściwości i historia pozostają zachowane.",
       "templates": {
         "blank": {
           "label": "Pusty",
@@ -10562,6 +10585,16 @@
       "descending": "Malejąco",
       "reset": "Domyślna kolejność: najstarsze najpierw",
       "active": "Sortuj: {column}, {direction}"
+    },
+    "principals": {
+      "choosePeople": "Wybierz osobę",
+      "chooseAgents": "Wybierz agentów",
+      "search": "Szukaj po nazwie…",
+      "loading": "Wczytywanie…",
+      "loadError": "Nie udało się wczytać katalogu organizacji.",
+      "empty": "Brak wyników",
+      "clear": "Wyczyść wybór",
+      "unavailable": "Niedostępne"
     }
   },
   "groups": {

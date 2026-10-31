@@ -88,6 +88,7 @@ from app.services.virtual_tables.exceptions import (
     RevisionConflictError,
     RevisionRequiredError,
 )
+from app.services.virtual_tables.principals import principal_problems
 from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, run_once
 from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.types import (
@@ -1385,6 +1386,18 @@ class RecordOperations(Operations):
         """Insert a record with its history and created event, or `None` if the id is taken."""
         columns = await self._columns(table)
         merged = _merge(columns, values, None)
+        problems = await principal_problems(
+            self.db,
+            ctx,
+            columns,
+            {
+                str(column.id): merged.get(str(column.id))
+                for column in columns
+                if str(column.id) in values or column.default is not None
+            },
+        )
+        if problems:
+            raise InvalidRecordError([(f"values.{key}", message) for key, message in problems])
         await self._check_links(ctx, columns, values)
         await quotas.enforce_record_size(ctx, table, merged)
         await quotas.enforce_record_count(self.db, ctx, table)
@@ -1473,6 +1486,18 @@ class RecordOperations(Operations):
             # snapshot, and a receipt holding a whole copy, for a request that changed
             # nothing would let tiny repeated requests grow the shared database.
             raise _Unchanged(RecordRead.model_validate(record))
+        problems = await principal_problems(
+            self.db,
+            ctx,
+            columns,
+            {
+                str(column.id): merged.get(str(column.id))
+                for column in columns
+                if str(column.id) in values
+            },
+        )
+        if problems:
+            raise InvalidRecordError([(f"values.{key}", message) for key, message in problems])
         await self._check_links(ctx, columns, values)
         await quotas.enforce_record_size(ctx, table, merged)
         await virtual_table_repo.update_record(

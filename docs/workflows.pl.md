@@ -1,5 +1,5 @@
 ---
-source_sha: "a92668fd4c2a"
+source_sha: "4a79bbcf30b6"
 ---
 
 # Workflows { #workflows }
@@ -1250,6 +1250,8 @@ Skróty kanwy działają tylko wtedy, gdy fokus jest w edytorze, więc nigdy nie
 klawisza polu gdzie indziej na stronie:
 
 Przeciągaj lewym przyciskiem myszy, aby zaznaczać obiekty. Przytrzymaj Shift podczas przeciągania, aby przesuwać widok; środkowy i prawy przycisk również przesuwają widok. `Ctrl`/`Cmd` + `A` zaznacza wszystkie obiekty w bieżącym obszarze, w tym notatki na poziomie głównym.
+
+Obserwowane wykonania pokazują ruchomy impuls prowadzący do aktywnego kroku i przesuwające się podświetlenie jego ramki. Krótkie podświetlenie zakończenia pomaga odczytać szybkie wykonania bez zmieniania ich rzeczywistego statusu lub czasu. Historyczne wykonania pozostają nieruchome, a systemowe ograniczenie animacji wyłącza ruch. Czas trwania, koszt i liczba ukończonych kroków są wyrównane w podsumowaniu, z czasem startu obok statusu.
 
 | Klawisze | Robi |
 |---|---|

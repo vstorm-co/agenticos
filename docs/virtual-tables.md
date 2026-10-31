@@ -22,6 +22,12 @@ Quick add sits directly after the loaded rows in their scroll area. The console'
 
 In a Markdown document, type `/` at the beginning of a line to search for a block: to-do, heading, list, quote, code, divider, table, image, video or link. Arrow keys and Enter choose a block; Escape closes the menu. Paste copied images directly into the editor. PNG, JPEG, GIF and WebP images up to 5 MiB are stored with the table, count against its storage quota and follow its current access grants. Images remain available when the table is archived, including references retained in record history.
 
+The `user` and `agent` column types reference one organization member or accessible AI agent; `multi_user` and `multi_agent` reference up to 100 distinct identities. Choose by name from suggestions with avatars. Stored values are stable UUIDs, and membership or agent visibility is checked on writes and defaults. Single references support `eq`, `ne`, `in` and `is_null`; multiple references support `contains` and `is_null`. Identity columns are not sortable.
+
+**Document templates** in a Markdown field opens that column's reusable library. Save the current document, customize a starter, edit or delete named templates and choose a default. A selected default supplies new records automatically; editing it never rewrites existing documents. Each column holds up to 10 templates with at most 100,000 characters in total. Ordinary record properties stay above document bodies in the record panel.
+
+Selecting records shows a floating action bar without shifting the grid. The record opener stays pinned beside the selection checkbox, even in a horizontally scrolled table. Every record panel shows created and updated times and authors, with avatars. Side panels start in Preview; full-page documents start in Write.
+
 ## External clients { #external-clients }
 
 Write provenance is recorded separately from the member authorizing it. New writes store `created_source` and `updated_source` with the source kind, ID and display name: person, agent, API key, workflow or system. The console shows a person's avatar, an agent's portrait, or an API/workflow icon beside the name in system columns and document properties. Creating sets both sources; later writes preserve the creator. Existing records retain their recorded member without inventing a historical origin. These fields cannot be supplied through record inputs or Markdown.

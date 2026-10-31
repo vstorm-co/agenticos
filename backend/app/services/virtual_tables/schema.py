@@ -28,6 +28,7 @@ from app.schemas.virtual_table import (
     CellValue,
     ColumnDef,
     ColumnInput,
+    DocumentTemplate,
     OptionDef,
     OptionInput,
 )
@@ -122,6 +123,54 @@ def _option_default(value: CellValue, options: Sequence[OptionDef]) -> CellValue
     return value
 
 
+def _templates(
+    submitted: ColumnInput, previous: ColumnDef | None, where: str
+) -> tuple[list[DocumentTemplate], UUID | None, CellValue]:
+    templates = (
+        submitted.document_templates
+        if "document_templates" in submitted.model_fields_set
+        else (previous.document_templates if previous else [])
+    )
+    selected = (
+        submitted.default_template_id
+        if "default_template_id" in submitted.model_fields_set
+        else (previous.default_template_id if previous else None)
+    )
+    if (
+        previous
+        and "default" in submitted.model_fields_set
+        and "default_template_id" not in submitted.model_fields_set
+        and submitted.default != previous.default
+    ):
+        selected = None
+    if submitted.type != "rich_text":
+        if submitted.document_templates or submitted.default_template_id:
+            raise InvalidSchemaError(
+                f"{where}.document_templates", "Only Markdown columns have document templates"
+            )
+        return [], None, submitted.default
+    if len({item.id for item in templates}) != len(templates) or len(
+        {item.name.casefold() for item in templates}
+    ) != len(templates):
+        raise InvalidSchemaError(
+            f"{where}.document_templates", "Template names and ids must be unique"
+        )
+    if sum(len(item.body) for item in templates) > 100_000:
+        raise InvalidSchemaError(
+            f"{where}.document_templates",
+            "Templates may contain at most 100000 characters together",
+        )
+    default = submitted.default
+    if selected is not None:
+        template = next((item for item in templates if item.id == selected), None)
+        if template is None:
+            raise InvalidSchemaError(
+                f"{where}.default_template_id", "Choose an existing document template"
+            )
+        default = template.body
+    return templates, selected, default
+
+
 def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> ColumnDef:
     where = f"columns.{index}"
     if submitted.label.casefold() in RECORD_METADATA_FIELDS and (
@@ -152,14 +201,15 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
     options = _options(
         f"{where}.options", submitted.options, previous.options if keeps_options else []
     )
+    templates, selected_template, default = _templates(submitted, previous, where)
     column = ColumnDef(
         id=previous.id if previous else uuid4(),
         label=submitted.label,
         type=submitted.type,
         nullable=submitted.nullable,
-        default=_option_default(submitted.default, options)
-        if submitted.type in OPTION_TYPES
-        else submitted.default,
+        default=_option_default(default, options) if submitted.type in OPTION_TYPES else default,
+        document_templates=templates,
+        default_template_id=selected_template,
         options=options,
         archived=submitted.archived,
         link_table_id=submitted.link_table_id,

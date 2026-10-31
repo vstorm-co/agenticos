@@ -216,6 +216,25 @@ def _record_id(value: object) -> str:
         raise CellProblem("Expected a record id") from None
 
 
+def _principal(value: object, column: ColumnDef, writing: bool) -> str:
+    """Stable identity; membership and visibility are checked by the service."""
+    if not isinstance(value, str):
+        raise CellProblem("Expected a user or agent id")
+    try:
+        return str(UUID(value))
+    except ValueError:
+        raise CellProblem("Expected a user or agent id") from None
+
+
+def _principals(value: object, column: ColumnDef, writing: bool) -> CellValue:
+    if not isinstance(value, list) or len(value) > MAX_LINKS:
+        raise CellProblem(f"Expected a list of at most {MAX_LINKS} user or agent ids")
+    ids = [_principal(item, column, writing) for item in value]
+    if len(ids) != len(set(ids)):
+        raise CellProblem("The same user or agent is listed twice")
+    return ids
+
+
 def _link(value: object, column: ColumnDef, writing: bool) -> CellValue:
     """Record ids of the linked table. Whether each exists is the service's question."""
     if not isinstance(value, list):
@@ -274,6 +293,18 @@ COLUMN_TYPES: dict[ColumnTypeName, ColumnType] = {
             False,
             _multi_select,
         ),
+        ColumnType(
+            "user", SqlKind.TEXT, frozenset({"eq", "ne", "in", "is_null"}), False, _principal
+        ),
+        ColumnType(
+            "agent", SqlKind.TEXT, frozenset({"eq", "ne", "in", "is_null"}), False, _principal
+        ),
+        ColumnType(
+            "multi_user", SqlKind.ARRAY, frozenset({"contains", "is_null"}), False, _principals
+        ),
+        ColumnType(
+            "multi_agent", SqlKind.ARRAY, frozenset({"contains", "is_null"}), False, _principals
+        ),
         ColumnType("link", SqlKind.ARRAY, frozenset({"contains", "is_null"}), False, _link),
         ColumnType("lookup", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
         ColumnType("rollup", SqlKind.TEXT, frozenset(), False, _computed, computed=True),
@@ -326,6 +357,8 @@ def validate_filter(column: ColumnDef, op: FilterOp, value: FilterValue) -> Filt
             raise CellProblem(f"in takes a list of 1 to {MAX_IN_OPERANDS} values")
         operands: list[CellValue] = [column_type.validate(item, column, False) for item in value]
         return operands
+    if op == "contains" and column.type in {"multi_user", "multi_agent"}:
+        return _principal(value, column, False)
     if op == "contains" and column.type == "link":
         return _record_id(value)
     if op == "contains" and column_type.kind is SqlKind.ARRAY:

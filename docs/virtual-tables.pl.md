@@ -1,5 +1,5 @@
 ---
-source_sha: "fe56f1c799b3"
+source_sha: "2c005af81253"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -25,6 +25,12 @@ Typowaną **Wartość domyślną** ustawisz w ustawieniach lub przy dodawaniu ko
 Szybkie dodawanie jest bezpośrednio za załadowanymi wierszami, w ich obszarze przewijania. Eksport CSV w konsoli zawiera cztery właściwości rekordu. Eksport API zachowuje dotychczasowy format, chyba że podasz `include_metadata: true`. Przy tworzeniu tabeli z eksportowanego CSV pola systemowe są pomijane; importowane rekordy dostają nowe metadane systemowe.
 
 W dokumencie Markdown wpisz `/` na początku wiersza, aby wyszukać blok: zadanie, nagłówek, listę, cytat, kod, separator, tabelę, zdjęcie, wideo lub link. Strzałki i Enter wybierają blok; Escape zamyka menu. Skopiowane zdjęcia można wkleić bezpośrednio do edytora. Zdjęcia PNG, JPEG, GIF i WebP do 5 MiB są przechowywane z tabelą, wliczane do jej limitu miejsca i objęte jej bieżącymi uprawnieniami dostępu. Pozostają dostępne po archiwizacji tabeli, również przez odwołania zachowane w historii rekordów.
+
+Typy kolumn `user` i `agent` wskazują jednego członka organizacji lub dostępnego agenta AI; `multi_user` i `multi_agent` wskazują do 100 różnych osób lub agentów. Wybierasz je po nazwie z podpowiedzi z avatarami. Zapisane wartości to stabilne UUID, a członkostwo lub dostęp do agenta są sprawdzane przy zapisie i ustawianiu wartości domyślnej. Pojedyncze referencje obsługują `eq`, `ne`, `in` i `is_null`, a wielokrotne `contains` i `is_null`. Kolumn tożsamości nie można sortować.
+
+**Szablony dokumentów** w polu Markdown otwierają bibliotekę tej kolumny. Zapisz bieżący dokument, dostosuj gotowy szablon, edytuj lub usuń nazwane szablony i wybierz domyślny. Domyślny szablon automatycznie uzupełnia nowe rekordy; jego edycja nie zmienia istniejących dokumentów. Każda kolumna mieści do 10 szablonów o łącznej długości do 100 000 znaków. Zwykłe właściwości rekordu są pokazywane nad treścią dokumentów w panelu rekordu.
+
+Zaznaczanie rekordów pokazuje pływający pasek akcji bez przesuwania tabeli. Przycisk otwierania rekordu pozostaje przypięty obok pola zaznaczenia, także po przewinięciu tabeli w poziomie. Każdy panel rekordu pokazuje daty i autorów utworzenia oraz ostatniej zmiany, wraz z avatarami. Panel boczny rozpoczyna w trybie Preview, a dokument na pełnej stronie w Write.
 
 ## Klienci zewnętrzni { #external-clients }
 

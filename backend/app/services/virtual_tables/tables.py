@@ -48,6 +48,7 @@ from app.services.virtual_tables.exceptions import (
     SchemaDependencyError,
     SchemaVersionConflictError,
 )
+from app.services.virtual_tables.principals import principal_problems
 from app.services.virtual_tables.quotas import enforce_table_count
 from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.schema import build_columns, diff
@@ -456,6 +457,21 @@ class TableOperations(Operations):
         archived since, or a column it read archived since, leaves the column
         reading nothing rather than blocking every later edit of this table.
         """
+        defaults = {
+            str(column.id): column.default
+            for column in columns
+            if column.default is not None
+            and (
+                not previous
+                or next((old.default for old in previous if old.id == column.id), None)
+                != column.default
+            )
+        }
+        problems = await principal_problems(self.db, ctx, columns, defaults)
+        if problems:
+            key, message = problems[0]
+            index = next(index for index, column in enumerate(columns) if str(column.id) == key)
+            raise InvalidSchemaError(f"columns.{index}.default", message)
         unchanged = {column.id: column for column in previous}
         # The table each link column reads, which `build_columns` checked every
         # lookup and rollup names.

@@ -1008,7 +1008,12 @@ function columnSchema(column: ColumnDef): Schema {
   if (column.type === "boolean") return { ...base, type: "boolean" };
   if (column.type === "number") return { ...base, type: "number" };
   if (column.type === "integer" || column.type === "rating") return { ...base, type: "integer" };
-  if (column.type === "multi_select" || column.type === "link")
+  if (
+    column.type === "multi_select" ||
+    column.type === "link" ||
+    column.type === "multi_user" ||
+    column.type === "multi_agent"
+  )
     return { ...base, type: "array", items: { type: "string" } };
   if (column.type === "single_select")
     return {

@@ -20,14 +20,17 @@ import { DIALOG_BODY, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { DocumentProperties, type DocumentMetadata } from "./document-properties";
 import { withDocumentBody } from "@/lib/document-properties";
+import { DocumentTemplates } from "./document-templates";
 import { MarkdownInput } from "./markdown-input";
 import { markdownDocument } from "@/lib/markdown-document";
 
 /** Metadata and Markdown share one buffered cell; body edits preserve the header. */
 export function MarkdownCellEditor({
   tableId,
+  columnId,
   onCommitValue,
   fill,
+  showMetadata = true,
   metadata,
   template,
   id,
@@ -40,11 +43,13 @@ export function MarkdownCellEditor({
   describedBy,
 }: {
   tableId?: string;
+  columnId?: string;
   onCommitValue?: (value: string) => void;
   metadata?: DocumentMetadata;
   template?: string;
   id: string;
   fill?: boolean;
+  showMetadata?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -55,10 +60,19 @@ export function MarkdownCellEditor({
 }) {
   const t = useTranslations("tables.markdown");
   const [preview, setPreview] = useState(
-    Boolean(disabled) || Boolean(metadata?.created_at && markdownDocument(value).body.trim()),
+    Boolean(disabled) ||
+      (!fill && Boolean(metadata?.created_at && markdownDocument(value).body.trim())),
   );
+  const [layoutMode, setLayoutMode] = useState(fill);
+  if (layoutMode !== fill) {
+    setLayoutMode(fill);
+    setPreview(
+      Boolean(disabled) ||
+        (!fill && Boolean(metadata?.created_at && markdownDocument(value).body.trim())),
+    );
+  }
   const [expanded, setExpanded] = useState(false);
-  const [replacing, setReplacing] = useState(false);
+  const [replacement, setReplacement] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
   const parts = markdownDocument(value);
 
@@ -66,7 +80,11 @@ export function MarkdownCellEditor({
     const next = event.relatedTarget;
     if (
       next instanceof Node &&
-      (event.currentTarget.contains(next) || dialog.current?.contains(next))
+      (event.currentTarget.contains(next) ||
+        dialog.current?.contains(next) ||
+        (next instanceof Element &&
+          next.closest("[data-document-templates]")?.getAttribute("data-document-templates") ===
+            columnId))
     )
       return;
     onCommit();
@@ -140,13 +158,24 @@ export function MarkdownCellEditor({
           </div>
         )}
         <div className="ml-auto flex items-center gap-1">
-          {!disabled && template !== undefined && (
+          {!disabled && tableId && columnId && (
+            <DocumentTemplates
+              tableId={tableId}
+              columnId={columnId}
+              body={parts.body}
+              onApply={(body) => {
+                if (parts.body.trim()) setReplacement(body);
+                else onChange(withDocumentBody(value, body));
+              }}
+            />
+          )}
+          {!disabled && !(tableId && columnId) && template !== undefined && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (parts.body.trim()) setReplacing(true);
+                if (parts.body.trim()) setReplacement(template ?? "");
                 else onChange(withDocumentBody(value, template));
               }}
             >
@@ -168,7 +197,7 @@ export function MarkdownCellEditor({
           )}
         </div>
       </div>
-      <DocumentProperties metadata={metadata} />
+      {showMetadata && <DocumentProperties metadata={metadata} />}
       {preview ? (
         <div className="min-h-72 min-w-0 flex-1 space-y-4 overflow-auto px-4 py-6 sm:px-6">
           {parts.body.trim() ? (
@@ -202,14 +231,16 @@ export function MarkdownCellEditor({
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div role="group" aria-label={label} onBlur={commitOnLeave} className="min-w-0 space-y-2">
       <ConfirmDialog
-        open={replacing}
-        onOpenChange={setReplacing}
+        open={replacement !== null}
+        onOpenChange={(open) => {
+          if (!open) setReplacement(null);
+        }}
         title={t("replaceTitle")}
         description={t("replaceDescription")}
-        confirmLabel={t("applyTemplate")}
+        confirmLabel={t("useTemplate")}
         onConfirm={() => {
-          onChange(withDocumentBody(value, template ?? ""));
-          setReplacing(false);
+          onChange(withDocumentBody(value, replacement ?? ""));
+          setReplacement(null);
           requestAnimationFrame(() =>
             document.getElementById(expanded ? `${id}-expanded` : id)?.focus(),
           );
@@ -219,6 +250,7 @@ export function MarkdownCellEditor({
         open={expanded}
         onOpenChange={(open) => {
           if (!open) onCommit();
+          if (open && !disabled) setPreview(false);
           setExpanded(open);
         }}
       >

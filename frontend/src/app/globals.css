@@ -1067,16 +1067,79 @@
   }
 }
 
-/* A workflow run on the canvas (#1933): dashes travelling along the wire into
-   the step running now, a slow glow on that step, and one shake when a step
-   fails while the run is watched. The reduced-motion block below stills all
-   three, like every other animation. */
-.run-flow {
-  animation: run-flow 0.7s linear infinite;
+/* Watched runs trace a pulse along the active path, sweep the active card's
+   border, and acknowledge completed steps once. Reduced motion keeps the real
+   state and its colour while removing movement. */
+.run-packet {
+  animation: run-packet 1.25s linear infinite;
+  filter: drop-shadow(0 0 3px color-mix(in oklch, var(--color-success) 55%, transparent));
 }
-@keyframes run-flow {
+@keyframes run-packet {
+  from {
+    stroke-dashoffset: 1;
+  }
   to {
-    stroke-dashoffset: -15;
+    stroke-dashoffset: 0;
+  }
+}
+.run-packet-finished {
+  animation:
+    run-packet 650ms ease-out both,
+    run-packet-fade 650ms ease-out both;
+}
+@keyframes run-packet-fade {
+  0%,
+  65% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.run-finished {
+  animation: run-finished 650ms ease-out both;
+}
+@keyframes run-finished {
+  from {
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-success) 20%, transparent);
+  }
+  to {
+    box-shadow: none;
+  }
+}
+.run-node-halo {
+  padding: 2px;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    var(--color-success) 46%,
+    var(--color-foreground) 50%,
+    var(--color-success) 54%,
+    transparent 75%
+  );
+  background-size: 250% 100%;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: run-halo 2.2s linear infinite;
+}
+@keyframes run-halo {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .run-packet,
+  .run-packet-finished {
+    display: none;
+  }
+  .run-node-halo {
+    animation: none;
+    background: var(--color-success);
   }
 }
 .run-breathe {

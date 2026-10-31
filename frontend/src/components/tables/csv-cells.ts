@@ -69,6 +69,8 @@ export function readCell(column: ColumnDef, raw: string): CsvCell {
   const trimmed = text.trim();
   if (trimmed === "") return { value: null };
   switch (column.type) {
+    case "user":
+    case "agent":
     case "text":
     case "long_text":
     case "rich_text":
@@ -118,6 +120,8 @@ export function readCell(column: ColumnDef, raw: string): CsvCell {
         .map((part) => optionFor(column, part));
       return ids.includes(null) ? { problem: "option" } : { value: ids as string[] };
     }
+    case "multi_user":
+    case "multi_agent":
     case "link": {
       // The linked records by id, as an API client writes them; an export names
       // them by label, which is for reading, not for linking back.

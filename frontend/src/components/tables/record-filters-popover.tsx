@@ -71,7 +71,14 @@ function Operand({
   // A multi-select's `contains` names one option, so it is picked like a single one.
   const asColumn: ColumnDef = {
     ...column,
-    type: column.type === "multi_select" ? "single_select" : column.type,
+    type:
+      column.type === "multi_select"
+        ? "single_select"
+        : column.type === "multi_user"
+          ? "user"
+          : column.type === "multi_agent"
+            ? "agent"
+            : column.type,
     nullable: true,
   };
   return (

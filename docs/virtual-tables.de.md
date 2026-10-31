@@ -1,5 +1,5 @@
 ---
-source_sha: "fe56f1c799b3"
+source_sha: "2c005af81253"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -26,6 +26,12 @@ Lege einen typisierten **Standardwert** in den Spalteneinstellungen oder beim Hi
 Die Schnelleingabe steht direkt hinter den geladenen Zeilen in deren Scrollbereich. Der CSV-Export der Konsole enthält die vier Datensatzeigenschaften. API-Exporte behalten ihr bisheriges Format, sofern nicht `include_metadata: true` angefordert wird. Beim Erstellen einer Tabelle aus einem exportierten CSV werden Systemeigenschaften übersprungen; importierte Datensätze erhalten neue Systemmetadaten.
 
 Geben Sie in einem Markdown-Dokument `/` am Zeilenanfang ein, um einen Block zu suchen: Aufgabe, Überschrift, Liste, Zitat, Code, Trennlinie, Tabelle, Bild, Video oder Link. Pfeiltasten und Eingabe wählen einen Block; Escape schließt das Menü. Kopierte Bilder lassen sich direkt einfügen. PNG-, JPEG-, GIF- und WebP-Bilder bis 5 MiB werden mit der Tabelle gespeichert, zählen zu ihrem Speicherlimit und unterliegen ihren aktuellen Zugriffsrechten. Sie bleiben nach der Archivierung verfügbar, auch über Verweise im Datensatzverlauf.
+
+Die Spaltentypen `user` und `agent` verweisen auf ein Organisationsmitglied oder einen zugänglichen KI-Agenten; `multi_user` und `multi_agent` auf bis zu 100 verschiedene Identitäten. Wählen Sie nach Namen aus Vorschlägen mit Avataren. Gespeichert werden stabile UUIDs; Mitgliedschaft und Agentenzugriff werden beim Schreiben und bei Standardwerten geprüft. Einzelne Referenzen unterstützen `eq`, `ne`, `in` und `is_null`, mehrere Referenzen `contains` und `is_null`. Identitätsspalten sind nicht sortierbar.
+
+**Dokumentvorlagen** im Markdown-Feld öffnen die Bibliothek dieser Spalte. Speichern Sie das aktuelle Dokument, passen Sie eine Startvorlage an, bearbeiten oder löschen Sie benannte Vorlagen und wählen Sie einen Standard. Dieser füllt neue Datensätze automatisch; Änderungen überschreiben keine vorhandenen Dokumente. Pro Spalte sind bis zu 10 Vorlagen mit insgesamt 100.000 Zeichen möglich. Normale Datensatzeigenschaften stehen im Datensatzpanel über den Dokumentinhalten.
+
+Die Datensatzauswahl zeigt eine schwebende Aktionsleiste, ohne das Raster zu verschieben. Der Öffnen-Button bleibt neben dem Auswahlkästchen angeheftet, auch beim horizontalen Scrollen. Jedes Datensatzpanel zeigt Erstellungs- und Änderungszeiten sowie Autoren mit Avataren. Seitenpanels starten in Preview, ganzseitige Dokumente in Write.
 
 ## Externe Clients { #external-clients }
 

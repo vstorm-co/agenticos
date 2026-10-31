@@ -1,5 +1,5 @@
 ---
-source_sha: "fe56f1c799b3"
+source_sha: "2c005af81253"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -26,6 +26,12 @@ Configura un **Default value** con su tipo en los ajustes o al añadir una colum
 La entrada rápida está justo después de las filas cargadas, en su área de desplazamiento. El CSV de la consola incluye las cuatro propiedades del registro. Las exportaciones API mantienen su formato salvo que se solicite `include_metadata: true`. Al crear una tabla desde un CSV exportado se omiten las propiedades del sistema; los registros importados reciben nuevos metadatos del sistema.
 
 En un documento Markdown, escribe `/` al principio de una línea para buscar un bloque: tarea, título, lista, cita, código, separador, tabla, imagen, vídeo o enlace. Las flechas y Enter eligen el bloque; Escape cierra el menú. Pega imágenes copiadas directamente en el editor. Las imágenes PNG, JPEG, GIF y WebP de hasta 5 MiB se guardan con la tabla, cuentan para su cuota y respetan sus permisos actuales. Siguen disponibles tras archivar la tabla, también mediante las referencias del historial de registros.
+
+Los tipos de columna `user` y `agent` hacen referencia a un miembro de la organización o un agente de IA accesible; `multi_user` y `multi_agent` a un máximo de 100 identidades distintas. Elige por nombre entre sugerencias con avatares. Se guardan UUID estables; la pertenencia y el acceso al agente se comprueban al escribir y al configurar valores predeterminados. Las referencias individuales admiten `eq`, `ne`, `in` e `is_null`; las múltiples, `contains` e `is_null`. Las columnas de identidad no se pueden ordenar.
+
+**Plantillas de documentos** en un campo Markdown abre la biblioteca de esa columna. Guarda el documento actual, personaliza una plantilla inicial, edita o elimina plantillas con nombre y elige una predeterminada. Esta completa automáticamente los registros nuevos; editarla no reescribe los documentos existentes. Cada columna admite hasta 10 plantillas con un total de 100.000 caracteres. Las propiedades normales del registro aparecen encima del contenido de los documentos en el panel del registro.
+
+Seleccionar registros muestra una barra de acciones flotante sin desplazar la cuadrícula. El botón para abrir el registro permanece junto a su casilla, incluso al desplazar horizontalmente la tabla. Todos los paneles de registros muestran las fechas y los autores de creación y actualización, con avatares. Los paneles laterales empiezan en Preview y los documentos a página completa en Write.
 
 ## Clientes externos { #external-clients }
 

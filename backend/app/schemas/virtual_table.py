@@ -44,6 +44,10 @@ ColumnTypeName = Literal[
     "datetime",
     "single_select",
     "multi_select",
+    "user",
+    "multi_user",
+    "agent",
+    "multi_agent",
     "link",
     "lookup",
     "rollup",
@@ -150,6 +154,14 @@ class OptionInput(_Request):
     archived: bool = False
 
 
+class DocumentTemplate(_Request):
+    """A named Markdown starting point stored with its column."""
+
+    id: UUID
+    name: Label
+    body: Annotated[str, StringConstraints(max_length=100_000), NoNul]
+
+
 class ColumnDef(_Schema):
     """One column of a schema version. The `id` never changes, whatever else does."""
 
@@ -158,6 +170,8 @@ class ColumnDef(_Schema):
     type: ColumnTypeName
     nullable: bool = True
     default: CellValue = None
+    document_templates: list[DocumentTemplate] = Field(default_factory=list, max_length=10)
+    default_template_id: UUID | None = None
     options: list[OptionDef] = Field(default_factory=list)
     archived: bool = False
     link_table_id: UUID | None = Field(
@@ -205,6 +219,8 @@ class ColumnInput(_Request):
     type: ColumnTypeName
     nullable: bool = True
     default: CellValue = None
+    document_templates: list[DocumentTemplate] = Field(default_factory=list, max_length=10)
+    default_template_id: UUID | None = None
     options: list[OptionInput] = Field(default_factory=list, max_length=MAX_OPTIONS)
     archived: bool = False
     link_table_id: UUID | None = Field(

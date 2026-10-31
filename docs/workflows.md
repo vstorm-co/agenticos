@@ -1215,6 +1215,8 @@ never steal a key from a field elsewhere on the page:
 
 Drag with the left mouse button to select objects. Hold Shift while dragging to pan; middle and right drag also pan. `Ctrl`/`Cmd` + `A` selects every object in the current scope, including notes at the root.
 
+Watched runs show a moving pulse into the active step and a border sweep on its card. A short completion sweep keeps fast runs legible without changing their actual status or timing. Historical runs stay still; system reduced-motion preferences disable movement. Duration, cost and completed steps align in the summary, with the start time beside the status.
+
 | Keys | Does |
 |---|---|
 | `Tab` | Open the step picker |

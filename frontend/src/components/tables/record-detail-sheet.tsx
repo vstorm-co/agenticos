@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
 import { recordCellText } from "@/lib/format-cell-value";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/utils";
+import { DocumentProperties } from "./document-properties";
 
 import { ColumnTypeIcon } from "./column-type-icon";
 
@@ -166,6 +166,10 @@ export function RecordDetailSheet({
   // Named by what its first column holds - "Northwind" - the way a row is read.
   const first = columns.find((column) => !column.archived);
   const heading = record && first ? recordCellText(first, record, boolLabel, locale) : "";
+  const detailColumns = columns
+    .filter((column) => !column.archived)
+    .toSorted((a, b) => Number(a.type === "rich_text") - Number(b.type === "rich_text"));
+  const documentIndex = detailColumns.findIndex((column) => column.type === "rich_text");
 
   // The shared sheet owns focus and keyboard dismissal; closing still commits the focused field.
   return (
@@ -191,20 +195,19 @@ export function RecordDetailSheet({
               expanded && "w-full sm:px-12 sm:py-10",
             )}
           >
-            {columns
-              .filter((column) => !column.archived)
-              .map((column) => {
-                // Keyed per record *and* field: two fields of the same record can
-                // each be mid-write, and one landing (or one refusing) must not
-                // touch the other's own pending value or banner.
-                const conflict = conflicts[record.id]?.[column.id];
-                const isConflicted = conflict !== undefined;
-                const value = isConflicted
-                  ? (conflict.pendingValues[column.id] as CellValue)
-                  : (record.values[column.id] ?? null);
-                return (
+            {detailColumns.map((column, index) => {
+              // Keyed per record *and* field: two fields of the same record can
+              // each be mid-write, and one landing (or one refusing) must not
+              // touch the other's own pending value or banner.
+              const conflict = conflicts[record.id]?.[column.id];
+              const isConflicted = conflict !== undefined;
+              const value = isConflicted
+                ? (conflict.pendingValues[column.id] as CellValue)
+                : (record.values[column.id] ?? null);
+              return (
+                <Fragment key={column.id}>
+                  {index === documentIndex && <DocumentProperties metadata={record} />}
                   <div
-                    key={column.id}
                     className={cn(
                       "space-y-2",
                       column.type === "rich_text"
@@ -221,6 +224,7 @@ export function RecordDetailSheet({
                       tableId={tableId}
                       column={column}
                       metadata={record}
+                      showDocumentMetadata={false}
                       fillEditor={expanded && column.type === "rich_text"}
                       value={value}
                       links={record.links?.[column.id]}
@@ -259,16 +263,10 @@ export function RecordDetailSheet({
                       </div>
                     )}
                   </div>
-                );
-              })}
-            {!columns.some((column) => !column.archived && column.type === "rich_text") && (
-              <p className="text-muted-foreground border-border border-t pt-3 text-xs">
-                {t("added", { when: formatDateTime(record.created_at, locale) })}
-                {record.updated_at &&
-                  record.updated_at !== record.created_at &&
-                  ` · ${t("changed", { when: formatDateTime(record.updated_at, locale) })}`}
-              </p>
-            )}
+                </Fragment>
+              );
+            })}
+            {documentIndex < 0 && <DocumentProperties metadata={record} />}
           </div>
         )}
         {record && canEdit && (
