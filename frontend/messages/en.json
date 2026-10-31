@@ -9804,6 +9804,35 @@
         "purple": "Purple",
         "red": "Red"
       }
+    },
+    "viewSettings": {
+      "title": "View settings",
+      "description": "Customize this view. Save changes with Save view, or use + beside the view name to create one.",
+      "columns": "Columns",
+      "resetOrder": "Reset order",
+      "reorderHint": "Drag to reorder, or use the arrows. Uncheck a column to hide it.",
+      "showColumn": "Show {column}",
+      "moveUp": "Move {column} up",
+      "moveDown": "Move {column} down",
+      "drag": "Drag {column}",
+      "appearance": "Appearance",
+      "wrapText": "Wrap text",
+      "dateFormat": "Date format",
+      "timeFormat": "Time format",
+      "preview": "Preview",
+      "date": {
+        "locale": "Automatic (your language)",
+        "iso": "2026-10-31",
+        "day_first": "31.10.2026",
+        "month_first": "10/31/2026",
+        "long": "Long date"
+      },
+      "time": {
+        "locale": "Automatic (your language)",
+        "24h": "24-hour clock",
+        "12h": "12-hour clock (AM/PM)",
+        "hidden": "Hide time"
+      }
     }
   },
   "groups": {

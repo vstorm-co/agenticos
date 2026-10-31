@@ -9683,6 +9683,35 @@
         "purple": "Violett",
         "red": "Rot"
       }
+    },
+    "viewSettings": {
+      "title": "Ansichtseinstellungen",
+      "description": "Passe diese Ansicht an. Speichere sie mit Ansicht speichern oder erstelle eine neue über + neben dem Namen.",
+      "columns": "Spalten",
+      "resetOrder": "Reihenfolge zurücksetzen",
+      "reorderHint": "Ziehen oder Pfeile verwenden. Deaktiviere eine Spalte, um sie auszublenden.",
+      "showColumn": "{column} anzeigen",
+      "moveUp": "{column} nach oben verschieben",
+      "moveDown": "{column} nach unten verschieben",
+      "drag": "{column} ziehen",
+      "appearance": "Darstellung",
+      "wrapText": "Text umbrechen",
+      "dateFormat": "Datumsformat",
+      "timeFormat": "Zeitformat",
+      "preview": "Vorschau",
+      "date": {
+        "locale": "Automatisch (deine Sprache)",
+        "iso": "2026-10-31",
+        "day_first": "31.10.2026",
+        "month_first": "10/31/2026",
+        "long": "Langes Datum"
+      },
+      "time": {
+        "locale": "Automatisch (deine Sprache)",
+        "24h": "24-Stunden-Format",
+        "12h": "12-Stunden-Format (AM/PM)",
+        "hidden": "Uhrzeit ausblenden"
+      }
     }
   },
   "groups": {

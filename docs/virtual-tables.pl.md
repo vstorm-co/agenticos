@@ -1,5 +1,5 @@
 ---
-source_sha: "47d48a61e5d4"
+source_sha: "0c50e86d9bc5"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -437,6 +437,8 @@ siatka wczytuje po sto rekordów podczas przewijania i rysuje tylko widoczne wie
 
 ## Zapisane widoki { #saved-views }
 
+**Ustawienia widoku** pozwalają zmieniać kolejność i widoczność kolumn, także systemowych. Przeciągnij kolumnę lub użyj strzałek; ukrycie pola systemowego zachowuje jego automatyczną wartość. **Zawijaj tekst** pokazuje pełny tekst i podziały wierszy; wyłączenie przywraca kompaktowe wiersze. Wybierz datę automatyczną, ISO, dzień–miesiąc–rok, miesiąc–dzień–rok lub pełną oraz godzinę automatyczną, 24-godzinną, 12-godzinną albo ukrytą. Sama data zachowuje dzień, a znaczniki czasu używają strefy odbiorcy. **Zapisz widok** zachowuje ustawienia wybranego widoku; **+** tworzy nowy. Formatowanie nie zmienia wartości ani filtrów.
+
 Tablica kanban bez zapisanego grupowania automatycznie korzysta z jedynej aktywnej kolumny jednokrotnego wyboru. Przy kilku kolumnach wybierz, która tworzy tory. Zapis widoku zachowuje grupowanie. Wiersze listy nazywają pola pomocnicze i pokazują **Unnamed record**, gdy tytuł jest pusty. **Triggers** proponuje **Open workflows**, gdy żaden workflow nie startuje jeszcze z tej tabeli.
 
 **Widok** to zachowany filtr, sortowanie i grupowanie nad rekordami jednej tabeli -
@@ -460,9 +462,11 @@ dostaje tego przełącznika: o udostępnieniu czyichś filtrów decyduje ich aut
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
 `skip` i `limit` (najwyżej 100): najpierw własne widoki wywołującego, potem
 współdzielone, w każdej grupie według nazwy; `total` liczy wszystkie. `config` to `{filters, search, sort,
-visible_columns, group_by}` - `RecordQuery` plus dwa pola potrzebne tylko
+visible_columns, group_by, display}` - `RecordQuery` oraz pola potrzebne tylko
 renderowaniu konsoli: `visible_columns` (`null` oznacza każdą żywą kolumnę) i
 `group_by` (żywa kolumna `single_select`, dla kolumn tablicy kanban).
+
+Obiekt `display` przechowuje `column_order`, `hidden_system_columns`, `wrap_text`, `date_format` i `time_format`. Starsze widoki zachowują kompaktowy wygląd i formatowanie języka. Jawne `visible_columns: []` ukrywa wszystkie kolumny niestandardowe.
 
 | Pole | Znaczenie |
 |---|---|

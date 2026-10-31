@@ -1,6 +1,9 @@
 "use client";
 
+import { useTableDisplay } from "./table-display-context";
+
 import { useLocale, useTranslations } from "next-intl";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/states";
 import { selectChips } from "./option-chip";
 import { FileText } from "lucide-react";
@@ -26,6 +29,7 @@ export function TableListView({
 }) {
   const t = useTranslations("tables.cells");
   const locale = useLocale();
+  const display = useTableDisplay();
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
   const [title, ...rest] = columns;
@@ -58,18 +62,24 @@ export function TableListView({
           >
             <span className="text-foreground flex min-w-0 items-center gap-2 text-sm font-medium">
               <FileText className="text-muted-foreground size-4 shrink-0" aria-hidden />
-              <span className="truncate">
-                {(title && recordCellText(title, record, boolLabel, locale)) || t("unnamedRecord")}
+              <span className={display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate"}>
+                {(title && recordCellText(title, record, boolLabel, locale, display)) ||
+                  t("unnamedRecord")}
               </span>
             </span>
             {secondary.length > 0 && (
               <span className="flex min-w-0 flex-wrap gap-x-6 gap-y-1 text-xs">
                 {secondary.slice(0, 3).map((column) => {
-                  const value = recordCellText(column, record, boolLabel, locale);
+                  const value = recordCellText(column, record, boolLabel, locale, display);
                   return value ? (
                     <span key={column.id} className="flex max-w-64 min-w-0 items-center gap-2">
                       <span className="text-muted-foreground">{column.label}</span>{" "}
-                      <span className="min-w-0 truncate">
+                      <span
+                        className={cn(
+                          "min-w-0",
+                          display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
+                        )}
+                      >
                         {selectChips(column, record.values[column.id] ?? null) ?? value}
                       </span>
                     </span>

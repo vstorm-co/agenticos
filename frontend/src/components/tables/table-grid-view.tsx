@@ -1,5 +1,7 @@
 "use client";
 
+import { useTableDisplay } from "./table-display-context";
+
 import { RecordSourceBadge } from "./record-source-badge";
 import { markdownDocument } from "@/lib/markdown-document";
 
@@ -75,6 +77,7 @@ function BoolMark({ on, label }: { on: boolean; label: string }) {
 export function TableGridView({
   tableId,
   columns,
+  recordColumns = columns,
   records,
   isLoading,
   sort,
@@ -88,6 +91,8 @@ export function TableGridView({
 }: {
   tableId: string;
   columns: ColumnDef[];
+  /** Full schema for validating quick creation, including hidden required fields. */
+  recordColumns?: ColumnDef[];
   records: RecordRead[];
   isLoading: boolean;
   sort: RecordSort;
@@ -111,6 +116,7 @@ export function TableGridView({
 }) {
   const t = useTranslations("tables.cells");
   const locale = useLocale();
+  const preferences = useTableDisplay();
   const tGrid = useTranslations("tables.grid");
   const tMetadata = useTranslations("tables.markdown");
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
@@ -173,7 +179,9 @@ export function TableGridView({
       return title ? (
         <span className="flex max-w-72 items-center gap-2">
           <FileText className="text-muted-foreground size-3.5 shrink-0" />
-          <span className="truncate">{title}</span>
+          <span className={preferences.wrap_text ? "break-words whitespace-pre-wrap" : "truncate"}>
+            {title}
+          </span>
         </span>
       ) : (
         <span className="text-muted-foreground">—</span>
@@ -186,13 +194,25 @@ export function TableGridView({
     const chips = selectChips(column, value);
     if (chips)
       return (
-        <span className="flex max-h-7 max-w-60 overflow-hidden whitespace-nowrap [&>span]:flex-nowrap">
+        <span
+          className={cn(
+            "flex max-w-60",
+            !preferences.wrap_text &&
+              "max-h-7 overflow-hidden whitespace-nowrap [&>span]:flex-nowrap",
+          )}
+        >
           {chips}
         </span>
       );
-    const text = recordCellText(column, record, boolLabel, locale);
+    const text = recordCellText(column, record, boolLabel, locale, preferences);
     return (
-      <span className="block max-w-60 min-w-32 truncate" title={text}>
+      <span
+        className={cn(
+          "block max-w-60 min-w-32",
+          preferences.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
+        )}
+        title={text}
+      >
         {text || "—"}
       </span>
     );
@@ -373,6 +393,7 @@ export function TableGridView({
         </div>
       )}
       <DataTable
+        key={preferences.wrap_text ? "wrapped" : "compact"}
         columns={tableColumns}
         rows={records}
         getRowKey={(record) => record.id}
@@ -382,12 +403,20 @@ export function TableGridView({
         fillHeight
         afterRows={
           onAddRecord && records.length > 0 ? (
-            <NewRecordRow tableId={tableId} columns={columns} onNeedsMore={onAddRecord} />
+            <NewRecordRow
+              tableId={tableId}
+              columns={columns}
+              allColumns={recordColumns}
+              onNeedsMore={onAddRecord}
+            />
           ) : undefined
         }
         // Every row is one height, so only the rows in view are drawn.
-        className="rounded-none border-0 [&_tbody_td]:h-[52px]"
-        rowHeight={ROW_HEIGHT}
+        className={cn(
+          "rounded-none border-0",
+          preferences.wrap_text ? "[&_tbody_td]:whitespace-normal" : "[&_tbody_td]:h-[52px]",
+        )}
+        rowHeight={preferences.wrap_text ? undefined : ROW_HEIGHT}
         onEndReached={onEndReached}
         sort={{ by: sort.by, dir: sort.direction }}
         onSort={(next: TableSort) => onSort({ by: next.by, direction: next.dir })}

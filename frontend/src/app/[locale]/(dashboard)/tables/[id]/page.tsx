@@ -40,6 +40,10 @@ import {
 } from "@/components/tables/column-dialogs";
 import type { ColumnActions } from "@/components/tables/column-header-menu";
 import { HiddenColumnsPopover } from "@/components/tables/hidden-columns-popover";
+import { ViewSettingsPopover } from "@/components/tables/view-settings-popover";
+import { TableDisplayContext } from "@/components/tables/table-display-context";
+import { DEFAULT_TABLE_DISPLAY, orderedTableColumns } from "@/lib/table-display";
+import type { TableDisplay } from "@/types/tables";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
 import { filterable, isComplete } from "@/components/tables/record-filters";
 import { RecordFiltersPopover } from "@/components/tables/record-filters-popover";
@@ -173,6 +177,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [visible, setVisible] = useState<string[] | null>(
     activeView?.config.visible_columns ?? null,
   );
+  const [display, setDisplay] = useState<TableDisplay>(
+    activeView?.config.display ?? DEFAULT_TABLE_DISPLAY,
+  );
   const search = useDebounced(searchDraft).trim() || null;
   // A board groups by its view's column, or - with no view saying so - by the
   // column picked above it, so a board is one choice away rather than a dead end.
@@ -198,6 +205,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     setFilters(activeView?.config.filters ?? []);
     setSearchDraft(activeView?.config.search ?? "");
     setVisible(activeView?.config.visible_columns ?? null);
+    setDisplay(activeView?.config.display ?? DEFAULT_TABLE_DISPLAY);
     setGroupPick(null);
   }
 
@@ -243,13 +251,16 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;
-  const columns = [
-    ...liveColumns.filter((column) => visible === null || visible.includes(column.id)),
-    ...TABLE_SYSTEM_COLUMNS,
-  ];
+  const allColumns = [...liveColumns, ...TABLE_SYSTEM_COLUMNS];
+  const columns = orderedTableColumns(allColumns, display.column_order).filter((column) =>
+    column.system
+      ? !display.hidden_system_columns.includes(column.system)
+      : visible === null || visible.includes(column.id),
+  );
   const hidden = liveColumns.filter((column) => !columns.includes(column));
   // What this screen shows now, against what the active view keeps.
   const working = {
+    display,
     filters: applied,
     search,
     sort,
@@ -262,6 +273,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     activeView.can_manage &&
     JSON.stringify(working) !==
       JSON.stringify({
+        display: activeView.config.display ?? DEFAULT_TABLE_DISPLAY,
         filters: activeView.config.filters,
         search: activeView.config.search ?? null,
         sort: activeView.config.sort,
@@ -318,7 +330,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     },
   };
 
-  return (
+  const content = (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title={table.name}
@@ -509,6 +521,23 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 onShowAll={() => setVisible(null)}
               />
             )}
+            <ViewSettingsPopover
+              columns={allColumns}
+              visible={visible}
+              display={display}
+              onChange={setDisplay}
+              onToggle={(column, shown) => {
+                if (column.system) {
+                  const key = column.system;
+                  setDisplay((current) => ({
+                    ...current,
+                    hidden_system_columns: shown
+                      ? current.hidden_system_columns.filter((item) => item !== key)
+                      : [...current.hidden_system_columns, key],
+                  }));
+                } else setShown(column.id, shown);
+              }}
+            />
             {unsaved && (
               <Button
                 variant="outline"
@@ -547,6 +576,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 // A bounded height, so the grid scrolls its own rows and draws only those in view.
                 <div className={cn("flex min-h-80 flex-col", "min-h-80 flex-1")}>
                   <TableGridView
+                    recordColumns={liveColumns}
                     tableId={id}
                     canEdit={canEdit}
                     onAddRecord={canEdit ? addRecord : undefined}
@@ -812,4 +842,5 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       </Dialog>
     </div>
   );
+  return <TableDisplayContext value={display}>{content}</TableDisplayContext>;
 }

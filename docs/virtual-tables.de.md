@@ -1,5 +1,5 @@
 ---
-source_sha: "47d48a61e5d4"
+source_sha: "0c50e86d9bc5"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -470,6 +470,8 @@ zeichnet nur die sichtbaren Zeilen. Jenseits der 10.000 Datensätze, die eine Ab
 
 ## Gespeicherte Ansichten { #saved-views }
 
+**Ansichtseinstellungen** steuert Reihenfolge und Sichtbarkeit aller Spalten einschließlich Systemfelder. Ziehe Spalten oder nutze die Pfeile; ausgeblendete Systemfelder behalten ihre automatischen Werte. **Text umbrechen** zeigt vollständigen Text mit Zeilenumbrüchen, ausgeschaltet bleiben Zeilen kompakt. Wähle automatische, ISO-, Tag-zuerst-, Monat-zuerst- oder lange Datumsangaben und automatische, 24-Stunden-, 12-Stunden- oder ausgeblendete Uhrzeiten. Reine Datumswerte behalten ihren Tag; Zeitstempel verwenden die Zeitzone der betrachtenden Person. **Ansicht speichern** speichert die Auswahl für diese Ansicht; **+** erstellt eine neue. Formatierung ändert weder Werte noch Filter.
+
 Ein Kanban-Board ohne gespeicherte Gruppierung nutzt die einzige aktive Einfachauswahl-Spalte automatisch. Bei mehreren wählen Sie die Spalte für die Bahnen. Eine gespeicherte Ansicht behält diese Gruppierung. Listenzeilen benennen zusätzliche Felder und zeigen **Unnamed record** bei leerem Titel. **Triggers** bietet **Open workflows**, wenn noch kein Workflow von der Tabelle startet.
 
 Eine **Ansicht** ist ein gespeicherter Filter, eine Sortierung und eine Gruppierung
@@ -495,10 +497,12 @@ geteilt werden, entscheidet diese Person selbst.
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
 und `limit` (höchstens 100) seitenweise: zuerst die eigenen Ansichten des Aufrufers,
 dann die geteilten, jeweils nach Name; `total` zählt alle. `config` ist `{filters,
-search, sort, visible_columns, group_by}` - eine `RecordQuery` plus die zwei Felder, die
+search, sort, visible_columns, group_by, display}` - eine `RecordQuery` plus Darstellungsfelder, die
 nur die Darstellung der Konsole braucht: `visible_columns` (`null` bedeutet jede
 lebende Spalte) und `group_by` (eine lebende `single_select`-Spalte, für die
 Spalten eines Kanban-Boards).
+
+Das Objekt `display` enthält `column_order`, `hidden_system_columns`, `wrap_text`, `date_format` und `time_format`. Ältere Ansichten behalten kompakte Zeilen und sprachabhängige Formate. Ein ausdrückliches `visible_columns: []` blendet alle benutzerdefinierten Spalten aus.
 
 | Feld | Bedeutung |
 |---|---|

@@ -1,3 +1,4 @@
+import { DEFAULT_TABLE_DISPLAY } from "./table-display";
 import { describe, expect, it } from "vitest";
 
 import { formatCellValue, recordCellText } from "./format-cell-value";
@@ -157,5 +158,39 @@ describe("recordCellText", () => {
         boolLabel,
       ),
     ).toBe("");
+  });
+});
+
+describe("view date and time formats", () => {
+  it.each([
+    ["iso", "2026-10-31"],
+    ["day_first", "31.10.2026"],
+    ["month_first", "10/31/2026"],
+    ["long", "October 31, 2026"],
+  ] as const)(
+    "formats date-only values as %s without shifting their day",
+    (date_format, expected) => {
+      expect(
+        formatCellValue(column({ type: "date" }), "2026-10-31", boolLabel, "en-US", {
+          ...DEFAULT_TABLE_DISPLAY,
+          date_format,
+        }),
+      ).toBe(expected);
+    },
+  );
+  it("selects 24h, 12h or no time without changing the date-time source", () => {
+    const col = column({ type: "datetime" });
+    const value = "2026-10-31T16:05:00";
+    const display = { ...DEFAULT_TABLE_DISPLAY, date_format: "iso" as const };
+    expect(
+      formatCellValue(col, value, boolLabel, "en-US", { ...display, time_format: "24h" }),
+    ).toBe("2026-10-31 · 16:05");
+    expect(
+      formatCellValue(col, value, boolLabel, "en-US", { ...display, time_format: "12h" }),
+    ).toMatch(/2026-10-31 · 4:05.*PM/);
+    expect(
+      formatCellValue(col, value, boolLabel, "en-US", { ...display, time_format: "hidden" }),
+    ).toBe("2026-10-31");
+    expect(formatCellValue(col, "invalid", boolLabel, "en-US", display)).toBe("invalid");
   });
 });

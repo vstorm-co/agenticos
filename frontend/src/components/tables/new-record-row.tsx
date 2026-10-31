@@ -28,11 +28,14 @@ function firstTextColumn(columns: ColumnDef[]): ColumnDef | null {
 export function NewRecordRow({
   tableId,
   columns,
+  allColumns = columns,
   onNeedsMore,
 }: {
   tableId: string;
   /** The table's live columns, in the view's order. */
   columns: ColumnDef[];
+  /** Required hidden fields still need the full creation form. */
+  allColumns?: ColumnDef[];
   /** Open the full form, starting from what was typed. */
   onNeedsMore: (values: Record<string, CellValue>) => void;
 }) {
@@ -59,7 +62,7 @@ export function NewRecordRow({
     const value = text.trim();
     if (value === "") return;
     const values = { [target.id]: value };
-    const others = columns.filter(
+    const others = allColumns.filter(
       (column) => column.id !== target.id && !column.archived && isRequired(column),
     );
     if (others.length > 0) {

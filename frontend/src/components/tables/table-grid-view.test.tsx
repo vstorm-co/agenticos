@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TABLE_SYSTEM_COLUMNS } from "@/lib/table-system-columns";
+import { TableDisplayContext } from "./table-display-context";
+import { DEFAULT_TABLE_DISPLAY } from "@/lib/table-display";
 import { TableGridView } from "./table-grid-view";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useTableViewStore } from "@/stores";
@@ -545,4 +547,33 @@ describe("TableGridView", () => {
       expect(onAddRecord).toHaveBeenCalled();
     });
   });
+});
+
+it("wraps full cell text and dates using view preferences without writing cells", () => {
+  const source = "First line\nSecond line that stays visible";
+  render(
+    <TableDisplayContext
+      value={{
+        ...DEFAULT_TABLE_DISPLAY,
+        wrap_text: true,
+        date_format: "iso",
+        time_format: "hidden",
+      }}
+    >
+      <TableGridView
+        tableId="t1"
+        columns={[columns[0]!, ...TABLE_SYSTEM_COLUMNS]}
+        records={[{ ...records[0]!, values: { c1: source } }]}
+        isLoading={false}
+        sort={{ by: "created_at", direction: "asc" }}
+        onSort={vi.fn()}
+        onOpenRecord={vi.fn()}
+        canEdit={false}
+      />
+    </TableDisplayContext>,
+    { wrapper },
+  );
+  expect(screen.getByText(/First line/)).toHaveClass("whitespace-pre-wrap");
+  expect(screen.getAllByText("2026-09-23")).toHaveLength(2);
+  expect(apiClient.patch).not.toHaveBeenCalled();
 });

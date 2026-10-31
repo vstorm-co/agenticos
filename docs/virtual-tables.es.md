@@ -1,5 +1,5 @@
 ---
-source_sha: "47d48a61e5d4"
+source_sha: "0c50e86d9bc5"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -440,6 +440,8 @@ pide un filtro o una búsqueda.
 
 ## Vistas guardadas { #saved-views }
 
+**View settings** controla el orden y la visibilidad de columnas, incluidos los campos del sistema. Arrastra una columna o usa las flechas; ocultar un campo del sistema conserva su valor automático. **Wrap text** muestra el texto completo con saltos de línea; desactívalo para filas compactas. Elige fechas automáticas, ISO, día primero, mes primero o largas, y hora automática, de 24 horas, de 12 horas u oculta. Las fechas conservan su día; las marcas de tiempo usan la zona del lector. **Save view** guarda los ajustes; **+** crea otra vista. El formato no cambia valores ni filtros.
+
 Un tablero kanban sin agrupación guardada utiliza automáticamente la única columna activa de selección única. Si hay varias, elige cuál forma los carriles. Guardar una vista conserva la agrupación. Las filas de lista nombran los campos secundarios y muestran **Unnamed record** si el título está vacío. **Triggers** ofrece **Open workflows** cuando ningún workflow se inicia aún desde la tabla.
 
 Una **vista** es un filtro, orden y agrupación guardados sobre los registros de una
@@ -464,10 +466,12 @@ recibe ese interruptor: compartir los filtros de una persona es decisión suya.
 listan, crean, leen, actualizan y borran. La lista se pagina con `skip` y `limit`
 (como máximo 100): primero las vistas propias del llamante, luego las compartidas,
 cada grupo por nombre; `total` las cuenta todas. `config` es `{filters, search, sort,
-visible_columns, group_by}` - una `RecordQuery` más los dos campos que solo
+visible_columns, group_by, display}` - una `RecordQuery` más los campos que solo
 necesita la presentación de la consola: `visible_columns` (`null` significa cada
 columna viva) y `group_by` (una columna `single_select` viva, para los carriles de
 un tablero kanban).
+
+El objeto `display` conserva `column_order`, `hidden_system_columns`, `wrap_text`, `date_format` y `time_format`. Las vistas antiguas mantienen filas compactas y formatos del idioma. Un `visible_columns: []` explícito oculta todas las columnas personalizadas.
 
 | Campo | Significado |
 |---|---|

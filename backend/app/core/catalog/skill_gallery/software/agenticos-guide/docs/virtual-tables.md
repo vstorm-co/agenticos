@@ -417,6 +417,8 @@ view. Past the 10,000 records a query may skip, it asks for a filter or a search
 
 ## Saved views { #saved-views }
 
+**View settings** controls column order and visibility, including system fields. Drag a column or use its arrows; hiding a system field leaves its automatic value intact. Enable **Wrap text** to show full text and line breaks, or disable it for compact rows. Choose automatic, ISO, day-first, month-first or long dates, and automatic, 24-hour, 12-hour or hidden time. Date-only values keep their calendar day; timestamps use the viewer’s time zone. **Save view** keeps these choices for the selected view; **+** creates a new view. Formatting changes no stored values or filters.
+
 A kanban board without saved grouping uses the only live single-select column automatically. With several, choose which column makes its lanes. Saving a view keeps that grouping. List rows name their secondary fields and show **Unnamed record** when the title is empty. **Triggers** offers **Open workflows** when no workflow starts from the table yet.
 
 A **view** is a kept filter, sort and grouping over one table's records - what the
@@ -439,9 +441,12 @@ get the switch: sharing a person's own filters is theirs to choose.
 list, create, read, update and delete them. The list is paged with `skip` and
 `limit` (at most 100), the caller's own views first, then the shared ones, each by
 name; `total` counts them all. `config` is `{filters, search, sort,
-visible_columns, group_by}` - a `RecordQuery` plus the two fields only the
+visible_columns, group_by, display}` - a `RecordQuery` plus the presentation fields the
 console's own rendering needs: `visible_columns` (`null` means every live column)
 and `group_by` (a live `single_select` column, for a kanban board's lanes).
+The `display` object keeps `column_order`, `hidden_system_columns`, `wrap_text`,
+`date_format` and `time_format`. Older views use the existing compact, locale-based
+presentation. An explicitly empty `visible_columns: []` hides all custom columns.
 
 | Field | Meaning |
 |---|---|

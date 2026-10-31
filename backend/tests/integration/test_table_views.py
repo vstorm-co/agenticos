@@ -13,7 +13,7 @@ from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import resource_grant_repo, table_view_repo
-from app.schemas.table_view import TableViewConfig, TableViewCreate, TableViewUpdate
+from app.schemas.table_view import TableDisplay, TableViewConfig, TableViewCreate, TableViewUpdate
 from app.schemas.virtual_table import RecordFilter, RecordSort, SchemaUpdate
 from app.services.access import TABLE
 from app.services.virtual_tables import TableViewService, VirtualTableService
@@ -536,7 +536,12 @@ async def test_a_view_that_only_shows_a_column_does_not_block_archiving_it(db):
         TableViewCreate(
             name="Narrow",
             kind="table",
-            config=TableViewConfig(visible_columns=[customer_id, status_id]),
+            config=TableViewConfig(
+                visible_columns=[customer_id, status_id],
+                display=TableDisplay(
+                    column_order=["updated_at", status_id, customer_id], wrap_text=True
+                ),
+            ),
         ),
     )
 
@@ -546,6 +551,9 @@ async def test_a_view_that_only_shows_a_column_does_not_block_archiving_it(db):
     assert [item.config.visible_columns for item in listed.items if item.id == view.id] == [
         [customer_id]
     ]
+    projected = next(item.config.display for item in listed.items if item.id == view.id)
+    assert projected.column_order == ["updated_at", customer_id]
+    assert projected.wrap_text is True
 
 
 async def test_a_view_left_showing_no_live_column_shows_them_all(db):
@@ -865,3 +873,56 @@ async def test_a_private_view_loses_clauses_invalidated_by_another_members_retyp
     await tables.list_records(
         member, table.id, RecordQuery(filters=read.config.filters, sort=read.config.sort)
     )
+
+
+async def test_view_presentation_round_trips_without_changing_the_table(db):
+    views, tables, ctx, _owner, _org, table = await _setup(db)
+    live = [column for column in table.columns if not column.archived]
+    display = TableDisplay(
+        column_order=["updated_at", live[-1].id, live[0].id],
+        hidden_system_columns=["created_by"],
+        wrap_text=True,
+        date_format="day_first",
+        time_format="24h",
+    )
+    created = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(
+            name="Reading",
+            kind="table",
+            config=TableViewConfig(display=display, visible_columns=[live[0].id]),
+        ),
+    )
+    assert created.config.display == display
+    loaded = await views.get_view(ctx, table.id, created.id)
+    assert loaded.config.display == display
+    updated = await views.update_view(
+        ctx,
+        table.id,
+        created.id,
+        TableViewUpdate(
+            config=loaded.config.model_copy(
+                update={"display": display.model_copy(update={"time_format": "hidden"})}
+            ),
+        ),
+    )
+    assert updated.config.display.time_format == "hidden"
+    assert updated.config.visible_columns == [live[0].id]
+    unchanged = await tables.describe_table(ctx, table.id)
+    assert unchanged.columns == table.columns
+    assert unchanged.schema_version == table.schema_version
+
+
+async def test_a_view_can_intentionally_hide_every_custom_column(db):
+    views, _tables, ctx, _owner, _org, table = await _setup(db)
+    created = await views.create_view(
+        ctx,
+        table.id,
+        TableViewCreate(
+            name="Only metadata",
+            kind="table",
+            config=TableViewConfig(visible_columns=[]),
+        ),
+    )
+    assert (await views.get_view(ctx, table.id, created.id)).config.visible_columns == []

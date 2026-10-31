@@ -1,4 +1,6 @@
 import { systemCellValue } from "./table-system-columns";
+import { DEFAULT_TABLE_DISPLAY } from "@/lib/table-display";
+import type { TableDisplay } from "@/types/tables";
 import { markdownDocument } from "@/lib/markdown-document";
 import { MAX_RATING, type CellValue, type ColumnDef, type RecordRead } from "@/types/tables";
 
@@ -24,6 +26,7 @@ export function formatCellValue(
   value: CellValue,
   boolLabel: (value: boolean) => string,
   locale?: string,
+  display?: TableDisplay,
 ): string {
   if (value === null || value === undefined) return "";
 
@@ -58,7 +61,7 @@ export function formatCellValue(
     case "date":
     case "datetime": {
       if (typeof value !== "string") return "";
-      const dated = locale === undefined ? null : localDate(column.type, value, locale);
+      const dated = locale === undefined ? null : localDate(column.type, value, locale, display);
       return dated ?? value;
     }
     default:
@@ -67,15 +70,52 @@ export function formatCellValue(
 }
 
 /** A stored date or date-time as `locale` writes it, or null when it is not one. */
-function localDate(type: "date" | "datetime", value: string, locale: string): string | null {
+function localDate(
+  type: "date" | "datetime",
+  value: string,
+  locale: string,
+  display: TableDisplay = DEFAULT_TABLE_DISPLAY,
+): string | null {
   const date = new Date(type === "date" ? `${value}T00:00:00Z` : value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat(
-    locale,
-    type === "date"
-      ? { dateStyle: "medium", timeZone: "UTC" }
-      : { dateStyle: "medium", timeStyle: "short" },
-  ).format(date);
+  const timeZone = type === "date" ? "UTC" : undefined;
+  if (display.date_format === "locale" && display.time_format === "locale") {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: type === "datetime" ? "short" : undefined,
+      timeZone,
+    }).format(date);
+  }
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone,
+  }).formatToParts(date);
+  const part = (kind: Intl.DateTimeFormatPartTypes) =>
+    parts.find((one) => one.type === kind)?.value;
+  const day = part("day");
+  const month = part("month");
+  const year = part("year");
+  const formattedDate =
+    display.date_format === "iso"
+      ? `${year}-${month}-${day}`
+      : display.date_format === "day_first"
+        ? `${day}.${month}.${year}`
+        : display.date_format === "month_first"
+          ? `${month}/${day}/${year}`
+          : new Intl.DateTimeFormat(locale, {
+              dateStyle: display.date_format === "long" ? "long" : "medium",
+              timeZone,
+            }).format(date);
+  if (type === "date" || display.time_format === "hidden") return formattedDate;
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: display.time_format === "24h" ? "2-digit" : "numeric",
+    minute: "2-digit",
+    hourCycle:
+      display.time_format === "24h" ? "h23" : display.time_format === "12h" ? "h12" : undefined,
+  }).format(date);
+  return `${formattedDate} · ${time}`;
 }
 
 /**
@@ -87,11 +127,18 @@ export function recordCellText(
   record: RecordRead,
   boolLabel: (value: boolean) => string,
   locale?: string,
+  display?: TableDisplay,
 ): string {
   if (column.system)
-    return formatCellValue(column, systemCellValue(column.system, record), boolLabel, locale);
+    return formatCellValue(
+      column,
+      systemCellValue(column.system, record),
+      boolLabel,
+      locale,
+      display,
+    );
   if (column.type === "link") {
     return (record.links?.[column.id] ?? []).map((linked) => linked.label).join(", ");
   }
-  return formatCellValue(column, record.values[column.id] ?? null, boolLabel, locale);
+  return formatCellValue(column, record.values[column.id] ?? null, boolLabel, locale, display);
 }

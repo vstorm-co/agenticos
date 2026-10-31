@@ -10486,6 +10486,35 @@
         "purple": "Fioletowy",
         "red": "Czerwony"
       }
+    },
+    "viewSettings": {
+      "title": "Ustawienia widoku",
+      "description": "Dostosuj ten widok. Użyj Zapisz widok lub + obok nazwy widoku, aby utworzyć nowy.",
+      "columns": "Kolumny",
+      "resetOrder": "Przywróć kolejność",
+      "reorderHint": "Przeciągnij lub użyj strzałek. Odznacz kolumnę, aby ją ukryć.",
+      "showColumn": "Pokaż {column}",
+      "moveUp": "Przesuń {column} wyżej",
+      "moveDown": "Przesuń {column} niżej",
+      "drag": "Przeciągnij {column}",
+      "appearance": "Wygląd",
+      "wrapText": "Zawijaj tekst",
+      "dateFormat": "Format daty",
+      "timeFormat": "Format godziny",
+      "preview": "Podgląd",
+      "date": {
+        "locale": "Automatycznie (Twój język)",
+        "iso": "2026-10-31",
+        "day_first": "31.10.2026",
+        "month_first": "10/31/2026",
+        "long": "Pełna data"
+      },
+      "time": {
+        "locale": "Automatycznie (Twój język)",
+        "24h": "Format 24-godzinny",
+        "12h": "Format 12-godzinny (AM/PM)",
+        "hidden": "Ukryj godzinę"
+      }
     }
   },
   "groups": {

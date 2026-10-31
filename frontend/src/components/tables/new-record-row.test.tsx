@@ -69,6 +69,21 @@ describe("NewRecordRow", () => {
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("asks for a hidden required field before creating a record", async () => {
+    const onNeedsMore = vi.fn();
+    render(
+      <NewRecordRow
+        tableId="t"
+        columns={[column("name")]}
+        allColumns={[column("name"), column("email", { nullable: false })]}
+        onNeedsMore={onNeedsMore}
+      />,
+    );
+    await userEvent.type(screen.getByRole("textbox", { name: "New record: name" }), "Ada{Enter}");
+    expect(onNeedsMore).toHaveBeenCalledWith({ name: "Ada" });
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("ignores a blank line, clears on Escape, and keeps the text when the write fails", async () => {
     mutateAsync.mockRejectedValue(new Error("no"));
     render(<NewRecordRow tableId="t" columns={[column("name")]} onNeedsMore={vi.fn()} />);

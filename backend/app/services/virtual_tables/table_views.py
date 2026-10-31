@@ -128,7 +128,7 @@ def _live_config(view: TableView, columns: list[ColumnDef]) -> TableViewConfig:
     config = TableViewConfig.model_validate(view.config)
     visible = config.visible_columns
     if visible is not None:
-        visible = [item for item in visible if item in live] or None
+        visible = ([item for item in visible if item in live] or None) if visible else []
     filters: list[RecordFilter] = []
     for item in config.filters:
         column = live.get(item.column_id)
@@ -146,6 +146,15 @@ def _live_config(view: TableView, columns: list[ColumnDef]) -> TableViewConfig:
         sort = RecordSort()
     grouping = live.get(config.group_by) if config.group_by is not None else None
     return TableViewConfig(
+        display=config.display.model_copy(
+            update={
+                "column_order": [
+                    key
+                    for key in config.display.column_order
+                    if isinstance(key, str) or key in live
+                ]
+            }
+        ),
         filters=filters,
         search=config.search,
         sort=sort,

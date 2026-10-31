@@ -35,10 +35,33 @@ class _Request(_Schema):
         return self
 
 
+SystemColumnKey = Literal["created_at", "updated_at", "created_by", "updated_by"]
+ViewColumnKey = UUID | SystemColumnKey
+
+
+class TableDisplay(_Request):
+    """Presentation only: never changes stored cells, query order or the table schema."""
+
+    column_order: list[ViewColumnKey] = Field(default_factory=list, max_length=500)
+    hidden_system_columns: list[SystemColumnKey] = Field(default_factory=list, max_length=4)
+    wrap_text: bool = False
+    date_format: Literal["locale", "iso", "day_first", "month_first", "long"] = "locale"
+    time_format: Literal["locale", "24h", "12h", "hidden"] = "locale"
+
+    @model_validator(mode="after")
+    def _unique_columns(self) -> Self:
+        if len(self.column_order) != len(set(self.column_order)):
+            raise ValueError("Column order must not contain duplicates")
+        if len(self.hidden_system_columns) != len(set(self.hidden_system_columns)):
+            raise ValueError("Hidden system columns must not contain duplicates")
+        return self
+
+
 class TableViewConfig(_Request):
     """What a saved view remembers: the same shape a `RecordQuery` filters with,
     plus the two fields only the console's own rendering needs."""
 
+    display: TableDisplay = Field(default_factory=TableDisplay)
     filters: list[RecordFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
     search: SearchTerm | None = Field(default=None, description="As a `RecordQuery`'s.")
     sort: RecordSort = Field(default_factory=RecordSort)

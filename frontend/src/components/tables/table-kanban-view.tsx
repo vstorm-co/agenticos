@@ -1,5 +1,8 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { useTableDisplay } from "./table-display-context";
+
 import { useState, type HTMLAttributes } from "react";
 import { createPortal } from "react-dom";
 import { LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
@@ -86,7 +89,8 @@ function KanbanCard({
 }) {
   const t = useTranslations("tables.kanban");
   const locale = useLocale();
-  const title = recordCellText(titleColumn, record, boolLabel, locale);
+  const display = useTableDisplay();
+  const title = recordCellText(titleColumn, record, boolLabel, locale, display);
   const shown = properties
     .map((column) => ({ column, value: record.values[column.id] ?? null }))
     .filter(
@@ -145,8 +149,14 @@ function KanbanCard({
             {shown.map(({ column, value }) => (
               <div key={column.id} className="flex min-w-0 items-center gap-2">
                 <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
-                <dd className="min-w-0 flex-1 truncate">
-                  {selectChips(column, value) ?? recordCellText(column, record, boolLabel, locale)}
+                <dd
+                  className={cn(
+                    "min-w-0 flex-1",
+                    display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
+                  )}
+                >
+                  {selectChips(column, value) ??
+                    recordCellText(column, record, boolLabel, locale, display)}
                 </dd>
               </div>
             ))}
@@ -352,6 +362,7 @@ export function TableKanbanView({
 }) {
   const t = useTranslations("tables.kanban");
   const locale = useLocale();
+  const display = useTableDisplay();
   const tCells = useTranslations("tables.cells");
   const tErrors = useTranslations("errors");
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
@@ -509,7 +520,7 @@ export function TableKanbanView({
                 transform: reducedMotion ? undefined : "rotate(2deg)",
               }}
             >
-              {recordCellText(titleColumn, draggingItem, boolLabel, locale)}
+              {recordCellText(titleColumn, draggingItem, boolLabel, locale, display)}
             </div>,
             document.body,
           )}

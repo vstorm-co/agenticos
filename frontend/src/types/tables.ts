@@ -331,7 +331,18 @@ export interface RecordUpdate {
 export type ViewKind = "table" | "kanban" | "list";
 export type ViewVisibility = "private" | "shared";
 
+export interface TableDisplay {
+  /** Custom column UUIDs and system field names, in presentation order. */
+  column_order: string[];
+  hidden_system_columns: SystemColumnKey[];
+  wrap_text: boolean;
+  date_format: "locale" | "iso" | "day_first" | "month_first" | "long";
+  time_format: "locale" | "24h" | "12h" | "hidden";
+}
+
 export interface TableViewConfig {
+  /** Absent in older saved views. */
+  display?: TableDisplay;
   filters: RecordFilter[];
   search: string | null;
   sort: RecordSort;

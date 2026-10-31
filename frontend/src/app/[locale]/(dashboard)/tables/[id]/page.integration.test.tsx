@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_TABLE_DISPLAY } from "@/lib/table-display";
 import TableDetailPage from "./page";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -290,6 +291,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
 }
 
 const emptyConfig = {
+  display: DEFAULT_TABLE_DISPLAY,
   filters: [],
   search: null,
   sort: { by: "created_at", direction: "asc" as const },
