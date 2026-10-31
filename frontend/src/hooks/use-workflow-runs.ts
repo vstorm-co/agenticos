@@ -56,14 +56,14 @@ export function useWorkflowRuns(workflowId: string) {
 
 /** A filtered page of runs, one workflow's or every workflow's, read again while any is live. */
 export function useRunHistory(query: RunHistoryQuery) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.runHistory(query),
     queryFn: () => listRunHistory(query),
     placeholderData: (previous) => previous,
     refetchInterval: (current) =>
       current.state.data?.items.some((run) => !isRunTerminal(run.status)) ? LIVE_POLL_MS : false,
   });
-  return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading };
+  return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
 }
 
 /**

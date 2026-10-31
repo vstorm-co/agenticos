@@ -284,11 +284,33 @@ describe("a step looked at in a run", () => {
 describe("a step's data", () => {
   it("sits between what the step reads and what it hands on, while editing a workflow", () => {
     seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));
+    store.setState({
+      graph: {
+        ...store.getState().graph!,
+        edges: [
+          {
+            id: "e",
+            source_node_id: "a",
+            source_port: "out",
+            target_node_id: "b",
+            target_port: "in",
+          },
+        ],
+      },
+    });
     store.getState().editNode("b");
     render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} />);
 
     expect(screen.getByRole("region", { name: "Input" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Output" })).toBeTruthy();
+  });
+
+  it("gives an unconnected step the form space instead of an empty input pane", () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} />);
+    expect(screen.queryByRole("region", { name: "Input" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Output" })).toBeVisible();
   });
 
   it("has no Input for the step a workflow starts from, and no data on a read-only editor", () => {

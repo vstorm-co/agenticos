@@ -3305,7 +3305,8 @@
           "created": "dodany",
           "updated": "zmieniony",
           "deleted": "usunięty"
-        }
+        },
+        "openWorkflows": "Otwórz workflowy"
       },
       "newRecord": {
         "title": "Nowy rekord",
@@ -3693,7 +3694,6 @@
       "alertsCount": "{count, plural, =0 {Brak alertów} one {# alert} few {# alerty} many {# alertów} other {# alertu}}",
       "alertsFailed": "Nie udało się wczytać alertów",
       "alertsFailedDetail": "Reguły alertów nie zostały wczytane. Nic nie przepadło; spróbuj ponownie.",
-      "alertsEmpty": "Brak alertów",
       "alertsEmptyDetail": "Dodaj alert, który powiadomi osoby, gdy coś zdarza się w dzienniku tego workflow zbyt często, na przykład pięć błędów w piętnaście minut.",
       "alertsEmptyViewer": "Nikt nie ustawił alertu na dzienniku tego workflow.",
       "alertNew": "Dodaj alert",
@@ -3845,10 +3845,10 @@
       "settingsMonthlyBudgetHint": "Liczone w miesiącu kalendarzowym w UTC, łącznie z runami testowymi. Po osiągnięciu żaden run nie startuje, dopóki nie zmieni się miesiąc albo budżet nie zostanie podniesiony.",
       "settingsNoLimit": "Bez limitu",
       "stats": {
-        "heading": "Jak działał",
+        "heading": "Wyniki opublikowanych wersji",
         "window": "Okres",
         "days": "{days, plural, one {# dzień} few {# dni} many {# dni} other {# dni}}",
-        "runs": "Runy",
+        "runs": "Runy opublikowanych wersji",
         "runsCaption": "{failed, plural, =0 {Żaden nie zawiódł} one {# zawiódł} few {# zawiodły} many {# zawiodło} other {# zawiodło}}",
         "succeeded": "Udane",
         "succeededCaption": "{succeeded} z {ended, plural, one {# zakończonego runu} few {# zakończonych runów} many {# zakończonych runów} other {# zakończonych runów}}",
@@ -3886,7 +3886,12 @@
       "alertNameHint": "Tak alert wygląda na liście i w powiadomieniu",
       "alertStepHint": "Obserwuj jeden krok albo każdy, który zapisuje dziennik",
       "alertWindowHint": "W jakim czasie",
-      "alertAudienceHint": "Kto dostaje dzwonek i e-mail"
+      "alertAudienceHint": "Kto dostaje dzwonek i e-mail",
+      "moreStarts": "Więcej sposobów uruchamiania",
+      "importJson": "JSON workflowa",
+      "settingsExecution": "Czas wykonania i obsługa błędów",
+      "settingsHistory": "Historia i przechowywanie runów",
+      "importReadError": "Nie udało się odczytać pliku. Wybierz go ponownie lub wklej jego JSON."
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -9801,7 +9806,10 @@
     "toolbarSetup": "Dokończ konfigurację · {count}",
     "pickerConnectAccount": "Połącz konto",
     "pickerConnectAccountHint": "Połącz konto organizacji, aby użyć go w tym workflowie. Po zakończeniu wybierz je w polu konta kroku.",
-    "pickerApiKeyNew": "Dodaj klucz API"
+    "pickerApiKeyNew": "Dodaj klucz API",
+    "toolbarDisplay": "Opcje kanwy",
+    "stepOutputFields": "Oczekiwane pola wyjściowe",
+    "stepReviewSetup": "Sprawdź konfigurację przed testem"
   },
   "artifacts": {
     "title": "Aplikacje",
@@ -10131,7 +10139,8 @@
       "findRecord": "Znajdź rekord",
       "finding": "Szukam…",
       "noRecordsFound": "Żaden rekord nie pasuje.",
-      "workedOut": "Wyliczane z innych kolumn"
+      "workedOut": "Wyliczane z innych kolumn",
+      "unnamedRecord": "Rekord bez nazwy"
     },
     "create": {
       "title": "Nowa tabela",
@@ -10221,7 +10230,8 @@
       "archivedHeading": "Zarchiwizowane kolumny - ich wartości zostają",
       "restore": "Przywróć",
       "retype": "Zapis zamieni każdą wartość z {from} na {to}. Jeśli któraś nie da się odczytać jako {to}, nic nie zostanie zapisane, a okno powie, która.",
-      "retypeToChoice": "Zapis zamieni każdą wartość z {from} na {to}: każda inna wartość stanie się jedną z opcji."
+      "retypeToChoice": "Zapis zamieni każdą wartość z {from} na {to}: każda inna wartość stanie się jedną z opcji.",
+      "optionsCount": "{count, plural, one {# opcja} few {# opcje} other {# opcji}}"
     },
     "sheet": {
       "title": "Rekord",

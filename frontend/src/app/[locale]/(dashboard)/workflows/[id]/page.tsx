@@ -223,12 +223,6 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         badges={statusBadge}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {canEdit && (
-              <Button variant="outline" onClick={() => setViewing(!viewing)}>
-                {viewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                {viewing ? t("editMode") : t("viewMode")}
-              </Button>
-            )}
             <ActiveSwitch
               workflow={workflow}
               canEdit={editing}
@@ -241,10 +235,6 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 {t("runsTitle")}
               </Link>
             </Button>
-            <Button variant="outline" onClick={() => setHistoryOpen(true)}>
-              <History className="h-4 w-4" />
-              {t("history")}
-            </Button>
             {/* Looked at now and then, not on every visit: kept one click away. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -253,6 +243,17 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {canEdit && (
+                  <DropdownMenuItem onClick={() => setViewing(!viewing)}>
+                    {viewing ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {viewing ? t("editMode") : t("viewMode")}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setHistoryOpen(true)}>
+                  <History className="h-4 w-4" />
+                  {t("history")}
+                </DropdownMenuItem>
+
                 <DropdownMenuItem onSelect={() => setTriggersOpen(true)}>
                   <Zap className="h-4 w-4" />
                   {t("triggers")}

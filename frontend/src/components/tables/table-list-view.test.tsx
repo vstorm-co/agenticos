@@ -81,7 +81,10 @@ describe("TableListView", () => {
       />,
     );
     expect(screen.getByText("Ada")).toBeInTheDocument();
-    expect(screen.getByText("Engineer · True · x")).toBeInTheDocument();
+    expect(screen.getByText("Role")).toBeInTheDocument();
+    expect(screen.getByText("Engineer")).toBeInTheDocument();
+    expect(screen.getByText("True")).toBeInTheDocument();
+    expect(screen.getByText("x")).toBeInTheDocument();
   });
 
   it("renders a false boolean secondary value", () => {
@@ -105,7 +108,7 @@ describe("TableListView", () => {
         onOpenRecord={vi.fn()}
       />,
     );
-    expect(screen.getByText("r1")).toBeInTheDocument();
+    expect(screen.getByText("Unnamed record")).toBeInTheDocument();
   });
 
   it("drops empty secondary values from the summary line", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "d8dd2e5f7ec0"
+source_sha: "fd2e6c03d164"
 ---
 
 # Workflows { #workflows }
@@ -18,13 +18,9 @@ abspielt; der Editor selbst hat keine Führung.
 
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
-**New workflow** öffnet einen Dialog, der Sie mit einem Trigger oder einer Vorlage
-beginnen lässt. **How does it start?** bietet jeden Trigger an - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow** -, jeder
-eine sonst leere Zeichenfläche, die mit ihm beginnt. Die Vorlagen sind fertige
-Ausgangspunkte — **Starter**, ein
-einzelner Schritt zum Umbenennen und Verdrahten, und **Two-step sequence**, zwei
-bereits verbundene Schritte für einen linearen Ablauf. Wählen Sie eine mit **Use**,
-und Sie landen im Editor.
+**New workflow** hat zwei Tabs: **How does it start?** und **Templates**. Der erste zeigt **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **Table record**; **More ways to start** zeigt weitere Trigger. Vorlagen umfassen **Starter**, **Two-step sequence** und die unten beschriebenen Automatisierungen. **Use** öffnet einen Draft im Editor.
+
+Der Katalog zeigt Karten und Suche in einem gemeinsamen Panel. **Filters** öffnet Status, Tags und Sortierung und zählt aktive Filter. Bei Ladefehlern erscheint **Retry** statt eines leeren Katalogs. Der Import beginnt mit der Dateiauswahl; **Or paste the file's JSON here** öffnet ein beschriftetes Textfeld.
 
 Die Liste zeigt jeden Workflow, den Sie sehen können, als Karte: seinen Status,
 wer ihn erreichen kann, ob eine Version live ist und wann er zuletzt bearbeitet
@@ -93,6 +89,8 @@ wiederherstellen, weiterhin pausiert, oder mit Versionen, Läufen und Freigaben 
 einer mit noch nicht beendeten Läufen wird mit `WORKFLOW_IN_USE` abgelehnt.
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
+
+Der Editor zeigt **Runs**, **Test draft** und **Publish** direkt. **More** enthält **Versions** und den Wechsel zwischen Bearbeiten und Ansicht. **Canvas options** enthält Minimap, Verbindungsstil und Tastenkürzel. Ein Schritt ohne eingehende Verbindung lässt das leere Input-Panel weg und gibt Parametern mehr Platz; **Expected output fields** öffnet das Ausgabeschema. **Review setup before testing** zeigt die unvollständige Einrichtung.
 
 Die **Zeichenfläche** ist der Ort, an dem die Schritte und Verbindungen eines
 Workflows erscheinen, und sie hat die ganze Breite des Editors unter dem Kopf. Ein
@@ -701,7 +699,7 @@ entsteht.
 
 Das Veröffentlichen beendet Ihr Bearbeiten nicht. Der Draft existiert weiter
 unabhängig von jeder veröffentlichten Version, sodass Sie ihn sofort weiter
-bearbeiten. **Versions** in der Kopfzeile des Editors öffnet jede veröffentlichte
+bearbeiten. **Versions** unter **More** in der Kopfzeile des Editors öffnet jede veröffentlichte
 Version mit ihrer Release note, die Live-Version mit **Live** markiert. **View** öffnet eine frühere Version schreibgeschützt
 - eine veröffentlichte Version ist schreibgeschützt, und um Änderungen zu machen,
 bearbeiten Sie den Draft weiter.
@@ -727,6 +725,8 @@ oder fehlschlägt. Einen Schritt verschieben und angeheftete Testdaten sind kein
 Änderungen. **Show this version** kehrt zur Version allein zurück.
 
 ## Workflow-Einstellungen { #workflow-settings }
+
+**Settings** gruppiert Zeitsteuerung und Fehlerbehandlung, Verlauf und Aufbewahrung sowie Limits in aufklappbare Bereiche. Bereiche mit geänderten Werten sind zunächst offen. Die Run-Seite beginnt mit dem Verlauf; **Live performance** zeigt Statistiken veröffentlichter Runs. Runs und Logs halten weitere Steuerelemente unter **Filters**. Ein abgelehnter Run-Filter aus einem Link öffnet sein Feld samt Fehlermeldung automatisch.
 
 Für gespeicherte Inline-Ergebnisse gelten gemeinsame Grenzen: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB je Ausführung) und `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB über aufbewahrte Ausführungen). Reservierungen zählen kompakte Versuchsergebnisse, einschließlich synthetischer Schleifenausgaben, und mögliche Ausführungs-, Webhook- und Fehlerkopien. Sie messen weder den physischen PostgreSQL-Speicher noch ersetzen sie eine Deployment-weite Speicherpolitik. Kleine abschließende Fehlerdatensätze dürfen das volle Limit überschreiten, damit die Ausführung enden kann. `WORKFLOW_INLINE_RESULT_LIMIT` lässt sich nicht durch Fehlerpfade umgehen; Kosten bleiben erhalten, Auswirkungen werden nicht automatisch wiederholt. Ein Handler kann vor Ablehnung seines Ergebnisses bereits gehandelt haben. Dateireferenzen oder Verlaufslöschung geben Reservierungen frei.
 

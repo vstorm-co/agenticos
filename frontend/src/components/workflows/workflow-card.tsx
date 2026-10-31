@@ -164,15 +164,16 @@ export function WorkflowCard({
             )}
           </div>
         </div>
-        <div className="relative mt-3 flex items-center justify-between gap-2 border-t pt-3">
-          <span className="text-muted-foreground pointer-events-none flex min-w-0 items-center gap-2 text-xs">
+        <div className="relative mt-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t pt-3">
+          <span className="text-muted-foreground pointer-events-none flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <span
               role="img"
               aria-label={t(`visibility.${visibility}`)}
               title={t(`visibility.${visibility}`)}
-              className="pointer-events-auto shrink-0"
+              className="pointer-events-auto inline-flex shrink-0 items-center gap-1"
             >
               <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
+              <span>{t(`visibility.${visibility}`)}</span>
             </span>
             {workflow.last_run !== null ? (
               <>
@@ -191,7 +192,7 @@ export function WorkflowCard({
               </span>
             )}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             <CardAction
               href={ROUTES.WORKFLOW_RUNS(workflow.id)}
               label={t("runsFor", { name: workflow.name })}

@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { act, fireEvent, render as renderRaw, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +7,13 @@ import { ApiError } from "@/lib/api-error";
 import type { LogQuery, WorkflowLogEntry } from "@/lib/workflows/types";
 
 import { WorkflowLogs } from "./workflow-logs";
+
+function render(ui: ReactNode) {
+  const result = renderRaw(ui);
+  const filters = screen.queryByRole("button", { name: /^Filters/ });
+  if (filters?.getAttribute("aria-expanded") === "false") fireEvent.click(filters);
+  return result;
+}
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -523,8 +531,12 @@ describe("WorkflowLogs", () => {
         },
       },
     });
-    render(<WorkflowLogs workflowId="wf" />);
+    renderRaw(<WorkflowLogs workflowId="wf" />);
 
+    expect(screen.getByRole("button", { name: /^Filters/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "A run id, or its first 4 or more characters",
     );

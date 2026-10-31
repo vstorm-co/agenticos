@@ -393,6 +393,24 @@ describe("the table detail page", () => {
     expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
   });
 
+  it.each(["table", "list"])("offers retry when records fail in the %s view", async (view) => {
+    serve();
+    arriveAt(`view=${view}`);
+    vi.mocked(apiClient.post).mockImplementation((path: string) =>
+      path.endsWith("/count")
+        ? Promise.resolve({ count: 1, capped: false })
+        : Promise.reject(new Error("offline")),
+    );
+    renderPage();
+    expect(await screen.findByText("Something went wrong")).toBeVisible();
+    expect(
+      screen.queryByTestId(`${view === "table" ? "grid" : "list"}-view`),
+    ).not.toBeInTheDocument();
+    serve();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByTestId(`${view === "table" ? "grid" : "list"}-view`)).toBeVisible();
+  });
+
   it("shows the table's name, description and visibility", async () => {
     serve();
     renderPage();
@@ -578,9 +596,7 @@ describe("the table detail page", () => {
       vi.mocked(apiClient.patch).mockResolvedValueOnce({});
       const user = userEvent.setup();
       renderPage();
-      await screen.findByRole("combobox", { name: "Group by" });
-      await user.click(screen.getByRole("combobox", { name: "Group by" }));
-      await user.click(screen.getByRole("option", { name: "Status" }));
+      expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
       await user.click(screen.getByRole("button", { name: "Save view" }));
       await waitFor(() =>
         expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/views/v-kanban", {
@@ -935,7 +951,8 @@ describe("the table detail page", () => {
     renderPage();
     await screen.findByTestId("grid-view");
 
-    await user.click(screen.getByRole("button", { name: /share/i }));
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: /share/i }));
 
     const panel = screen.getByTestId("sharing-panel");
     expect(panel).toHaveAttribute("data-resource", "table:t1");
@@ -972,21 +989,34 @@ describe("the table detail page", () => {
     expect(new URL(window.location.href).searchParams.get("view")).toBe("list");
   });
 
-  it("asks which column makes the lanes, and draws the board once one is picked", async () => {
+  it("uses the only grouping column without asking the user to pick it", async () => {
     serve({ viewsFixture: views({ items: [] }) });
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("tab", { name: "Kanban" }));
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    expect(screen.queryByRole("combobox", { name: "Group by" })).not.toBeInTheDocument();
+  });
 
+  it("asks which column makes the lanes when several columns can group records", async () => {
+    const fixture = table();
+    const status = fixture.columns.find((column) => column.type === "single_select")!;
+    serve({
+      viewsFixture: views({ items: [] }),
+      tableFixture: {
+        ...fixture,
+        columns: [...fixture.columns, { ...status, id: "c3", label: "Priority" }],
+      },
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("grid-view");
     await user.click(screen.getByRole("tab", { name: "Kanban" }));
     expect(await screen.findByText("Which column makes the lanes?")).toBeInTheDocument();
-    expect(screen.queryByTestId("kanban-view")).not.toBeInTheDocument();
-
     await user.click(screen.getByRole("combobox", { name: "Group by" }));
     await user.click(screen.getByRole("option", { name: "Status" }));
     expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
-    // Picked, not saved: it can be picked again above the board.
-    expect(screen.getByRole("combobox", { name: "Group by" })).toHaveTextContent("Status");
   });
 
   it("says a board needs a single-select column when the table has none", async () => {
@@ -1174,7 +1204,8 @@ describe("the table detail page", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("grid-view");
-    await user.click(screen.getByRole("button", { name: /share/i }));
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: /share/i }));
     vi.mocked(apiClient.get).mockClear();
 
     await user.keyboard("{Escape}");

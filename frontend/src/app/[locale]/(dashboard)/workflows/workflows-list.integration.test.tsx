@@ -94,6 +94,11 @@ function serve(rows: WorkflowRead[]) {
   });
 }
 
+async function showFilters() {
+  const toggle = screen.queryByRole("button", { name: /^Filters/ });
+  if (toggle?.getAttribute("aria-expanded") === "false") await userEvent.click(toggle);
+}
+
 beforeEach(() => {
   params = new URLSearchParams();
   window.history.replaceState({}, "", "/workflows");
@@ -103,6 +108,15 @@ beforeEach(() => {
 });
 
 describe("the workflows list", () => {
+  it("shows a load failure with retry instead of an empty catalog", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("network unavailable"));
+    render(<WorkflowsPage />, { wrapper });
+    expect(await screen.findByText("Something went wrong")).toBeVisible();
+    serve(WORKFLOWS);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("link", { name: "Open Live" })).toBeVisible();
+  });
+
   it("shows every status on 'All'", async () => {
     render(<WorkflowsPage />, { wrapper });
 
@@ -116,6 +130,7 @@ describe("the workflows list", () => {
     render(<WorkflowsPage />, { wrapper });
     await screen.findByRole("link", { name: "Open Live" });
 
+    await showFilters();
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Drafts" }));
 
@@ -157,6 +172,7 @@ describe("the workflows list", () => {
     render(<WorkflowsPage />, { wrapper });
 
     // The status filter always renders; the list query, gated on view, never runs.
+    await showFilters();
     await waitFor(() =>
       expect(screen.getByRole("combobox", { name: "Filter by status" })).toBeInTheDocument(),
     );
@@ -170,6 +186,7 @@ describe("the workflows list", () => {
     await userEvent.click(screen.getByRole("button", { name: "New workflow" }));
 
     expect(await screen.findByText("How does it start?")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
     expect(screen.getByText("Two-step sequence")).toBeInTheDocument();
   });
 });
@@ -205,6 +222,7 @@ describe("the workflows list past one page", () => {
     // Filtering to Published surfaces the one match even though it sat past the
     // first page — the false negative Codex flagged, now fixed by filtering the
     // whole walked registry rather than one page of it.
+    await showFilters();
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Live" }));
 
@@ -250,15 +268,18 @@ describe("the workflows list past one page", () => {
       await screen.findByRole("link", { name: "Open Beta" });
       expect(order()).toEqual(["Open Beta", "Open Gamma", "Open Alpha"]);
 
+      await showFilters();
       await userEvent.click(screen.getByRole("combobox", { name: "Sort workflows" }));
       await userEvent.click(screen.getByRole("option", { name: "Name" }));
       expect(order()).toEqual(["Open Alpha", "Open Beta", "Open Gamma"]);
 
+      await showFilters();
       await userEvent.click(screen.getByRole("combobox", { name: "Sort workflows" }));
       await userEvent.click(screen.getByRole("option", { name: "Newest" }));
       expect(order()).toEqual(["Open Alpha", "Open Gamma", "Open Beta"]);
       expect(new URL(window.location.href).searchParams.get("sort")).toBe("created");
 
+      await showFilters();
       await userEvent.click(screen.getByRole("combobox", { name: "Sort workflows" }));
       await userEvent.click(screen.getByRole("option", { name: "Last edited" }));
       expect(new URL(window.location.href).searchParams.get("sort")).toBeNull();
@@ -271,10 +292,12 @@ describe("the workflows list past one page", () => {
       await userEvent.click(await screen.findByRole("button", { name: "Clear filter" }));
       await screen.findByRole("link", { name: "Open Beta" });
 
+      await showFilters();
       await userEvent.click(screen.getByRole("combobox", { name: "Filter by tag" }));
       await userEvent.click(screen.getByRole("option", { name: "sales" }));
       expect(order()).toEqual(["Open Beta", "Open Gamma"]);
 
+      await showFilters();
       await userEvent.click(screen.getByRole("combobox", { name: "Filter by tag" }));
       await userEvent.click(screen.getByRole("option", { name: "All tags" }));
       expect(order()).toHaveLength(3);

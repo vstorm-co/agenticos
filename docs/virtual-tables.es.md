@@ -1,5 +1,5 @@
 ---
-source_sha: "37976366b410"
+source_sha: "c036c5758ee0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -270,6 +270,8 @@ Un borrado es un borrado definitivo. El historial del registro se conserva hasta
 
 ## Editar registros en la consola { #editing-in-the-console }
 
+El catálogo y las vistas Table, Kanban y List comparten un panel con búsqueda y vistas guardadas. **Add record** usa dos columnas en pantallas grandes y una en el teléfono; el texto largo y los vínculos conservan todo el ancho. El panel del registro usa el control de teclado y foco compartido de la consola. **Columns** pliega las opciones existentes bajo su número. Los errores al cargar registros ofrecen **Retry**.
+
 Las tarjetas del catálogo dicen cuántos registros y columnas activas tiene cada tabla,
 quién puede verla y cuándo cambió por última vez. En la página de una tabla, cada
 cabecera muestra el tipo de su columna con un icono, los números van alineados a la
@@ -414,6 +416,8 @@ pide un filtro o una búsqueda.
 
 ## Vistas guardadas { #saved-views }
 
+Un tablero kanban sin agrupación guardada utiliza automáticamente la única columna activa de selección única. Si hay varias, elige cuál forma los carriles. Guardar una vista conserva la agrupación. Las filas de lista nombran los campos secundarios y muestran **Unnamed record** si el título está vacío. **Triggers** ofrece **Open workflows** cuando ningún workflow se inicia aún desde la tabla.
+
 Una **vista** es un filtro, orden y agrupación guardados sobre los registros de una
 tabla - lo que guardan las pantallas de tabla/kanban/lista de la consola para que
 nadie tenga que rehacer el mismo tablero en cada visita. Es un subrecurso de la
@@ -423,9 +427,8 @@ de su propio tipo, y `shared` significa solo "visible para cualquiera que ya ten
 permite la propia tabla.
 
 En la consola, la pantalla sin vista elegida se llama **All records**, y **+** a su
-lado guarda lo que muestra como una vista nueva. Un tablero kanban sin vista pregunta
-qué columna de selección única forma sus carriles y se dibuja al momento; guardado como
-vista, conserva esa agrupación. Una tarjeta muestra bajo su título hasta cuatro
+lado guarda lo que muestra como una vista nueva. Un tablero kanban usa automáticamente la única columna activa de selección única;
+si hay varias, pregunta cuál forma sus carriles. Guardar una vista conserva la agrupación. Una tarjeta muestra bajo su título hasta cuatro
 columnas de la pantalla, sin las vacías. Una tabla sin columna de selección única ofrece en su
 lugar **Add a column**.
 

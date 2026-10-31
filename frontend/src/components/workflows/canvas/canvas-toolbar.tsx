@@ -11,6 +11,7 @@ import {
   Palette,
   Plus,
   Trash2,
+  Settings2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -20,6 +21,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -122,13 +128,14 @@ export function CanvasToolbar({
             <Popover open={adding} onOpenChange={setAdding}>
               <PopoverTrigger asChild>
                 <Button
-                  size="icon"
+                  size="sm"
                   variant="outline"
                   aria-label={t("toolbarAddStep")}
                   title={t("toolbarAddStep")}
-                  className="bg-background/70 hover:bg-background size-8 rounded-lg shadow-sm backdrop-blur"
+                  className="bg-background/90 hover:bg-background h-8 rounded-lg shadow-sm backdrop-blur"
                 >
                   <Plus className="h-4 w-4" />
+                  {t("toolbarAddStep")}
                 </Button>
               </PopoverTrigger>
               {picker}
@@ -139,23 +146,36 @@ export function CanvasToolbar({
               <LayoutGrid className="h-4 w-4" />
             </ToolbarIcon>
           )}
-          <ToolbarIcon
-            label={minimapShown ? t("toolbarHideMinimap") : t("toolbarShowMinimap")}
-            pressed={minimapShown}
-            onClick={toggleMinimap}
-          >
-            <MapIcon className="h-4 w-4" />
-          </ToolbarIcon>
-          <ToolbarIcon
-            label={nodeStyle === "colour" ? t("toolbarSimpleSteps") : t("toolbarColourSteps")}
-            pressed={nodeStyle === "colour"}
-            onClick={() => setNodeStyle(nodeStyle === "colour" ? "simple" : "colour")}
-          >
-            <Palette className="h-4 w-4" />
-          </ToolbarIcon>
-          <ToolbarIcon label={t("toolbarShortcuts")} onClick={() => setOverlay("shortcuts")}>
-            <Keyboard className="h-4 w-4" />
-          </ToolbarIcon>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="bg-background/90 size-8 rounded-lg shadow-sm"
+                aria-label={t("toolbarDisplay")}
+                title={t("toolbarDisplay")}
+              >
+                <Settings2 className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuCheckboxItem checked={minimapShown} onCheckedChange={toggleMinimap}>
+                <MapIcon className="size-4" />
+                {t(minimapShown ? "toolbarHideMinimap" : "toolbarShowMinimap")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={nodeStyle === "colour"}
+                onCheckedChange={(on) => setNodeStyle(on ? "colour" : "simple")}
+              >
+                <Palette className="size-4" />
+                {t(nodeStyle === "colour" ? "toolbarSimpleSteps" : "toolbarColourSteps")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuItem onSelect={() => setOverlay("shortcuts")}>
+                <Keyboard className="size-4" />
+                {t("toolbarShortcuts")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ScopeBreadcrumb catalog={catalog} />
         </div>
         {!readOnly && graph !== null && graph.nodes.length > 0 && (

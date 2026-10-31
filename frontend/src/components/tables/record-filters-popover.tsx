@@ -139,15 +139,21 @@ export function RecordFiltersPopover({
             // A condition on a column since archived cannot be edited, only removed.
             if (!column) return null;
             return (
-              <div key={index} className="flex items-start gap-2">
-                <span className="text-muted-foreground w-10 shrink-0 pt-2 text-right text-xs">
+              <div
+                key={index}
+                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-3 sm:flex sm:border-0 sm:p-0"
+              >
+                <span className="text-muted-foreground col-span-3 text-xs sm:w-10 sm:shrink-0 sm:pt-2 sm:text-right">
                   {index === 0 ? t("where") : t("and")}
                 </span>
                 <Select
                   value={column.id}
                   onValueChange={(id) => replace(index, newFilter(byId.get(id) as ColumnDef))}
                 >
-                  <SelectTrigger className="w-40 shrink-0" aria-label={t("column")}>
+                  <SelectTrigger
+                    className="col-span-1 w-full min-w-0 sm:w-40 sm:shrink-0"
+                    aria-label={t("column")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -164,7 +170,10 @@ export function RecordFiltersPopover({
                     replace(index, withChoice(filter, column, choice as FilterChoice))
                   }
                 >
-                  <SelectTrigger className="w-36 shrink-0" aria-label={t("operator")}>
+                  <SelectTrigger
+                    className="col-span-1 w-full min-w-0 sm:w-36 sm:shrink-0"
+                    aria-label={t("operator")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -175,7 +184,7 @@ export function RecordFiltersPopover({
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="min-w-0 flex-1">
+                <div className="col-span-2 row-start-3 min-w-0 sm:flex-1">
                   <Operand
                     id={`filter-${index}`}
                     column={column}
@@ -186,7 +195,7 @@ export function RecordFiltersPopover({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground size-9 shrink-0"
+                  className="text-muted-foreground col-start-3 row-start-2 size-9 shrink-0"
                   aria-label={t("remove")}
                   onClick={() => onChange(filters.filter((_, at) => at !== index))}
                 >

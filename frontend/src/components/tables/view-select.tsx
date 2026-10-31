@@ -173,9 +173,7 @@ export function ViewSelect({
   return (
     <div className="flex flex-col gap-1">
       {/* Said in words: a dropdown reading "All records" did not say it holds views. */}
-      <span aria-hidden className="text-muted-foreground text-xs font-medium">
-        {t("label")}
-      </span>
+      <span className="sr-only">{t("label")}</span>
       <div className="flex items-center gap-1">
         {/* The view and saving the screen as a new one read as one control. */}
         <div className="border-border bg-background flex h-8 items-stretch rounded-lg border">

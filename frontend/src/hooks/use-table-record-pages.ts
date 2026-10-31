@@ -22,20 +22,23 @@ export function useTableRecordPages(
   tableId: string | null,
   query: Omit<RecordQuery, "skip" | "limit">,
 ) {
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } = useInfiniteQuery({
-    queryKey: qk.tables.recordsInfinite(tableId ?? "", query),
-    queryFn: ({ pageParam }) =>
-      queryRecords(tableId as string, { ...query, skip: pageParam, limit: PAGE }),
-    enabled: !!tableId,
-    initialPageParam: 0,
-    getNextPageParam: (last) =>
-      last.has_more && last.skip + PAGE <= MAX_SKIP ? last.skip + PAGE : undefined,
-  });
+  const { data, error, refetch, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
+    useInfiniteQuery({
+      queryKey: qk.tables.recordsInfinite(tableId ?? "", query),
+      queryFn: ({ pageParam }) =>
+        queryRecords(tableId as string, { ...query, skip: pageParam, limit: PAGE }),
+      enabled: !!tableId,
+      initialPageParam: 0,
+      getNextPageParam: (last) =>
+        last.has_more && last.skip + PAGE <= MAX_SKIP ? last.skip + PAGE : undefined,
+    });
   const pages = data?.pages ?? [];
   const last = pages.at(-1);
 
   const deleting = useTableViewStore((state) => state.deleting);
   return {
+    error,
+    refetch,
     records: pages.flatMap((page) => page.items).filter((record) => !deleting[record.id]),
     isLoading,
     isFetchingNextPage,

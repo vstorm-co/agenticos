@@ -78,7 +78,7 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.list(),
     queryFn: async () => {
       const first = await listWorkflows({ skip: 0, limit: WORKFLOWS_MAX_PAGE });
@@ -145,6 +145,7 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
 
   return {
     importFile,
+    refetch,
     workflows: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,

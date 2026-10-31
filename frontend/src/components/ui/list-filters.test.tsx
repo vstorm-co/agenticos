@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
 import { ListFilters } from "./list-filters";
@@ -37,6 +37,23 @@ describe("ListFilters", () => {
 
     expect(holder).not.toHaveAttribute("hidden");
     expect(button).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("reveals a refused field when controlled by its parent", () => {
+    const onOpenChange = vi.fn();
+    const view = (open: boolean) => (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ListFilters active={1} open={open} onOpenChange={onOpenChange}>
+          <input aria-label="Run" />
+        </ListFilters>
+      </NextIntlClientProvider>
+    );
+    const { rerender } = render(view(false));
+    expect(screen.queryByRole("textbox", { name: "Run" })).not.toBeInTheDocument();
+    rerender(view(true));
+    expect(screen.getByRole("textbox", { name: "Run" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Filters 1" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("counts the filters that are set, and shows none when none are", () => {

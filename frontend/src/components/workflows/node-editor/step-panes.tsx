@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -244,6 +245,8 @@ export function OutputPane({
   const testingNodeId = useWorkflowEditorStore((state) => state.testingNodeId);
   const lastStepTest = useWorkflowEditorStore((state) => state.lastStepTest);
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
+  const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
   const updateNodeDetails = useWorkflowEditorStore((state) => state.updateNodeDetails);
   const { start } = useWorkflowRuns(workflowId);
   const [confirming, setConfirming] = useState(false);
@@ -380,13 +383,31 @@ export function OutputPane({
               {failed.code}: {failed.message}
             </div>
           )}
+          {!readOnly && problems.length > 0 && (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto px-0 text-xs"
+              onClick={() => {
+                revealProblems();
+                const first =
+                  problems.find((problem) => problem.nodeId === node.id) ??
+                  problems.find((problem) => problem.nodeId !== null);
+                if (first?.nodeId) editNode(first.nodeId);
+              }}
+            >
+              {t("stepReviewSetup")}
+            </Button>
+          )}
           {shown === null ? (
             failed == null && (
-              <DeclaredOutput
-                definition={effectiveDefinition(node, definition)}
-                intro={t("stepOutputDeclared")}
-                fallback={<Empty>{t("stepOutputNone")}</Empty>}
-              />
+              <MoreOptions label={t("stepOutputFields")}>
+                <DeclaredOutput
+                  definition={effectiveDefinition(node, definition)}
+                  intro={t("stepOutputDeclared")}
+                  fallback={<Empty>{t("stepOutputNone")}</Empty>}
+                />
+              </MoreOptions>
             )
           ) : (
             <StepDataView node={node} value={shown} />

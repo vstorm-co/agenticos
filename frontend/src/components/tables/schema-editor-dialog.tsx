@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -333,69 +334,81 @@ export function SchemaEditorDialog({
                   />
                 )}
                 {(row.type === "single_select" || row.type === "multi_select") && (
-                  <div className="space-y-1.5 pl-1">
-                    {row.options.map((option, optionIndex) => (
-                      <div key={option.id ?? optionIndex} className="flex items-center gap-2">
-                        <Input
-                          value={option.label}
-                          placeholder={t("optionPlaceholder")}
-                          disabled={option.archived}
-                          className={cn(option.archived && "line-through opacity-60")}
-                          onChange={(event) =>
-                            updateOption(row.key, optionIndex, event.target.value)
-                          }
-                          aria-label={t("optionLabel")}
-                        />
-                        {option.id ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground size-8 shrink-0"
-                            aria-label={
-                              option.archived
-                                ? t("restoreOption", { option: option.label })
-                                : t("archiveOption", { option: option.label })
+                  <MoreOptions
+                    key={problemFor(index, "options") ?? row.key}
+                    label={t("optionsCount", {
+                      count: row.options.filter((option) => !option.archived).length,
+                    })}
+                    defaultOpen={
+                      !row.id ||
+                      row.options.length === 0 ||
+                      problemFor(index, "options") !== undefined
+                    }
+                  >
+                    <div className="space-y-1.5 pl-1">
+                      {row.options.map((option, optionIndex) => (
+                        <div key={option.id ?? optionIndex} className="flex items-center gap-2">
+                          <Input
+                            value={option.label}
+                            placeholder={t("optionPlaceholder")}
+                            disabled={option.archived}
+                            className={cn(option.archived && "line-through opacity-60")}
+                            onChange={(event) =>
+                              updateOption(row.key, optionIndex, event.target.value)
                             }
-                            title={
-                              option.archived
-                                ? t("restoreOption", { option: option.label })
-                                : t("archiveOption", { option: option.label })
-                            }
-                            onClick={() => toggleOptionArchived(row.key, optionIndex)}
-                          >
-                            {option.archived ? (
-                              <ArchiveRestore className="h-4 w-4" />
-                            ) : (
-                              <Archive className="h-4 w-4" />
-                            )}
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground size-8 shrink-0"
-                            aria-label={t("removeOption")}
-                            onClick={() => removeOption(row.key, optionIndex)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                    {problemFor(index, "options") && (
-                      <p className="text-destructive text-xs">{problemFor(index, "options")}</p>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => addOption(row.key)}
-                    >
-                      <Plus className="h-3.5 w-3.5" /> {t("addOption")}
-                    </Button>
-                  </div>
+                            aria-label={t("optionLabel")}
+                          />
+                          {option.id ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground size-8 shrink-0"
+                              aria-label={
+                                option.archived
+                                  ? t("restoreOption", { option: option.label })
+                                  : t("archiveOption", { option: option.label })
+                              }
+                              title={
+                                option.archived
+                                  ? t("restoreOption", { option: option.label })
+                                  : t("archiveOption", { option: option.label })
+                              }
+                              onClick={() => toggleOptionArchived(row.key, optionIndex)}
+                            >
+                              {option.archived ? (
+                                <ArchiveRestore className="h-4 w-4" />
+                              ) : (
+                                <Archive className="h-4 w-4" />
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground size-8 shrink-0"
+                              aria-label={t("removeOption")}
+                              onClick={() => removeOption(row.key, optionIndex)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      {problemFor(index, "options") && (
+                        <p className="text-destructive text-xs">{problemFor(index, "options")}</p>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addOption(row.key)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> {t("addOption")}
+                      </Button>
+                    </div>
+                  </MoreOptions>
                 )}
               </div>
             ),

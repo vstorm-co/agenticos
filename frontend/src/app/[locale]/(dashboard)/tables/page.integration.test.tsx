@@ -59,6 +59,11 @@ function table(overrides: Partial<TableListItem> = {}): TableListItem {
   };
 }
 
+async function showFilters() {
+  const toggle = screen.queryByRole("button", { name: /^Filters/ });
+  if (toggle?.getAttribute("aria-expanded") === "false") await userEvent.click(toggle);
+}
+
 beforeEach(() => {
   canCreate = true;
   params = new URLSearchParams();
@@ -69,6 +74,15 @@ beforeEach(() => {
 });
 
 describe("the tables catalog page", () => {
+  it("shows a load failure with retry instead of an empty catalog", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("network unavailable"));
+    render(<TablesPage />, { wrapper });
+    expect(await screen.findByText("Something went wrong")).toBeVisible();
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [table()], total: 1 });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Orders")).toBeVisible();
+  });
+
   it("lists live tables only until archived ones are asked for, and keeps that in the URL", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [table()], total: 1 });
     const user = userEvent.setup();
@@ -85,6 +99,7 @@ describe("the tables catalog page", () => {
       total: 2,
     });
 
+    await showFilters();
     await user.click(screen.getByRole("combobox", { name: "Which tables" }));
     await user.click(screen.getByRole("option", { name: "Archived included" }));
 
@@ -97,6 +112,7 @@ describe("the tables catalog page", () => {
     expect(screen.getByText("Archived")).toBeInTheDocument();
     expect(window.location.search).toBe("?show=all");
 
+    await showFilters();
     await user.click(screen.getByRole("combobox", { name: "Which tables" }));
     await user.click(screen.getByRole("option", { name: "Active tables" }));
     expect(window.location.search).toBe("");

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as renderRaw, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type { ReactNode } from "react";
 import type { WorkflowDetail } from "@/lib/workflows/types";
 
 import { WorkflowSettingsForm } from "./settings-form";
@@ -15,6 +16,15 @@ vi.mock("@/hooks", () => ({
     ],
   }),
 }));
+
+function render(ui: ReactNode) {
+  const result = renderRaw(ui);
+  for (const name of ["Timing and error handling", "Run history and retention", "Limits"]) {
+    const toggle = screen.getByRole("button", { name });
+    if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
+  }
+  return result;
+}
 
 function workflow(settings: Partial<WorkflowDetail["settings"]> = {}): WorkflowDetail {
   return {
@@ -35,6 +45,29 @@ function workflow(settings: Partial<WorkflowDetail["settings"]> = {}): WorkflowD
 }
 
 describe("WorkflowSettingsForm", () => {
+  it("keeps default settings short, and opens any limits already configured", () => {
+    const { unmount } = renderRaw(
+      <WorkflowSettingsForm
+        workflow={workflow()}
+        disabled={false}
+        saving={false}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Timezone")).toBeVisible();
+    expect(screen.queryByLabelText("Runs under way at once")).toBeNull();
+    unmount();
+    renderRaw(
+      <WorkflowSettingsForm
+        workflow={workflow({ max_concurrent_runs: 3 })}
+        disabled={false}
+        saving={false}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Runs under way at once")).toHaveValue(3);
+  });
+
   it("saves what was set, in the units the service takes", async () => {
     const onSave = vi.fn();
     render(

@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Activity, Plus, Upload, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -13,6 +15,7 @@ import {
   ListCardEmpty,
   Pager,
   SearchInput,
+  Skeleton,
   Select,
   SelectContent,
   SelectItem,
@@ -63,15 +66,17 @@ function compare(sort: Sort): (a: WorkflowRead, b: WorkflowRead) => number {
 export default function WorkflowsPage() {
   const t = useTranslations("pages.workflows");
   const router = useRouter();
-  const { can } = usePermissions();
+  const tc = useTranslations("common");
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const canCreate = can(Perm.workflowsCreate);
   // Gate the list query so a caller without workflows:view never hits the network
   // for a list a refusal would answer — not fetched, not a 403 in the log (#1787 F3).
   const { nodes: catalog } = useNodeCatalog();
-  const { workflows, isLoading, create, duplicate } = useWorkflows({
+  const { workflows, isLoading, error, refetch, create, duplicate } = useWorkflows({
     enabled: can(Perm.workflowsView),
   });
 
+  const loading = isLoading || permissionsLoading;
   const actions = useWorkflowActions();
   const canEdit = can(Perm.workflowsEdit);
 
@@ -141,8 +146,9 @@ export default function WorkflowsPage() {
     );
 
   const statusControls = (
-    <div className="flex flex-wrap items-center gap-2">
+    <div data-tour="workflows-list" className="flex min-w-0 flex-wrap items-center gap-2">
       <SearchInput
+        className="min-w-0 flex-1 sm:flex-none"
         value={queryParam ?? ""}
         onChange={(next) => {
           setQueryParam(next === "" ? null : next);
@@ -150,54 +156,59 @@ export default function WorkflowsPage() {
         }}
         placeholder={t("searchPlaceholder")}
       />
-      <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
-        <SelectTrigger data-tour="workflows-list" className="w-36" aria-label={t("filterByStatus")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {FILTERS.map((value) => (
-            <SelectItem key={value} value={value}>
-              {t(`filter.${value}`)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {tags.length > 0 && (
-        <Select
-          value={tagParam ?? ALL_TAGS}
-          onValueChange={(value) => {
-            setTagParam(value === ALL_TAGS ? null : value);
-            list.setPage(0);
-          }}
-        >
-          <SelectTrigger className="w-36" aria-label={t("filterByTag")}>
+      <ListFilters
+        compact
+        active={Number(filter !== "all") + Number(tagParam !== null) + Number(sort !== "edited")}
+      >
+        <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
+          <SelectTrigger className="w-36" aria-label={t("filterByStatus")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_TAGS}>{t("allTags")}</SelectItem>
-            {tags.map((tag) => (
-              <SelectItem key={tag} value={tag}>
-                {tag}
+            {FILTERS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`filter.${value}`)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-      )}
-      <Select
-        value={sort}
-        onValueChange={(value) => setSortParam(value === "edited" ? null : value)}
-      >
-        <SelectTrigger className="w-40" aria-label={t("sortBy")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SORTS.map((value) => (
-            <SelectItem key={value} value={value}>
-              {t(`sort.${value}`)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        {tags.length > 0 && (
+          <Select
+            value={tagParam ?? ALL_TAGS}
+            onValueChange={(value) => {
+              setTagParam(value === ALL_TAGS ? null : value);
+              list.setPage(0);
+            }}
+          >
+            <SelectTrigger className="w-36" aria-label={t("filterByTag")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_TAGS}>{t("allTags")}</SelectItem>
+              {tags.map((tag) => (
+                <SelectItem key={tag} value={tag}>
+                  {tag}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select
+          value={sort}
+          onValueChange={(value) => setSortParam(value === "edited" ? null : value)}
+        >
+          <SelectTrigger className="w-40" aria-label={t("sortBy")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORTS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`sort.${value}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ListFilters>
     </div>
   );
 
@@ -236,11 +247,10 @@ export default function WorkflowsPage() {
 
       <ListCard
         namedByPage
-        layout="grid"
         fill
         title={t("catalog")}
         counted={
-          isLoading
+          loading
             ? null
             : list.matched === list.total
               ? t("shownCount", { count: list.total })
@@ -248,7 +258,15 @@ export default function WorkflowsPage() {
         }
         controls={statusControls}
       >
-        {list.matched === 0 ? (
+        {loading ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((row) => (
+              <Skeleton key={row} className="h-44 rounded-xl" />
+            ))}
+          </div>
+        ) : error && workflows.length === 0 ? (
+          <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+        ) : list.matched === 0 ? (
           <ListCardEmpty
             icon={Workflow}
             title={filtersActive ? t("nothingMatches") : t("noWorkflowsYet")}

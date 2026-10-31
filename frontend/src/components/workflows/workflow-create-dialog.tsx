@@ -10,9 +10,14 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  MoreOptions,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from "@/components/ui";
 import { NodeTile } from "@/components/workflows/node-tile";
-import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import {
   AUTOMATION_TEMPLATES,
@@ -53,6 +58,15 @@ const STARTS = [
   { id: WORKFLOW_CALL_TRIGGER, key: "workflowCall" },
   { id: WORKFLOW_FAILED_TRIGGER, key: "workflowFailed" },
 ] as const;
+
+const COMMON_STARTS: ReadonlySet<string> = new Set([
+  MANUAL_TRIGGER,
+  API_TRIGGER,
+  CHAT_TRIGGER,
+  WEBHOOK_TRIGGER,
+  SCHEDULE_TRIGGER,
+  TABLE_RECORD_TRIGGER,
+]);
 
 /** A draft of one trigger node - where every new workflow begins. */
 export function startingGraph(definitionId: string): WorkflowGraph {
@@ -110,52 +124,41 @@ export function WorkflowCreateDialog({
           <DialogDescription>{t("createDialogDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-1">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            {t("startHeading")}
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {STARTS.map((start) => {
-              return (
-                <button
-                  key={start.id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    onChoose({ name: t("untitledWorkflow"), graph: startingGraph(start.id) })
-                  }
-                  className="hover:border-foreground/30 hover:bg-accent flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-50"
-                >
-                  <NodeTile
-                    definitionId={start.id}
-                    category={TRIGGER_CATEGORY}
-                    className="size-8 rounded-lg"
-                    iconClassName="size-4"
-                  />
-                  <span className="min-w-0 space-y-0.5">
-                    <span className="block text-sm font-medium">
-                      {t(`start.${start.key}.name`)}
-                    </span>
-                    <span className="text-muted-foreground block text-xs">
-                      {t(`start.${start.key}.description`)}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+        <Tabs defaultValue="start" className="flex min-h-0 flex-1 flex-col gap-4">
+          <TabsList>
+            <TabsTrigger value="start">{t("startHeading")}</TabsTrigger>
+            <TabsTrigger value="templates">{t("templatesHeading")}</TabsTrigger>
+          </TabsList>
+          <div className={DIALOG_BODY}>
+            <TabsContent value="start" className="mt-0 space-y-4">
+              <StartList
+                starts={STARTS.filter((start) => COMMON_STARTS.has(start.id))}
+                busy={busy}
+                onChoose={onChoose}
+              />
+
+              <MoreOptions label={t("moreStarts")}>
+                <StartList
+                  starts={STARTS.filter((start) => !COMMON_STARTS.has(start.id))}
+                  busy={busy}
+                  onChoose={onChoose}
+                />
+              </MoreOptions>
+            </TabsContent>
+            <TabsContent value="templates" className="mt-0 space-y-3">
+              <p className="text-muted-foreground pt-2 text-xs font-medium tracking-wide uppercase">
+                {t("templatesHeading")}
+              </p>
+
+              <TemplateList templates={WORKFLOW_TEMPLATES} busy={busy} onChoose={onChoose} />
+
+              <p className="text-muted-foreground pt-2 text-xs font-medium tracking-wide uppercase">
+                {t("automationsHeading")}
+              </p>
+              <TemplateList templates={AUTOMATION_TEMPLATES} busy={busy} onChoose={onChoose} />
+            </TabsContent>
           </div>
-
-          <p className="text-muted-foreground pt-2 text-xs font-medium tracking-wide uppercase">
-            {t("templatesHeading")}
-          </p>
-
-          <TemplateList templates={WORKFLOW_TEMPLATES} busy={busy} onChoose={onChoose} />
-
-          <p className="text-muted-foreground pt-2 text-xs font-medium tracking-wide uppercase">
-            {t("automationsHeading")}
-          </p>
-          <TemplateList templates={AUTOMATION_TEMPLATES} busy={busy} onChoose={onChoose} />
-        </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
@@ -202,5 +205,47 @@ function TemplateList({
         </div>
       ))}
     </>
+  );
+}
+
+function StartList({
+  starts,
+  busy,
+  onChoose,
+}: {
+  starts: readonly (typeof STARTS)[number][];
+  busy: boolean;
+  onChoose: (choice: WorkflowCreateChoice) => void;
+}) {
+  const t = useTranslations("pages.workflows");
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {starts.map((start) => {
+        return (
+          <button
+            key={start.id}
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              onChoose({ name: t("untitledWorkflow"), graph: startingGraph(start.id) })
+            }
+            className="hover:border-foreground/30 hover:bg-accent flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-50"
+          >
+            <NodeTile
+              definitionId={start.id}
+              category={TRIGGER_CATEGORY}
+              className="size-8 rounded-lg"
+              iconClassName="size-4"
+            />
+            <span className="min-w-0 space-y-0.5">
+              <span className="block text-sm font-medium">{t(`start.${start.key}.name`)}</span>
+              <span className="text-muted-foreground block text-xs">
+                {t(`start.${start.key}.description`)}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

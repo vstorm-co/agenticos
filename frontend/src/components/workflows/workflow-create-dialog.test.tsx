@@ -17,7 +17,7 @@ function wrap(node: ReactNode) {
 }
 
 describe("WorkflowCreateDialog", () => {
-  it("offers every way a workflow starts and every shipped template", () => {
+  it("offers every way a workflow starts and every shipped template", async () => {
     render(
       wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={vi.fn()} busy={false} />),
     );
@@ -31,6 +31,8 @@ describe("WorkflowCreateDialog", () => {
     ]) {
       expect(screen.getByText(start)).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: "Use" })).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
     // "Use" appears once per template.
     expect(screen.getAllByRole("button", { name: "Use" })).toHaveLength(
       WORKFLOW_TEMPLATES.length + AUTOMATION_TEMPLATES.length,
@@ -40,10 +42,12 @@ describe("WorkflowCreateDialog", () => {
     }
   });
 
-  it("offers Outlook as a way to start", () => {
+  it("offers Outlook as a way to start", async () => {
     render(
       wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={vi.fn()} busy={false} />),
     );
+    expect(screen.queryByText("Outlook")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "More ways to start" }));
     expect(screen.getByText("Outlook")).toBeInTheDocument();
     expect(screen.getByText(/connected Microsoft 365 mailbox starts a run/)).toBeInTheDocument();
   });
@@ -70,6 +74,7 @@ describe("WorkflowCreateDialog", () => {
       wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={onChoose} busy={false} />),
     );
 
+    await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
     const [firstUse] = screen.getAllByRole("button", { name: "Use" });
     await userEvent.click(firstUse!);
 
@@ -79,9 +84,10 @@ describe("WorkflowCreateDialog", () => {
     });
   });
 
-  it("disables its controls while a create is in flight", () => {
+  it("disables its controls while a create is in flight", async () => {
     render(wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={vi.fn()} busy />));
 
+    await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
     for (const button of screen.getAllByRole("button", { name: "Use" })) {
       expect(button).toBeDisabled();
     }

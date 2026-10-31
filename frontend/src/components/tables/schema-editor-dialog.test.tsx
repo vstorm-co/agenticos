@@ -221,6 +221,7 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
+    await user.click(screen.getByRole("button", { name: "1 option" }));
     expect(screen.getByDisplayValue("Open")).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Archive Open" }));
@@ -241,6 +242,7 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
+    await user.click(screen.getByRole("button", { name: "1 option" }));
 
     await user.click(screen.getByRole("button", { name: /add option/i }));
     const optionInputs = screen.getAllByLabelText("Option label");
@@ -263,6 +265,7 @@ describe("SchemaEditorDialog", () => {
         error={null}
       />,
     );
+    await user.click(screen.getByRole("button", { name: "1 option" }));
 
     await user.click(screen.getByRole("button", { name: /add option/i }));
     expect(screen.getAllByLabelText("Option label")).toHaveLength(2);

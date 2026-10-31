@@ -25,35 +25,6 @@ import { formatDateTime } from "@/lib/utils";
 
 import { ColumnTypeIcon } from "./column-type-icon";
 
-const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
-/**
- * Keep Tab and Shift+Tab inside the sheet: from its last control to its first
- * and back, and from anywhere behind the overlay into it. A popover the sheet
- * opened (a multi-select's list) sits outside it in a portal and moves focus
- * itself, so focus there is left alone.
- */
-function trapTab(event: KeyboardEvent, panel: HTMLElement) {
-  const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-    (element) => !element.hasAttribute("disabled"),
-  );
-  // The close button is always there, so the list is never empty.
-  const first = focusable[0] as HTMLElement;
-  const last = focusable[focusable.length - 1] as HTMLElement;
-  const active = document.activeElement;
-  if (!panel.contains(active)) {
-    if (active?.closest("[data-radix-popper-content-wrapper]")) return;
-    event.preventDefault();
-    first.focus();
-  } else if (event.shiftKey && active === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && active === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
 /**
  * The one editing surface every view type shares: a full-row form, one
  * `RecordCellEditor` per live column. Each field commits on its own - not one
@@ -96,7 +67,6 @@ export function RecordDetailSheet({
   const conflicts = useTableViewStore((state) => state.conflicts);
   const setConflict = useTableViewStore((state) => state.setConflict);
   const clearConflict = useTableViewStore((state) => state.clearConflict);
-  const panelRef = useRef<HTMLDivElement>(null);
   // Whether the sheet is open when a write answers - it may have been closed
   // while the write was in flight.
   const openRef = useRef(open);
@@ -115,32 +85,6 @@ export function RecordDetailSheet({
     if (focused instanceof HTMLElement) focused.blur();
     onOpenChange(false);
   }, [onOpenChange]);
-
-  useEffect(() => {
-    if (!open) return;
-    // Focus enters the sheet, so a keyboard user can reach its fields at all,
-    // and goes back to whatever opened it once it closes.
-    const opener = document.activeElement;
-    panelRef.current?.querySelector("button")?.focus();
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  }, [open]);
-
-  useEffect(() => {
-    // The delete confirmation is a dialog of its own, with its own Escape and
-    // focus trap; the sheet's would close the sheet under it and pull focus out.
-    if (!open || confirmingDelete) return;
-    function onKeyDown(event: KeyboardEvent) {
-      // A select or popover inside the sheet handles its own Escape and Tab and
-      // marks the event handled; that key is its own, not the sheet's.
-      if (event.defaultPrevented) return;
-      if (event.key === "Escape") close();
-      else if (event.key === "Tab" && panelRef.current) trapTab(event, panelRef.current);
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, close, confirmingDelete]);
 
   function commitField(targetRecord: RecordRead, columnId: string, value: CellValue) {
     commit(targetRecord, { [columnId]: value }).then(
@@ -220,105 +164,103 @@ export function RecordDetailSheet({
   const first = columns.find((column) => !column.archived);
   const heading = record && first ? recordCellText(first, record, boolLabel, locale) : "";
 
-  // `Sheet` calls `onOpenChange` only from an overlay click, always to close.
+  // The shared sheet owns focus and keyboard dismissal; closing still commits the focused field.
   return (
     <Sheet open={open} onOpenChange={close}>
-      <SheetContent side="right" className="w-full sm:w-[28rem]">
-        <div ref={panelRef} className="contents">
-          <SheetHeader>
-            <SheetTitle className="truncate">{heading || t("title")}</SheetTitle>
-            <SheetClose onClick={close} />
-          </SheetHeader>
-          {record && (
-            <div className="space-y-4 overflow-y-auto p-4">
-              {columns
-                .filter((column) => !column.archived)
-                .map((column) => {
-                  // Keyed per record *and* field: two fields of the same record can
-                  // each be mid-write, and one landing (or one refusing) must not
-                  // touch the other's own pending value or banner.
-                  const conflict = conflicts[record.id]?.[column.id];
-                  const isConflicted = conflict !== undefined;
-                  const value = isConflicted
-                    ? (conflict.pendingValues[column.id] as CellValue)
-                    : (record.values[column.id] ?? null);
-                  return (
-                    <div key={column.id} className="space-y-1">
-                      <Label htmlFor={`cell-${column.id}`} className="flex items-center gap-1.5">
-                        <ColumnTypeIcon type={column.type} className="text-muted-foreground" />
-                        {column.label}
-                      </Label>
-                      <RecordCellEditor
-                        column={column}
-                        value={value}
-                        links={record.links?.[column.id]}
-                        disabled={!canEdit}
-                        onChange={(next) => commitField(record, column.id, next)}
-                      />
-                      {isConflicted && (
-                        <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                            <span>{t("conflict")}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="link"
-                              size="sm"
-                              className="h-auto p-0 text-xs"
-                              onClick={() => {
-                                const pending = conflict.pendingValues[column.id] as CellValue;
-                                void reloadAndReapply(record, column.id, pending);
-                              }}
-                            >
-                              {t("reloadAndReapply")}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="link"
-                              size="sm"
-                              className="h-auto p-0 text-xs"
-                              onClick={() => void discardConflict(record, column.id)}
-                            >
-                              {t("discard")}
-                            </Button>
-                          </div>
+      <SheetContent side="right" className="w-full sm:w-[32rem]">
+        <SheetHeader>
+          <SheetTitle className="truncate">{heading || t("title")}</SheetTitle>
+          <SheetClose onClick={close} />
+        </SheetHeader>
+        {record && (
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6">
+            {columns
+              .filter((column) => !column.archived)
+              .map((column) => {
+                // Keyed per record *and* field: two fields of the same record can
+                // each be mid-write, and one landing (or one refusing) must not
+                // touch the other's own pending value or banner.
+                const conflict = conflicts[record.id]?.[column.id];
+                const isConflicted = conflict !== undefined;
+                const value = isConflicted
+                  ? (conflict.pendingValues[column.id] as CellValue)
+                  : (record.values[column.id] ?? null);
+                return (
+                  <div key={column.id} className="space-y-1">
+                    <Label htmlFor={`cell-${column.id}`} className="flex items-center gap-1.5">
+                      <ColumnTypeIcon type={column.type} className="text-muted-foreground" />
+                      {column.label}
+                    </Label>
+                    <RecordCellEditor
+                      column={column}
+                      value={value}
+                      links={record.links?.[column.id]}
+                      disabled={!canEdit}
+                      onChange={(next) => commitField(record, column.id, next)}
+                    />
+                    {isConflicted && (
+                      <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          <span>{t("conflict")}</span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              <p className="text-muted-foreground border-border border-t pt-3 text-xs">
-                {t("added", { when: formatDateTime(record.created_at, locale) })}
-                {record.updated_at &&
-                  record.updated_at !== record.created_at &&
-                  ` · ${t("changed", { when: formatDateTime(record.updated_at, locale) })}`}
-              </p>
-            </div>
-          )}
-          {record && canEdit && (
-            <div className="border-border mt-auto border-t px-4 py-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                <Trash2 className="size-3.5" /> {t("delete")}
-              </Button>
-              <ConfirmDialog
-                open={confirmingDelete}
-                onOpenChange={setConfirmingDelete}
-                title={t("deleteTitle")}
-                description={t("deleteDescription")}
-                confirmLabel={t("delete")}
-                destructive
-                onConfirm={() => deleteRecord(record)}
-              />
-            </div>
-          )}
-        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => {
+                              const pending = conflict.pendingValues[column.id] as CellValue;
+                              void reloadAndReapply(record, column.id, pending);
+                            }}
+                          >
+                            {t("reloadAndReapply")}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => void discardConflict(record, column.id)}
+                          >
+                            {t("discard")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            <p className="text-muted-foreground border-border border-t pt-3 text-xs">
+              {t("added", { when: formatDateTime(record.created_at, locale) })}
+              {record.updated_at &&
+                record.updated_at !== record.created_at &&
+                ` · ${t("changed", { when: formatDateTime(record.updated_at, locale) })}`}
+            </p>
+          </div>
+        )}
+        {record && canEdit && (
+          <div className="border-border mt-auto border-t px-4 py-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              <Trash2 className="size-3.5" /> {t("delete")}
+            </Button>
+            <ConfirmDialog
+              open={confirmingDelete}
+              onOpenChange={setConfirmingDelete}
+              title={t("deleteTitle")}
+              description={t("deleteDescription")}
+              confirmLabel={t("delete")}
+              destructive
+              onConfirm={() => deleteRecord(record)}
+            />
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

@@ -1,5 +1,5 @@
 ---
-source_sha: "37976366b410"
+source_sha: "c036c5758ee0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -269,6 +269,8 @@ Usunięcie jest twarde. Historia rekordu zostaje, dopóki nie usunie jej retencj
 
 ## Edycja rekordów w konsoli { #editing-in-the-console }
 
+Katalog oraz widoki Table, Kanban i List mają wspólny panel z wyszukiwaniem i zapisanymi widokami. **Add record** używa dwóch kolumn na większym ekranie i jednej na telefonie; długi tekst i powiązania zachowują pełną szerokość. Panel rekordu korzysta ze wspólnej obsługi klawiatury i fokusu konsoli. **Columns** zwija istniejące opcje wyboru pod ich liczbą. Błąd pobierania rekordów daje **Retry**.
+
 Karty katalogu mówią, ile rekordów i aktywnych kolumn ma każda tabela, kto ma do niej
 dostęp i kiedy ostatnio się zmieniła. Na stronie tabeli każdy nagłówek pokazuje typ
 kolumny ikoną, liczby są wyrównane do prawej, a daty zapisane tak, jak zapisuje je
@@ -411,6 +413,8 @@ siatka wczytuje po sto rekordów podczas przewijania i rysuje tylko widoczne wie
 
 ## Zapisane widoki { #saved-views }
 
+Tablica kanban bez zapisanego grupowania automatycznie korzysta z jedynej aktywnej kolumny jednokrotnego wyboru. Przy kilku kolumnach wybierz, która tworzy tory. Zapis widoku zachowuje grupowanie. Wiersze listy nazywają pola pomocnicze i pokazują **Unnamed record**, gdy tytuł jest pusty. **Triggers** proponuje **Open workflows**, gdy żaden workflow nie startuje jeszcze z tej tabeli.
+
 **Widok** to zachowany filtr, sortowanie i grupowanie nad rekordami jednej tabeli -
 to, co zapisują ekrany konsoli table/kanban/list, żeby nikt nie budował tej samej
 tablicy przy każdej wizycie. Jest podzasobem tabeli, a nie osobnym zasobem
@@ -420,9 +424,8 @@ tabeli nadrzędnej" - nigdy nie poszerza dostępu ponad to, na co pozwala sama
 tabela.
 
 W konsoli ekran bez wybranego widoku nazywa się **All records**, a **+** obok zapisuje
-to, co pokazuje ekran, jako nowy widok. Tablica kanban bez widoku pyta, która kolumna
-jednokrotnego wyboru tworzy tory, i od razu się rysuje; zapisana jako widok zachowuje
-to grupowanie. Karta pokazuje pod tytułem do czterech kolumn ekranu, pomijając puste. Tabela bez kolumny jednokrotnego wyboru proponuje zamiast tego **Add a
+to, co pokazuje ekran, jako nowy widok. Tablica kanban automatycznie wybiera jedyną aktywną kolumnę jednokrotnego wyboru;
+przy kilku pyta, która tworzy tory. Zapis widoku zachowuje grupowanie. Karta pokazuje pod tytułem do czterech kolumn ekranu, pomijając puste. Tabela bez kolumny jednokrotnego wyboru proponuje zamiast tego **Add a
 column**.
 
 Właściciel widoku przełącza go między **Private** a **Shared** przyciskiem obok

@@ -1,10 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { fireEvent, render as renderRaw, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkflowRunRead } from "@/lib/workflows/types";
 
 import { RunHistory } from "./run-history";
+
+function render(ui: ReactNode) {
+  const result = renderRaw(ui);
+  const filters = screen.queryByRole("button", { name: /^Filters/ });
+  if (filters?.getAttribute("aria-expanded") === "false") fireEvent.click(filters);
+  return result;
+}
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));

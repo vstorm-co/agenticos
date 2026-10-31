@@ -11,14 +11,20 @@ export function ListFilters({
   active,
   children,
   compact = false,
+  open: controlled,
+  onOpenChange,
 }: {
   active: number;
   children: ReactNode;
   /** Leave room for search in narrow catalog toolbars. */
   compact?: boolean;
+  /** A parent may reveal a field containing a refused filter. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("common");
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = controlled ?? own;
   const id = useId();
   return (
     <>
@@ -26,7 +32,10 @@ export function ListFilters({
         type="button"
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => {
+          setOwn(!open);
+          onOpenChange?.(!open);
+        }}
         className="border-border bg-background inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-xl border px-3.5 text-sm"
       >
         <SlidersHorizontal className="size-4" aria-hidden />

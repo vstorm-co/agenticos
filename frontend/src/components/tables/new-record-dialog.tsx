@@ -115,11 +115,20 @@ export function NewRecordDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
-        <div className={`${DIALOG_BODY} space-y-5`}>
+        <div className={`${DIALOG_BODY} grid grid-cols-1 gap-5 sm:grid-cols-2`}>
           {live.map((column) => {
             const needed = isRequired(column);
             return (
-              <div key={column.id} className="space-y-1.5">
+              <div
+                key={column.id}
+                className={
+                  column.type === "long_text" ||
+                  column.type === "link" ||
+                  column.type === "multi_select"
+                    ? "space-y-1.5 sm:col-span-2"
+                    : "space-y-1.5"
+                }
+              >
                 <Label htmlFor={`cell-${column.id}`}>
                   {column.label}
                   {needed && <span className="text-muted-foreground"> *</span>}

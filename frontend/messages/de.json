@@ -6401,7 +6401,8 @@
           "created": "hinzugefügt",
           "updated": "geändert",
           "deleted": "gelöscht"
-        }
+        },
+        "openWorkflows": "Workflows öffnen"
       },
       "newRecord": {
         "title": "Neuer Datensatz",
@@ -6789,7 +6790,6 @@
       "alertsCount": "{count, plural, =0 {Keine Warnungen} one {# Warnung} other {# Warnungen}}",
       "alertsFailed": "Die Warnungen konnten nicht geladen werden",
       "alertsFailedDetail": "Die Warnregeln wurden nicht geladen. Es geht nichts verloren; versuchen Sie es erneut.",
-      "alertsEmpty": "Noch keine Warnungen",
       "alertsEmptyDetail": "Fügen Sie eine Warnung hinzu, die Personen informiert, wenn im Protokoll dieses Workflows etwas zu oft passiert, etwa fünf Fehler in fünfzehn Minuten.",
       "alertsEmptyViewer": "Für das Protokoll dieses Workflows hat niemand eine Warnung eingerichtet.",
       "alertNew": "Warnung hinzufügen",
@@ -6941,10 +6941,10 @@
       "settingsMonthlyBudgetHint": "Über den Kalendermonat in UTC gezählt, Testläufe eingeschlossen. Ist es erreicht, startet kein Lauf, bis der Monat wechselt oder das Budget erhöht wird.",
       "settingsNoLimit": "Keine Grenze",
       "stats": {
-        "heading": "Wie er lief",
+        "heading": "Leistung veröffentlichter Versionen",
         "window": "Zeitraum",
         "days": "{days, plural, one {# Tag} other {# Tage}}",
-        "runs": "Läufe",
+        "runs": "Runs veröffentlichter Versionen",
         "runsCaption": "{failed, plural, =0 {Keiner fehlgeschlagen} one {# fehlgeschlagen} other {# fehlgeschlagen}}",
         "succeeded": "Erfolgreich",
         "succeededCaption": "{succeeded} von {ended, plural, one {# beendeten Lauf} other {# beendeten Läufen}}",
@@ -6982,7 +6982,12 @@
       "alertNameHint": "Das sehen Sie in der Liste und in der Benachrichtigung",
       "alertStepHint": "Einen Schritt beobachten oder jeden Schritt, der protokolliert",
       "alertWindowHint": "Innerhalb welcher Zeit",
-      "alertAudienceHint": "Wer die Glocke und die E-Mail bekommt"
+      "alertAudienceHint": "Wer die Glocke und die E-Mail bekommt",
+      "moreStarts": "Weitere Startmöglichkeiten",
+      "importJson": "Workflow-JSON",
+      "settingsExecution": "Laufzeit und Fehlerbehandlung",
+      "settingsHistory": "Run-Verlauf und Aufbewahrung",
+      "importReadError": "Die Datei konnte nicht gelesen werden. Wähle sie erneut aus oder füge ihr JSON ein."
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -8998,7 +9003,10 @@
     "toolbarSetup": "Einrichtung abschließen · {count}",
     "pickerConnectAccount": "Konto verbinden",
     "pickerConnectAccountHint": "Verbinde ein Organisationskonto für diesen Workflow. Wähle es anschließend im Kontofeld des Schritts aus.",
-    "pickerApiKeyNew": "API-Schlüssel hinzufügen"
+    "pickerApiKeyNew": "API-Schlüssel hinzufügen",
+    "toolbarDisplay": "Zeichenflächenoptionen",
+    "stepOutputFields": "Erwartete Ausgabefelder",
+    "stepReviewSetup": "Einrichtung vor dem Test prüfen"
   },
   "artifacts": {
     "title": "Apps",
@@ -9328,7 +9336,8 @@
       "findRecord": "Datensatz finden",
       "finding": "Suche…",
       "noRecordsFound": "Keine Datensätze passen.",
-      "workedOut": "Aus anderen Spalten ermittelt"
+      "workedOut": "Aus anderen Spalten ermittelt",
+      "unnamedRecord": "Unbenannter Datensatz"
     },
     "create": {
       "title": "Neue Tabelle",
@@ -9418,7 +9427,8 @@
       "archivedHeading": "Archivierte Spalten - ihre Werte bleiben erhalten",
       "restore": "Wiederherstellen",
       "retype": "Beim Speichern wird jeder Wert von {from} zu {to}. Lässt sich einer nicht als {to} lesen, wird nichts gespeichert, und der Dialog sagt, welcher.",
-      "retypeToChoice": "Beim Speichern wird jeder Wert von {from} zu {to}: Jeder unterschiedliche Wert wird zu einer seiner Optionen."
+      "retypeToChoice": "Beim Speichern wird jeder Wert von {from} zu {to}: Jeder unterschiedliche Wert wird zu einer seiner Optionen.",
+      "optionsCount": "{count, plural, one {# Option} other {# Optionen}}"
     },
     "sheet": {
       "title": "Datensatz",

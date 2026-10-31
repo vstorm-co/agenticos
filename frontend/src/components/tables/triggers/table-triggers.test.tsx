@@ -14,6 +14,7 @@ const hook = {
 const admissions = { admissions: [] as TableTriggerAdmission[], total: 0, isLoading: false };
 
 vi.mock("@/hooks", () => ({
+  usePermissions: () => ({ can: () => true }),
   useTableTriggers: () => hook,
   useTableTriggerAdmissions: () => admissions,
 }));

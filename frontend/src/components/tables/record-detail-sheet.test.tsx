@@ -482,11 +482,13 @@ describe("RecordDetailSheet", () => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
-    it("closes from the overlay", () => {
+    it("closes from the overlay", async () => {
       const onOpenChange = vi.fn();
       const { container } = renderSheet({ onOpenChange });
 
-      fireEvent.click(container.ownerDocument.querySelector("[aria-hidden='true']") as Element);
+      await userEvent.click(
+        container.ownerDocument.querySelector("[data-state='open'].fixed.inset-0") as Element,
+      );
 
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
@@ -558,7 +560,7 @@ describe("RecordDetailSheet", () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
-    it("gives focus back to what opened it once it closes", () => {
+    it("gives focus back to what opened it once it closes", async () => {
       const opener = document.createElement("button");
       document.body.appendChild(opener);
       opener.focus();
@@ -567,83 +569,62 @@ describe("RecordDetailSheet", () => {
 
       rerender(sheet({ open: false }));
 
-      expect(opener).toHaveFocus();
+      await waitFor(() => expect(opener).toHaveFocus());
       opener.remove();
     });
 
-    describe("keeps Tab inside the sheet", () => {
-      function tab(shiftKey = false) {
-        const event = new KeyboardEvent("keydown", {
-          key: "Tab",
-          shiftKey,
-          bubbles: true,
-          cancelable: true,
-        });
-        document.dispatchEvent(event);
-        return event;
-      }
-
-      it("wraps from the last control to the first, and back", () => {
+    describe("keeps keyboard focus in the shared sheet", () => {
+      it("wraps from the last control to the first and back", async () => {
         renderSheet();
         const close = screen.getByRole("button", { name: "Close" });
         const remove = screen.getByRole("button", { name: "Delete record" });
-
         remove.focus();
-        expect(tab().defaultPrevented).toBe(true);
+        await userEvent.tab();
         expect(close).toHaveFocus();
-
-        expect(tab(true).defaultPrevented).toBe(true);
+        await userEvent.tab({ shift: true });
         expect(remove).toHaveFocus();
       });
 
-      it("skips a disabled field, so a read-only sheet cycles on its close button", () => {
+      it("keeps a read-only sheet on its only enabled control", async () => {
         renderSheet({ canEdit: false });
         const close = screen.getByRole("button", { name: "Close" });
-        close.focus();
-        expect(tab().defaultPrevented).toBe(true);
+        await userEvent.tab();
         expect(close).toHaveFocus();
       });
 
-      it("leaves Tab between two controls inside it to the browser", () => {
-        renderSheet();
-        screen.getByRole("button", { name: "Close" }).focus();
-        expect(tab().defaultPrevented).toBe(false);
-        screen.getByRole("textbox").focus();
-        expect(tab(true).defaultPrevented).toBe(false);
-      });
-
-      it("brings focus left behind the overlay into the sheet", () => {
+      it("brings focus moved behind the overlay back into the sheet", () => {
         const behind = document.createElement("button");
         document.body.appendChild(behind);
         renderSheet();
         behind.focus();
-
-        expect(tab().defaultPrevented).toBe(true);
-        expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+        expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
         behind.remove();
       });
 
-      it("leaves focus in a popover the sheet opened where it is", () => {
-        const wrapper = document.createElement("div");
-        wrapper.setAttribute("data-radix-popper-content-wrapper", "");
-        const option = document.createElement("button");
-        wrapper.appendChild(option);
-        document.body.appendChild(wrapper);
-        renderSheet();
-        option.focus();
-
-        expect(tab().defaultPrevented).toBe(false);
-        expect(option).toHaveFocus();
-        wrapper.remove();
-      });
-
-      it("leaves a Tab a control already handled alone", () => {
-        renderSheet();
-        screen.getByRole("textbox").focus();
-        const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
-        event.preventDefault();
-        document.dispatchEvent(event);
-        expect(screen.getByRole("textbox")).toHaveFocus();
+      it("allows a real select popup to take focus and commit its choice", async () => {
+        vi.mocked(apiClient.patch).mockResolvedValue({
+          ...record,
+          values: { c1: "chosen" },
+          revision: 2,
+        });
+        renderSheet({
+          columns: [
+            {
+              ...columns[0]!,
+              type: "single_select",
+              options: [{ id: "chosen", label: "Chosen", archived: false }],
+            },
+          ],
+        });
+        await userEvent.click(screen.getByRole("combobox"));
+        await userEvent.click(screen.getByRole("option", { name: "Chosen" }));
+        await waitFor(() =>
+          expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+            expected_revision: 1,
+            values: { c1: "chosen" },
+          }),
+        );
+        expect(screen.getByRole("dialog")).toBeVisible();
       });
     });
 

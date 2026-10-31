@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +28,7 @@ describe("ImportWorkflowDialog", () => {
   it("imports a pasted file and lists the pins to choose, then opens the draft", async () => {
     answer(IMPORTED);
     render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
     fireEvent.change(screen.getByLabelText("Or paste the file's JSON here"), {
       target: { value: '{"name": "Leads"}' },
     });
@@ -54,9 +55,25 @@ describe("ImportWorkflowDialog", () => {
     expect(screen.getByText(/The file left nothing out/)).toBeVisible();
   });
 
+  it("explains a failed file read and allows choosing a replacement", async () => {
+    answer({ ...IMPORTED, unresolved: [] });
+    render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
+    const bad = new File(["{}"], "unreadable.json", { type: "application/json" });
+    vi.spyOn(bad, "text").mockRejectedValueOnce(new Error("disk read failed"));
+    await userEvent.upload(screen.getByLabelText("Workflow file"), bad);
+    expect(await screen.findByText(/Could not read this file/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+    const good = new File(['{"name":"Replacement"}'], "good.json", { type: "application/json" });
+    await userEvent.upload(screen.getByLabelText("Workflow file"), good);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Import" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(mutate.mock.calls[0]?.[0]).toEqual({ name: "Replacement" });
+  });
+
   it("refuses text that is not JSON, and ignores a file dialog closed empty", async () => {
     render(<ImportWorkflowDialog open onOpenChange={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Workflow file"), { target: { files: [] } });
+    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
     fireEvent.change(screen.getByLabelText("Or paste the file's JSON here"), {
       target: { value: "not json" },
     });
@@ -68,11 +85,14 @@ describe("ImportWorkflowDialog", () => {
   it("forgets what was pasted when it is closed", async () => {
     const onOpenChange = vi.fn();
     render(<ImportWorkflowDialog open onOpenChange={onOpenChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
     fireEvent.change(screen.getByLabelText("Or paste the file's JSON here"), {
       target: { value: "{}" },
     });
     await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0] as HTMLElement);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByLabelText("Or paste the file's JSON here")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Or paste the file's JSON here" }));
     expect(screen.getByLabelText("Or paste the file's JSON here")).toHaveValue("");
   });
 });

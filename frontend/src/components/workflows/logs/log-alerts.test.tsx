@@ -170,7 +170,7 @@ describe("LogAlerts", () => {
 
   it("says there are no alerts, differently to someone who can add one", () => {
     const { unmount } = view();
-    expect(screen.getByText("No alerts yet")).toBeTruthy();
+    expect(screen.getByText("No alerts")).toBeTruthy();
     expect(screen.getByText(/Add an alert to tell people/)).toBeTruthy();
     unmount();
     view(false);
@@ -181,7 +181,7 @@ describe("LogAlerts", () => {
     hook.error = new Error("boom");
     view();
     expect(screen.getByText("Could not load the alerts")).toBeTruthy();
-    expect(screen.queryByText("No alerts yet")).toBeNull();
+    expect(screen.queryByText("No alerts")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(hook.refetch).toHaveBeenCalled();
   });

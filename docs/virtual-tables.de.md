@@ -1,5 +1,5 @@
 ---
-source_sha: "37976366b410"
+source_sha: "c036c5758ee0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -290,6 +290,8 @@ Ein Delete ist ein hartes Löschen. Die Historie des Datensatzes bleibt, bis ihr
 
 ## Datensätze in der Konsole bearbeiten { #editing-in-the-console }
 
+Katalog und die Ansichten Table, Kanban und List verwenden ein gemeinsames Panel mit Suche und gespeicherten Ansichten. **Add record** nutzt zwei Spalten auf großen Bildschirmen und eine auf dem Telefon; Langtext und Verknüpfungen behalten die volle Breite. Das Datensatz-Panel nutzt die gemeinsame Tastatur- und Fokussteuerung der Konsole. **Columns** klappt vorhandene Auswahloptionen hinter ihrer Anzahl ein. Ladefehler bei Datensätzen bieten **Retry**.
+
 Die Karten des Katalogs sagen, wie viele Datensätze und aktive Spalten jede Tabelle hat,
 wer sie erreichen darf und wann sie sich zuletzt geändert hat. Auf der Seite einer
 Tabelle zeigt jede Kopfzeile den Typ ihrer Spalte als Symbol, Zahlen stehen
@@ -444,6 +446,8 @@ zeichnet nur die sichtbaren Zeilen. Jenseits der 10.000 Datensätze, die eine Ab
 
 ## Gespeicherte Ansichten { #saved-views }
 
+Ein Kanban-Board ohne gespeicherte Gruppierung nutzt die einzige aktive Einfachauswahl-Spalte automatisch. Bei mehreren wählen Sie die Spalte für die Bahnen. Eine gespeicherte Ansicht behält diese Gruppierung. Listenzeilen benennen zusätzliche Felder und zeigen **Unnamed record** bei leerem Titel. **Triggers** bietet **Open workflows**, wenn noch kein Workflow von der Tabelle startet.
+
 Eine **Ansicht** ist ein gespeicherter Filter, eine Sortierung und eine Gruppierung
 über die Datensätze einer Tabelle - was die Tabellen-/Kanban-/Listenansichten der
 Konsole speichern, damit niemand bei jedem Besuch dasselbe Board neu aufbaut. Sie
@@ -454,9 +458,7 @@ Tabelle hält" - sie erweitert den Zugriff nie über das hinaus, was die Tabelle
 selbst erlaubt.
 
 In der Konsole heißt der Bildschirm ohne gewählte Ansicht **All records**, und **+**
-daneben speichert, was er zeigt, als neue Ansicht. Ein Kanban-Board ohne Ansicht fragt,
-welche Einfachauswahl-Spalte seine Bahnen bildet, und zeichnet sich sofort; als Ansicht
-gespeichert, behält es diese Gruppierung. Eine Karte zeigt unter ihrem Titel bis zu
+daneben speichert, was er zeigt, als neue Ansicht. Ein Kanban-Board ohne gespeicherte Gruppierung nutzt die einzige aktive Einfachauswahl-Spalte automatisch. Bei mehreren wählen Sie die Spalte für die Bahnen. Eine gespeicherte Ansicht behält diese Gruppierung. Eine Karte zeigt unter ihrem Titel bis zu
 vier Spalten des Bildschirms und lässt leere weg. Eine Tabelle ohne Einfachauswahl-Spalte bietet
 stattdessen **Add a column** an.
 

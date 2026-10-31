@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import { ListFilter, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -100,6 +101,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const page = Math.max(0, Number(pageParam ?? "0") || 0);
   // A request, not a filter: the log is paged by the database. Kept out of the
   // address, which would be rewritten on every pause in typing.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const searched = useDebounced(typed).trim();
   // The run field is the address's own value, so a link to a run's lines and a
@@ -216,6 +218,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const columns: Column<WorkflowLogEntry>[] = [
     {
       key: "time",
+      className: "whitespace-nowrap",
       header: t("logColumns.time"),
       cell: (entry) => formatDateTimeSeconds(entry.created_at, locale),
     },
@@ -231,6 +234,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
     },
     {
       key: "message",
+      className: "min-w-40",
       header: t("logColumns.message"),
       cell: (entry) => <span className="break-words whitespace-pre-wrap">{entry.message}</span>,
     },
@@ -267,6 +271,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   return (
     <div className="space-y-4">
       <ListCard
+        namedByPage
         title={t("logsTitle")}
         // Nothing to count while the read is failing: a number there would be a claim.
         counted={isLoading ? null : error !== null ? "" : t("logsCount", { count: total })}
@@ -283,48 +288,61 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
               className="sm:w-56"
               maxLength={200}
             />
-            <RunFilter value={run ?? ""} onChange={setRunFilter} problem={runProblem} />
-            <Filter
-              label={t("logFilterStep")}
-              any={t("logFilterAnyStep")}
-              value={step ?? ALL}
-              onChange={narrow(setStep)}
-              options={stepOptions}
-            />
-            <Filter
-              label={t("logFilterOutcome")}
-              any={t("logFilterAnyOutcome")}
-              value={outcomes.length === 0 ? ALL : (single ?? MANY)}
-              onChange={(value) => {
-                // Choosing the several again leaves them as they are.
-                if (value !== MANY) setOutcomes(value === ALL ? [] : [value]);
-                setPage(null);
-              }}
-              options={outcomeOptions}
-            />
-            <Filter
-              label={t("logFilterSince")}
-              any={t("logFilterAnySince")}
-              value={reach === undefined ? ALL : (since as string)}
-              onChange={(value) => {
-                setAnchor(Date.now());
-                narrow(setSince)(value);
-              }}
-              options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
-            />
-            <div className="flex items-center gap-2">
-              <Switch
-                id="log-include-test"
-                checked={test === "1"}
-                onCheckedChange={(on) => {
-                  setTest(on ? "1" : null);
+            <ListFilters
+              open={filtersOpen || runProblem !== undefined}
+              onOpenChange={setFiltersOpen}
+              compact
+              active={
+                Number(step !== null) +
+                Number(outcomes.length > 0) +
+                Number(run !== null) +
+                Number(reach !== undefined) +
+                Number(test === "1")
+              }
+            >
+              <RunFilter value={run ?? ""} onChange={setRunFilter} problem={runProblem} />
+              <Filter
+                label={t("logFilterStep")}
+                any={t("logFilterAnyStep")}
+                value={step ?? ALL}
+                onChange={narrow(setStep)}
+                options={stepOptions}
+              />
+              <Filter
+                label={t("logFilterOutcome")}
+                any={t("logFilterAnyOutcome")}
+                value={outcomes.length === 0 ? ALL : (single ?? MANY)}
+                onChange={(value) => {
+                  // Choosing the several again leaves them as they are.
+                  if (value !== MANY) setOutcomes(value === ALL ? [] : [value]);
                   setPage(null);
                 }}
+                options={outcomeOptions}
               />
-              <Label htmlFor="log-include-test" className="text-xs">
-                {t("logIncludeTest")}
-              </Label>
-            </div>
+              <Filter
+                label={t("logFilterSince")}
+                any={t("logFilterAnySince")}
+                value={reach === undefined ? ALL : (since as string)}
+                onChange={(value) => {
+                  setAnchor(Date.now());
+                  narrow(setSince)(value);
+                }}
+                options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
+              />
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="log-include-test"
+                  checked={test === "1"}
+                  onCheckedChange={(on) => {
+                    setTest(on ? "1" : null);
+                    setPage(null);
+                  }}
+                />
+                <Label htmlFor="log-include-test" className="text-xs">
+                  {t("logIncludeTest")}
+                </Label>
+              </div>
+            </ListFilters>
           </div>
         }
       >

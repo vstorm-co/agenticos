@@ -66,9 +66,10 @@ export function TableCard({ table }: { table: TableListItem }) {
             role="img"
             aria-label={t(`visibility.${table.visibility}`)}
             title={t(`visibility.${table.visibility}`)}
-            className="pointer-events-auto"
+            className="pointer-events-auto inline-flex items-center gap-1"
           >
             <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
+            <span>{t(`visibility.${table.visibility}`)}</span>
           </span>
           {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
         </div>

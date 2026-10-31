@@ -190,7 +190,8 @@ async function renderPage() {
 
 /** History lives in a sheet the header's button opens. */
 async function openHistory() {
-  await userEvent.click(await screen.findByRole("button", { name: "Versions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "More" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Versions" }));
 }
 
 beforeEach(() => {
@@ -264,7 +265,8 @@ describe("the workflow editor page permission gate", () => {
     state.canEdit = true;
     await renderPage();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Switch to view only" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Switch to view only" }));
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-readonly", "true");
     expect(screen.getByTestId("node-editor")).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByTestId("publish-dialog")).not.toBeInTheDocument();
@@ -277,7 +279,8 @@ describe("the workflow editor page permission gate", () => {
     expect(screen.getByTestId("version-history")).toHaveAttribute("data-restorable", "false");
     await userEvent.click(screen.getByRole("button", { name: /close/i }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Switch to editing" }));
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Switch to editing" }));
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-readonly", "false");
     expect(screen.getByTestId("publish-dialog")).toBeInTheDocument();
   });

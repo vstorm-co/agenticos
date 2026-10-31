@@ -119,6 +119,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const tp = useTranslations("pages.tables");
   const tTriggers = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const tMenu = useTranslations("tables.columnMenu");
 
   const [tabParam, setTabParam] = useUrlState("view");
@@ -173,7 +174,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   // A board groups by its view's column, or - with no view saying so - by the
   // column picked above it, so a board is one choice away rather than a dead end.
   const [groupPick, setGroupPick] = useState<string | null>(null);
-  const groupBy = activeView?.config.group_by ?? groupPick;
+  const liveColumns = table?.columns.filter((column) => !column.archived) ?? [];
+  const groupable = liveColumns.filter((column) => column.type === "single_select");
+  const groupBy =
+    activeView?.config.group_by ?? groupPick ?? (groupable.length === 1 ? groupable[0]!.id : null);
 
   // `sort` is the grid's own working sort, seeded from the active view's
   // stored one each time the view changes - re-seeded from render, not a
@@ -212,6 +216,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
 
   const {
     records,
+    error: recordsError,
+    refetch: refetchRecords,
     hasMore,
     isLoading: recordsLoading,
     isPlaceholderData: recordsPlaceholder,
@@ -234,7 +240,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;
-  const liveColumns = table.columns.filter((column) => !column.archived);
   const columns = liveColumns.filter((column) => visible === null || visible.includes(column.id));
   const hidden = liveColumns.filter((column) => !columns.includes(column));
   // What this screen shows now, against what the active view keeps.
@@ -245,7 +250,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     visible_columns: visible,
     group_by: tab === "kanban" ? groupBy : (activeView?.config.group_by ?? null),
   };
-  const groupable = liveColumns.filter((column) => column.type === "single_select");
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
   const unsaved =
     activeView !== null &&
@@ -308,7 +312,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title={table.name}
         descriptionMode="summary"
@@ -355,9 +359,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             >
               <Zap className="h-4 w-4" /> {tTriggers("button")}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-              <Share2 className="h-4 w-4" /> {t("share")}
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" aria-label={t("more")} title={t("more")}>
@@ -365,6 +366,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                  <Share2 className="h-4 w-4" /> {t("share")}
+                </DropdownMenuItem>
+
                 {canEdit && (
                   <DropdownMenuItem onSelect={() => setImporting(true)}>
                     <Upload className="h-4 w-4" /> {t("import")}
@@ -407,219 +412,244 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         />
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        {/* What the records are laid out as, and which saved view of them - one group. */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <span id="table-format-label" className="text-muted-foreground text-xs font-medium">
-              {t("formatLabel")}
-            </span>
-            <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
-              <TabsList
-                data-tour="table-view-tabs"
-                aria-labelledby="table-format-label"
-                className="gap-2"
-              >
-                {VIEW_TABS.map(({ kind, icon: Icon }) => (
-                  <TabsTrigger key={kind} value={kind} className="gap-1.5 text-xs">
-                    <Icon aria-hidden="true" className="size-3.5" />
-                    {t(`tabs.${kind}`)}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-          <ViewSelect
-            kind={tab}
-            views={views}
-            activeViewId={viewIdParam}
-            onSelect={setViewIdParam}
-            canCreate={canEdit}
-            onCreate={async (name, visibility) => {
-              const created = await createView.mutateAsync({
-                name,
-                kind: tab,
-                visibility,
-                // A new view keeps what the screen is narrowed by now, and a
-                // board the column it is grouped by.
-                config: {
-                  ...emptyViewConfig(),
-                  ...working,
-                  group_by: tab === "kanban" ? groupBy : null,
-                },
-              });
-              setViewIdParam(created.id);
-            }}
-            onRename={(viewId, name) => updateView.mutateAsync({ viewId, data: { name } })}
-            meId={meId}
-            onSetVisibility={(viewId, visibility) =>
-              updateView
-                .mutateAsync({ viewId, data: { visibility } })
-                .then(() =>
-                  toast.success(tViews(visibility === "shared" ? "nowShared" : "nowPrivate")),
-                )
-            }
-            onDelete={(viewId) =>
-              // Deselected only once it is gone: a refused delete (toasted by the
-              // hook) leaves the view in place and still selected.
-              removeView.mutateAsync(viewId).then(
-                () => {
-                  if (viewId === viewIdParam) setViewIdParam(null);
-                },
-                () => undefined,
-              )
-            }
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={searchDraft}
-            onChange={setSearchDraft}
-            placeholder={t("search")}
-            className="sm:w-56"
-          />
-          <RecordFiltersPopover
-            columns={liveColumns.filter(filterable)}
-            filters={filters}
-            onChange={setFilters}
-          />
-          {hidden.length > 0 && (
-            <HiddenColumnsPopover
-              hidden={hidden}
-              onShow={(column) => setShown(column.id, true)}
-              onShowAll={() => setVisible(null)}
-            />
-          )}
-          {unsaved && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                void updateView
-                  .mutateAsync({
-                    viewId: activeView.id,
-                    data: { config: { ...activeView.config, ...working } },
-                  })
-                  .then(
-                    () => toast.success(t("viewSaved")),
-                    // The hook leaves a refused update to its caller; there is
-                    // no dialog here to show it in.
-                    (error: unknown) => toast.error(getErrorMessage(error, tErrors)),
+      <div
+        data-table-workspace
+        className="bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border shadow-sm"
+      >
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
+          {/* What the records are laid out as, and which saved view of them - one group. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-1">
+              <span id="table-format-label" className="sr-only">
+                {t("formatLabel")}
+              </span>
+              <Tabs value={tab} onValueChange={(next) => setTab(next as ViewKind)}>
+                <TabsList
+                  data-tour="table-view-tabs"
+                  aria-labelledby="table-format-label"
+                  className="gap-2"
+                >
+                  {VIEW_TABS.map(({ kind, icon: Icon }) => (
+                    <TabsTrigger key={kind} value={kind} className="gap-1.5 text-xs">
+                      <Icon aria-hidden="true" className="size-3.5" />
+                      {t(`tabs.${kind}`)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+            <ViewSelect
+              kind={tab}
+              views={views}
+              activeViewId={viewIdParam}
+              onSelect={setViewIdParam}
+              canCreate={canEdit}
+              onCreate={async (name, visibility) => {
+                const created = await createView.mutateAsync({
+                  name,
+                  kind: tab,
+                  visibility,
+                  // A new view keeps what the screen is narrowed by now, and a
+                  // board the column it is grouped by.
+                  config: {
+                    ...emptyViewConfig(),
+                    ...working,
+                    group_by: tab === "kanban" ? groupBy : null,
+                  },
+                });
+                setViewIdParam(created.id);
+              }}
+              onRename={(viewId, name) => updateView.mutateAsync({ viewId, data: { name } })}
+              meId={meId}
+              onSetVisibility={(viewId, visibility) =>
+                updateView
+                  .mutateAsync({ viewId, data: { visibility } })
+                  .then(() =>
+                    toast.success(tViews(visibility === "shared" ? "nowShared" : "nowPrivate")),
                   )
               }
-            >
-              <Save className="h-4 w-4" /> {t("saveView")}
-            </Button>
+              onDelete={(viewId) =>
+                // Deselected only once it is gone: a refused delete (toasted by the
+                // hook) leaves the view in place and still selected.
+                removeView.mutateAsync(viewId).then(
+                  () => {
+                    if (viewId === viewIdParam) setViewIdParam(null);
+                  },
+                  () => undefined,
+                )
+              }
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              value={searchDraft}
+              onChange={setSearchDraft}
+              placeholder={t("search")}
+              className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+            />
+            <RecordFiltersPopover
+              columns={liveColumns.filter(filterable)}
+              filters={filters}
+              onChange={setFilters}
+            />
+            {hidden.length > 0 && (
+              <HiddenColumnsPopover
+                hidden={hidden}
+                onShow={(column) => setShown(column.id, true)}
+                onShowAll={() => setVisible(null)}
+              />
+            )}
+            {unsaved && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void updateView
+                    .mutateAsync({
+                      viewId: activeView.id,
+                      data: { config: { ...activeView.config, ...working } },
+                    })
+                    .then(
+                      () => toast.success(t("viewSaved")),
+                      // The hook leaves a refused update to its caller; there is
+                      // no dialog here to show it in.
+                      (error: unknown) => toast.error(getErrorMessage(error, tErrors)),
+                    )
+                }
+              >
+                <Save className="h-4 w-4" /> {t("saveView")}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-5">
+          {(tab === "table" ? grid.error : tab === "list" ? recordsError : null) ? (
+            <ErrorState
+              cta={{
+                label: tc("retry"),
+                onClick: () => void (tab === "table" ? grid.refetch() : refetchRecords()),
+              }}
+            />
+          ) : (
+            <>
+              {tab === "table" && (
+                // A bounded height, so the grid scrolls its own rows and draws only those in view.
+                <div className="flex h-[calc(100dvh-16rem)] min-h-96 flex-col">
+                  <TableGridView
+                    tableId={id}
+                    canEdit={canEdit}
+                    onAddRecord={canEdit ? addRecord : undefined}
+                    columnActions={canEdit ? columnActions : undefined}
+                    onAddColumn={canEdit ? () => setAddingColumn(true) : undefined}
+                    columns={columns}
+                    records={grid.records}
+                    isLoading={grid.isLoading}
+                    onEndReached={grid.loadMore}
+                    sort={sort}
+                    onSort={setSort}
+                    onOpenRecord={setOpenRecord}
+                  />
+                  {(grid.isFetchingNextPage || grid.truncated) && (
+                    <p className="text-muted-foreground mt-2 text-center text-xs">
+                      {grid.isFetchingNextPage ? t("loadingMore") : t("truncated")}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {tab === "kanban" &&
+                groupBy !== null &&
+                groupable.length > 1 &&
+                !activeView?.config.group_by && (
+                  // Picked here rather than saved: it can be picked again.
+                  <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
+                    {t("kanbanGroupBy")}
+                    <Select value={groupBy ?? ""} onValueChange={setGroupPick}>
+                      <SelectTrigger className="h-8 w-44" aria-label={t("kanbanGroupBy")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupable.map((column) => (
+                          <SelectItem key={column.id} value={column.id}>
+                            {column.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              {tab === "kanban" &&
+                (groupBy ? (
+                  <TableKanbanView
+                    tableId={id}
+                    columns={table.columns}
+                    shownColumns={columns}
+                    groupByColumnId={groupBy}
+                    baseFilters={applied}
+                    search={search}
+                    sort={sort}
+                    onOpenRecord={setOpenRecord}
+                    canEdit={canEdit}
+                  />
+                ) : (
+                  <div className="border-border flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
+                    <p className="text-sm font-medium">{t("kanbanGroupTitle")}</p>
+                    {groupable.length > 0 ? (
+                      <>
+                        <p className="text-muted-foreground max-w-md text-sm">
+                          {t("kanbanGroupHint")}
+                        </p>
+                        <Select value="" onValueChange={setGroupPick}>
+                          <SelectTrigger className="w-56" aria-label={t("kanbanGroupBy")}>
+                            <SelectValue placeholder={t("kanbanGroupBy")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groupable.map((column) => (
+                              <SelectItem key={column.id} value={column.id}>
+                                {column.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-muted-foreground max-w-md text-sm">
+                          {t("kanbanNoGroupable")}
+                        </p>
+                        {canEdit && (
+                          <Button size="sm" variant="outline" onClick={() => setAddingColumn(true)}>
+                            <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+
+              {tab === "list" && (
+                <>
+                  <TableListView
+                    columns={columns}
+                    records={records}
+                    isLoading={recordsLoading}
+                    onOpenRecord={setOpenRecord}
+                  />
+                  <div className="mt-3">
+                    <HasMorePager
+                      page={page}
+                      hasMore={hasMore}
+                      isLoading={recordsLoading || recordsPlaceholder}
+                      onPage={setPage}
+                    />
+                  </div>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
-
-      {tab === "table" && (
-        // A bounded height, so the grid scrolls its own rows and draws only those in view.
-        <div className="flex h-[calc(100dvh-16rem)] min-h-96 flex-col">
-          <TableGridView
-            tableId={id}
-            canEdit={canEdit}
-            onAddRecord={canEdit ? addRecord : undefined}
-            columnActions={canEdit ? columnActions : undefined}
-            onAddColumn={canEdit ? () => setAddingColumn(true) : undefined}
-            columns={columns}
-            records={grid.records}
-            isLoading={grid.isLoading}
-            onEndReached={grid.loadMore}
-            sort={sort}
-            onSort={setSort}
-            onOpenRecord={setOpenRecord}
-          />
-          {(grid.isFetchingNextPage || grid.truncated) && (
-            <p className="text-muted-foreground mt-2 text-center text-xs">
-              {grid.isFetchingNextPage ? t("loadingMore") : t("truncated")}
-            </p>
-          )}
-        </div>
-      )}
-
-      {tab === "kanban" && groupPick !== null && !activeView?.config.group_by && (
-        // Picked here rather than saved: it can be picked again.
-        <div className="text-muted-foreground mb-3 flex items-center gap-2 text-sm">
-          {t("kanbanGroupBy")}
-          <Select value={groupPick} onValueChange={setGroupPick}>
-            <SelectTrigger className="h-8 w-44" aria-label={t("kanbanGroupBy")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {groupable.map((column) => (
-                <SelectItem key={column.id} value={column.id}>
-                  {column.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      {tab === "kanban" &&
-        (groupBy ? (
-          <TableKanbanView
-            tableId={id}
-            columns={table.columns}
-            shownColumns={columns}
-            groupByColumnId={groupBy}
-            baseFilters={applied}
-            search={search}
-            sort={sort}
-            onOpenRecord={setOpenRecord}
-            canEdit={canEdit}
-          />
-        ) : (
-          <div className="border-border flex flex-col items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
-            <p className="text-sm font-medium">{t("kanbanGroupTitle")}</p>
-            {groupable.length > 0 ? (
-              <>
-                <p className="text-muted-foreground max-w-md text-sm">{t("kanbanGroupHint")}</p>
-                <Select value="" onValueChange={setGroupPick}>
-                  <SelectTrigger className="w-56" aria-label={t("kanbanGroupBy")}>
-                    <SelectValue placeholder={t("kanbanGroupBy")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {groupable.map((column) => (
-                      <SelectItem key={column.id} value={column.id}>
-                        {column.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            ) : (
-              <>
-                <p className="text-muted-foreground max-w-md text-sm">{t("kanbanNoGroupable")}</p>
-                {canEdit && (
-                  <Button size="sm" variant="outline" onClick={() => setAddingColumn(true)}>
-                    <Plus className="h-4 w-4" /> {t("kanbanAddColumn")}
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        ))}
-
-      {tab === "list" && (
-        <>
-          <TableListView
-            columns={columns}
-            records={records}
-            isLoading={recordsLoading}
-            onOpenRecord={setOpenRecord}
-          />
-          <div className="mt-3">
-            <HasMorePager
-              page={page}
-              hasMore={hasMore}
-              isLoading={recordsLoading || recordsPlaceholder}
-              onPage={setPage}
-            />
-          </div>
-        </>
-      )}
 
       <RecordDetailSheet
         tableId={id}

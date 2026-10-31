@@ -1,5 +1,5 @@
 ---
-source_sha: "d8dd2e5f7ec0"
+source_sha: "fd2e6c03d164"
 ---
 
 # Workflows { #workflows }
@@ -18,11 +18,9 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** otwiera okno, które pozwala zacząć od wyzwalacza lub od szablonu.
-**How does it start?** oferuje każdy wyzwalacz - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i **On failure of a workflow** - każdy jako poza nim
-pusta kanwa, która od niego się zaczyna. Szablony to gotowe punkty wyjścia — **Starter**, pojedynczy krok do zmiany nazwy i podłączenia, oraz
-**Two-step sequence**, dwa już połączone kroki dla liniowego przebiegu. Wybierz
-jeden przyciskiem **Use**, a znajdziesz się w edytorze.
+**New workflow** ma dwie zakładki: **How does it start?** i **Templates**. Pierwsza pokazuje **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** i **Table record**; **More ways to start** odsłania pozostałe wyzwalacze. Szablony obejmują **Starter**, **Two-step sequence** i automatyzacje opisane poniżej. **Use** otwiera draft w edytorze.
+
+Katalog trzyma karty i wyszukiwanie we wspólnym panelu. **Filters** odsłania status, tagi i sortowanie oraz pokazuje liczbę aktywnych filtrów. Nieudane pobranie danych daje **Retry** zamiast pustego katalogu. Import zaczyna się od wyboru pliku; **Or paste the file's JSON here** odsłania pole tekstowe z etykietą.
 
 Lista pokazuje każdy workflow, który widzisz, jako kartę: jego status, kto może do
 niego dotrzeć, czy ma żywą wersję i kiedy ostatnio go edytowano. **Filter by
@@ -86,6 +84,8 @@ udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany
 `WORKFLOW_IN_USE`.
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
+
+Edytor pozostawia widoczne **Runs**, **Test draft** i **Publish**. **More** zawiera **Versions** i przełącznik edycji/podglądu. **Canvas options** mieści minimapę, styl połączeń i skróty. Krok bez połączenia wejściowego pomija pusty panel Input, zostawiając więcej miejsca na parametry; **Expected output fields** rozwija schemat wyjścia. **Review setup before testing** odsłania brakującą konfigurację.
 
 **Kanwa** to miejsce, w którym pojawiają się kroki i połączenia workflow, i ma całą
 szerokość edytora pod nagłówkiem. **Węzeł** to jeden krok; **krawędź** to
@@ -639,7 +639,7 @@ zablokowane z **Fix the problems below before publishing**, więc wersja, która
 przeszła walidacji, nigdy nie powstaje.
 
 Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
-opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** w nagłówku edytora
+opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** pod **More** w nagłówku edytora
 otwiera każdą opublikowaną wersję wraz z jej release note, a aktywną oznacza **Live**. **View** otwiera
 wcześniejszą wersję tylko do odczytu - opublikowana wersja jest tylko do odczytu, a
 aby wprowadzić zmiany, edytujesz draft dalej.
@@ -662,6 +662,8 @@ działa wolno albo zawodzi. Przesunięcie kroku i przypięte dane testowe nie s�
 zmianami. **Show this version** wraca do samej wersji.
 
 ## Ustawienia workflow { #workflow-settings }
+
+**Settings** grupuje czas i obsługę błędów, historię i retencję oraz limity w rozwijanych sekcjach. Sekcje ze zmienionymi wartościami są początkowo otwarte. Strona uruchomień zaczyna się od historii; **Live performance** rozwija statystyki opublikowanych uruchomień. Runs i Logs trzymają dodatkowe kontrolki pod **Filters**. Odrzucony filtr uruchomienia z linku automatycznie odsłania swoje pole i błąd.
 
 Wyniki inline mają wspólne limity: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB na run) i `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB łącznie dla zachowanych runów). Rezerwacje obejmują kompaktowe wyniki prób, również syntetyczne wyjścia pętli, oraz możliwe kopie w wyniku runa, odpowiedzi webhooka i błędzie. Nie mierzą fizycznego storage PostgreSQL ani nie zastępują polityki całego deploymentu. Małe końcowe rekordy błędu mogą przekroczyć pełny limit, aby zamknąć przebieg. `WORKFLOW_INLINE_RESULT_LIMIT` nie da się ominąć routingiem błędów; koszty pozostają, efekty nie są automatycznie ponawiane. Handler mógł już wykonać działanie przed odmową zapisu wyniku. Użyj referencji do plików albo retencji historii, która zwalnia rezerwacje.
 

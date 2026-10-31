@@ -31,6 +31,13 @@ export function RunFiles({ runId, files }: { runId: string; files: WorkflowRunFi
     }
   }
 
+  if (files.length === 0)
+    return (
+      <p className="text-muted-foreground rounded-lg border px-4 py-3 text-xs">
+        {t("runFilesNone")}
+      </p>
+    );
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -38,35 +45,31 @@ export function RunFiles({ runId, files }: { runId: string; files: WorkflowRunFi
         <CardDescription className="text-xs">{t("runFilesCaption")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {files.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("runFilesNone")}</p>
-        ) : (
-          <ul className="divide-border divide-y">
-            {files.map((file) => {
-              const name = file.filename ?? file.id;
-              return (
-                <li key={file.id} className="flex items-center gap-2 py-2">
-                  <File aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{name}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {file.content_type} · {formatBytes(file.byte_size)}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("runFileDownload", { name })}
-                    disabled={saving === file.id}
-                    onClick={() => void save(file)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <ul className="divide-border divide-y">
+          {files.map((file) => {
+            const name = file.filename ?? file.id;
+            return (
+              <li key={file.id} className="flex items-center gap-2 py-2">
+                <File aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm">{name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {file.content_type} · {formatBytes(file.byte_size)}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("runFileDownload", { name })}
+                  disabled={saving === file.id}
+                  onClick={() => void save(file)}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
       </CardContent>
     </Card>
   );

@@ -6,7 +6,7 @@ import { Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Button } from "@/components/ui";
+import { Button, MoreOptions } from "@/components/ui";
 import { RunHistory } from "@/components/workflows/runs/run-history";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { WorkflowStats } from "@/components/workflows/runs/workflow-stats";
@@ -30,6 +30,7 @@ export default function WorkflowRunsPage({ params }: PageProps) {
   const { id } = use(params);
   const t = useTranslations("pages.workflows");
   const router = useRouter();
+  const ts = useTranslations("pages.workflows.stats");
   const { workflow } = useWorkflow(id);
   const { start } = useWorkflowRuns(id);
   const { can } = usePermissions();
@@ -67,8 +68,12 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           ) : undefined
         }
       />
-      <WorkflowStats workflowId={id} />
       <RunHistory workflowId={id} />
+      <div className="bg-card rounded-xl border p-4">
+        <MoreOptions label={ts("heading")}>
+          <WorkflowStats workflowId={id} />
+        </MoreOptions>
+      </div>
       {startOpen && (
         <StartRunDialog
           open

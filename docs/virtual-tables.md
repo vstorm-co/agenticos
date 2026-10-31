@@ -257,6 +257,8 @@ A delete is a hard delete. The record's history stays until its retention remove
 
 ## Editing records in the console { #editing-in-the-console }
 
+The catalog and the Table, Kanban and List views share a panel with search and saved-view controls. **Add record** uses two columns on larger screens and one on a phone; long text and linked records keep the full width. The record side panel uses the console's shared keyboard and focus handling. **Columns** folds existing select options behind their count. A failed record request offers **Retry**.
+
 The catalog's cards say how many records and live columns each table has, who may
 reach it and when it last changed. On a table's page, each header shows its column's
 type by an icon, numbers sit right-aligned, and dates read as your locale writes
@@ -391,6 +393,8 @@ view. Past the 10,000 records a query may skip, it asks for a filter or a search
 
 ## Saved views { #saved-views }
 
+A kanban board without saved grouping uses the only live single-select column automatically. With several, choose which column makes its lanes. Saving a view keeps that grouping. List rows name their secondary fields and show **Unnamed record** when the title is empty. **Triggers** offers **Open workflows** when no workflow starts from the table yet.
+
 A **view** is a kept filter, sort and grouping over one table's records - what the
 console's table/kanban/list screens save so a person does not rebuild the same
 board every visit. It is a sub-resource of the table, not a shareable resource of
@@ -399,9 +403,8 @@ its own: a view has no owner-and-grants of its own kind, and `shared` means only
 widens access beyond what the table itself allows.
 
 In the console, the screen with no view picked reads **All records**, and **+** beside
-it saves what the screen shows as a new view. A kanban board with no view asks which
-single-select column makes its lanes and draws at once; saved as a view, it keeps
-that grouping. A card lists up to four of the screen's columns under its title,
+it saves what the screen shows as a new view. A kanban board uses its only live single-select column automatically, or asks which
+column makes its lanes when several are available; saving a view keeps the grouping. A card lists up to four of the screen's columns under its title,
 leaving out empty ones. A table with no single-select column offers **Add a column** instead.
 
 The view's owner switches it between **Private** and **Shared** with the button beside

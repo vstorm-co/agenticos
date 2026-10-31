@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { EmptyState, ErrorState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Button, ConfirmDialog, ListCard, Switch } from "@/components/ui";
 import { useWorkflowLogAlerts } from "@/hooks";
 import { formatDateTimeSeconds } from "@/lib/utils";
@@ -35,9 +35,10 @@ export function LogAlerts({
         title={t("alertsTitle")}
         counted={isLoading ? null : error !== null ? "" : t("alertsCount", { count: rules.length })}
         headerTour="workflow-log-alerts"
+        contentClassName={rules.length === 0 && !isLoading ? "px-5 py-4" : undefined}
         controls={
           canEdit ? (
-            <Button size="sm" onClick={() => setEditing(null)}>
+            <Button variant="outline" size="sm" onClick={() => setEditing(null)}>
               <Plus className="h-3.5 w-3.5" />
               {t("alertNew")}
             </Button>
@@ -51,11 +52,9 @@ export function LogAlerts({
             cta={{ label: t("logsRetry"), onClick: () => void refetch() }}
           />
         ) : rules.length === 0 && !isLoading ? (
-          <EmptyState
-            icon={Bell}
-            title={t("alertsEmpty")}
-            description={canEdit ? t("alertsEmptyDetail") : t("alertsEmptyViewer")}
-          />
+          <p className="text-muted-foreground max-w-2xl text-sm">
+            {canEdit ? t("alertsEmptyDetail") : t("alertsEmptyViewer")}
+          </p>
         ) : (
           <ul className="divide-border divide-y">
             {rules.map((rule) => (

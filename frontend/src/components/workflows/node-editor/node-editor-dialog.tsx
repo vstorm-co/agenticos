@@ -137,7 +137,7 @@ export function NodeEditorDialog({
   };
   const names = nodeNames(graph, catalogIndex);
   const withData = workflowId !== undefined && (runData || !readOnly) && definition !== null;
-  const withInput = withData && node.id !== graph.entry_node_id;
+  const withInput = withData && graph.edges.some((edge) => edge.target_node_id === node.id);
 
   const form = definition !== null && (
     // Listens for focus leaving a field inside it; the fields are the controls,
@@ -305,7 +305,7 @@ export function NodeEditorDialog({
             withInput &&
               !runData &&
               "lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)_minmax(0,0.85fr)]",
-            withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]",
+            withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]",
             // A run's step is read for its data: Input and Output side by side,
             // the settings it ran with folded underneath.
             runData && withInput && "lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto]",

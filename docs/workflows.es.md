@@ -1,5 +1,5 @@
 ---
-source_sha: "d8dd2e5f7ec0"
+source_sha: "fd2e6c03d164"
 ---
 
 # Workflows { #workflows }
@@ -18,13 +18,9 @@ sí no tiene recorrido.
 
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** abre un diálogo que te deja empezar desde un trigger o desde una
-plantilla. **How does it start?** ofrece cada trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** y
-**On failure of a workflow** -, cada uno un
-lienzo por lo demás vacío que empieza por él. Las plantillas son puntos de partida
-listos — **Starter**, un único paso para
-renombrar y conectar, y **Two-step sequence**, dos pasos ya conectados para un flujo
-lineal. Elige una con **Use** y aterrizas en el editor.
+**New workflow** tiene dos pestañas: **How does it start?** y **Templates**. La primera muestra **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** y **Table record**; **More ways to start** muestra los demás triggers. Las plantillas incluyen **Starter**, **Two-step sequence** y las automatizaciones descritas abajo. **Use** abre un borrador en el editor.
+
+El catálogo reúne las tarjetas y la búsqueda en un panel. **Filters** muestra estado, etiquetas y orden, junto al número de filtros activos. Un fallo de carga ofrece **Retry** en lugar de un catálogo vacío. La importación empieza eligiendo un archivo; **Or paste the file's JSON here** abre un campo de texto con etiqueta.
 
 La lista muestra cada workflow que puedes ver como una tarjeta: su estado, quién
 puede alcanzarlo, si tiene una versión en vivo y cuándo se editó por última vez.
@@ -92,6 +88,8 @@ versiones, ejecuciones y permisos compartidos; uno cuyas ejecuciones no han term
 rechaza con `WORKFLOW_IN_USE`.
 
 ## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
+
+El editor mantiene visibles **Runs**, **Test draft** y **Publish**. **More** contiene **Versions** y el cambio entre edición y lectura. **Canvas options** reúne minimapa, estilo de conexión y atajos. Un paso sin conexión entrante omite el panel Input vacío y deja más espacio a los parámetros; **Expected output fields** despliega el esquema de salida. **Review setup before testing** muestra la configuración pendiente.
 
 El **lienzo** es donde aparecen los pasos y las conexiones de un workflow, y tiene
 todo el ancho del editor bajo la cabecera. Un **nodo** es un paso; una **arista** es
@@ -685,6 +683,8 @@ cuando va lento o falla. Mover un paso y los datos de prueba fijados no son camb
 **Show this version** vuelve a la versión sola.
 
 ## Ajustes del workflow { #workflow-settings }
+
+**Settings** agrupa tiempos y errores, historial y retención, y límites en secciones desplegables. Las secciones con valores modificados empiezan abiertas. La página de ejecuciones comienza por el historial; **Live performance** despliega estadísticas de ejecuciones publicadas. Runs y Logs reúnen los controles secundarios en **Filters**. Un filtro de ejecución rechazado desde un enlace abre automáticamente su campo y su error.
 
 Los resultados inline retenidos comparten límites: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB por ejecución) y `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB entre ejecuciones retenidas). Las reservas cuentan resultados compactos, incluidas salidas sintéticas de bucles y posibles copias de resultado, webhook y error. No miden el almacenamiento físico de PostgreSQL ni sustituyen la política global del despliegue. Pequeños registros terminales pueden superar una cuota llena para cerrar la ejecución. `WORKFLOW_INLINE_RESULT_LIMIT` no admite desvíos por rutas de error; conserva costes y no repite efectos automáticamente. El handler puede haber actuado antes del rechazo. Usa referencias de archivos o retención del historial para liberar reservas.
 

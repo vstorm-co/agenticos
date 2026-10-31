@@ -5357,7 +5357,6 @@
       "alertsCount": "{count, plural, =0 {No alerts} one {# alert} other {# alerts}}",
       "alertsFailed": "Could not load the alerts",
       "alertsFailedDetail": "The alert rules did not load. Nothing is lost; try again.",
-      "alertsEmpty": "No alerts yet",
       "alertsEmptyDetail": "Add an alert to tell people when something happens too often in this workflow's log, such as five failures in fifteen minutes.",
       "alertsEmptyViewer": "Nobody has set up an alert on this workflow's log.",
       "alertNew": "Add alert",
@@ -5509,10 +5508,10 @@
       "settingsMonthlyBudgetHint": "Counted over the calendar month in UTC, test runs included. Once reached, no run starts until the month turns or the budget is raised.",
       "settingsNoLimit": "No limit",
       "stats": {
-        "heading": "How it ran",
+        "heading": "Live performance",
         "window": "Window",
         "days": "{days, plural, other {# days}}",
-        "runs": "Runs",
+        "runs": "Live runs",
         "runsCaption": "{failed, plural, =0 {None failed} =1 {1 failed} other {# failed}}",
         "succeeded": "Succeeded",
         "succeededCaption": "{succeeded} of {ended, plural, =1 {1 run that ended} other {# runs that ended}}",
@@ -5550,7 +5549,12 @@
       "alertNameHint": "What you will see in the list and in the notification",
       "alertStepHint": "Watch one step, or every step that logs",
       "alertWindowHint": "Within how long",
-      "alertAudienceHint": "Who gets the bell and the email"
+      "alertAudienceHint": "Who gets the bell and the email",
+      "moreStarts": "More ways to start",
+      "importJson": "Workflow JSON",
+      "settingsExecution": "Timing and error handling",
+      "settingsHistory": "Run history and retention",
+      "importReadError": "Could not read this file. Choose it again or paste its JSON."
     },
     "retention": {
       "title": "Data retention",
@@ -7085,7 +7089,8 @@
           "created": "added",
           "updated": "changed",
           "deleted": "deleted"
-        }
+        },
+        "openWorkflows": "Open workflows"
       },
       "newRecord": {
         "title": "New record",
@@ -9119,7 +9124,10 @@
     "toolbarSetup": "Finish setup · {count}",
     "pickerConnectAccount": "Connect account",
     "pickerConnectAccountHint": "Connect an organization account to use it in this workflow. When you finish, choose it in the step’s account field.",
-    "pickerApiKeyNew": "Add API key"
+    "pickerApiKeyNew": "Add API key",
+    "toolbarDisplay": "Canvas options",
+    "stepOutputFields": "Expected output fields",
+    "stepReviewSetup": "Review setup before testing"
   },
   "artifacts": {
     "title": "Apps",
@@ -9449,7 +9457,8 @@
       "findRecord": "Find a record",
       "finding": "Looking…",
       "noRecordsFound": "No records match.",
-      "workedOut": "Worked out from other columns"
+      "workedOut": "Worked out from other columns",
+      "unnamedRecord": "Unnamed record"
     },
     "create": {
       "title": "New table",
@@ -9539,7 +9548,8 @@
       "archivedHeading": "Archived columns - their values are kept",
       "restore": "Restore",
       "retype": "Saving turns every value from {from} into {to}. If one does not read as {to}, nothing is saved and the dialog says which.",
-      "retypeToChoice": "Saving turns every value from {from} into {to}: each different value becomes one of its choices."
+      "retypeToChoice": "Saving turns every value from {from} into {to}: each different value becomes one of its choices.",
+      "optionsCount": "{count, plural, one {# option} other {# options}}"
     },
     "sheet": {
       "title": "Record",

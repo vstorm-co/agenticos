@@ -15,7 +15,8 @@ import {
   DialogTitle,
   Switch,
 } from "@/components/ui";
-import { useTableTriggerAdmissions, useTableTriggers } from "@/hooks";
+import { usePermissions, useTableTriggerAdmissions, useTableTriggers } from "@/hooks";
+import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ColumnDef, TableTriggerRead } from "@/types/tables";
@@ -42,6 +43,7 @@ export function TableTriggersPanel({
 }) {
   const t = useTranslations("pages.tables.triggers");
   const { triggers, isLoading, setActive } = useTableTriggers(tableId);
+  const { can } = usePermissions();
   const [history, setHistory] = useState<TableTriggerRead | null>(null);
   const labels = new Map(columns.map((column) => [column.id, column.label]));
 
@@ -53,6 +55,11 @@ export function TableTriggersPanel({
       {triggers.length === 0 ? (
         <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-center text-sm">
           {t("empty")}
+          {can(Perm.workflowsView) && (
+            <Button asChild variant="outline" size="sm" className="mt-3">
+              <Link href={ROUTES.WORKFLOWS}>{t("openWorkflows")}</Link>
+            </Button>
+          )}
         </p>
       ) : (
         <ul className="space-y-2">

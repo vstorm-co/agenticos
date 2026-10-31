@@ -299,27 +299,33 @@ describe("arranging and reading the canvas", () => {
     const tile = () => container.querySelector("[data-node-id='a'] span[data-node-family]");
     expect(tile()).toHaveClass("node-tile-data");
 
-    await userEvent.click(screen.getByRole("button", { name: "Show steps plainly" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show steps plainly" }));
     expect(useWorkflowNodeStyleStore.getState().style).toBe("simple");
     expect(tile()).toHaveClass("bg-muted");
     // The minimap follows: no family colour in Simple, the family's colour otherwise.
     const mark = () =>
       container.querySelector("rect.react-flow__minimap-node") as SVGElement | null;
-    await userEvent.click(screen.getByRole("button", { name: "Show the minimap" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show the minimap" }));
     expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
     expect(mark()).not.toBeNull();
     expect(mark()?.style.fill).toBe("");
 
-    await userEvent.click(screen.getByRole("button", { name: "Show steps in colour" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show steps in colour" }));
     expect(useWorkflowNodeStyleStore.getState().style).toBe("colour");
     expect(tile()).toHaveClass("node-tile-data");
     expect(mark()?.style.fill).toBe("var(--family-map-data)");
-    expect(screen.getByRole("button", { name: "Show steps plainly" })).toHaveAttribute(
-      "aria-pressed",
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    expect(screen.getByRole("menuitemcheckbox", { name: "Show steps plainly" })).toHaveAttribute(
+      "aria-checked",
       "true",
     );
+    await userEvent.keyboard("{Escape}");
     expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Hide the minimap" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Hide the minimap" }));
   });
 
   it("tidies the steps in one edit, shows a minimap and the shortcut sheet", async () => {
@@ -345,12 +351,15 @@ describe("arranging and reading the canvas", () => {
     const [a, b] = store.getState().graph!.nodes;
     expect(b!.layout.x).toBeGreaterThan(a!.layout.x);
 
-    await userEvent.click(screen.getByRole("button", { name: "Show the minimap" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show the minimap" }));
     expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Hide the minimap" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Hide the minimap" }));
     expect(container.querySelector(".react-flow__minimap")).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Keyboard shortcuts" }));
     expect(screen.getByRole("heading", { name: "Keyboard shortcuts" })).toBeInTheDocument();
     // Two keys that each delete are two keys, not one label naming both.
     const deleteKey = screen.getByText("Delete", { selector: "kbd" });

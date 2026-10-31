@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Plus, Table2 } from "lucide-react";
 
+import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { type CsvStart, CreateTableDialog } from "@/components/tables/create-table-dialog";
 import { type CsvPreset, ImportCsvDialog } from "@/components/tables/import-csv-dialog";
@@ -53,7 +55,7 @@ export default function TablesPage() {
   // Kept in the URL like the workflows list's status, so a link can open the archive.
   const [shownParam, setShownParam] = useUrlState("show");
   const shown: Shown = shownParam === "all" ? "all" : "live";
-  const { tables, total, isLoading, create } = useTables({
+  const { tables, total, isLoading, error, refetch, create } = useTables({
     search,
     includeArchived: shown === "all",
     skip: page * PAGE_SIZE,
@@ -64,6 +66,7 @@ export default function TablesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [importing, setImporting] = useState<{ table: TableRead; preset: CsvPreset } | null>(null);
   const router = useRouter();
+  const tc = useTranslations("common");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6">
@@ -81,13 +84,13 @@ export default function TablesPage() {
 
       <ListCard
         namedByPage
-        layout="grid"
         fill
         title={t("catalog")}
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <SearchInput
+              className="min-w-0 flex-1 sm:flex-none"
               value={query}
               onChange={(next) => {
                 setQuery(next);
@@ -95,24 +98,26 @@ export default function TablesPage() {
               }}
               placeholder={t("searchPlaceholder")}
             />
-            <Select
-              value={shown}
-              onValueChange={(value) => {
-                setShownParam(value === "all" ? "all" : null);
-                setPage(0);
-              }}
-            >
-              <SelectTrigger className="w-44" aria-label={t("shownFilter")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SHOWN.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {t(`shown.${value}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ListFilters compact active={Number(shown !== "live")}>
+              <Select
+                value={shown}
+                onValueChange={(value) => {
+                  setShownParam(value === "all" ? "all" : null);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-44" aria-label={t("shownFilter")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SHOWN.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(`shown.${value}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ListFilters>
           </div>
         }
         data-tour="tables-catalog"
@@ -123,6 +128,8 @@ export default function TablesPage() {
               <Skeleton key={row} className="h-36 w-full rounded-xl" />
             ))}
           </div>
+        ) : error && tables.length === 0 ? (
+          <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
         ) : tables.length === 0 ? (
           <ListCardEmpty
             icon={Table2}
@@ -141,17 +148,16 @@ export default function TablesPage() {
             ))}
           </div>
         )}
+        <div>
+          <PaginationBar
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            isLoading={isLoading}
+            onPage={setPage}
+          />
+        </div>
       </ListCard>
-
-      <div>
-        <PaginationBar
-          page={page}
-          pageSize={PAGE_SIZE}
-          total={total}
-          isLoading={isLoading}
-          onPage={setPage}
-        />
-      </div>
 
       <CreateTableDialog
         open={createOpen}

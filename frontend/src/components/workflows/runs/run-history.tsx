@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
-import { EmptyState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Column,
   DataTable,
@@ -66,6 +67,7 @@ const SINCE_MS: Record<string, number> = {
 export function RunHistory({ workflowId }: { workflowId?: string }) {
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
+  const tc = useTranslations("common");
   const router = useRouter();
   const [status, setStatus] = useUrlState("status");
   const [mode, setMode] = useUrlState("mode");
@@ -77,7 +79,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
   const reach = since === null ? undefined : SINCE_MS[since];
   const [pageParam, setPage] = useUrlState("page");
   const page = Math.max(0, Number(pageParam ?? "0") || 0);
-  const { runs, total, isLoading } = useRunHistory({
+  const { runs, total, isLoading, error, refetch } = useRunHistory({
     workflowId,
     status: (status ?? undefined) as WorkflowRunStatus | undefined,
     mode: (mode ?? undefined) as "real" | "test" | undefined,
@@ -130,11 +132,13 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     {
       key: "started",
       header: t("runColumns.started"),
+      className: "whitespace-nowrap",
       cell: (run) => (run.started_at ? formatDateTime(run.started_at, locale) : "—"),
     },
     {
       key: "duration",
       header: t("runColumns.duration"),
+      className: "whitespace-nowrap",
       cell: (run) => formatRunDuration(run.started_at, run.ended_at),
       hideBelow: "sm",
     },
@@ -150,45 +154,56 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
   const filtered = status !== null || mode !== null || trigger !== null || reach !== undefined;
   return (
     <ListCard
+      namedByPage
       title={t("runsTitle")}
-      counted={isLoading ? null : t("runsCount", { count: total })}
+      counted={isLoading ? null : error ? "" : t("runsCount", { count: total })}
       data-tour={workflowId === undefined ? "workflows-runs" : "workflow-run-history"}
       controls={
         <div className="flex flex-wrap items-center gap-2">
-          <Filter
-            label={t("runFilterStatus")}
-            any={t("runFilterAnyStatus")}
-            value={status ?? ALL}
-            onChange={narrow(setStatus)}
-            options={STATUSES.map((value) => [value, t(`runStatus.${value}`)])}
-          />
-          <Filter
-            label={t("runFilterMode")}
-            any={t("runFilterAnyMode")}
-            value={mode ?? ALL}
-            onChange={narrow(setMode)}
-            options={MODES.map((value) => [
-              value,
-              value === "test" ? t("runModeTest") : t("runModeReal"),
-            ])}
-          />
-          <Filter
-            label={t("runFilterTrigger")}
-            any={t("runFilterAnyTrigger")}
-            value={trigger ?? ALL}
-            onChange={narrow(setTrigger)}
-            options={TRIGGERS.map((value) => [value, t(`trigger.${value}`)])}
-          />
-          <Filter
-            label={t("runFilterSince")}
-            any={t("runFilterAnySince")}
-            value={reach === undefined ? ALL : (since as string)}
-            onChange={(value) => {
-              setAnchor(Date.now());
-              narrow(setSince)(value);
-            }}
-            options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
-          />
+          <ListFilters
+            compact
+            active={
+              Number(status !== null) +
+              Number(mode !== null) +
+              Number(trigger !== null) +
+              Number(reach !== undefined)
+            }
+          >
+            <Filter
+              label={t("runFilterStatus")}
+              any={t("runFilterAnyStatus")}
+              value={status ?? ALL}
+              onChange={narrow(setStatus)}
+              options={STATUSES.map((value) => [value, t(`runStatus.${value}`)])}
+            />
+            <Filter
+              label={t("runFilterMode")}
+              any={t("runFilterAnyMode")}
+              value={mode ?? ALL}
+              onChange={narrow(setMode)}
+              options={MODES.map((value) => [
+                value,
+                value === "test" ? t("runModeTest") : t("runModeReal"),
+              ])}
+            />
+            <Filter
+              label={t("runFilterTrigger")}
+              any={t("runFilterAnyTrigger")}
+              value={trigger ?? ALL}
+              onChange={narrow(setTrigger)}
+              options={TRIGGERS.map((value) => [value, t(`trigger.${value}`)])}
+            />
+            <Filter
+              label={t("runFilterSince")}
+              any={t("runFilterAnySince")}
+              value={reach === undefined ? ALL : (since as string)}
+              onChange={(value) => {
+                setAnchor(Date.now());
+                narrow(setSince)(value);
+              }}
+              options={Object.keys(SINCE_MS).map((value) => [value, t(`runSince.${value}`)])}
+            />
+          </ListFilters>
         </div>
       }
     >
@@ -197,6 +212,11 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
         rows={runs}
         getRowKey={(run) => run.id}
         loading={isLoading}
+        error={
+          error ? (
+            <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+          ) : undefined
+        }
         onRowClick={(run) => router.push(ROUTES.WORKFLOW_RUN_DETAIL(run.workflow_id, run.id))}
         empty={
           filtered ? (

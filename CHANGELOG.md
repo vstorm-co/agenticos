@@ -1317,6 +1317,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Workflows and Tables follow the console's shared panel layout.** Catalog search stays visible while secondary filters fold away. Workflow creation separates triggers from templates, settings group advanced controls, and run history precedes live statistics. Step forms leave more room for parameters and disclose expected outputs on demand. Table, List and Kanban share one workspace; Kanban uses a unique grouping column automatically. Record forms and filters adapt to phones, record panels use shared focus handling, and failed catalog or record requests offer retry.
+
 - Replace card Details sections with concise metadata and edit dates; move skill and context deletion into the editor menu beside Share.
 
 - Order conversation agents by latest use, with full-size overlapping avatars and hidden older participants in the collapsed chat rail.

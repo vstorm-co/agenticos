@@ -43,24 +43,28 @@ export function TableListView({
   }
 
   return (
-    <ul className="divide-border divide-y">
+    <ul className="divide-border divide-y overflow-hidden rounded-lg border">
       {records.map((record) => (
         <li key={record.id}>
           <button
             type="button"
             onClick={() => onOpenRecord(record)}
-            className="hover:bg-accent flex w-full flex-col gap-0.5 px-3 py-2.5 text-left"
+            className="hover:bg-accent focus-visible:ring-ring flex w-full flex-col gap-2 px-4 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
           >
             <span className="text-foreground truncate text-sm font-medium">
-              {(title && recordCellText(title, record, boolLabel, locale)) || record.id}
+              {(title && recordCellText(title, record, boolLabel, locale)) || t("unnamedRecord")}
             </span>
             {secondary.length > 0 && (
-              <span className="text-muted-foreground truncate text-xs">
-                {secondary
-                  .slice(0, 3)
-                  .map((column) => recordCellText(column, record, boolLabel, locale))
-                  .filter(Boolean)
-                  .join(" · ")}
+              <span className="flex min-w-0 flex-wrap gap-x-6 gap-y-1 text-xs">
+                {secondary.slice(0, 3).map((column) => {
+                  const value = recordCellText(column, record, boolLabel, locale);
+                  return value ? (
+                    <span key={column.id} className="min-w-0">
+                      <span className="text-muted-foreground">{column.label}</span>{" "}
+                      <span className="break-words">{value}</span>
+                    </span>
+                  ) : null;
+                })}
               </span>
             )}
           </button>

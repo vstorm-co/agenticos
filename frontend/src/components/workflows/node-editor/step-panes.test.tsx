@@ -252,6 +252,7 @@ describe("the fields a step declares, before any run", () => {
   it("lists a step's own declared output, naming the port when it has several", () => {
     seed(line({ definition_id: "test.router" }));
     renderOutput(ROUTER, [STEP, ROUTER]);
+    fireEvent.click(screen.getByRole("button", { name: "Expected output fields" }));
 
     expect(screen.getByText("hot · email")).toBeTruthy();
     expect(screen.getByText("cold · score")).toBeTruthy();
@@ -304,6 +305,7 @@ describe("OutputPane", () => {
   it("says there is no output yet, and writes data to pin", async () => {
     seed(line());
     renderOutput();
+    fireEvent.click(screen.getByRole("button", { name: "Expected output fields" }));
     expect(screen.getByText(/No output yet/)).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Set test data" }));
@@ -440,6 +442,16 @@ describe("OutputPane", () => {
       expect.anything(),
     );
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens setup problems from a disabled step test without starting a run", async () => {
+    seed(line({ definition_id: "gone.step" }));
+    renderOutput();
+    expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Review setup before testing" }));
+    expect(store.getState().problemsRevealed).toBe(true);
+    expect(store.getState().editingNodeId).toBe("b");
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("cannot test a step inside a loop, a draft with problems or one still saving", () => {

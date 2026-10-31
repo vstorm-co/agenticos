@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GitCompare, History, RotateCcw } from "lucide-react";
+import { GitCompare, RotateCcw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import {
@@ -15,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
   ListCard,
-  ListCardEmpty,
   Skeleton,
   Spinner,
 } from "@/components/ui";
@@ -207,6 +206,9 @@ export function VersionHistory({
 
   return (
     <ListCard
+      namedByPage
+      empty={!isLoading && versions.length === 0}
+      className="border-0 bg-transparent shadow-none"
       title={t("versionsTitle")}
       counted={
         isLoading
@@ -226,11 +228,10 @@ export function VersionHistory({
           cta={{ label: tCommon("retry"), onClick: () => void retry() }}
         />
       ) : versions.length === 0 ? (
-        <ListCardEmpty
-          icon={History}
-          title={t("versionsEmpty")}
-          description={t("versionsEmptyDetail")}
-        />
+        <div className="space-y-2 px-5 py-6">
+          <p className="text-sm font-medium">{t("versionsEmpty")}</p>
+          <p className="text-muted-foreground text-sm">{t("versionsEmptyDetail")}</p>
+        </div>
       ) : (
         <ul className="divide-border divide-y px-5">
           {versions.map((version) => (

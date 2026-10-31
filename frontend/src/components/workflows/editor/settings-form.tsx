@@ -7,6 +7,7 @@ import {
   Button,
   Input,
   Label,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -144,134 +145,153 @@ export function WorkflowSettingsForm({
         )}
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="workflow-deadline">{t("settingsDeadline")}</Label>
-        <Input
-          id="workflow-deadline"
-          type="number"
-          min={1 / 60}
-          max={43_200}
-          step="any"
-          inputMode="decimal"
-          placeholder={t("settingsDeadlineNone")}
-          value={deadline}
-          disabled={disabled}
-          onChange={(event) => setDeadline(event.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">{t("settingsDeadlineHint")}</p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>{t("settingsErrorWorkflow")}</Label>
-        <Select value={errorWorkflow} onValueChange={setErrorWorkflow} disabled={disabled}>
-          <SelectTrigger aria-label={t("settingsErrorWorkflow")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>{t("settingsErrorWorkflowNone")}</SelectItem>
-            {handlers.map((candidate) => (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </SelectItem>
-            ))}
-            {saved.error_workflow_id !== null &&
-              !handlers.some((candidate) => candidate.id === saved.error_workflow_id) && (
-                <SelectItem value={saved.error_workflow_id}>
-                  {t("settingsErrorWorkflowGone")}
-                </SelectItem>
-              )}
-          </SelectContent>
-        </Select>
-        <p className="text-muted-foreground text-xs">{t("settingsErrorWorkflowHint")}</p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="workflow-retention">{t("settingsRetention")}</Label>
-        <Input
-          id="workflow-retention"
-          type="number"
-          min={1}
-          max={3650}
-          inputMode="numeric"
-          placeholder={t("settingsRetentionForever")}
-          value={retention}
-          disabled={disabled}
-          onChange={(event) => setRetention(event.target.value)}
-        />
-        <div className="flex items-center justify-between gap-3 pt-2">
-          <Label htmlFor="workflow-keep-succeeded" className="font-normal">
-            {t("settingsKeepSucceeded")}
-          </Label>
-          <Switch
-            id="workflow-keep-succeeded"
-            checked={keepSucceeded}
-            disabled={disabled}
-            onCheckedChange={setKeepSucceeded}
-          />
-        </div>
-        <p className="text-muted-foreground text-xs">{t("settingsRetentionHint")}</p>
-      </div>
-
-      <section className="space-y-4 border-t pt-6">
-        <div className="space-y-1">
-          <h3 className="text-sm font-medium">{t("settingsLimits")}</h3>
-          <p className="text-muted-foreground text-xs">{t("settingsLimitsHint")}</p>
-        </div>
+      <MoreOptions
+        label={t("settingsExecution")}
+        defaultOpen={saved.default_deadline_seconds !== null || saved.error_workflow_id !== null}
+      >
         <div className="space-y-1.5">
-          <Label htmlFor="workflow-concurrent">{t("settingsConcurrent")}</Label>
+          <Label htmlFor="workflow-deadline">{t("settingsDeadline")}</Label>
           <Input
-            id="workflow-concurrent"
+            id="workflow-deadline"
+            type="number"
+            min={1 / 60}
+            max={43_200}
+            step="any"
+            inputMode="decimal"
+            placeholder={t("settingsDeadlineNone")}
+            value={deadline}
+            disabled={disabled}
+            onChange={(event) => setDeadline(event.target.value)}
+          />
+          <p className="text-muted-foreground text-xs">{t("settingsDeadlineHint")}</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>{t("settingsErrorWorkflow")}</Label>
+          <Select value={errorWorkflow} onValueChange={setErrorWorkflow} disabled={disabled}>
+            <SelectTrigger aria-label={t("settingsErrorWorkflow")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>{t("settingsErrorWorkflowNone")}</SelectItem>
+              {handlers.map((candidate) => (
+                <SelectItem key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </SelectItem>
+              ))}
+              {saved.error_workflow_id !== null &&
+                !handlers.some((candidate) => candidate.id === saved.error_workflow_id) && (
+                  <SelectItem value={saved.error_workflow_id}>
+                    {t("settingsErrorWorkflowGone")}
+                  </SelectItem>
+                )}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">{t("settingsErrorWorkflowHint")}</p>
+        </div>
+      </MoreOptions>
+      <MoreOptions
+        label={t("settingsHistory")}
+        defaultOpen={saved.run_retention_days !== null || !saved.keep_succeeded_runs}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="workflow-retention">{t("settingsRetention")}</Label>
+          <Input
+            id="workflow-retention"
             type="number"
             min={1}
-            max={1000}
+            max={3650}
             inputMode="numeric"
-            placeholder={t("settingsNoLimit")}
-            value={concurrent}
+            placeholder={t("settingsRetentionForever")}
+            value={retention}
             disabled={disabled}
-            onChange={(event) => setConcurrent(event.target.value)}
+            onChange={(event) => setRetention(event.target.value)}
           />
-          <p className="text-muted-foreground text-xs">{t("settingsConcurrentHint")}</p>
-        </div>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="workflow-run-budget">{t("settingsRunBudget")}</Label>
-            <Input
-              id="workflow-run-budget"
-              type="number"
-              min={0.000001}
-              max={999_999}
-              step="any"
-              inputMode="decimal"
-              placeholder={t("settingsNoLimit")}
-              value={runBudget}
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <Label htmlFor="workflow-keep-succeeded" className="font-normal">
+              {t("settingsKeepSucceeded")}
+            </Label>
+            <Switch
+              id="workflow-keep-succeeded"
+              checked={keepSucceeded}
               disabled={disabled}
-              onChange={(event) => setRunBudget(event.target.value)}
+              onCheckedChange={setKeepSucceeded}
             />
-            <p className="text-muted-foreground text-xs">{t("settingsRunBudgetHint")}</p>
+          </div>
+          <p className="text-muted-foreground text-xs">{t("settingsRetentionHint")}</p>
+        </div>
+      </MoreOptions>
+      <MoreOptions
+        label={t("settingsLimits")}
+        defaultOpen={
+          saved.max_concurrent_runs !== null ||
+          saved.run_budget_usd !== null ||
+          saved.monthly_budget_usd !== null
+        }
+      >
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium">{t("settingsLimits")}</h3>
+            <p className="text-muted-foreground text-xs">{t("settingsLimitsHint")}</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="workflow-monthly-budget">{t("settingsMonthlyBudget")}</Label>
+            <Label htmlFor="workflow-concurrent">{t("settingsConcurrent")}</Label>
             <Input
-              id="workflow-monthly-budget"
+              id="workflow-concurrent"
               type="number"
-              min={0.000001}
-              max={999_999}
-              step="any"
-              inputMode="decimal"
+              min={1}
+              max={1000}
+              inputMode="numeric"
               placeholder={t("settingsNoLimit")}
-              value={monthlyBudget}
+              value={concurrent}
               disabled={disabled}
-              onChange={(event) => setMonthlyBudget(event.target.value)}
+              onChange={(event) => setConcurrent(event.target.value)}
             />
-            <p className="text-muted-foreground text-xs">{t("settingsMonthlyBudgetHint")}</p>
+            <p className="text-muted-foreground text-xs">{t("settingsConcurrentHint")}</p>
           </div>
-        </div>
-      </section>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="workflow-run-budget">{t("settingsRunBudget")}</Label>
+              <Input
+                id="workflow-run-budget"
+                type="number"
+                min={0.000001}
+                max={999_999}
+                step="any"
+                inputMode="decimal"
+                placeholder={t("settingsNoLimit")}
+                value={runBudget}
+                disabled={disabled}
+                onChange={(event) => setRunBudget(event.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">{t("settingsRunBudgetHint")}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="workflow-monthly-budget">{t("settingsMonthlyBudget")}</Label>
+              <Input
+                id="workflow-monthly-budget"
+                type="number"
+                min={0.000001}
+                max={999_999}
+                step="any"
+                inputMode="decimal"
+                placeholder={t("settingsNoLimit")}
+                value={monthlyBudget}
+                disabled={disabled}
+                onChange={(event) => setMonthlyBudget(event.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">{t("settingsMonthlyBudgetHint")}</p>
+            </div>
+          </div>
+        </section>
+      </MoreOptions>
 
       {!disabled && (
-        <Button type="submit" disabled={saving || now === null}>
-          {t("settingsSave")}
-        </Button>
+        <div className="bg-background sticky bottom-0 -mx-4 border-t px-4 py-4">
+          <Button type="submit" disabled={saving || now === null}>
+            {t("settingsSave")}
+          </Button>
+        </div>
       )}
     </form>
   );

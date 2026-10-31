@@ -13,11 +13,9 @@ no walkthrough.
 
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** opens a dialog that starts you from a trigger or a template.
-**How does it start?** offers each trigger - **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow** - each an otherwise
-empty canvas that begins with it. The templates are ready-made starting points — **Starter**, a single step to rename
-and wire up, and **Two-step sequence**, two steps already connected for a linear
-flow. Pick one with **Use** and you land in the editor.
+**New workflow** opens two tabs: **How does it start?** and **Templates**. The first shows **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **Table record**; **More ways to start** reveals the other triggers. Templates include **Starter**, **Two-step sequence** and the automations described below. Choose **Use** to open a draft in the editor.
+
+The catalog keeps its cards and search inside one panel. **Filters** reveals status, tags and sorting, with a count of active filters. Failed loading offers **Retry** instead of an empty catalog. Importing starts with a file picker; **Or paste the file's JSON here** reveals a labelled text field.
 
 The list shows every workflow you can see as a card: its status, who can reach
 it, whether a version is live, and when it was last edited. **Filter by status**
@@ -80,6 +78,8 @@ be restored, still paused, or deleted with its versions, runs and shares; one wh
 runs have not ended is refused with `WORKFLOW_IN_USE`.
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
+
+The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
 
 The **canvas** is where a workflow's steps and connections appear, and it has the
 editor's whole width below the header. A **node** is one step; an **edge** is a
@@ -622,7 +622,7 @@ problems, publishing is blocked with **Fix the problems below before
 publishing**, so a version that would not validate is never created.
 
 Publishing does not end your editing. The draft goes on existing independently of
-any published version, so you keep editing it straight away. **Versions** in the
+any published version, so you keep editing it straight away. **Versions** under **More** in the
 editor's header opens every published version with its release note, the live one
 marked **Live**. **View**
 opens a past version read-only - a published version is read-only, and to make
@@ -646,6 +646,8 @@ what it does when it is slow or fails. Moving a step and pinned test data are no
 changes. **Show this version** goes back to the version alone.
 
 ## Workflow settings { #workflow-settings }
+
+**Settings** groups timing and error handling, run history and retention, and limits into expandable sections. Sections with non-default values start open. The runs page starts with history; **Live performance** expands statistics for published runs. Runs and Logs keep secondary controls under **Filters**. A refused run filter in a link opens its field and error automatically.
 
 Retained inline results have shared ceilings: `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` (64 MiB per run) and `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` (1 GiB across retained runs). Reservations count compact attempt results, including synthetic loop outputs, and possible run/webhook/error copies. They do not measure physical PostgreSQL storage or replace deployment-wide storage policy. Small terminal failure records can exceed a full allowance so the run can close. `WORKFLOW_INLINE_RESULT_LIMIT` cannot be bypassed by error routing; incurred fees survive and effects are not automatically retried. A handler may already have acted when its result is refused. Use file references or configure history retention to release reservations.
 
