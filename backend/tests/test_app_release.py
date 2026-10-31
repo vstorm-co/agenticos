@@ -255,17 +255,8 @@ def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures()
     )
     assert signing["if"] == "runner.os == 'macOS' && " + gate
     action = next(step for step in steps if "includeUpdaterJson" in step.get("with", {}))
-    for name in (
-        "APPLE_CERTIFICATE",
-        "APPLE_CERTIFICATE_PASSWORD",
-        "APPLE_ID",
-        "APPLE_PASSWORD",
-        "APPLE_TEAM_ID",
-    ):
-        assert action["env"][name] == "${{ " + gate + " && secrets." + name + " || '' }}"
-    assert action["env"]["APPLE_SIGNING_IDENTITY"] == (
-        "${{ " + gate + " && secrets.APPLE_SIGNING_IDENTITY || '-' }}"
-    )
+    assert not any(name.startswith("APPLE_") for name in action["env"])
+    assert signing["env"]["APPLE_CERTIFICATE"] == "${{ secrets.APPLE_CERTIFICATE }}"
     assert action["env"]["TAURI_SIGNING_PRIVATE_KEY"] == "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
     assert action["with"]["includeUpdaterJson"] is True
     notice = next(
@@ -279,15 +270,17 @@ def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures()
     "missing",
     [
         None,
-        "CERTIFICATE",
-        "CERTIFICATE_PASSWORD",
-        "SIGNING_IDENTITY",
-        "TEAM_ID",
-        "APPLE_USER",
-        "APPLE_APP_PASSWORD",
+        "APPLE_CERTIFICATE",
+        "APPLE_CERTIFICATE_PASSWORD",
+        "APPLE_SIGNING_IDENTITY",
+        "APPLE_TEAM_ID",
+        "APPLE_ID",
+        "APPLE_PASSWORD",
     ],
 )
-def test_enabled_macos_signing_refuses_each_missing_credential(missing: str | None) -> None:
+def test_enabled_macos_signing_refuses_each_missing_credential(
+    tmp_path: Path, missing: str | None
+) -> None:
     workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
     step = next(
         s
@@ -299,8 +292,35 @@ def test_enabled_macos_signing_refuses_each_missing_credential(missing: str | No
         env[missing] = ""
     bash = shutil.which("bash")
     assert bash is not None
-    result = subprocess.run([bash, "-c", step["run"]], env=env, capture_output=True, text=True)
+    output = tmp_path / "github-env"
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        env={**env, "PATH": os.environ["PATH"], "GITHUB_ENV": str(output)},
+        capture_output=True,
+        text=True,
+    )
     assert (result.returncode == 0) is (missing is None)
     assert "test-credential" not in result.stdout + result.stderr
     if missing is not None:
         assert missing in result.stdout
+        assert not output.exists()
+    else:
+        exported = output.read_text()
+        for name in env:
+            assert name + "<<" in exported
+
+
+def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Announce ad-hoc macOS distribution"
+    )
+    output = tmp_path / "github-env"
+    bash = shutil.which("bash")
+    assert bash is not None
+    subprocess.run(
+        [bash, "-c", step["run"]], env={"GITHUB_ENV": str(output)}, check=True, capture_output=True
+    )
+    assert output.read_text() == "APPLE_SIGNING_IDENTITY=-\n"

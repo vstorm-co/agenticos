@@ -78,23 +78,31 @@ jobs:
         if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true'
         shell: bash
         env:
-          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_USER: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         run: |
           set -euo pipefail
-          for name in CERTIFICATE CERTIFICATE_PASSWORD SIGNING_IDENTITY TEAM_ID APPLE_USER APPLE_APP_PASSWORD; do
+          names=(APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_ID APPLE_PASSWORD)
+          for name in "${names[@]}"; do
             if [ -z "${!name}" ]; then
               echo "::error::macOS signing is enabled but $name is missing in apps-release"
               exit 1
             fi
           done
+          delimiter=$(uuidgen)
+          for name in "${names[@]}"; do
+            printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "${!name}" "$delimiter" >> "$GITHUB_ENV"
+          done
       - name: Announce ad-hoc macOS distribution
         if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'
-        run: echo "::warning::macOS packages use ad-hoc signing without Apple notarization. First launch requires System Settings > Privacy & Security > Open Anyway. Updater signatures remain required."
+        shell: bash
+        run: |
+          echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+          echo "::warning::macOS packages use ad-hoc signing without Apple notarization. First launch requires System Settings > Privacy & Security > Open Anyway. Updater signatures remain required."
       - name: Import Windows signing certificate
         if: runner.os == 'Windows'
         shell: pwsh
@@ -119,12 +127,6 @@ jobs:
           AGENTICOS_UPDATER_PUBLIC_KEY: ${{ vars.AGENTICOS_UPDATER_PUBLIC_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_SIGNING_IDENTITY: ${{ vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true' && secrets.APPLE_SIGNING_IDENTITY || '-' }}
-          APPLE_ID: ${{ vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true' && secrets.APPLE_TEAM_ID || '' }}
         with:
           projectPath: desktop
           releaseId: ${{ needs.resolve.outputs.id }}
