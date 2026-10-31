@@ -71,7 +71,7 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
 
 
 class EmailService:
-    """Renders and sends this deployment's transactional mail.
+    """Render transactional mail through a provider and its selected sender.
 
     `app_name` is a **required** argument on every send rather than a constant in
     here, and that is the point of it: the name is what the administrator sets on
@@ -82,8 +82,17 @@ class EmailService:
     session here to read it with.
     """
 
-    def __init__(self, provider: EmailProvider) -> None:
+    def __init__(
+        self,
+        provider: EmailProvider,
+        *,
+        from_email: str | None = None,
+        from_name: str | None = None,
+    ) -> None:
         self.provider = provider
+        self.reply_to = getattr(settings, "EMAIL_REPLY_TO", None) if from_email is None else None
+        self.from_email = from_email or settings.EMAIL_FROM
+        self.from_name = settings.EMAIL_FROM_NAME if from_email is None else from_name
 
     @property
     def delivers(self) -> bool:
@@ -119,12 +128,12 @@ class EmailService:
 
         message = EmailMessage(
             to=[to],
-            from_email=settings.EMAIL_FROM,
-            from_name=settings.EMAIL_FROM_NAME,
+            from_email=self.from_email,
+            from_name=self.from_name,
             subject=subject,
             html=html,
             text=text,
-            reply_to=reply_to or getattr(settings, "EMAIL_REPLY_TO", None),
+            reply_to=reply_to or self.reply_to,
             tags=[_CATEGORIES[key].value, key.value],
         )
 

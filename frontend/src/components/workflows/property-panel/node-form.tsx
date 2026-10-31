@@ -1213,7 +1213,9 @@ function NodeFields({
   // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
   // tool by its server.
   const drawnElsewhere = (name: string) =>
-    (agentStep && name === AGENT_INLINE) || (mcpStep && name === MCP_TOOL);
+    (agentStep && name === AGENT_INLINE) ||
+    (mcpStep && name === MCP_TOOL) ||
+    (definition.id === "email.send" && name === "smtp_secret_id");
   // Shown however the options are folded: what is set, needed or always there.
   const configWanted = (entry: (typeof configFields)[number]) =>
     // An agent step always shows `agent`: neither it nor `inline` is required

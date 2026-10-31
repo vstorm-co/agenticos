@@ -21,6 +21,7 @@ export type SecretKind =
   | "git_token"
   | "entra_app"
   | "http_credential"
+  | "smtp_account"
   | "microsoft_oauth_app"
   | "openai_codex";
 

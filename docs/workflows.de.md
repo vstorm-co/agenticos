@@ -1,5 +1,5 @@
 ---
-source_sha: "ced20c94960b"
+source_sha: "f0d6860faa96"
 ---
 
 # Workflows { #workflows }
@@ -72,6 +72,8 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 **More → Settings** enthält Name, Beschreibung, Tags und Laufzeiteinstellungen des Workflows; Änderungen werden automatisch gespeichert. Der Schritteditor nutzt das verfügbare Fenster: Input links, Parameters und Settings in der Mitte, Output rechts. Trigger haben zwei Bereiche, da sie keine eingehenden Daten haben. Auf großen Bildschirmen scrollt jeder Bereich separat, auf Telefonen gibt es eine Spalte. Gespeicherte Ausführungen zeigen ihre Parameter schreibgeschützt neben den Daten. Datensatzwerte verwenden die Spaltennamen der Tabelle. Notizen bieten Open note, Größen und Ziehgriffe.
 
 Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
+
+Der Schritt **Send an email** bietet auch **SMTP account → Neues SMTP-Konto**. Im Vault-Dialog werden Server, Port, Benutzername, Passwort und Absender gespeichert. STARTTLS nutzt meist 587, implizites TLS meist 465; beide prüfen Zertifikate. Im Workflow steht nur `smtp_secret_id`. **Plattformabsender** entfernt die Auswahl. Veröffentlichung und Ausführung prüfen den Secret-Zugriff; ein nicht verfügbares Konto stoppt den Schritt statt den Absender zu wechseln.
 
 Die App-Suche durchsucht auch die gespiegelte MCP-Registry, einschließlich noch nicht verbundener Dienste. Bei verbundenen Servern ohne Werkzeugliste können Verbindungsmanager **Refresh tools** wählen. Kanalschritte erlauben das Erstellen und Auswählen eines Bot-Kontos direkt im Workflow; nur Mitglieder mit Kanalverwaltungsrechten sehen diese Aktion.
 

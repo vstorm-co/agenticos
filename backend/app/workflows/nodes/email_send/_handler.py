@@ -1,9 +1,9 @@
-"""`email.send`: send an email from the deployment's own address.
+"""`email.send`: send an email through a vault SMTP account or the platform sender.
 
 `notification.send` reaches members, through their preferences. This step is for
 everybody else - the lead who filled in a form, the customer whose order
 shipped: up to ten addresses, each sent its own copy, so no recipient sees
-another's address. It goes through the deployment's email provider and sender,
+another's address. With no SMTP account, it uses the deployment's provider,
 like every mail the platform sends, with the workflow's subject and text in a
 plain template. A reply goes to `reply_to` when the step sets one.
 
@@ -16,9 +16,11 @@ again: mail has no idempotency key, so the step is at least once.
 
 import asyncio
 import logging
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from redis.exceptions import RedisError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
@@ -26,6 +28,7 @@ from app.core.permissions import AuthContext
 from app.db.session import get_worker_db_context
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
+from app.services.organization_secret import OrganizationSecretService
 from app.services.workflow_execution import context
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 
@@ -37,14 +40,21 @@ _ALLOWANCE_KEY_PREFIX = "workflow-email:v1"
 
 
 class EmailSendConfig(BaseModel):
-    """Where replies go."""
+    """Which SMTP account sends it, and where replies go."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+    smtp_secret_id: UUID | None = Field(
+        default=None,
+        title="SMTP account",
+        description="Choose a vault SMTP account, or leave empty to use the platform sender.",
+        json_schema_extra={"x-resource": "secret", "x-secret-kind": "smtp_account"},
+    )
 
     reply_to: EmailStr | None = Field(
         default=None,
         title="Reply to",
-        description="Where a reply goes. The deployment's own reply address when empty.",
+        description="Where a reply goes. The sender's default reply address when empty.",
     )
 
 
@@ -58,7 +68,7 @@ class EmailSendInput(BaseModel):
         max_length=MAX_RECIPIENTS,
         description="Up to ten addresses. Each gets its own copy.",
     )
-    subject: str = Field(min_length=1, max_length=200)
+    subject: str = Field(min_length=1, max_length=200, pattern=r"^[^\r\n]+$")
     body: str = Field(min_length=1, max_length=50_000, description="Plain text.")
 
 
@@ -112,6 +122,20 @@ async def _reserve_deliveries(ctx: AuthContext, count: int) -> WorkflowError | N
     return None
 
 
+async def check_resources(
+    db: AsyncSession, ctx: AuthContext, config: BaseModel
+) -> list[tuple[str, str]]:
+    """Check the chosen SMTP account before publication without opening it."""
+    if not isinstance(config, EmailSendConfig) or config.smtp_secret_id is None:
+        return []
+    if (
+        await OrganizationSecretService(db).usable_smtp_account(ctx, config.smtp_secret_id)
+        is not None
+    ):
+        return []
+    return [("smtp_secret_id", "Choose an SMTP account you can use from the vault")]
+
+
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """Send one copy to each address, stopping at the first the provider refuses."""
     if not isinstance(node_input, EmailSendInput):
@@ -121,7 +145,22 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             )
         )
     addresses = tuple(dict.fromkeys(node_input.to))
-    service = get_email_service()
+    if isinstance(config, EmailSendConfig) and config.smtp_secret_id is not None:
+        async with get_worker_db_context() as db:
+            smtp_service = await OrganizationSecretService(db).smtp_email_service(
+                context.current().auth, config.smtp_secret_id
+            )
+        if smtp_service is None:
+            return Failed(
+                error=WorkflowError(
+                    code="SMTP_ACCOUNT_NOT_USABLE",
+                    message="The SMTP account is gone, of the wrong kind, or no longer available",
+                    bypassable=False,
+                )
+            )
+        service = smtp_service
+    else:
+        service = get_email_service()
     if service.delivers:
         refusal = await _reserve_deliveries(context.current().auth, len(addresses))
         if refusal is not None:

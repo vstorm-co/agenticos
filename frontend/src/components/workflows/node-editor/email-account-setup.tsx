@@ -8,6 +8,7 @@ import { Button, ConfirmDialog } from "@/components/ui";
 import { useAppConnections } from "@/components/workflows/use-app-connections";
 import { WorkflowConnectionsDialog } from "@/components/workflows/pickers/workflow-connections-dialog";
 import { pickerSections, type AppAction } from "@/components/workflows/picker/groups";
+import { SecretPicker } from "@/components/workflows/pickers/secret-picker";
 import { appToolLabel } from "@/components/workflows/apps";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -17,12 +18,21 @@ import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 export function EmailAccountSetup({
   nodeId,
   catalog,
+  disabled = false,
+  error,
 }: {
   nodeId: string;
   catalog: NodeDefinition[];
+  disabled?: boolean;
+  error?: string;
 }) {
   const t = useTranslations("workflows");
   const source = useAppConnections();
+  const node = useWorkflowEditorStore((state) =>
+    state.graph?.nodes.find((entry) => entry.id === nodeId),
+  );
+  const updateConfig = useWorkflowEditorStore((state) => state.updateNodeConfig);
+  const smtpId = node?.config.smtp_secret_id;
   const [connecting, setConnecting] = useState<string | null>(null);
   const [selected, setSelected] = useState<AppAction | null>(null);
   const replace = useWorkflowEditorStore((state) => state.useEmailAccount);
@@ -37,21 +47,32 @@ export function EmailAccountSetup({
         {t("emailSender")}
       </p>
       <p className="text-muted-foreground text-sm">{t("emailPlatformSender")}</p>
-      {actions.map((action) => (
-        <Button
-          key={action.key}
-          type="button"
-          variant="outline"
-          className="h-auto w-full justify-start py-2 text-left whitespace-normal"
-          onClick={() => setSelected(action)}
-        >
-          <Mail className="size-4 shrink-0" aria-hidden />
-          <span>
-            {action.connectionName} · {appToolLabel(action.app, action.tool, t)}
-          </span>
-        </Button>
-      ))}
-      {source.canConnect && (
+      <div data-field="smtp_secret_id">
+        <SecretPicker
+          label={t("emailSmtpAccount")}
+          kind="smtp_account"
+          value={typeof smtpId === "string" ? smtpId : null}
+          disabled={disabled}
+          error={error}
+          onChange={(next) => updateConfig(nodeId, { ...node?.config, smtp_secret_id: next })}
+        />
+      </div>
+      {!disabled &&
+        actions.map((action) => (
+          <Button
+            key={action.key}
+            type="button"
+            variant="outline"
+            className="h-auto w-full justify-start py-2 text-left whitespace-normal"
+            onClick={() => setSelected(action)}
+          >
+            <Mail className="size-4 shrink-0" aria-hidden />
+            <span>
+              {action.connectionName} · {appToolLabel(action.app, action.tool, t)}
+            </span>
+          </Button>
+        ))}
+      {!disabled && source.canConnect && (
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"

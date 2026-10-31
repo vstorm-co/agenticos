@@ -1,5 +1,5 @@
 ---
-source_sha: "eb6562d37c82"
+source_sha: "49565e4aa998"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -105,6 +105,7 @@ existieren.
 | `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
 | `entra_app` | Tenant-ID, Client-ID und Client Secret einer App-Registrierung in Microsoft Entra |
 | `http_credential` | Ein Token, das ein HTTP-Schritt eines Workflows sendet, ein optionaler Benutzername und die Origins, an die es gesendet werden darf |
+| `smtp_account` | SMTP-Server, Port, TLS, Absender und Anmeldedaten, gemeinsam für Workflow-E-Mails versiegelt |
 | `microsoft_oauth_app` | Dieselben drei Felder, für eine App-Registrierung, über die sich Menschen anmelden |
 | `openai_codex` | Eine ChatGPT-Anmeldung: ein Access-Token, ein Refresh-Token und die Account-ID |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |

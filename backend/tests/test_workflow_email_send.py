@@ -146,6 +146,7 @@ async def test_a_step_with_nothing_to_send_fails():
         {"to": [f"p{i}@example.com" for i in range(11)], "subject": "s", "body": "b"},
         {"to": ["not an address"], "subject": "s", "body": "b"},
         {"to": ["ada@example.com"], "subject": "", "body": "b"},
+        {"to": ["ada@example.com"], "subject": "Hello\r\nBcc: other@example.com", "body": "b"},
     ],
 )
 def test_an_input_outside_the_limits_is_refused(fields):
@@ -217,3 +218,60 @@ async def test_log_only_mail_does_not_need_a_delivery_reservation(provider, allo
     result = await _run(None, to=["ada@example.com"], subject="s", body="b")
     assert isinstance(result, Completed) and result.output.delivered is False
     allowance_client.connect.assert_not_awaited()
+
+
+async def test_smtp_account_uses_its_own_sender_and_the_same_delivery_limits(provider, monkeypatch):
+    own = _Provider()
+    selected = EmailService(own, from_email="mailbox@example.com", from_name="Sales")
+    resolve = AsyncMock(return_value=selected)
+    monkeypatch.setattr(node.OrganizationSecretService, "smtp_email_service", resolve)
+    secret_id = uuid.uuid4()
+    result = await _run(
+        node.EmailSendConfig(smtp_secret_id=secret_id),
+        to=["ada@example.com"],
+        subject="Hello",
+        body="From my mailbox",
+    )
+    assert isinstance(result, Completed) and result.output.delivered
+    assert provider.sent == []
+    assert own.sent[0].from_email == "mailbox@example.com"
+    assert own.sent[0].from_name == "Sales"
+    assert resolve.await_args.args[1] == secret_id
+
+
+async def test_unusable_smtp_does_not_fall_back_to_the_platform(
+    provider, allowance_client, monkeypatch
+):
+    monkeypatch.setattr(
+        node.OrganizationSecretService, "smtp_email_service", AsyncMock(return_value=None)
+    )
+    result = await _run(
+        node.EmailSendConfig(smtp_secret_id=uuid.uuid4()),
+        to=["ada@example.com"],
+        subject="s",
+        body="b",
+    )
+    assert isinstance(result, Failed) and result.error.code == "SMTP_ACCOUNT_NOT_USABLE"
+    assert not result.error.bypassable
+    assert provider.sent == []
+    allowance_client.connect.assert_not_awaited()
+
+
+async def test_smtp_account_is_checked_at_publish(monkeypatch):
+    usable = AsyncMock(return_value=None)
+    monkeypatch.setattr(node.OrganizationSecretService, "usable_smtp_account", usable)
+    config = node.EmailSendConfig(smtp_secret_id=uuid.uuid4())
+    assert await node.check_resources(MagicMock(), _dispatch().auth, config) == [
+        ("smtp_secret_id", "Choose an SMTP account you can use from the vault")
+    ]
+    usable.return_value = MagicMock()
+    assert await node.check_resources(MagicMock(), _dispatch().auth, config) == []
+    assert await node.check_resources(MagicMock(), _dispatch().auth, node.EmailSendConfig()) == []
+    assert (
+        await node.check_resources(
+            MagicMock(),
+            _dispatch().auth,
+            node.EmailSendInput(to=["ada@example.com"], subject="s", body="b"),
+        )
+        == []
+    )

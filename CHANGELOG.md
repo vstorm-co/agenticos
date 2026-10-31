@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **SMTP accounts for workflow email.** Add your own server, sender and login directly from the email step. Credentials stay encrypted together in Vault; workflows reference only the account ID. STARTTLS and implicit TLS verify certificates, access is checked at publication and runtime, and revoked accounts never fall back to another sender.
+
 - **Sort records from every table view.** Add an explicit column/direction picker beside filters, including hidden sortable columns and system dates. The selected server-side order is shared by Table, Kanban and List and can be saved with the view.
 
 - **Saved table presentation.** Reorder and hide columns, including system fields, choose compact or wrapped text and configure date and time formats independently for each saved view. These controls change presentation without changing table schemas or stored values.

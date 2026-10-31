@@ -37,6 +37,9 @@ The kinds are the shapes that actually exist, and no more:
     A Google OAuth client's `client_id` and `client_secret`, for connecting a
     mailbox a trigger reads. The same two fields as GitHub's and a separate kind
     on purpose: a kind names what a credential is *for*.
+`smtp_account`
+    SMTP host, port, encryption, sender and credentials sealed together. A workflow
+    references only its id; an editor cannot redirect its password to another host.
 `http_credential`
     A token a workflow's HTTP step sends, and the origins it may be sent to -
     for the same reason `git_token` carries its host: the URL is the step's
@@ -75,6 +78,7 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     PlainSerializer,
     SecretStr,
@@ -102,6 +106,7 @@ class SecretKind(StrEnum):
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
     HTTP_CREDENTIAL = "http_credential"
+    SMTP_ACCOUNT = "smtp_account"
     MICROSOFT_OAUTH_APP = "microsoft_oauth_app"
     OPENAI_CODEX = "openai_codex"
 
@@ -155,7 +160,8 @@ class _SecretBase(BaseModel):
     def hint(self) -> str:
         """Four characters an operator can recognise this credential by.
 
-        Never the whole credential: every field that authenticates is a
+        SMTP accounts deliberately return an empty hint, including for short passwords.
+        Other authentication fields are a
         :data:`CredentialStr`, at least :data:`MIN_CREDENTIAL_LENGTH` long.
         Taken from the field that identifies the credential rather than from the
         one that authenticates it where the two differ - an AWS access key id is
@@ -326,6 +332,38 @@ class GitTokenSecret(_SecretBase):
         host = f"[{hostname}]" if ":" in hostname else hostname
         expected = host if port in (None, 443) else f"{host}:{port}"
         return self.host.lower().removesuffix(":443") == expected.lower()
+
+
+class SmtpAccountSecret(_SecretBase):
+    """SMTP credentials sealed with their destination and sender identity."""
+
+    kind: Literal[SecretKind.SMTP_ACCOUNT] = SecretKind.SMTP_ACCOUNT
+    host: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9.-]*$",
+        title="SMTP server",
+        description="Hostname or IPv4 address, without a scheme or port.",
+    )
+    port: int = Field(default=587, ge=1, le=65535, title="Port")
+    tls_mode: Literal["starttls", "implicit"] = Field(
+        default="starttls",
+        title="Encryption",
+        description="STARTTLS usually uses port 587; implicit TLS usually uses 465. Certificates are always verified.",
+    )
+    username: str = Field(min_length=1, max_length=255, title="Username")
+    password: SealedStr = Field(
+        min_length=1,
+        max_length=4096,
+        title="Password",
+        description="Mailbox password or app password. Stored encrypted; never returned.",
+    )
+    from_email: EmailStr = Field(title="Sender email")
+    from_name: str = Field(default="", max_length=255, pattern=r"^[^\r\n]*$", title="Sender name")
+
+    @property
+    def hint(self) -> str:
+        return ""
 
 
 class HttpCredentialSecret(_SecretBase):
@@ -611,6 +649,7 @@ StorableSecret = Annotated[
     | GoogleOAuthAppSecret
     | GitTokenSecret
     | EntraAppSecret
+    | SmtpAccountSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
     | OpenAICodexSecret,
@@ -628,6 +667,7 @@ TypedSecret = Annotated[
     | GoogleOAuthAppSecret
     | GitTokenSecret
     | EntraAppSecret
+    | SmtpAccountSecret
     | HttpCredentialSecret,
     Field(discriminator="kind"),
 ]
@@ -650,6 +690,7 @@ SecretValue = Annotated[
     | GoogleOAuthAppSecret
     | GitTokenSecret
     | EntraAppSecret
+    | SmtpAccountSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
     | OpenAICodexSecret,
@@ -756,11 +797,16 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
     SecretKind.HTTP_CREDENTIAL: HttpCredentialSecret,
+    SecretKind.SMTP_ACCOUNT: SmtpAccountSecret,
     SecretKind.MICROSOFT_OAUTH_APP: MicrosoftOAuthAppSecret,
     SecretKind.OPENAI_CODEX: OpenAICodexSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.SMTP_ACCOUNT: (
+        "SMTP account",
+        "Send workflow emails through your own mail server. Server, sender and credentials are stored together.",
+    ),
     SecretKind.API_KEY: ("API key", "A single token, sent as-is to the service."),
     SecretKind.AZURE_OPENAI: (
         "Azure OpenAI",

@@ -273,7 +273,9 @@ export function AddSecretDialog({
           about the form. */}
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
-          <DialogTitle>{t("addSecret")}</DialogTitle>
+          <DialogTitle>
+            {t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
+          </DialogTitle>
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
@@ -479,7 +481,7 @@ export function AddSecretDialog({
             {t("cancel2")}
           </Button>
           <Button onClick={submit} disabled={!complete || pending}>
-            {t("storeSecret")}
+            {t(fixedKind === "smtp_account" ? "storeSmtpAccount" : "storeSecret")}
           </Button>
         </DialogFooter>
       </DialogContent>

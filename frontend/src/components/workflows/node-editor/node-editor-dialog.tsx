@@ -345,8 +345,13 @@ export function NodeEditorDialog({
                   {evaluable && <TabsTrigger value="evals">{t("stepTabEvals")}</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="parameters" className="mt-5">
-                  {node.definition_id === "email.send" && !readOnly && (
-                    <EmailAccountSetup nodeId={node.id} catalog={catalog} />
+                  {node.definition_id === "email.send" && (
+                    <EmailAccountSetup
+                      nodeId={node.id}
+                      catalog={catalog}
+                      disabled={readOnly}
+                      error={fieldErrors(problems, node.id).get("smtp_secret_id")}
+                    />
                   )}
                   {form}
                 </TabsContent>

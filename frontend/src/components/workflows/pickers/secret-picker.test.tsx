@@ -149,3 +149,13 @@ describe("SecretPicker", () => {
     expect(screen.queryByText("The referenced secret is no longer available.")).toBeNull();
   });
 });
+
+it("returns from SMTP to the platform sender without creating another secret", async () => {
+  useSecretsMock.mockReturnValue(
+    vault([{ id: "smtp", name: "Sales mailbox", kind: "smtp_account" }]),
+  );
+  const onChange = mount("smtp", { kind: "smtp_account", label: "SMTP account" });
+  await userEvent.click(screen.getByRole("combobox", { name: "SMTP account" }));
+  await userEvent.click(screen.getByRole("option", { name: "Platform sender" }));
+  expect(onChange).toHaveBeenCalledWith(null);
+});

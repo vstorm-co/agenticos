@@ -1,5 +1,5 @@
 ---
-source_sha: "eb6562d37c82"
+source_sha: "49565e4aa998"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -101,6 +101,7 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
 | `http_credential` | Un token que envía un paso HTTP de un workflow, un nombre de usuario opcional y los orígenes a los que puede enviarse |
+| `smtp_account` | Servidor SMTP, puerto, TLS, remitente y credenciales sellados juntos para el correo de workflows |
 | `microsoft_oauth_app` | Los mismos tres campos, para un registro de aplicación con el que inician sesión las personas |
 | `openai_codex` | Un inicio de sesión de ChatGPT: un access token, un refresh token y el id de cuenta |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |

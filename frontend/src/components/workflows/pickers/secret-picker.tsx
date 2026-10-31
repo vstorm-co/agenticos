@@ -55,6 +55,10 @@ export interface SecretPickerProps {
 export function SecretPicker({ value, onChange, disabled, kind, error, label }: SecretPickerProps) {
   const t = useTranslations("workflows");
   const caption = label ?? t("pickerSecretLabel");
+  const smtp = kind === "smtp_account";
+  const newLabel = t(
+    smtp ? "emailSmtpNew" : kind === "api_key" ? "pickerApiKeyNew" : "pickerSecretNew",
+  );
   const { secrets, kinds, isLoading, create } = useSecrets();
   const { can } = usePermissions();
   const [adding, setAdding] = useState(false);
@@ -74,19 +78,22 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
     <div className="space-y-2">
       <Label>{caption}</Label>
       <Select
-        value={value ?? ""}
-        onValueChange={(next) => (next === "__create__" ? setAdding(true) : onChange(next))}
+        value={value ?? (smtp ? "__platform__" : "")}
+        onValueChange={(next) =>
+          next === "__create__" ? setAdding(true) : onChange(next === "__platform__" ? null : next)
+        }
         disabled={disabled}
       >
         <SelectTrigger aria-label={caption}>
           <SelectValue placeholder={t("pickerSecretPlaceholder")} />
         </SelectTrigger>
         <SelectContent>
+          {smtp && <SelectItem value="__platform__">{t("emailPlatformOption")}</SelectItem>}
           {addable && (
             <SelectItem value="__create__">
               <span className="flex items-center gap-2">
                 <Plus className="size-3.5" aria-hidden />
-                {t(kind === "api_key" ? "pickerApiKeyNew" : "pickerSecretNew")}
+                {newLabel}
               </span>
             </SelectItem>
           )}
@@ -95,7 +102,7 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
               <span className="flex items-center gap-2">
                 <KeyRound className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{secret.name}</span>
-                <Badge variant="outline">{secret.kind}</Badge>
+                {!smtp && <Badge variant="outline">{secret.kind}</Badge>}
               </span>
             </SelectItem>
           ))}
@@ -123,7 +130,7 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
             onClick={() => setAdding(true)}
           >
             <Plus className="h-3.5 w-3.5" />
-            {t(kind === "api_key" ? "pickerApiKeyNew" : "pickerSecretNew")}
+            {newLabel}
           </Button>
         )}
         <Link

@@ -92,6 +92,7 @@ decides which fields exist.
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
 | `http_credential` | A token a workflow's HTTP step sends, an optional username, and the origins it may be sent to |
+| `smtp_account` | SMTP host, port, TLS mode, sender and login credentials, sealed together for workflow email |
 | `microsoft_oauth_app` | The same three fields, for an app registration people sign in through |
 | `openai_codex` | A ChatGPT sign-in: an access token, a refresh token and the account id |
 | `none` | Not a secret — the marker for an endpoint needing no credential |

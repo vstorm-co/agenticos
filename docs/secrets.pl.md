@@ -1,5 +1,5 @@
 ---
-source_sha: "eb6562d37c82"
+source_sha: "49565e4aa998"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -99,6 +99,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `http_credential` | Token wysyłany przez krok HTTP workflowu, opcjonalna nazwa użytkownika i originy, do których wolno go wysłać |
+| `smtp_account` | Serwer SMTP, port, TLS, nadawca i dane logowania zapieczętowane razem dla poczty workflow |
 | `microsoft_oauth_app` | Te same trzy pola, dla rejestracji aplikacji, przez którą ludzie się logują |
 | `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |

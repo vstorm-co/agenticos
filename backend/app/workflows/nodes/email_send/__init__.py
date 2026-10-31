@@ -6,6 +6,7 @@ from app.workflows.nodes.email_send._handler import (
     EmailSendConfig,
     EmailSendInput,
     EmailSendOutput,
+    check_resources,
     handle,
 )
 
@@ -17,7 +18,7 @@ register(
         version=1,
         name="Send an email",
         category="email",
-        description="Email up to ten addresses from the deployment's own sender.",
+        description="Email up to ten addresses through an SMTP account or the platform sender.",
         kind="action",
         config_schema=EmailSendConfig,
         input_schema=EmailSendInput,
@@ -29,5 +30,6 @@ register(
         effect_kind="write",
         retry_guarantee="at_least_once",
         handler=handle,
+        resource_check=check_resources,
     )
 )
