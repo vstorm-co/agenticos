@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-10-31
+
 ### Added
 
 - Optional host-owned Compose updater: administrators can prepare a published release, inspect backup and readiness progress, update immediately or schedule within seven days. The helper drains work, takes a final PostgreSQL/media/configuration backup, applies migrations and checks readiness before reopening admission. Single-host Linux/systemd deployments only; larger deployments can link their existing update pipeline.
