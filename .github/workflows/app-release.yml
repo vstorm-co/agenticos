@@ -74,6 +74,21 @@ jobs:
           python3 scripts/prepare_app_release.py "$TAG"
           rustup target add '${{ matrix.target }}'
           cd desktop && bun install --frozen-lockfile
+      - name: Configure updater public key
+        shell: bash
+        env:
+          UPDATE_PUBLIC_KEY: ${{ vars.AGENTICOS_UPDATER_PUBLIC_KEY }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("desktop/src-tauri/tauri.release.conf.json")
+          config = json.loads(path.read_text())
+          config.setdefault("plugins", {}).setdefault("updater", {})["pubkey"] = os.environ["UPDATE_PUBLIC_KEY"]
+          path.write_text(json.dumps(config) + "\n")
+          PYTHON
       - name: Require macOS signing and notarization
         if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true'
         shell: bash
