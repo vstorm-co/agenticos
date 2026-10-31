@@ -963,6 +963,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Canvas selection and shortcuts.** Left drag selects objects; Shift + left drag pans. Select all works within the current scope, and notes travel with copied, cut and pasted steps.
+
+- **Workspace-aligned scrolling and fields.** Kanban fills the available workspace so horizontal scrolling stays at its bottom. JSON parameter editors place Data actions beside their labels, keeping Values, Sources and Artifacts full width.
+
 - **Quieter canvas notes.** A single hover/focus menu groups editing, expanded view, color and size. Subtle rounded edges and one corner resize grip replace the full selection frame and scattered buttons.
 
 - **Readable workflow overview.** The minimap draws connected miniature cards with family accents, rounded starts, selection outlines and a clear viewport boundary in both themes. Pan and zoom remain available.

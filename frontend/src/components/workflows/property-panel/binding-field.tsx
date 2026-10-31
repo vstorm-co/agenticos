@@ -1,6 +1,6 @@
 "use client";
 
-import { type DragEvent, useMemo, useState } from "react";
+import { type DragEvent, type ReactNode, useMemo, useState } from "react";
 import { Braces, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -245,28 +245,27 @@ export function BindingField({
     );
   } else {
     const literalValue = literalValueOf(binding);
-    control = (
-      // Data beside the field, never over it: laid over the form's first row, it
-      // covered a boolean's switch.
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          {isDynamic(own) || takesJson(schema) ? (
-            <JsonLiteral
-              key={`${targetNodeId}:${targetField}`}
-              id={`${idPrefix}-json`}
-              label={label}
-              required={required}
-              list={own["type"] === "array"}
-              value={literalValue}
-              error={error}
-              disabled={disabled}
-              onChange={(value) =>
-                value === undefined
-                  ? onRemove(targetNodeId, targetField)
-                  : onUpsert(literalBinding(targetNodeId, targetField, value))
-              }
-            />
-          ) : (
+    control =
+      isDynamic(own) || takesJson(schema) ? (
+        <JsonLiteral
+          key={`${targetNodeId}:${targetField}`}
+          id={`${idPrefix}-json`}
+          label={label}
+          required={required}
+          list={own["type"] === "array"}
+          value={literalValue}
+          error={error}
+          disabled={disabled}
+          actions={disabled ? undefined : menu}
+          onChange={(value) =>
+            value === undefined
+              ? onRemove(targetNodeId, targetField)
+              : onUpsert(literalBinding(targetNodeId, targetField, value))
+          }
+        />
+      ) : (
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
             <SchemaForm
               schema={singleFieldSchema(name, schema, required)}
               value={literalValue === undefined ? {} : { [name]: literalValue }}
@@ -279,11 +278,10 @@ export function BindingField({
                 else onUpsert(literalBinding(targetNodeId, targetField, value));
               }}
             />
-          )}
+          </div>
+          {!disabled && <div className="shrink-0">{menu}</div>}
         </div>
-        {!disabled && <div className="shrink-0">{menu}</div>}
-      </div>
-    );
+      );
   }
 
   return (
@@ -320,7 +318,9 @@ function JsonLiteral({
   error,
   disabled,
   onChange,
+  actions,
 }: {
+  actions?: ReactNode;
   id: string;
   label: string;
   required: boolean;
@@ -335,10 +335,13 @@ function JsonLiteral({
   const [invalid, setInvalid] = useState(false);
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>
-        {label}
-        {required && <span className="text-muted-foreground"> *</span>}
-      </Label>
+      <div className="flex min-h-6 items-center justify-between gap-2">
+        <Label htmlFor={id}>
+          {label}
+          {required && <span className="text-muted-foreground"> *</span>}
+        </Label>
+        {actions}
+      </div>
       <Textarea
         id={id}
         className="font-mono text-xs"

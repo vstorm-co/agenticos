@@ -92,6 +92,7 @@ export interface EditorSelection {
  * never server-authored here.
  */
 export interface WorkflowClipboard {
+  notes?: CanvasNote[];
   nodes: NodeInstance[];
   edges: WorkflowEdge[];
   bindings: Binding[];
@@ -846,8 +847,17 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         edges: [...graph.edges, ...sub.edges],
         bindings: [...graph.bindings, ...sub.bindings],
         scopes: [...graph.scopes, ...sub.scopes],
+        notes: [...(graph.notes ?? []), ...(sub.notes ?? [])],
       });
-      set({ selection: { nodeIds: sub.nodes.map((node) => node.id), edgeIds: [] } });
+      set({
+        selection: {
+          nodeIds: [
+            ...sub.nodes.map((node) => node.id),
+            ...(sub.notes ?? []).map((note) => note.id),
+          ],
+          edgeIds: [],
+        },
+      });
     },
 
     undo: () => {

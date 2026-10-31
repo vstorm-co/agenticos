@@ -3,6 +3,8 @@
 import type { KeyboardEvent } from "react";
 import { useCallback } from "react";
 
+import { scopedGraph } from "./scope-view";
+
 import { copySelection, pasteClipboard } from "@/components/workflows/clipboard";
 import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workflow-editor-store";
 
@@ -26,7 +28,10 @@ export function pasteFromClipboard(store: WorkflowEditorState): void {
 
 /** Whether a key went to a field someone is typing in, where it is text, not a shortcut. */
 function isTyping(target: EventTarget | null): boolean {
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+  return (
+    target instanceof HTMLElement &&
+    target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]') !== null
+  );
 }
 
 /**
@@ -67,7 +72,19 @@ export function useCanvasShortcuts(
 
       const key = event.key.toLowerCase();
 
-      if (key === "z" && !event.shiftKey) {
+      if (key === "a") {
+        const graph = store.getGraph();
+        if (graph === null) return;
+        event.preventDefault();
+        const visible = scopedGraph(graph, store.scopePath);
+        store.setSelection({
+          nodeIds: [
+            ...visible.nodes.map((node) => node.id),
+            ...(store.scopePath.length === 0 ? (graph.notes ?? []).map((note) => note.id) : []),
+          ],
+          edgeIds: visible.edges.map((edge) => edge.id),
+        });
+      } else if (key === "z" && !event.shiftKey) {
         event.preventDefault();
         store.undo();
       } else if ((key === "z" && event.shiftKey) || key === "y") {

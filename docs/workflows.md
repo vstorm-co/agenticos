@@ -1213,6 +1213,8 @@ it at a compatible target.
 The canvas shortcuts fire only while the focus is inside the editor, so they
 never steal a key from a field elsewhere on the page:
 
+Drag with the left mouse button to select objects. Hold Shift while dragging to pan; middle and right drag also pan. `Ctrl`/`Cmd` + `A` selects every object in the current scope, including notes at the root.
+
 | Keys | Does |
 |---|---|
 | `Tab` | Open the step picker |

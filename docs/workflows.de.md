@@ -1,5 +1,5 @@
 ---
-source_sha: "8dea63ec1904"
+source_sha: "a92668fd4c2a"
 ---
 
 # Workflows { #workflows }
@@ -1354,6 +1354,8 @@ an einem kompatiblen Ziel ab.
 
 Die Tastenkürzel der Zeichenfläche feuern nur, solange der Fokus im Editor ist,
 sodass sie nie eine Taste einem Feld anderswo auf der Seite stehlen:
+
+Ziehen Sie mit der linken Maustaste, um Objekte auszuwählen. Halten Sie beim Ziehen die Umschalttaste gedrückt, um die Ansicht zu verschieben; die mittlere und rechte Maustaste verschieben sie ebenfalls. `Ctrl`/`Cmd` + `A` wählt alle Objekte im aktuellen Bereich aus, einschließlich Notizen auf der obersten Ebene.
 
 | Tasten | Tut |
 |---|---|

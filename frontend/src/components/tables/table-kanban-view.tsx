@@ -483,7 +483,7 @@ export function TableKanbanView({
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div data-kanban-board className="flex gap-3 overflow-x-auto p-3">
+        <div data-kanban-board className="flex min-h-0 flex-1 gap-3 overflow-auto p-3">
           {lanes.map((lane) => (
             <KanbanLane
               key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}

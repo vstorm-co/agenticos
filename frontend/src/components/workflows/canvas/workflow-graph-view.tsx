@@ -5,6 +5,7 @@ import {
   type Connection,
   Controls,
   ReactFlow,
+  SelectionMode,
   useReactFlow,
   useStoreApi,
 } from "@xyflow/react";
@@ -74,8 +75,9 @@ const FIT_VIEW = { padding: 0.2, minZoom: 0.55, maxZoom: 1 };
 /** A read-only graph is looked at whole - a run, a past version - so it may shrink further. */
 const FIT_VIEW_READ_ONLY = { padding: 0.15, minZoom: 0.5, maxZoom: 1 };
 
-/** Any button drags the empty canvas around: left, middle and right. */
-const PAN_BUTTONS = [0, 1, 2];
+/** Left drag selects; middle and right drag remain available for panning. */
+const PAN_BUTTONS = [1, 2];
+const READ_ONLY_PAN_BUTTONS = [0, 1, 2];
 /** How far a right press may travel and still be a click that opens a menu. */
 const PAN_SLOP_PX = 4;
 
@@ -488,7 +490,11 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               // A trackpad or a wheel moves the canvas; a pinch, or Ctrl/Cmd with the
               // wheel, zooms it - the way a map or a design tool behaves.
               panOnScroll
-              panOnDrag={PAN_BUTTONS}
+              panOnDrag={readOnly ? READ_ONLY_PAN_BUTTONS : PAN_BUTTONS}
+              panActivationKeyCode="Shift"
+              selectionOnDrag={!readOnly}
+              selectionKeyCode={null}
+              selectionMode={SelectionMode.Partial}
               zoomOnScroll={false}
               zoomOnPinch
               zoomOnDoubleClick={false}

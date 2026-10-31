@@ -1,5 +1,5 @@
 ---
-source_sha: "8dea63ec1904"
+source_sha: "a92668fd4c2a"
 ---
 
 # Workflows { #workflows }
@@ -1248,6 +1248,8 @@ węźle, a potem zakończ przy zgodnym celu.
 
 Skróty kanwy działają tylko wtedy, gdy fokus jest w edytorze, więc nigdy nie kradną
 klawisza polu gdzie indziej na stronie:
+
+Przeciągaj lewym przyciskiem myszy, aby zaznaczać obiekty. Przytrzymaj Shift podczas przeciągania, aby przesuwać widok; środkowy i prawy przycisk również przesuwają widok. `Ctrl`/`Cmd` + `A` zaznacza wszystkie obiekty w bieżącym obszarze, w tym notatki na poziomie głównym.
 
 | Klawisze | Robi |
 |---|---|

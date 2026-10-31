@@ -155,9 +155,28 @@ describe("useCanvasShortcuts", () => {
     expect(store.getState().graph?.nodes).toHaveLength(1);
   });
 
+  it("selects visible objects and copies, pastes and undoes notes with steps", () => {
+    store
+      .getState()
+      .seedGraph({ ...seeded(), notes: [{ id: "note", text: "Plan", layout: { x: 10, y: 20 } }] });
+    const { handle } = handlerFor(false);
+    handle(keyEvent({ key: "a", ctrlKey: true }));
+    expect(store.getState().selection.nodeIds).toEqual(["a", "note"]);
+    handle(keyEvent({ key: "c", ctrlKey: true }));
+    handle(keyEvent({ key: "v", ctrlKey: true }));
+    expect(store.getState().graph?.notes).toHaveLength(2);
+    expect(store.getState().graph?.notes?.[1]).toMatchObject({
+      text: "Plan",
+      layout: { x: 42, y: 52 },
+    });
+    expect(store.getState().graph?.notes?.[1]?.id).not.toBe("note");
+    handle(keyEvent({ key: "z", ctrlKey: true }));
+    expect(store.getState().graph?.notes).toHaveLength(1);
+  });
+
   it("ignores an unmapped modifier chord", () => {
     store.getState().seedGraph(seeded());
-    const event = keyEvent({ key: "a", ctrlKey: true });
+    const event = keyEvent({ key: "q", ctrlKey: true });
     const { handle } = handlerFor(false);
     handle(event);
     expect(event.preventDefault).not.toHaveBeenCalled();
@@ -186,7 +205,16 @@ describe("the picker and the sheet from the keyboard", () => {
 
   it("leaves every key to a field someone is typing in", () => {
     const { handle } = handlerFor(false);
-    for (const target of [document.createElement("textarea"), document.createElement("input")]) {
+    for (const target of [
+      document.createElement("textarea"),
+      document.createElement("input"),
+      document.createElement("select"),
+      (() => {
+        const el = document.createElement("div");
+        el.setAttribute("contenteditable", "true");
+        return el;
+      })(),
+    ]) {
       handle(keyEvent({ key: "Tab", target } as Partial<KeyboardEvent>));
       handle(keyEvent({ key: "z", ctrlKey: true, target } as Partial<KeyboardEvent>));
     }

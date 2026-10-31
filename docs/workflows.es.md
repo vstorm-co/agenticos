@@ -1,5 +1,5 @@
 ---
-source_sha: "8dea63ec1904"
+source_sha: "a92668fd4c2a"
 ---
 
 # Workflows { #workflows }
@@ -1285,6 +1285,8 @@ luego termínala en un destino compatible.
 
 Los atajos del lienzo se disparan solo mientras el foco está dentro del editor, así
 que nunca roban una tecla a un campo en otra parte de la página:
+
+Arrastra con el botón izquierdo para seleccionar objetos. Mantén Mayús al arrastrar para mover la vista; los botones central y derecho también la mueven. `Ctrl`/`Cmd` + `A` selecciona todos los objetos del ámbito actual, incluidas las notas en el nivel principal.
 
 | Teclas | Hace |
 |---|---|

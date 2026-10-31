@@ -294,6 +294,9 @@ function ToolbarIcon({
 // of a few - C, V or X; Delete or Backspace - those are joined by "·", which a
 // screen reader hears as "or".
 const SHORTCUTS = [
+  [[["⌘/Ctrl"], ["A"]], "shortcutSelectAll"],
+  [[["⇧"], ["↔"]], "shortcutPan"],
+  [[["↔"]], "shortcutSelect"],
   [[["Tab"]], "shortcutAdd"],
   [[["⌘/Ctrl"], ["Enter"]], "shortcutRun"],
   [[["⌘/Ctrl"], ["Z"]], "shortcutUndo"],

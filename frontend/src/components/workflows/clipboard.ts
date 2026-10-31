@@ -74,7 +74,8 @@ export function copySelection(
   // harmless — the paste re-ids it, and a stale or absent scope simply gets replaced.
   const scopes = graph.scopes.filter((scope) => scopeContained(scope, selected));
 
-  return clone({ nodes, edges, bindings, scopes });
+  const notes = (graph.notes ?? []).filter((note) => selected.has(note.id));
+  return clone({ nodes, edges, bindings, scopes, ...(notes.length > 0 ? { notes } : {}) });
 }
 
 /** Whether every node a scope boundary names — owner, exit and body — is in the selection. */
@@ -105,6 +106,7 @@ export function pasteClipboard(
 
   const idMap: Record<Uuid, Uuid> = {};
   for (const node of source.nodes) idMap[node.id] = newId();
+  for (const note of source.notes ?? []) idMap[note.id] = newId();
 
   const remapNode = (id: Uuid): Uuid => idMap[id] ?? id;
 
@@ -134,7 +136,12 @@ export function pasteClipboard(
     body_node_ids: scope.body_node_ids.map(remapNode),
   }));
 
-  return { clipboard: { nodes, edges, bindings, scopes }, idMap };
+  const notes = source.notes?.map((note) => ({
+    ...note,
+    id: remapNode(note.id),
+    layout: { ...note.layout, x: note.layout.x + offset.x, y: note.layout.y + offset.y },
+  }));
+  return { clipboard: { nodes, edges, bindings, scopes, ...(notes ? { notes } : {}) }, idMap };
 }
 
 /**
