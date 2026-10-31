@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-10-31
+
 ### Added
 
 - `refresh-assistant [--org <id>] [--dry-run] [--replace-edited]` reports and
