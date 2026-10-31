@@ -24,12 +24,40 @@ export async function POST(
     return new NextResponse(null, { status: 404 });
   }
   try {
+    // Enforce the backend's default workflow input ceiling before allocating a
+    // string, including chunked requests with no trustworthy Content-Length.
+    const reader = request.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (reader) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 262_144) {
+            await reader.cancel();
+            return new NextResponse(null, { status: 413 });
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const body = new TextDecoder().decode(bytes);
     const response = await fetch(
       `${BACKEND_URL}/api/v1/public/workflow-forms/${encodeURIComponent(token)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: await request.text(),
+        body,
         cache: "no-store",
       },
     );

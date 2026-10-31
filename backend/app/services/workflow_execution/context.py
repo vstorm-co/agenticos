@@ -98,6 +98,12 @@ class DispatchContext:
     the causing run's stored flag. Also true for a table trigger's run started by a
     write that had no person behind it, a widget visitor's agent run among them. An
     agent step under it runs with no person behind it."""
+    source_conversation_id: UUID | None = None
+    """The chat destination authorized at admission; never a payload-supplied id."""
+    test_chat_key: UUID | None = None
+    """An opaque test-session token, namespaced by the workflow and principal."""
+    nested: bool = False
+    """Loop invocations keep separate agent histories and workspaces."""
     impersonated: bool = False
     """Whether an administrator started this run's chain while impersonating its principal -
     `WorkflowRun.impersonated`. An agent step under it carries the fact onto its run."""

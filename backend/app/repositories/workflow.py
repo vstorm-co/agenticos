@@ -138,6 +138,7 @@ async def create(
     owner_user_id: UUID | None,
     created_by_user_id: UUID | None,
     visibility: str,
+    tags: list[str] | None = None,
 ) -> Workflow:
     workflow = Workflow(
         organization_id=organization_id,
@@ -147,6 +148,7 @@ async def create(
         owner_user_id=owner_user_id,
         created_by_user_id=created_by_user_id,
         visibility=visibility,
+        tags=tags or [],
     )
     db.add(workflow)
     await db.flush()

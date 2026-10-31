@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChatPanel } from "./chat-panel";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -129,11 +129,12 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
         {t("runDraft")}
       </Button>
       <Sheet open={chatOpen} onOpenChange={setChatOpen}>
-        <SheetContent className="flex w-full flex-col sm:max-w-xl">
+        <SheetContent side="right" className="flex w-full flex-col sm:max-w-xl">
           <SheetHeader>
             <SheetTitle>{tw("chatPanelTitle")}</SheetTitle>
+            <SheetClose onClick={() => setChatOpen(false)} />
           </SheetHeader>
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1 p-4">
             <ChatPanel
               workflowId={workflowId}
               blocked={blocked ? reason : null}

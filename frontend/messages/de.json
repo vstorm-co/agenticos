@@ -6427,7 +6427,6 @@
       }
     },
     "workflows": {
-      "templatesHeading": "Vorlagen",
       "useTemplate": "Verwenden",
       "templates": {
         "sequence": {
@@ -6609,10 +6608,8 @@
       "duplicateWorkflow": "{name} duplizieren",
       "copyOfName": "{name} (Kopie)",
       "createDialogTitle": "Neuer Workflow",
-      "createDialogDescription": "Beginnen Sie mit einem Auslöser oder einer Vorlage.",
       "description": "Automatisieren Sie mehrstufige Arbeit, die Ihre Agents erledigen.",
       "newWorkflow": "Neuer Workflow",
-      "untitledWorkflow": "Unbenannter Workflow",
       "title": "Workflows",
       "triggerResumed": "Auslöser fortgesetzt",
       "triggerPaused": "Auslöser pausiert",
@@ -6709,7 +6706,7 @@
       "activeTurnedOff": "Workflow pausiert.",
       "addTag": "Tag",
       "tagPlaceholder": "Tag eingeben und Enter drücken",
-      "removeTag": "Tag {tag} entfernen",
+      "removeTag": "{tag} entfernen",
       "archivedToast": "Workflow archiviert. Sein Trigger ist pausiert.",
       "restoredToast": "Workflow wiederhergestellt.",
       "deletedToast": "Workflow gelöscht.",
@@ -6976,7 +6973,6 @@
       "alertStepHint": "Einen Schritt beobachten oder jeden Schritt, der protokolliert",
       "alertWindowHint": "Innerhalb welcher Zeit",
       "alertAudienceHint": "Wer die Glocke und die E-Mail bekommt",
-      "moreStarts": "Weitere Startmöglichkeiten",
       "importJson": "Workflow-JSON",
       "settingsExecution": "Laufzeit und Fehlerbehandlung",
       "settingsHistory": "Run-Verlauf und Aufbewahrung",
@@ -6993,7 +6989,19 @@
       "importPasteTab": "JSON einfügen",
       "importFormat": "JSON formatieren",
       "testSkeletonVerified": "Nur das Workflow-Grundgerüst wurde getestet. Es wurden keine Integrationsaktionen ausgeführt.",
-      "testVerificationScope": "Testlauf: Prüfe das Ergebnis jeder Aktion. Ein erfolgreicher Run allein bestätigt nicht die gesamte Integration."
+      "testVerificationScope": "Testlauf: Prüfe das Ergebnis jeder Aktion. Ein erfolgreicher Run allein bestätigt nicht die gesamte Integration.",
+      "templateLibrary": "Workflow-Vorlagen",
+      "templateLibraryDescription": "Wählen Sie eine fertige Automatisierung oder ein kleines Beispiel, vergeben Sie einen Namen und legen Sie den Zugriff fest.",
+      "createName": "Name",
+      "createNamePlaceholder": "z. B. Kunden-Onboarding",
+      "createDescription": "Beschreibung",
+      "createTags": "Tags",
+      "selectedTemplate": "Vorlage: {name}",
+      "examplesHeading": "Beispiele",
+      "templateCategories": "Kategorien",
+      "templateCount": "{count, plural, one {# Vorlage} other {# Vorlagen}}",
+      "automationCategoryHint": "Sofort ausführbar, mit automatisch vorbereiteten Tabellen.",
+      "exampleCategoryHint": "Kleine Abläufe zum Lernen und Erstellen eigener Automatisierungen."
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -8858,7 +8866,6 @@
       "whenItFails": "Wenn es langsam ist oder fehlschlägt",
       "quickLog": "Schnelles Log"
     },
-    "chatPanelOpen": "Chat öffnen",
     "chatPanelTitle": "Mit dem Entwurf chatten",
     "chatPanelHint": "Jede Nachricht führt den Entwurf als Test aus. Nichts hier erreicht einen echten Chat.",
     "chatPanelNew": "Neuer Chat",
@@ -8868,7 +8875,6 @@
     "chatPanelSend": "Senden",
     "chatPanelRunning": "Läuft",
     "chatPanelNoAnswer": "Der Run endete ohne Antwort: Binde den Text eines Output-Schritts, um zu antworten.",
-    "chatPanelClose": "Chat schließen",
     "dataDeclared": "Noch nicht gelaufen. Er gibt weiter:",
     "dataFewerRows": "Nur die ersten 50 zeigen",
     "edgeItems": "{count, plural, one {# Element} other {# Elemente}}",

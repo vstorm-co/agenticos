@@ -57,6 +57,7 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context
+from app.services.workflow_execution.agent_conversations import for_agent_step
 from app.services.workflow_execution.errors import workflow_error
 from app.workflows import files
 from app.workflows.contracts.io import FileRef, SourceRef
@@ -338,6 +339,9 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                 if isinstance(pinned, Failed):
                     return pinned
                 agent_id, version_id = pinned
+                conversation = await for_agent_step(
+                    db, current, agent_id=agent_id, version_id=version_id
+                )
                 answers: list[dict[str, Any]] = []
                 text, run = await runner.execute(
                     current.auth,
@@ -345,6 +349,8 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
                     _prompt(node_input),
                     said=node_input.prompt,
                     surface=RunSurface.WORKFLOW,
+                    conversation_id=conversation.id,
+                    message_history=conversation.history,
                     version_id=version_id,
                     content=images,
                     output_schema=config.structured_output_schema,

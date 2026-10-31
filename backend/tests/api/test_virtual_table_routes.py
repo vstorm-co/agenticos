@@ -810,6 +810,12 @@ async def test_table_image_upload_and_private_bytes(client, service):
             uploaded.json()["url"]
             == f"/api/tables/{_TABLE}/media/{media_id}?organization_id={_ORG}"
         )
+        service.discard_image = AsyncMock()
+        discarded = await http.delete(_url(f"/{_TABLE}/media/{media_id}"))
+        assert discarded.status_code == 204
+        service.discard_image.assert_awaited_once()
+        assert service.discard_image.await_args.args[1:] == (_TABLE, media_id)
+        assert service.discard_image.await_args.args[0].organization_id == _ORG
         served = await http.get(_url(f"/{_TABLE}/media/{media_id}"))
         assert served.content == image.data
         assert served.headers["cache-control"] == "private, no-store"

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Textarea } from "@/components/ui";
+import { discardTableImage } from "@/lib/tables-api";
 import { markdownCaret } from "./markdown-caret";
 import { useTableImageUpload } from "@/hooks/use-table-image-upload";
 
@@ -147,15 +148,18 @@ export function MarkdownInput({
           const start = element.selectionStart,
             end = element.selectionEnd;
           setUploading(true);
+          const completed: { id: string; url: string }[] = [];
+          let committed = false;
           try {
-            const inserted: string[] = [];
-            for (const image of images) inserted.push(`![](${await upload(image)})`);
+            for (const image of images) completed.push(await upload(image));
+            const inserted = completed.map((image) => `![](${image.url})`);
             // A navigation/unmount while uploading must not edit a different record.
             if (!element.isConnected || current.current.value !== value) return;
             const text = inserted.join("\n\n");
             const next = value.slice(0, start) + text + value.slice(end);
             current.current.onValueChange(next);
             current.current.onImageInserted(next);
+            committed = true;
             requestAnimationFrame(() => {
               if (document.activeElement === element)
                 element.setSelectionRange(start + text.length, start + text.length);
@@ -163,6 +167,12 @@ export function MarkdownInput({
           } catch {
             setError(true);
           } finally {
+            if (!committed) {
+              const cleanup = await Promise.allSettled(
+                completed.map((image) => discardTableImage(tableId, image.id)),
+              );
+              if (cleanup.some((result) => result.status === "rejected")) setError(true);
+            }
             setUploading(false);
           }
         }}

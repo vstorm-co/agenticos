@@ -898,3 +898,26 @@ async def test_draft_storage_rejects_jsonb_incompatible_config_without_writing(v
             ctx, workflow.id, WorkflowDraftUpdate(graph=payload, expected_revision=0)
         )
     update.assert_not_called()
+
+
+async def test_template_sharing_refuses_if_its_new_table_cannot_be_loaded():
+    """A missing stored resource must not produce a workflow with partial grants."""
+    from types import SimpleNamespace
+
+    ctx = _ctx()
+    service = WorkflowRegistryService(_db())
+    with (
+        patch(f"{REGISTRY_PATH}.VirtualTableService") as tables,
+        patch(f"{REGISTRY_PATH}.virtual_table_repo.get_table", new=AsyncMock(return_value=None)),
+    ):
+        tables.return_value.create_table = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
+        with pytest.raises(NotFoundError):
+            await service._ready_template(
+                ctx,
+                _workflow(ctx),
+                WorkflowCreate(
+                    name="Not stored",
+                    template_id="markdownNotes",
+                    user_ids=[uuid.uuid4()],
+                ),
+            )

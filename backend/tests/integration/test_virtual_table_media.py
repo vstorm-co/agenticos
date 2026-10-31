@@ -56,3 +56,39 @@ async def test_image_constraints_refuse_wrong_table_type_and_size(db: AsyncSessi
                     db, organization_id=org.id, table_id=table_id, mime_type=mime, data=data
                 )
     assert await db.scalar(select(func.count()).select_from(VirtualTableMedia)) == 0
+
+
+async def test_abandoned_images_release_quota_but_record_history_keeps_its_images(db: AsyncSession):
+    from app.schemas.virtual_table import ColumnInput, RecordCreate
+
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    ctx = ctx_for(owner, org)
+    service = VirtualTableService(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Notes", columns=[ColumnInput(label="Body", type="rich_text")])
+    )
+    baseline = await virtual_table_repo.storage_bytes(db, organization_id=org.id)
+    image = await service.upload_image(ctx, table.id, PNG)
+    await service.discard_image(ctx, table.id, image.id)
+    await service.discard_image(ctx, table.id, image.id)
+    assert await virtual_table_repo.storage_bytes(db, organization_id=org.id) == baseline
+    kept = await service.upload_image(ctx, table.id, PNG)
+    created = await service.create_record(
+        ctx,
+        table.id,
+        RecordCreate(
+            values={str(table.columns[0].id): f"![](/api/tables/{table.id}/media/{kept.id})"}
+        ),
+    )
+    await service.discard_image(ctx, table.id, kept.id)
+    assert (await service.read_image(ctx, table.id, kept.id)).data == PNG
+    await service.delete_record(
+        ctx, table.id, created.record.id, expected_revision=created.record.revision
+    )
+    await service.discard_image(ctx, table.id, kept.id)
+    assert (await service.read_image(ctx, table.id, kept.id)).data == PNG
+    outsider = await make_user(db)
+    other_org = await make_org(db, owner=outsider)
+    with pytest.raises(NotFoundError):
+        await service.discard_image(ctx_for(outsider, other_org), table.id, kept.id)

@@ -52,3 +52,46 @@ describe("POST /api/forms/[token]", () => {
     expect((await post("tok", {})).status).toBe(502);
   });
 });
+
+it("bounds chunked UTF-8 bytes before forwarding an unauthenticated form", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("é".repeat(131_072)));
+      controller.enqueue(new Uint8Array([1]));
+    },
+    cancel,
+  });
+  const options = { method: "POST", body, duplex: "half" as const };
+  const request = new NextRequest("http://localhost:3000/api/forms/token", options);
+  expect((await POST(request, { params: Promise.resolve({ token: "token" }) })).status).toBe(413);
+  expect(cancel).toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("accepts a form body exactly at the byte ceiling", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 201 }));
+  vi.stubGlobal("fetch", fetchMock);
+  const request = new NextRequest("http://localhost:3000/api/forms/token", {
+    method: "POST",
+    body: "a".repeat(262_144),
+  });
+  expect((await POST(request, { params: Promise.resolve({ token: "token" }) })).status).toBe(201);
+  expect(fetchMock.mock.calls[0]?.[1].body).toHaveLength(262_144);
+});
+
+it("does not forward a form whose body stream failed", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.error(new Error("Disconnected"));
+    },
+  });
+  const options = { method: "POST", body, duplex: "half" as const };
+  const request = new NextRequest("http://localhost:3000/api/forms/token", options);
+  expect((await POST(request, { params: Promise.resolve({ token: "token" }) })).status).toBe(502);
+  expect(fetchMock).not.toHaveBeenCalled();
+});

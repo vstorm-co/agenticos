@@ -79,3 +79,24 @@ describe("organization identity fields", () => {
     expect(change).toHaveBeenCalledWith(["writer"]);
   });
 });
+
+it("caps multi-principal fields at 100 without preventing removal", async () => {
+  const onChange = vi.fn();
+  const value = ["a", ...Array.from({ length: 99 }, (_, i) => `member-${i}`)];
+  render(
+    <PrincipalCell
+      id="owners"
+      label="Owners"
+      value={value}
+      kind="user"
+      multiple
+      onChange={onChange}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox"));
+  expect(screen.getByRole("option", { name: "Jan Kowalski" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("option", { name: "Jan Kowalski" }));
+  expect(onChange).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("option", { name: "Anna Nowak" }));
+  expect(onChange).toHaveBeenCalledWith(value.slice(1));
+});

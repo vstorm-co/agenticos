@@ -19,7 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+
 ### Added
+
+- Workflow creation starts with a name, audience, trigger and optional description and tags, matching agent creation. A separate category gallery opens templates for review before creating their resources.
 
 - Workflow forms have configurable appearance, an authenticated draft preview and direct test and public links. Test draft opens the form or chat surface for those triggers.
 
@@ -970,6 +973,9 @@ Two things are versioned separately from this file and worth knowing about:
 - **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
 
 ### Fixed
+
+- Workflow agent steps retain private conversation history and sandbox workspaces, including isolated test chats, without duplicating intermediate responses in the user chat.
+- Bound public form proxy reads, release abandoned image uploads, retain archived agent identities and enforce principal and notification-channel limits.
 
 - Workflow prompt visibility, agent picker width, catalog version pins, model creation permissions, notification channel labels and shared file inputs. New Run an agent steps use catalog agents; existing inline configurations remain executable.
 

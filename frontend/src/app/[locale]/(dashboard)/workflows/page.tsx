@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Activity, Plus, Upload, Workflow } from "lucide-react";
+import { Activity, Library, Plus, Upload, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ErrorState } from "@/components/states";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui";
 import { WorkflowCard } from "@/components/workflows/workflow-card";
 import { ImportWorkflowDialog } from "@/components/workflows/import-dialog";
+import { WorkflowTemplateDialog } from "@/components/workflows/workflow-template-dialog";
 import { WorkflowCreateDialog } from "@/components/workflows/workflow-create-dialog";
 import type { WorkflowCreateChoice } from "@/components/workflows/workflow-create-dialog";
 import { useNodeCatalog, usePermissions, useWorkflowActions, useWorkflows } from "@/hooks";
@@ -95,6 +96,8 @@ export default function WorkflowsPage() {
   const filter = parseFilter(filterParam);
   const sort = parseSort(sortParam);
   const [createOpen, setCreateOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [initial, setInitial] = useState<WorkflowCreateChoice>();
   const [importOpen, setImportOpen] = useState(false);
 
   const tags = useMemo(
@@ -136,19 +139,12 @@ export default function WorkflowsPage() {
   };
 
   const onChoose = (choice: WorkflowCreateChoice) =>
-    create.mutate(
-      {
-        name: choice.name,
-        graph: choice.graph,
-        ...(choice.template_id ? { template_id: choice.template_id } : {}),
+    create.mutate(choice, {
+      onSuccess: (workflow) => {
+        setCreateOpen(false);
+        router.push(ROUTES.WORKFLOW_DETAIL(workflow.id));
       },
-      {
-        onSuccess: (workflow) => {
-          setCreateOpen(false);
-          router.push(ROUTES.WORKFLOW_DETAIL(workflow.id));
-        },
-      },
-    );
+    });
 
   const onDuplicate = (workflow: WorkflowRead) =>
     duplicate.mutate(
@@ -244,7 +240,20 @@ export default function WorkflowsPage() {
             )}
             {canCreate && (
               <Button
-                onClick={() => setCreateOpen(true)}
+                variant="outline"
+                onClick={() => setTemplatesOpen(true)}
+                disabled={create.isPending}
+              >
+                <Library className="size-4" />
+                {t("templateLibrary")}
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                onClick={() => {
+                  setInitial(undefined);
+                  setCreateOpen(true);
+                }}
                 disabled={create.isPending}
                 data-tour="workflows-new"
               >
@@ -340,11 +349,22 @@ export default function WorkflowsPage() {
       </ListCard>
 
       <ImportWorkflowDialog open={importOpen} onOpenChange={setImportOpen} />
+      <WorkflowTemplateDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        canProvisionTables={can(Perm.tablesCreate) && can(Perm.tablesView) && can(Perm.tablesEdit)}
+        onChoose={(choice) => {
+          setInitial(choice);
+          setTemplatesOpen(false);
+          setCreateOpen(true);
+        }}
+      />
       <WorkflowCreateDialog
+        key={`${createOpen}-${initial?.name ?? "blank"}`}
+        initial={initial}
         open={createOpen}
         onOpenChange={setCreateOpen}
         onChoose={onChoose}
-        canProvisionTables={can(Perm.tablesCreate) && can(Perm.tablesView) && can(Perm.tablesEdit)}
         busy={create.isPending}
       />
     </div>

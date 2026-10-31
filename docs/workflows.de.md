@@ -1,5 +1,5 @@
 ---
-source_sha: "1a481370eb5a"
+source_sha: "c5ec68694f98"
 ---
 
 # Workflows { #workflows }
@@ -18,7 +18,7 @@ abspielt; der Editor selbst hat keine Führung.
 
 ## Einen Workflow erstellen und duplizieren { #creating-and-duplicating-a-workflow }
 
-**New workflow** hat zwei Tabs: **How does it start?** und **Templates**. Der erste zeigt **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** und **Table record**; **More ways to start** zeigt weitere Trigger. Vorlagen umfassen **Starter**, **Two-step sequence** und die unten beschriebenen Automatisierungen. **Use** öffnet einen Draft im Editor.
+**New workflow** fragt nach einem Namen und dem Zugriff, mit derselben Auswahl wie bei Agenten: alle, nur Sie oder ausgewählte Personen und Abteilungen. Wählen Sie den Startauslöser, ergänzen Sie optional Beschreibung und Tags und klicken Sie auf **Create**. Die Auswahl eines Auslösers erstellt noch keinen Workflow. **Workflow templates** öffnet eine separate Kategoriengalerie; eine Vorlage füllt Name und Beschreibung im Erstellungsformular aus.
 
 Der Katalog zeigt Karten und Suche in einem gemeinsamen Panel. **Filters** öffnet Status, Tags und Sortierung und zählt aktive Filter. Bei Ladefehlern erscheint **Retry** statt eines leeren Katalogs. Der Import beginnt mit der Dateiauswahl; **Or paste the file's JSON here** öffnet ein beschriftetes Textfeld.
 
@@ -42,7 +42,7 @@ Kopie einer veröffentlichten Version.
 
 ### Vorlagen, Export und Import { #templates-exporting-and-importing }
 
-Die sofort ausführbaren Automationen heißen **Öffentliche API → Tabelle** und **Markdown-Notizbuch**. Der Server erstellt eine private Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
+Die sofort ausführbaren Automationen heißen **Öffentliche API → Tabelle** und **Markdown-Notizbuch**. Der Server erstellt eine Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Standardmäßig bleiben beide privat; eine ausdrücklich gewählte Zielgruppe gilt für Workflow und Tabelle. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
 
 Die Run-Historie füllt den verfügbaren Seitenbereich automatisch, ohne zusätzlichen Vergrößerungsknopf. Der Katalog füllt den verfügbaren Seitenbereich und bietet einen eigenen Vollbildknopf. Seitennavigation erscheint nur bei weiteren Seiten. Der Dateiimport bietet einen beschrifteten Bereich zum Auswählen oder Ablegen einer JSON-Datei.
 
@@ -94,6 +94,8 @@ die Berechtigung, den Workflow auszuführen. Das Menü **...** einer Karte archi
 einen Workflow, was seinen Trigger ebenfalls pausiert. Ein archivierter lässt sich
 wiederherstellen, weiterhin pausiert, oder mit Versionen, Läufen und Freigaben löschen;
 einer mit noch nicht beendeten Läufen wird mit `WORKFLOW_IN_USE` abgelehnt.
+
+Agentenschritte behalten private Gespräche für den Modellverlauf und gesprächsgebundene Arbeitsbereiche. Weitere Chatnachrichten verwenden denselben Schrittkontext; im sichtbaren Chat erscheint nur das Workflow-Ergebnis. Testchats haben getrennte Sitzungen, und ein neuer Testchat setzt den Kontext zurück. Interne Gespräche fehlen in der Chatliste und werden mit ihrem Workflow oder Ursprungschat gelöscht.
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
 

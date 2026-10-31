@@ -64,6 +64,8 @@ describe("RunButton", () => {
     render(<RunButton workflowId="wf" catalog={[chat]} onStarted={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
     expect(screen.getByRole("textbox", { name: "Message" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("textbox", { name: "Message" })).not.toBeInTheDocument();
     expect(mutate).not.toHaveBeenCalled();
   });
 

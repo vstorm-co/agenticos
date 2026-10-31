@@ -147,7 +147,7 @@ from app.workflows.nodes.control_foreach import (
 )
 from app.workflows.nodes.logic_merge._handler import LogicMergeConfig, branch_keys
 from app.workflows.nodes.loop_item import LoopItemOutput
-from app.workflows.triggers import WEBHOOK_RESPOND, entry_graph
+from app.workflows.triggers import CHAT, WEBHOOK_RESPOND, entry_graph
 
 logger = logging.getLogger(__name__)
 
@@ -807,6 +807,19 @@ async def _wait_for_budget(
     )
 
 
+def _test_chat_key(run: WorkflowRun, graph: WorkflowGraph) -> UUID | None:
+    entry = graph.node_by_id.get(graph.entry_node_id)
+    if run.mode != WorkflowRunMode.TEST.value or entry is None or entry.definition_id != CHAT:
+        return None
+    value = run.input.get("conversation_id")
+    if not isinstance(value, str):
+        return None
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
+
+
 async def begin_attempt(
     db: AsyncSession,
     *,
@@ -1046,6 +1059,9 @@ async def begin_attempt(
         # The stored flag covers the whole chain; the trigger covers a door run
         # admitted by code older than the column.
         public_origin=run.public_origin or run.triggered_by in PUBLIC_TRIGGERS,
+        source_conversation_id=run.reply_conversation_id,
+        test_chat_key=_test_chat_key(run, call.graph),
+        nested=bool(node_run.scope_path),
         impersonated=run.impersonated,
     )
     return BegunAttempt(

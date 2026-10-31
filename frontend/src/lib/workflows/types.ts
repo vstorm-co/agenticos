@@ -448,7 +448,10 @@ export interface WorkflowCreate {
   template_id?: "publicApi" | "markdownNotes";
   name: string;
   description?: string | null;
-  visibility?: string;
+  visibility?: "org" | "private" | "team";
+  group_ids?: string[];
+  user_ids?: string[];
+  tags?: string[];
 }
 
 /**

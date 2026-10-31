@@ -24,13 +24,14 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.db.models.conversation import Conversation
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
@@ -150,7 +151,12 @@ async def _profile(engine: AsyncEngine, org: Organization) -> uuid.UUID:
 
 
 async def _published(
-    engine: AsyncEngine, seeded_ctx: Any, profile_id: uuid.UUID, instructions: str
+    engine: AsyncEngine,
+    seeded_ctx: Any,
+    profile_id: uuid.UUID,
+    instructions: str,
+    *,
+    sandbox: bool = False,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """A new agent published once with `instructions`: its id and that version's."""
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
@@ -160,6 +166,13 @@ async def _published(
             AgentSpec(
                 name=f"Analyst {uuid.uuid4().hex[:6]}",
                 instructions=instructions,
+                capabilities=[
+                    CapabilityBindingSpec(
+                        id="sandbox", config={"backend": "state", "session_scope": "conversation"}
+                    )
+                ]
+                if sandbox
+                else [],
                 model_profile_id=profile_id,
             ),
         )
@@ -238,7 +251,9 @@ def _graph(agent_id: uuid.UUID, version_id: uuid.UUID, **config: Any) -> Workflo
     )
 
 
-async def _setup(engine: AsyncEngine, graph_for: Any, instructions: str = "Be brief.") -> SeededRun:
+async def _setup(
+    engine: AsyncEngine, graph_for: Any, instructions: str = "Be brief.", *, sandbox: bool = False
+) -> SeededRun:
     member = await _tenant(engine)
     profile_id = await _profile(engine, member[1])
     placeholder = await seed_run(
@@ -246,7 +261,9 @@ async def _setup(engine: AsyncEngine, graph_for: Any, instructions: str = "Be br
         WorkflowGraph(entry_node_id=uuid.uuid4(), nodes=(_node("core.input"),)),
         member=member,
     )
-    agent_id, version_id = await _published(engine, placeholder.ctx, profile_id, instructions)
+    agent_id, version_id = await _published(
+        engine, placeholder.ctx, profile_id, instructions, sandbox=sandbox
+    )
     graph = graph_for(agent_id, version_id)
     seeded = await seed_run(engine, graph, run_input={"q": "Score this lead"}, member=member)
     async with async_sessionmaker(engine)() as db:
@@ -766,3 +783,165 @@ async def test_the_steps_agent_is_reached_through_its_workflow_and_changed_only_
         stranger = AuthContext(user_id=outsider.id, organization_id=seeded.org.id, role="member")
         with pytest.raises(NotFoundError):
             await registry.get(stranger, agent.id)
+
+
+async def test_a_conversation_scoped_workspace_runs_inside_a_workflow(engine: AsyncEngine, model):
+    from app.db.models.agent_workspace import AgentWorkspace
+    from app.db.models.conversation import Conversation
+
+    model("Workspace ready.")
+    seeded = await _setup(engine, _graph, sandbox=True)
+    run = await drive(seeded)
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    async with seeded.factory() as db:
+        agent_run = (await db.execute(select(AgentRun))).scalar_one()
+        assert agent_run.conversation_id is not None
+        thread = await db.get(Conversation, agent_run.conversation_id)
+        assert thread is not None and thread.origin == "workflow"
+        assert thread.workflow_id == seeded.run.workflow_id and thread.user_id is None
+        workspace = (await db.execute(select(AgentWorkspace))).scalar_one()
+        assert workspace.conversation_id == thread.id
+
+
+async def test_a_chat_step_keeps_history_without_intermediate_messages_in_the_user_chat(
+    engine: AsyncEngine, model
+):
+    import dataclasses
+
+    from app.db.models.conversation import Message
+    from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunTrigger
+    from app.repositories import conversation as conversations
+    from app.repositories import workflow_run as runs
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    recorder = model("The final answer.")
+    seeded = await _setup(engine, _graph, sandbox=True)
+    async with seeded.factory() as db:
+        source = await conversations.create_conversation(
+            db, organization_id=seeded.org.id, user_id=seeded.principal.id
+        )
+        await conversations.create_message(
+            db, conversation_id=source.id, role="user", content="First question"
+        )
+        stored = await runs.get_run(db, seeded.run.id, organization_id=seeded.org.id)
+        await runs.update_run(db, run=stored, update_data={"reply_conversation_id": source.id})
+        await db.commit()
+        source_id = source.id
+    assert (await drive(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+    async with seeded.factory() as db:
+        await conversations.create_message(
+            db, conversation_id=source_id, role="user", content="Follow up"
+        )
+        second = await WorkflowExecutionService(db).start(
+            seeded.ctx,
+            seeded.run.workflow_id,
+            mode=WorkflowRunMode.TEST,
+            triggered_by=WorkflowRunTrigger.CHAT,
+            run_input={"q": "Follow up"},
+            reply_conversation_id=source_id,
+        )
+        await db.commit()
+        second_row = await runs.get_run(db, second.id, organization_id=seeded.org.id)
+    assert (
+        await drive(dataclasses.replace(seeded, run=second_row))
+    ).status == WorkflowRunStatus.SUCCEEDED.value
+    async with seeded.factory() as db:
+        agent_runs = list((await db.execute(select(AgentRun))).scalars())
+        assert (
+            len(agent_runs) == 2 and agent_runs[0].conversation_id == agent_runs[1].conversation_id
+        )
+        transcript = list(
+            (
+                await db.execute(
+                    select(Message)
+                    .where(Message.conversation_id == source_id)
+                    .order_by(Message.ordinal)
+                )
+            ).scalars()
+        )
+        assert [message.content for message in transcript] == [
+            "First question",
+            "The final answer.",
+            "Follow up",
+            "The final answer.",
+        ]
+        listed = await conversations.get_conversations_by_user(
+            db, user_id=seeded.principal.id, organization_id=seeded.org.id
+        )
+        assert [thread.id for thread in listed] == [source_id]
+        internal_id = agent_runs[0].conversation_id
+        await db.delete(await db.get(Conversation, source_id))
+        await db.commit()
+        db.expire_all()
+        assert await db.get(Conversation, internal_id) is None
+    assert recorder.prompts.count("Score this lead") == 2
+    assert "Follow up" in recorder.prompts
+
+
+async def test_test_chat_sessions_keep_context_but_cannot_attach_to_a_real_chat(
+    engine: AsyncEngine, model
+):
+    import dataclasses
+
+    from app.db.models.conversation import Conversation, Message
+    from app.db.models.workflow_run import WorkflowRunMode
+    from app.repositories import conversation as conversations
+    from app.repositories import workflow_run as runs
+    from app.services.workflow_execution import WorkflowExecutionService
+
+    def chat_graph(agent_id, version_id):
+        graph = _graph(agent_id, version_id)
+        entry = graph.nodes[0].model_copy(update={"definition_id": "trigger.chat"})
+        prompt_binding = graph.bindings[0].model_copy(
+            update={"source": NodeOutputRef(node_id=entry.id, port="out", field_path=("prompt",))}
+        )
+        return graph.model_copy(
+            update={
+                "nodes": (entry, *graph.nodes[1:]),
+                "bindings": (prompt_binding, *graph.bindings[1:]),
+            }
+        )
+
+    recorder = model("Ready.")
+    seeded = await _setup(engine, chat_graph, sandbox=True)
+    async with seeded.factory() as db:
+        other_user, other_org = await seed_member(db)
+        unrelated = await conversations.create_conversation(
+            db, organization_id=other_org.id, user_id=other_user.id
+        )
+        await db.flush()
+        token = unrelated.id
+        payload = {
+            "prompt": "First test message",
+            "conversation_id": str(token),
+            "user_id": str(seeded.principal.id),
+        }
+        stored = await runs.get_run(db, seeded.run.id, organization_id=seeded.org.id)
+        await runs.update_run(db, run=stored, update_data={"input": payload})
+        await db.commit()
+    assert (await drive(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+    for prompt, session in (("Second test message", token), ("New chat message", uuid.uuid4())):
+        async with seeded.factory() as db:
+            started = await WorkflowExecutionService(db).start(
+                seeded.ctx,
+                seeded.run.workflow_id,
+                mode=WorkflowRunMode.TEST,
+                run_input={**payload, "prompt": prompt, "conversation_id": str(session)},
+            )
+            await db.commit()
+            row = await runs.get_run(db, started.id, organization_id=seeded.org.id)
+        assert (
+            await drive(dataclasses.replace(seeded, run=row))
+        ).status == WorkflowRunStatus.SUCCEEDED.value
+    async with seeded.factory() as db:
+        actual = list((await db.execute(select(AgentRun).order_by(AgentRun.created_at))).scalars())
+        assert actual[0].conversation_id == actual[1].conversation_id
+        assert actual[2].conversation_id != actual[0].conversation_id
+        assert actual[0].conversation_id != token
+        internal = await db.get(Conversation, actual[0].conversation_id)
+        assert internal.source_conversation_id is None
+        assert not list(
+            (await db.execute(select(Message).where(Message.conversation_id == token))).scalars()
+        )
+    assert recorder.prompts.count("First test message") == 2
+    assert recorder.prompts.count("New chat message") == 1

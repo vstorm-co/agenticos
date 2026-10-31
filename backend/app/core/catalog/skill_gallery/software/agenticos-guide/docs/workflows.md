@@ -13,7 +13,7 @@ no walkthrough.
 
 ## Creating and duplicating a workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** opens two tabs: **How does it start?** and **Templates**. The first shows **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** and **Table record**; **More ways to start** reveals the other triggers. Templates include **Starter**, **Two-step sequence** and the automations described below. Choose **Use** to open a draft in the editor.
+**New workflow** asks for a name and who can use it, using the same audience picker as agent creation: everyone, only you, or selected people and departments. Choose its starting trigger, optionally add a description and tags, then press **Create**. Selecting a trigger never creates a workflow by itself. **Workflow templates** is a separate category gallery; choosing a template opens this form with its name and description prefilled.
 
 The catalog keeps its cards and search inside one panel. **Filters** reveals status, tags and sorting, with a count of active filters. Failed loading offers **Retry** instead of an empty catalog. Importing starts with a file picker; **Or paste the file's JSON here** reveals a labelled text field.
 
@@ -36,7 +36,7 @@ of a published version.
 
 ### Templates, exporting and importing { #templates-exporting-and-importing }
 
-The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a private table and a fully configured draft in one transaction. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
+The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a table and a fully configured draft in one transaction. Templates start private; an explicit audience applies to both the workflow and its table. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
 
 Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
 
@@ -85,6 +85,8 @@ on resumes it as its publisher, so it needs permission to run the workflow. A ca
 **...** menu archives a workflow, which pauses its trigger too. An archived one can
 be restored, still paused, or deleted with its versions, runs and shares; one whose
 runs have not ended is refused with `WORKFLOW_IN_USE`.
+
+Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives only the workflow result. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 

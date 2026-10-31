@@ -1,5 +1,5 @@
 ---
-source_sha: "1a481370eb5a"
+source_sha: "c5ec68694f98"
 ---
 
 # Workflows { #workflows }
@@ -18,7 +18,7 @@ sí no tiene recorrido.
 
 ## Crear y duplicar un workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** tiene dos pestañas: **How does it start?** y **Templates**. La primera muestra **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** y **Table record**; **More ways to start** muestra los demás triggers. Las plantillas incluyen **Starter**, **Two-step sequence** y las automatizaciones descritas abajo. **Use** abre un borrador en el editor.
+**New workflow** solicita un nombre y quién puede usarlo, con el mismo selector que al crear un agente: todos, solo tú o personas y departamentos elegidos. Elige el disparador, añade opcionalmente descripción y etiquetas y pulsa **Create**. Elegir un disparador no crea el flujo. **Workflow templates** abre una galería de categorías separada; elegir una plantilla abre el formulario con su nombre y descripción completos.
 
 El catálogo reúne las tarjetas y la búsqueda en un panel. **Filters** muestra estado, etiquetas y orden, junto al número de filtros activos. Un fallo de carga ofrece **Retry** en lugar de un catálogo vacío. La importación empieza eligiendo un archivo; **Or paste the file's JSON here** abre un campo de texto con etiqueta.
 
@@ -41,7 +41,7 @@ versión publicada.
 
 ### Plantillas, exportar e importar { #templates-exporting-and-importing }
 
-Las automatizaciones listas para ejecutar son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla privada y un borrador completamente configurado en una transacción. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
+Las automatizaciones listas para ejecutar son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla y un borrador completamente configurado en una transacción. Ambos son privados por defecto; una audiencia elegida explícitamente se aplica al flujo y a su tabla. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
 
 El historial ocupa automáticamente el espacio disponible de la página, sin un control para ampliarlo. El catálogo ocupa el espacio disponible y ofrece su propio botón de pantalla completa. Solo muestra paginación si hay más páginas. La importación ofrece una zona etiquetada para seleccionar o soltar un archivo JSON.
 
@@ -94,6 +94,8 @@ workflow. El menú **...** de una tarjeta archiva un workflow, lo que también p
 disparador. Uno archivado se puede restaurar, todavía en pausa, o eliminar con sus
 versiones, ejecuciones y permisos compartidos; uno cuyas ejecuciones no han terminado se
 rechaza con `WORKFLOW_IN_USE`.
+
+Los pasos de agentes conservan conversaciones privadas para el historial del modelo y los espacios de trabajo vinculados a la conversación. Los turnos del chat reutilizan el contexto del paso; el chat visible recibe solo el resultado del flujo. Los chats de prueba tienen sesiones aisladas y un nuevo chat de prueba reinicia el contexto. Las conversaciones internas no aparecen en la lista de chats y se eliminan junto con su flujo o chat de origen.
 
 ## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
 

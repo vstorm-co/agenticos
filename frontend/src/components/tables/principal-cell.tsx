@@ -64,13 +64,15 @@ export function PrincipalCell({
   const [search, setSearch] = useState("");
   const { items, isLoading, error } = useTablePrincipals(kind);
   const selected = idsOf(value);
+  const atLimit = multiple && selected.length >= 100;
   const matches = items
+    .filter((item) => !item.archived || selected.includes(item.id ?? ""))
     .filter((item) =>
       `${item.name} ${item.detail ?? ""}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
     )
     .slice(0, 50);
   const choose = (item: RecordSource) => {
-    if (!item.id) return;
+    if (!item.id || (atLimit && !selected.includes(item.id))) return;
     onChange(
       multiple
         ? selected.includes(item.id)
@@ -163,10 +165,11 @@ export function PrincipalCell({
               <button
                 key={item.id}
                 role="option"
+                disabled={atLimit && !selected.includes(item.id ?? "")}
                 aria-selected={selected.includes(item.id ?? "")}
                 type="button"
                 onClick={() => choose(item)}
-                className="hover:bg-accent flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left"
+                className="hover:bg-accent flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left disabled:opacity-50"
               >
                 <span className="min-w-0">
                   <RecordSourceBadge source={item} />

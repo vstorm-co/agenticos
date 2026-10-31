@@ -490,9 +490,9 @@ class ConversationRead(ConversationBase, TimestampSchema):
         default=None, description="The project this chat was started in, if any"
     )
     is_archived: bool = False
-    origin: Literal["api"] | None = Field(
+    origin: Literal["api", "workflow"] | None = Field(
         default=None,
-        description="`api` for a conversation an organization key's run opened; null otherwise",
+        description="`api` for organization-key runs, `workflow` for private agent-step threads; null otherwise",
     )
     is_favourite: bool = Field(
         default=False,

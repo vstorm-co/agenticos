@@ -163,6 +163,7 @@ describe("the workflows list", () => {
     await screen.findByRole("link", { name: "Open Live" });
 
     expect(screen.queryByRole("button", { name: "New workflow" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Workflow templates" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Import" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Duplicate / })).toBeNull();
   });
@@ -179,14 +180,18 @@ describe("the workflows list", () => {
     expect(apiClient.get).not.toHaveBeenCalledWith("/workflows");
   });
 
-  it("opens the start/template dialog from New workflow", async () => {
+  it("opens named creation and keeps templates in their own library", async () => {
     render(<WorkflowsPage />, { wrapper });
     await screen.findByRole("link", { name: "Open Live" });
 
     await userEvent.click(screen.getByRole("button", { name: "New workflow" }));
 
     expect(await screen.findByText("How does it start?")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Everyone/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Workflow templates" }));
+    await userEvent.click(screen.getByRole("button", { name: /Examples/ }));
     expect(screen.getByText("Two-step sequence")).toBeInTheDocument();
   });
 });

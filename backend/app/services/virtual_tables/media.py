@@ -52,3 +52,11 @@ class MediaOperations(Operations):
         if media is None:
             raise NotFoundError(message="Table image not found", details={"media_id": media_id})
         return media
+
+    async def discard_image(self, ctx: AuthContext, table_id: UUID, media_id: UUID) -> None:
+        """Release an unused upload without deleting images kept in record history."""
+        await lock_storage(self.db, ctx)
+        await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
+        await virtual_table_repo.delete_unused_media(
+            self.db, organization_id=ctx.organization_id, table_id=table_id, media_id=media_id
+        )

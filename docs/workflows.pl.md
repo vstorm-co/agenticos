@@ -1,5 +1,5 @@
 ---
-source_sha: "1a481370eb5a"
+source_sha: "c5ec68694f98"
 ---
 
 # Workflows { #workflows }
@@ -18,7 +18,7 @@ znajduje się w sekcji **Workflows** w konsoli. Strona **listy** Workflows ma
 
 ## Tworzenie i duplikowanie workflow { #creating-and-duplicating-a-workflow }
 
-**New workflow** ma dwie zakładki: **How does it start?** i **Templates**. Pierwsza pokazuje **Manual**, **API request**, **Chat message**, **Webhook**, **Schedule** i **Table record**; **More ways to start** odsłania pozostałe wyzwalacze. Szablony obejmują **Starter**, **Two-step sequence** i automatyzacje opisane poniżej. **Use** otwiera draft w edytorze.
+**New workflow** wymaga nazwy i wyboru odbiorców, tak jak tworzenie agenta: wszyscy, tylko Ty lub wybrane osoby i działy. Wybierz wyzwalacz, opcjonalnie dodaj opis i tagi, a następnie kliknij **Create**. Sam wybór wyzwalacza nie tworzy workflow. **Workflow templates** otwiera osobną galerię kategorii; wybranie szablonu otwiera ten formularz z uzupełnioną nazwą i opisem.
 
 Katalog trzyma karty i wyszukiwanie we wspólnym panelu. **Filters** odsłania status, tagi i sortowanie oraz pokazuje liczbę aktywnych filtrów. Nieudane pobranie danych daje **Retry** zamiast pustego katalogu. Import zaczyna się od wyboru pliku; **Or paste the file's JSON here** odsłania pole tekstowe z etykietą.
 
@@ -39,7 +39,7 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 ### Szablony, eksport i import { #templates-exporting-and-importing }
 
-Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje prywatną tabelę i kompletnie skonfigurowany szkic. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje tabelę i kompletnie skonfigurowany szkic. Domyślnie są prywatne; jawnie wybrani odbiorcy dotyczą workflow i jego tabeli. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
 
 Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez przycisku rozszerzania. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
 
@@ -90,6 +90,8 @@ na karcie archiwizuje workflow, co również wstrzymuje wyzwalacz. Zarchiwizowan
 przywrócić, nadal wstrzymany, albo usunąć razem z wersjami, przebiegami i
 udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany z
 `WORKFLOW_IN_USE`.
+
+Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje tylko wynik workflow. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
 

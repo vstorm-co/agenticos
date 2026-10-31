@@ -2,11 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { RecordCellEditor } from "./record-cell-editor";
-import { uploadTableImage } from "@/lib/tables-api";
+import { uploadTableImage, discardTableImage } from "@/lib/tables-api";
 import { markdownDocument } from "@/lib/markdown-document";
 import type { ColumnDef } from "@/types/tables";
 
-vi.mock("@/lib/tables-api", () => ({ uploadTableImage: vi.fn() }));
+vi.mock("@/lib/tables-api", () => ({
+  uploadTableImage: vi.fn(),
+  discardTableImage: vi.fn().mockResolvedValue(undefined),
+}));
 
 const column: ColumnDef = {
   id: "notes",
@@ -261,6 +264,7 @@ it("ignores a completed image upload after the record editor unmounts", async ()
   finish?.({ id: "late", url: "/api/tables/table/media/late" });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(change).not.toHaveBeenCalled();
+  expect(discardTableImage).toHaveBeenCalledWith("table", "late");
 });
 
 it("opens a full-page document in Write and returns to Preview in its side panel", () => {
@@ -285,4 +289,23 @@ it("opens a full-page document in Write and returns to Preview in its side panel
   );
   expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("# A document");
   expect(screen.getByRole("button", { name: "Write" })).toHaveAttribute("aria-pressed", "true");
+});
+
+it("releases earlier pasted images when a later upload fails", async () => {
+  vi.mocked(uploadTableImage)
+    .mockResolvedValueOnce({ id: "first", url: "/first" })
+    .mockRejectedValueOnce(new Error("Quota"));
+  const change = vi.fn();
+  render(<RecordCellEditor tableId="table" column={column} value="Keep" onChange={change} />);
+  fireEvent.paste(screen.getByRole("textbox", { name: "Notes" }), {
+    clipboardData: {
+      files: [
+        new File(["png"], "one.png", { type: "image/png" }),
+        new File(["png"], "two.png", { type: "image/png" }),
+      ],
+    },
+  });
+  await waitFor(() => expect(discardTableImage).toHaveBeenCalledWith("table", "first"));
+  expect(change).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue("Keep");
 });

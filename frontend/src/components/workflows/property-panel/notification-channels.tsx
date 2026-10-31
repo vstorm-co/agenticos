@@ -35,7 +35,7 @@ export function NotificationChannels({
             >
               <Checkbox
                 checked={on}
-                disabled={disabled}
+                disabled={disabled || (on && picked.length === 1)}
                 onCheckedChange={(checked) =>
                   onChange(
                     checked ? [...picked, channel] : picked.filter((item) => item !== channel),

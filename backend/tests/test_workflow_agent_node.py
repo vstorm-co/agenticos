@@ -64,6 +64,11 @@ def runner(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
     monkeypatch.setattr(agent_node, "get_worker_db_context", session)
     monkeypatch.setattr(agent_node, "AgentRunnerService", lambda _db: stub)
+    monkeypatch.setattr(
+        agent_node,
+        "for_agent_step",
+        AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4(), history=[])),
+    )
     return stub
 
 

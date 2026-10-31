@@ -24,7 +24,6 @@ import {
   DraftAutosave,
   PublishDialog,
   WorkflowSettingsForm,
-  ChatButton,
   RunButton,
   VersionHistory,
   useRestoreVersion,
@@ -254,9 +253,6 @@ export default function WorkflowEditorPage({ params }: PageProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {editing && (
-              <ChatButton workflowId={workflow.id} catalog={nodes} onStarted={startedRun} />
-            )}
             {/* The run Run started, while it goes: one click stops it. */}
             {editing && liveRunId !== null && <LiveRunStop runId={liveRunId} />}
             {editing && (

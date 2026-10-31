@@ -165,3 +165,8 @@ export function uploadTableImage(
 ): Promise<{ id: string; url: string }> {
   return apiClient.upload(`/tables/${tableId}/media`, file);
 }
+
+/** Idempotent cleanup refuses to remove any live or historical record image. */
+export function discardTableImage(tableId: string, mediaId: string): Promise<void> {
+  return apiClient.delete(`/tables/${tableId}/media/${mediaId}`);
+}

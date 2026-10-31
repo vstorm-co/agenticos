@@ -503,3 +503,17 @@ async def read_table_image(
         media_type=media.mime_type,
         headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
     )
+
+
+@router.delete(
+    "/{table_id}/media/{media_id}",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def discard_table_image(
+    table_id: UUID, media_id: UUID, ctx: Auth, service: VirtualTableSvc
+) -> Any:
+    """Discard an abandoned upload; images in records or their history are retained."""
+    await service.discard_image(ctx, table_id, media_id)

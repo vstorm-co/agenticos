@@ -3330,7 +3330,6 @@
       }
     },
     "workflows": {
-      "templatesHeading": "Szablony",
       "useTemplate": "Użyj",
       "templates": {
         "sequence": {
@@ -3512,10 +3511,8 @@
       "duplicateWorkflow": "Zduplikuj {name}",
       "copyOfName": "{name} (kopia)",
       "createDialogTitle": "Nowy workflow",
-      "createDialogDescription": "Zacznij od wyzwalacza lub od szablonu.",
       "description": "Automatyzuj wieloetapową pracę, którą wykonują Twoi agenci.",
       "newWorkflow": "Nowy workflow",
-      "untitledWorkflow": "Workflow bez nazwy",
       "title": "Workflow",
       "triggerResumed": "Wyzwalacz wznowiony",
       "triggerPaused": "Wyzwalacz wstrzymany",
@@ -3612,7 +3609,7 @@
       "activeTurnedOff": "Workflow wstrzymany.",
       "addTag": "Tag",
       "tagPlaceholder": "Dodaj tag i naciśnij Enter",
-      "removeTag": "Usuń tag {tag}",
+      "removeTag": "Usuń {tag}",
       "archivedToast": "Workflow zarchiwizowany. Jego wyzwalacz jest wstrzymany.",
       "restoredToast": "Workflow przywrócony.",
       "deletedToast": "Workflow usunięty.",
@@ -3879,7 +3876,6 @@
       "alertStepHint": "Obserwuj jeden krok albo każdy, który zapisuje dziennik",
       "alertWindowHint": "W jakim czasie",
       "alertAudienceHint": "Kto dostaje dzwonek i e-mail",
-      "moreStarts": "Więcej sposobów uruchamiania",
       "importJson": "JSON workflowa",
       "settingsExecution": "Czas wykonania i obsługa błędów",
       "settingsHistory": "Historia i przechowywanie runów",
@@ -3896,7 +3892,19 @@
       "importPasteTab": "Wklej JSON",
       "importFormat": "Formatuj JSON",
       "testSkeletonVerified": "Sprawdzono tylko szkielet workflow. Nie wykonano żadnych akcji integracji.",
-      "testVerificationScope": "Run testowy: sprawdź wynik każdej akcji, aby potwierdzić jej efekt. Sam sukces runa nie potwierdza działania całej integracji."
+      "testVerificationScope": "Run testowy: sprawdź wynik każdej akcji, aby potwierdzić jej efekt. Sam sukces runa nie potwierdza działania całej integracji.",
+      "templateLibrary": "Szablony workflow",
+      "templateLibraryDescription": "Wybierz gotową automatyzację lub mały przykład, a następnie nadaj nazwę i wybierz, kto ma go widzieć.",
+      "createName": "Nazwa",
+      "createNamePlaceholder": "np. Obsługa nowych klientów",
+      "createDescription": "Opis",
+      "createTags": "Tagi",
+      "selectedTemplate": "Szablon: {name}",
+      "examplesHeading": "Przykłady",
+      "templateCategories": "Kategorie",
+      "templateCount": "{count, plural, one {# szablon} few {# szablony} many {# szablonów} other {# szablonu}}",
+      "automationCategoryHint": "Gotowe do uruchomienia, z automatycznie przygotowanymi tabelami.",
+      "exampleCategoryHint": "Małe przepływy do nauki i budowania własnych automatyzacji."
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -9661,7 +9669,6 @@
       "whenItFails": "Gdy działa wolno lub zawodzi",
       "quickLog": "Szybki log"
     },
-    "chatPanelOpen": "Otwórz czat",
     "chatPanelTitle": "Czat ze szkicem",
     "chatPanelHint": "Każda wiadomość uruchamia szkic testowo. Nic stąd nie trafia do prawdziwego czatu.",
     "chatPanelNew": "Nowy czat",
@@ -9671,7 +9678,6 @@
     "chatPanelSend": "Wyślij",
     "chatPanelRunning": "Trwa",
     "chatPanelNoAnswer": "Run zakończył się bez odpowiedzi: powiąż tekst kroku Output, by odpowiadał.",
-    "chatPanelClose": "Zamknij czat",
     "dataDeclared": "Jeszcze nie uruchomiony. Przekazuje dalej:",
     "dataFewerRows": "Pokaż tylko pierwsze 50",
     "edgeItems": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}",

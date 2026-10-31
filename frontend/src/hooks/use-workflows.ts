@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type {
+  WorkflowCreate,
   WorkflowDraftUpdate,
   WorkflowGraph,
   WorkflowPublish,
@@ -29,9 +30,7 @@ import {
 import { toastDone } from "@/lib/toast";
 
 /** Create a workflow, optionally seeding its draft graph — a template, or a copy. */
-export interface WorkflowSeed {
-  template_id?: "publicApi" | "markdownNotes";
-  name: string;
+export interface WorkflowSeed extends WorkflowCreate {
   graph?: WorkflowGraph | null;
 }
 
@@ -110,8 +109,8 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
   );
 
   const create = useMutation({
-    mutationFn: async ({ name, graph, template_id }: WorkflowSeed) =>
-      seedGraph(await createWorkflow({ name, ...(template_id ? { template_id } : {}) }), graph),
+    mutationFn: async ({ graph, ...data }: WorkflowSeed) =>
+      seedGraph(await createWorkflow(data), graph),
     onSuccess: async (workflow) => {
       await invalidateWorkflow(workflow.id);
       toast.success(t("created"));

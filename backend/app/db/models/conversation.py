@@ -11,12 +11,14 @@ from sqlalchemy import (
     Computed,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Identity,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
@@ -41,6 +43,28 @@ class Conversation(Base, TimestampMixin):
     """
 
     __tablename__ = "conversations"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_conversation_org_id"),
+        ForeignKeyConstraint(
+            ["organization_id", "workflow_id"],
+            ["workflows.organization_id", "workflows.id"],
+            ondelete="CASCADE",
+            name="fk_conversation_workflow",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "source_conversation_id"],
+            ["conversations.organization_id", "conversations.id"],
+            ondelete="CASCADE",
+            name="fk_conversation_source",
+        ),
+    )
+
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID | None] = mapped_column(

@@ -15,6 +15,7 @@ from pydantic import ConfigDict, Field, StringConstraints, field_validator, mode
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.resource_grant import AudienceChoice
 from app.schemas.virtual_table import TableCreate, TableRead
 from app.schemas.workflow_exposure import WorkflowExposureRead
 from app.workflows.graph.model import WorkflowGraph
@@ -173,10 +174,19 @@ class WorkflowList(BaseSchema):
     total: int
 
 
-class WorkflowCreate(BaseSchema):
-    """Create an empty draft or a ready template with its private table."""
+MAX_TAGS = 10
+
+WorkflowTag = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=32),
+]
+
+
+class WorkflowCreate(AudienceChoice):
+    """Create a named draft and audience, optionally provisioning a template table."""
 
     name: str = Field(min_length=1, max_length=128)
+    tags: list[WorkflowTag] = Field(default_factory=list, max_length=MAX_TAGS)
     template_id: Literal["publicApi", "markdownNotes"] | None = None
     description: str | None = Field(default=None, max_length=2000)
     visibility: Visibility = Field(
@@ -187,14 +197,6 @@ class WorkflowCreate(BaseSchema):
             "draft cannot run either way, so this decides who sees it, not what it does."
         ),
     )
-
-
-MAX_TAGS = 10
-
-WorkflowTag = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=32),
-]
 
 
 class WorkflowUpdate(BaseSchema):

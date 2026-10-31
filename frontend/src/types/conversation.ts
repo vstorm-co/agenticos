@@ -44,7 +44,7 @@ export interface Conversation {
   /** The project it was started in, whose files and instructions its runs share. */
   project_id?: string | null;
   /** `api` for a conversation an organization key's run opened (#2122). */
-  origin?: "api" | null;
+  origin?: "api" | "workflow" | null;
   /** Holds an answer the caller has not seen since they last had it open. Listings only. */
   unread?: boolean;
   /** When the run still at work in it began; null when none is. Listings only. */

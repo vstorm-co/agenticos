@@ -1151,3 +1151,45 @@ async def get_media(
             VirtualTableMedia.id == media_id,
         )
     )
+
+
+async def delete_unused_media(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID, media_id: UUID
+) -> None:
+    """Discard an abandoned upload, preserving every live or historical reference.
+
+    The caller holds the organization's storage lock, as record writers do.
+    A UUID substring match is conservative: an incidental mention retains bytes.
+    """
+    needle = f"%{media_id}%"
+    records = (
+        select(VirtualTableRecord.id)
+        .where(
+            VirtualTableRecord.organization_id == organization_id,
+            VirtualTableRecord.table_id == table_id,
+            cast(VirtualTableRecord.values, Text).like(needle),
+        )
+        .exists()
+    )
+    history = (
+        select(VirtualTableRecordHistory.id)
+        .where(
+            VirtualTableRecordHistory.organization_id == organization_id,
+            VirtualTableRecordHistory.table_id == table_id,
+            or_(
+                cast(VirtualTableRecordHistory.before, Text).like(needle),
+                cast(VirtualTableRecordHistory.after, Text).like(needle),
+            ),
+        )
+        .exists()
+    )
+    await db.execute(
+        delete(VirtualTableMedia).where(
+            VirtualTableMedia.organization_id == organization_id,
+            VirtualTableMedia.table_id == table_id,
+            VirtualTableMedia.id == media_id,
+            ~records,
+            ~history,
+        )
+    )
+    await db.flush()

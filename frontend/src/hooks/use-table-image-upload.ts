@@ -7,9 +7,9 @@ import { uploadTableImage } from "@/lib/tables-api";
 export function useTableImageUpload(tableId?: string) {
   const t = useTranslations("tables.markdown");
   return useCallback(
-    async (file: File): Promise<string> => {
+    async (file: File): Promise<{ id: string; url: string }> => {
       if (!tableId) throw new Error(t("imageUploadError"));
-      return (await uploadTableImage(tableId, file)).url;
+      return uploadTableImage(tableId, file);
     },
     [tableId, t],
   );

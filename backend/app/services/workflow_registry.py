@@ -11,7 +11,7 @@ import logging
 import re
 from collections.abc import Sequence
 from itertools import pairwise
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError as PydanticValidationError
@@ -35,10 +35,11 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
 from app.db.updates import writable
-from app.repositories import resource_grant_repo
+from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnInput, TableCreate
 from app.schemas.workflow import (
     NodeCatalog,
@@ -63,9 +64,10 @@ from app.schemas.workflow import (
     WorkflowVersionRead,
     WorkflowVersionRestore,
 )
-from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
+from app.services.access import TABLE, WORKFLOW, resolve_access, visible_resource_ids
 from app.services.file_storage import delete_files_best_effort
 from app.services.mcp_connection import McpConnectionService
+from app.services.sharing import SharingService
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 from app.services.virtual_tables.facade import VirtualTableService
 from app.services.workflow_authority import require_human_publisher
@@ -418,10 +420,9 @@ class WorkflowRegistryService:
     async def create(self, ctx: AuthContext, data: WorkflowCreate) -> WorkflowRead:
         """Create a workflow in draft, with an empty graph.
 
-        The handle is derived from the name, and the name at creation is a fixed
-        default or a template title with no field to change it, so a taken handle
-        is disambiguated by numbering the name (`Untitled workflow 2`) rather
-        than refused - a second blank or a reused template must be creatable.
+        The caller chooses a name and audience. Repeated names are numbered so
+        another installation of a template remains creatable. Audience grants
+        and template resources are written in the request's transaction.
 
         Raises:
             AuthorizationError: The caller lacks `workflows:create`.
@@ -446,6 +447,7 @@ class WorkflowRegistryService:
             slug=slug,
             name=name,
             description=data.description,
+            tags=data.tags,
             owner_user_id=ctx.subject_id,
             created_by_user_id=ctx.subject_id,
             visibility="private"
@@ -453,7 +455,7 @@ class WorkflowRegistryService:
             else data.visibility.value,
         )
         if data.template_id is not None:
-            graph = await self._ready_template(ctx, workflow, data.template_id)
+            graph = await self._ready_template(ctx, workflow, data)
             workflow = await workflow_repo.update(
                 self.db,
                 workflow=workflow,
@@ -468,6 +470,14 @@ class WorkflowRegistryService:
             target_id=str(workflow.id),
             details={"name": workflow.name},
         )
+        if data.group_ids or data.user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                workflow,
+                resource_type=WORKFLOW,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
+            )
         return _read(workflow)
 
     async def prepare(
@@ -563,19 +573,19 @@ class WorkflowRegistryService:
         self,
         ctx: AuthContext,
         workflow: Workflow,
-        template_id: Literal["publicApi", "markdownNotes"],
+        data: WorkflowCreate,
     ) -> WorkflowGraph:
-        """Provision a private table and a runnable draft in the creation transaction.
+        """Provision a table with the chosen audience and a runnable draft atomically.
 
         Runs reuse this pinned table and upsert the same external record, so trying
         the example twice never creates another table or duplicate demonstration row.
         """
-        public_api = template_id == "publicApi"
+        public_api = data.template_id == "publicApi"
         table = await VirtualTableService(self.db).create_table(
             ctx,
             TableCreate(
                 name=f"{workflow.name[:40]} {workflow.id.hex[:8]}",
-                visibility="private",
+                visibility=as_visibility(workflow.visibility),
                 columns=[
                     ColumnInput(label="Title", type="text"),
                     ColumnInput(label="Notes", type="rich_text"),
@@ -583,6 +593,19 @@ class WorkflowRegistryService:
                 ],
             ),
         )
+        if data.group_ids or data.user_ids:
+            stored_table = await virtual_table_repo.get_table(
+                self.db, table.id, organization_id=ctx.organization_id
+            )
+            if stored_table is None:
+                raise NotFoundError(message="Table not found", details={"table_id": table.id})
+            await SharingService(self.db).restrict_to(
+                ctx,
+                stored_table,
+                resource_type=TABLE,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
+            )
         start, request, save, output = (uuid4() for _ in range(4))
         nodes = [
             NodeInstance(

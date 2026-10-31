@@ -295,6 +295,7 @@ export default defineConfig({
         "src/components/workflows/editor/**/*.{ts,tsx}",
         // The workflows list-page create dialog (#1787).
         "src/components/workflows/workflow-create-dialog.tsx",
+        "src/components/workflows/workflow-template-dialog.tsx",
         // The catalog card, the node look every editor surface shares, and the
         // run views (#1790).
         "src/components/workflows/workflow-card.tsx",
