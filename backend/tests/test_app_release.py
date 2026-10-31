@@ -244,3 +244,63 @@ def test_release_requires_both_updater_keys_before_preparing_assets(
     )
     assert (result.returncode == 0) is allowed, result.stderr
     assert marker.exists() is allowed
+
+
+def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    steps = workflow["jobs"]["desktop"]["steps"]
+    gate = "vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true'"
+    signing = next(
+        step for step in steps if step.get("name") == "Require macOS signing and notarization"
+    )
+    assert signing["if"] == "runner.os == 'macOS' && " + gate
+    action = next(step for step in steps if "includeUpdaterJson" in step.get("with", {}))
+    for name in (
+        "APPLE_CERTIFICATE",
+        "APPLE_CERTIFICATE_PASSWORD",
+        "APPLE_ID",
+        "APPLE_PASSWORD",
+        "APPLE_TEAM_ID",
+    ):
+        assert action["env"][name] == "${{ " + gate + " && secrets." + name + " || '' }}"
+    assert action["env"]["APPLE_SIGNING_IDENTITY"] == (
+        "${{ " + gate + " && secrets.APPLE_SIGNING_IDENTITY || '-' }}"
+    )
+    assert action["env"]["TAURI_SIGNING_PRIVATE_KEY"] == "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+    assert action["with"]["includeUpdaterJson"] is True
+    notice = next(
+        step for step in steps if step.get("name") == "Announce ad-hoc macOS distribution"
+    )
+    assert notice["if"] == "runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'"
+    assert "Open Anyway" in notice["run"]
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        None,
+        "CERTIFICATE",
+        "CERTIFICATE_PASSWORD",
+        "SIGNING_IDENTITY",
+        "TEAM_ID",
+        "APPLE_USER",
+        "APPLE_APP_PASSWORD",
+    ],
+)
+def test_enabled_macos_signing_refuses_each_missing_credential(missing: str | None) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Require macOS signing and notarization"
+    )
+    env = dict.fromkeys(step["env"], "test-credential")
+    if missing is not None:
+        env[missing] = ""
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run([bash, "-c", step["run"]], env=env, capture_output=True, text=True)
+    assert (result.returncode == 0) is (missing is None)
+    assert "test-credential" not in result.stdout + result.stderr
+    if missing is not None:
+        assert missing in result.stdout

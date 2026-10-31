@@ -44,7 +44,7 @@ The first launch guides you through connecting to a server or creating a local i
 
 On macOS 14 or later, launch the installed app once, then right-click the desktop, choose **Edit Widgets** and search for **AgenticOS**. The small widget opens Quick Ask; the medium widget also opens Chat, Inbox and Activity. Widgets follow the system appearance and contain shortcuts only, with no account data. A widget click never starts recording or a call.
 
-Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. Public macOS packages require Developer ID signing and notarization credentials in the release environment. A local ad-hoc development build is not a notarized public release.
+Release CI builds native packages for Mac (Apple silicon and Intel), Windows and Linux. By default, macOS packages use ad-hoc signing and are not notarized by Apple. After copying the app to Applications, try opening it once. If macOS blocks it because the developer cannot be verified, choose **System Settings → Privacy & Security → Open Anyway** and confirm. Managed computers may prohibit this exception. See [Apple’s instructions](https://support.apple.com/en-us/102445). Updater downloads still require a valid signature from the release updater key.
 
 ## Running it
 
@@ -508,9 +508,14 @@ Configure the `apps-release` GitHub environment before running a release:
 
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; secrets `TAURI_SIGNING_PRIVATE_KEY`
   and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (one persistent updater key pair).
-- macOS: `APPLE_CERTIFICATE` (base64 P12), `APPLE_CERTIFICATE_PASSWORD`,
+- Optional macOS Developer ID signing: set the repository variable
+  `AGENTICOS_MACOS_SIGNING_ENABLED=true` and configure `APPLE_CERTIFICATE`
+  (base64 P12), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific),
-  and `APPLE_TEAM_ID` for Developer ID signing and notarization.
+  and `APPLE_TEAM_ID` for Developer ID signing and notarization. When enabled,
+  missing credentials stop the build; there is no fallback to ad-hoc signing.
+  With the flag unset or false, macOS uses ad-hoc signing without notarization.
+  Apple credentials are ignored in that mode.
 - Optional Windows Authenticode: `WINDOWS_CERTIFICATE_BASE64` (PFX) and
   `WINDOWS_CERTIFICATE_PASSWORD`. Without them the installer is unsigned.
 - Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
