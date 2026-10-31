@@ -61,59 +61,35 @@ const stored = () => store.getState().graph?.notes?.[0]?.text;
 afterEach(() => store.getState().teardown());
 
 describe("a note on the canvas", () => {
-  it("takes a colour from the swatches its palette button rolls out", async () => {
+  it("keeps a single action button and groups appearance controls in its menu", async () => {
     seed([note()]);
     store.getState().setSelection({ nodeIds: ["n"], edgeIds: [] });
-    render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
-    // Folded away until asked for: one button, not a row of swatches.
-    expect(screen.queryByRole("radio", { name: "Grey" })).toBeNull();
-
-    await userEvent.click(await screen.findByRole("button", { name: "Note colour" }));
-    const grey = await screen.findByRole("radio", { name: "Grey" });
+    const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
+    expect(container.querySelector('[data-note-id="n"]')?.querySelectorAll("button")).toHaveLength(
+      1,
+    );
+    expect(container.querySelectorAll(".react-flow__resize-control.line")).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+    await userEvent.hover(screen.getByRole("menuitem", { name: "Note colour" }));
+    const grey = await screen.findByRole("menuitemradio", { name: "Grey" });
     expect(grey).toHaveAttribute("aria-checked", "true");
-    await userEvent.click(grey);
-    expect(store.getState().graph?.notes?.[0]?.color).toBeUndefined();
-    // A pick folds the swatches back, and so does Escape.
-    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Note colour" }));
-    await userEvent.keyboard("{ArrowRight}");
-    expect(screen.getByRole("radio", { name: "Red" })).toBeInTheDocument();
-    await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
-    // Focus leaving them for anywhere else on the page folds them back too.
-    const palette = screen.getByRole("button", { name: "Note colour" });
-    await userEvent.click(palette);
-    fireEvent.focusOut(palette, { relatedTarget: document.body });
-    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
-
-    await userEvent.click(screen.getByRole("button", { name: "Note colour" }));
-    await userEvent.click(await screen.findByRole("radio", { name: "Red" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Red" }));
     expect(store.getState().graph?.notes?.[0]?.color).toBe("red");
-    expect(document.querySelector('[data-note-id="n"]')?.className).toContain("border-rose-500/40");
+    expect(container.querySelector('[data-note-id="n"]')).toHaveClass("border-rose-500/20");
+    expect(screen.queryByRole("menuitemradio")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note actions" }));
   });
 
-  it("hands focus back to its palette button once a pick or Escape folds the swatches", async () => {
+  it("opens its menu from the keyboard and closes it with Escape", async () => {
     seed([note()]);
-    store.getState().setSelection({ nodeIds: ["n"], edgeIds: [] });
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
-    const palette = await screen.findByRole("button", { name: "Note colour" });
-
-    palette.focus();
+    const actions = screen.getByRole("button", { name: "Note actions" });
+    actions.focus();
     await userEvent.keyboard("{Enter}");
-    // The swatches roll out before the button: back from it is the last of them.
-    await userEvent.tab({ shift: true });
-    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Red" }));
-    await userEvent.keyboard("{Enter}");
-    expect(store.getState().graph?.notes?.[0]?.color).toBe("red");
-    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note colour" }));
-
-    await userEvent.keyboard("{Enter}");
-    await userEvent.tab({ shift: true });
-    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Red" }));
+    expect(await screen.findByRole("menuitem", { name: "Edit note" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("radio", { name: "Red" })).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note colour" }));
+    expect(actions).toHaveFocus();
+    expect(screen.queryByRole("menuitem")).toBeNull();
   });
 
   it("shows its markdown, and is written from its Edit button", async () => {
@@ -121,8 +97,10 @@ describe("a note on the canvas", () => {
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
     expect(await screen.findByText("Why")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText("Edit note"));
+    await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit note" }));
     const field = screen.getByLabelText("Note");
+    expect(field).toHaveFocus();
     fireEvent.change(field, { target: { value: "Changed" } });
     fireEvent.blur(field);
 
@@ -143,11 +121,12 @@ describe("a note on the canvas", () => {
     expect(stored()).toBe("");
   });
 
-  it("writes nothing when the text is left as it was, and never opens a step's settings", () => {
+  it("writes nothing when the text is left as it was, and never opens a step's settings", async () => {
     seed([note()]);
     const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
 
-    fireEvent.click(screen.getByLabelText("Edit note"));
+    await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit note" }));
     fireEvent.blur(screen.getByLabelText("Note"));
     fireEvent.click(container.querySelector('[data-note-id="n"]') as HTMLElement);
 
@@ -155,11 +134,19 @@ describe("a note on the canvas", () => {
     expect(store.getState().editingNodeId).toBeNull();
   });
 
-  it("reads without editing on a read-only canvas, and stays off a loop body's", () => {
+  it("reads without editing on a read-only canvas, and stays off a loop body's", async () => {
     seed([note({ text: "" }), note({ id: "m", text: "Kept" })]);
     const { unmount } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} readOnly />);
     expect(screen.getByText("Kept")).toBeInTheDocument();
     expect(screen.queryByLabelText("Edit note")).toBeNull();
+    await userEvent.click(
+      screen.getByLabelText("Note actions", { selector: '[data-note-id="m"] button' }),
+    );
+    expect(screen.getByRole("menuitem", { name: "Open note" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Edit note" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Note colour" })).toBeNull();
+    expect(document.querySelector(".react-flow__resize-control")).toBeNull();
+    await userEvent.keyboard("{Escape}");
     fireEvent.dblClick(screen.getByText("Kept"));
     expect(screen.queryByLabelText("Note")).toBeNull();
     unmount();
@@ -185,14 +172,17 @@ describe("a note on the canvas", () => {
 it("changes note dimensions and saves expanded edits while returning focus", async () => {
   seed([note()]);
   render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
-  await userEvent.click(await screen.findByRole("button", { name: "Note size" }));
+  await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+  await userEvent.hover(screen.getByRole("menuitem", { name: "Note size" }));
+  await screen.findByRole("menuitem", { name: "Wide" });
   await userEvent.click(screen.getByRole("menuitem", { name: "Wide" }));
   expect(store.getState().graph?.notes?.[0]).toMatchObject({ width: 480, height: 180 });
-  await userEvent.click(screen.getByRole("button", { name: "Open note" }));
+  await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Open note" }));
   const editor = screen.getByRole("dialog").querySelector("textarea");
   expect(editor).not.toBeNull();
   fireEvent.change(editor!, { target: { value: "## Updated\n\nKeep this note." } });
   await userEvent.click(screen.getByRole("button", { name: "Done" }));
   expect(stored()).toBe("## Updated\n\nKeep this note.");
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open note" }));
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note actions" }));
 });

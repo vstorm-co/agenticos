@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
-import { Palette, Pencil, Maximize2, Scaling } from "lucide-react";
+import { NodeResizeControl, type Node, type NodeProps } from "@xyflow/react";
+import { Palette, Pencil, Maximize2, Scaling, MoreHorizontal, MoveDownRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -17,6 +17,12 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuSeparator,
   Textarea,
 } from "@/components/ui";
 import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
@@ -30,25 +36,25 @@ export type CanvasNoteNode = Node<{ note: CanvasNote; readOnly: boolean }, "note
 // Opaque - the card's own colour mixed with the tint - so the canvas's grid does
 // not show through the text.
 const TINTS: Record<NoteColor, { card: string; swatch: string }> = {
-  default: { card: "bg-muted border-border", swatch: "bg-muted-foreground/40" },
+  default: { card: "bg-card border-border/60", swatch: "bg-muted-foreground/40" },
   yellow: {
-    card: "bg-[color-mix(in_oklab,var(--color-amber-500)_16%,var(--color-card))] border-amber-500/40",
+    card: "bg-[color-mix(in_oklab,var(--color-amber-500)_16%,var(--color-card))] border-amber-500/20",
     swatch: "bg-amber-400",
   },
   green: {
-    card: "bg-[color-mix(in_oklab,var(--color-emerald-500)_16%,var(--color-card))] border-emerald-500/40",
+    card: "bg-[color-mix(in_oklab,var(--color-emerald-500)_16%,var(--color-card))] border-emerald-500/20",
     swatch: "bg-emerald-400",
   },
   blue: {
-    card: "bg-[color-mix(in_oklab,var(--color-sky-500)_16%,var(--color-card))] border-sky-500/40",
+    card: "bg-[color-mix(in_oklab,var(--color-sky-500)_16%,var(--color-card))] border-sky-500/20",
     swatch: "bg-sky-400",
   },
   purple: {
-    card: "bg-[color-mix(in_oklab,var(--color-violet-500)_16%,var(--color-card))] border-violet-500/40",
+    card: "bg-[color-mix(in_oklab,var(--color-violet-500)_16%,var(--color-card))] border-violet-500/20",
     swatch: "bg-violet-400",
   },
   red: {
-    card: "bg-[color-mix(in_oklab,var(--color-rose-500)_16%,var(--color-card))] border-rose-500/40",
+    card: "bg-[color-mix(in_oklab,var(--color-rose-500)_16%,var(--color-card))] border-rose-500/20",
     swatch: "bg-rose-400",
   },
 };
@@ -57,97 +63,6 @@ const COLORS = Object.keys(TINTS) as NoteColor[];
 export const NOTE_WIDTH = 240;
 export const NOTE_HEIGHT = 140;
 
-/**
- * A note on the canvas: markdown beside the steps, for whoever reads the
- * workflow next. Double-click to write in it, click away to keep it; drag it by
- * its body and resize it from its corners once selected, and pick its tint from
- * its palette button - a warning in red, a to-do in yellow. It is never
- * a step - no port, nothing runs it.
- */
-/**
- * The note's tint, folded behind one palette button so a selected note shows a
- * single control rather than a row of dots. The swatches roll out to its left,
- * inside the note, and fold back on a pick, on Escape or once focus leaves them.
- */
-function NoteColorPicker({
-  color,
-  shown,
-  onPick,
-}: {
-  color: NoteColor;
-  /** Whether the button shows without a hover - the note is selected. */
-  shown: boolean;
-  onPick: (color: NoteColor) => void;
-}) {
-  const t = useTranslations("workflows");
-  const [open, setOpen] = useState(false);
-  const palette = useRef<HTMLButtonElement>(null);
-  // Folding unmounts the swatch that holds focus; without this it falls to the page.
-  const fold = () => {
-    palette.current?.focus();
-    setOpen(false);
-  };
-  return (
-    // Hears focus leaving the swatches and Escape inside them; the buttons are the controls.
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-    <div
-      className="nodrag absolute right-1.5 bottom-1.5 flex items-center gap-1"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as HTMLElement | null))
-          setOpen(false);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") fold();
-      }}
-    >
-      {open && (
-        <div
-          role="radiogroup"
-          aria-label={t("noteColor")}
-          className="bg-background/90 animate-in fade-in-0 slide-in-from-right-2 flex gap-1.5 rounded-full border px-1.5 py-1 shadow-sm"
-        >
-          {COLORS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="radio"
-              aria-checked={color === option}
-              aria-label={t(`noteColors.${option}`)}
-              title={t(`noteColors.${option}`)}
-              onClick={() => {
-                onPick(option);
-                fold();
-              }}
-              className={cn(
-                "focus-visible:ring-ring size-4 rounded-full outline-none focus-visible:ring-2",
-                TINTS[option].swatch,
-                color === option &&
-                  "ring-foreground/70 ring-offset-background ring-2 ring-offset-1",
-              )}
-            />
-          ))}
-        </div>
-      )}
-      <button
-        ref={palette}
-        type="button"
-        aria-label={t("noteColor")}
-        aria-expanded={open}
-        title={t("noteColor")}
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded p-1 outline-none focus-visible:ring-2",
-          shown || open
-            ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-        )}
-      >
-        <Palette aria-hidden="true" className="size-3.5" />
-      </button>
-    </div>
-  );
-}
-
 export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
   const t = useTranslations("workflows");
   const updateNote = useWorkflowEditorStore((state) => state.updateNote);
@@ -155,7 +70,7 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
   const color = note.color ?? "default";
   const [draft, setDraft] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const expandButton = useRef<HTMLButtonElement>(null);
+  const actionsButton = useRef<HTMLButtonElement>(null);
 
   const finish = () => {
     if (draft !== null && draft !== note.text) updateNote(note.id, { text: draft });
@@ -163,66 +78,114 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
   };
 
   return (
-    // A double-click is the shortcut; the Edit button beside the text is the way
-    // a keyboard gets there.
+    // Double-click is the shortcut; the action menu is keyboard accessible.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       data-note-id={note.id}
       className={cn(
-        "group text-foreground relative h-full w-full overflow-hidden rounded-lg border px-3 pt-9 pb-3 text-sm shadow-sm",
+        "group text-foreground relative h-full w-full overflow-hidden rounded-xl border px-4 pt-10 pb-4 text-sm shadow-sm",
         TINTS[color].card,
-        selected && "ring-primary/40 ring-2",
+        selected && "ring-foreground/15 ring-1",
       )}
       onDoubleClick={() => !readOnly && !expanded && draft === null && setDraft(note.text)}
     >
-      {!readOnly && (
-        <NodeResizer
-          isVisible={selected}
+      {!readOnly && selected && (
+        <NodeResizeControl
+          position="bottom-right"
           minWidth={180}
           minHeight={100}
-          handleStyle={{ width: 9, height: 9 }}
-        />
+          className="text-muted-foreground/60 hover:text-foreground !top-auto !right-1 !bottom-1 !left-auto !size-5 !translate-x-0 !translate-y-0 !rounded !border-0 !bg-transparent"
+        >
+          <MoveDownRight aria-hidden="true" className="size-3.5" />
+        </NodeResizeControl>
       )}
-      <div
-        className="nodrag bg-background/90 absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md p-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 data-[selected=true]:opacity-100"
-        data-selected={selected}
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
-          ref={expandButton}
-          aria-label={t("noteExpand")}
-          onClick={() => {
-            setDraft(draft ?? note.text);
-            setExpanded(true);
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            ref={actionsButton}
+            variant="ghost"
+            size="icon"
+            aria-label={t("noteActions")}
+            className="nodrag touch:opacity-100 absolute top-1.5 right-1.5 z-10 size-7 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+          >
+            <MoreHorizontal aria-hidden="true" className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(event) => {
+            if (draft !== null || expanded) event.preventDefault();
           }}
         >
-          <Maximize2 className="size-3.5" />
-        </Button>
-        {!readOnly && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-6" aria-label={t("noteSize")}>
-                <Scaling className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {(
-                [
-                  ["noteSizeSmall", 240, 140],
-                  ["noteSizeWide", 480, 180],
-                  ["noteSizeLarge", 480, 360],
-                ] as const
-              ).map(([key, width, height]) => (
-                <DropdownMenuItem key={key} onSelect={() => updateNote(note.id, { width, height })}>
-                  {t(key)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+          {!readOnly && (
+            <DropdownMenuItem onSelect={() => setDraft(note.text)}>
+              <Pencil className="size-4" />
+              {t("noteEdit")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onSelect={() => {
+              setDraft(draft ?? note.text);
+              setExpanded(true);
+            }}
+          >
+            <Maximize2 className="size-4" />
+            {t("noteExpand")}
+          </DropdownMenuItem>
+          {!readOnly && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Palette className="mr-2 size-4" />
+                  {t("noteColor")}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup value={color}>
+                    {COLORS.map((option) => (
+                      <DropdownMenuRadioItem
+                        key={option}
+                        value={option}
+                        onSelect={() => {
+                          if (color !== option) updateNote(note.id, { color: option });
+                        }}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={cn("mr-2 size-3 rounded-full", TINTS[option].swatch)}
+                        />
+                        {t(`noteColors.${option}`)}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Scaling className="mr-2 size-4" />
+                  {t("noteSize")}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {(
+                    [
+                      ["noteSizeSmall", 240, 140],
+                      ["noteSizeWide", 480, 180],
+                      ["noteSizeLarge", 480, 360],
+                    ] as const
+                  ).map(([key, width, height]) => (
+                    <DropdownMenuItem
+                      key={key}
+                      onSelect={() => updateNote(note.id, { width, height })}
+                    >
+                      {t(key)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Dialog
         open={expanded}
         onOpenChange={(open) => {
@@ -237,7 +200,7 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
           className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            expandButton.current?.focus();
+            actionsButton.current?.focus();
           }}
         >
           <DialogHeader>
@@ -269,24 +232,6 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {!readOnly && draft === null && (
-        <button
-          type="button"
-          aria-label={t("noteEdit")}
-          title={t("noteEdit")}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 rounded p-1 opacity-0 outline-none group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2"
-          onClick={() => setDraft(note.text)}
-        >
-          <Pencil aria-hidden="true" className="size-3.5" />
-        </button>
-      )}
-      {!readOnly && draft === null && (
-        <NoteColorPicker
-          color={color}
-          shown={selected}
-          onPick={(option) => color !== option && updateNote(note.id, { color: option })}
-        />
-      )}
       {draft !== null && !expanded ? (
         <Textarea
           aria-label={t("noteLabel")}

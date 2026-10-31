@@ -959,6 +959,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Quieter canvas notes.** A single hover/focus menu groups editing, expanded view, color and size. Subtle rounded edges and one corner resize grip replace the full selection frame and scattered buttons.
+
 - **Readable workflow overview.** The minimap draws connected miniature cards with family accents, rounded starts, selection outlines and a clear viewport boundary in both themes. Pan and zoom remain available.
 
 - **MCP service logos in workflows.** The step picker, canvas and editor share the MCP catalog icon resolver, including baked logos and custom deployment icons. Unknown services use their own name monogram.
