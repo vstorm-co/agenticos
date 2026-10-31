@@ -330,7 +330,8 @@ export function NodeEditorDialog({
               "bg-card order-first min-w-0 space-y-5 rounded-xl border p-5",
               !runData && "lg:col-start-1 lg:row-span-2 lg:row-start-1",
               !withData && "px-6 py-5",
-              runData && "order-last lg:col-span-2 lg:col-start-1 lg:row-start-2",
+              runData && "order-last lg:col-start-1 lg:row-start-2",
+              runData && withInput && "lg:col-span-2",
             )}
           >
             {definition !== null &&
@@ -373,7 +374,12 @@ export function NodeEditorDialog({
               ))}
           </div>
           {withData && (
-            <div className="bg-card min-w-0 rounded-xl border p-4 lg:col-start-2">
+            <div
+              className={cn(
+                "bg-card min-w-0 rounded-xl border p-4",
+                runData && !withInput ? "lg:col-start-1" : "lg:col-start-2",
+              )}
+            >
               <OutputPane
                 readOnly={runData}
                 workflowId={workflowId}
