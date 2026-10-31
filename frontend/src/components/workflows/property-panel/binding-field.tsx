@@ -295,8 +295,8 @@ export function BindingField({
           }
         />
       ) : (
-        <div className="relative">
-          <div className="min-w-0 [&_label]:pr-16">
+        <div className={own["type"] === "boolean" ? "flex items-start gap-3" : "relative"}>
+          <div className={cn("min-w-0", own["type"] === "boolean" ? "flex-1" : "[&_label]:pr-16")}>
             <SchemaForm
               schema={singleFieldSchema(name, schema, required)}
               value={literalValue === undefined ? {} : { [name]: literalValue }}
@@ -310,7 +310,11 @@ export function BindingField({
               }}
             />
           </div>
-          {!disabled && <div className="absolute top-0 right-0">{menu}</div>}
+          {!disabled && (
+            <div className={own["type"] === "boolean" ? "shrink-0" : "absolute top-0 right-0"}>
+              {menu}
+            </div>
+          )}
         </div>
       );
   }
@@ -324,6 +328,7 @@ export function BindingField({
         "relative space-y-2 rounded-md",
         dropping && "ring-ring ring-offset-background ring-2 ring-offset-4",
       )}
+      data-binding-field={targetField}
       onDragOver={over}
       onDragLeave={() => setDropping(false)}
       onDrop={drop}

@@ -63,7 +63,7 @@ function mount(disabled = false) {
       onRemove={vi.fn()}
     />,
   );
-  const target = screen.getByText("Count").closest(".relative") as HTMLElement;
+  const target = screen.getByText("Count").closest("[data-binding-field]") as HTMLElement;
   return { onUpsert, target };
 }
 
