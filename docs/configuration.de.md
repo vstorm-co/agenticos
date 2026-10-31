@@ -1,5 +1,5 @@
 ---
-source_sha: "179427bfaa16"
+source_sha: "d7e885bf14a4"
 ---
 
 # Konfiguration { #configuration }
@@ -1663,3 +1663,67 @@ Aber Einladungen, Passwort-Zurücksetzungen und Benachrichtigungen bleiben still
 ungesendet, bis `SMTP_HOST` und der Rest von [E-Mail (SMTP)](#email-smtp) auf
 einen echten Server zeigen — ein Deployment, das darauf verzichtet, sollte das
 also wissentlich tun.
+
+## Bereitstellungsdiagnose { #diagnostics }
+
+`DIAGNOSTICS_ENABLED` ist standardmäßig `true`, auch nach einem Upgrade mit einer
+älteren `.env` ohne diesen Schlüssel. Zum Deaktivieren in Backend und Frontend
+`DIAGNOSTICS_ENABLED=false` setzen und die Dienste neu starten. Die
+Bereitstellungseinstellungen zeigen den Status und den letzten erfolgreichen
+Bericht, aber keinen Schalter.
+
+`DIAGNOSTICS_COLLECTOR_URL` ist die Kollektor-Adresse für den Server;
+`DIAGNOSTICS_PUBLIC_URL` ist die browserseitige Adresse, die auch das Frontend für
+seine Content Security Policy liest. Beide verwenden standardmäßig `https://analytics-agenticos.testapp.ovh`. Für einen Kollektor auf
+dem Docker-Desktop-Host serverseitig `http://host.docker.internal:8010` und öffentlich
+`http://localhost:8010` verwenden. Entfernte Adressen benötigen HTTPS. Keine Pfade,
+Zugangsdaten oder Abfrageparameter angeben.
+
+Der bestehende dauerhafte Worker berichtet stündlich. Sein Ed25519-Seed wird durch
+den Vault verschlüsselt, vor dem ersten Netzaufruf gespeichert, von Replikaten
+geteilt und durch `vault-rotate` neu verpackt. Ein nicht erreichbarer Kollektor
+blockiert weder Anmeldung noch Chat oder Worker-Start. Berichte enthalten Version,
+Datenbank-/Worker-Zustand, ausdrücklich unbekannten Redis-Zustand sowie Bereiche
+der Laufzahlen und neu angelegten Projekte, Skills und Dokumente der letzten 30
+Tage. Nur feste Funktionsnamen verlassen die Installation. Fehler umfassen
+fehlgeschlagene Läufe, endgültig gescheiterte Jobs und Importfehler der vorigen
+vollen UTC-Stunde, höchstens 1000 pro Kategorie. Freie API-Ausnahmen werden nicht
+exportiert.
+
+Web-, Desktop- und Mobilaktivität verwendet signierte, 60 Sekunden gültige Claims
+für das angemeldete Konto. Ein installationsspezifisches Pseudonym ersetzt die
+Konto-ID. Sichtbare, fokussierte Fenster berichten nach Eingaben höchstens alle
+fünf Minuten; inaktive Hintergrund-Tabs halten Benutzer nicht online. Der Browser
+sendet direkt ohne Cookies oder Referrer, damit der Kollektor ungefähre
+Länder/Regionen gruppieren kann. Keine Prompts, Gespräche, Dateinamen, Kontonamen,
+E-Mail-Adressen, Anbieterschlüssel oder Ausnahmetexte werden gesendet.
+
+Der separate [Analytics-Kollektor](https://github.com/vstorm-co/agenticos-analytics)
+speichert Rohereignisse sieben Tage und tägliche pseudonyme Aktivität und Aggregate
+90 Tage. Online bedeutet Aktivität innerhalb zehn Minuten, eine aktive Installation
+Kontakt innerhalb 24 Stunden. Fehlender Kontakt ist unbekannt, kein bestätigter
+Ausfall. Der Kollektor speichert keine IP-Adressen oder GPS-Positionen; Proxy-Logs
+verantwortet der Betreiber. Die Kartenvorschau hat einen separaten Demo-Modus;
+AgenticOS erzeugt keine fiktiven Produktionsereignisse.
+
+## Updates im Administrationsbereich { #updates-from-the-administration-panel }
+
+Die Bereitstellungsseite zeigt den Changelog sowie Vorbereitung, Zeitplanung und
+Wiederherstellung. Updates sind optional: Installieren Sie den Host-Helfer auf
+einem einzelnen Linux/systemd-Host mit Compose und verbinden Sie API und Worker
+über das Updater-Overlay. Siehe [Einrichtung und Wiederherstellung](https://github.com/vstorm-co/agenticos/tree/main/deploy/updater).
+
+Die Vorbereitung prüft Konfiguration und Speicherplatz, lädt veröffentlichte
+Images, fixiert deren Digests und erstellt ein vorläufiges Backup ohne Neustart.
+Starten Sie sofort oder planen Sie innerhalb von sieben Tagen. Der Helfer sperrt
+neue Arbeit, wartet auf aktive Ausführungen, Jobs und Anrufe, stoppt schreibende
+Prozesse, sichert PostgreSQL, Medien und Konfiguration und führt Migrationen aus.
+Erst nach erfolgreicher Bereitschaftsprüfung wird der Zugriff geöffnet. Der
+Fortschritt bleibt auf dem Host; die Oberfläche verbindet sich nach API-Rückkehr erneut.
+
+Fehler nach Migrationsbeginn belassen den Wartungsmodus für die Wiederherstellung
+durch den Betreiber; es gibt kein automatisches Datenbank-Downgrade. Backups
+bleiben bis zur manuellen Entfernung auf dem Host und ersetzen keine externen
+Sicherungen. Testen Sie die Wiederherstellung zunächst auf einer Wegwerf-Installation.
+Mehrere Hosts, eigene Compose-Overlays und externer Dateispeicher benötigen Ihre
+Pipeline: `UPDATE_PIPELINE_URL` zeigt nur deren HTTPS-Link und startet kein Deployment.

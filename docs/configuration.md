@@ -1533,3 +1533,65 @@ Email is deliberately **not** on this list: a deployment runs without it. But
 invitations, password resets and notifications all go silently unsent until
 `SMTP_HOST` and the rest of [Email (SMTP)](#email-smtp) point at a real server —
 so a deployment that skips it should be skipping it knowingly.
+
+## Deployment diagnostics { #diagnostics }
+
+`DIAGNOSTICS_ENABLED` defaults to `true`, including upgrades whose existing `.env`
+does not contain it. Set `DIAGNOSTICS_ENABLED=false` in the backend and frontend
+environments and restart the services to disable reporting. The deployment
+settings page shows status and the last successful report; it has no toggle.
+
+`DIAGNOSTICS_COLLECTOR_URL` is the server's collector origin;
+`DIAGNOSTICS_PUBLIC_URL` is the browser-reachable origin, also read by the frontend
+for its Content Security Policy. Both default to `https://analytics-agenticos.testapp.ovh`.
+For a locally running collector reached from Docker Desktop, use
+`http://host.docker.internal:8010` for the server origin and keep the public origin
+at `http://localhost:8010`. Remote origins require HTTPS. Do not include paths,
+credentials or query strings.
+
+The existing durable worker sends hourly. Its Ed25519 seed is sealed by the vault,
+persisted before the first network call, shared by replicas and rewrapped by
+`vault-rotate`. A missing collector does not block sign-in, chat or worker startup.
+Reports contain the version, database/worker health, explicit unknown Redis health,
+30-day run counts and project/skill/document creation counts in buckets. Only
+closed feature names leave the deployment. Errors are grouped failed runs, dead
+jobs and failed ingestion in the preceding complete UTC hour, capped at 1,000 per
+category. Free-form API exceptions are not exported.
+
+Foreground web, desktop and mobile activity uses signed 60-second claims for the
+authenticated account. An installation-specific pseudonym replaces the account ID.
+Visible, focused windows report after interaction and at most every five minutes;
+background or idle tabs do not keep a user online. The browser sends the claim
+directly without cookies or referrers, allowing approximate country/region grouping
+at the collector. No prompts, conversations, filenames, account names, email
+addresses, provider keys or exception messages are sent.
+
+The companion [analytics collector](https://github.com/vstorm-co/agenticos-analytics)
+stores raw events for seven days and daily pseudonymous activity and aggregates
+for 90 days. Online means activity in the last ten minutes; an active installation
+means contact in the last 24 hours. No contact means unknown, not a confirmed
+outage. Collector code stores no IP addresses or GPS positions; proxy access-log
+retention is an operator responsibility. Use its separate demo mode to preview the
+map with synthetic data; AgenticOS never seeds diagnostic production records.
+
+## Updates from the administration panel
+
+The Deployment page links the newest release's changelog and shows update preparation,
+scheduling and recovery status. Updates are opt-in: install the host helper once
+on a supported single-host Linux/systemd Compose deployment, then connect API and
+worker with the updater overlay. See the [operator setup and recovery guide](https://github.com/vstorm-co/agenticos/tree/main/deploy/updater).
+
+Preparation checks configuration and disk space, downloads and pins published
+images, and takes a preliminary backup without restarting the application.
+Apply immediately or schedule within seven days. The helper pauses admission,
+waits for active runs, jobs and calls, stops application writers, takes the final
+PostgreSQL/media/configuration backup, migrates and checks readiness before
+reopening traffic. Progress survives application restarts; the panel reconnects
+when the API becomes available again.
+
+A failure after migration starts leaves maintenance enabled for operator recovery;
+there is no automatic database downgrade. Backups stay on the host until the
+operator removes them and do not replace off-host backups. Test restoration on a
+disposable deployment before enabling production updates. Multiple hosts, custom
+Compose overlays and external storage use your own pipeline instead:
+`UPDATE_PIPELINE_URL` exposes its HTTPS link without triggering a deployment.

@@ -107,6 +107,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     # The platform's look at each person's week (#2301): hourly, because who is
     # due depends on their own clock - each is thought about once a night, early
     # in their morning, so what it proposes is waiting when they start.
+    Schedule("send-diagnostics", jobs.SEND_DIAGNOSTICS, _HOUR),
     Schedule("proactive-sweep", jobs.PROACTIVE_SWEEP, _HOUR),
     Schedule("expire-approvals", jobs.EXPIRE_APPROVALS, _HOUR),
     Schedule("expire-invitations", jobs.EXPIRE_INVITATIONS, _HOUR),

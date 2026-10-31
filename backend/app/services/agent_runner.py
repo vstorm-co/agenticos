@@ -227,6 +227,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
+from app.core.update_gate import require_admission
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
@@ -3100,6 +3101,7 @@ class AgentRunnerService:
             BadRequestError: If the agent is unpublished, archived, or its spec
                 no longer validates - surfaced before any tokens are spent.
         """
+        require_admission()
         if source_run is not None and (
             source_run.organization_id != ctx.organization_id or source_run.agent_id != agent_id
         ):
@@ -3572,6 +3574,7 @@ class AgentRunnerService:
 
         run = existing_run
         if run is None:
+            require_admission()
             run = await agent_run_repo.create_run(
                 self.db,
                 organization_id=ctx.organization_id,

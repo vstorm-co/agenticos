@@ -433,6 +433,7 @@ WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(mi
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
+SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
 WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
@@ -489,6 +490,7 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_RUN_RETENTION,
         WORKFLOW_LOG_ALERTS,
         SWEEP_GENERATED_MEDIA,
+        SEND_DIAGNOSTICS,
         PROACTIVE_SWEEP,
         WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,

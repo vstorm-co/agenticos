@@ -1015,6 +1015,23 @@ Two things are versioned separately from this file and worth knowing about:
 - Offer Push preferences for workflow notifications, log alerts, page ownership
   changes and page requests, alongside their existing in-app and email controls.
 
+## [1.33.0] - 2026-10-31
+
+### Added
+
+- Optional host-owned Compose updater: administrators can prepare a published release, inspect backup and readiness progress, update immediately or schedule within seven days. The helper drains work, takes a final PostgreSQL/media/configuration backup, applies migrations and checks readiness before reopening admission. Single-host Linux/systemd deployments only; larger deployments can link their existing update pipeline.
+
+- Deployment diagnostics with an hourly signed heartbeat, installation-scoped
+  user pseudonyms, foreground web/desktop/mobile presence and a read-only admin
+  status card. Reporting defaults to enabled even when an older `.env` omits
+  `DIAGNOSTICS_ENABLED`; set it to `false` to opt out. Reporting uses the Vstorm collector by default; operators can override its origins. No
+  prompts, conversations, files, keys, account names or emails are sent.
+
+### Fixed
+
+- Opening an action menu on a touchscreen no longer selects an item underneath
+  the opening gesture. Mouse and keyboard behavior stay unchanged.
+
 ## [1.32.0] - 2026-10-31
 
 ### Added

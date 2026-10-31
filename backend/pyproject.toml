@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.32.0"
+version = "1.33.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -400,7 +400,7 @@ line-length = 100
 # These run on the runner's own `python3` (3.12), before any toolchain is
 # installed - CI's first job, and the dependency-graph submission - so they keep
 # to syntax that interpreter parses.
-per-file-target-version = { "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
+per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
 # The rule set is deliberately wide. A linter that only catches formatting is a
@@ -1026,6 +1026,13 @@ include = [
     # gate that decides whether the API answers at all - so a branch that never
     # runs in normal operation is the whole point of them.
     "app/db/models/deployment_settings.py",
+    "app/core/update_gate.py",
+    "app/schemas/updates.py",
+    "app/services/updates.py",
+    "app/repositories/diagnostics.py",
+    "app/schemas/diagnostics.py",
+    "app/services/diagnostics/*",
+    "app/worker/tasks/diagnostics_tasks.py",
     "app/repositories/deployment_settings.py",
     "app/schemas/deployment_settings.py",
     "app/services/deployment_settings.py",
@@ -1697,6 +1704,13 @@ include = [
     # gate that decides whether the API answers at all - so a branch that never
     # runs in normal operation is the whole point of them.
     "app/db/models/deployment_settings.py",
+    "app/core/update_gate.py",
+    "app/schemas/updates.py",
+    "app/services/updates.py",
+    "app/repositories/diagnostics.py",
+    "app/schemas/diagnostics.py",
+    "app/services/diagnostics/*",
+    "app/worker/tasks/diagnostics_tasks.py",
     "app/repositories/deployment_settings.py",
     "app/schemas/deployment_settings.py",
     "app/services/deployment_settings.py",

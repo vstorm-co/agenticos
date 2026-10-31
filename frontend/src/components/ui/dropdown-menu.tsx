@@ -5,8 +5,73 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+const DropdownState = React.createContext<{
+  open: boolean;
+  change: (open: boolean) => void;
+} | null>(null);
+
+function DropdownMenu({
+  open: controlled,
+  defaultOpen = false,
+  onOpenChange,
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) {
+  const [uncontrolled, setUncontrolled] = React.useState(defaultOpen);
+  const open = controlled ?? uncontrolled;
+  const change = (next: boolean) => {
+    if (controlled === undefined) setUncontrolled(next);
+    onOpenChange?.(next);
+  };
+  return (
+    <DropdownState.Provider value={{ open, change }}>
+      <DropdownMenuPrimitive.Root {...props} open={open} onOpenChange={change}>
+        {children}
+      </DropdownMenuPrimitive.Root>
+    </DropdownState.Provider>
+  );
+}
+
+const DropdownMenuTrigger = React.forwardRef<
+  React.ComponentRef<typeof DropdownMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
+>(({ onPointerDown, onPointerCancel, onClick, onKeyDown, disabled, ...props }, ref) => {
+  const state = React.useContext(DropdownState);
+  const touch = React.useRef(false);
+  // i18n-exempt: developer error for invalid component composition, not interface copy
+  if (!state) throw new Error("DropdownMenuTrigger requires DropdownMenu");
+  return (
+    <DropdownMenuPrimitive.Trigger
+      {...props}
+      ref={ref}
+      disabled={disabled}
+      onPointerDown={(event) => {
+        touch.current = false;
+        onPointerDown?.(event);
+        if (event.defaultPrevented) return;
+        touch.current = event.pointerType === "touch" && !event.ctrlKey;
+        // Opening on touch-down can put a menu item under the same finger:
+        // its release then selects that item. Open after the completed click.
+        if (touch.current) event.preventDefault();
+      }}
+      onPointerCancel={(event) => {
+        touch.current = false;
+        onPointerCancel?.(event);
+      }}
+      onKeyDown={(event) => {
+        touch.current = false;
+        onKeyDown?.(event);
+      }}
+      onClick={(event) => {
+        onClick?.(event);
+        const completedTouch = touch.current;
+        touch.current = false;
+        if (completedTouch && !disabled && !event.defaultPrevented) state.change(!state.open);
+      }}
+    />
+  );
+});
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 const DropdownMenuSub = DropdownMenuPrimitive.Sub;

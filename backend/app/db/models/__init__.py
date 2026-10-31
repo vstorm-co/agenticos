@@ -26,6 +26,7 @@ from app.db.models.local_service import LocalService
 from app.db.models.collection_teardown import CollectionTeardown
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
@@ -140,6 +141,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "DiagnosticsIdentity",
     "Visual",
     "ApiKey",
     "BrowserSignIn",

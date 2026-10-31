@@ -1,5 +1,5 @@
 ---
-source_sha: "b9f6b8f40258"
+source_sha: "4c1509774714"
 ---
 
 # Protección de datos { #data-protection }
@@ -491,3 +491,10 @@ páginas legales de la sección anterior. Cada una es la clase de prueba que
 
 Una revisión que encuentre cada fila de arriba cerrada o aceptada por escrito
 tiene lo que esta página puede darle. El resto es del deployment.
+
+## Diagnóstico del despliegue { #deployment-diagnostics }
+
+El colector opcional recibe estado de instalación, rangos de uso y presencia
+seudónima en primer plano. Los informes están activados por defecto, incluso con
+un `.env` antiguo. La [configuración de diagnóstico](configuration.md#diagnostics)
+detalla campos, retención, origen local provisional y desactivación.

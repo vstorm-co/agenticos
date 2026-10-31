@@ -9,6 +9,8 @@ from app.api.routes.v1 import (
     browse_live,
     change_events,
     device_hub,
+    diagnostics,
+    admin_updates,
     health,
     mcp_oauth,
     public_openapi,
@@ -92,6 +94,8 @@ from app.api.routes.v1 import admin_background_jobs
 from app.api.routes.v1 import run_requests
 
 v1_router = APIRouter()
+v1_router.include_router(admin_updates.router, prefix="/admin/updates", tags=["admin:updates"])
+v1_router.include_router(diagnostics.router, tags=["diagnostics"])
 
 v1_router.include_router(health.router, tags=["health"])
 v1_router.include_router(public_openapi.router)
