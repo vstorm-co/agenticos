@@ -2893,7 +2893,12 @@ class AgentRunnerService:
         )
 
     async def _platform_credential(
-        self, spec: AgentSpec, ctx: AuthContext, existing_run: AgentRun | None = None
+        self,
+        spec: AgentSpec,
+        ctx: AuthContext,
+        existing_run: AgentRun | None = None,
+        *,
+        agent_id: UUID | None = None,
     ) -> str | None:
         """A credential for this platform's own MCP server, when the spec binds it.
 
@@ -2904,7 +2909,13 @@ class AgentRunnerService:
         if not any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers):
             return None
         owner = await self._run_owner_context(ctx, existing_run)
-        return None if owner is None else await mint_for_run(owner)
+        return (
+            None
+            if owner is None
+            else await mint_for_run(
+                owner, agent_id=existing_run.agent_id if existing_run is not None else agent_id
+            )
+        )
 
     async def _bound_collections(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, Any]:
         """The agent's bound collections, as the `resources` entries that carry them.
@@ -3535,7 +3546,9 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
-            platform_credential=await self._platform_credential(spec, ctx, existing_run),
+            platform_credential=await self._platform_credential(
+                spec, ctx, existing_run, agent_id=agent.id
+            ),
         )
         spec_toolsets = resolved.toolsets
         on_use, briefed = _connect_on_use(

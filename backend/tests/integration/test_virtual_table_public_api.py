@@ -13,12 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, Perm
+from app.db.models.organization import Organization
 from app.db.models.virtual_table import VirtualTableOutbox, VirtualTableRecord
 from app.main import app
 from app.schemas.api_key import ApiKeyCreate
+from app.schemas.table_view import TableViewCreate
 from app.schemas.virtual_table import ColumnInput, RecordList, TableCreate, TableRead
 from app.services.api_key import ApiKeyService
-from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables import TableViewService, VirtualTableService
 from tests.integration.virtual_table_support import ctx_for, make_org, make_user
 
 pytestmark = pytest.mark.anyio
@@ -209,3 +211,38 @@ async def test_projection_calculates_formulas_without_returning_their_inputs(
     assert page.status_code == 200, page.text
     assert page.json()["items"][0]["values"] == {total: 10}
     assert page.json()["items"][0]["links"] == {}
+
+
+@pytest.mark.security
+async def test_api_view_listing_keeps_private_views_and_other_tenants_hidden(
+    db: AsyncSession, external: _Client
+) -> None:
+    views = TableViewService(db)
+    own = await views.create_view(
+        external.ctx, external.table.id, TableViewCreate(name="Mine", kind="table")
+    )
+    other_user = await make_user(db)
+    organization = await db.get(Organization, external.ctx.organization_id)
+    assert organization is not None
+    colleague = ctx_for(other_user, organization)
+    private = await views.create_view(
+        colleague, external.table.id, TableViewCreate(name="Colleague private", kind="table")
+    )
+    shared = await views.create_view(
+        colleague,
+        external.table.id,
+        TableViewCreate(name="Shared", kind="table", visibility="shared"),
+    )
+    other_ctx = ctx_for(other_user, await make_org(db, owner=other_user))
+    other_table = await VirtualTableService(db).create_table(
+        other_ctx, TableCreate(name="Elsewhere", columns=[ColumnInput(label="Name", type="text")])
+    )
+    response = await external.http.get(f"{external.url}/views", headers=external.headers)
+    assert response.status_code == 200, response.text
+    visible_ids = {view["id"] for view in response.json()["items"]}
+    assert visible_ids == {str(own.id), str(shared.id)}
+    assert str(private.id) not in visible_ids
+    hidden = await external.http.get(
+        f"{settings.API_V1_STR}/tables/{other_table.id}/views", headers=external.headers
+    )
+    assert hidden.status_code == 404

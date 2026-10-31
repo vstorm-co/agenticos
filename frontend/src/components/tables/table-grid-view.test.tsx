@@ -88,9 +88,9 @@ beforeEach(() => {
 describe("TableGridView", () => {
   it("shows system metadata without exposing a cell editor", () => {
     renderEditable({ columns: [...columns, ...TABLE_SYSTEM_COLUMNS] });
-    expect(screen.getByRole("columnheader", { name: /created_at/ })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: /^Created$/ })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Edit created_at" })).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: /updated_at/ })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Last updated" })).toBeVisible();
   });
 
   it("opens a Markdown cell in the record panel instead of squeezing its editor into a row", async () => {

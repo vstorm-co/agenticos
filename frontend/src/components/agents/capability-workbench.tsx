@@ -162,14 +162,20 @@ export function CapabilityWorkbench({
   const [query, setQuery] = useState("");
   const categories = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    // Stored bindings remain editable; new tools use the platform MCP server.
+    const offered = catalog.filter(
+      (entry) =>
+        !["workflows", "virtual_tables"].includes(entry.id) ||
+        selected.some((binding) => binding.id === entry.id),
+    );
     const matching = needle
-      ? catalog.filter(
+      ? offered.filter(
           (entry) =>
             entry.name.toLowerCase().includes(needle) ||
             entry.description.toLowerCase().includes(needle) ||
             entry.tools.some((tool) => tool.name.toLowerCase().includes(needle)),
         )
-      : catalog;
+      : offered;
     const groupOf = (entry: CapabilityCatalogEntry) =>
       ADVANCED_CAPABILITIES.has(entry.id) ? ADVANCED : entry.category;
     const names = [...new Set(matching.map(groupOf))].filter((name) => name !== ADVANCED).sort();
@@ -178,7 +184,7 @@ export function CapabilityWorkbench({
       name,
       entries: matching.filter((entry) => groupOf(entry) === name),
     }));
-  }, [catalog, query]);
+  }, [catalog, query, selected]);
 
   const focused = catalog.find((entry) => entry.id === openedId);
   const bound = selected.find((entry) => entry.id === focused?.id);
@@ -343,6 +349,7 @@ export function CapabilityWorkbench({
   // panel beside the page rather than below a list.
   return (
     <div className="space-y-4">
+      <p className="text-muted-foreground text-sm">{t("workflowTablesViaMcp")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={query}

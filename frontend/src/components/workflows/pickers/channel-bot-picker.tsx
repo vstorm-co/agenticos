@@ -1,11 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { Bot } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useState } from "react";
+import type { ChannelPlatform } from "@/types/channels";
+import { Bot, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
   Badge,
+  Button,
   Label,
   Select,
   SelectContent,
@@ -14,8 +17,17 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useChannelBots, usePermissions } from "@/hooks";
-import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
+
+const AddChannelDialog = dynamic(() =>
+  import("@/components/channels/add-channel-dialog").then((module) => module.AddChannelDialog),
+);
+
+function channelPlatform(value: string | undefined): ChannelPlatform | undefined {
+  return value === "slack" || value === "telegram" || value === "mattermost" || value === "teams"
+    ? value
+    : undefined;
+}
 
 export interface ChannelBotPickerProps {
   /** What the control is called: the field's own name, or the picker's when it has none. */
@@ -49,7 +61,8 @@ export function ChannelBotPicker({
   const caption = label ?? t("pickerBotLabel");
   const { can } = usePermissions();
   const mayManage = can(Perm.channelsManage);
-  const { bots: every, isLoading } = useChannelBots(mayManage);
+  const { bots: every, isLoading, create } = useChannelBots(mayManage);
+  const [adding, setAdding] = useState(false);
   const platforms = typeof platform === "string" ? [platform] : platform;
   const bots =
     platforms === undefined ? every : every.filter((bot) => platforms.includes(bot.platform));
@@ -87,12 +100,26 @@ export function ChannelBotPicker({
         </SelectContent>
       </Select>
       {bots.length === 0 && !isLoading && (
-        <p className="text-muted-foreground text-xs">
-          {t("pickerBotsEmpty")}{" "}
-          <Link href={ROUTES.CHANNELS} className="underline underline-offset-2">
-            {t("pickerBotsAdd")}
-          </Link>
-        </p>
+        <p className="text-muted-foreground text-xs">{t("pickerBotsEmpty")}</p>
+      )}
+      {!disabled && (
+        <Button type="button" size="sm" variant="outline" onClick={() => setAdding(true)}>
+          <Plus className="size-3.5" aria-hidden />
+          {t("pickerBotConnect")}
+        </Button>
+      )}
+      {adding && (
+        <AddChannelDialog
+          open
+          onOpenChange={setAdding}
+          initialPlatform={channelPlatform(only)}
+          isPending={create.isPending}
+          onSubmit={async (data) => {
+            const bot = await create.mutateAsync(data);
+            onChange(bot.id);
+            setAdding(false);
+          }}
+        />
       )}
       {orphaned && <p className="text-foreground/70 text-xs">{t("pickerBotOrphaned")}</p>}
       {misplaced && (

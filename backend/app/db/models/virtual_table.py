@@ -162,6 +162,13 @@ class VirtualTableRecord(Base, TimestampMixin):
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
+    created_source: Mapped[dict[str, str | int | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    updated_source: Mapped[dict[str, str | int | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+
     __table_args__ = (
         ForeignKeyConstraint(
             ["organization_id", "table_id"],

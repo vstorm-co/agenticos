@@ -1000,3 +1000,51 @@ async def test_projected_cells_arrive_as_a_mapping(db):
     assert cells.values == {customer: "Acme"}
     assert RecordRead.model_validate(cells).values == {customer: "Acme"}
     assert sizes == {record_id: len('{"' + customer + '": "Acme"}')}
+
+
+async def test_record_write_source_is_server_metadata_and_keeps_the_original_creator(db):
+    from dataclasses import replace
+
+    from app.db.models.api_key import ApiKey
+    from app.services.virtual_tables.record_sources import from_agent
+
+    service, ctx, table, org = await _setup(db)
+    customer = cid(table, "Customer")
+    created = await service.create_record(ctx, table.id, RecordCreate(values={customer: "Acme"}))
+    assert created.record.created_source.kind == "user"
+    assert created.record.created_source.id == ctx.user_id
+    key = ApiKey(
+        organization_id=org.id,
+        user_id=ctx.user_id,
+        name="CRM sync",
+        prefix="source-key",
+        key_hash="hash",
+        scopes=[],
+        internal=False,
+    )
+    db.add(key)
+    await db.flush()
+    updated = await service.update_record(
+        replace(ctx, api_key_id=key.id),
+        table.id,
+        created.record.id,
+        RecordUpdate(expected_revision=created.record.revision, values={customer: "Acme Ltd"}),
+    )
+    assert updated.record.created_source == created.record.created_source
+    assert updated.record.updated_source.kind == "api"
+    assert updated.record.updated_source.name == "CRM sync"
+    assert updated.record.updated_source.id == key.id
+    assert updated.record.updated_by == ctx.user_id
+    with from_agent(None):
+        by_agent = await service.update_record(
+            ctx,
+            table.id,
+            updated.record.id,
+            RecordUpdate(
+                expected_revision=updated.record.revision, values={customer: "Acme Group"}
+            ),
+        )
+    assert by_agent.record.updated_source.kind == "agent"
+    assert by_agent.record.created_source == created.record.created_source
+    reread = await service.get_record(ctx, table.id, created.record.id)
+    assert reread.updated_source == by_agent.record.updated_source

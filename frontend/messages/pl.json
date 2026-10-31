@@ -8099,7 +8099,8 @@
     "separateEndpointHint": "Zapisz ten endpoint jako osobny model, aby zachować obecny profil dla innych agentów. „Zaktualizuj model” zmienia wspólny profil wszędzie, gdzie jest używany.",
     "backendComputerLabel": "Komputer",
     "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
-    "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej."
+    "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
+    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia."
   },
   "steps": {
     "skills-gallery": {
@@ -9302,7 +9303,6 @@
     "pickerBotPlaceholder": "Wybierz bota",
     "pickerBotOff": "Wyłączony",
     "pickerBotsEmpty": "Nie ma jeszcze botów kanałów.",
-    "pickerBotsAdd": "Dodaj go w Kanałach",
     "pickerBotOrphaned": "Bota, którego wskazuje ten krok, już nie ma - wybierz innego.",
     "pickerBotWrongPlatform": "Tego bota nie można tu użyć. Workflow odpowiadają w Slacku, Mattermoście i Telegramie - wybierz innego.",
     "pickerBotWrongPlatformOne": "Ten krok przyjmuje boty {platform} - wybierz innego.",
@@ -9823,7 +9823,8 @@
     "emailConnectOutlook": "Połącz Outlook",
     "emailSwitchTitle": "Użyć tej skrzynki?",
     "emailSwitchHint": "Krok użyje pól tej skrzynki. Ustaw ponownie odbiorców i treść; połączenia z kolejnymi krokami zostaną zachowane i sprawdzone.",
-    "emailSwitchConfirm": "Użyj skrzynki"
+    "emailSwitchConfirm": "Użyj skrzynki",
+    "pickerBotConnect": "Połącz kanał"
   },
   "artifacts": {
     "title": "Aplikacje",
@@ -10467,7 +10468,8 @@
       "italic": "Kursywa",
       "link": "Wstaw link",
       "image": "Wstaw obraz",
-      "video": "Wstaw film"
+      "video": "Wstaw film",
+      "updatedBy": "Zmienione przez"
     },
     "defaults": {
       "value": "Wartość domyślna",

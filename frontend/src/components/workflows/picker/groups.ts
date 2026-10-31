@@ -10,6 +10,7 @@ import {
   WORKFLOW_APPS,
   appForCatalogKey,
   catalogWorkflowApp,
+  connectionWorkflowApp,
   LOGIN_TOOLS,
 } from "@/components/workflows/apps";
 import { connectionLabel, offeredTools } from "@/lib/mcp-servers";
@@ -152,13 +153,22 @@ function appGroups(
   const catalogApps = catalog
     .filter((entry) => !curatedKeys.has(entry.key))
     .map(catalogWorkflowApp);
-  for (const app of [...WORKFLOW_APPS, ...catalogApps]) {
+  const covered = new Set([...WORKFLOW_APPS, ...catalogApps].flatMap((app) => app.catalogKeys));
+  const otherApps = (connections ?? [])
+    .filter(
+      (connection) =>
+        connection.is_enabled &&
+        (connection.catalog_key === null || !covered.has(connection.catalog_key)),
+    )
+    .map(connectionWorkflowApp);
+  for (const app of [...WORKFLOW_APPS, ...catalogApps, ...otherApps]) {
     const triggers = definitions.filter((definition) => app.triggers.includes(definition.id));
     const own = (connections ?? []).filter(
       (connection) =>
         connection.is_enabled &&
-        connection.catalog_key !== null &&
-        app.catalogKeys.includes(connection.catalog_key),
+        (app.connectionId !== undefined
+          ? connection.id === app.connectionId
+          : connection.catalog_key !== null && app.catalogKeys.includes(connection.catalog_key)),
     );
     const actions: AppAction[] = [];
     const untested: { id: string; name: string }[] = [];

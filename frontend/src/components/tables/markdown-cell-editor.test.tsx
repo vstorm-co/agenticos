@@ -37,7 +37,8 @@ describe("Markdown table cells", () => {
     );
     expect(screen.getByText("Created")).toBeVisible();
     expect(screen.getByText("Last updated")).toBeVisible();
-    expect(screen.getByText("member-1")).toBeVisible();
+    expect(screen.getAllByText("member-1")).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: "Write" }));
     expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(
       markdownDocument(source).body,
     );

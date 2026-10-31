@@ -188,7 +188,7 @@ export function RecordDetailSheet({
           <div
             className={cn(
               "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6",
-              expanded && "mx-auto w-full max-w-[100rem] sm:px-12 sm:py-10",
+              expanded && "w-full sm:px-12 sm:py-10",
             )}
           >
             {columns
@@ -259,12 +259,14 @@ export function RecordDetailSheet({
                   </div>
                 );
               })}
-            <p className="text-muted-foreground border-border border-t pt-3 text-xs">
-              {t("added", { when: formatDateTime(record.created_at, locale) })}
-              {record.updated_at &&
-                record.updated_at !== record.created_at &&
-                ` · ${t("changed", { when: formatDateTime(record.updated_at, locale) })}`}
-            </p>
+            {!columns.some((column) => !column.archived && column.type === "rich_text") && (
+              <p className="text-muted-foreground border-border border-t pt-3 text-xs">
+                {t("added", { when: formatDateTime(record.created_at, locale) })}
+                {record.updated_at &&
+                  record.updated_at !== record.created_at &&
+                  ` · ${t("changed", { when: formatDateTime(record.updated_at, locale) })}`}
+              </p>
+            )}
           </div>
         )}
         {record && canEdit && (

@@ -1,11 +1,23 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
-import { useAppConnections, useMcpAppStep } from "./use-app-connections";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
+import {
+  useAppConnections,
+  useMcpAppStep,
+  useRefreshWorkflowMcpTools,
+} from "./use-app-connections";
 
-vi.mock("@/hooks/use-mcp-servers", () => ({ useMcpCatalog: () => ({ servers: [] }) }));
+vi.mock("@/hooks/use-mcp-servers", () => ({
+  useMcpCatalog: () => ({ servers: [] }),
+  useMcpCatalogPage: () => ({ servers: [] }),
+}));
+
+const probe = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/org-mcp-connections-api", () => ({ testOrgMcpConnection: probe }));
 
 const gmail = { id: "c1", name: "gmail-dev", label: null, catalog_key: "google-workspace" };
 const other = { id: "c2", name: "crm", label: null, catalog_key: "hubspot" };
@@ -98,14 +110,35 @@ describe("useMcpAppStep", () => {
     expect(result.current?.tool).toBe("");
   });
 
-  it("is null for a connection no app claims, an unknown one, and while the list is unknown", () => {
+  it("names a custom server as its own app and refuses an unknown connection", () => {
     const unclaimed = renderHook(() => useMcpAppStep({ connection_id: "c2", tool: "x" }));
     const unknown = renderHook(() => useMcpAppStep({ connection_id: "gone", tool: "x" }));
-    expect(unclaimed.result.current).toBeNull();
+    expect(unclaimed.result.current?.app.name).toBe("crm");
     expect(unknown.result.current).toBeNull();
 
     state.canRead = false;
     const hidden = renderHook(() => useMcpAppStep({ connection_id: "c1", tool: "x" }));
     expect(hidden.result.current).toBeNull();
+  });
+});
+
+describe("refreshing workflow MCP tools", () => {
+  it("invalidates the shared inventory after probing and propagates a refusal", async () => {
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useRefreshWorkflowMcpTools(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    probe.mockResolvedValueOnce({ error: null, tools: [] });
+    await act(() => result.current.mutateAsync("c1"));
+    expect(probe).toHaveBeenCalledWith("c1");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.mcpConnections.all() });
+    probe.mockResolvedValueOnce({ error: "Connection refused" });
+    await act(async () => {
+      await expect(result.current.mutateAsync("c1")).rejects.toThrow("Connection refused");
+    });
+    expect(result.current.isError).toBe(true);
   });
 });

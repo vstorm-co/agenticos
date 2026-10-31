@@ -427,6 +427,61 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
 ]
 
 
+CALLS.extend(
+    [
+        (
+            "run_workflow",
+            {"workflow_id": str(AGENT)},
+            (
+                "POST",
+                "/workflow-runs",
+                {
+                    "json": {
+                        "workflow_id": str(AGENT),
+                        "mode": "real",
+                        "input": {},
+                        "entry_node_id": None,
+                    }
+                },
+            ),
+        ),
+        (
+            "get_virtual_table_record",
+            {"table_id": str(KB), "record_id": str(RUN)},
+            ("GET", f"/tables/{KB}/records/{RUN}", {}),
+        ),
+        (
+            "virtual_table_record_exists",
+            {"table_id": str(KB), "external_id": "crm/1"},
+            ("GET", f"/tables/{KB}/records/exists", {"params": {"external_id": "crm/1"}}),
+        ),
+        (
+            "upsert_virtual_table_record",
+            {
+                "table_id": str(KB),
+                "external_id": "crm/account.1",
+                "record": {"values": {}, "expected_revision": 3},
+            },
+            (
+                "PUT",
+                f"/tables/{KB}/records/by-external-id/crm%2Faccount%2E1",
+                {"json": {"values": {}, "expected_revision": 3}},
+            ),
+        ),
+        (
+            "delete_virtual_table_record",
+            {"table_id": str(KB), "record_id": str(RUN), "expected_revision": 2},
+            ("DELETE", f"/tables/{KB}/records/{RUN}", {"params": {"expected_revision": 2}}),
+        ),
+        (
+            "list_virtual_table_views",
+            {"table_id": str(KB)},
+            ("GET", f"/tables/{KB}/views", {"params": {"limit": 50, "skip": 0}}),
+        ),
+    ]
+)
+
+
 @pytest.mark.parametrize(("tool", "arguments", "call"), CALLS)
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]
@@ -1014,3 +1069,43 @@ async def test_create_project_configures_only_the_shared_workspace(api: MagicMoc
     assert "local" not in payload and "folder" not in payload
     assert tool.writes
     assert "cannot select a native folder" in tool.function.__doc__
+
+
+async def test_table_deletion_reports_success_only_after_confirmed_204(api):
+    tool = next(tool for tool in platform_tools(api) if tool.name == "delete_virtual_table_record")
+    api.request.return_value = None
+    assert await tool.function(KB, RUN, 2) == {"deleted": True}
+    api.request.return_value = {"error": "revision conflict"}
+    assert await tool.function(KB, RUN, 2) == {"error": "revision conflict"}
+
+
+@pytest.mark.security
+async def test_a_workflow_agent_cannot_start_a_new_root_through_platform_mcp(api):
+    from app.core.permissions import AuthContext
+    from app.services.workflow_execution import context
+
+    dispatch = context.DispatchContext(
+        organization_id=uuid.UUID(ORG),
+        workflow_run_id=RUN,
+        node_run_id=uuid.uuid4(),
+        node_instance_id=uuid.uuid4(),
+        attempt_no=1,
+        auth=AuthContext(user_id=AGENT, organization_id=uuid.UUID(ORG), role="owner"),
+        resumed_agent_run_id=None,
+    )
+    tool = next(tool for tool in platform_tools(api) if tool.name == "run_workflow")
+    api.refuse.return_value = {"error": "use workflow.run"}
+    with context.dispatching_as(dispatch):
+        assert await tool.function(AGENT) == {"error": "use workflow.run"}
+    api.request.assert_not_awaited()
+    api.refuse.assert_called_once()
+
+
+@pytest.mark.security
+def test_workflow_and_table_mcp_writes_wait_for_approval():
+    tools = {tool.name: tool for tool in platform_tool_catalog()}
+    assert all(
+        tools[name].writes
+        for name in ["run_workflow", "upsert_virtual_table_record", "delete_virtual_table_record"]
+    )
+    assert not tools["get_virtual_table_record"].writes

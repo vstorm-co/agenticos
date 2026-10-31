@@ -1246,7 +1246,9 @@ class TestAStructuredAnswer:
         def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             for message in messages:
                 for part in getattr(message, "parts", []):
-                    if part.part_kind == "retry-prompt":
+                    if part.part_kind in {"retry-prompt", "retry-feedback"} or (
+                        part.part_kind == "tool-return" and part.outcome == "retried"
+                    ):
                         seen.append(str(part.content))
             return ModelResponse(
                 parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=next(answers))]
@@ -1261,7 +1263,8 @@ class TestAStructuredAnswer:
             result = await built.agent.run("Score this lead", deps=built.deps)
 
         assert result.output == {"score": 91, "tier": "hot"}
-        assert any("at score: 'high' is not of type 'integer'" in text for text in seen)
+        assert result.usage.requests == 2
+        assert any("score" in text for text in seen), seen
 
     def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""

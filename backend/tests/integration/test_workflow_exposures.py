@@ -316,6 +316,7 @@ class TestMultipleEntries:
             await _publish(db, key, workflow, graph)
         assert list((await db.execute(select(WorkflowVersion))).scalars()) == []
 
+    @pytest.mark.security
     async def test_registration_listing_does_not_cross_tenants(self, db, tenant):
         owner, org, workflow = tenant
         await _webhook(db, _ctx(owner, org), workflow)

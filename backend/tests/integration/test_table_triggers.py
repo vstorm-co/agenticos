@@ -873,7 +873,7 @@ async def test_a_publisher_who_may_not_run_the_workflow_cannot_make_it_run_as_th
 ):
     with (
         patch("app.services.workflow_triggers.resolve_access", new=AsyncMock(return_value=False)),
-        pytest.raises(AuthorizationError, match="runs as you"),
+        pytest.raises(AuthorizationError, match="permission to run this workflow"),
     ):
         await world.trigger()
     async with world.factory() as db:

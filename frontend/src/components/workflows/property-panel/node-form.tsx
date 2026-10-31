@@ -125,6 +125,48 @@ const MCP_SERVER = "connection_id";
 const MCP_TOOL = "tool";
 const MCP_ARGUMENTS = "arguments";
 
+/** Optional in the API does not mean secondary in a person's task. */
+const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
+  "http.request": ["method", "auth", "headers"],
+  "http.upload": ["method", "auth", "headers"],
+  "http.download": ["auth", "headers"],
+  "file.write": ["format", "filename"],
+  "file.read": ["parse_as"],
+  "convert.text_to_file": ["filename"],
+  "html.parse": ["selector"],
+  "image.transform": ["crop", "resize", "rotate_degrees", "output_format", "quality"],
+  "webhook.respond": ["status_code"],
+  "flow.wait": ["seconds", "until_called"],
+  "data.combine": ["mode", "key"],
+  "text.compare": ["method"],
+  "transform.crypto": ["operation"],
+  "transform.date_time": ["operation", "amount", "unit", "format", "timezone"],
+  "transform.edit_fields": ["set", "remove"],
+  "error.handle": ["branches"],
+  "debug.echo": ["message"],
+  "notification.send": ["channels"],
+  "table.create": ["visibility"],
+  "table.record.query": ["filters", "sort"],
+  "table.record.exists": ["filters"],
+  "trigger.table_record": ["events", "filters"],
+  "trigger.github": ["events"],
+  "trigger.gmail": ["subject_contains", "sender_contains", "label"],
+  "trigger.outlook": ["folder", "mailbox", "subject_contains", "sender_contains"],
+};
+const PRIMARY_INPUT: Readonly<Record<string, readonly string[]>> = {
+  "http.request": ["body"],
+  "html.parse": ["html", "file"],
+  "debug.echo": ["message"],
+  "data.map": ["source"],
+  "logic.if": ["value"],
+  "logic.switch": ["value"],
+  "transform.crypto": ["text"],
+  "transform.date_time": ["value"],
+  "notification.send": ["message"],
+  "human.approval": ["details", "proposal"],
+  "table.record.get": ["record_id", "external_id"],
+};
+
 /** Everything a recursive field needs beyond its own schema, value and path. */
 interface FieldCtx {
   node: NodeInstance;
@@ -1177,6 +1219,8 @@ function NodeFields({
     // An agent step always shows `agent`: neither it nor `inline` is required
     // alone, but one of the two always is.
     (agentStep && entry.name === AGENT_SOURCE) ||
+    PRIMARY_CONFIG[definition.id]?.includes(entry.name) === true ||
+    resourceKind(entry.schema) !== null ||
     ((definition.id.startsWith("ai.") || definition.id.startsWith("decide.")) &&
       [
         "instructions",
@@ -1185,11 +1229,20 @@ function NodeFields({
         "reasoning_effort",
         "effort",
         "model_settings",
+        "task",
+        "language",
+        "length",
+        "style",
       ].includes(entry.name)) ||
     entry.required ||
     node.config[entry.name] !== undefined ||
     bound(entry.name);
   const inputWanted = (entry: (typeof inputFields)[number]) =>
+    PRIMARY_INPUT[definition.id]?.includes(entry.name) === true ||
+    (definition.id === "file.write" &&
+      entry.name ===
+        ({ text: "text", json: "json_value", csv: "rows" }[String(node.config.format ?? "text")] ??
+          "text")) ||
     entry.required ||
     bound(entry.name) ||
     (definition.id === "core.output" && ["text", "structured"].includes(entry.name)) ||

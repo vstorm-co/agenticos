@@ -1,5 +1,5 @@
 ---
-source_sha: "9f8b82e00fb0"
+source_sha: "47d48a61e5d4"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -26,6 +26,8 @@ Configura un **Default value** con su tipo en los ajustes o al añadir una colum
 La entrada rápida está justo después de las filas cargadas, en su área de desplazamiento. El CSV de la consola incluye las cuatro propiedades del registro. Las exportaciones API mantienen su formato salvo que se solicite `include_metadata: true`. Al crear una tabla desde un CSV exportado se omiten las propiedades del sistema; los registros importados reciben nuevos metadatos del sistema.
 
 ## Clientes externos { #external-clients }
+
+El origen de una escritura se registra aparte del miembro que la autoriza. Las nuevas escrituras guardan `created_source` y `updated_source` con tipo, ID y nombre: persona, agente, clave API, workflow o sistema. La consola muestra el avatar de la persona, el retrato del agente o un icono API/workflow junto al nombre en las columnas de sistema y propiedades del documento. La creación establece ambos orígenes; las modificaciones conservan al creador. Los registros antiguos mantienen su miembro registrado sin inventar el origen histórico. Estos campos no se pueden proporcionar mediante valores ni Markdown.
 
 Las claves de API de la organización se aceptan en `/api/v1/tables`. Envía
 `Authorization: Bearer aos_…`; la organización procede de la clave. Leer requiere
@@ -101,7 +103,7 @@ la columna.
 
 ### Texto enriquecido y Markdown { #rich-text }
 
-Elige **Rich text (Markdown)** para notas con títulos, listas, tareas, tablas, enlaces y código. Al pulsar una celda se abre el registro. **Write** ofrece un campo de documento y herramientas para negrita, cursiva, enlaces, imágenes y vídeo. **Preview** usa el renderizador del chat para enlaces e imágenes; los enlaces HTTP(S) directos a MP4, WebM u Ogg se muestran como vídeos con controles y sin reproducción automática. El HTML sin procesar no se ejecuta. **Expand editor** abre más espacio. Los documentos de solo lectura comienzan en la vista previa.
+Elige **Rich text (Markdown)** para notas con títulos, listas, tareas, tablas, enlaces y código. Al pulsar una celda se abre el registro. **Write** ofrece un campo de documento y herramientas para negrita, cursiva, enlaces, imágenes y vídeo. **Preview** usa el renderizador del chat para enlaces e imágenes; los enlaces HTTP(S) directos a MP4, WebM u Ogg se muestran como vídeos con controles y sin reproducción automática. El HTML sin procesar no se ejecuta. **Expand editor** abre más espacio. Los documentos guardados comienzan en la vista previa; **Write** abre la edición.
 
 Kanban muestra la tarjeta bajo el puntero y resalta el destino; durante el guardado la tarjeta ya aparece en la columna elegida. Un rechazo restaura la columna anterior y conserva las acciones del conflicto. Move to sigue disponible con el teclado.
 

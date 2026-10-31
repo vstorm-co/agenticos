@@ -1247,3 +1247,60 @@ it("shows writable table columns as immediate record value fields", async () => 
   expect(screen.getByText("Full name")).toBeVisible();
   expect(screen.queryByText("Computed")).toBeNull();
 });
+
+describe("a step's primary controls", () => {
+  it("shows the HTTP method, authentication and body before opening advanced options", () => {
+    renderForm({
+      folded: true,
+      definition: makeDefinition({
+        id: "http.request",
+        config_schema: {
+          type: "object",
+          properties: {
+            method: { type: "string", enum: ["GET", "POST"], title: "Method", default: "GET" },
+            auth: { type: "string", title: "Authentication" },
+            timeout_seconds: { type: "integer", title: "Timeout" },
+          },
+        },
+        input_schema: {
+          type: "object",
+          properties: { body: { type: "string", title: "Request body" } },
+        },
+      }),
+    });
+    expect(screen.getByLabelText("Method")).toBeInTheDocument();
+    expect(screen.getByLabelText("Authentication")).toBeInTheDocument();
+    expect(screen.getByText("Request body")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Timeout")).toBeNull();
+  });
+
+  it.each([
+    ["text", "Text"],
+    ["json", "JSON value"],
+    ["csv", "Rows"],
+  ])("shows the %s file's payload without hiding it under more options", (format, payload) => {
+    renderForm({
+      folded: true,
+      config: { format },
+      definition: makeDefinition({
+        id: "file.write",
+        config_schema: {
+          type: "object",
+          properties: {
+            format: { type: "string", enum: ["text", "json", "csv"], title: "Format" },
+          },
+        },
+        input_schema: {
+          type: "object",
+          properties: {
+            text: { type: "string", title: "Text" },
+            json_value: { type: "string", title: "JSON value" },
+            rows: { type: "string", title: "Rows" },
+          },
+        },
+      }),
+    });
+    expect(screen.getByLabelText("Format")).toBeInTheDocument();
+    expect(screen.getByText(payload)).toBeInTheDocument();
+  });
+});

@@ -32,10 +32,14 @@ Avoid creating all three when one solves the request.
 6. Present the trigger and effects before publication. Publication freezes a
    version and activates its unattended triggers. A key cannot supply a retained
    human principal: if refused, direct the person to Publish in the console.
-7. To make it an agent's tool, use the existing `workflows` capability with
-   `config.workflow_ids` containing the published workflow ID. Inspect the
-   capability schema before updating that agent. The workflow needs a start
-   compatible with an agent call; test that path as well.
+7. To make it an agent's tool, bind the AgenticOS platform MCP server
+   (`account: platform`) and allow the workflow discovery, `run_workflow` and
+   execution-reading tools it needs. Read its declared input first. MCP writes
+   retain approval and run as the requesting member. Existing `workflows`
+   capability bindings remain compatible with their resource grants; do not
+   silently replace one with broader MCP access. A workflow's agent step must
+   use a `workflow.run` node to call another workflow instead of starting a root.
+
 
 ## A service missing from the MCP gallery
 

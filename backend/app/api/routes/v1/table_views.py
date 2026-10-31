@@ -21,6 +21,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, TableViewSvc, limit_table_write
+from app.api.public_api import PUBLIC
 from app.schemas.table_view import (
     TableViewCreate,
     TableViewList,
@@ -49,7 +50,9 @@ _WRITE_REFUSALS: dict[int | str, dict[str, Any]] = {
 }
 
 
-@router.get("/{table_id}/views", response_model=TableViewList, responses=_REFUSALS)
+@router.get(
+    "/{table_id}/views", response_model=TableViewList, responses=_REFUSALS, dependencies=[PUBLIC]
+)
 async def list_views(
     table_id: UUID,
     service: TableViewSvc,

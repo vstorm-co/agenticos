@@ -552,6 +552,7 @@ async def insert_record(
     schema_version: int,
     values: dict[str, CellValue],
     created_by: UUID | None,
+    source: dict[str, str | int | bool | None] | None = None,
 ) -> VirtualTableRecord | None:
     """Insert a record at revision 1, or `None` if that external id is already taken.
 
@@ -578,6 +579,8 @@ async def insert_record(
             revision=1,
             created_by=created_by,
             updated_by=created_by,
+            created_source=source,
+            updated_source=source,
             # One stamp for both, so a record nobody has edited sorts by when it was
             # created rather than falling behind every edited one as a NULL would.
             created_at=written_at,
@@ -601,12 +604,14 @@ async def update_record(
     values: dict[str, CellValue],
     schema_version: int,
     updated_by: UUID | None,
+    source: dict[str, str | int | bool | None] | None = None,
 ) -> VirtualTableRecord:
     """Write new values and advance the revision. The caller holds the row lock."""
     record.values = values
     record.schema_version = schema_version
     record.revision = record.revision + 1
     record.updated_by = updated_by
+    record.updated_source = source
     await db.flush()
     await db.refresh(record)
     return record

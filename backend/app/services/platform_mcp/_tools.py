@@ -15,15 +15,23 @@ here but `UNGATED` (#2301).
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
+from urllib.parse import quote
 from uuid import UUID
 
 from pydantic import JsonValue
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
 from app.schemas.user import ConsoleLocale
-from app.schemas.virtual_table import ColumnInput, RecordQuery, RecordUpdate, SchemaUpdate
+from app.schemas.virtual_table import (
+    ColumnInput,
+    RecordQuery,
+    RecordUpdate,
+    RecordUpsert,
+    SchemaUpdate,
+)
 from app.schemas.workflow import NodeCatalog
 from app.services.platform_mcp._api import PlatformApi
+from app.services.workflow_execution import context as workflow_context
 from app.workflows.graph.model import WorkflowGraph
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
@@ -928,7 +936,99 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "PATCH", f"/tables/{table_id}/records/{record_id}", json=update.model_dump(mode="json")
         )
 
+    async def run_workflow(
+        workflow_id: UUID,
+        fields: dict[str, JsonValue] | None = None,
+        entry_node_id: UUID | None = None,
+    ) -> dict[str, JsonValue]:
+        """Start a published workflow as the caller. Needs run access; waits for approval.
+
+        Read get_workflow_definition first and supply its declared input fields.
+        Returns the admitted run, not a completed result: poll get_workflow_execution
+        and inspect its steps. An agent inside a workflow must use a workflow.run
+        node instead of starting another root workflow.
+        """
+        if workflow_context.active() is not None:
+            return api.refuse("A workflow step starts no root workflow; use a workflow.run node")
+        return await api.request(
+            "POST",
+            "/workflow-runs",
+            json={
+                "workflow_id": str(workflow_id),
+                "mode": "real",
+                "input": fields or {},
+                "entry_node_id": str(entry_node_id) if entry_node_id else None,
+            },
+        )
+
+    async def get_virtual_table_record(table_id: UUID, record_id: UUID) -> dict[str, JsonValue]:
+        """Read one accessible record and its revision. Needs table view access.
+
+        Returns typed values and server-owned dates and source identities. Use the
+        revision for an update or deletion; a record from another tenant is refused.
+        """
+        return await api.request("GET", f"/tables/{table_id}/records/{record_id}")
+
+    async def virtual_table_record_exists(table_id: UUID, external_id: str) -> dict[str, JsonValue]:
+        """Check an external source ID in an accessible table. Needs table view access.
+
+        Returns exists; a refusal does not mean the record is absent. To update an
+        existing record, query it first for its ID and current revision.
+        """
+        return await api.request(
+            "GET", f"/tables/{table_id}/records/exists", params={"external_id": external_id}
+        )
+
+    async def upsert_virtual_table_record(
+        table_id: UUID, external_id: str, record: RecordUpsert
+    ) -> dict[str, JsonValue]:
+        """Create or update a source-system record. Needs edit access; waits for approval.
+
+        external_id is stable in the source system. An existing record requires its
+        read expected_revision; a conflict is refused, never silently overwritten.
+        Returns the resulting record, revision and authoritative metadata.
+        """
+        segment = quote(external_id, safe="").replace(".", "%2E")
+        return await api.request(
+            "PUT",
+            f"/tables/{table_id}/records/by-external-id/{segment}",
+            json=record.model_dump(mode="json"),
+        )
+
+    async def delete_virtual_table_record(
+        table_id: UUID, record_id: UUID, expected_revision: int
+    ) -> dict[str, JsonValue]:
+        """Delete an accessible record at its read revision. Needs edit access; waits for approval.
+
+        Returns deleted only after the API confirms deletion. Revision conflicts,
+        missing access and missing records remain explicit refusals.
+        """
+        result = await api.request(
+            "DELETE",
+            f"/tables/{table_id}/records/{record_id}",
+            params={"expected_revision": expected_revision},
+        )
+        return {"deleted": True} if result is None else result
+
+    async def list_virtual_table_views(
+        table_id: UUID, limit: int = 50, skip: int = 0
+    ) -> dict[str, JsonValue]:
+        """List the caller's accessible saved views. Needs table view access.
+
+        Returns items and total; views narrow a query but do not grant table access.
+        Follow pages as needed rather than treating the first page as complete.
+        """
+        return await api.request(
+            "GET", f"/tables/{table_id}/views", params={"limit": limit, "skip": skip}
+        )
+
     operations = (
+        (run_workflow, True),
+        (get_virtual_table_record, False),
+        (virtual_table_record_exists, False),
+        (upsert_virtual_table_record, True),
+        (delete_virtual_table_record, True),
+        (list_virtual_table_views, False),
         (list_workflow_definitions, False),
         (get_workflow_definition, False),
         (list_workflow_nodes, False),

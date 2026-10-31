@@ -1,5 +1,5 @@
 ---
-source_sha: "9f8b82e00fb0"
+source_sha: "47d48a61e5d4"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -26,6 +26,8 @@ Lege einen typisierten **Standardwert** in den Spalteneinstellungen oder beim Hi
 Die Schnelleingabe steht direkt hinter den geladenen Zeilen in deren Scrollbereich. Der CSV-Export der Konsole enthält die vier Datensatzeigenschaften. API-Exporte behalten ihr bisheriges Format, sofern nicht `include_metadata: true` angefordert wird. Beim Erstellen einer Tabelle aus einem exportierten CSV werden Systemeigenschaften übersprungen; importierte Datensätze erhalten neue Systemmetadaten.
 
 ## Externe Clients { #external-clients }
+
+Die Herkunft eines Schreibvorgangs wird getrennt vom autorisierenden Mitglied gespeichert. Neue Schreibvorgänge setzen `created_source` und `updated_source` mit Art, ID und Name: Person, Agent, API-Schlüssel, Workflow oder System. Die Konsole zeigt den Avatar einer Person, das Porträt eines Agenten oder ein API-/Workflow-Symbol neben dem Namen in Systemspalten und Dokumenteigenschaften. Beim Erstellen werden beide Quellen gesetzt; spätere Änderungen erhalten den Ersteller. Alte Datensätze behalten ihr gespeichertes Mitglied, ohne eine historische Herkunft zu erfinden. Diese Felder lassen sich weder durch Eingabewerte noch Markdown setzen.
 
 Organisations-API-Keys werden auf `/api/v1/tables` akzeptiert. Senden Sie
 `Authorization: Bearer aos_…`; die Organisation kommt vom Key. Lesen erfordert
@@ -103,7 +105,7 @@ aktive Option nennt, wird mit den Optionen der Spalte abgelehnt.
 
 ### Formatierter Text und Markdown { #rich-text }
 
-Wähle **Rich text (Markdown)** für Notizen mit Überschriften, Listen, Aufgaben, Tabellen, Links und Code. Ein Zellklick öffnet den Datensatz. **Write** bietet ein Dokumentfeld mit Werkzeugen für Fett, Kursiv, Links, Bilder und Video. **Preview** nutzt den Chat-Renderer für Links und Bilder; direkte HTTP(S)-Links auf MP4, WebM oder Ogg werden als Video mit Steuerelementen ohne Autoplay angezeigt. Rohes HTML wird nicht ausgeführt. **Expand editor** öffnet mehr Platz. Schreibgeschützte Dokumente starten in der Vorschau.
+Wähle **Rich text (Markdown)** für Notizen mit Überschriften, Listen, Aufgaben, Tabellen, Links und Code. Ein Zellklick öffnet den Datensatz. **Write** bietet ein Dokumentfeld mit Werkzeugen für Fett, Kursiv, Links, Bilder und Video. **Preview** nutzt den Chat-Renderer für Links und Bilder; direkte HTTP(S)-Links auf MP4, WebM oder Ogg werden als Video mit Steuerelementen ohne Autoplay angezeigt. Rohes HTML wird nicht ausgeführt. **Expand editor** öffnet mehr Platz. Gespeicherte Dokumente starten in der Vorschau; **Write** wechselt zur Bearbeitung.
 
 Kanban zeigt eine Karte unter dem Zeiger und markiert die Zielspalte; beim Speichern steht die Karte bereits dort. Bei abgelehntem Schreiben kehrt sie zurück und die Konfliktaktionen bleiben erhalten. Das Menü Move to ist per Tastatur erreichbar.
 

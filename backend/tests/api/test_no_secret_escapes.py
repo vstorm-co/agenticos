@@ -100,6 +100,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "that first switches it on so its publisher can sign deliveries; "
         "WorkflowExposureRead (every read) has no such field, so it is never re-exposed"
     ),
+    "trigger_secrets": (
+        "one-time signing secrets keyed by trigger node, only in WorkflowPublished; "
+        "workflow definitions, versions and exposure listings never return this map"
+    ),
     "form_token": (
         "a workflow form's public link - the page exists to be handed to strangers, "
         "it is read only by who may view the workflow, and New link replaces it; "

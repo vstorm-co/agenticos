@@ -22,6 +22,7 @@ vi.mock("@/components/workflows/pickers/workflow-connections-dialog", () => ({
   }) => <button onClick={() => onOpenChange(false)}>Connect {catalogKey}</button>,
 }));
 
+const refreshTools = vi.hoisted(() => vi.fn());
 const apps = vi.hoisted(() => ({
   connections: null as UsableMcpConnectionRecord[] | null,
   canConnect: false,
@@ -29,6 +30,7 @@ const apps = vi.hoisted(() => ({
 }));
 vi.mock("@/components/workflows/use-app-connections", () => ({
   useAppConnections: () => apps,
+  useRefreshWorkflowMcpTools: () => ({ mutate: refreshTools, isPending: false, isError: false }),
 }));
 
 const SEND = makeDefinition({
@@ -258,6 +260,20 @@ describe("NodePicker app groups", () => {
     expect(row.querySelector(".truncate, [class*='line-clamp']")).toBeNull();
     expect(within(row).getByText(tool)).toBeTruthy();
     expect(within(row).getByText("a-connection-with-a-long-name")).toBeTruthy();
+  });
+
+  it("refreshes an untested server inline only for connection managers", async () => {
+    apps.connections = [connection({ last_tools: null })];
+    apps.canConnect = true;
+    const mounted = render(<NodePicker offered={[GMAIL, MANUAL, MCP_CALL]} onPick={vi.fn()} />);
+    await openServerGroup();
+    await userEvent.click(screen.getByRole("option", { name: "Refresh tools" }));
+    expect(refreshTools).toHaveBeenCalledWith("c1");
+    mounted.unmount();
+    apps.canConnect = false;
+    mountApps();
+    await openServerGroup();
+    expect(screen.queryByRole("option", { name: "Refresh tools" })).toBeNull();
   });
 
   it("offers the trigger and a way to connect when no connection provides the actions", async () => {

@@ -89,6 +89,7 @@ from app.services.virtual_tables.exceptions import (
     RevisionRequiredError,
 )
 from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, run_once
+from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
     OPTION_TYPES,
@@ -1395,6 +1396,7 @@ class RecordOperations(Operations):
             schema_version=table.schema_version,
             values=merged,
             created_by=ctx.subject_id,
+            source=(await source_for(self.db, ctx)).stored(),
         )
         if record is None:
             return None
@@ -1479,6 +1481,7 @@ class RecordOperations(Operations):
             values=merged,
             schema_version=table.schema_version,
             updated_by=ctx.subject_id,
+            source=(await source_for(self.db, ctx)).stored(),
         )
         await virtual_table_repo.add_history(
             self.db,

@@ -204,7 +204,7 @@ describe("WorkflowCanvas", () => {
     );
     const marker = (root: HTMLElement) =>
       Array.from(root.querySelectorAll<HTMLElement>('[data-node-id="u"] button')).find((button) =>
-        /problem/.test(button.getAttribute("aria-label") ?? ""),
+        /problem|Finish setup/.test(button.getAttribute("aria-label") ?? ""),
       );
     // The step whose type is not in the catalog cannot be published, and its
     // marker opens it to say why.

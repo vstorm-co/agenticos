@@ -11,6 +11,11 @@ records that people or workflows must read and update. Use a knowledge base for
 retrieval from long reference documents, a context file for standing instructions,
 and a project for ongoing work with files. Never store credentials in a table.
 
+Use these tools through the AgenticOS platform MCP server (`account: platform`),
+with an allowlist for the operations the agent needs. Writes remain approval-gated
+and the requesting member's table access still applies. Keep legacy `virtual_tables`
+capability grants intact unless the person explicitly chooses to change access.
+
 ## Reuse and design
 
 Search `list_virtual_tables`; inspect a match with `get_virtual_table`. Reuse its
@@ -47,7 +52,13 @@ table; it never grants access to its records.
 `update_virtual_table_record` requires the revision actually read. Omitted cells
 stay; null clears a nullable cell. On a conflict, reread and reconcile with the
 person's edits. Use an external ID to identify a source-system record; it does
-not by itself make every external side effect idempotent.
+not by itself make every external side effect idempotent. Use
+`upsert_virtual_table_record` with the read revision for an existing record;
+`get_virtual_table_record`, `virtual_table_record_exists` and
+`list_virtual_table_views` support discovery. Delete only through
+`delete_virtual_table_record` with the revision actually read. Source identities
+are authoritative record metadata; never imitate a person by writing their name
+into Markdown.
 
 For an automation, inspect `table.record.create`, `table.record.update` and the
 query steps in the workflow catalog. Pin the real table ID and schema version;

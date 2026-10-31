@@ -1,5 +1,5 @@
 ---
-source_sha: "567495b4bc6f"
+source_sha: "be9d01592ba2"
 ---
 
 # Workflows { #workflows }
@@ -73,7 +73,9 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 
 Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
 
-Der Architect kann den Knotenkatalog erkunden, private Workflow-Entwürfe erstellen und ändern, sie testen und Run-Ergebnisse prüfen. Er erstellt außerdem typisierte Virtual Tables und sucht oder aktualisiert Datensätze. Die Skills workflow-builder und virtual-tables erklären den passenden Einsatz. Fehlt ein Dienst im MCP-Katalog, kann der Architect dessen dokumentierte API mit einem HTTP-request-Schritt kapseln und einen veröffentlichten aufrufbaren Workflow über die Workflows-Capability als Agentenwerkzeug anbieten. Zugangsdaten bleiben im Tresor. Tests können reale Aktionen ausführen; die Veröffentlichung mit dauerhaften menschlichen Rechten erfordert weiterhin eine menschliche Sitzung.
+Die App-Suche durchsucht auch die gespiegelte MCP-Registry, einschließlich noch nicht verbundener Dienste. Bei verbundenen Servern ohne Werkzeugliste können Verbindungsmanager **Refresh tools** wählen. Kanalschritte erlauben das Erstellen und Auswählen eines Bot-Kontos direkt im Workflow; nur Mitglieder mit Kanalverwaltungsrechten sehen diese Aktion.
+
+Der Architect kann den Knotenkatalog erkunden, private Workflow-Entwürfe erstellen und ändern, sie testen und Run-Ergebnisse prüfen. Er erstellt außerdem typisierte Virtual Tables und sucht oder aktualisiert Datensätze. Die Skills workflow-builder und virtual-tables erklären den passenden Einsatz. Fehlt ein Dienst im MCP-Katalog, kann der Architect dessen dokumentierte API mit einem HTTP-request-Schritt kapseln und einen veröffentlichten aufrufbaren Workflow über die Werkzeuge von AgenticOS MCP als Agentenwerkzeug anbieten. Zugangsdaten bleiben im Tresor. Tests können reale Aktionen ausführen; die Veröffentlichung mit dauerhaften menschlichen Rechten erfordert weiterhin eine menschliche Sitzung.
 
 Unter dem Namen sagt der Editor, wo der Workflow steht: **Draft, not published**
 oder **Live · version 3**, mit **Unpublished changes** daneben, sobald der Entwurf
@@ -1277,14 +1279,7 @@ und entzogene Berechtigungen des Kindes bleiben nicht umgehbare Fehler.
 
 ### Von einem Agenten { #from-an-agent }
 
-Ein Agent mit der Capability [Workflows](reference/capabilities.md#workflows) startet
-die Workflows, die seine Spec nennt, als Werkzeuge, wenn ein Gespräch nach dem fragt,
-was einer tut. Er liest die Eingabefelder jedes Workflows, startet einen Lauf damit als
-das Mitglied, für das er handelt, und wartet bis zur Grenze des Bindings auf die
-Antwort. Der Lauf wird geprüft, abgerechnet und auditiert wie einer aus **Start a run**,
-und die Seite der Läufe sagt, dass **An agent** ihn gestartet hat. Einem Agenten lässt
-sich nur ein veröffentlichter Workflow geben, der mit **Manual**, **API request** oder
-**Called by a workflow** beginnt.
+Binde neue Agentenwerkzeuge über den AgenticOS-MCP-Server und wähle die benötigten Werkzeuge zur Workflow-Suche, `run_workflow` und zum Lesen der Ausführung. Übergib die deklarierten Eingaben des veröffentlichten Workflows als `fields` und frage den Lauf bis zum Abschluss ab. MCP nutzt die Berechtigungen des fragenden Mitglieds und behält die Zustimmung für Änderungen. Ein Agent innerhalb eines Workflows ruft einen weiteren Workflow über einen `workflow.run`-Schritt auf. Bestehende Workflows-Bindungen bleiben kompatibel und behalten ihre expliziten Workflow-IDs, Wartezeit und Freigaben für Seitenaktionen.
 
 Ein Run, hinter dem kein Mitglied steht (der Besucher eines Widgets, eines Embeds
 oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem Kanal, die

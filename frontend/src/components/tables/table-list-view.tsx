@@ -2,6 +2,8 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { EmptyState } from "@/components/states";
+import { selectChips } from "./option-chip";
+import { FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui";
 import { recordCellText } from "@/lib/format-cell-value";
 import type { ColumnDef, RecordRead } from "@/types/tables";
@@ -26,7 +28,10 @@ export function TableListView({
   const locale = useLocale();
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
-  const [title, ...secondary] = columns;
+  const [title, ...rest] = columns;
+  const secondary = rest.filter(
+    (column) => column.type !== "rich_text" && column.type !== "long_text",
+  );
 
   if (isLoading && records.length === 0) {
     return (
@@ -49,19 +54,24 @@ export function TableListView({
           <button
             type="button"
             onClick={() => onOpenRecord(record)}
-            className="hover:bg-accent focus-visible:ring-ring flex w-full flex-col gap-2 px-4 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className="hover:bg-accent/50 focus-visible:ring-ring flex w-full flex-col gap-2 px-5 py-4 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
           >
-            <span className="text-foreground truncate text-sm font-medium">
-              {(title && recordCellText(title, record, boolLabel, locale)) || t("unnamedRecord")}
+            <span className="text-foreground flex min-w-0 items-center gap-2 text-sm font-medium">
+              <FileText className="text-muted-foreground size-4 shrink-0" aria-hidden />
+              <span className="truncate">
+                {(title && recordCellText(title, record, boolLabel, locale)) || t("unnamedRecord")}
+              </span>
             </span>
             {secondary.length > 0 && (
               <span className="flex min-w-0 flex-wrap gap-x-6 gap-y-1 text-xs">
                 {secondary.slice(0, 3).map((column) => {
                   const value = recordCellText(column, record, boolLabel, locale);
                   return value ? (
-                    <span key={column.id} className="min-w-0">
+                    <span key={column.id} className="flex max-w-64 min-w-0 items-center gap-2">
                       <span className="text-muted-foreground">{column.label}</span>{" "}
-                      <span className="break-words">{value}</span>
+                      <span className="min-w-0 truncate">
+                        {selectChips(column, record.values[column.id] ?? null) ?? value}
+                      </span>
                     </span>
                   ) : null;
                 })}

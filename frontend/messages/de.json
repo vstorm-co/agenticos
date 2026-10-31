@@ -987,7 +987,8 @@
     "separateEndpointHint": "Speichern Sie diesen Endpunkt als separates Modell, damit andere Agenten ihr bisheriges Profil behalten. „Modell aktualisieren“ ändert das gemeinsame Profil überall, wo es verwendet wird.",
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
-    "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App."
+    "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
+    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -8499,7 +8500,6 @@
     "pickerBotPlaceholder": "Bot auswählen",
     "pickerBotOff": "Aus",
     "pickerBotsEmpty": "Noch keine Channel-Bots.",
-    "pickerBotsAdd": "Unter Kanäle hinzufügen",
     "pickerBotOrphaned": "Der Bot dieses Schritts ist weg - wählen Sie einen anderen.",
     "pickerBotWrongPlatform": "Diesen Bot können Sie hier nicht verwenden. Workflows antworten in Slack, Mattermost und Telegram - wählen Sie einen anderen.",
     "pickerBotWrongPlatformOne": "Dieser Schritt nimmt nur {platform}-Bots - wählen Sie einen anderen.",
@@ -9020,7 +9020,8 @@
     "emailConnectOutlook": "Outlook verbinden",
     "emailSwitchTitle": "Dieses Postfach verwenden?",
     "emailSwitchHint": "Der Schritt verwendet die Felder des Postfachs. Empfänger und Inhalt müssen erneut eingestellt werden. Verbindungen zu folgenden Schritten bleiben erhalten und werden geprüft.",
-    "emailSwitchConfirm": "Postfach verwenden"
+    "emailSwitchConfirm": "Postfach verwenden",
+    "pickerBotConnect": "Kanal verbinden"
   },
   "artifacts": {
     "title": "Apps",
@@ -9664,7 +9665,8 @@
       "italic": "Kursiv",
       "link": "Link einfügen",
       "image": "Bild einfügen",
-      "video": "Video einfügen"
+      "video": "Video einfügen",
+      "updatedBy": "Geändert von"
     },
     "defaults": {
       "value": "Standardwert",

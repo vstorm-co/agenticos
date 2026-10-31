@@ -17,7 +17,7 @@ import {
   DialogTrigger,
   Textarea,
 } from "@/components/ui";
-import { DIALOG_BODY, DIALOG_BROAD, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { DocumentProperties, type DocumentMetadata } from "./document-properties";
 import { withDocumentBody } from "@/lib/document-properties";
@@ -50,7 +50,9 @@ export function MarkdownCellEditor({
   describedBy?: string;
 }) {
   const t = useTranslations("tables.markdown");
-  const [preview, setPreview] = useState(Boolean(disabled));
+  const [preview, setPreview] = useState(
+    Boolean(disabled) || Boolean(metadata?.created_at && markdownDocument(value).body.trim()),
+  );
   const [expanded, setExpanded] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
@@ -228,8 +230,8 @@ export function MarkdownCellEditor({
         >
           {editor(id)}
         </div>
-        <p className="text-muted-foreground text-xs">{t("hint")}</p>
-        <DialogContent ref={dialog} className={`${DIALOG_BROAD} ${DIALOG_FILL}`}>
+        {!preview && <p className="text-muted-foreground text-xs">{t("hint")}</p>}
+        <DialogContent ref={dialog} className={DIALOG_WINDOW}>
           <DialogHeader>
             <DialogTitle>{label}</DialogTitle>
             <DialogDescription>{t("hint")}</DialogDescription>

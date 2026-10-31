@@ -987,7 +987,8 @@
     "separateEndpointHint": "Save this endpoint as a separate model to keep the current profile for other agents. “Update model” changes the shared profile wherever it is used.",
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Use the person’s computer, approved separately in each desktop chat.",
-    "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace."
+    "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
+    "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -8620,7 +8621,6 @@
     "pickerBotPlaceholder": "Choose a bot",
     "pickerBotOff": "Off",
     "pickerBotsEmpty": "No channel bots yet.",
-    "pickerBotsAdd": "Add one under Channels",
     "pickerBotOrphaned": "The bot this step names is gone - choose another.",
     "pickerBotWrongPlatform": "This bot cannot be used here. Workflows answer on Slack, Mattermost and Telegram - choose another.",
     "pickerBotWrongPlatformOne": "This step takes {platform} bots - choose another.",
@@ -9141,7 +9141,8 @@
     "emailConnectOutlook": "Connect Outlook",
     "emailSwitchTitle": "Use this mailbox?",
     "emailSwitchHint": "The step will use the mailbox’s own fields. Configure its recipients and content again; existing connections to later steps are kept and checked.",
-    "emailSwitchConfirm": "Use mailbox"
+    "emailSwitchConfirm": "Use mailbox",
+    "pickerBotConnect": "Connect channel"
   },
   "artifacts": {
     "title": "Apps",
@@ -9785,7 +9786,8 @@
       "italic": "Italic",
       "link": "Insert link",
       "image": "Insert image",
-      "video": "Insert video"
+      "video": "Insert video",
+      "updatedBy": "Updated by"
     },
     "defaults": {
       "value": "Default value",

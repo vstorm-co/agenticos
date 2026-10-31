@@ -376,6 +376,27 @@ class LinkedRecord(_Schema):
     label: str = Field(description="The linked record's first text value, or its id.")
 
 
+class RecordSource(_Schema):
+    """Server-recorded origin of a write, separate from its authorizing member."""
+
+    kind: Literal["user", "agent", "api", "workflow", "system"]
+    id: UUID | None = None
+    name: str = Field(max_length=255)
+    slug: str | None = None
+    has_avatar: bool = False
+    avatar_color: int | None = None
+
+    def stored(self) -> dict[str, str | int | bool | None]:
+        return {
+            "kind": self.kind,
+            "id": str(self.id) if self.id else None,
+            "name": self.name,
+            "slug": self.slug,
+            "has_avatar": self.has_avatar,
+            "avatar_color": self.avatar_color,
+        }
+
+
 class RecordRead(_Schema):
     id: UUID
     table_id: UUID
@@ -387,6 +408,8 @@ class RecordRead(_Schema):
     updated_at: datetime | None = None
     created_by: UUID | None = None
     updated_by: UUID | None = None
+    created_source: RecordSource | None = None
+    updated_source: RecordSource | None = None
     links: dict[str, list[LinkedRecord]] = Field(
         default_factory=dict,
         description="Each link column's records, by column id, with a label to show them by. "

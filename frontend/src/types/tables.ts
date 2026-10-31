@@ -276,6 +276,15 @@ export interface RecordExportQuery extends RecordCountQuery {
   columns?: string[] | null;
 }
 
+export interface RecordSource {
+  kind: "user" | "agent" | "api" | "workflow" | "system";
+  id: string | null;
+  name: string;
+  slug?: string | null;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
+}
+
 export interface RecordRead {
   id: string;
   table_id: string;
@@ -285,6 +294,8 @@ export interface RecordRead {
   revision: number;
   created_by?: string | null;
   updated_by?: string | null;
+  created_source?: RecordSource | null;
+  updated_source?: RecordSource | null;
   created_at: string;
   updated_at?: string | null;
   /**

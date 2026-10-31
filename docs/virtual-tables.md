@@ -22,6 +22,8 @@ Quick add sits directly after the loaded rows in their scroll area. The console'
 
 ## External clients { #external-clients }
 
+Write provenance is recorded separately from the member authorizing it. New writes store `created_source` and `updated_source` with the source kind, ID and display name: person, agent, API key, workflow or system. The console shows a person's avatar, an agent's portrait, or an API/workflow icon beside the name in system columns and document properties. Creating sets both sources; later writes preserve the creator. Existing records retain their recorded member without inventing a historical origin. These fields cannot be supplied through record inputs or Markdown.
+
 Organization API keys are accepted on `/api/v1/tables`. Send
 `Authorization: Bearer aos_…`; the organization comes from the key. Reads need
 `tables:view`, record and schema writes need `tables:edit`, and creating a table
@@ -94,7 +96,7 @@ option is refused with the options the column has.
 
 ### Rich text and Markdown { #rich-text }
 
-Choose **Rich text (Markdown)** for notes with headings, lists, tasks, tables, links and code. Clicking its cell opens the record. **Write** offers a document text area and a toolbar for bold, italic, links, images and video; **Preview** uses the chat renderer for links and images, and direct HTTP(S) MP4, WebM or Ogg links become videos with playback controls and no autoplay. Raw HTML is not executed. **Expand editor** opens a larger workspace. Read-only documents start in preview.
+Choose **Rich text (Markdown)** for notes with headings, lists, tasks, tables, links and code. Clicking its cell opens the record. **Write** offers a document text area and a toolbar for bold, italic, links, images and video; **Preview** uses the chat renderer for links and images, and direct HTTP(S) MP4, WebM or Ogg links become videos with playback controls and no autoplay. Raw HTML is not executed. **Expand editor** opens a larger workspace. Saved documents start in preview; **Write** switches to editing.
 
 Kanban cards move with a pointer preview and destination highlight, animate between lanes and appear in the target lane while saving. A refused write restores the prior lane and preserves conflict actions. The Move to menu remains available to keyboard users.
 

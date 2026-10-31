@@ -727,7 +727,7 @@ async def test_a_spec_the_caller_cannot_publish_is_refused_before_a_version(engi
     async with seeded.factory() as db:
         service = WorkflowAgentService(db)
         assert await service.problems(seeded.ctx, no_model) == [
-            "No model selected - pick one before publishing"
+            "No model selected - pick one under Build > Model before publishing"
         ]
         assert (
             await service.problems(seeded.ctx, AgentSpec.model_validate(node.config["inline"]))

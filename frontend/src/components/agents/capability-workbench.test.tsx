@@ -804,7 +804,7 @@ describe("tables, whose grants are a table and its operations", () => {
 
   it("grants it from the panel's own switch", async () => {
     const onToggle = vi.fn();
-    renderWorkbench({ catalog: [TABLES, CHARTS], onToggle });
+    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")], onToggle });
 
     await openCapability("Tables");
     await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
@@ -835,13 +835,29 @@ describe("workflows, whose grants are the workflows it may start", () => {
 
   it("grants it from the panel's own switch", async () => {
     const onToggle = vi.fn();
-    renderWorkbench({ catalog: [WORKFLOWS, CHARTS], onToggle });
+    renderWorkbench({ catalog: [WORKFLOWS, CHARTS], selected: [binding("workflows")], onToggle });
 
     await openCapability("Workflows");
     await userEvent.click(screen.getByRole("switch", { name: "Workflows enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("workflows");
   });
+});
+
+it("routes new workflow and table tools through MCP while keeping old bindings editable", () => {
+  renderWorkbench({
+    catalog: [
+      { ...CHARTS, id: "workflows", name: "Workflows" },
+      { ...CHARTS, id: "virtual_tables", name: "Tables" },
+      CHARTS,
+    ],
+    selected: [],
+  });
+  expect(screen.queryByRole("button", { name: "Workflows" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Tables" })).toBeNull();
+  expect(
+    screen.getByText(/Workflows and Tables are tools in the AgenticOS MCP server/),
+  ).toBeVisible();
 });
 
 describe("the workbench as illustrated cards", () => {

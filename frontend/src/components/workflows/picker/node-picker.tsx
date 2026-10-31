@@ -2,7 +2,7 @@
 
 import { Command } from "cmdk";
 import { BrandIcon } from "@/components/icons/brand-icon";
-import { ArrowLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -10,7 +10,10 @@ import { appToolLabel, serverGroupId } from "@/components/workflows/apps";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { sectionSwatchClass } from "@/components/workflows/node-visuals";
 import { writeNodeDragData } from "@/components/workflows/palette/drag";
-import { useAppConnections } from "@/components/workflows/use-app-connections";
+import {
+  useAppConnections,
+  useRefreshWorkflowMcpTools,
+} from "@/components/workflows/use-app-connections";
 import { WorkflowConnectionsDialog } from "@/components/workflows/pickers/workflow-connections-dialog";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
@@ -81,7 +84,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
   const hint = (category: string) =>
     t.has(`categoryHint.${category}`) ? t(`categoryHint.${category}`) : null;
 
-  const { connections, canConnect, unavailable, servers = [] } = useAppConnections();
+  const { connections, canConnect, unavailable, servers = [] } = useAppConnections(query);
   const sections = pickerSections(offered, {
     connections,
     canConnect,
@@ -277,9 +280,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               {open.items.map((item) => stepRow(item, "operation"))}
               {open.app?.actions.map((action) => actionRow(open, action))}
               {open.app?.untested.map(({ id, name }) => (
-                <p key={id} className="text-muted-foreground px-2 py-1.5 text-xs">
-                  {t("appUntested", { connection: name })}
-                </p>
+                <UntestedConnection key={id} id={id} name={name} canRefresh={canConnect} />
               ))}
               {open.app?.connectKey != null && (
                 <ConnectRow group={open} catalogKey={open.app.connectKey} />
@@ -373,5 +374,42 @@ function ConnectRow({ group, catalogKey }: { group: PickerGroup; catalogKey: str
         <WorkflowConnectionsDialog open catalogKey={catalogKey} onOpenChange={setConnecting} />
       )}
     </>
+  );
+}
+
+function UntestedConnection({
+  id,
+  name,
+  canRefresh,
+}: {
+  id: string;
+  name: string;
+  canRefresh: boolean;
+}) {
+  const t = useTranslations("workflows");
+  const refresh = useRefreshWorkflowMcpTools();
+  return (
+    <div className="space-y-1 px-2 py-1.5 text-xs">
+      <p className="text-muted-foreground">{t("appUntested", { connection: name })}</p>
+      {canRefresh && (
+        <Command.Item
+          value={`refresh:${id}`}
+          disabled={refresh.isPending}
+          onSelect={() => refresh.mutate(id)}
+          className="aria-selected:bg-accent flex cursor-pointer items-center gap-2 rounded-lg p-2"
+        >
+          <RefreshCw
+            aria-hidden="true"
+            className={cn("size-3.5", refresh.isPending && "animate-spin")}
+          />
+          {t("pickerMcpRefresh")}
+        </Command.Item>
+      )}
+      {refresh.isError && (
+        <p role="alert" className="text-destructive">
+          {t("pickerMcpTestFailed")}
+        </p>
+      )}
+    </div>
   );
 }

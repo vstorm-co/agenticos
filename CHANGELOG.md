@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **One MCP interface for automations and records.** AgenticOS MCP now starts published workflows and reads, upserts or deletes table records against their revisions. Agents use the same approved tools as other MCP clients; existing capability grants remain compatible. Steps expose their primary HTTP, file, AI and filter controls and connect channel bots in place. New record writes preserve the actual person, agent, API key or workflow origin and show its avatar or icon separately from the authorizing member.
+
 - **Workflow panes, app discovery and document media.** Configure steps between their input and output in a window-sized editor. Discover unconnected MCP catalog apps and use their individual tools, connect a mailbox from the email step, and set model temperature and reasoning effort directly. Kanban uses pointer previews and immediate lane moves with rollback on refusal. Markdown documents offer formatting controls, images and direct video playback.
 
 - **Column defaults, choice colors and system properties.** Configure typed defaults and select colors in the console. New select defaults may name labels before option IDs exist. Every table shows immutable creation/update dates and actors from its record metadata, also included in console CSV exports.

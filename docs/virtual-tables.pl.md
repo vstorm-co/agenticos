@@ -1,5 +1,5 @@
 ---
-source_sha: "9f8b82e00fb0"
+source_sha: "47d48a61e5d4"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -25,6 +25,8 @@ Typowaną **Wartość domyślną** ustawisz w ustawieniach lub przy dodawaniu ko
 Szybkie dodawanie jest bezpośrednio za załadowanymi wierszami, w ich obszarze przewijania. Eksport CSV w konsoli zawiera cztery właściwości rekordu. Eksport API zachowuje dotychczasowy format, chyba że podasz `include_metadata: true`. Przy tworzeniu tabeli z eksportowanego CSV pola systemowe są pomijane; importowane rekordy dostają nowe metadane systemowe.
 
 ## Klienci zewnętrzni { #external-clients }
+
+Źródło zapisu jest rejestrowane oddzielnie od osoby udzielającej uprawnień. Nowe zapisy przechowują `created_source` i `updated_source`: rodzaj, identyfikator i nazwę osoby, agenta, klucza API, workflow lub systemu. Konsola pokazuje avatar osoby, portret agenta albo ikonę API/workflow obok nazwy w kolumnach systemowych i właściwościach dokumentu. Utworzenie ustawia oba źródła; późniejsze zapisy zachowują twórcę. Starsze rekordy zachowują zapisaną osobę bez zgadywania historycznego źródła. Tych pól nie można ustawić przez dane rekordu ani Markdown.
 
 Klucze API organizacji działają na `/api/v1/tables`. Wyślij
 `Authorization: Bearer aos_…`; organizacja pochodzi z klucza. Odczyt wymaga
@@ -99,7 +101,7 @@ odczytują jako etykiety, także opcji zarchiwizowanej. Wartość, która nie ws
 
 ### Tekst formatowany i Markdown { #rich-text }
 
-Wybierz **Rich text (Markdown)** dla notatek z nagłówkami, listami, zadaniami, tabelami, linkami i kodem. Kliknięcie komórki otwiera rekord. **Write** oferuje pole dokumentu i pasek pogrubienia, kursywy, linków, obrazów i filmów. **Preview** używa renderera czatu dla linków i obrazów; bezpośrednie linki HTTP(S) do MP4, WebM lub Ogg stają się filmami z kontrolkami, bez autoodtwarzania. Surowy HTML nie jest wykonywany. **Expand editor** otwiera większy obszar pracy. Dokument tylko do odczytu zaczyna od podglądu.
+Wybierz **Rich text (Markdown)** dla notatek z nagłówkami, listami, zadaniami, tabelami, linkami i kodem. Kliknięcie komórki otwiera rekord. **Write** oferuje pole dokumentu i pasek pogrubienia, kursywy, linków, obrazów i filmów. **Preview** używa renderera czatu dla linków i obrazów; bezpośrednie linki HTTP(S) do MP4, WebM lub Ogg stają się filmami z kontrolkami, bez autoodtwarzania. Surowy HTML nie jest wykonywany. **Expand editor** otwiera większy obszar pracy. Zapisane dokumenty zaczynają od podglądu; **Write** przełącza do edycji.
 
 Kanban pokazuje kartę pod kursorem i docelową kolumnę, animuje przejście i od razu przenosi kartę na czas zapisu. Odmowa zapisu przywraca poprzednią kolumnę i zachowuje obsługę konfliktu. Menu Move to pozostaje dostępne z klawiatury.
 

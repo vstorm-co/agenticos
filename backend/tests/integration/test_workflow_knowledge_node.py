@@ -398,7 +398,9 @@ async def test_search_stops_between_collections_at_the_organization_budget(
         return []
 
     store = MagicMock()
-    store.resolve_tenant = AsyncMock(return_value=member[1].id)
+    from app.db.vector_tables import VectorScope
+
+    store.resolve_scope = AsyncMock(return_value=VectorScope(tenant=member[1].id))
     store.search = AsyncMock(side_effect=paid_search)
     service = RetrievalService(store, MagicMock(enable_hybrid_search=False))
     monkeypatch.setattr(search_handler, "get_retrieval_service", lambda: service)

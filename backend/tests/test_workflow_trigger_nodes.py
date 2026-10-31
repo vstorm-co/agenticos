@@ -388,7 +388,7 @@ def _edge(source: NodeInstance, target: NodeInstance) -> Edge:
     )
 
 
-class TestOneTriggerAtTheEntry:
+class TestWorkflowEntries:
     def test_a_trigger_at_the_entry_is_the_one_way_in(self):
         entry, step = _node(WEBHOOK), _node("debug.echo", 300)
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry, step))
@@ -401,17 +401,15 @@ class TestOneTriggerAtTheEntry:
         assert _rule_1_single_entry(graph) == []
         assert live_trigger(graph) is None
 
-    def test_a_second_trigger_is_refused_on_that_node(self):
+    def test_an_independent_second_trigger_is_a_valid_start(self):
         entry, other = _node(MANUAL), _node(SCHEDULE, 300)
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry, other))
-        assert _rule_1_single_entry(graph) == [
-            (f"nodes.{other.id}", "A workflow starts from one trigger, and this is not it")
-        ]
+        assert _rule_1_single_entry(graph) == []
 
-    def test_a_trigger_that_is_not_where_the_graph_starts_is_refused(self):
+    def test_a_trigger_can_start_a_branch_beside_a_legacy_entry(self):
         entry, trigger = _node("debug.echo"), _node(CHAT, 300)
         graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry, trigger))
-        assert [field for field, _ in _rule_1_single_entry(graph)] == [f"nodes.{trigger.id}"]
+        assert _rule_1_single_entry(graph) == []
 
     def test_a_node_whose_definition_is_gone_is_not_counted_as_a_trigger(self):
         entry, gone = _node(MANUAL), _node("gone.node", 300)

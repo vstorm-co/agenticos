@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthStore } from "@/stores/auth-store";
+import { RecordSourceBadge } from "./record-source-badge";
 import { markdownDocument } from "@/lib/markdown-document";
 
 import { type KeyboardEvent, useState } from "react";
@@ -112,8 +112,8 @@ export function TableGridView({
   const t = useTranslations("tables.cells");
   const locale = useLocale();
   const tGrid = useTranslations("tables.grid");
+  const tMetadata = useTranslations("tables.markdown");
   const tEmpty = useTranslations("pages.tables.detail.emptyRecords");
-  const user = useAuthStore((state) => state.user);
   const boolLabel = (value: boolean) => (value ? t("true") : t("false"));
   const { commit } = useRecordMutation(tableId);
   const deleteLater = useDeferredDelete(tableId);
@@ -154,11 +154,11 @@ export function TableGridView({
 
   const display = (column: ColumnDef, record: RecordRead) => {
     if (column.system === "created_by" || column.system === "updated_by") {
-      const actor = record[column.system];
       return (
-        <span className="block max-w-40 truncate" title={actor ?? undefined}>
-          {actor === user?.id ? user?.full_name || user?.email : actor?.slice(0, 8) || "—"}
-        </span>
+        <RecordSourceBadge
+          principalId={record[column.system]}
+          source={column.system === "created_by" ? record.created_source : record.updated_source}
+        />
       );
     }
     if (column.type === "rich_text") {
@@ -279,7 +279,16 @@ export function TableGridView({
           ) : (
             <ColumnTypeIcon type={column.type} />
           )}
-          {column.label}
+          {column.system
+            ? tMetadata(
+                {
+                  created_at: "createdAt",
+                  updated_at: "updatedAt",
+                  created_by: "createdBy",
+                  updated_by: "updatedBy",
+                }[column.system],
+              )
+            : column.label}
         </span>
       ),
     // Numbers read right-aligned, so their digits line up down the column.

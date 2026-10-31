@@ -1,5 +1,5 @@
 ---
-source_sha: "567495b4bc6f"
+source_sha: "be9d01592ba2"
 ---
 
 # Workflows { #workflows }
@@ -69,7 +69,9 @@ pokazują tę samą listę.
 
 Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje. Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Decyzje Jev pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
 
-Architect potrafi poznać katalog kroków, tworzyć i zmieniać prywatne szkice workflows, testować je oraz sprawdzać wyniki runów. Tworzy też typowane Virtual Tables oraz wyszukuje i aktualizuje rekordy. Skille workflow-builder i virtual-tables wyjaśniają, kiedy używać tych funkcji. Jeśli usługi nie ma w galerii MCP, Architect może opakować jej udokumentowane API krokiem HTTP request i udostępnić opublikowany workflow jako narzędzie agenta przez capability Workflows. Poświadczenia pozostają w sejfie. Testy mogą wykonywać rzeczywiste działania; publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji.
+Wyszukiwanie aplikacji obejmuje też lustrzany rejestr MCP, także niepodłączone usługi. Podłączony serwer bez listy narzędzi udostępnia administratorom połączeń **Refresh tools**. Kroki kanałów pozwalają utworzyć i wybrać konto bota bez opuszczania workflow; przycisk widzą tylko osoby z prawem zarządzania kanałami.
+
+Architect potrafi poznać katalog kroków, tworzyć i zmieniać prywatne szkice workflows, testować je oraz sprawdzać wyniki runów. Tworzy też typowane Virtual Tables oraz wyszukuje i aktualizuje rekordy. Skille workflow-builder i virtual-tables wyjaśniają, kiedy używać tych funkcji. Jeśli usługi nie ma w galerii MCP, Architect może opakować jej udokumentowane API krokiem HTTP request i udostępnić opublikowany workflow jako narzędzie agenta przez narzędzia AgenticOS MCP. Poświadczenia pozostają w sejfie. Testy mogą wykonywać rzeczywiste działania; publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji.
 
 Pod nazwą edytor mówi, na czym stoi workflow: **Draft, not published** albo
 **Live · version 3**, z **Unpublished changes** obok, gdy szkic różni się od tej
@@ -1174,13 +1176,7 @@ uprawnień także pozostają błędami, których gałąź obsługi błędów nie
 
 ### Z agenta { #from-an-agent }
 
-Agent z capability [Workflowy](reference/capabilities.md#workflows) uruchamia workflowy
-wskazane w jego specyfikacji jako narzędzia, gdy rozmowa prosi o to, co któryś robi.
-Czyta pola wejścia każdego z nich, uruchamia run z tymi polami jako członek, w którego
-imieniu działa, i czeka na odpowiedź do limitu bindingu. Run jest sprawdzany, rozliczany
-i audytowany jak uruchomiony przez **Start a run**, a strona runów podaje, że uruchomił
-go **An agent**. Agentowi można dać tylko opublikowany workflow startujący od
-**Manual**, **API request** albo **Called by a workflow**.
+Nowe narzędzia agenta konfiguruj przez serwer AgenticOS MCP, wybierając potrzebne narzędzia odkrywania workflow, `run_workflow` i odczytu wykonania. Zadeklarowane wejście opublikowanego workflow przekaż jako `fields`; odczytuj zwrócony run do zakończenia. MCP używa uprawnień pytającej osoby i zachowuje zatwierdzanie zapisów. Agent działający wewnątrz workflow wywołuje inny workflow przez krok `workflow.run`. Istniejące bindings Workflows pozostają zgodne: zachowują jawne identyfikatory workflow, limit oczekiwania i granty akcji opublikowanych stron.
 
 Run, za którym nie stoi żaden członek (odwiedzający widget, embed albo hostowaną
 stronę, niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta),

@@ -1,5 +1,5 @@
 ---
-source_sha: "567495b4bc6f"
+source_sha: "be9d01592ba2"
 ---
 
 # Workflows { #workflows }
@@ -73,7 +73,9 @@ un enlace compartido muestran la misma lista.
 
 El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas. Los pasos de colores y el minimapa están activos por defecto. Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Jev muestra modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
 
-El Architect puede descubrir el catálogo de pasos, crear y modificar borradores privados de workflows, probarlos y revisar los resultados de los runs. También crea Virtual Tables tipadas y consulta o actualiza registros. Los skills workflow-builder y virtual-tables explican cuándo usar estas funciones. Si un servicio no aparece en la galería MCP, el Architect puede envolver su API documentada con un paso HTTP request y ofrecer un workflow publicado e invocable como herramienta de un agente mediante la capability Workflows. Las credenciales permanecen en la bóveda. Las pruebas pueden realizar acciones reales; publicar con autoridad humana retenida sigue requiriendo una sesión humana.
+La búsqueda de aplicaciones también consulta el registro MCP replicado, incluidos los servicios aún no conectados. Un servidor conectado sin inventario ofrece **Refresh tools** a quienes administran conexiones. Los pasos de canales permiten crear y seleccionar una cuenta de bot dentro del workflow; solo los miembros con permiso para administrar canales ven esta acción.
+
+El Architect puede descubrir el catálogo de pasos, crear y modificar borradores privados de workflows, probarlos y revisar los resultados de los runs. También crea Virtual Tables tipadas y consulta o actualiza registros. Los skills workflow-builder y virtual-tables explican cuándo usar estas funciones. Si un servicio no aparece en la galería MCP, el Architect puede envolver su API documentada con un paso HTTP request y ofrecer un workflow publicado e invocable como herramienta de un agente mediante las herramientas de AgenticOS MCP. Las credenciales permanecen en la bóveda. Las pruebas pueden realizar acciones reales; publicar con autoridad humana retenida sigue requiriendo una sesión humana.
 
 Bajo su nombre el editor dice dónde está el workflow: **Draft, not published**, o
 **Live · version 3**, con **Unpublished changes** al lado cuando el borrador difiere
@@ -1213,14 +1215,7 @@ revocados del hijo siguen siendo fallos que una rama de error no puede ocultar.
 
 ### Desde un agente { #from-an-agent }
 
-Un agente con la capability [Workflows](reference/capabilities.md#workflows) inicia
-como herramientas los workflows que nombra su spec cuando una conversación pide lo que
-uno hace. Lee los campos de entrada de cada uno, inicia una ejecución con ellos como el
-miembro por quien actúa y espera la respuesta hasta el límite del binding. La ejecución
-se comprueba, se factura y se audita como una iniciada desde **Start a run**, y la
-página de ejecuciones dice que la inició **An agent**. A un agente solo se le puede dar
-un workflow publicado que empiece con **Manual**, **API request** o **Called by a
-workflow**.
+Configura nuevas herramientas del agente mediante AgenticOS MCP y selecciona las herramientas necesarias para descubrir workflows, `run_workflow` y leer ejecuciones. Pasa las entradas declaradas del workflow publicado como `fields` y consulta la ejecución hasta que termine. MCP usa los permisos del miembro solicitante y mantiene la aprobación de escrituras. Un agente dentro de un workflow llama a otro mediante un nodo `workflow.run`. Los bindings existentes conservan sus IDs explícitos, límite de espera y permisos para acciones de páginas.
 
 Una ejecución sin un miembro detrás (un visitante de un widget, un embed o una página
 alojada, un remitente de canal no vinculado, la entrega de un trigger de eventos de un

@@ -58,6 +58,7 @@ from app.services.virtual_tables.presentation import (
     schema,
 )
 from app.services.virtual_tables.receipts import derived_operation_key
+from app.services.virtual_tables.record_sources import from_agent
 
 Grants = dict[UUID, frozenset[TableOperation]]
 
@@ -77,7 +78,8 @@ async def _call(
     try:
         async with get_db_context() as db:
             auth = await acting_as(db, ctx.deps.organization_id, ctx.deps.user_id)
-            return await work(VirtualTableService(db), auth)
+            with from_agent(ctx.deps.agent_id):
+                return await work(VirtualTableService(db), auth)
     except Refused as refused:
         return str(refused)
     except Mistake as mistake:

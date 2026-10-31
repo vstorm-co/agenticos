@@ -1,3 +1,5 @@
+import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { connectionLabel } from "@/lib/mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { connectorBrand } from "@/components/icons/brand-icon";
 import { type BrandName, brandMark } from "@/components/icons/brand-icon";
@@ -17,6 +19,7 @@ export interface WorkflowApp {
   brand?: BrandName;
   /** Catalog name for apps without curated translations. */
   name?: string;
+  connectionId?: string;
   /** The definition ids of the app's native triggers. */
   triggers: readonly string[];
   /**
@@ -278,6 +281,20 @@ export function catalogWorkflowApp(entry: McpCatalogEntry): WorkflowApp {
     triggers: [],
     fallback: true,
     catalogKeys: [entry.key],
+    tools: {},
+    suggestedBindings: {},
+  };
+}
+
+/** A custom or registry server is still a named app when the curated catalog lacks it. */
+export function connectionWorkflowApp(connection: UsableMcpConnectionRecord): WorkflowApp {
+  return {
+    id: `mcp-connection:${connection.id}`,
+    name: connectionLabel(connection),
+    connectionId: connection.id,
+    triggers: [],
+    fallback: true,
+    catalogKeys: [connection.catalog_key ?? "custom"],
     tools: {},
     suggestedBindings: {},
   };

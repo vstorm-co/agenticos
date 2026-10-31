@@ -807,6 +807,25 @@ class TestTheAssistantsCredential:
         assert rows[0].internal
         assert (await service.list_keys(ctx)).items == []
 
+    @pytest.mark.security
+    async def test_internal_credential_records_the_agent_without_widening_permissions(
+        self, db: AsyncSession
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        ctx = AuthContext(user_id=member.id, organization_id=organization.id, role="member")
+        agent_id = uuid.uuid4()
+        raw = await ApiKeyService(db).issue_for_run(ctx, agent_id=agent_id)
+        assert raw is not None
+        caller = await ApiKeyService(db).authenticate(raw)
+        key = (
+            await db.execute(select(ApiKey).where(ApiKey.id == caller.context.api_key_id))
+        ).scalar_one()
+        assert key.source_agent_id == agent_id
+        assert caller.context.subject_id == member.id
+        assert not caller.context.has(Perm.API_KEYS_CREATE)
+
     async def test_nobody_behind_a_run_gets_nothing(self, db: AsyncSession) -> None:
         owner = await _person(db)
         organization = await _organization(db, owner)

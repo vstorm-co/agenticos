@@ -65,7 +65,9 @@ the same list.
 
 The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced. The canvas starts with colored steps and a minimap. AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. Jev decisions expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
 
-The Architect can discover the node catalog, create and revise private workflow drafts, test them and inspect run results. It also creates typed Virtual Tables and queries or updates records. Its workflow-builder and virtual-tables skills explain when to use these features. If a service is absent from the MCP gallery, the Architect can wrap its documented API using an HTTP request step and expose a published callable workflow through an agent's Workflows capability. Credentials stay in the vault. Tests can perform real actions; publishing unattended authority still requires a human session.
+Searching apps also searches the mirrored MCP registry, including services not yet connected. A connected server without a tool inventory offers **Refresh tools** to connection managers. Channel steps can create and select a bot account inline; only members allowed to manage channels see that action.
+
+The Architect can discover the node catalog, create and revise private workflow drafts, test them and inspect run results. It also creates typed Virtual Tables and queries or updates records. Its workflow-builder and virtual-tables skills explain when to use these features. If a service is absent from the MCP gallery, the Architect can wrap its documented API using an HTTP request step and expose a published callable workflow through the AgenticOS MCP server. Credentials stay in the vault. Tests can perform real actions; publishing unattended authority still requires a human session.
 
 Under its name the editor says where the workflow stands: **Draft, not published**,
 or **Live · version 3**, with **Unpublished changes** beside it once the draft
@@ -1141,13 +1143,7 @@ also remain failures that an error branch cannot hide.
 
 ### From an agent { #from-an-agent }
 
-An agent with the [Workflows](reference/capabilities.md#workflows) capability
-starts the workflows its spec names as tools, when a conversation asks for what one
-does. It reads each one's input fields, starts a run with them as the member it
-acts for, and waits for the answer, up to the binding's limit. The run is checked,
-billed and audited like one started from **Start a run**, and the runs page says it
-was started by **An agent**. Only a published workflow starting from **Manual**,
-**API request** or **Called by a workflow** can be given to an agent.
+For new agent tools, bind the AgenticOS platform MCP server and select the workflow discovery, `run_workflow` and execution-reading tools needed. The published workflow's declared input is passed as `fields`; the returned run must be read until it finishes. MCP calls use the requesting member's permissions and retain write approval. An agent executing inside a workflow must call another workflow through a `workflow.run` node. Existing Workflows capability bindings remain compatible: they keep their explicit workflow IDs, wait limit and page-action grants.
 
 A run with no member behind it (a widget, embed or hosted-page visitor, an
 unlinked channel sender, an agent event trigger's delivery) starts none.

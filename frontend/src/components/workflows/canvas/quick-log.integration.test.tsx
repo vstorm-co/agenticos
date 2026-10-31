@@ -258,7 +258,7 @@ describe("a step's quick log", () => {
     ]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
     const card = document.querySelector('[data-node-id="c"]') as HTMLElement;
-    expect(within(card).getByRole("button", { name: /1 problem/ })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /Finish setup · 1/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Quick log of/ }));
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
@@ -266,7 +266,7 @@ describe("a step's quick log", () => {
     expect(screen.getByRole("checkbox", { name: "other" })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(quickLogOf("c")).toEqual({ message: "m", outputs: ["other"] });
-    expect(within(card).queryByRole("button", { name: /problem/ })).toBeNull();
+    expect(within(card).queryByRole("button", { name: /Finish setup|problem/ })).toBeNull();
   });
 
   it("keeps the keyboard to the popover: Tab walks the form and shortcuts stay out", async () => {
@@ -318,6 +318,6 @@ describe("a step's quick log", () => {
     seed([instance("h", "http.request", { quick_log: { message: "m", outputs: ["nope"] } })]);
     render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
     const card = document.querySelector('[data-node-id="h"]') as HTMLElement;
-    expect(within(card).getByRole("button", { name: /1 problem/ })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /Finish setup · 1/ })).toBeInTheDocument();
   });
 });

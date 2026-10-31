@@ -155,7 +155,7 @@ async def test_table_operations_are_part_of_the_public_contract(document: dict[s
     assert "put" in paths[f"{prefix}/{{table_id}}/records/by-external-id/{{external_id}}"]
 
 
-async def test_workflow_runs_are_public_but_authoring_stays_session_only(
+async def test_workflow_runs_and_authoring_are_public_for_platform_mcp(
     document: dict[str, Any],
 ) -> None:
     prefix = f"{settings.API_V1_STR}/workflow-runs"
@@ -163,7 +163,7 @@ async def test_workflow_runs_are_public_but_authoring_stays_session_only(
     assert "post" in paths[prefix]
     assert "get" in paths[f"{prefix}/{{run_id}}"]
     assert "get" in paths[f"{prefix}/{{run_id}}/events"]
-    assert f"{settings.API_V1_STR}/workflows/{{workflow_id}}/draft" not in paths
+    assert "patch" in paths[f"{settings.API_V1_STR}/workflows/{{workflow_id}}/draft"]
 
 
 async def test_a_workflows_log_is_readable_with_a_key_and_documented(
