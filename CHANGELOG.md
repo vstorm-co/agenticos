@@ -935,9 +935,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- A long document indexes against a local Ollama server. Its chunks now go to
-  `/embeddings` in requests of at most 64 instead of one oversized request.
-
 - **Calmer workflow setup and roomier table forms.** Incomplete steps show one
   expandable setup checklist; error styling appears after a test or publish,
   while field messages still appear after leaving an empty required field.
@@ -955,6 +952,13 @@ Two things are versioned separately from this file and worth knowing about:
   only settings grant is `org:settings`.
 - Offer Push preferences for workflow notifications, log alerts, page ownership
   changes and page requests, alongside their existing in-app and email controls.
+
+## [1.31.3] - 2026-10-30
+
+### Fixed
+
+- A long document indexes against a local Ollama server. Its chunks now go to
+  `/embeddings` in requests of at most 64 instead of one oversized request.
 
 ## [1.31.2] - 2026-10-30
 
