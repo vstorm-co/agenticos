@@ -5950,7 +5950,6 @@
       "enabled": "Włączona",
       "disabled": "Wyłączona",
       "refresh": "Odśwież stan diagnostyki",
-      "collector": "Kolektor",
       "lastSuccess": "Ostatni pomyślny heartbeat",
       "never": "Jeszcze nie wysłano",
       "lastError": "Ostatni błąd wysyłki",

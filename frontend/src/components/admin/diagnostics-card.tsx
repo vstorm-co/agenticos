@@ -46,10 +46,6 @@ export function DiagnosticsCard() {
         {query.data ? (
           <dl className="grid gap-2 text-sm">
             <div>
-              <dt className="text-muted-foreground">{t("collector")}</dt>
-              <dd className="break-all">{query.data.collector}</dd>
-            </div>
-            <div>
               <dt className="text-muted-foreground">{t("lastSuccess")}</dt>
               <dd>
                 {query.data.last_success === null

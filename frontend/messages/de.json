@@ -6057,7 +6057,6 @@
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert",
       "refresh": "Diagnosestatus aktualisieren",
-      "collector": "Kollektor",
       "lastSuccess": "Letzter erfolgreicher Heartbeat",
       "never": "Noch nicht gesendet",
       "lastError": "Letzter Übertragungsfehler",

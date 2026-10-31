@@ -6179,7 +6179,6 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "refresh": "Refresh diagnostic status",
-      "collector": "Collector",
       "lastSuccess": "Last successful heartbeat",
       "never": "Not sent yet",
       "lastError": "Last delivery error",

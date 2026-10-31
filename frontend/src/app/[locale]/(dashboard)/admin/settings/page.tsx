@@ -162,6 +162,7 @@ export default function DeploymentSettingsPage() {
   return (
     <LoadingForm loading={isLoading}>
       <div className="flex flex-1 flex-col space-y-6">
+        <DeploymentUpdatesCard />
         <ListCard title={t("brandingIdentity")} counted={t("brandingIdentityHint")}>
           <div className="space-y-5">
             <FormField
@@ -419,8 +420,6 @@ export default function DeploymentSettingsPage() {
         />
 
         <ApnsKeyCard />
-        <DiagnosticsCard />
-        <DeploymentUpdatesCard />
 
         <ListCard title={t("noticesTitle")} counted={t("noticesHint")}>
           <div className="space-y-5">
@@ -489,6 +488,8 @@ export default function DeploymentSettingsPage() {
             {tc("save")}
           </Button>
         </div>
+
+        <DiagnosticsCard />
       </div>
     </LoadingForm>
   );
