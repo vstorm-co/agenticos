@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { McpCatalogEntry } from "@/types/mcp";
 import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -14,6 +15,9 @@ import {
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: [] }),
   useMcpCatalogPage: () => ({ servers: [] }),
+  useMcpServerEntry: (key: string | null) => ({
+    entry: state.entry?.key === key ? state.entry : null,
+  }),
 }));
 
 const probe = vi.hoisted(() => vi.fn());
@@ -23,6 +27,7 @@ const gmail = { id: "c1", name: "gmail-dev", label: null, catalog_key: "google-w
 const other = { id: "c2", name: "crm", label: null, catalog_key: "hubspot" };
 
 const state = vi.hoisted(() => ({
+  entry: null as McpCatalogEntry | null,
   canManage: true,
   // `workflow.can_edit`, not a permission: a grant on one workflow is enough.
   canRead: true,
@@ -39,6 +44,7 @@ vi.mock("@/hooks", () => ({
 }));
 
 beforeEach(() => {
+  state.entry = null;
   state.canManage = true;
   state.canRead = true;
   state.loaded = true;
@@ -88,6 +94,22 @@ describe("useAppConnections", () => {
 });
 
 describe("useMcpAppStep", () => {
+  it("retains a registry service's logo after the picker search is closed", () => {
+    state.entry = {
+      key: "hubspot",
+      name: "CRM",
+      description: "",
+      category: "productivity",
+      auth: "oauth",
+      url: "https://mcp.example.com",
+      icon: "crm",
+      docs_url: null,
+      token_hint: null,
+    };
+    const { result } = renderHook(() => useMcpAppStep({ connection_id: "c2", tool: "find" }));
+    expect(result.current?.app.url).toBe(state.entry.url);
+    expect(result.current?.app.icon).toBe("crm");
+  });
   it("finds the app of an MCP call's connection, with the tool it names", () => {
     const { result } = renderHook(() =>
       useMcpAppStep({ connection_id: "c1", tool: "draft_gmail_message" }),

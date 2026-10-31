@@ -1230,7 +1230,7 @@ describe("an MCP call on an app's connection", () => {
     // Still known to be an app's MCP call: the badge and the app's tile stay.
     expect(within(card("m")).getByText("MCP")).toBeInTheDocument();
     expect(card("m").querySelector("[data-node-family]")?.querySelector("svg")).not.toBeNull();
-    expect(card("m").querySelector("span[data-node-family=apps]")).not.toBeNull();
+    expect(card("m").querySelector("svg.lucide-zap")).toBeNull();
     unmount();
 
     mcpApp.step = null;

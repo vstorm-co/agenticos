@@ -959,6 +959,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **MCP service logos in workflows.** The step picker, canvas and editor share the MCP catalog icon resolver, including baked logos and custom deployment icons. Unknown services use their own name monogram.
+
 - Give Kanban lanes room below the toolbar and draw the drop highlight inside the lane so its top edge stays visible while dragging.
 
 - Keep workflow step titles, rename fields and descriptions aligned without clipped focus borders or narrow placeholder-only name inputs.

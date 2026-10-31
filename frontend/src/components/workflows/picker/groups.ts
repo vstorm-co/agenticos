@@ -213,10 +213,17 @@ function appGroups(
     ) {
       continue;
     }
+    const entry = catalog.find((server) => app.catalogKeys.includes(server.key));
     groups.set(app.id, {
       category: app.id,
       items: triggers,
-      app: { app, actions, untested, connectKey, needsPermission },
+      app: {
+        app: entry ? { ...app, icon: entry.icon, url: entry.url } : app,
+        actions,
+        untested,
+        connectKey,
+        needsPermission,
+      },
     });
   }
   return groups;

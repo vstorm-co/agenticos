@@ -1,7 +1,8 @@
 "use client";
 
 import { Command } from "cmdk";
-import { BrandIcon } from "@/components/icons/brand-icon";
+import { WorkflowAppIcon } from "@/components/workflows/workflow-app-icon";
+import type { WorkflowApp } from "@/components/workflows/apps";
 import { ArrowLeft, ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -43,7 +44,8 @@ const GROUP_HEADING =
   "[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase";
 
 type TileFor =
-  { kind: "step" | "operation"; item: NodeDefinition } | { kind: "group"; category: string };
+  | { kind: "step" | "operation"; item: NodeDefinition }
+  | { kind: "group"; category: string; app?: WorkflowApp; name?: string };
 
 type FoundRow =
   | { kind: "step"; item: NodeDefinition; name: string; group: PickerGroup }
@@ -51,6 +53,11 @@ type FoundRow =
 
 function Tile(which: TileFor) {
   const shape = { className: "size-7 rounded-lg", iconClassName: "size-3.5" };
+  if (which.kind === "group" && which.app) {
+    return (
+      <WorkflowAppIcon app={which.app} name={which.name ?? which.app.name ?? which.category} />
+    );
+  }
   return which.kind === "group" ? (
     <NodeTile kind="group" category={which.category} {...shape} />
   ) : (
@@ -137,7 +144,12 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
         }
         className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
       >
-        <Tile kind="group" category={group.category} />
+        <Tile
+          kind="group"
+          category={group.category}
+          app={group.app?.app}
+          name={label(group.category)}
+        />
         <span className="min-w-0 flex-1">
           <span className="block text-sm break-words">{name}</span>
           {/* Nothing hidden: the tool's own name, as the connection lists it, on its own line. */}
@@ -232,7 +244,12 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                     }}
                     className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm"
                   >
-                    <Tile kind="group" category={group.category} />
+                    <Tile
+                      kind="group"
+                      category={group.category}
+                      app={group.app?.app}
+                      name={label(group.category)}
+                    />
                     {label(group.category)}
                     <ChevronRight className="ml-auto size-4" />
                   </Command.Item>
@@ -328,11 +345,12 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                     }}
                     className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
                   >
-                    {group.app?.app.brand !== undefined ? (
-                      <BrandIcon name={group.app.app.brand} className="size-7 shrink-0 p-1" />
-                    ) : (
-                      <Tile kind="group" category={group.category} />
-                    )}
+                    <Tile
+                      kind="group"
+                      category={group.category}
+                      app={group.app?.app}
+                      name={label(group.category)}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{label(group.category)}</span>
                       {hint(group.category) !== null && (

@@ -8,6 +8,7 @@ import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
+import type { McpCatalogEntry } from "@/types/mcp";
 import { NodePicker } from "./node-picker";
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
@@ -27,6 +28,7 @@ const apps = vi.hoisted(() => ({
   connections: null as UsableMcpConnectionRecord[] | null,
   canConnect: false,
   unavailable: false,
+  servers: [] as McpCatalogEntry[],
 }));
 vi.mock("@/components/workflows/use-app-connections", () => ({
   useAppConnections: () => apps,
@@ -64,6 +66,7 @@ beforeEach(() => {
   apps.connections = null;
   apps.canConnect = false;
   apps.unavailable = false;
+  apps.servers = [];
   router.push.mockReset();
 });
 
@@ -260,6 +263,28 @@ describe("NodePicker app groups", () => {
     expect(row.querySelector(".truncate, [class*='line-clamp']")).toBeNull();
     expect(within(row).getByText(tool)).toBeTruthy();
     expect(within(row).getByText("a-connection-with-a-long-name")).toBeTruthy();
+  });
+
+  it("draws an unconnected catalog service's logo on its picker row", async () => {
+    apps.connections = [];
+    apps.canConnect = true;
+    apps.servers = [
+      {
+        key: "airtable",
+        name: "Airtable",
+        description: "",
+        category: "productivity",
+        auth: "oauth",
+        url: "https://mcp.airtable.com/mcp",
+        icon: null,
+        docs_url: null,
+        token_hint: null,
+      },
+    ];
+    mountApps();
+    const row = screen.getByRole("option", { name: /^Airtable/ });
+    expect(row.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
+    expect(row.querySelector("svg.lucide-zap")).toBeNull();
   });
 
   it("refreshes an untested server inline only for connection managers", async () => {

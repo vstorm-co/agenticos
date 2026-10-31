@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { appToolLabel } from "@/components/workflows/apps";
 import { connectionLabel } from "@/lib/mcp-servers";
+import { WorkflowAppIcon } from "@/components/workflows/workflow-app-icon";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { useMcpAppStep } from "@/components/workflows/use-app-connections";
 import { ROUTES } from "@/lib/constants";
@@ -221,7 +222,9 @@ export function NodeEditorDialog({
         className={cn("gap-0 p-0 sm:p-0", withData ? DIALOG_WINDOW : [DIALOG_FORM, DIALOG_COLUMN])}
       >
         <header className="border-border flex items-start gap-3 border-b px-5 pt-5 pr-14 pb-4 sm:px-6 sm:pr-14">
-          {pin?.kind === "agent" ? (
+          {node.definition_id === "mcp.call" ? (
+            <McpStepIcon config={node.config} fallback={tile} />
+          ) : pin?.kind === "agent" ? (
             <AgentTile agentId={pin.id} fallback={tile} className="size-10" />
           ) : pin?.kind === "inline_agent" ? (
             <InlineAgentTile name={pin.name} className="size-10" />
@@ -391,6 +394,27 @@ export function NodeEditorDialog({
         </footer>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function McpStepIcon({
+  config,
+  fallback,
+}: {
+  config: Record<string, unknown>;
+  fallback: ReactNode;
+}) {
+  const t = useTranslations("workflows");
+  const mcp = useMcpAppStep(config);
+  return mcp ? (
+    <WorkflowAppIcon
+      app={mcp.app}
+      name={mcp.app.name ?? t(`category.${mcp.app.id}`)}
+      className="size-10 rounded-xl"
+      iconClassName="size-6"
+    />
+  ) : (
+    fallback
   );
 }
 

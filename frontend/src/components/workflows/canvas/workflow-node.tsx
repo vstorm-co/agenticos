@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { WorkflowAppIcon } from "@/components/workflows/workflow-app-icon";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { familyLabelClass, nodeFamily } from "@/components/workflows/node-visuals";
 import { appToolLabel } from "@/components/workflows/apps";
@@ -366,11 +367,17 @@ function WorkflowCard({
   // Until it is sized the card is what xyflow measured, to the pixel, wrapped
   // badges and all; once sized, `height` is the box, so the floor is the estimate.
   const floor = sizedHeight == null && height ? height : natural;
-  const tile = (
+  const tile = mcp ? (
+    <WorkflowAppIcon
+      app={mcp.app}
+      name={mcp.app.name ?? t(`category.${mcp.app.id}`)}
+      className="size-8"
+      iconClassName="size-5"
+    />
+  ) : (
     <NodeTile
-      {...(mcp === null
-        ? { definitionId: instance.definition_id, category: definition?.category ?? "" }
-        : { kind: "group" as const, category: mcp.app.id })}
+      definitionId={instance.definition_id}
+      category={definition?.category ?? ""}
       className="size-8 rounded-lg"
       iconClassName="size-4"
     />

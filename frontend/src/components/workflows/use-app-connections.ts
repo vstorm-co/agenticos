@@ -9,7 +9,7 @@ import {
 } from "@/components/workflows/apps";
 import { usePermissions, useUsableMcpConnections } from "@/hooks";
 import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
+import { useMcpCatalog, useMcpCatalogPage, useMcpServerEntry } from "@/hooks/use-mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useDebounced } from "@/components/ui/list-controls";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -64,16 +64,17 @@ export interface McpAppStep {
 export function useMcpAppStep(config: Record<string, unknown>): McpAppStep | null {
   const { connections, servers } = useAppConnections();
   const connection = connections?.find((one) => one.id === config.connection_id);
+  const { entry: resolvedEntry } = useMcpServerEntry(connection?.catalog_key ?? null);
   const tool = typeof config.tool === "string" ? config.tool : "";
   if (LOGIN_TOOLS.has(tool)) return null;
-  const entry = servers.find((server) => server.key === connection?.catalog_key);
+  const entry = servers.find((server) => server.key === connection?.catalog_key) ?? resolvedEntry;
   const app =
     connection === undefined
       ? null
       : (appForCatalogKey(connection.catalog_key, tool) ??
-        (entry === undefined ? connectionWorkflowApp(connection) : catalogWorkflowApp(entry)));
+        (entry == null ? connectionWorkflowApp(connection) : catalogWorkflowApp(entry)));
   if (connection === undefined || app === null) return null;
-  return { app, connection, tool };
+  return { app: entry ? { ...app, icon: entry.icon, url: entry.url } : app, connection, tool };
 }
 
 /** Probe a connected server and refresh the same tool inventory the picker reads. */

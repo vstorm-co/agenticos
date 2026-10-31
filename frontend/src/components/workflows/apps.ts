@@ -17,6 +17,9 @@ export interface WorkflowApp {
   /** The picker group's id, also its `category.<id>` and `appServer.<id>` message keys. */
   id: string;
   brand?: BrandName;
+  /** Catalog icon metadata, also used for services without a compiled brand glyph. */
+  icon?: string | null;
+  url?: string | null;
   /** Catalog name for apps without curated translations. */
   name?: string;
   connectionId?: string;
@@ -277,6 +280,8 @@ export function catalogWorkflowApp(entry: McpCatalogEntry): WorkflowApp {
   return {
     id: `mcp:${entry.key}`,
     name: entry.name,
+    icon: entry.icon,
+    url: entry.url,
     brand: connectorBrand(entry.icon ?? entry.key),
     triggers: [],
     fallback: true,
