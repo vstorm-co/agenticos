@@ -1,5 +1,5 @@
 ---
-source_sha: "866805b58c36"
+source_sha: "07d0e3bf20fc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -436,6 +436,8 @@ siatka wczytuje po sto rekordów podczas przewijania i rysuje tylko widoczne wie
 10 000 rekordów, które zapytanie może pominąć, prosi o filtr lub wyszukiwanie.
 
 ## Zapisane widoki { #saved-views }
+
+**Sortuj** obok **Filtruj** wybiera kolumnę oraz kierunek rosnący lub malejący dla tabeli, listy albo kart w każdej kolumnie Kanbana. Dostępne są też ukryte kolumny obsługujące sortowanie i daty systemowe. Przycisk pokazuje aktywną kolumnę i kierunek. Serwer sortuje przed stronicowaniem, także rekordy jeszcze niewczytane. **Zapisz widok** zachowuje kolejność razem z filtrami i wyglądem; **+** zapisuje nowy widok. **Domyślna kolejność: najstarsze najpierw** przywraca sortowanie według daty utworzenia.
 
 **Ustawienia widoku** pozwalają zmieniać kolejność i widoczność kolumn, także systemowych. Przeciągnij kolumnę lub użyj strzałek; ukrycie pola systemowego zachowuje jego automatyczną wartość. **Zawijaj tekst** pokazuje pełny tekst i podziały wierszy; wyłączenie przywraca kompaktowe wiersze. Wybierz datę automatyczną, ISO, dzień–miesiąc–rok, miesiąc–dzień–rok lub pełną oraz godzinę automatyczną, 24-godzinną, 12-godzinną albo ukrytą. Sama data zachowuje dzień, a znaczniki czasu używają strefy odbiorcy. **Zapisz widok** zachowuje ustawienia wybranego widoku; **+** tworzy nowy. Formatowanie nie zmienia wartości ani filtrów.
 

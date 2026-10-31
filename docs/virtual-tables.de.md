@@ -1,5 +1,5 @@
 ---
-source_sha: "866805b58c36"
+source_sha: "07d0e3bf20fc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -469,6 +469,8 @@ zeichnet nur die sichtbaren Zeilen. Jenseits der 10.000 Datensätze, die eine Ab
 überspringen darf, bittet es um einen Filter oder eine Suche.
 
 ## Gespeicherte Ansichten { #saved-views }
+
+**Sortieren** neben **Filter** wählt eine sortierbare Spalte und aufsteigende oder absteigende Reihenfolge für Tabelle, Liste oder Karten innerhalb jeder Kanban-Spalte. Ausgeblendete sortierbare Spalten und Systemdaten bleiben verfügbar. Die Schaltfläche zeigt Spalte und Richtung. Der Server sortiert vor der Seiteneinteilung, auch noch nicht geladene Datensätze. **Ansicht speichern** behält die Reihenfolge zusammen mit Filtern und Darstellung; **+** erstellt eine neue Ansicht. **Standardreihenfolge: älteste zuerst** stellt die Sortierung nach Erstellungsdatum wieder her.
 
 **Ansichtseinstellungen** steuert Reihenfolge und Sichtbarkeit aller Spalten einschließlich Systemfelder. Ziehe Spalten oder nutze die Pfeile; ausgeblendete Systemfelder behalten ihre automatischen Werte. **Text umbrechen** zeigt vollständigen Text mit Zeilenumbrüchen, ausgeschaltet bleiben Zeilen kompakt. Wähle automatische, ISO-, Tag-zuerst-, Monat-zuerst- oder lange Datumsangaben und automatische, 24-Stunden-, 12-Stunden- oder ausgeblendete Uhrzeiten. Reine Datumswerte behalten ihren Tag; Zeitstempel verwenden die Zeitzone der betrachtenden Person. **Ansicht speichern** speichert die Auswahl für diese Ansicht; **+** erstellt eine neue. Formatierung ändert weder Werte noch Filter.
 

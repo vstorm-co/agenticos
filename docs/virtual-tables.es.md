@@ -1,5 +1,5 @@
 ---
-source_sha: "866805b58c36"
+source_sha: "07d0e3bf20fc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -439,6 +439,8 @@ solo las filas visibles. Más allá de los 10.000 registros que una consulta pue
 pide un filtro o una búsqueda.
 
 ## Vistas guardadas { #saved-views }
+
+**Sort**, junto a **Filter**, elige una columna y el orden ascendente o descendente para la tabla, la lista o las tarjetas dentro de cada carril Kanban. También ofrece columnas ordenables ocultas y fechas del sistema. El botón muestra la columna y la dirección activas. El servidor ordena antes de paginar, incluidos los registros aún no cargados. **Save view** conserva el orden con los filtros y la presentación; **+** crea otra vista. **Default order: oldest first** restaura el orden por fecha de creación.
 
 **View settings** controla el orden y la visibilidad de columnas, incluidos los campos del sistema. Arrastra una columna o usa las flechas; ocultar un campo del sistema conserva su valor automático. **Wrap text** muestra el texto completo con saltos de línea; desactívalo para filas compactas. Elige fechas automáticas, ISO, día primero, mes primero o largas, y hora automática, de 24 horas, de 12 horas u oculta. Las fechas conservan su día; las marcas de tiempo usan la zona del lector. **Save view** guarda los ajustes; **+** crea otra vista. El formato no cambia valores ni filtros.
 

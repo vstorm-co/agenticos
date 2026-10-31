@@ -9705,6 +9705,17 @@
         "12h": "12-Stunden-Format (AM/PM)",
         "hidden": "Uhrzeit ausblenden"
       }
+    },
+    "sorting": {
+      "title": "Sortieren",
+      "description": "Ordne Datensätze in dieser Ansicht. Speichere die Ansicht, um die Reihenfolge zu behalten.",
+      "column": "Sortieren nach",
+      "chooseColumn": "Spalte auswählen",
+      "direction": "Richtung",
+      "ascending": "Aufsteigend",
+      "descending": "Absteigend",
+      "reset": "Standardreihenfolge: älteste zuerst",
+      "active": "Sortieren: {column}, {direction}"
     }
   },
   "groups": {

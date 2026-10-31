@@ -417,6 +417,8 @@ view. Past the 10,000 records a query may skip, it asks for a filter or a search
 
 ## Saved views { #saved-views }
 
+**Sort** beside **Filter** selects a sortable column and ascending or descending order for the table, list or cards within each Kanban lane. Hidden sortable columns and system dates remain available. The active column and direction appear on the button. Ordering applies on the server before paging, including records not yet loaded. **Save view** keeps the order with the view’s filters and presentation; **+** saves it as a new view. **Default order: oldest first** restores creation-date order.
+
 **View settings** controls column order and visibility, including system fields. Drag a column or use its arrows; hiding a system field leaves its automatic value intact. Enable **Wrap text** to show full text and line breaks, or disable it for compact rows. Choose automatic, ISO, day-first, month-first or long dates, and automatic, 24-hour, 12-hour or hidden time. Date-only values keep their calendar day; timestamps use the viewer’s time zone. **Save view** keeps these choices for the selected view; **+** creates a new view. Formatting changes no stored values or filters.
 
 A kanban board without saved grouping uses the only live single-select column automatically. With several, choose which column makes its lanes. Saving a view keeps that grouping. List rows name their secondary fields and show **Unnamed record** when the title is empty. **Triggers** offers **Open workflows** when no workflow starts from the table yet.

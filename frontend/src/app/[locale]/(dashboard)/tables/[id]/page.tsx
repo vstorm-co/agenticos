@@ -46,6 +46,7 @@ import { DEFAULT_TABLE_DISPLAY, orderedTableColumns } from "@/lib/table-display"
 import type { TableDisplay } from "@/types/tables";
 import { RecordDetailSheet } from "@/components/tables/record-detail-sheet";
 import { filterable, isComplete } from "@/components/tables/record-filters";
+import { RecordSortPopover } from "@/components/tables/record-sort-popover";
 import { RecordFiltersPopover } from "@/components/tables/record-filters-popover";
 import { SchemaDependents } from "@/components/tables/schema-dependents";
 import { SchemaEditorDialog } from "@/components/tables/schema-editor-dialog";
@@ -514,6 +515,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               filters={filters}
               onChange={setFilters}
             />
+            <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
             {hidden.length > 0 && (
               <HiddenColumnsPopover
                 hidden={hidden}

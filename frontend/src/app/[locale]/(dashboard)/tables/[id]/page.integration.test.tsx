@@ -460,6 +460,34 @@ describe("the table detail page", () => {
     );
   });
 
+  it("sorts through the toolbar and saves it with the view's existing presentation", async () => {
+    serve();
+    arriveAt("viewId=v-table");
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({});
+    const user = userEvent.setup();
+    renderPage();
+    const grid = await screen.findByTestId("grid-view");
+    await user.click(screen.getByRole("button", { name: /^Sort:/ }));
+    await user.click(screen.getByRole("combobox", { name: "Sort by" }));
+    await user.click(screen.getByRole("option", { name: "Last updated" }));
+    await user.click(screen.getByRole("combobox", { name: "Direction" }));
+    await user.click(screen.getByRole("option", { name: "Ascending" }));
+    await user.keyboard("{Escape}");
+    expect(grid).toHaveAttribute("data-sort", "updated_at:asc");
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/tables/t1/records/query",
+        expect.objectContaining({ sort: { by: "updated_at", direction: "asc" } }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Save view" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/views/v-table", {
+        config: { ...emptyConfig, sort: { by: "updated_at", direction: "asc" } },
+      }),
+    );
+  });
+
   it("re-seeds the grid's sort when switching to a different saved view", async () => {
     serve();
     arriveAt("viewId=v-table");

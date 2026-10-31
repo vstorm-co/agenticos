@@ -10508,6 +10508,17 @@
         "12h": "Format 12-godzinny (AM/PM)",
         "hidden": "Ukryj godzinę"
       }
+    },
+    "sorting": {
+      "title": "Sortuj",
+      "description": "Ustaw kolejność rekordów w tym widoku. Zapisz widok, aby ją zachować.",
+      "column": "Sortuj według",
+      "chooseColumn": "Wybierz kolumnę",
+      "direction": "Kierunek",
+      "ascending": "Rosnąco",
+      "descending": "Malejąco",
+      "reset": "Domyślna kolejność: najstarsze najpierw",
+      "active": "Sortuj: {column}, {direction}"
     }
   },
   "groups": {

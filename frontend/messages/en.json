@@ -9826,6 +9826,17 @@
         "12h": "12-hour clock (AM/PM)",
         "hidden": "Hide time"
       }
+    },
+    "sorting": {
+      "title": "Sort",
+      "description": "Order records in this view. Save the view to keep this order.",
+      "column": "Sort by",
+      "chooseColumn": "Choose a column",
+      "direction": "Direction",
+      "ascending": "Ascending",
+      "descending": "Descending",
+      "reset": "Default order: oldest first",
+      "active": "Sort: {column}, {direction}"
     }
   },
   "groups": {

@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Sort records from every table view.** Add an explicit column/direction picker beside filters, including hidden sortable columns and system dates. The selected server-side order is shared by Table, Kanban and List and can be saved with the view.
+
 - **Saved table presentation.** Reorder and hide columns, including system fields, choose compact or wrapped text and configure date and time formats independently for each saved view. These controls change presentation without changing table schemas or stored values.
 
 - **One MCP interface for automations and records.** AgenticOS MCP now starts published workflows and reads, upserts or deletes table records against their revisions. Agents use the same approved tools as other MCP clients; existing capability grants remain compatible. Steps expose their primary HTTP, file, AI and filter controls and connect channel bots in place. New record writes preserve the actual person, agent, API key or workflow origin and show its avatar or icon separately from the authorizing member.
