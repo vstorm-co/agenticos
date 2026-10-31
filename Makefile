@@ -316,8 +316,8 @@ lint: lint-backend lint-frontend lint-spelling lint-precommit
 # outside `backend/` and so is a fourth path rather than a second invocation; its
 # relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check . ../scripts
-	uv run --directory backend ruff format . ../scripts --check
+	uv run --directory backend ruff check . ../scripts ../deploy/updater
+	uv run --directory backend ruff format . ../scripts ../deploy/updater --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
@@ -408,8 +408,8 @@ lint-precommit:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format . ../scripts
-	uv run --directory backend ruff check . ../scripts --fix
+	uv run --directory backend ruff format . ../scripts ../deploy/updater
+	uv run --directory backend ruff check . ../scripts ../deploy/updater --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===

@@ -1,3 +1,5 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +8,38 @@ import DeploymentSettingsPage from "./page";
 
 // APNs has its own query-backed form and tests; this suite covers deployment settings.
 vi.mock("@/components/admin/apns-key-card", () => ({ ApnsKeyCard: () => null }));
+
+vi.mock("@/lib/api-client", () => ({
+  apiClient: {
+    get: vi.fn(async (path: string) => {
+      if (path === "/admin/diagnostics")
+        return {
+          enabled: true,
+          collector: "https://analytics.example.com",
+          instance_id: null,
+          last_attempt: null,
+          last_success: null,
+          last_error: null,
+        };
+      if (path === "/admin/updates")
+        return {
+          configured: false,
+          reachable: false,
+          pipeline_url: null,
+          operation: null,
+        };
+      if (path === "/releases/latest") return { latest: null };
+      throw new Error(`Unexpected request: ${path}`);
+    }),
+  },
+}));
+
+function queryWrapper() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
+}
 
 const save = vi.fn();
 let settings: DeploymentSettings | null = null;
@@ -66,7 +100,7 @@ beforeEach(() => {
 
 describe("deployment settings loading", () => {
   it("keeps the actual form cards and controls mounted until the saved values arrive", () => {
-    const { container, rerender } = render(<DeploymentSettingsPage />);
+    const { container, rerender } = render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
     // Only form surfaces matter here; a decorative header may change freely.
     const formCards = () =>
       Array.from(container.querySelectorAll(".shadow-card")).filter(
@@ -98,7 +132,7 @@ describe("deployment settings loading", () => {
   it("reports a failed read instead of offering a default-valued form", () => {
     loading = false;
     error = new Error("down");
-    const { container } = render(<DeploymentSettingsPage />);
+    const { container } = render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
     expect(container.querySelector("#app-name")).toBeNull();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });

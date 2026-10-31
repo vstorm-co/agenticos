@@ -1,5 +1,5 @@
 ---
-source_sha: "f4d69e52c099"
+source_sha: "b6ae74c8da8e"
 ---
 
 # Datenschutz { #data-protection }
@@ -406,3 +406,10 @@ vorherigen Abschnitts. Jedes davon ist der Nachweis, den
 Eine Prüfung, die jede Zeile oben entweder geschlossen oder schriftlich
 akzeptiert vorfindet, hat, was diese Seite ihr geben kann. Der Rest gehört dem
 Deployment.
+
+## Bereitstellungsdiagnose { #deployment-diagnostics }
+
+Der optionale Kollektor erhält Installationszustand, Nutzungsbereiche und pseudonyme
+Vordergrundaktivität. Berichte sind standardmäßig aktiviert, auch nach Upgrades mit
+alter `.env`. Die [Diagnosekonfiguration](configuration.md#diagnostics) beschreibt
+Felder, Aufbewahrung, die vorläufig lokale Adresse und die Deaktivierung.

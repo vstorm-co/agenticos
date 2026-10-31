@@ -36,6 +36,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.session import get_db_context
@@ -50,7 +51,7 @@ def _person_scope(row: BrowserSignIn) -> VaultScope:
     return VaultScope.user(row.user_id)
 
 
-def _deployment_scope(_row: DeploymentSettings) -> VaultScope:
+def _deployment_scope(_row: DeploymentSettings | DiagnosticsIdentity) -> VaultScope:
     return VaultScope.deployment()
 
 
@@ -78,6 +79,7 @@ class SealedTable:
         | AgentTrigger
         | BrowserSignIn
         | DeploymentSettings
+        | DiagnosticsIdentity
     ]
     columns: tuple[str, ...]
     version_attr: str
@@ -132,6 +134,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("sealed_state",),
         version_attr="secret_key_version",
         scope=_person_scope,
+    ),
+    SealedTable(
+        label="diagnostics_identity",
+        model=DiagnosticsIdentity,
+        columns=("sealed_seed",),
+        version_attr="secret_key_version",
+        scope=_deployment_scope,
     ),
     SealedTable(
         label="deployment_settings",

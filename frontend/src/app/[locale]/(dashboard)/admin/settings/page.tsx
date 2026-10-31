@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { DeploymentUpdatesCard } from "@/components/admin/deployment-updates-card";
+import { DiagnosticsCard } from "@/components/admin/diagnostics-card";
 import { ApnsKeyCard } from "@/components/admin/apns-key-card";
 import { BrandingImageField } from "@/components/admin/branding-image-field";
 import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
@@ -160,6 +162,7 @@ export default function DeploymentSettingsPage() {
   return (
     <LoadingForm loading={isLoading}>
       <div className="flex flex-1 flex-col space-y-6">
+        <DeploymentUpdatesCard />
         <ListCard title={t("brandingIdentity")} counted={t("brandingIdentityHint")}>
           <div className="space-y-5">
             <FormField
@@ -485,6 +488,8 @@ export default function DeploymentSettingsPage() {
             {tc("save")}
           </Button>
         </div>
+
+        <DiagnosticsCard />
       </div>
     </LoadingForm>
   );

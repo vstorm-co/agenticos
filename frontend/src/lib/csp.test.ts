@@ -83,6 +83,7 @@ describe("the console's content security policy", () => {
       "'self'",
       "https://api.acme.example",
       "wss://ws.acme.example",
+      "https://analytics-agenticos.testapp.ovh",
     ]);
   });
 
@@ -96,6 +97,7 @@ describe("the console's content security policy", () => {
       "'self'",
       "https://acme.example",
       "wss://acme.example",
+      "https://analytics-agenticos.testapp.ovh",
     ]);
   });
 
@@ -124,4 +126,9 @@ describe("the console's content security policy", () => {
     expect(policy).not.toContain("\n");
     expect(policy.startsWith("default-src 'self';")).toBe(true);
   });
+});
+
+it("does not allow collector connections when diagnostics is disabled", () => {
+  const directives = cspDirectives({ ...SPLIT_ORIGIN, diagnosticsUrl: undefined }, NONCE);
+  expect(directives["connect-src"]).not.toContain("https://analytics-agenticos.testapp.ovh");
 });

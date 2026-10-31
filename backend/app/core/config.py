@@ -38,6 +38,51 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "agenticos"
     API_V1_STR: str = "/api/v1"
+    UPDATE_AGENT_SOCKET: Path | None = None
+    UPDATE_PIPELINE_URL: str | None = None
+
+    @field_validator("UPDATE_PIPELINE_URL")
+    @classmethod
+    def update_pipeline_link(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        from urllib.parse import urlsplit
+
+        url = urlsplit(value)
+        if (
+            url.scheme != "https"
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.fragment
+            or url.query
+        ):
+            raise ValueError("Update pipeline must be an HTTPS link without credentials")
+        return value
+
+    # Missing from an older .env deliberately means enabled. No UI override.
+    DIAGNOSTICS_ENABLED: bool = True
+    DIAGNOSTICS_COLLECTOR_URL: str = "https://analytics-agenticos.testapp.ovh"
+    DIAGNOSTICS_PUBLIC_URL: str = "https://analytics-agenticos.testapp.ovh"
+
+    @field_validator("DIAGNOSTICS_COLLECTOR_URL", "DIAGNOSTICS_PUBLIC_URL")
+    @classmethod
+    def diagnostics_origin(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        url = urlsplit(value)
+        if url.username or url.password or url.query or url.fragment or url.path not in {"", "/"}:
+            raise ValueError("Diagnostics URL must be an origin without credentials or a path")
+        if not url.hostname or (
+            url.scheme != "https"
+            and not (
+                url.scheme == "http"
+                and url.hostname in {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
+            )
+        ):
+            raise ValueError("Diagnostics requires HTTPS except for local development")
+        return value.rstrip("/")
+
     DEBUG: bool = False
     DB_ECHO: bool = (
         False  # Set DB_ECHO=true to log SQL queries (latency + log-noise drain by default)

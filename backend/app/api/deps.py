@@ -1834,3 +1834,23 @@ def get_project_transfer_service(db: DBSession) -> ProjectWorkspaceTransferServi
 ProjectTransferSvc = Annotated[
     ProjectWorkspaceTransferService, Depends(get_project_transfer_service)
 ]
+
+
+from app.services.diagnostics import DiagnosticsService
+
+
+def get_diagnostics_service(db: DBSession) -> DiagnosticsService:
+    return DiagnosticsService(db)
+
+
+DiagnosticsSvc = Annotated[DiagnosticsService, Depends(get_diagnostics_service)]
+
+
+from app.services.updates import UpdateService
+
+
+def get_update_service() -> UpdateService:
+    return UpdateService()
+
+
+UpdateSvc = Annotated[UpdateService, Depends(get_update_service)]

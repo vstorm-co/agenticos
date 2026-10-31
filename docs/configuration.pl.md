@@ -1,5 +1,5 @@
 ---
-source_sha: "64123a5c5854"
+source_sha: "b19982dc6555"
 ---
 
 # Konfiguracja { #configuration }
@@ -1430,3 +1430,64 @@ E-mail celowo **nie** jest na tej liście: wdrożenie działa bez niego. Ale
 zaproszenia, resety haseł i powiadomienia po cichu nie są wysyłane, dopóki
 `SMTP_HOST` i reszta z [E-mail (SMTP)](#email-smtp) nie wskażą prawdziwego serwera —
 więc wdrożenie, które to pomija, powinno pomijać to świadomie.
+
+## Diagnostyka wdrożenia { #diagnostics }
+
+`DIAGNOSTICS_ENABLED` ma domyślną wartość `true`, również po aktualizacji ze starszym
+plikiem `.env` bez tego klucza. Ustaw `DIAGNOSTICS_ENABLED=false` w środowiskach
+backendu i frontendu i uruchom usługi ponownie, aby wyłączyć raportowanie. Ustawienia
+wdrożenia pokazują stan i ostatni pomyślny raport; nie mają przełącznika.
+
+`DIAGNOSTICS_COLLECTOR_URL` to adres kolektora dla serwera, a
+`DIAGNOSTICS_PUBLIC_URL` to adres dostępny z przeglądarki, odczytywany też przez
+frontend dla Content Security Policy. Oba domyślnie wskazują `https://analytics-agenticos.testapp.ovh`.
+Dla kolektora na hoście Docker Desktop ustaw serwerowi
+`http://host.docker.internal:8010`, pozostawiając publiczny adres
+`http://localhost:8010`. Zdalne adresy wymagają HTTPS. Nie podawaj ścieżek,
+poświadczeń ani parametrów zapytania.
+
+Trwała kolejka wysyła raport co godzinę. Ziarno Ed25519 jest szyfrowane przez vault,
+zapisywane przed pierwszym połączeniem, wspólne dla replik i obsługiwane przez
+`vault-rotate`. Niedostępny kolektor nie blokuje logowania, czatu ani startu workera.
+Raport zawiera wersję, stan bazy i workera, jawnie nieznany stan Redis oraz przedziały
+liczby uruchomień i utworzonych projektów, skilli i dokumentów z 30 dni. Wysyłane są
+wyłącznie nazwy z zamkniętego katalogu funkcji. Błędy obejmują nieudane uruchomienia,
+zadania zakończone trwale błędem i błędy ingestii z poprzedniej pełnej godziny UTC,
+maksymalnie 1000 na kategorię. Dowolne wyjątki API nie są eksportowane.
+
+Aktywność web, desktop i mobile używa podpisanych deklaracji ważnych 60 sekund,
+związanych z zalogowanym kontem. Identyfikator konta zastępuje pseudonim właściwy
+instalacji. Widoczne, aktywne okna raportują po interakcji najwyżej co pięć minut;
+bezczynne karty i karty w tle nie podtrzymują obecności. Przeglądarka wysyła deklarację
+bezpośrednio bez cookies i referrera, umożliwiając przybliżone grupowanie według
+kraju/regionu. Nie wysyłamy promptów, rozmów, nazw plików, nazw kont, adresów e-mail,
+kluczy dostawców ani treści wyjątków.
+
+Osobny [kolektor analytics](https://github.com/vstorm-co/agenticos-analytics)
+przechowuje zdarzenia przez siedem dni, a dzienną pseudonimową aktywność i agregaty
+przez 90 dni. Online oznacza aktywność w ostatnich dziesięciu minutach, aktywna
+instalacja — kontakt w ostatnich 24 godzinach. Brak kontaktu to stan nieznany, nie
+potwierdzona awaria. Kod kolektora nie zapisuje adresów IP ani pozycji GPS; retencja
+logów proxy należy do operatora. Podgląd mapy ma osobny tryb demo; AgenticOS nie
+dodaje fikcyjnych zdarzeń do diagnostyki produkcyjnej.
+
+## Aktualizacje z panelu administracyjnego { #updates-from-the-administration-panel }
+
+Strona wdrożenia pokazuje changelog najnowszej wersji oraz stan przygotowania,
+planowania i odzyskiwania. Aktualizacje wymagają świadomego włączenia: zainstaluj
+helper na pojedynczym hoście Linux/systemd z Compose i podłącz API oraz worker
+nakładką updatera. Zobacz [instrukcję operatora i odzyskiwania](https://github.com/vstorm-co/agenticos/tree/main/deploy/updater).
+
+Przygotowanie sprawdza konfigurację i miejsce na dysku, pobiera obrazy wydania,
+przypina ich skróty i wykonuje wstępny backup bez restartu aplikacji. Aktualizuj od
+razu albo zaplanuj termin w ciągu siedmiu dni. Helper zatrzymuje przyjmowanie pracy,
+czeka na aktywne uruchomienia, zadania i rozmowy głosowe, zatrzymuje procesy zapisujące,
+wykonuje końcowy backup PostgreSQL, plików i konfiguracji, uruchamia migracje i test
+gotowości. Dopiero wtedy otwiera ruch. Stan pozostaje na hoście; panel łączy się
+ponownie po powrocie API.
+
+Błąd po rozpoczęciu migracji pozostawia tryb konserwacji do interwencji operatora;
+nie ma automatycznego cofania bazy. Backupy pozostają na hoście do ręcznego usunięcia
+i nie zastępują kopii poza serwerem. Najpierw przetestuj odzyskiwanie na środowisku
+jednorazowym. Wiele hostów, własne nakładki Compose i zewnętrzny magazyn plików
+obsługuj pipeline’em: `UPDATE_PIPELINE_URL` pokazuje link HTTPS bez uruchamiania wdrożenia.
