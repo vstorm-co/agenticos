@@ -78,7 +78,11 @@ async def test_abandoned_images_release_quota_but_record_history_keeps_its_image
         ctx,
         table.id,
         RecordCreate(
-            values={str(table.columns[0].id): f"![](/api/tables/{table.id}/media/{kept.id})"}
+            values={
+                str(
+                    table.columns[0].id
+                ): f"![](/api/tables/{table.id}/media/{str(kept.id).upper()})"
+            }
         ),
     )
     await service.discard_image(ctx, table.id, kept.id)

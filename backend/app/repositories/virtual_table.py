@@ -1167,7 +1167,7 @@ async def delete_unused_media(
         .where(
             VirtualTableRecord.organization_id == organization_id,
             VirtualTableRecord.table_id == table_id,
-            cast(VirtualTableRecord.values, Text).like(needle),
+            cast(VirtualTableRecord.values, Text).ilike(needle),
         )
         .exists()
     )
@@ -1177,8 +1177,8 @@ async def delete_unused_media(
             VirtualTableRecordHistory.organization_id == organization_id,
             VirtualTableRecordHistory.table_id == table_id,
             or_(
-                cast(VirtualTableRecordHistory.before, Text).like(needle),
-                cast(VirtualTableRecordHistory.after, Text).like(needle),
+                cast(VirtualTableRecordHistory.before, Text).ilike(needle),
+                cast(VirtualTableRecordHistory.after, Text).ilike(needle),
             ),
         )
         .exists()
