@@ -74,14 +74,50 @@ jobs:
           python3 scripts/prepare_app_release.py "$TAG"
           rustup target add '${{ matrix.target }}'
           cd desktop && bun install --frozen-lockfile
-      - name: Require macOS signing and notarization
-        if: runner.os == 'macOS'
+      - name: Configure updater public key
         shell: bash
         env:
-          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_USER: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-        run: test -n "$CERTIFICATE" && test -n "$APPLE_USER" && test -n "$APPLE_APP_PASSWORD"
+          UPDATE_PUBLIC_KEY: ${{ vars.AGENTICOS_UPDATER_PUBLIC_KEY }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("desktop/src-tauri/tauri.release.conf.json")
+          config = json.loads(path.read_text())
+          config.setdefault("plugins", {}).setdefault("updater", {})["pubkey"] = os.environ["UPDATE_PUBLIC_KEY"]
+          path.write_text(json.dumps(config) + "\n")
+          PYTHON
+      - name: Require macOS signing and notarization
+        if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          names=(APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_ID APPLE_PASSWORD)
+          for name in "${names[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::macOS signing is enabled but $name is missing in apps-release"
+              exit 1
+            fi
+          done
+          delimiter=$(uuidgen)
+          for name in "${names[@]}"; do
+            printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "${!name}" "$delimiter" >> "$GITHUB_ENV"
+          done
+      - name: Announce ad-hoc macOS distribution
+        if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'
+        shell: bash
+        run: |
+          echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+          echo "::warning::macOS packages use ad-hoc signing without Apple notarization. First launch requires System Settings > Privacy & Security > Open Anyway. Updater signatures remain required."
       - name: Import Windows signing certificate
         if: runner.os == 'Windows'
         shell: pwsh
@@ -106,12 +142,6 @@ jobs:
           AGENTICOS_UPDATER_PUBLIC_KEY: ${{ vars.AGENTICOS_UPDATER_PUBLIC_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: desktop
           releaseId: ${{ needs.resolve.outputs.id }}

@@ -1023,6 +1023,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Offer Push preferences for workflow notifications, log alerts, page ownership
   changes and page requests, alongside their existing in-app and email controls.
 
+## [1.33.1] - 2026-11-01
+
+### Fixed
+
+- Publish ready-to-install desktop packages without requiring Apple Developer credentials. macOS packages use ad-hoc signing by default; first launch requires approval in Privacy & Security. Developer ID signing and notarization remain opt-in, and updater signatures stay mandatory.
+
 ## [1.33.0] - 2026-10-31
 
 ### Added

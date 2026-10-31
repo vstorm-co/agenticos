@@ -244,3 +244,113 @@ def test_release_requires_both_updater_keys_before_preparing_assets(
     )
     assert (result.returncode == 0) is allowed, result.stderr
     assert marker.exists() is allowed
+
+
+def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures() -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    steps = workflow["jobs"]["desktop"]["steps"]
+    gate = "vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true'"
+    signing = next(
+        step for step in steps if step.get("name") == "Require macOS signing and notarization"
+    )
+    assert signing["if"] == "runner.os == 'macOS' && " + gate
+    action = next(step for step in steps if "includeUpdaterJson" in step.get("with", {}))
+    assert not any(name.startswith("APPLE_") for name in action["env"])
+    assert signing["env"]["APPLE_CERTIFICATE"] == "${{ secrets.APPLE_CERTIFICATE }}"
+    assert action["env"]["TAURI_SIGNING_PRIVATE_KEY"] == "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+    assert action["with"]["includeUpdaterJson"] is True
+    notice = next(
+        step for step in steps if step.get("name") == "Announce ad-hoc macOS distribution"
+    )
+    assert notice["if"] == "runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'"
+    assert "Open Anyway" in notice["run"]
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        None,
+        "APPLE_CERTIFICATE",
+        "APPLE_CERTIFICATE_PASSWORD",
+        "APPLE_SIGNING_IDENTITY",
+        "APPLE_TEAM_ID",
+        "APPLE_ID",
+        "APPLE_PASSWORD",
+    ],
+)
+def test_enabled_macos_signing_refuses_each_missing_credential(
+    tmp_path: Path, missing: str | None
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Require macOS signing and notarization"
+    )
+    env = dict.fromkeys(step["env"], "test-credential")
+    if missing is not None:
+        env[missing] = ""
+    bash = shutil.which("bash")
+    assert bash is not None
+    output = tmp_path / "github-env"
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        env={**env, "PATH": os.environ["PATH"], "GITHUB_ENV": str(output)},
+        capture_output=True,
+        text=True,
+    )
+    assert (result.returncode == 0) is (missing is None)
+    assert "test-credential" not in result.stdout + result.stderr
+    if missing is not None:
+        assert missing in result.stdout
+        assert not output.exists()
+    else:
+        exported = output.read_text()
+        for name in env:
+            assert name + "<<" in exported
+
+
+def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Announce ad-hoc macOS distribution"
+    )
+    output = tmp_path / "github-env"
+    bash = shutil.which("bash")
+    assert bash is not None
+    subprocess.run(
+        [bash, "-c", step["run"]], env={"GITHUB_ENV": str(output)}, check=True, capture_output=True
+    )
+    assert output.read_text() == "APPLE_SIGNING_IDENTITY=-\n"
+
+
+def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_path: Path) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    steps = workflow["jobs"]["desktop"]["steps"]
+    step = next(s for s in steps if s.get("name") == "Configure updater public key")
+    action = next(s for s in steps if "includeUpdaterJson" in s.get("with", {}))
+    assert step["env"]["UPDATE_PUBLIC_KEY"] == action["env"]["AGENTICOS_UPDATER_PUBLIC_KEY"]
+    path = tmp_path / "desktop/src-tauri/tauri.release.conf.json"
+    path.parent.mkdir(parents=True)
+    config = {
+        "bundle": {"createUpdaterArtifacts": True},
+        "plugins": {"updater": {"endpoints": ["https://example.test/latest.json"]}},
+    }
+    path.write_text(json.dumps(config))
+    bash = shutil.which("bash")
+    assert bash is not None
+    subprocess.run(
+        [bash, "-c", step["run"]],
+        cwd=tmp_path,
+        env={"PATH": os.environ["PATH"], "UPDATE_PUBLIC_KEY": "release-public-key"},
+        check=True,
+        capture_output=True,
+    )
+    expected = {
+        **config,
+        "plugins": {"updater": {**config["plugins"]["updater"], "pubkey": "release-public-key"}},
+    }
+    assert json.loads(path.read_text()) == expected
+    assert config["bundle"]["createUpdaterArtifacts"] is True
