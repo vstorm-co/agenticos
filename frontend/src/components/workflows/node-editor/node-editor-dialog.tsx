@@ -40,7 +40,7 @@ import {
 } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
 import { validateGraph } from "@/components/workflows/validation";
-import { DIALOG_CANVAS, DIALOG_COLUMN, DIALOG_FILL, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
@@ -213,7 +213,7 @@ export function NodeEditorDialog({
         onDragOver={(event) => carriesField(event) && scrollNearEdge(event)}
         className={cn(
           "gap-0 p-0 sm:p-0",
-          withData ? [DIALOG_CANVAS, DIALOG_FILL] : [DIALOG_FORM, DIALOG_COLUMN],
+          withData ? [DIALOG_BROAD, DIALOG_COLUMN] : [DIALOG_FORM, DIALOG_COLUMN],
         )}
       >
         <header className="border-border flex items-start gap-3 border-b px-5 pt-5 pr-14 pb-4 sm:px-6 sm:pr-14">
@@ -256,7 +256,7 @@ export function NodeEditorDialog({
                   label={t(store.problemsRevealed ? "stepReviewNeeded" : "stepSetupRemaining", {
                     count: nodeProblems.length,
                   })}
-                  defaultOpen={store.problemsRevealed || readOnly}
+                  defaultOpen={definition === null}
                 >
                   <div className="max-h-28 space-y-2 overflow-y-auto p-1">
                     {nodeProblems.map((problem, index) => {
@@ -300,12 +300,9 @@ export function NodeEditorDialog({
             // The dialog only caps its height here, so `h-full` below it resolves to
             // nothing: the body itself is what scrolls, or a long form runs out of it.
             !withData && "overflow-y-auto",
-            withData &&
-              "grid grid-cols-1 overflow-y-auto lg:overflow-hidden [&>*]:px-6 [&>*]:py-5 lg:[&>*]:overflow-y-auto",
-            withInput &&
-              !runData &&
-              "lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.6fr)_minmax(0,0.85fr)]",
-            withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]",
+            withData && "bg-muted/20 grid grid-cols-1 items-start gap-5 overflow-y-auto p-5 sm:p-6",
+            withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)]",
+            withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)]",
             // A run's step is read for its data: Input and Output side by side,
             // the settings it ran with folded underneath.
             runData && withInput && "lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto]",
@@ -313,7 +310,12 @@ export function NodeEditorDialog({
           )}
         >
           {withInput && (
-            <div className="bg-muted/30 border-border min-w-0 lg:border-r">
+            <div
+              className={cn(
+                "bg-card min-w-0 rounded-xl border p-4 lg:row-start-1",
+                runData ? "lg:col-start-1" : "lg:col-start-2",
+              )}
+            >
               <InputPane
                 graph={graph}
                 catalog={catalog}
@@ -325,9 +327,10 @@ export function NodeEditorDialog({
           )}
           <div
             className={cn(
-              "order-first min-w-0 space-y-5 lg:order-none",
+              "bg-card order-first min-w-0 space-y-5 rounded-xl border p-5",
+              !runData && "lg:col-start-1 lg:row-span-2 lg:row-start-1",
               !withData && "px-6 py-5",
-              runData && "border-border lg:order-last lg:col-span-2 lg:border-t",
+              runData && "order-last lg:col-span-2 lg:col-start-1 lg:row-start-2",
             )}
           >
             {definition !== null &&
@@ -370,7 +373,7 @@ export function NodeEditorDialog({
               ))}
           </div>
           {withData && (
-            <div className="bg-muted/30 border-border min-w-0 lg:border-l">
+            <div className="bg-card min-w-0 rounded-xl border p-4 lg:col-start-2">
               <OutputPane
                 readOnly={runData}
                 workflowId={workflowId}

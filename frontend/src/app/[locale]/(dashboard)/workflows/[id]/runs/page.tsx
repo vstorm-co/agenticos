@@ -12,7 +12,14 @@ import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { WorkflowStats } from "@/components/workflows/runs/workflow-stats";
 import { usePermissions, useWorkflow, useWorkflowRuns, useWorkflowVersion } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { declaredFields, sampleRunInput, startsByHand } from "@/lib/workflows/triggers";
+import {
+  declaredFields,
+  sampleRunInput,
+  startsByHand,
+  entryNodes,
+  entryGraph,
+} from "@/lib/workflows/triggers";
+import type { WorkflowGraph } from "@/lib/workflows/types";
 import { Perm } from "@/types/permissions";
 
 interface PageProps {
@@ -47,8 +54,24 @@ export default function WorkflowRunsPage({ params }: PageProps) {
   const canRunLive =
     can(Perm.workflowsRun) &&
     workflow?.current_version_id != null &&
-    startsByHand(workflow.live_trigger);
+    (workflow.live_triggers?.length
+      ? workflow.live_triggers.some((trigger) => startsByHand(trigger))
+      : startsByHand(workflow.live_trigger));
 
+  const choices = (graph: WorkflowGraph | null | undefined, byHand = false) =>
+    graph === null || graph === undefined
+      ? []
+      : entryNodes(graph)
+          .filter((node) => !byHand || startsByHand(node.definition_id))
+          .map((node) => {
+            const branch = entryGraph(graph, node.id);
+            return {
+              id: node.id,
+              name: node.label ?? node.definition_id,
+              fields: declaredFields(branch),
+              sample: sampleRunInput(branch),
+            };
+          });
   return (
     <div className="space-y-6">
       <PageHeader
@@ -82,11 +105,13 @@ export default function WorkflowRunsPage({ params }: PageProps) {
           canTest={canTest}
           busy={start.isPending}
           sampleInput={sampleRunInput(workflow?.draft_graph ?? null)}
+          entries={choices(workflow?.draft_graph)}
+          liveEntries={choices(live?.graph, true)}
           testFields={declaredFields(workflow?.draft_graph)}
           liveFields={declaredFields(live?.graph)}
-          onStart={({ mode, input }) =>
+          onStart={({ mode, input, entry_node_id }) =>
             start.mutate(
-              { workflow_id: id, mode, input },
+              { workflow_id: id, mode, input, ...(entry_node_id ? { entry_node_id } : {}) },
               {
                 onSuccess: (run) => {
                   setStartOpen(false);

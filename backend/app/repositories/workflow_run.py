@@ -91,6 +91,7 @@ async def create_run(
     execution_api_key_id: UUID | None = None,
     key_scopes: list[str] | None = None,
     inline_result_bytes: int = 0,
+    entry_node_id: UUID | None = None,
 ) -> WorkflowRun:
     # `root_run_id` is NOT NULL, so it must be known before the first
     # `INSERT` - not filled in after a flush "mints" the id, which never gets
@@ -105,6 +106,7 @@ async def create_run(
         workflow_id=workflow_id,
         workflow_version_id=workflow_version_id,
         draft_graph_snapshot=draft_graph_snapshot,
+        entry_node_id=entry_node_id,
         mode=mode,
         triggered_by=triggered_by,
         public_origin=public_origin,

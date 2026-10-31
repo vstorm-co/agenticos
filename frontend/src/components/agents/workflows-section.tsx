@@ -28,8 +28,10 @@ export function workflowIdsOf(config: Record<string, unknown>): string[] {
  */
 export function agentStartable(workflow: WorkflowRead): boolean {
   if (workflow.status === "archived" || workflow.current_version_id === null) return false;
-  const trigger = workflow.live_trigger;
-  return trigger === null || BY_HAND_TRIGGERS.has(trigger) || trigger === WORKFLOW_CALL_TRIGGER;
+  return (workflow.live_triggers?.length ? workflow.live_triggers : [workflow.live_trigger]).some(
+    (trigger) =>
+      trigger === null || BY_HAND_TRIGGERS.has(trigger) || trigger === WORKFLOW_CALL_TRIGGER,
+  );
 }
 
 interface WorkflowsSectionProps {

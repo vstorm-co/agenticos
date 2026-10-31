@@ -633,6 +633,7 @@ class TableTriggerConsumer:
                     ctx,
                     workflow,
                     version,
+                    entry_node_id=trigger.node_instance_id,
                     triggered_by=_TRIGGERED_BY[snapshot.event],
                     run_input=payload,
                     causation=causation,

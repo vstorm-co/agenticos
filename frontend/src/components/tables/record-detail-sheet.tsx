@@ -21,6 +21,8 @@ import { useTableViewStore } from "@/stores";
 import { RecordCellEditor } from "./record-cell-editor";
 import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
 import { recordCellText } from "@/lib/format-cell-value";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/utils";
 
 import { ColumnTypeIcon } from "./column-type-icon";
@@ -63,6 +65,7 @@ export function RecordDetailSheet({
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
   const { commit, fetchRecord } = useRecordMutation(tableId);
   const deleteLater = useDeferredDelete(tableId);
+  const [expanded, setExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const conflicts = useTableViewStore((state) => state.conflicts);
   const setConflict = useTableViewStore((state) => state.setConflict);
@@ -167,13 +170,27 @@ export function RecordDetailSheet({
   // The shared sheet owns focus and keyboard dismissal; closing still commits the focused field.
   return (
     <Sheet open={open} onOpenChange={close}>
-      <SheetContent side="right" className="w-full sm:w-[32rem]">
+      <SheetContent
+        side="right"
+        className={cn("w-full", expanded ? "inset-x-0 sm:w-screen" : "sm:w-[32rem]")}
+      >
         <SheetHeader>
           <SheetTitle className="truncate">{heading || t("title")}</SheetTitle>
-          <SheetClose onClick={close} />
+          <div className="flex shrink-0 flex-row-reverse items-center gap-1">
+            <SheetClose onClick={close} />
+            <WorkspaceFullscreenButton
+              expanded={expanded}
+              onToggle={() => setExpanded((value) => !value)}
+            />
+          </div>
         </SheetHeader>
         {record && (
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6">
+          <div
+            className={cn(
+              "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6",
+              expanded && "w-full sm:px-8 sm:py-6",
+            )}
+          >
             {columns
               .filter((column) => !column.archived)
               .map((column) => {
@@ -193,6 +210,7 @@ export function RecordDetailSheet({
                     </Label>
                     <RecordCellEditor
                       column={column}
+                      fillEditor={expanded && column.type === "rich_text"}
                       value={value}
                       links={record.links?.[column.id]}
                       disabled={!canEdit}

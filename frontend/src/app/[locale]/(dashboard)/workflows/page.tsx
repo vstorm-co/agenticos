@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useMemo, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
@@ -64,6 +66,11 @@ function compare(sort: Sort): (a: WorkflowRead, b: WorkflowRead) => number {
  * seed a new workflow's draft and route straight into the editor.
  */
 export default function WorkflowsPage() {
+  const {
+    ref: galleryRef,
+    expanded: galleryFullscreen,
+    toggle: toggleGalleryFullscreen,
+  } = useWorkspaceFullscreen();
   const t = useTranslations("pages.workflows");
   const router = useRouter();
   const tc = useTranslations("common");
@@ -130,7 +137,11 @@ export default function WorkflowsPage() {
 
   const onChoose = (choice: WorkflowCreateChoice) =>
     create.mutate(
-      { name: choice.name, graph: choice.graph },
+      {
+        name: choice.name,
+        graph: choice.graph,
+        ...(choice.template_id ? { template_id: choice.template_id } : {}),
+      },
       {
         onSuccess: (workflow) => {
           setCreateOpen(false);
@@ -246,8 +257,15 @@ export default function WorkflowsPage() {
       />
 
       <ListCard
-        namedByPage
+        ref={galleryRef}
         fill
+        role={galleryFullscreen ? "dialog" : undefined}
+        aria-modal={galleryFullscreen || undefined}
+        aria-label={t("catalog")}
+        className={
+          galleryFullscreen ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined
+        }
+        namedByPage
         title={t("catalog")}
         counted={
           loading
@@ -256,7 +274,15 @@ export default function WorkflowsPage() {
               ? t("shownCount", { count: list.total })
               : t("shownOfTotal", { visible: list.matched, total: list.total })
         }
-        controls={statusControls}
+        controls={
+          <div className="flex flex-wrap items-center gap-2">
+            {statusControls}
+            <WorkspaceFullscreenButton
+              expanded={galleryFullscreen}
+              onToggle={toggleGalleryFullscreen}
+            />
+          </div>
+        }
       >
         {loading ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -299,14 +325,16 @@ export default function WorkflowsPage() {
                 />
               ))}
             </div>
-            <Pager
-              page={list.page}
-              pageCount={list.pageCount}
-              matched={list.matched}
-              total={list.total}
-              onPage={list.setPage}
-              counted={t("shownCount", { count: list.total })}
-            />
+            {list.pageCount > 1 && (
+              <Pager
+                page={list.page}
+                pageCount={list.pageCount}
+                matched={list.matched}
+                total={list.total}
+                onPage={list.setPage}
+                counted={t("shownCount", { count: list.total })}
+              />
+            )}
           </div>
         )}
       </ListCard>
@@ -316,6 +344,7 @@ export default function WorkflowsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onChoose={onChoose}
+        canProvisionTables={can(Perm.tablesCreate) && can(Perm.tablesView) && can(Perm.tablesEdit)}
         busy={create.isPending}
       />
     </div>

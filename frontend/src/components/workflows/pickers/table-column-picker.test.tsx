@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,7 +43,9 @@ function mount(
   props: Partial<{ disabled: boolean; error: string }> = {},
 ) {
   const onChange = vi.fn();
-  render(<TableColumnPicker value={value} onChange={onChange} {...props} />);
+  const view = render(<TableColumnPicker value={value} onChange={onChange} {...props} />);
+  const details = view.container.querySelector("details");
+  if (details && !details.open) fireEvent.click(details.querySelector("summary")!);
   return onChange;
 }
 
@@ -193,4 +195,11 @@ describe("TableColumnPicker", () => {
     rerender(<TableColumnPicker value={ref()} onChange={onChange} />);
     expect(screen.getByRole("checkbox", { name: /Total/ })).toBeInTheDocument();
   });
+});
+
+it("keeps optional column selection folded until requested", async () => {
+  render(<TableColumnPicker value={ref()} onChange={vi.fn()} />);
+  expect(document.querySelector("details")).not.toHaveAttribute("open");
+  await userEvent.click(screen.getByText("Columns", { exact: true }));
+  expect(screen.getByRole("checkbox", { name: "Email" })).toBeVisible();
 });

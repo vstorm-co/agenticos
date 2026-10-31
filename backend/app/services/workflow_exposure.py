@@ -106,7 +106,7 @@ from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
 from app.workflows.nodes.trigger_github._handler import GithubTriggerConfig
 from app.workflows.nodes.trigger_gmail._handler import GmailTriggerConfig
 from app.workflows.nodes.trigger_outlook._handler import OutlookTriggerConfig
-from app.workflows.triggers import answers_webhook
+from app.workflows.triggers import answers_webhook, entry_graph
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +296,16 @@ class WorkflowExposureService:
         if exposure is None:
             return None
         return _read(exposure, await self._version_number(exposure))
+
+    async def list_for_workflow(
+        self, ctx: AuthContext, workflow_id: UUID
+    ) -> list[WorkflowExposureRead]:
+        """The registrations visible to a workflow viewer; no signing secrets."""
+        workflow = await self._workflow(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        exposures = await workflow_exposure_repo.list_for_workflow(
+            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+        )
+        return [_read(exposure, await self._version_number(exposure)) for exposure in exposures]
 
     async def switch_on_webhook(
         self, ctx: AuthContext, workflow: Workflow, version: WorkflowVersion, node_id: UUID
@@ -523,7 +533,10 @@ class WorkflowExposureService:
         if not mailbox or ctx.has(Perm.MCP_MANAGE):
             return
         current = await workflow_exposure_repo.get_for_workflow(
-            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+            self.db,
+            workflow_id=workflow.id,
+            organization_id=ctx.organization_id,
+            adapter=ExposureAdapter.OUTLOOK.value,
         )
         if current is not None and current.adapter == ExposureAdapter.OUTLOOK.value:
             pinned = cast(
@@ -650,16 +663,16 @@ class WorkflowExposureService:
         await _queue_due_check(self.db, exposure)
         return _read(exposure, version.version)
 
-    async def switch_off(self, ctx: AuthContext, workflow: Workflow) -> None:
-        """Remove the workflow's exposure: its live version starts some other way.
-
-        Runs it already admitted keep going.
-        """
-        exposure = await workflow_exposure_repo.get_for_workflow(
+    async def switch_off(
+        self, ctx: AuthContext, workflow: Workflow, *, keep_node_ids: frozenset[UUID] = frozenset()
+    ) -> None:
+        """Remove registrations absent from the newly published graph."""
+        exposures = await workflow_exposure_repo.list_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
-        if exposure is not None:
-            await self._remove(ctx, exposure)
+        for exposure in exposures:
+            if exposure.node_instance_id not in keep_node_ids:
+                await self._remove(ctx, exposure)
 
     async def set_active(
         self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID, data: WorkflowExposureUpdate
@@ -703,7 +716,10 @@ class WorkflowExposureService:
         """Keep the workflow's schedule in its timezone, just changed: a cron schedule
         that is on counts to its next tick there from now. An interval keeps its count."""
         exposure = await workflow_exposure_repo.get_for_workflow(
-            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+            self.db,
+            workflow_id=workflow.id,
+            organization_id=ctx.organization_id,
+            adapter=ExposureAdapter.SCHEDULE.value,
         )
         timezone = workflow_timezone(workflow)
         if (
@@ -728,20 +744,16 @@ class WorkflowExposureService:
         await _queue_due_check(self.db, exposure)
 
     async def pause(self, ctx: AuthContext, workflow: Workflow) -> None:
-        """Pause the workflow's webhook or schedule, if it has one that is on.
-
-        What archiving a workflow does, and so needs no more than editing it: a
-        pause starts nothing, and nothing runs as anyone because of it.
-        """
-        exposure = await workflow_exposure_repo.get_for_workflow(
+        """Archiving pauses every registration without widening authority."""
+        exposures = await workflow_exposure_repo.list_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
-        if exposure is None or not exposure.is_active:
-            return
-        await workflow_exposure_repo.update(
-            self.db, exposure=exposure, update_data={"is_active": False}
-        )
-        await self._audit(ctx, exposure, "workflow.exposure_paused")
+        for exposure in exposures:
+            if exposure.is_active:
+                await workflow_exposure_repo.update(
+                    self.db, exposure=exposure, update_data={"is_active": False}
+                )
+                await self._audit(ctx, exposure, "workflow.exposure_paused")
 
     async def rotate_secret(
         self, ctx: AuthContext, workflow_id: UUID, exposure_id: UUID
@@ -849,6 +861,7 @@ class WorkflowExposureService:
             ctx,
             workflow,
             version,
+            entry_node_id=exposure.node_instance_id,
             triggered_by=WorkflowRunTrigger.FORM,
             run_input=submission.values,
         )
@@ -927,6 +940,7 @@ class WorkflowExposureService:
             ctx,
             workflow,
             version,
+            entry_node_id=exposure.node_instance_id,
             triggered_by=WorkflowRunTrigger.CHANNEL_MESSAGE,
             run_input=message.model_dump(mode="json"),
         )
@@ -1319,6 +1333,7 @@ class WorkflowExposureService:
             ctx,
             workflow,
             version,
+            entry_node_id=exposure.node_instance_id,
             triggered_by=WorkflowRunTrigger.GITHUB,
             run_input=delivery.model_dump(mode="json"),
         )
@@ -1413,6 +1428,7 @@ class WorkflowExposureService:
             ctx,
             workflow,
             version,
+            entry_node_id=exposure.node_instance_id,
             triggered_by=WorkflowRunTrigger.WEBHOOK,
             run_input={"body": payload, "delivery_id": delivery_id},
         )
@@ -1428,7 +1444,9 @@ class WorkflowExposureService:
             exposure=exposure,
             update_data={"last_fired_at": datetime.now(UTC), "last_run_id": run.id},
         )
-        if answers_webhook(WorkflowGraph.model_validate(version.graph)):
+        if answers_webhook(
+            entry_graph(WorkflowGraph.model_validate(version.graph), exposure.node_instance_id)
+        ):
             answer = await self._answer(run.id)
             if answer is not None:
                 return answer
@@ -1525,6 +1543,7 @@ class WorkflowExposureService:
                         ctx,
                         workflow,
                         version,
+                        entry_node_id=exposure.node_instance_id,
                         triggered_by=WorkflowRunTrigger.SCHEDULE,
                         run_input={"fired_at": now.isoformat(), "input": exposure.run_input},
                     )
@@ -1657,7 +1676,10 @@ class WorkflowExposureService:
         after removing whatever other trigger's exposure the workflow had."""
         require_human_publisher(ctx)
         exposure = await workflow_exposure_repo.get_for_workflow(
-            self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
+            self.db,
+            workflow_id=workflow.id,
+            organization_id=ctx.organization_id,
+            adapter=adapter.value,
         )
         if exposure is None:
             return None

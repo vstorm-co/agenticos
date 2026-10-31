@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   getWorkflowExposure,
+  listWorkflowExposures,
   renewWorkflowFormLink,
   rotateWorkflowExposureSecret,
   updateWorkflowExposure,
@@ -19,17 +20,18 @@ import {
  * secret and replacing a form's link. Rotate resolves with the secret the server
  * returns once; the caller shows it, since nothing reads it back later.
  */
-export function useWorkflowExposure(workflowId: string) {
+export function useWorkflowExposure(workflowId: string, trigger?: string | null) {
   const t = useTranslations("pages.workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
-  const key = qk.workflows.exposure(workflowId);
+  const key = [...qk.workflows.exposure(workflowId), ...(trigger ? ["all"] : [])];
   const refresh = () => void queryClient.invalidateQueries({ queryKey: key });
   const fail = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
 
   const { data, isLoading } = useQuery({
     queryKey: key,
-    queryFn: () => getWorkflowExposure(workflowId),
+    queryFn: async () =>
+      trigger ? listWorkflowExposures(workflowId) : getWorkflowExposure(workflowId),
   });
   const setActive = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
@@ -56,5 +58,9 @@ export function useWorkflowExposure(workflowId: string) {
     },
     onError: fail,
   });
-  return { exposure: data ?? null, isLoading, setActive, rotate, renewLink };
+  const adapter = trigger?.replace("trigger.", "").replace("channel_message", "channel");
+  const exposure = Array.isArray(data)
+    ? (data.find((item) => item.adapter === adapter) ?? null)
+    : (data ?? null);
+  return { exposure, isLoading, setActive, rotate, renewLink };
 }

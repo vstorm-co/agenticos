@@ -34,7 +34,7 @@ import {
   UNKNOWN,
 } from "./schema";
 import { AUTHOR_NAMED_PORTS, ERROR_PORT, routesErrors } from "@/lib/workflows/ports";
-import { isTrigger } from "@/lib/workflows/triggers";
+import { isTrigger, entryNodes, UNATTENDED_TRIGGERS } from "@/lib/workflows/triggers";
 import {
   anyPairRunsTogether,
   canRunTogether,
@@ -110,9 +110,15 @@ export function rule1SingleEntry(graph: WorkflowGraph, definitions: DefinitionMa
   if (!nodeIds(graph).has(graph.entry_node_id)) return [graphLevel("entry-not-in-graph")];
   const incoming = new Set(graph.edges.map((e) => e.target_node_id));
   if (incoming.has(graph.entry_node_id)) return [graphLevel("entry-is-edge-target")];
-  return graph.nodes
-    .filter((n) => n.id !== graph.entry_node_id && isTrigger(definitionFor(definitions, n.id)))
-    .map((n) => node(n.id, "trigger-not-entry"));
+  const seen = new Set<string>();
+  const problems: RawProblem[] = [];
+  for (const node of graph.nodes.filter((n) => isTrigger(definitionFor(definitions, n.id)))) {
+    if (incoming.has(node.id)) problems.push(nodeField(node.id, "", "entry-is-edge-target"));
+    if (UNATTENDED_TRIGGERS.has(node.definition_id) && seen.has(node.definition_id))
+      problems.push(nodeField(node.id, "", "trigger-not-entry"));
+    seen.add(node.definition_id);
+  }
+  return problems;
 }
 
 // Rule 2 — reachable outputs.
@@ -125,7 +131,7 @@ export function rule2ReachableOutputs(
   const topLevel = graph.nodes.filter((n) => !nodeScope.has(n.id)).map((n) => n.id);
   const adjacency = forwardEdges(graph);
   const seen = new Set<string>();
-  const queue: string[] = [graph.entry_node_id];
+  const queue: string[] = entryNodes(graph).map((node) => node.id);
   while (queue.length > 0) {
     const current = queue.shift() as string;
     if (seen.has(current)) continue;

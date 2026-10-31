@@ -52,18 +52,39 @@ async def active_by_workflow(
             WorkflowExposure.workflow_id.in_(workflow_ids),
         )
     )
-    return {row.workflow_id: row.is_active for row in result.all()}
+    states: dict[UUID, bool] = {}
+    for row in result.all():
+        states[row.workflow_id] = states.get(row.workflow_id, False) or row.is_active
+    return states
 
 
-async def get_for_workflow(
+async def list_for_workflow(
     db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
-) -> WorkflowExposure | None:
-    """The workflow's exposure, if its live trigger is a webhook or a schedule."""
+) -> list[WorkflowExposure]:
+    """All registered entries, in stable creation order."""
     result = await db.execute(
-        select(WorkflowExposure).where(
+        select(WorkflowExposure)
+        .where(
             WorkflowExposure.workflow_id == workflow_id,
             WorkflowExposure.organization_id == organization_id,
         )
+        .order_by(WorkflowExposure.created_at, WorkflowExposure.id)
+    )
+    return list(result.scalars())
+
+
+async def get_for_workflow(
+    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID, adapter: str | None = None
+) -> WorkflowExposure | None:
+    """One kind's registration, or the oldest for the legacy single-entry endpoint."""
+    query = select(WorkflowExposure).where(
+        WorkflowExposure.workflow_id == workflow_id,
+        WorkflowExposure.organization_id == organization_id,
+    )
+    if adapter is not None:
+        query = query.where(WorkflowExposure.adapter == adapter)
+    result = await db.execute(
+        query.order_by(WorkflowExposure.created_at, WorkflowExposure.id).limit(1)
     )
     return result.scalar_one_or_none()
 

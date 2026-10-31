@@ -42,7 +42,9 @@
     "filesRoot": "Pliki projektu",
     "moreInformation": "Więcej informacji",
     "details": "Szczegóły",
-    "resourceActions": "Więcej działań dla {name}"
+    "resourceActions": "Więcej działań dla {name}",
+    "workspaceExpand": "Pełny ekran",
+    "workspaceCollapse": "Opuść pełny ekran"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -3332,24 +3334,20 @@
       "useTemplate": "Użyj",
       "templates": {
         "sequence": {
-          "description": "Dwa już połączone kroki - punkt wyjścia dla liniowego przepływu.",
+          "description": "Przekaż przykładową wiadomość między dwoma połączonymi krokami. Gotowy do uruchomienia.",
           "name": "Sekwencja dwóch kroków"
         },
         "starter": {
-          "description": "Jeden krok do przemianowania i podłączenia - najmniejszy przydatny punkt wyjścia.",
+          "description": "Uruchom prosty lokalny krok i zobacz wynik. Bez kont i konfiguracji.",
           "name": "Na start"
         },
-        "leadIntake": {
-          "name": "Przyjmowanie leadów",
-          "description": "Leady z webhooka zapisywane w tabeli, a wywołujący dostaje nowy rekord w odpowiedzi."
+        "publicApi": {
+          "name": "Publiczne API → tabela",
+          "description": "Pobierz przykładowy wpis i zapisz go w automatycznie przygotowanej tabeli. Bez klucza API i konfiguracji."
         },
-        "failureAlert": {
-          "name": "Alert na Slacku przy błędzie",
-          "description": "Wiadomość na Slacku z nazwą workflow, kroku i błędem, gdy inny workflow się nie powiedzie."
-        },
-        "dailySummary": {
-          "name": "Dzienne podsumowanie",
-          "description": "W każdy dzień roboczy o 8 agent pisze podsumowanie, a zespół je dostaje."
+        "markdownNotes": {
+          "name": "Notatnik Markdown",
+          "description": "Utwórz tabelę z notatką Markdown i frontmatter. Gotowy do uruchomienia, bez podłączania kont."
         }
       },
       "notFound": "Nie znaleziono workflow",
@@ -3613,8 +3611,6 @@
       "activeHintOff": "Jego wyzwalacz jest wstrzymany. Włącz, aby znów uruchamiał przebiegi.",
       "activeTurnedOn": "Workflow włączony.",
       "activeTurnedOff": "Workflow wstrzymany.",
-      "renameHint": "Kliknij, aby zmienić nazwę",
-      "renameLabel": "Nazwa workflow",
       "addTag": "Tag",
       "tagPlaceholder": "Dodaj tag i naciśnij Enter",
       "removeTag": "Usuń tag {tag}",
@@ -3793,9 +3789,6 @@
       "importUnresolved": "Plik nie zawiera agentów, tabel, sekretów ani członków innego wdrożenia. Wybierz je w edytorze przed publikacją:",
       "importNothingToChoose": "Plik niczego nie pominął. Edytor oznaczy wszystko, czego krok jeszcze potrzebuje przed publikacją.",
       "automationsHeading": "Automatyzacje",
-      "describe": "Dodaj opis",
-      "describeHint": "Kliknij, aby edytować opis",
-      "describeLabel": "Opis workflow",
       "runFilterSince": "Uruchomione",
       "runSince": {
         "1h": "Ostatnia godzina",
@@ -3891,7 +3884,16 @@
       "importJson": "JSON workflowa",
       "settingsExecution": "Czas wykonania i obsługa błędów",
       "settingsHistory": "Historia i przechowywanie runów",
-      "importReadError": "Nie udało się odczytać pliku. Wybierz go ponownie lub wklej jego JSON."
+      "importReadError": "Nie udało się odczytać pliku. Wybierz go ponownie lub wklej jego JSON.",
+      "detailsName": "Nazwa workflow",
+      "detailsDescription": "Opis",
+      "detailsTags": "Tagi",
+      "detailsAutosave": "Zmiany tych informacji zapisują się po opuszczeniu pola.",
+      "startRunEntry": "Rozpocznij od",
+      "importChooseFile": "Wybierz plik workflow",
+      "importDropHint": "Upuść plik .workflow.json lub kliknij, aby go wybrać",
+      "templatesNeedTables": "Wymaga uprawnień do tworzenia i edycji tabel.",
+      "cardNoDescription": "Brak opisu."
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -9289,7 +9291,7 @@
     "created": "Utworzono workflow",
     "duplicated": "Zduplikowano workflow",
     "publishedVersion": "Opublikowana wersja {version}",
-    "validationTriggerNotEntry": "Workflow startuje od jednego wyzwalacza. Usuń ten albo dodaj go z palety, żeby zastąpił obecny.",
+    "validationTriggerNotEntry": "Użyj po jednym wyzwalaczu każdego rodzaju automatycznego.",
     "triggerHintManual": "Uruchom go przyciskiem Run w prawym górnym rogu edytora albo ze strony runów. Zadeklaruj pola, żeby prosił o nie przy starcie.",
     "triggerHintChat": "Członkowie wybierają ten workflow w czacie. Kolejne kroki czytają wiadomość jako prompt, razem z rozmową i nadawcą.",
     "triggerHintWebhook": "Publikacja daje temu workflow własny adres i sekret do podpisu, które zostają takie same przy kolejnych publikacjach. Kolejne kroki czytają JSON dostawy jako body.",
@@ -9564,7 +9566,7 @@
     },
     "codeArgKeys": "Klucze args",
     "codeKeysHint": "Tab wcina, a Shift+Tab cofa wcięcie. Naciśnij Esc, a potem Tab, by opuścić edytor.",
-    "validationConfigNotSet": "Wymagane: bez tego krok się nie uruchomi.",
+    "validationConfigNotSet": "Pole wymagane.",
     "versionCompare": "Porównaj ze szkicem",
     "versionShow": "Pokaż tę wersję",
     "diffListLabel": "Co się zmieniło",
@@ -9809,7 +9811,12 @@
     "pickerApiKeyNew": "Dodaj klucz API",
     "toolbarDisplay": "Opcje kanwy",
     "stepOutputFields": "Oczekiwane pola wyjściowe",
-    "stepReviewSetup": "Sprawdź konfigurację przed testem"
+    "stepReviewSetup": "Sprawdź konfigurację przed testem",
+    "noteSize": "Rozmiar notatki",
+    "noteSizeSmall": "Kompaktowa",
+    "noteSizeWide": "Szeroka",
+    "noteSizeLarge": "Duża",
+    "noteExpand": "Otwórz notatkę"
   },
   "artifacts": {
     "title": "Aplikacje",

@@ -4,7 +4,7 @@ import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflow
 /**
  * The trigger nodes a workflow starts from - `app/workflows/triggers.py`.
  *
- * A workflow starts from one trigger, its entry: by hand or the API, a chat
+ * A workflow has independent trigger roots, with one default entry: by hand or the API, a chat
  * message, a signed webhook, a GitHub repository's events, a schedule, a table
  * record, a public form, a message to a bot or an email. Publishing a
  * version is what switches its trigger on.
@@ -43,6 +43,69 @@ export const FIELD_TRIGGERS: ReadonlySet<string> = new Set([
   WORKFLOW_CALL_TRIGGER,
   FORM_TRIGGER,
 ]);
+
+export const TRIGGER_IDS: ReadonlySet<string> = new Set([
+  MANUAL_TRIGGER,
+  API_TRIGGER,
+  CHAT_TRIGGER,
+  WEBHOOK_TRIGGER,
+  SCHEDULE_TRIGGER,
+  TABLE_RECORD_TRIGGER,
+  WORKFLOW_FAILED_TRIGGER,
+  WORKFLOW_CALL_TRIGGER,
+  FORM_TRIGGER,
+  CHANNEL_MESSAGE_TRIGGER,
+  GITHUB_TRIGGER,
+  GMAIL_TRIGGER,
+  OUTLOOK_TRIGGER,
+]);
+export const UNATTENDED_TRIGGERS: ReadonlySet<string> = new Set([
+  WEBHOOK_TRIGGER,
+  SCHEDULE_TRIGGER,
+  TABLE_RECORD_TRIGGER,
+  FORM_TRIGGER,
+  CHANNEL_MESSAGE_TRIGGER,
+  GITHUB_TRIGGER,
+  GMAIL_TRIGGER,
+  OUTLOOK_TRIGGER,
+]);
+
+/** Independent starts, with the default first. */
+export function entryNodes(graph: WorkflowGraph): NodeInstance[] {
+  const primary = graph.nodes.find((node) => node.id === graph.entry_node_id);
+  return [
+    ...(primary ? [primary] : []),
+    ...graph.nodes.filter(
+      (node) => node.id !== graph.entry_node_id && TRIGGER_IDS.has(node.definition_id),
+    ),
+  ];
+}
+
+/** The steps that can run from a chosen start. */
+export function entryGraph(graph: WorkflowGraph, entryId: string): WorkflowGraph {
+  const active = new Set<string>();
+  const queue = [entryId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === undefined || active.has(id)) continue;
+    active.add(id);
+    queue.push(
+      ...graph.edges
+        .filter((edge) => edge.source_node_id === id)
+        .map((edge) => edge.target_node_id),
+    );
+  }
+  return {
+    ...graph,
+    entry_node_id: entryId,
+    nodes: graph.nodes.filter((node) => active.has(node.id)),
+    edges: graph.edges.filter(
+      (edge) => active.has(edge.source_node_id) && active.has(edge.target_node_id),
+    ),
+    bindings: graph.bindings.filter((binding) => active.has(binding.target_node_id)),
+    scopes: [],
+  };
+}
 
 /** Whether a catalog entry is a trigger - a way a run of the workflow begins. */
 export function isTrigger(definition: Pick<NodeDefinition, "category"> | null): boolean {

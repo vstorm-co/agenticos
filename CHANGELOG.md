@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Full-screen workspaces and ready templates.** Expand a table, an entire record or workflow run history without remounting editors. Catalogs fit their contents, cards keep actions on one row, tables lose redundant frames and workflow import accepts a dropped file. Public API and Markdown notebook templates provision a private table and a valid draft automatically; later runs reuse it and upsert the example record.
+
+- **Independent workflow starts.** Add different triggers to the same canvas, choose a start for a test, and run only its reachable branch. Publication retains each webhook or schedule registration; Active controls all of them. Existing single-entry workflows remain compatible.
+- **Architect builds automations and tables.** Platform tools discover step schemas, create and revise drafts, test and inspect runs, publish reviewed workflows and manage typed table records. Bundled skills explain API integrations beyond the MCP gallery and callable workflow tools. Signing secrets are withheld from model results.
+- **Simpler workflow editing.** Step configuration and data use compact cards, record fields follow table columns, and setup messages stay folded. Workflow metadata moves into Settings; notes gain an expanded editor, size presets and larger resize handles. Canvas menus have clear icon spacing.
+
 - **Rich text columns in Tables.** Choose Markdown for notes with headings, task lists, tables, links and code, with source highlighting, preview and an expanded editor. Optional YAML frontmatter is preserved with the document and shown separately in preview. API writes, text queries, CSV round-trips and conversions to and from plain text keep the source intact.
 
 - **A published page can show a workflow's log live.** `publish_artifact` takes a

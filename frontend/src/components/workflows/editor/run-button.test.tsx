@@ -105,3 +105,30 @@ describe("RunButton", () => {
     expect(store.getState().problemsRevealed).toBe(true);
   });
 });
+
+it("offers independent starts and sends the selected entry", async () => {
+  seed();
+  const graph = store.getState().graph!;
+  const webhook = {
+    ...graph.nodes[0]!,
+    id: "hook",
+    definition_id: "trigger.webhook",
+    label: "Incoming request",
+  };
+  store.getState().seedGraph({ ...graph, nodes: [...graph.nodes, webhook] });
+  const definition = makeDefinition({
+    id: "trigger.webhook",
+    category: "triggers",
+    ports: [port("out", "output", null)],
+  });
+  render(<RunButton workflowId="wf" catalog={[...CATALOG, definition]} onStarted={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Test draft" }));
+  expect(mutate).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("combobox", { name: "Start from" }));
+  await userEvent.click(screen.getByRole("option", { name: "Incoming request" }));
+  await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+  expect(mutate).toHaveBeenCalledWith(
+    expect.objectContaining({ entry_node_id: "hook", input: { body: {}, delivery_id: "test" } }),
+    expect.anything(),
+  );
+});

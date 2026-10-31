@@ -17,10 +17,12 @@ import {
 } from "@/components/ui";
 import { CodeArea } from "@/components/ui/code-area";
 import { DIALOG_BODY, DIALOG_BROAD, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import { markdownDocument } from "@/lib/markdown-document";
 
 /** A Markdown source and reader over the same buffered cell; never serializes the document. */
 export function MarkdownCellEditor({
+  fill,
   id,
   label,
   value,
@@ -31,6 +33,7 @@ export function MarkdownCellEditor({
   describedBy,
 }: {
   id: string;
+  fill?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -138,7 +141,14 @@ export function MarkdownCellEditor({
           setExpanded(open);
         }}
       >
-        <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border">{editor(id)}</div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-col overflow-hidden rounded-lg border",
+            fill && "h-[max(24rem,calc(100dvh-22rem))]",
+          )}
+        >
+          {editor(id)}
+        </div>
         <p className="text-muted-foreground text-xs">{t("hint")}</p>
         <DialogContent ref={dialog} className={`${DIALOG_BROAD} ${DIALOG_FILL}`}>
           <DialogHeader>

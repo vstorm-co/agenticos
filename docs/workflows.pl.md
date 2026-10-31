@@ -1,5 +1,5 @@
 ---
-source_sha: "fd2e6c03d164"
+source_sha: "2c696c7b6c08"
 ---
 
 # Workflows { #workflows }
@@ -39,13 +39,9 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 ### Szablony, eksport i import { #templates-exporting-and-importing }
 
-W sekcji **Automations** dialog oferuje też typowe workflow zbudowane na
-prawdziwych krokach: **Lead intake** zapisuje leady z webhooka w tabeli i
-odpowiada wywołującemu, **Slack alert on failure** wysyła wiadomość, gdy inny
-workflow się nie powiedzie, a **Daily summary** zleca agentowi dzienne
-podsumowanie dla zespołu w dni robocze. Każdy otwiera się z tabelą, botem,
-agentem albo osobami do wybrania; edytor je oznacza, a workflow da się opublikować,
-gdy zostaną wybrane.
+Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje prywatną tabelę i kompletnie skonfigurowany szkic. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown z frontmatter. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+
+**Full screen** na pasku historii uruchomień powiększa listę; Escape lub **Exit full screen** przywraca stronę. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
 
 **Export workflow** w menu **More** w nagłówku edytora eksportuje szkic jako plik
 `.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy
@@ -65,9 +61,11 @@ edycji.
 Nad kartami wyszukiwanie znajduje workflow po nazwie, opisie lub tagach, filtr tagów
 zawęża listę do jednego tagu, a kolejność to ostatnia edycja, nazwa albo najnowsze
 najpierw. Wszystko zostaje w adresie, więc przeładowanie lub udostępniony link
-pokazują tę samą listę. W edytorze kliknij nazwę, aby zmienić nazwę workflow - jego
-identyfikator, którego używają wywołujący API, zostaje - kliknij opis pod nią albo
-**Add a description**, aby go zmienić, a **+ Tag** przypisuje tag.
+pokazują tę samą listę.
+
+**More → Settings** zawiera nazwę, opis i tagi workflow; zmiany zapisują się automatycznie. Ustawienia wykonania pozostają w tym samym panelu. Dialog kroku dopasowuje wysokość do zawartości: konfiguracja zajmuje główną kartę, a wejście i wynik są obok. Wartości rekordu mają pola nazwane według kolumn tabeli. Opcjonalne szczegóły konfiguracji są zwinięte. Notatki mają **Open note**, gotowe rozmiary i uchwyty do zmiany szerokości oraz wysokości.
+
+Architect potrafi poznać katalog kroków, tworzyć i zmieniać prywatne szkice workflows, testować je oraz sprawdzać wyniki runów. Tworzy też typowane Virtual Tables oraz wyszukuje i aktualizuje rekordy. Skille workflow-builder i virtual-tables wyjaśniają, kiedy używać tych funkcji. Jeśli usługi nie ma w galerii MCP, Architect może opakować jej udokumentowane API krokiem HTTP request i udostępnić opublikowany workflow jako narzędzie agenta przez capability Workflows. Poświadczenia pozostają w sejfie. Testy mogą wykonywać rzeczywiste działania; publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji.
 
 Pod nazwą edytor mówi, na czym stoi workflow: **Draft, not published** albo
 **Live · version 3**, z **Unpublished changes** obok, gdy szkic różni się od tej
@@ -910,18 +908,9 @@ publicznego API.
 
 ## Uruchamianie workflow spoza konsoli { #starting-a-workflow-from-outside-the-console }
 
-Workflow startuje od jednego **wyzwalacza**, pierwszego węzła na jego kanwie. Grupa
-**Triggers** na górze wyboru kroków ma je wszystkie: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** i
-**On failure of a workflow**. Dodanie jednego do workflow, który
-ma już wyzwalacz, zastępuje stary w tym samym miejscu, a połączenia i powiązania
-wychodzące ze starego wychodzą z nowego. **New workflow** zaczyna workflow od
-wyzwalacza, który tam wybierzesz.
+Workflow może mieć kilka niezależnych **wyzwalaczy**, np. Manual, Webhook i Schedule. Dodanie wyzwalacza zachowuje dotychczasowe wejścia i ich połączenia. Run wybiera jedno wejście i wykonuje tylko osiągalną z niego gałąź; nie czeka na inny wyzwalacz. Wspólny krok może czytać wyłącznie dane dostępne z każdego wejścia, które do niego prowadzi. Różne formaty danych znormalizuj osobno przed wspólnymi krokami.
 
-To publikacja wersji włącza jej wyzwalacz. Webhook, harmonogram, wyzwalacz tabeli,
-formularz i wiadomości do bota uruchamiają wtedy tę wersję jako członek, który ją opublikował, a następna
-publikacja przenosi je na nową wersję. Publikacja, która startuje od innego
-wyzwalacza, wyłącza stary. **Trigger** w menu **More** w nagłówku edytora pokazuje żywy wyzwalacz i
-jego stan oraz mówi, kiedy szkic startuje inaczej.
+Publikacja aktywuje wszystkie skonfigurowane wejścia automatyczne z uprawnieniami publikującego. Workflow może mieć po jednym wyzwalaczu każdego rodzaju automatycznego. Ponowna publikacja zachowuje adresy i poświadczenia pozostawionych węzłów oraz usuwa skasowane rejestracje. **Trigger** w **More** pokazuje wszystkie opublikowane wejścia i ich opcje. Przełącznik **Active** w nagłówku wstrzymuje lub wznawia wszystkie rejestracje. **Test draft** pozwala wybrać wejście; API przyjmuje `entry_node_id`, ale rzeczywiste wywołanie może wybrać tylko Manual/API, nigdy wejście automatyczne.
 
 Wersję, która startuje od **Manual** albo **API request** albo w ogóle bez wyzwalacza, uruchamia
 każdy, kto może ją uruchomić, jako on sam: **Start a run** w Runs,
@@ -1331,9 +1320,7 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   draft** robi z jednej z nich z powrotem draft.
 - Każda akcja ma **drogę klawiaturową**, a skróty edycji są bezczynne na opublikowanej
   wersji tylko do odczytu i w trybie **View only**.
-- Workflow startuje od jednego węzła **wyzwalacza** - **Manual**, **API request**, od
-  wiadomości na czacie, podpisanego **webhooka**, **harmonogramu** albo nowego
-  rekordu tabeli - a **publikacja** go włącza i działa jako członek, który publikował.
+- Workflow może mieć kilka niezależnych **wyzwalaczy**, np. Manual, Webhook i Schedule. Dodanie wyzwalacza zachowuje dotychczasowe wejścia i ich połączenia. Run wybiera jedno wejście i wykonuje tylko osiągalną z niego gałąź; nie czeka na inny wyzwalacz. Wspólny krok może czytać wyłącznie dane dostępne z każdego wejścia, które do niego prowadzi. Różne formaty danych znormalizuj osobno przed wspólnymi krokami.
 - **Polityka** kroku ustala jego próby, limit czasu i to, czy jego błędy wychodzą
   portem **Error**; ciało kroku **For each** wykonuje się od **Loop item** do **Loop
   result** raz na każdy element.

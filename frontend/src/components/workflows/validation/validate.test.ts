@@ -379,14 +379,16 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(g))).toEqual(["entry-is-edge-target", "unreachable-node"]);
   });
 
-  it("rule 1 — a trigger that is not where the graph starts", () => {
+  it("rule 1 — independent triggers are valid starts", () => {
     const g = graph({
       entry: "w",
       nodes: [node("w", "trigger.webhook"), node("s", "trigger.schedule")],
     });
-    expect(run(g)).toEqual(
-      expect.arrayContaining([expect.objectContaining({ nodeId: "s", code: "trigger-not-entry" })]),
-    );
+    expect(
+      run(g).filter(
+        (problem) => problem.code === "trigger-not-entry" || problem.code === "unreachable-node",
+      ),
+    ).toEqual([]);
     expect(codesOf(run(graph({ entry: "w", nodes: [node("w", "trigger.webhook")] })))).toEqual([]);
   });
 

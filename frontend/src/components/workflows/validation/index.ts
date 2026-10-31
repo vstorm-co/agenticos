@@ -26,6 +26,7 @@
  * set filtered by rule 3's compatibility.
  */
 
+import { entryGraph, entryNodes } from "@/lib/workflows/triggers";
 import type { NodeCatalog, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
@@ -118,6 +119,26 @@ export function validateGraph(
   catalog: NodeCatalog,
   t: ValidationTranslator,
 ): ValidationProblem[] {
+  const entries = entryNodes(graph);
+  if (entries.length < 2) return validateSingleGraph(graph, catalog, t);
+  const definitions = resolveDefinitions(graph, catalog);
+  const global = [
+    ...danglingReferences(graph),
+    ...rule1SingleEntry(graph, definitions),
+    ...rule2ReachableOutputs(graph, nodeScopeMap(deriveScopes(graph, definitions))),
+  ].map((problem) => render(problem, t));
+  const problems = [
+    ...global,
+    ...entries.flatMap((entry) => validateSingleGraph(entryGraph(graph, entry.id), catalog, t)),
+  ];
+  return [...new Map(problems.map((problem) => [JSON.stringify(problem), problem])).values()];
+}
+
+function validateSingleGraph(
+  graph: WorkflowGraph,
+  catalog: NodeCatalog,
+  t: ValidationTranslator,
+): ValidationProblem[] {
   const definitions = resolveDefinitions(graph, catalog);
   const scopes = deriveScopes(graph, definitions);
 
@@ -164,6 +185,27 @@ export function validateGraph(
  * node, matching the server.
  */
 export function computePrecede(
+  graph: WorkflowGraph,
+  catalog: NodeCatalog,
+): Map<string, Set<string>> {
+  const entries = entryNodes(graph);
+  if (entries.length < 2) return computeSinglePrecede(graph, catalog);
+  const merged = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    for (const [id, before] of computeSinglePrecede(entryGraph(graph, entry.id), catalog)) {
+      const current = merged.get(id);
+      merged.set(
+        id,
+        current === undefined
+          ? before
+          : new Set([...current].filter((nodeId) => before.has(nodeId))),
+      );
+    }
+  }
+  return merged;
+}
+
+function computeSinglePrecede(
   graph: WorkflowGraph,
   catalog: NodeCatalog,
 ): Map<string, Set<string>> {

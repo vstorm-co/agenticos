@@ -298,30 +298,30 @@ describe("planInsertion with triggers", () => {
       ...extra,
     });
 
-  it("replaces the workflow's trigger in its place, as the start", () => {
+  it("adds another trigger without replacing the existing start", () => {
     const g = graph(
       [node("m", MANUAL, 40, 60), node("a", STEP, RIGHT, 0)],
       [edge("m", "out", "a")],
     );
     expect(planWith(g, WEBHOOK)).toMatchObject({
-      node: { id: "new", definition_id: "trigger.webhook", layout: { x: 40, y: 60 } },
+      node: { id: "new", definition_id: "trigger.webhook", layout: { x: 40, y: 172 } },
       edge: null,
       bindings: [],
-      becomesEntry: true,
-      replaces: "m",
+      becomesEntry: false,
+      replaces: null,
     });
     expect(planWith(g, WEBHOOK, { dropAt: { x: 7, y: 8 } }).node.layout).toEqual({ x: 7, y: 8 });
   });
 
-  it("does not carry the replaced trigger's size over to the new one", () => {
+  it("places an independent trigger clear of the existing large trigger", () => {
     const old = { ...node("m", MANUAL, 40, 60), layout: { x: 40, y: 60, width: 400, height: 200 } };
     const g = graph([old, node("a", STEP, RIGHT, 0)], [edge("m", "out", "a")]);
-    expect(planWith(g, WEBHOOK).node.layout).toEqual({ x: 40, y: 60 });
+    expect(planWith(g, WEBHOOK).node.layout).toEqual({ x: 40, y: 284 });
   });
 
-  it("replaces a trigger that is not the start without making the new one the start", () => {
+  it("keeps the default when adding a third independent start", () => {
     const g = graph([node("a", STEP), node("m", MANUAL, 400, 0)], [], "a");
-    expect(planWith(g, WEBHOOK)).toMatchObject({ replaces: "m", becomesEntry: false });
+    expect(planWith(g, WEBHOOK)).toMatchObject({ replaces: null, becomesEntry: false });
   });
 
   it("puts a first trigger before the start, as any starting step goes", () => {

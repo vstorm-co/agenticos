@@ -68,3 +68,7 @@ export async function getWebhookTest(
 ): Promise<WebhookTestCapture> {
   return apiClient.get<WebhookTestCapture>(`${root(workflowId)}/webhook-test/${token}`);
 }
+
+export async function listWorkflowExposures(workflowId: string): Promise<WorkflowExposureRead[]> {
+  return apiClient.get<WorkflowExposureRead[]>(`${root(workflowId)}/exposures`);
+}

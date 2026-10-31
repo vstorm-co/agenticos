@@ -127,6 +127,7 @@ from app.workflows.contracts.results import (
     WorkflowError,
 )
 from app.workflows.files import import_output_files
+from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.joins import JoinVerdict, WireState, evaluate_join
 from app.workflows.graph.model import Edge, NodeInstance, WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.validate import (
@@ -146,7 +147,7 @@ from app.workflows.nodes.control_foreach import (
 )
 from app.workflows.nodes.logic_merge._handler import LogicMergeConfig, branch_keys
 from app.workflows.nodes.loop_item import LoopItemOutput
-from app.workflows.triggers import WEBHOOK_RESPOND
+from app.workflows.triggers import WEBHOOK_RESPOND, entry_graph
 
 logger = logging.getLogger(__name__)
 
@@ -302,11 +303,11 @@ async def resolve_graph(db: AsyncSession, run: WorkflowRun) -> WorkflowGraph:
         raise WorkflowGraphUnresolvableError(run_id=run.id)
     try:
         graph = WorkflowGraph.model_validate(raw)
-    except PydanticValidationError as exc:
+        if run.entry_node_id is not None:
+            graph = entry_graph(graph, run.entry_node_id)
+        return derive_scopes(graph)
+    except (PydanticValidationError, GraphValidationError) as exc:
         raise WorkflowGraphUnresolvableError(run_id=run.id) from exc
-    # Which loop owns which node is derived from the topology, never read off
-    # the stored copy - the same rule publishing follows.
-    return derive_scopes(graph)
 
 
 async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:

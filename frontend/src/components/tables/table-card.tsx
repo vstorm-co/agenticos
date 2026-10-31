@@ -40,7 +40,7 @@ export function TableCard({ table }: { table: TableListItem }) {
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: table.name })}
         />
-        <div className="pointer-events-none relative flex flex-1 items-start gap-3">
+        <div className="pointer-events-none relative flex items-start gap-3">
           <span className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
             <Table2 aria-hidden="true" className="size-5" />
           </span>

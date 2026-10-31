@@ -69,7 +69,7 @@ async def start_error_workflow(
         )
         if target is not None
         and target.status != WorkflowStatus.ARCHIVED.value
-        and target.live_trigger == WORKFLOW_FAILED
+        and WORKFLOW_FAILED in (target.live_triggers or [target.live_trigger])
         and target.current_version_id is not None
         else None
     )

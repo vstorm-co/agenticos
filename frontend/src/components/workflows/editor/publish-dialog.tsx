@@ -93,7 +93,8 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [serverProblems, setServerProblems] = useState<ValidationProblem[]>([]);
-  const [webhook, setWebhook] = useState<{ url: string; secret: string } | null>(null);
+  const [webhooks, setWebhooks] = useState<{ url: string; secret: string }[]>([]);
+  const webhook = webhooks[0] ?? null;
 
   const nodeCatalog: NodeCatalog = useMemo(
     () => ({ items: catalog, total: catalog.length }),
@@ -137,8 +138,18 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       });
       setOpen(false);
       setNote("");
+      const revealed = (published.exposures ?? []).flatMap((exposure) => {
+        const secret = published.trigger_secrets?.[exposure.node_instance_id];
+        return secret && exposure.webhook_url ? [{ url: exposure.webhook_url, secret }] : [];
+      });
       const url = published.exposure?.webhook_url;
-      if (published.webhook_secret && url) setWebhook({ url, secret: published.webhook_secret });
+      setWebhooks(
+        revealed.length
+          ? revealed
+          : published.webhook_secret && url
+            ? [{ url, secret: published.webhook_secret }]
+            : [],
+      );
     } catch (error) {
       // A `REVISION_CONFLICT` (`409`) means the draft moved on since this editor
       // read it — publishing into a stale revision. It carries the current
@@ -226,7 +237,7 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
         <WebhookSecretDialog
           url={webhook.url}
           secret={webhook.secret}
-          onClose={() => setWebhook(null)}
+          onClose={() => setWebhooks((current) => current.slice(1))}
         />
       )}
     </>

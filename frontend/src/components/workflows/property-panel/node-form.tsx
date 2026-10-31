@@ -32,9 +32,10 @@ import {
   TableColumnPicker,
   type AgentVersionRef,
 } from "@/components/workflows/pickers";
-import { useKnowledgeBases, useMembers, useModelProviders } from "@/hooks";
+import { useKnowledgeBases, useMembers, useModelProviders, useWorkflowTable } from "@/hooks";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { useOrgStore } from "@/stores";
+import { COMPUTED_TYPES, type ColumnDef } from "@/types/tables";
 import { cn } from "@/lib/utils";
 import {
   bindingFieldPath,
@@ -908,6 +909,72 @@ function ConfigNode({
   );
 }
 
+function RecordInputNode(props: FieldProps) {
+  return props.name === "values" &&
+    ["table.record.create", "table.record.update", "table.record.upsert"].includes(
+      props.ctx.node.definition_id,
+    ) ? (
+    <TableValues {...props} />
+  ) : (
+    <InputNode {...props} />
+  );
+}
+
+/** Record values are named fields from the selected table, rather than an untyped dictionary. */
+function TableValues(props: FieldProps) {
+  const pin = record(props.ctx.node.config["table"]);
+  const { table } = useWorkflowTable(strOrNull(pin["table_id"]));
+  const selected = Array.isArray(pin["column_ids"]) ? pin["column_ids"] : null;
+  const whole = props.ctx.bindings.some(
+    (binding) => binding.target_node_id === props.ctx.node.id && binding.target_field === "values",
+  );
+  if (table === null || whole) return <InputNode {...props} />;
+  const properties: Record<string, Schema> = {};
+  const required: string[] = [];
+  for (const column of table.columns.filter(
+    (column) =>
+      !column.archived &&
+      !COMPUTED_TYPES.has(column.type) &&
+      (selected === null || selected.includes(column.id)),
+  )) {
+    properties[column.id] = columnSchema(column);
+    if (
+      props.ctx.node.definition_id === "table.record.create" &&
+      !column.nullable &&
+      column.default === null
+    )
+      required.push(column.id);
+  }
+  return (
+    <InputNode
+      {...props}
+      schema={{ type: "object", title: labelOf(props.schema, props.name), properties, required }}
+    />
+  );
+}
+
+function columnSchema(column: ColumnDef): Schema {
+  const base = { title: column.label };
+  if (column.type === "boolean") return { ...base, type: "boolean" };
+  if (column.type === "number") return { ...base, type: "number" };
+  if (column.type === "integer" || column.type === "rating") return { ...base, type: "integer" };
+  if (column.type === "multi_select" || column.type === "link")
+    return { ...base, type: "array", items: { type: "string" } };
+  if (column.type === "single_select")
+    return {
+      ...base,
+      type: "string",
+      oneOf: column.options
+        .filter((option) => !option.archived)
+        .map((option) => ({ const: option.id, title: option.label })),
+    };
+  return {
+    ...base,
+    type: "string",
+    ...(column.type === "long_text" || column.type === "rich_text" ? { "x-multiline": true } : {}),
+  };
+}
+
 /** One input field: a nested object recurses; anything else is bound wholesale. */
 function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
   const shape = classify(schema, defs);
@@ -1114,7 +1181,15 @@ function NodeFields({
     node.config[entry.name] !== undefined ||
     bound(entry.name);
   const inputWanted = (entry: (typeof inputFields)[number]) =>
-    entry.required || bound(entry.name) || (toolArguments !== null && entry.name === MCP_ARGUMENTS);
+    entry.required ||
+    bound(entry.name) ||
+    (definition.id === "core.output" && ["text", "structured"].includes(entry.name)) ||
+    (definition.id === "webhook.respond" && entry.name === "body") ||
+    (toolArguments !== null && entry.name === MCP_ARGUMENTS) ||
+    (["table.record.create", "table.record.update", "table.record.upsert"].includes(
+      definition.id,
+    ) &&
+      entry.name === "values");
   // A field drawn by another is neither shown nor folded.
   const foldable = configFields.filter((entry) => !drawnElsewhere(entry.name));
   const foldedKeys = [
@@ -1168,7 +1243,7 @@ function NodeFields({
       )}
       {drawn.map(({ entry, input }) =>
         input ? (
-          <InputNode
+          <RecordInputNode
             key={`input:${entry.name}`}
             schema={entry.schema}
             name={entry.name}

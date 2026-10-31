@@ -203,6 +203,21 @@ vi.mock("@/components/orgs/member-picker", () => ({
 }));
 
 vi.mock("@/hooks", () => ({
+  useWorkflowTable: () => ({
+    table: {
+      columns: [
+        {
+          id: "name-col",
+          label: "Full name",
+          type: "text",
+          archived: false,
+          nullable: true,
+          default: null,
+        },
+        { id: "computed", label: "Computed", type: "formula", archived: false },
+      ],
+    },
+  }),
   useKnowledgeBases: () => ({ kbs: [] }),
   useMembers: () => ({ members: [] }),
   useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
@@ -1215,4 +1230,20 @@ describe("an approval step's choices", () => {
       choices: [{ id: "draft", label: "Keep a draft" }, {}],
     });
   });
+});
+
+it("shows writable table columns as immediate record value fields", async () => {
+  renderForm({
+    folded: true,
+    config: { table: { table_id: "table-id", schema_version: 1, column_ids: null } },
+    definition: makeDefinition({
+      id: "table.record.create",
+      input_schema: {
+        type: "object",
+        properties: { values: { type: "object", title: "Values", additionalProperties: {} } },
+      },
+    }),
+  });
+  expect(screen.getByText("Full name")).toBeVisible();
+  expect(screen.queryByText("Computed")).toBeNull();
 });

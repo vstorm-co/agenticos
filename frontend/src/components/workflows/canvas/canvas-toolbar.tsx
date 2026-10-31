@@ -153,17 +153,21 @@ export function CanvasToolbar({
                 variant="outline"
                 className="bg-background/90 size-8 rounded-lg shadow-sm"
                 aria-label={t("toolbarDisplay")}
-                title={t("toolbarDisplay")}
               >
                 <Settings2 className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuCheckboxItem checked={minimapShown} onCheckedChange={toggleMinimap}>
+              <DropdownMenuCheckboxItem
+                className="gap-3"
+                checked={minimapShown}
+                onCheckedChange={toggleMinimap}
+              >
                 <MapIcon className="size-4" />
                 {t(minimapShown ? "toolbarHideMinimap" : "toolbarShowMinimap")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
+                className="gap-3"
                 checked={nodeStyle === "colour"}
                 onCheckedChange={(on) => setNodeStyle(on ? "colour" : "simple")}
               >

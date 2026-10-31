@@ -22,6 +22,9 @@ import {
   Zap,
 } from "lucide-react";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -113,6 +116,11 @@ function parseTab(value: string | null): ViewKind {
 
 export default function TableDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const {
+    ref: fullscreenRef,
+    expanded: isFullscreen,
+    toggle: toggleFullscreen,
+  } = useWorkspaceFullscreen();
   const t = useTranslations("pages.tables.detail");
   const tViews = useTranslations("pages.tables.views");
   const meId = useAuthStore((state) => state.user?.id ?? null);
@@ -414,9 +422,22 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
 
       <div
         data-table-workspace
-        className="bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border shadow-sm"
+        ref={fullscreenRef}
+        role={isFullscreen ? "dialog" : undefined}
+        aria-modal={isFullscreen || undefined}
+        aria-label={table.name}
+        className={cn(
+          "bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
+          isFullscreen && "fixed inset-0 z-40 rounded-none border-0",
+        )}
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
+          {isFullscreen && (
+            <h2 className="max-w-56 truncate text-sm font-semibold">{table.name}</h2>
+          )}
+          <div className="order-last ml-auto">
+            <WorkspaceFullscreenButton expanded={isFullscreen} onToggle={toggleFullscreen} />
+          </div>
           {/* What the records are laid out as, and which saved view of them - one group. */}
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <div className="flex flex-col gap-1">
@@ -523,7 +544,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           {(tab === "table" ? grid.error : tab === "list" ? recordsError : null) ? (
             <ErrorState
               cta={{
@@ -535,7 +556,12 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <>
               {tab === "table" && (
                 // A bounded height, so the grid scrolls its own rows and draws only those in view.
-                <div className="flex h-[calc(100dvh-16rem)] min-h-96 flex-col">
+                <div
+                  className={cn(
+                    "flex min-h-80 flex-col",
+                    isFullscreen ? "h-[calc(100dvh-5rem)]" : "h-[min(68dvh,48rem)]",
+                  )}
+                >
                   <TableGridView
                     tableId={id}
                     canEdit={canEdit}

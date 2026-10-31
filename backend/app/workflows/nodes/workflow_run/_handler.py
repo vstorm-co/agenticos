@@ -83,7 +83,9 @@ class WorkflowRunOutput(BaseModel):
 
 def _callable_version(workflow: Workflow) -> UUID | None:
     """The live version a step may call, or None when the workflow is not one to call."""
-    if workflow.status == WorkflowStatus.ARCHIVED.value or workflow.live_trigger != WORKFLOW_CALL:
+    if workflow.status == WorkflowStatus.ARCHIVED.value or WORKFLOW_CALL not in (
+        workflow.live_triggers or [workflow.live_trigger]
+    ):
         return None
     return workflow.current_version_id
 

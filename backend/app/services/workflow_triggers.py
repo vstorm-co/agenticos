@@ -1,22 +1,8 @@
-"""`WorkflowTriggerSync` - switch on the trigger a version just published starts from.
+"""Publish and maintain independent workflow entry registrations.
 
-A workflow starts from one trigger node, its entry. Publishing a version is
-what makes that trigger live, the way a builder expects from n8n or Zapier:
-
-* a webhook, a GitHub hook, a schedule, a form, a bot's messages or a mailbox get
-  their exposure (`WorkflowExposureService`),
-  and a table record its subscription (`TableTriggerService`), running the new
-  version as the member who published it. The row a node already had is kept,
-  so a webhook's address and signing secret, and a form's link, survive the
-  publish;
-* a trigger the new version no longer starts from is removed, so a workflow
-  never keeps a second way in that its graph does not show;
-* manual/API and chat triggers need no row - whoever starts the run is present
-  and acts as themselves - so they only remove whatever row a previous version
-  left.
-
-`workflows.live_trigger` records which trigger the live version has, for the
-surfaces that list what they can start.
+Each unattended kind has one registration. Republishing keeps its node's address
+and credentials, updates the pinned version, and removes entries no longer present.
+`live_trigger` retains the default for older clients; `live_triggers` lists all starts.
 """
 
 from dataclasses import dataclass
@@ -47,8 +33,10 @@ from app.workflows.triggers import (
     OUTLOOK,
     SCHEDULE,
     TABLE_RECORD,
+    TRIGGERS,
     UNATTENDED,
     WEBHOOK,
+    entry_nodes,
     live_trigger,
 )
 
@@ -60,10 +48,12 @@ class SwitchedOn:
     trigger: str | None
     exposure: WorkflowExposureRead | None
     webhook_secret: str | None
+    exposures: tuple[WorkflowExposureRead, ...] = ()
+    trigger_secrets: dict[str, str] | None = None
 
 
 class WorkflowTriggerSync:
-    """Make a published version's trigger the workflow's one live way in."""
+    """Synchronize every published entry and its retained publisher authority."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -88,61 +78,88 @@ class WorkflowTriggerSync:
                 trigger's bot.
             BadRequestError: A Gmail or Outlook trigger, and no mailbox connected.
         """
-        trigger = live_trigger(graph)
-        if trigger in UNATTENDED:
+        nodes = entry_nodes(graph)
+        unattended = any(node.definition_id in UNATTENDED for node in nodes)
+        if unattended:
             require_human_publisher(ctx)
-        if trigger in UNATTENDED and not await resolve_access(
+        if unattended and not await resolve_access(
             self.db, ctx, workflow, Perm.WORKFLOWS_RUN, resource_type=WORKFLOW
         ):
             raise AuthorizationError(
-                message="This trigger runs as you once published, so you need to be able to run it",
+                message="Publishing unattended triggers requires permission to run this workflow",
                 details={"workflow_id": str(workflow.id)},
             )
-        node = graph.node_by_id[graph.entry_node_id]
-        exposure: WorkflowExposureRead | None = None
-        secret: str | None = None
-        if trigger == WEBHOOK:
-            exposure, secret = await self.exposures.switch_on_webhook(
-                ctx, workflow, version, node.id
-            )
-        elif trigger == SCHEDULE:
-            exposure = await self.exposures.switch_on_schedule(
-                ctx, workflow, version, node.id, ScheduleTriggerConfig.model_validate(node.config)
-            )
-        elif trigger == GITHUB:
-            exposure, secret = await self.exposures.switch_on_github(
-                ctx, workflow, version, node.id, GithubTriggerConfig.model_validate(node.config)
-            )
-        elif trigger == GMAIL:
-            exposure = await self.exposures.switch_on_gmail(ctx, workflow, version, node.id)
-        elif trigger == OUTLOOK:
-            exposure = await self.exposures.switch_on_outlook(ctx, workflow, version, node.id)
-        elif trigger == FORM:
-            exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)
-        elif trigger == CHANNEL_MESSAGE:
-            exposure = await self.exposures.switch_on_channel(
-                ctx,
-                workflow,
-                version,
-                node.id,
-                ChannelMessageTriggerConfig.model_validate(node.config),
-            )
-        else:
-            await self.exposures.switch_off(ctx, workflow)
-        if trigger == TABLE_RECORD:
-            await self.tables.switch_on(
-                ctx,
-                workflow,
-                version,
-                node.id,
-                TableRecordTriggerConfig.model_validate(node.config),
-            )
-        else:
-            await self.tables.switch_off(ctx, workflow)
-        await workflow_repo.update(
-            self.db, workflow=workflow, update_data={"live_trigger": trigger}
+        registered: list[WorkflowExposureRead] = []
+        secrets: dict[str, str] = {}
+        for node in nodes:
+            trigger = node.definition_id
+            exposure: WorkflowExposureRead | None = None
+            secret: str | None = None
+            if trigger == WEBHOOK:
+                exposure, secret = await self.exposures.switch_on_webhook(
+                    ctx, workflow, version, node.id
+                )
+            elif trigger == SCHEDULE:
+                exposure = await self.exposures.switch_on_schedule(
+                    ctx,
+                    workflow,
+                    version,
+                    node.id,
+                    ScheduleTriggerConfig.model_validate(node.config),
+                )
+            elif trigger == GITHUB:
+                exposure, secret = await self.exposures.switch_on_github(
+                    ctx, workflow, version, node.id, GithubTriggerConfig.model_validate(node.config)
+                )
+            elif trigger == GMAIL:
+                exposure = await self.exposures.switch_on_gmail(ctx, workflow, version, node.id)
+            elif trigger == OUTLOOK:
+                exposure = await self.exposures.switch_on_outlook(ctx, workflow, version, node.id)
+            elif trigger == FORM:
+                exposure = await self.exposures.switch_on_form(ctx, workflow, version, node.id)
+            elif trigger == CHANNEL_MESSAGE:
+                exposure = await self.exposures.switch_on_channel(
+                    ctx,
+                    workflow,
+                    version,
+                    node.id,
+                    ChannelMessageTriggerConfig.model_validate(node.config),
+                )
+            if trigger == TABLE_RECORD:
+                await self.tables.switch_on(
+                    ctx,
+                    workflow,
+                    version,
+                    node.id,
+                    TableRecordTriggerConfig.model_validate(node.config),
+                )
+            if exposure is not None:
+                registered.append(exposure)
+            if secret is not None:
+                secrets[str(node.id)] = secret
+        await self.exposures.switch_off(
+            ctx, workflow, keep_node_ids=frozenset(node.id for node in nodes)
         )
-        return SwitchedOn(trigger=trigger, exposure=exposure, webhook_secret=secret)
+        if not any(node.definition_id == TABLE_RECORD for node in nodes):
+            await self.tables.switch_off(ctx, workflow)
+        trigger = live_trigger(graph)
+        await workflow_repo.update(
+            self.db,
+            workflow=workflow,
+            update_data={
+                "live_trigger": trigger,
+                "live_triggers": [
+                    node.definition_id for node in nodes if node.definition_id in TRIGGERS
+                ],
+            },
+        )
+        return SwitchedOn(
+            trigger=trigger,
+            exposure=registered[0] if registered else None,
+            webhook_secret=secrets.get(str(registered[0].node_instance_id)) if registered else None,
+            exposures=tuple(registered),
+            trigger_secrets=secrets,
+        )
 
     async def remove(self, ctx: AuthContext, workflow: Workflow) -> None:
         """Remove trigger registrations before their workflow is deleted."""
@@ -154,11 +171,11 @@ class WorkflowTriggerSync:
         states = await workflow_exposure_repo.active_by_workflow(
             self.db, organization_id=organization_id, workflow_ids=workflow_ids
         )
-        states.update(
-            await table_trigger_repo.active_by_workflow(
-                self.db, organization_id=organization_id, workflow_ids=workflow_ids
-            )
+        table_states = await table_trigger_repo.active_by_workflow(
+            self.db, organization_id=organization_id, workflow_ids=workflow_ids
         )
+        for workflow_id, active in table_states.items():
+            states[workflow_id] = states.get(workflow_id, False) or active
         return states
 
     async def set_active(self, ctx: AuthContext, workflow: Workflow, active: bool) -> None:
@@ -171,15 +188,15 @@ class WorkflowTriggerSync:
             BadRequestError: The live version starts by hand, from an API call or
                 from chat, so there is nothing to switch.
         """
-        exposure = await workflow_exposure_repo.get_for_workflow(
+        exposures = await workflow_exposure_repo.list_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
-        if exposure is not None:
+        for exposure in exposures:
             await self.exposures.set_active(
                 ctx, workflow.id, exposure.id, WorkflowExposureUpdate(is_active=active)
             )
-            return
-        if await self.tables.set_active_for_workflow(ctx, workflow, active) is None:
+        table = await self.tables.set_active_for_workflow(ctx, workflow, active)
+        if not exposures and table is None:
             raise BadRequestError(
                 message="This workflow starts by hand, from an API call or from chat, "
                 "so it has no trigger to switch on or off",

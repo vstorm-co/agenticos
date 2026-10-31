@@ -36,7 +36,10 @@ export function WorkflowPicker({ value, onChange, disabled, error, label }: Work
   const caption = label ?? t("pickerWorkflowLabel");
   const { workflows, isLoading } = useWorkflows();
   const callable = workflows.filter(
-    (workflow) => workflow.live_trigger === WORKFLOW_CALL_TRIGGER && workflow.status !== "archived",
+    (workflow) =>
+      (workflow.live_triggers?.length ? workflow.live_triggers : [workflow.live_trigger]).includes(
+        WORKFLOW_CALL_TRIGGER,
+      ) && workflow.status !== "archived",
   );
   const orphaned =
     value !== null && !isLoading && !callable.some((workflow) => workflow.id === value);

@@ -98,7 +98,14 @@ from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.step import step_subgraph
 from app.workflows.graph.validate import file_binding_problems, graph_file_refs, validate_graph
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, input_problems
-from app.workflows.triggers import BY_HAND, CHAT, DECLARES_FIELDS, WORKFLOW_CALL
+from app.workflows.triggers import (
+    BY_HAND,
+    CHAT,
+    DECLARES_FIELDS,
+    WORKFLOW_CALL,
+    entry_graph,
+    entry_nodes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +260,7 @@ class WorkflowExecutionService:
         deadline_seconds: int | None = None,
         reply_conversation_id: UUID | None = None,
         step: WorkflowStepTest | None = None,
+        entry_node_id: UUID | None = None,
         source_artifact_id: UUID | None = None,
         source_version_number: int | None = None,
         impersonated: bool = False,
@@ -315,14 +323,6 @@ class WorkflowExecutionService:
             raise WorkflowArchivedError(
                 workflow_id=workflow.id, message="This workflow is archived and cannot be run"
             )
-        if (
-            mode is WorkflowRunMode.REAL
-            and workflow.current_version_id is not None
-            and workflow.live_trigger not in _DOOR_TRIGGERS[triggered_by]
-        ):
-            raise WorkflowTriggerMismatchError(
-                workflow_id=workflow.id, trigger=workflow.live_trigger, door=triggered_by.value
-            )
         # `test` mode executes the *draft*, not something an editor already
         # reviewed and froze into a version - `workflows:run` alone (as
         # widened by a mere `USE` grant, `_PERM_MIN_GRANT`) would let a
@@ -337,6 +337,32 @@ class WorkflowExecutionService:
         graph, workflow_version_id, draft_snapshot, budget_limit = await self._resolve_start_graph(
             ctx, workflow, mode=mode
         )
+        candidates = entry_nodes(graph)
+        if mode is WorkflowRunMode.REAL:
+            allowed = _DOOR_TRIGGERS[triggered_by]
+            candidates = [
+                node
+                for node in candidates
+                if node.definition_id in allowed
+                or (node.id == graph.entry_node_id and workflow.live_trigger in allowed)
+            ]
+        if step is not None and entry_node_id is None:
+            candidates = [
+                node
+                for node in candidates
+                if step.node_id in entry_graph(graph, node.id).node_by_id
+            ]
+        selected = next(
+            (node for node in candidates if entry_node_id is None or node.id == entry_node_id), None
+        )
+        if selected is None:
+            raise WorkflowTriggerMismatchError(
+                workflow_id=workflow.id, trigger=workflow.live_trigger, door=triggered_by.value
+            )
+        if len(entry_nodes(graph)) > 1 or selected.id != graph.entry_node_id:
+            graph = entry_graph(graph, selected.id)
+            if mode is WorkflowRunMode.TEST:
+                draft_snapshot = graph.model_dump(mode="json")
         if step is not None:
             graph = step_subgraph(graph, step.node_id, step.outputs)
             draft_snapshot = graph.model_dump(mode="json")
@@ -368,6 +394,7 @@ class WorkflowExecutionService:
         triggered_by: WorkflowRunTrigger,
         run_input: dict[str, Any],
         causation: Causation | None = None,
+        entry_node_id: UUID | None = None,
     ) -> tuple[WorkflowRun, UUID]:
         """Admit a run of one pinned version as `ctx` - a webhook's, a schedule's, a
         table trigger's or a failure's fire. `causation` places it in a chain of runs.
@@ -384,10 +411,27 @@ class WorkflowExecutionService:
             WorkflowAdmissionQuotaError: The organization's or the principal's
                 outstanding node work would pass its ceiling.
         """
+        graph = WorkflowGraph.model_validate(version.graph)
+        if entry_node_id is None:
+            kind = (
+                "trigger.table_record"
+                if triggered_by
+                in {
+                    WorkflowRunTrigger.TABLE_CREATED,
+                    WorkflowRunTrigger.TABLE_UPDATED,
+                    WorkflowRunTrigger.TABLE_DELETED,
+                }
+                else f"trigger.{triggered_by.value}"
+            )
+            entry_node_id = next(
+                (node.id for node in entry_nodes(graph) if node.definition_id == kind), None
+            )
+        if entry_node_id is not None:
+            graph = entry_graph(graph, entry_node_id)
         return await self._admit(
             ctx,
             workflow,
-            graph=WorkflowGraph.model_validate(version.graph),
+            graph=graph,
             workflow_version_id=version.id,
             draft_snapshot=None,
             budget_limit=version.budget_limit,
@@ -421,6 +465,11 @@ class WorkflowExecutionService:
             WorkflowAdmissionQuotaError: As `start`.
         """
         graph = WorkflowGraph.model_validate(version.graph)
+        call_entry = next(
+            (node for node in entry_nodes(graph) if node.definition_id == WORKFLOW_CALL), None
+        )
+        if call_entry is not None:
+            graph = entry_graph(graph, call_entry.id)
         payload = _checked_input(run_input)
         _check_declared_input(graph, payload)
         await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
@@ -557,6 +606,7 @@ class WorkflowExecutionService:
             workflow_id=workflow.id,
             workflow_version_id=workflow_version_id,
             draft_graph_snapshot=draft_snapshot,
+            entry_node_id=graph.entry_node_id,
             mode=mode.value,
             triggered_by=triggered_by.value,
             source_artifact_id=source_artifact_id,

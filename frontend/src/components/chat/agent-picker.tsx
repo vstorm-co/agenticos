@@ -30,7 +30,9 @@ const isRunnable = (agent: Agent): boolean => agent.status === "published";
 export const isChattable = (workflow: WorkflowRead): boolean =>
   workflow.current_version_id !== null &&
   workflow.status !== "archived" &&
-  workflow.live_trigger === CHAT_TRIGGER;
+  (workflow.live_triggers?.length ? workflow.live_triggers : [workflow.live_trigger]).includes(
+    CHAT_TRIGGER,
+  );
 
 /**
  * Who answers, as its own control beside the composer.

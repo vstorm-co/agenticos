@@ -79,6 +79,7 @@ class WorkflowRunStart(BaseSchema):
     """
 
     workflow_id: UUID
+    entry_node_id: UUID | None = None
     mode: WorkflowRunMode = WorkflowRunMode.REAL
     input: dict[str, Any] = Field(
         default_factory=dict,

@@ -28,13 +28,9 @@ import { currentScopeId, scopedGraph } from "./scope-view";
  * the bindings a same-shaped wire implies. So building a straight flow is a run
  * of clicks in the palette, and nothing ever lands on top of something else.
  *
- * Three cases are different. A workflow starts from one trigger, so a trigger
- * added to a workflow that has one *replaces* it: it takes the old one's place,
- * its wires and the bindings read from it. A step with no input otherwise - a
- * first trigger - goes *before* the workflow's current start, becomes the entry
- * and is wired into it. And inside a loop body every new step is wired in: body
- * membership is derived from the wires out of the loop, so an unwired step would
- * drop out of the body the user is looking at and reappear at the top level.
+ * Additional triggers are independent roots and preserve existing starts and wires.
+ * The first trigger goes before a legacy non-trigger entry. Inside a loop body,
+ * new steps are wired into the body so topology retains their scope membership.
  */
 
 /** The space left between one step and the next along a flow, and between rows. */
@@ -243,21 +239,30 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
   const input = inputsOf(definition)[0];
   const { footprint, own } = footprintsFor(graph, definitions, definition);
 
-  if (input === undefined && isTrigger(definition) && scopePath.length === 0) {
-    const current = triggerNodeOf(graph, request.definitions);
-    if (current !== null) {
-      return {
-        // The old trigger's size is its own: the new one starts at the default.
-        node: {
-          ...blank(definition, id),
-          layout: dropAt ?? { x: current.layout.x, y: current.layout.y },
-        },
-        edge: null,
-        bindings: [],
-        becomesEntry: current.id === graph.entry_node_id,
-        replaces: current.id,
-      };
-    }
+  if (
+    input === undefined &&
+    isTrigger(definition) &&
+    scopePath.length === 0 &&
+    triggerNodeOf(graph, request.definitions) !== null
+  ) {
+    const first = graph.nodes.find((node) => node.id === graph.entry_node_id);
+    return {
+      node: {
+        ...blank(definition, id),
+        layout:
+          dropAt ??
+          clearOf(
+            visible,
+            { x: first?.layout.x ?? 0, y: (first?.layout.y ?? 0) + NODE_HEIGHT + GAP_Y },
+            footprint,
+            own,
+          ),
+      },
+      edge: null,
+      bindings: [],
+      becomesEntry: false,
+      replaces: null,
+    };
   }
 
   // A starting step goes before the current start, and becomes it.

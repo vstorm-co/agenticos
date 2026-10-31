@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Upload, FileJson } from "lucide-react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -38,6 +39,8 @@ export function ImportWorkflowDialog({
   const t = useTranslations("pages.workflows");
   const router = useRouter();
   const { importFile } = useWorkflows({ enabled: false });
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [pasting, setPasting] = useState(false);
   const [text, setText] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -45,12 +48,25 @@ export function ImportWorkflowDialog({
 
   const close = (next: boolean) => {
     if (!next) {
+      setFileName(null);
       setPasting(false);
       setText("");
       setProblem(null);
       setImported(null);
     }
     onOpenChange(next);
+  };
+
+  const readFile = async (chosen: File) => {
+    try {
+      setText(await chosen.text());
+      setFileName(chosen.name);
+      setProblem(null);
+    } catch {
+      setText("");
+      setFileName(null);
+      setProblem(t("importReadError"));
+    }
   };
 
   const submit = () => {
@@ -77,25 +93,38 @@ export function ImportWorkflowDialog({
         <div className={DIALOG_BODY}>
           {imported === null ? (
             <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="workflow-import-file">{t("importFile")}</Label>
-                <Input
-                  id="workflow-import-file"
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={async (event) => {
-                    const chosen = event.target.files?.[0];
-                    if (chosen === undefined) return;
-                    try {
-                      setText(await chosen.text());
-                      setProblem(null);
-                    } catch {
-                      setText("");
-                      setProblem(t("importReadError"));
-                    }
-                  }}
-                />
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInput.current?.click()}
+                className="border-border hover:bg-accent/40 focus-within:ring-ring flex h-auto w-full cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed px-5 py-9 text-center whitespace-normal focus-within:ring-2"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const file = event.dataTransfer.files[0];
+                  if (file) void readFile(file);
+                }}
+              >
+                {fileName ? (
+                  <FileJson className="text-muted-foreground size-7" />
+                ) : (
+                  <Upload className="text-muted-foreground size-7" />
+                )}
+                <span className="text-sm font-medium">{fileName ?? t("importChooseFile")}</span>
+                <span className="text-muted-foreground text-xs">{t("importDropHint")}</span>
+              </Button>
+              <Input
+                ref={fileInput}
+                id="workflow-import-file"
+                className="sr-only"
+                aria-label={t("importFile")}
+                type="file"
+                accept="application/json,.json"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void readFile(file);
+                }}
+              />
               <MoreOptions label={t("importPaste")} open={pasting} onOpenChange={setPasting}>
                 <Label htmlFor="workflow-import-json">{t("importJson")}</Label>
                 <Textarea

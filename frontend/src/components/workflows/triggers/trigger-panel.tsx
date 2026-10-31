@@ -72,14 +72,22 @@ export function TriggerPanel({ workflow, draft, catalog, canEdit }: TriggerPanel
           {t("triggerNeedsPublish")}
         </p>
       ) : (
-        <LiveTrigger
-          workflow={workflow}
-          trigger={live}
-          name={nameOf(live)}
-          definition={live === null ? undefined : byId.get(live)}
-          draftConfig={draftTrigger?.definition_id === live ? draftTrigger.config : undefined}
-          canEdit={canEdit}
-        />
+        <div className="space-y-4">
+          {(workflow.live_triggers?.length ? workflow.live_triggers : [live]).map(
+            (trigger, index) => (
+              <div key={`${trigger ?? "default"}-${index}`} className="rounded-xl border p-4">
+                <LiveTrigger
+                  workflow={workflow}
+                  trigger={trigger}
+                  name={nameOf(trigger)}
+                  definition={trigger === null ? undefined : byId.get(trigger)}
+                  draftConfig={draft?.nodes.find((node) => node.definition_id === trigger)?.config}
+                  canEdit={canEdit}
+                />
+              </div>
+            ),
+          )}
+        </div>
       )}
       {draft !== null && (draftTrigger?.definition_id ?? null) !== (live ?? null) && (
         <p className="rounded-lg border px-3 py-2 text-xs">
@@ -176,7 +184,7 @@ function LiveTrigger({
         trigger === GMAIL_TRIGGER ||
         trigger === OUTLOOK_TRIGGER ||
         trigger === CHANNEL_MESSAGE_TRIGGER) && (
-        <ExposureStatus workflow={workflow} canEdit={canEdit} />
+        <ExposureStatus workflow={workflow} trigger={trigger} canEdit={canEdit} />
       )}
       {trigger === WORKFLOW_CALL_TRIGGER && (
         <p className="text-muted-foreground text-xs">{t("triggerWorkflowCallLive")}</p>
@@ -199,11 +207,22 @@ function LiveTrigger({
 }
 
 /** A live webhook, schedule or form: its address, cadence or link, its state, and pausing it. */
-function ExposureStatus({ workflow, canEdit }: { workflow: WorkflowDetail; canEdit: boolean }) {
+function ExposureStatus({
+  workflow,
+  trigger,
+  canEdit,
+}: {
+  workflow: WorkflowDetail;
+  trigger: string;
+  canEdit: boolean;
+}) {
   const t = useTranslations("pages.workflows");
   const tTriggers = useTranslations("triggers");
   const locale = useLocale();
-  const { exposure, isLoading, setActive, rotate, renewLink } = useWorkflowExposure(workflow.id);
+  const { exposure, isLoading, setActive, rotate, renewLink } = useWorkflowExposure(
+    workflow.id,
+    trigger,
+  );
   const [revealed, setRevealed] = useState<WorkflowExposureWithSecret | null>(null);
   const [renewing, setRenewing] = useState(false);
 

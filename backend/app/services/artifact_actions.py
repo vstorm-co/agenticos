@@ -215,7 +215,7 @@ def _problem(workflow: Workflow) -> str | None:
         return f"Workflow {workflow.name!r} is archived, so a page cannot start it."
     if workflow.live_trigger is None:
         return f"Workflow {workflow.name!r} has no published version, so a page cannot start it."
-    if workflow.live_trigger not in BY_HAND:
+    if not BY_HAND.intersection(workflow.live_triggers or [workflow.live_trigger]):
         return (
             f"Workflow {workflow.name!r} does not start from a Manual or API trigger, "
             "so a page cannot start it."

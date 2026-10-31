@@ -159,6 +159,7 @@ function RatingCellInput({
 }
 
 function RichTextCellInput({
+  fillEditor,
   id,
   label,
   value,
@@ -174,10 +175,12 @@ function RichTextCellInput({
   disabled?: boolean;
   errorId: string;
   error?: string;
+  fillEditor?: boolean;
 }) {
   const buffer = useTextBuffer(value, onChange);
   return (
     <MarkdownCellEditor
+      fill={fillEditor}
       id={id}
       label={label}
       value={buffer.draft}
@@ -262,6 +265,7 @@ function NumberCellInput({
  * is shown); `null` means explicitly cleared.
  */
 export function RecordCellEditor({
+  fillEditor,
   column,
   value,
   links,
@@ -271,6 +275,7 @@ export function RecordCellEditor({
   placeholder,
 }: {
   column: ColumnDef;
+  fillEditor?: boolean;
   value: CellValue;
   /** A link column's records, named as the record was read. */
   links?: LinkedRecord[];
@@ -323,6 +328,7 @@ export function RecordCellEditor({
 
       {column.type === "rich_text" && (
         <RichTextCellInput
+          fillEditor={fillEditor}
           id={id}
           label={column.label}
           value={typeof value === "string" ? value : ""}

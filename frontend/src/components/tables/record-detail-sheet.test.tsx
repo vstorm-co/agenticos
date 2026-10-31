@@ -585,9 +585,11 @@ describe("RecordDetailSheet", () => {
         expect(remove).toHaveFocus();
       });
 
-      it("keeps a read-only sheet on its only enabled control", async () => {
+      it("cycles through the read-only sheet controls", async () => {
         renderSheet({ canEdit: false });
         const close = screen.getByRole("button", { name: "Close" });
+        await userEvent.tab();
+        expect(screen.getByRole("button", { name: "Full screen" })).toHaveFocus();
         await userEvent.tab();
         expect(close).toHaveFocus();
       });
@@ -645,3 +647,13 @@ function cleanupAndRender(overrides: Partial<SheetProps>) {
   cleanup();
   renderSheet(overrides);
 }
+
+it("expands the whole record while preserving the current editor", async () => {
+  renderSheet();
+  const input = screen.getByRole("textbox", { name: "Name" });
+  await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+  expect(screen.getByRole("dialog").className).toContain("sm:w-screen");
+  expect(screen.getByRole("textbox", { name: "Name" })).toBe(input);
+  await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+  expect(screen.getByRole("dialog").className).toContain("sm:w-[32rem]");
+});

@@ -36,12 +36,9 @@ of a published version.
 
 ### Templates, exporting and importing { #templates-exporting-and-importing }
 
-Under **Automations** the dialog also offers common workflows built on real
-steps: **Lead intake** saves a webhook's leads to a table and answers the caller,
-**Slack alert on failure** posts when another workflow fails, and **Daily
-summary** has an agent write a weekday summary for the team. Each opens with its
-table, bot, agent or people still to choose; the editor marks them, and it
-publishes once they are chosen.
+The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a private table and a fully configured draft in one transaction. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note with frontmatter. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
+
+Use **Full screen** in the run history toolbar to expand the list; Escape or **Exit full screen** restores the page. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
 
 **Export workflow**, under **More** in the editor's header, exports the draft as a
 `.workflow.json` file. The file carries no ids of this deployment: every agent,
@@ -60,9 +57,11 @@ or a draft, and how its last run went and when - its edit date until it has run.
 Above the cards, a search finds a workflow by its name, description or tags, a tag
 filter narrows the list to one tag, and the order is the last edit, the name or the
 newest first. All of it is kept in the address, so a reload or a shared link shows
-the same list. In the editor, click the name to rename the workflow - its handle, the
-part API callers use, stays - click the description under it, or **Add a
-description**, to change it, and **+ Tag** files it under a tag.
+the same list.
+
+**More → Settings** contains the workflow's name, description and tags; these save automatically. Runtime settings remain in the same sheet. Step dialogs size to their contents, with configuration in the main card and input/output beside it. Important record values are shown as fields named after the table's columns. Optional setup details stay folded. Notes offer **Open note**, size presets and drag handles for changing width and height.
+
+The Architect can discover the node catalog, create and revise private workflow drafts, test them and inspect run results. It also creates typed Virtual Tables and queries or updates records. Its workflow-builder and virtual-tables skills explain when to use these features. If a service is absent from the MCP gallery, the Architect can wrap its documented API using an HTTP request step and expose a published callable workflow through an agent's Workflows capability. Credentials stay in the vault. Tests can perform real actions; publishing unattended authority still requires a human session.
 
 Under its name the editor says where the workflow stands: **Draft, not published**,
 or **Live · version 3**, with **Unpublished changes** beside it once the draft
@@ -879,18 +878,9 @@ public API.
 
 ## Starting a workflow from outside the console { #starting-a-workflow-from-outside-the-console }
 
-A workflow starts from one **trigger**, the first node on its canvas. The
-**Triggers** group at the top of the step picker holds them all: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** and **On failure of a workflow**. Adding one to a
-workflow that already has a trigger replaces it in place, and the wires and
-bindings that leave the old one leave the new one. **New workflow** starts a
-workflow from the trigger you pick there.
+A workflow may have several independent **triggers**, for example Manual, Webhook and Schedule. Adding a trigger keeps existing starts and their connections. Each run chooses one start and follows only its reachable branch; it never waits for another trigger to fire. A shared step may read only data available from every start that reaches it. Normalize inputs separately before sharing steps when their payloads differ.
 
-Publishing a version is what switches its trigger on. A webhook, a schedule, a
-table trigger, a form and a bot's messages then run that version as the member who
-published it, and the next
-publish moves them to the new version. A publish that starts from a different
-trigger switches the old one off. **Trigger**, under **More** in the editor's header, shows the live
-trigger and its state, and says when the draft starts differently.
+Publishing activates every configured unattended entry as the publisher. There is at most one of each unattended kind per workflow. Republishing preserves addresses and credentials for retained nodes and removes deleted registrations. **Trigger** under **More** shows every published start and its controls. The header's **Active** switch pauses or resumes all registrations. **Test draft** lets you choose a start; API requests may pass `entry_node_id`, but real requests can select only Manual/API entries, never an unattended trigger.
 
 A version that starts from **Manual** or **API request**, or from no trigger at all, is started by whoever may run it, as themselves: **Start a run** under Runs, the
 [HTTP API](api.md#running-a-workflow) or a WebSocket. Each run is checked, billed
@@ -1293,9 +1283,7 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
   draft again.
 - Every action has a **keyboard path**, and the edit shortcuts are inert on a
   read-only published version or in **View only**.
-- A workflow starts from one **trigger** node - **Manual**, an **API request**, a chat
-  message, a signed **webhook**, a **schedule** or a new table record - and
-  **publishing** switches it on, running as the member who published.
+- A workflow may have several independent **triggers**, for example Manual, Webhook and Schedule. Adding a trigger keeps existing starts and their connections. Each run chooses one start and follows only its reachable branch; it never waits for another trigger to fire. A shared step may read only data available from every start that reaches it. Normalize inputs separately before sharing steps when their payloads differ.
 - A step's **policy** sets its tries, its time limit and whether its failures
   leave by an **Error** port; a **For each** step's body runs from **Loop item** to
   **Loop result** once per item.

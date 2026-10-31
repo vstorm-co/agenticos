@@ -62,7 +62,9 @@ def _live_version(workflow: Workflow) -> UUID | None:
     """The version an agent may start, or `None` when it may start none."""
     if workflow.status == WorkflowStatus.ARCHIVED.value:
         return None
-    if workflow.live_trigger is not None and workflow.live_trigger not in _STARTABLE:
+    if workflow.live_trigger is not None and not _STARTABLE.intersection(
+        workflow.live_triggers or [workflow.live_trigger]
+    ):
         return None
     return workflow.current_version_id
 
@@ -74,7 +76,14 @@ async def _inputs(db: AsyncSession, workflow: Workflow, version_id: UUID) -> lis
     )
     graph = version.graph if version is not None else {}
     entry = next(
-        (node for node in graph.get("nodes", []) if node.get("id") == graph.get("entry_node_id")),
+        (
+            node
+            for node in sorted(
+                graph.get("nodes", []),
+                key=lambda node: node.get("id") != graph.get("entry_node_id"),
+            )
+            if node.get("definition_id") in _STARTABLE
+        ),
         None,
     )
     if entry is None or entry.get("definition_id") not in DECLARES_FIELDS:

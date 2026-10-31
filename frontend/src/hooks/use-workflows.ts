@@ -30,6 +30,7 @@ import { toastDone } from "@/lib/toast";
 
 /** Create a workflow, optionally seeding its draft graph — a template, or a copy. */
 export interface WorkflowSeed {
+  template_id?: "publicApi" | "markdownNotes";
   name: string;
   graph?: WorkflowGraph | null;
 }
@@ -109,8 +110,8 @@ export function useWorkflows({ enabled = true }: { enabled?: boolean } = {}) {
   );
 
   const create = useMutation({
-    mutationFn: async ({ name, graph }: WorkflowSeed) =>
-      seedGraph(await createWorkflow({ name }), graph),
+    mutationFn: async ({ name, graph, template_id }: WorkflowSeed) =>
+      seedGraph(await createWorkflow({ name, ...(template_id ? { template_id } : {}) }), graph),
     onSuccess: async (workflow) => {
       await invalidateWorkflow(workflow.id);
       toast.success(t("created"));

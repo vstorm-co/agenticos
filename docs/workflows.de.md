@@ -1,5 +1,5 @@
 ---
-source_sha: "fd2e6c03d164"
+source_sha: "2c696c7b6c08"
 ---
 
 # Workflows { #workflows }
@@ -42,13 +42,9 @@ Kopie einer veröffentlichten Version.
 
 ### Vorlagen, Export und Import { #templates-exporting-and-importing }
 
-Unter **Automations** bietet der Dialog auch gängige Workflows aus echten
-Schritten an: **Lead intake** speichert die Leads eines Webhooks in einer Tabelle
-und antwortet dem Aufrufer, **Slack alert on failure** meldet sich, wenn ein
-anderer Workflow fehlschlägt, und **Daily summary** lässt einen Agent an Werktagen
-eine Zusammenfassung für das Team schreiben. Jede öffnet sich mit Tabelle, Bot,
-Agent oder Personen, die noch zu wählen sind; der Editor markiert sie, und sie
-lässt sich veröffentlichen, sobald sie gewählt sind.
+Die sofort ausführbaren Automationen heißen **Öffentliche API → Tabelle** und **Markdown-Notizbuch**. Der Server erstellt eine private Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz mit Frontmatter. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
+
+**Full screen** in der Run-Historie vergrößert die Liste; Escape oder **Exit full screen** stellt die Seite wieder her. Der Katalog füllt den verfügbaren Seitenbereich und bietet einen eigenen Vollbildknopf. Seitennavigation erscheint nur bei weiteren Seiten. Der Dateiimport bietet einen beschrifteten Bereich zum Auswählen oder Ablegen einer JSON-Datei.
 
 **Export workflow** unter **More** in der Kopfzeile des Editors exportiert den Entwurf als
 `.workflow.json`-Datei. Die Datei enthält keine IDs dieses Deployments: Jeder
@@ -69,10 +65,11 @@ das Datum der Bearbeitung.
 Über den Karten findet eine Suche einen Workflow nach Name, Beschreibung oder Tags,
 ein Tag-Filter grenzt die Liste auf einen Tag ein, und sortiert wird nach letzter
 Bearbeitung, Name oder den neuesten zuerst. Alles bleibt in der Adresse, sodass ein
-Neuladen oder ein geteilter Link dieselbe Liste zeigt. Im Editor benennt ein Klick auf
-den Namen den Workflow um - sein Kennzeichen, das API-Aufrufer verwenden, bleibt -, ein
-Klick auf die Beschreibung darunter oder **Add a description** ändert sie, und
-**+ Tag** ordnet ihn einem Tag zu.
+Neuladen oder ein geteilter Link dieselbe Liste zeigt.
+
+**More → Settings** enthält Name, Beschreibung und Tags des Workflows; Änderungen werden automatisch gespeichert. Laufzeiteinstellungen bleiben im selben Panel. Schrittdialoge passen ihre Höhe dem Inhalt an: Die Hauptkarte zeigt die Konfiguration, daneben stehen Eingabe und Ausgabe. Datensatzwerte erscheinen als nach Tabellenspalten benannte Felder. Optionale Konfigurationsdetails bleiben eingeklappt. Notizen bieten **Open note**, Größenvorlagen und Ziehpunkte für Breite und Höhe.
+
+Der Architect kann den Knotenkatalog erkunden, private Workflow-Entwürfe erstellen und ändern, sie testen und Run-Ergebnisse prüfen. Er erstellt außerdem typisierte Virtual Tables und sucht oder aktualisiert Datensätze. Die Skills workflow-builder und virtual-tables erklären den passenden Einsatz. Fehlt ein Dienst im MCP-Katalog, kann der Architect dessen dokumentierte API mit einem HTTP-request-Schritt kapseln und einen veröffentlichten aufrufbaren Workflow über die Workflows-Capability als Agentenwerkzeug anbieten. Zugangsdaten bleiben im Tresor. Tests können reale Aktionen ausführen; die Veröffentlichung mit dauerhaften menschlichen Rechten erfordert weiterhin eine menschliche Sitzung.
 
 Unter dem Namen sagt der Editor, wo der Workflow steht: **Draft, not published**
 oder **Live · version 3**, mit **Unpublished changes** daneben, sobald der Entwurf
@@ -995,19 +992,9 @@ der öffentlichen API.
 
 ## Einen Workflow von außerhalb der Konsole starten { #starting-a-workflow-from-outside-the-console }
 
-Ein Workflow startet mit einem **Trigger**, dem ersten Knoten auf seiner
-Zeichenfläche. Die Gruppe **Triggers** oben in der Schrittauswahl enthält sie alle: **Manual**, **API request**, **Chat message**, **Webhook**, **GitHub**, **Gmail**, **Outlook**, **Schedule**, **Table record**, **Form**, **Channel message**, **Called by a workflow** und **On failure of a workflow**. Einen
-davon einem Workflow hinzuzufügen, der schon einen Trigger hat, ersetzt den alten an
-seiner Stelle, und die Verbindungen und Bindings, die den alten verlassen, verlassen
-den neuen. **New workflow** beginnt einen Workflow mit dem Trigger, den Sie dort
-wählen.
+Ein Workflow kann mehrere unabhängige **Trigger** haben, etwa Manual, Webhook und Schedule. Ein neuer Trigger erhält vorhandene Starts und Verbindungen. Jeder Run wählt einen Start und führt nur dessen erreichbaren Zweig aus; er wartet nicht auf andere Trigger. Ein gemeinsamer Schritt darf nur Daten lesen, die von jedem zu ihm führenden Start verfügbar sind. Unterschiedliche Eingaben sollten vor gemeinsamen Schritten getrennt normalisiert werden.
 
-Erst das Veröffentlichen einer Version schaltet ihren Trigger ein. Ein Webhook, ein
-Zeitplan, ein Tabellen-Trigger, ein Formular und die Nachrichten eines Bots führen dann diese Version als das Mitglied aus, das
-sie veröffentlicht hat, und die nächste Veröffentlichung verschiebt sie auf die neue
-Version. Eine Veröffentlichung, die mit einem anderen Trigger startet, schaltet den
-alten ab. **Trigger** unter **More** in der Kopfzeile des Editors zeigt den Live-Trigger und seinen
-Zustand und sagt, wann der Draft anders startet.
+Die Veröffentlichung aktiviert alle konfigurierten unbeaufsichtigten Eingänge mit den Rechten des veröffentlichenden Mitglieds. Pro Workflow ist höchstens ein Trigger jeder unbeaufsichtigten Art erlaubt. Erneutes Veröffentlichen erhält Adressen und Zugangsdaten bestehender Knoten und entfernt gelöschte Registrierungen. **Trigger** unter **More** zeigt alle veröffentlichten Starts und ihre Optionen. **Active** in der Kopfzeile pausiert oder aktiviert sämtliche Registrierungen. **Test draft** bietet eine Startauswahl; die API akzeptiert `entry_node_id`, reale Anfragen dürfen aber nur Manual/API wählen, niemals einen unbeaufsichtigten Eingang.
 
 Eine Version, die mit **Manual** oder **API request** oder ganz ohne Trigger startet, startet jeder,
 der sie ausführen darf, als er selbst: **Start a run** unter Runs, die
@@ -1443,10 +1430,7 @@ Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und 
   draft** macht eine davon wieder zum Draft.
 - Jede Aktion hat einen **Tastaturweg**, und die Bearbeitungskürzel sind auf einer
   schreibgeschützten veröffentlichten Version oder im Modus **View only** wirkungslos.
-- Ein Workflow startet mit einem **Trigger**-Knoten - von Hand oder per API, einer
-  Chatnachricht, einem signierten **Webhook**, einem **Zeitplan** oder einem neuen
-  Tabellen-Datensatz -, und das **Veröffentlichen** schaltet ihn ein, als das
-  veröffentlichende Mitglied.
+- Ein Workflow kann mehrere unabhängige **Trigger** haben, etwa Manual, Webhook und Schedule. Ein neuer Trigger erhält vorhandene Starts und Verbindungen. Jeder Run wählt einen Start und führt nur dessen erreichbaren Zweig aus; er wartet nicht auf andere Trigger. Ein gemeinsamer Schritt darf nur Daten lesen, die von jedem zu ihm führenden Start verfügbar sind. Unterschiedliche Eingaben sollten vor gemeinsamen Schritten getrennt normalisiert werden.
 - Die **Policy** eines Schritts legt seine Versuche, sein Zeitlimit und fest, ob
   seine Fehler über einen **Error**-Port hinausgehen; der Körper eines **For
   each**-Schritts läuft einmal pro Element von **Loop item** bis **Loop result**.

@@ -2250,7 +2250,9 @@
     "filesRoot": "Project files",
     "moreInformation": "More information",
     "details": "Details",
-    "resourceActions": "More actions for {name}"
+    "resourceActions": "More actions for {name}",
+    "workspaceExpand": "Full screen",
+    "workspaceCollapse": "Exit full screen"
   },
   "dashboard": {
     "actions": {
@@ -5025,23 +5027,19 @@
       "templates": {
         "starter": {
           "name": "Starter",
-          "description": "A single step to rename and wire up — the smallest useful starting point."
+          "description": "Run a simple local step and inspect its output. No accounts or setup."
         },
         "sequence": {
           "name": "Two-step sequence",
-          "description": "Two steps already connected, a starting point for a linear flow."
+          "description": "Pass a sample message between two connected steps. Ready to run."
         },
-        "leadIntake": {
-          "name": "Lead intake",
-          "description": "A webhook's leads saved to a table, and the caller answered with the new record."
+        "publicApi": {
+          "name": "Public API → table",
+          "description": "Fetch a public sample post and save it to a table prepared for you. No API key or setup."
         },
-        "failureAlert": {
-          "name": "Slack alert on failure",
-          "description": "A Slack message naming the workflow, the step and the error whenever another workflow fails."
-        },
-        "dailySummary": {
-          "name": "Daily summary",
-          "description": "Every weekday at 8, an agent writes a summary and the team is told."
+        "markdownNotes": {
+          "name": "Markdown notebook",
+          "description": "Create a table with a Markdown note and frontmatter. Ready to run, with no accounts to connect."
         }
       },
       "notFound": "Workflow not found",
@@ -5276,8 +5274,6 @@
       "activeHintOff": "Its trigger is paused. Switch on to start runs again.",
       "activeTurnedOn": "Workflow switched on.",
       "activeTurnedOff": "Workflow paused.",
-      "renameHint": "Click to rename",
-      "renameLabel": "Workflow name",
       "addTag": "Tag",
       "tagPlaceholder": "Add a tag and press Enter",
       "removeTag": "Remove tag {tag}",
@@ -5456,9 +5452,6 @@
       "importUnresolved": "The file carries no agents, tables, secrets or members of another deployment. Choose these in the editor before you publish:",
       "importNothingToChoose": "The file left nothing out. The editor marks anything a step still needs before it publishes.",
       "automationsHeading": "Automations",
-      "describe": "Add a description",
-      "describeHint": "Click to edit the description",
-      "describeLabel": "Workflow description",
       "runFilterSince": "Started",
       "runSince": {
         "1h": "Last hour",
@@ -5554,7 +5547,16 @@
       "importJson": "Workflow JSON",
       "settingsExecution": "Timing and error handling",
       "settingsHistory": "Run history and retention",
-      "importReadError": "Could not read this file. Choose it again or paste its JSON."
+      "importReadError": "Could not read this file. Choose it again or paste its JSON.",
+      "detailsName": "Workflow name",
+      "detailsDescription": "Description",
+      "detailsTags": "Tags",
+      "detailsAutosave": "Changes to these details are saved when you leave a field.",
+      "startRunEntry": "Start from",
+      "importChooseFile": "Choose a workflow file",
+      "importDropHint": "Drop a .workflow.json file here or click to browse",
+      "templatesNeedTables": "Requires permission to create and edit tables.",
+      "cardNoDescription": "No description."
     },
     "retention": {
       "title": "Data retention",
@@ -8607,7 +8609,7 @@
     "bindingPathLabel": "Field inside it",
     "bindingPathPlaceholder": "for example record_id or fields.Email",
     "bindingJsonInvalid": "This is not valid JSON, so it was not saved.",
-    "validationTriggerNotEntry": "A workflow starts from one trigger. Delete this one, or add it from the palette to replace the current one.",
+    "validationTriggerNotEntry": "Use one trigger of each unattended kind.",
     "triggerHintManual": "Start it with Run - at the editor's top right - or from its runs page. Declare fields to be asked for them when it starts.",
     "triggerHintChat": "Members pick this workflow in the chat. The steps after it read the message as prompt, with the conversation and who sent it.",
     "triggerHintWebhook": "Publishing gives this workflow its own address and signing secret, which stay the same when you publish again. The steps after it read the delivery's JSON as body.",
@@ -8882,7 +8884,7 @@
     },
     "codeArgKeys": "Keys of args",
     "codeKeysHint": "Tab indents and Shift+Tab outdents. Press Esc, then Tab, to leave the editor.",
-    "validationConfigNotSet": "Required: the step cannot run without it.",
+    "validationConfigNotSet": "Required.",
     "versionCompare": "Compare with draft",
     "versionShow": "Show this version",
     "diffListLabel": "What changed",
@@ -9127,7 +9129,12 @@
     "pickerApiKeyNew": "Add API key",
     "toolbarDisplay": "Canvas options",
     "stepOutputFields": "Expected output fields",
-    "stepReviewSetup": "Review setup before testing"
+    "stepReviewSetup": "Review setup before testing",
+    "noteSize": "Note size",
+    "noteSizeSmall": "Compact",
+    "noteSizeWide": "Wide",
+    "noteSizeLarge": "Large",
+    "noteExpand": "Open note"
   },
   "artifacts": {
     "title": "Apps",

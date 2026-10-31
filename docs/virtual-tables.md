@@ -11,6 +11,9 @@ the database catalog. Every read and write goes through one service,
 API share the same rules. This page describes the service and its HTTP routes
 under `/api/v1/tables`; the OpenAPI document is the contract for them.
 
+
+The table toolbar offers **Full screen** for the whole workspace, with Escape to return. A record panel has its own **Full screen** button to expand all fields while preserving edits; **Exit full screen** returns it to the side. Table rows sit directly below the toolbar, without a second frame or padded empty panel. The catalog fills the available page area, has its own Full screen control, and shows a pager only when more than one page exists.
+
 ## External clients { #external-clients }
 
 Organization API keys are accepted on `/api/v1/tables`. Send
@@ -666,19 +669,30 @@ what a client branches on.
 
 ```python
 service = VirtualTableService(db)
-table = await service.create_table(ctx, TableCreate(name="Orders", columns=[
-    ColumnInput(label="Customer", type="text"),
-]))
+table = await service.create_table(
+    ctx,
+    TableCreate(
+        name="Orders",
+        columns=[
+            ColumnInput(label="Customer", type="text"),
+        ],
+    ),
+)
 customer = str(table.columns[0].id)
 
 written = await service.upsert_record(
-    ctx, table.id, "ORD-1042", RecordUpsert(values={customer: "Acme"}),
+    ctx,
+    table.id,
+    "ORD-1042",
+    RecordUpsert(values={customer: "Acme"}),
     operation_key="import-2026-09-21-row-17",
 )
 
 # Send the revision back to change it; a stale one raises RevisionConflictError.
 await service.upsert_record(
-    ctx, table.id, "ORD-1042",
+    ctx,
+    table.id,
+    "ORD-1042",
     RecordUpsert(values={customer: "Acme Ltd"}, expected_revision=written.record.revision),
 )
 ```

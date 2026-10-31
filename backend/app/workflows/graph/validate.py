@@ -111,6 +111,7 @@ from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, Workflo
 from app.workflows.graph.quick_log import references, refused_reference
 from app.workflows.nodes._port_names import clash_message
 from app.workflows.nodes.control_foreach._handler import BODY_PORT, DONE_PORT
+from app.workflows.triggers import UNATTENDED, entry_graph, entry_nodes
 
 Problems = list[tuple[str, str]]
 DefinitionMap = dict[UUID, NodeDefinition | None]
@@ -180,6 +181,28 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += await file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)
 
+    entries = entry_nodes(graph)
+    if len(entries) > 1:
+        problems += _rule_1_single_entry(graph)
+        problems += _rule_2_reachable_outputs(graph, analyze_graph(graph).node_scope, [])
+        for entry in entries:
+            branch = derive_scopes(entry_graph(graph, entry.id))
+            dangling = _dangling_reference_problems(branch)
+            problems += dangling
+            if not dangling:
+                problems += _structure_problems(
+                    branch, {node.id: definitions[node.id] for node in branch.nodes}
+                )
+    else:
+        problems += _structure_problems(graph, definitions)
+
+    if problems:
+        raise GraphValidationError(problems)
+    return graph
+
+
+def _structure_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problems:
+    problems: Problems = []
     analysis = analyze_graph(graph)
     node_scope = analysis.node_scope
     ports = instance_ports(graph, definitions)
@@ -206,9 +229,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _rule_13_named_and_switched_off_steps(graph, definitions, ports)
     problems += _quick_log_problems(graph, ports)
 
-    if problems:
-        raise GraphValidationError(problems)
-    return graph
+    return problems
 
 
 # Scope derivation
@@ -726,11 +747,18 @@ def _rule_1_single_entry(graph: WorkflowGraph) -> Problems:
         if (definition := _try_get_definition(node)) is not None
         and definition.category == TRIGGER_CATEGORY
     ]
-    return [
-        (f"nodes.{node_id}", "A workflow starts from one trigger, and this is not it")
+    problems: Problems = [
+        (f"nodes.{node_id}", "A trigger cannot have an incoming connection")
         for node_id in triggers
-        if node_id != graph.entry_node_id
+        if node_id in incoming
     ]
+    kinds: set[str] = set()
+    for entry in entry_nodes(graph):
+        if entry.definition_id in UNATTENDED:
+            if entry.definition_id in kinds:
+                problems.append((f"nodes.{entry.id}", "Use one trigger of each unattended kind"))
+            kinds.add(entry.definition_id)
+    return problems
 
 
 # Rule 2 - reachable outputs
@@ -751,7 +779,7 @@ def _rule_2_reachable_outputs(
     adjacency = _forward_edges(graph)
     exit_edges = _scope_exit_edges(graph)
     seen: set[UUID] = set()
-    queue: deque[UUID] = deque([graph.entry_node_id])
+    queue: deque[UUID] = deque(node.id for node in entry_nodes(graph))
     while queue:
         current = queue.popleft()
         if current in seen:

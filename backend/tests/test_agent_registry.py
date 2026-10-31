@@ -5567,6 +5567,12 @@ class TestAssistantRuntimeGuidance:
             .read_text()
             .strip()
         )
+        guidance += (
+            "\n\n"
+            + (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/WORKFLOWS.md")
+            .read_text()
+            .strip()
+        )
         spec = _spec(instructions=guidance, mcp_servers=[{"account": "platform"}])
         with patch(
             f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",

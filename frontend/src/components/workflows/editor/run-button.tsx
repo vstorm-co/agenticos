@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { validateGraph } from "@/components/workflows/validation";
 import { useWorkflowRuns } from "@/hooks";
-import { declaredFields, sampleRunInput } from "@/lib/workflows/triggers";
+import { declaredFields, sampleRunInput, entryNodes, entryGraph } from "@/lib/workflows/triggers";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -44,12 +44,27 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
     [graph, catalog, tw],
   );
   const fields = declaredFields(graph);
+  const entries =
+    graph === null
+      ? []
+      : entryNodes(graph).map((node) => {
+          const branch = entryGraph(graph, node.id);
+          return {
+            id: node.id,
+            name:
+              node.label ??
+              catalog.find((definition) => definition.id === node.definition_id)?.name ??
+              node.definition_id,
+            fields: declaredFields(branch),
+            sample: sampleRunInput(branch),
+          };
+        });
   const empty = graph === null || graph.nodes.length === 0;
   const blocked = empty || problems.length > 0 || isDirty || start.isPending;
 
-  const begin = (input: Record<string, unknown>) =>
+  const begin = (input: Record<string, unknown>, entry_node_id?: string) =>
     start.mutate(
-      { workflow_id: workflowId, mode: "test", input },
+      { workflow_id: workflowId, mode: "test", input, ...(entry_node_id ? { entry_node_id } : {}) },
       {
         onSuccess: (run) => {
           setAsking(false);
@@ -61,7 +76,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const run = () => {
     revealProblems();
     if (blocked) return;
-    if (fields.length > 0) setAsking(true);
+    if (fields.length > 0 || entries.length > 1) setAsking(true);
     else begin(sampleRunInput(graph));
   };
 
@@ -100,7 +115,9 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
           canTest
           busy={start.isPending}
           testFields={fields}
-          onStart={({ input }) => begin(input)}
+          sampleInput={sampleRunInput(graph)}
+          entries={entries.length > 1 ? entries : []}
+          onStart={({ input, entry_node_id }) => begin(input, entry_node_id)}
         />
       )}
     </>

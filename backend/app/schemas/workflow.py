@@ -124,6 +124,7 @@ class WorkflowRead(BaseSchema):
         "`trigger.chat`, `trigger.webhook`, `trigger.schedule`, `trigger.table_record` - "
         "or null when it starts from no trigger (by hand) or was never published",
     )
+    live_triggers: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     trigger_active: bool | None = Field(
         default=None,
@@ -172,9 +173,10 @@ class WorkflowList(BaseSchema):
 
 
 class WorkflowCreate(BaseSchema):
-    """Create a workflow. The handle is derived from the name, an empty graph to start."""
+    """Create an empty draft or a ready template with its private table."""
 
     name: str = Field(min_length=1, max_length=128)
+    template_id: Literal["publicApi", "markdownNotes"] | None = None
     description: str | None = Field(default=None, max_length=2000)
     visibility: Visibility = Field(
         default=Visibility.ORG,
@@ -274,6 +276,8 @@ class WorkflowPublished(WorkflowVersionRead):
     trigger: str | None = None
     exposure: WorkflowExposureRead | None = None
     webhook_secret: str | None = None
+    exposures: list[WorkflowExposureRead] = Field(default_factory=list)
+    trigger_secrets: dict[str, str] = Field(default_factory=dict)
 
 
 class WorkflowVersionDetail(WorkflowVersionRead):

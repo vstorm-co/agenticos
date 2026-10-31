@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -216,7 +216,6 @@ export function TableColumnPicker({
 
       {value !== null && !tableOrphaned && (
         <div className="space-y-2">
-          <Label>{t("pickerColumnsLabel")}</Label>
           {tableLoading && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -242,12 +241,23 @@ export function TableColumnPicker({
             </div>
           )}
           {table !== null && !schemaChanged && (
-            <ColumnSelector
-              value={value}
-              columns={liveColumns}
-              onChange={onChange}
-              disabled={disabled}
-            />
+            <details open={value.column_ids !== null} className="group rounded-lg border px-3 py-2">
+              <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-2 text-xs [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
+                <span>{t("pickerColumnsLabel")}</span>
+                <span className="ml-auto">
+                  {value.column_ids === null ? t("pickerColumnsAll") : value.column_ids.length}
+                </span>
+              </summary>
+              <div className="pt-3">
+                <ColumnSelector
+                  value={value}
+                  columns={liveColumns}
+                  onChange={onChange}
+                  disabled={disabled}
+                />
+              </div>
+            </details>
           )}
         </div>
       )}

@@ -21,6 +21,7 @@ from app.api.deps import (
     WorkflowStatsSvc,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.core.exceptions import BadRequestError
 from app.core.permissions import Perm
 from app.schemas.mcp_connection import McpConnectionUsable, McpConnectionUsableList
@@ -43,7 +44,7 @@ from app.schemas.workflow import (
 from app.schemas.workflow_portable import WorkflowExport, WorkflowImported
 from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get(
@@ -74,7 +75,12 @@ async def list_workflows(
     dependencies=[Depends(require(Perm.WORKFLOWS_CREATE))],
 )
 async def create_workflow(data: WorkflowCreate, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
-    """Create a workflow in draft, with an empty graph. It cannot run until published."""
+    """Create a draft, empty or from a ready `template_id`.
+
+    Ready templates provision a private table and validated graph in this transaction.
+    They need table create/edit/view permissions. Test the draft without setup;
+    publication remains an explicit action.
+    """
     return await service.create(ctx, data)
 
 

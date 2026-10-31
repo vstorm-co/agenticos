@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
@@ -48,6 +50,11 @@ function presetFor(table: TableRead, csv: CsvStart): CsvPreset {
 }
 
 export default function TablesPage() {
+  const {
+    ref: galleryRef,
+    expanded: galleryFullscreen,
+    toggle: toggleGalleryFullscreen,
+  } = useWorkspaceFullscreen();
   const t = useTranslations("pages.tables");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
@@ -83,12 +90,23 @@ export default function TablesPage() {
       />
 
       <ListCard
-        namedByPage
+        ref={galleryRef}
         fill
+        role={galleryFullscreen ? "dialog" : undefined}
+        aria-modal={galleryFullscreen || undefined}
+        aria-label={t("catalog")}
+        className={
+          galleryFullscreen ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined
+        }
+        namedByPage
         title={t("catalog")}
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={
           <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <WorkspaceFullscreenButton
+              expanded={galleryFullscreen}
+              onToggle={toggleGalleryFullscreen}
+            />
             <SearchInput
               className="min-w-0 flex-1 sm:flex-none"
               value={query}
@@ -148,15 +166,17 @@ export default function TablesPage() {
             ))}
           </div>
         )}
-        <div>
-          <PaginationBar
-            page={page}
-            pageSize={PAGE_SIZE}
-            total={total}
-            isLoading={isLoading}
-            onPage={setPage}
-          />
-        </div>
+        {total > PAGE_SIZE && (
+          <div>
+            <PaginationBar
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={total}
+              isLoading={isLoading}
+              onPage={setPage}
+            />
+          </div>
+        )}
       </ListCard>
 
       <CreateTableDialog

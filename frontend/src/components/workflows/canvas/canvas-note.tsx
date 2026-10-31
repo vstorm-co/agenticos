@@ -2,11 +2,24 @@
 
 import { useRef, useState } from "react";
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
-import { Palette, Pencil } from "lucide-react";
+import { Palette, Pencil, Maximize2, Scaling } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
-import { Textarea } from "@/components/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  Textarea,
+} from "@/components/ui";
+import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import type { CanvasNote, NoteColor } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
@@ -141,6 +154,8 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
   const { note, readOnly } = data;
   const color = note.color ?? "default";
   const [draft, setDraft] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const expandButton = useRef<HTMLButtonElement>(null);
 
   const finish = () => {
     if (draft !== null && draft !== note.text) updateNote(note.id, { text: draft });
@@ -154,13 +169,106 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
     <div
       data-note-id={note.id}
       className={cn(
-        "group text-foreground relative h-full w-full overflow-hidden rounded-lg border p-3 text-sm shadow-sm",
+        "group text-foreground relative h-full w-full overflow-hidden rounded-lg border px-3 pt-9 pb-3 text-sm shadow-sm",
         TINTS[color].card,
         selected && "ring-primary/40 ring-2",
       )}
-      onDoubleClick={() => !readOnly && setDraft(note.text)}
+      onDoubleClick={() => !readOnly && !expanded && draft === null && setDraft(note.text)}
     >
-      {!readOnly && <NodeResizer isVisible={selected} minWidth={120} minHeight={60} />}
+      {!readOnly && (
+        <NodeResizer
+          isVisible={selected}
+          minWidth={180}
+          minHeight={100}
+          handleStyle={{ width: 9, height: 9 }}
+        />
+      )}
+      <div
+        className="nodrag bg-background/90 absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md p-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 data-[selected=true]:opacity-100"
+        data-selected={selected}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6"
+          ref={expandButton}
+          aria-label={t("noteExpand")}
+          onClick={() => {
+            setDraft(draft ?? note.text);
+            setExpanded(true);
+          }}
+        >
+          <Maximize2 className="size-3.5" />
+        </Button>
+        {!readOnly && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-6" aria-label={t("noteSize")}>
+                <Scaling className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {(
+                [
+                  ["noteSizeSmall", 240, 140],
+                  ["noteSizeWide", 480, 180],
+                  ["noteSizeLarge", 480, 360],
+                ] as const
+              ).map(([key, width, height]) => (
+                <DropdownMenuItem key={key} onSelect={() => updateNote(note.id, { width, height })}>
+                  {t(key)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+      <Dialog
+        open={expanded}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (!readOnly) finish();
+            else setDraft(null);
+          }
+          setExpanded(open);
+        }}
+      >
+        <DialogContent
+          className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            expandButton.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("noteLabel")}</DialogTitle>
+          </DialogHeader>
+          <div className={DIALOG_BODY}>
+            {readOnly ? (
+              <MarkdownContent content={note.text} inertImages />
+            ) : (
+              <Textarea
+                aria-label={t("noteLabel")}
+                value={draft ?? note.text}
+                onChange={(event) => setDraft(event.target.value)}
+                maxLength={4000}
+                className="min-h-80 resize-y"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (!readOnly) finish();
+                else setDraft(null);
+                setExpanded(false);
+              }}
+            >
+              {t("nodeEditorDone")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {!readOnly && draft === null && (
         <button
           type="button"
@@ -179,7 +287,7 @@ export function CanvasNoteCard({ data, selected }: NodeProps<CanvasNoteNode>) {
           onPick={(option) => color !== option && updateNote(note.id, { color: option })}
         />
       )}
-      {draft !== null ? (
+      {draft !== null && !expanded ? (
         <Textarea
           aria-label={t("noteLabel")}
           value={draft}

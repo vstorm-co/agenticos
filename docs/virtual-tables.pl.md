@@ -1,5 +1,5 @@
 ---
-source_sha: "19c522bfb389"
+source_sha: "89182bbe5236"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -14,6 +14,9 @@ tabeli kosztuje jeden wiersz, zmiana nazwy kolumny nie zmienia żadnego rekordu,
 przez jeden serwis, `VirtualTableService`, więc konsola, narzędzia agenta, węzły
 workflow i publiczne API mają te same reguły. Ta strona opisuje serwis i jego trasy
 HTTP pod `/api/v1/tables`; dokument OpenAPI jest ich kontraktem.
+
+
+Pasek tabeli oferuje **Full screen** dla całego obszaru pracy; Escape przywraca stronę. Panel rekordu ma osobny przycisk **Full screen**, który powiększa wszystkie pola bez utraty edycji; **Exit full screen** przywraca panel boczny. Wiersze leżą bezpośrednio pod paskiem, bez drugiej ramki i pustego panelu z marginesami. Katalog wypełnia dostępną wysokość strony, ma własny przycisk pełnego ekranu i pokazuje paginację dopiero przy wielu stronach.
 
 ## Klienci zewnętrzni { #external-clients }
 
@@ -700,19 +703,30 @@ według czego klient się rozgałęzia.
 
 ```python
 service = VirtualTableService(db)
-table = await service.create_table(ctx, TableCreate(name="Orders", columns=[
-    ColumnInput(label="Customer", type="text"),
-]))
+table = await service.create_table(
+    ctx,
+    TableCreate(
+        name="Orders",
+        columns=[
+            ColumnInput(label="Customer", type="text"),
+        ],
+    ),
+)
 customer = str(table.columns[0].id)
 
 written = await service.upsert_record(
-    ctx, table.id, "ORD-1042", RecordUpsert(values={customer: "Acme"}),
+    ctx,
+    table.id,
+    "ORD-1042",
+    RecordUpsert(values={customer: "Acme"}),
     operation_key="import-2026-09-21-row-17",
 )
 
 # Send the revision back to change it; a stale one raises RevisionConflictError.
 await service.upsert_record(
-    ctx, table.id, "ORD-1042",
+    ctx,
+    table.id,
+    "ORD-1042",
     RecordUpsert(values={customer: "Acme Ltd"}, expected_revision=written.record.revision),
 )
 ```

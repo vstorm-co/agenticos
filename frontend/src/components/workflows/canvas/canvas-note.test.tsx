@@ -181,3 +181,18 @@ describe("a note on the canvas", () => {
     expect(store.getState().graph?.notes).toHaveLength(1);
   });
 });
+
+it("changes note dimensions and saves expanded edits while returning focus", async () => {
+  seed([note()]);
+  render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
+  await userEvent.click(await screen.findByRole("button", { name: "Note size" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Wide" }));
+  expect(store.getState().graph?.notes?.[0]).toMatchObject({ width: 480, height: 180 });
+  await userEvent.click(screen.getByRole("button", { name: "Open note" }));
+  const editor = screen.getByRole("dialog").querySelector("textarea");
+  expect(editor).not.toBeNull();
+  fireEvent.change(editor!, { target: { value: "## Updated\n\nKeep this note." } });
+  await userEvent.click(screen.getByRole("button", { name: "Done" }));
+  expect(stored()).toBe("## Updated\n\nKeep this note.");
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Open note" }));
+});

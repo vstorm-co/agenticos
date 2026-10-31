@@ -2250,7 +2250,9 @@
     "filesRoot": "Projektdateien",
     "moreInformation": "Weitere Informationen",
     "details": "Details",
-    "resourceActions": "Weitere Aktionen für {name}"
+    "resourceActions": "Weitere Aktionen für {name}",
+    "workspaceExpand": "Vollbild",
+    "workspaceCollapse": "Vollbild verlassen"
   },
   "dashboard": {
     "actions": {
@@ -6428,24 +6430,20 @@
       "useTemplate": "Verwenden",
       "templates": {
         "sequence": {
-          "description": "Zwei bereits verbundene Schritte, ein Ausgangspunkt für einen linearen Ablauf.",
+          "description": "Eine Beispielnachricht zwischen zwei verbundenen Schritten weitergeben. Sofort ausführbar.",
           "name": "Zweischrittige Sequenz"
         },
         "starter": {
-          "description": "Ein einzelner Schritt zum Umbenennen und Verdrahten - der kleinste sinnvolle Ausgangspunkt.",
+          "description": "Einen einfachen lokalen Schritt ausführen und das Ergebnis prüfen. Ohne Konten oder Einrichtung.",
           "name": "Starter"
         },
-        "leadIntake": {
-          "name": "Lead-Eingang",
-          "description": "Leads eines Webhooks werden in einer Tabelle gespeichert, und der Aufrufer bekommt den neuen Datensatz als Antwort."
+        "publicApi": {
+          "name": "Öffentliche API → Tabelle",
+          "description": "Einen Beispielbeitrag laden und in einer automatisch vorbereiteten Tabelle speichern. Ohne API-Schlüssel oder Einrichtung."
         },
-        "failureAlert": {
-          "name": "Slack-Alarm bei Fehler",
-          "description": "Eine Slack-Nachricht mit Workflow, Schritt und Fehler, sobald ein anderer Workflow fehlschlägt."
-        },
-        "dailySummary": {
-          "name": "Tägliche Zusammenfassung",
-          "description": "An jedem Werktag um 8 schreibt ein Agent eine Zusammenfassung, und das Team wird benachrichtigt."
+        "markdownNotes": {
+          "name": "Markdown-Notizbuch",
+          "description": "Eine Tabelle mit Markdown-Notiz und Frontmatter erstellen. Sofort ausführbar, ohne Kontoverbindung."
         }
       },
       "notFound": "Workflow nicht gefunden",
@@ -6709,8 +6707,6 @@
       "activeHintOff": "Sein Trigger ist pausiert. Einschalten startet wieder Läufe.",
       "activeTurnedOn": "Workflow eingeschaltet.",
       "activeTurnedOff": "Workflow pausiert.",
-      "renameHint": "Zum Umbenennen klicken",
-      "renameLabel": "Name des Workflows",
       "addTag": "Tag",
       "tagPlaceholder": "Tag eingeben und Enter drücken",
       "removeTag": "Tag {tag} entfernen",
@@ -6889,9 +6885,6 @@
       "importUnresolved": "Die Datei enthält keine Agents, Tabellen, Secrets oder Mitglieder eines anderen Deployments. Wähle diese im Editor, bevor du veröffentlichst:",
       "importNothingToChoose": "Die Datei hat nichts weggelassen. Der Editor markiert alles, was ein Schritt vor dem Veröffentlichen noch braucht.",
       "automationsHeading": "Automatisierungen",
-      "describe": "Beschreibung hinzufügen",
-      "describeHint": "Zum Bearbeiten der Beschreibung klicken",
-      "describeLabel": "Workflow-Beschreibung",
       "runFilterSince": "Gestartet",
       "runSince": {
         "1h": "Letzte Stunde",
@@ -6987,7 +6980,16 @@
       "importJson": "Workflow-JSON",
       "settingsExecution": "Laufzeit und Fehlerbehandlung",
       "settingsHistory": "Run-Verlauf und Aufbewahrung",
-      "importReadError": "Die Datei konnte nicht gelesen werden. Wähle sie erneut aus oder füge ihr JSON ein."
+      "importReadError": "Die Datei konnte nicht gelesen werden. Wähle sie erneut aus oder füge ihr JSON ein.",
+      "detailsName": "Workflow-Name",
+      "detailsDescription": "Beschreibung",
+      "detailsTags": "Tags",
+      "detailsAutosave": "Diese Angaben werden beim Verlassen eines Feldes gespeichert.",
+      "startRunEntry": "Starten mit",
+      "importChooseFile": "Workflow-Datei auswählen",
+      "importDropHint": ".workflow.json hier ablegen oder zum Auswählen klicken",
+      "templatesNeedTables": "Benötigt Rechte zum Erstellen und Bearbeiten von Tabellen.",
+      "cardNoDescription": "Keine Beschreibung."
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",
@@ -8486,7 +8488,7 @@
     "created": "Workflow angelegt",
     "duplicated": "Workflow dupliziert",
     "publishedVersion": "Veröffentlichte Version {version}",
-    "validationTriggerNotEntry": "Ein Workflow startet mit einem Auslöser. Löschen Sie diesen, oder fügen Sie ihn aus der Palette hinzu, um den aktuellen zu ersetzen.",
+    "validationTriggerNotEntry": "Verwenden Sie einen Trigger je unbeaufsichtigter Art.",
     "triggerHintManual": "Starten Sie ihn mit Run oben rechts im Editor oder auf seiner Run-Seite. Deklarieren Sie Felder, um beim Start nach ihnen gefragt zu werden.",
     "triggerHintChat": "Mitglieder wählen diesen Workflow im Chat. Die folgenden Schritte lesen die Nachricht als prompt, mit der Unterhaltung und dem Absender.",
     "triggerHintWebhook": "Die Veröffentlichung gibt diesem Workflow eine eigene Adresse und ein Signatur-Secret, die bei weiteren Veröffentlichungen gleich bleiben. Die folgenden Schritte lesen das JSON der Zustellung als body.",
@@ -8761,7 +8763,7 @@
     },
     "codeArgKeys": "Schlüssel von args",
     "codeKeysHint": "Tab rückt ein, Shift+Tab rückt aus. Drücke Esc und dann Tab, um den Editor zu verlassen.",
-    "validationConfigNotSet": "Erforderlich: Ohne diese Angabe kann der Schritt nicht laufen.",
+    "validationConfigNotSet": "Erforderlich.",
     "versionCompare": "Mit Entwurf vergleichen",
     "versionShow": "Diese Version zeigen",
     "diffListLabel": "Was sich geändert hat",
@@ -9006,7 +9008,12 @@
     "pickerApiKeyNew": "API-Schlüssel hinzufügen",
     "toolbarDisplay": "Zeichenflächenoptionen",
     "stepOutputFields": "Erwartete Ausgabefelder",
-    "stepReviewSetup": "Einrichtung vor dem Test prüfen"
+    "stepReviewSetup": "Einrichtung vor dem Test prüfen",
+    "noteSize": "Notizgröße",
+    "noteSizeSmall": "Kompakt",
+    "noteSizeWide": "Breit",
+    "noteSizeLarge": "Groß",
+    "noteExpand": "Notiz öffnen"
   },
   "artifacts": {
     "title": "Apps",

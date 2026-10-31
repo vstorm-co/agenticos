@@ -90,7 +90,11 @@ export function WorkflowSettingsForm({
   const [monthlyBudget, setMonthlyBudget] = useState(shown(saved.monthly_budget_usd));
   const handlers = workflows.filter(
     (candidate) =>
-      candidate.id !== workflow.id && candidate.live_trigger === WORKFLOW_FAILED_TRIGGER,
+      candidate.id !== workflow.id &&
+      (candidate.live_triggers?.length
+        ? candidate.live_triggers
+        : [candidate.live_trigger]
+      ).includes(WORKFLOW_FAILED_TRIGGER),
   );
   const minutes = numberOrNull(deadline);
   const zone = timezone.trim() || "UTC";

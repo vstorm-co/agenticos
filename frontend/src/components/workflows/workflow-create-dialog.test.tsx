@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import messages from "@/../messages/en.json";
-import { AUTOMATION_TEMPLATES, WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
+import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
 import { WorkflowCreateDialog } from "./workflow-create-dialog";
 
 function wrap(node: ReactNode) {
@@ -34,10 +34,8 @@ describe("WorkflowCreateDialog", () => {
     expect(screen.queryByRole("button", { name: "Use" })).toBeNull();
     await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
     // "Use" appears once per template.
-    expect(screen.getAllByRole("button", { name: "Use" })).toHaveLength(
-      WORKFLOW_TEMPLATES.length + AUTOMATION_TEMPLATES.length,
-    );
-    for (const automation of ["Lead intake", "Slack alert on failure", "Daily summary"]) {
+    expect(screen.getAllByRole("button", { name: "Use" })).toHaveLength(WORKFLOW_TEMPLATES.length);
+    for (const automation of ["Public API → table", "Markdown notebook"]) {
       expect(screen.getByText(automation)).toBeInTheDocument();
     }
   });
@@ -91,5 +89,19 @@ describe("WorkflowCreateDialog", () => {
     for (const button of screen.getAllByRole("button", { name: "Use" })) {
       expect(button).toBeDisabled();
     }
+  });
+});
+
+it("requests a provisioned template instead of an unresolved graph", async () => {
+  const onChoose = vi.fn();
+  render(
+    wrap(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={onChoose} busy={false} />),
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Templates" }));
+  await userEvent.click(screen.getByRole("button", { name: /Public API → table/ }));
+  expect(onChoose).toHaveBeenCalledWith({
+    name: "Public API → table",
+    graph: null,
+    template_id: "publicApi",
   });
 });

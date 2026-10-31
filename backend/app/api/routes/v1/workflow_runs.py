@@ -97,6 +97,7 @@ async def start_workflow_run(
         run_input=data.input,
         deadline_seconds=data.deadline_seconds,
         step=data.step,
+        entry_node_id=data.entry_node_id,
     )
 
 

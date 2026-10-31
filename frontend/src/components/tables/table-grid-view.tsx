@@ -322,7 +322,7 @@ export function TableGridView({
         isRowActive={canEdit ? (record) => selected.has(record.id) : undefined}
         fillHeight
         // Every row is one height, so only the rows in view are drawn.
-        className="[&_tbody_td]:h-13"
+        className="rounded-none border-0 [&_tbody_td]:h-12"
         rowHeight={ROW_HEIGHT}
         onEndReached={onEndReached}
         sort={{ by: sort.by, dir: sort.direction }}

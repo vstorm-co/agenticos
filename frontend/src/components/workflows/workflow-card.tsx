@@ -99,7 +99,7 @@ export function WorkflowCard({
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: workflow.name })}
         />
-        <div className="pointer-events-none relative flex flex-1 items-start gap-3">
+        <div className="pointer-events-none relative mb-3 flex items-start gap-3">
           {workflow.entry_node === null ? (
             <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
               <Workflow aria-hidden="true" className="size-5" />
@@ -136,45 +136,44 @@ export function WorkflowCard({
                 {archived ? t("statusArchived") : live ? t("statusLive") : t("statusDraft")}
               </Badge>
             </div>
-            {workflow.description && (
-              <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">
-                {workflow.description}
-              </p>
-            )}
-            {(showsTrigger || workflow.tags.length > 0) && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {showsTrigger && (
-                  <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        workflow.trigger_active ? "bg-success" : "bg-muted-foreground/40",
-                      )}
-                    />
-                    {workflow.trigger_active ? t("activeOn") : t("activeOff")}
-                  </Badge>
-                )}
-                {workflow.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="font-normal">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
+              {workflow.description || t("cardNoDescription")}
+            </p>
+            <div className="mt-2 flex min-h-5 flex-wrap items-center gap-1.5">
+              <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
+                {" "}
+                <span
+                  role="img"
+                  aria-label={t(`visibility.${visibility}`)}
+                  title={t(`visibility.${visibility}`)}
+                  className="pointer-events-auto inline-flex shrink-0 items-center gap-1"
+                >
+                  <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
+                  <span>{t(`visibility.${visibility}`)}</span>
+                </span>
+              </Badge>
+              {showsTrigger && (
+                <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      workflow.trigger_active ? "bg-success" : "bg-muted-foreground/40",
+                    )}
+                  />
+                  {workflow.trigger_active ? t("activeOn") : t("activeOff")}
+                </Badge>
+              )}
+              {workflow.tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="font-normal">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="relative mt-3 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t pt-3">
-          <span className="text-muted-foreground pointer-events-none flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            <span
-              role="img"
-              aria-label={t(`visibility.${visibility}`)}
-              title={t(`visibility.${visibility}`)}
-              className="pointer-events-auto inline-flex shrink-0 items-center gap-1"
-            >
-              <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
-              <span>{t(`visibility.${visibility}`)}</span>
-            </span>
+        <div className="relative mt-auto flex items-center justify-between gap-x-2 gap-y-1 border-t pt-3">
+          <span className="text-muted-foreground pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             {workflow.last_run !== null ? (
               <>
                 <WorkflowRunStatusBadge status={workflow.last_run.status} />

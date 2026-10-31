@@ -3659,9 +3659,21 @@ class AgentRegistryService:
             .read_text()
             .strip()
         )
-        if guidance in spec.instructions:
+        additions = [guidance] if guidance not in spec.instructions else []
+        workflow_tools = {"list_workflow_nodes", "create_workflow_draft", "list_virtual_tables"}
+        if platform.allowed_tools is None or workflow_tools.issubset(platform.allowed_tools):
+            workflow_guidance = (
+                (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/WORKFLOWS.md")
+                .read_text()
+                .strip()
+            )
+            if workflow_guidance not in spec.instructions:
+                additions.append(workflow_guidance)
+        if not additions:
             return spec
-        return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{guidance}"})
+        return spec.model_copy(
+            update={"instructions": "\n\n".join([spec.instructions, *additions])}
+        )
 
     async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
         """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).

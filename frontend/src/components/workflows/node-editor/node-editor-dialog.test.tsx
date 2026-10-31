@@ -330,7 +330,7 @@ describe("a step's missing values", () => {
   const NEEDS = makeDefinition({ id: "test.needs", name: "Needs", input_schema: REQUIRED_INPUT });
   // What a field itself says, apart from the header line that names it.
   const NOT_TYPED = "Required: type a value, or take one from an earlier step.";
-  const NOT_SET = "Required: the step cannot run without it.";
+  const NOT_SET = "Required.";
 
   it("keeps setup details quiet until requested, then reveals field errors after testing", async () => {
     seed(node("a", "test.needs"));

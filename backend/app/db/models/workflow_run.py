@@ -231,6 +231,8 @@ class WorkflowRun(Base, TimestampMixin):
     # a stored JSON `null` back still deserializes to Python `None` either
     # way, which is what made this invisible short of asking the database
     # directly whether the column holds SQL NULL.
+    entry_node_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    """The selected trigger; older runs use the version's default entry."""
     draft_graph_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )

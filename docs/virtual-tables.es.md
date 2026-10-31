@@ -1,5 +1,5 @@
 ---
-source_sha: "19c522bfb389"
+source_sha: "89182bbe5236"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -15,6 +15,9 @@ un único servicio, `VirtualTableService`, de modo que la consola, las herramien
 agent, los nodos de workflow y la API pública comparten las mismas reglas. Esta página
 describe el servicio y sus rutas HTTP bajo `/api/v1/tables`; el documento OpenAPI es su
 contrato.
+
+
+La barra de la tabla ofrece **Full screen** para todo el espacio de trabajo; Escape vuelve a la página. El panel de registro tiene su propio botón **Full screen**, que amplía todos los campos conservando las modificaciones; **Exit full screen** restaura el panel lateral. Las filas quedan directamente bajo la barra, sin un segundo marco ni un panel vacío con márgenes. El catálogo ocupa el espacio disponible, ofrece su propio botón de pantalla completa y solo muestra paginación cuando hay varias páginas.
 
 ## Clientes externos { #external-clients }
 
@@ -705,19 +708,30 @@ un cliente usa para bifurcar.
 
 ```python
 service = VirtualTableService(db)
-table = await service.create_table(ctx, TableCreate(name="Orders", columns=[
-    ColumnInput(label="Customer", type="text"),
-]))
+table = await service.create_table(
+    ctx,
+    TableCreate(
+        name="Orders",
+        columns=[
+            ColumnInput(label="Customer", type="text"),
+        ],
+    ),
+)
 customer = str(table.columns[0].id)
 
 written = await service.upsert_record(
-    ctx, table.id, "ORD-1042", RecordUpsert(values={customer: "Acme"}),
+    ctx,
+    table.id,
+    "ORD-1042",
+    RecordUpsert(values={customer: "Acme"}),
     operation_key="import-2026-09-21-row-17",
 )
 
 # Send the revision back to change it; a stale one raises RevisionConflictError.
 await service.upsert_record(
-    ctx, table.id, "ORD-1042",
+    ctx,
+    table.id,
+    "ORD-1042",
     RecordUpsert(values={customer: "Acme Ltd"}, expected_revision=written.record.revision),
 )
 ```

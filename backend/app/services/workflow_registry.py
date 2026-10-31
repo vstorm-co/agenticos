@@ -10,8 +10,9 @@ compare-and-set runs before the graph is even looked at.
 import logging
 import re
 from collections.abc import Sequence
-from typing import Any
-from uuid import UUID
+from itertools import pairwise
+from typing import Any, Literal
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
@@ -37,6 +38,7 @@ from app.repositories import resource_grant_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.virtual_table import ColumnInput, TableCreate
 from app.schemas.workflow import (
     NodeCatalog,
     NodeCatalogEntry,
@@ -61,15 +63,22 @@ from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.file_storage import delete_files_best_effort
 from app.services.mcp_connection import McpConnectionService
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
+from app.services.virtual_tables.facade import VirtualTableService
 from app.services.workflow_authority import require_human_publisher
 from app.services.workflow_execution.exceptions import WorkflowArchivedError
 from app.services.workflow_triggers import WorkflowTriggerSync
 from app.workflows._registry import all_node_definitions
-from app.workflows.contracts.io import TableIORef
+from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef, TableIORef
 from app.workflows.graph.errors import GraphValidationError
-from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
+from app.workflows.graph.model import (
+    Edge,
+    NodeInstance,
+    NodePosition,
+    WorkflowGraph,
+    jsonb_value_fits,
+)
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
-from app.workflows.triggers import UNATTENDED, WORKFLOW_FAILED
+from app.workflows.triggers import UNATTENDED, WORKFLOW_FAILED, entry_nodes
 
 _SLUG_ALLOWED = re.compile(r"[^a-z0-9]+")
 _SLUG_TRIM = re.compile(r"-{2,}")
@@ -186,6 +195,8 @@ def _read(
         owner_user_id=workflow.owner_user_id,
         current_version_id=workflow.current_version_id,
         live_trigger=workflow.live_trigger,
+        live_triggers=workflow.live_triggers
+        or ([workflow.live_trigger] if workflow.live_trigger else []),
         tags=list(workflow.tags),
         trigger_active=trigger_active,
         draft_revision=workflow.draft_revision,
@@ -417,6 +428,13 @@ class WorkflowRegistryService:
                 message="You cannot create workflows",
                 details={"required": [Perm.WORKFLOWS_CREATE.value]},
             )
+        if data.template_id is not None:
+            required = {Perm.TABLES_CREATE, Perm.TABLES_VIEW, Perm.TABLES_EDIT}
+            if not all(ctx.has(permission) for permission in required):
+                raise AuthorizationError(
+                    message="This template needs permission to create and edit tables",
+                    details={"required": sorted(permission.value for permission in required)},
+                )
         name, slug = await self._available_name(ctx, data.name)
         workflow = await workflow_repo.create(
             self.db,
@@ -426,8 +444,17 @@ class WorkflowRegistryService:
             description=data.description,
             owner_user_id=ctx.subject_id,
             created_by_user_id=ctx.subject_id,
-            visibility=data.visibility.value,
+            visibility="private"
+            if data.template_id is not None and "visibility" not in data.model_fields_set
+            else data.visibility.value,
         )
+        if data.template_id is not None:
+            graph = await self._ready_template(ctx, workflow, data.template_id)
+            workflow = await workflow_repo.update(
+                self.db,
+                workflow=workflow,
+                update_data={"draft_graph": graph.model_dump(mode="json"), "draft_revision": 1},
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -438,6 +465,131 @@ class WorkflowRegistryService:
             details={"name": workflow.name},
         )
         return _read(workflow)
+
+    async def _ready_template(
+        self,
+        ctx: AuthContext,
+        workflow: Workflow,
+        template_id: Literal["publicApi", "markdownNotes"],
+    ) -> WorkflowGraph:
+        """Provision a private table and a runnable draft in the creation transaction.
+
+        Runs reuse this pinned table and upsert the same external record, so trying
+        the example twice never creates another table or duplicate demonstration row.
+        """
+        public_api = template_id == "publicApi"
+        table = await VirtualTableService(self.db).create_table(
+            ctx,
+            TableCreate(
+                name=f"{workflow.name[:40]} {workflow.id.hex[:8]}",
+                visibility="private",
+                columns=[
+                    ColumnInput(label="Title", type="text"),
+                    ColumnInput(label="Notes", type="rich_text"),
+                    ColumnInput(label="Source ID", type="integer"),
+                ],
+            ),
+        )
+        start, request, save, output = (uuid4() for _ in range(4))
+        nodes = [
+            NodeInstance(
+                id=start,
+                definition_id="trigger.manual",
+                definition_version=1,
+                layout=NodePosition(x=0, y=0),
+            )
+        ]
+        if public_api:
+            nodes.append(
+                NodeInstance(
+                    id=request,
+                    definition_id="http.request",
+                    definition_version=1,
+                    config={"method": "GET", "url": "https://jsonplaceholder.typicode.com/posts/1"},
+                    layout=NodePosition(x=300, y=0),
+                )
+            )
+        nodes.extend(
+            [
+                NodeInstance(
+                    id=save,
+                    definition_id="table.record.upsert",
+                    definition_version=1,
+                    config={
+                        "table": TableIORef(
+                            table_id=table.id, schema_version=table.schema_version
+                        ).model_dump(mode="json")
+                    },
+                    layout=NodePosition(x=600 if public_api else 300, y=0),
+                ),
+                NodeInstance(
+                    id=output,
+                    definition_id="core.output",
+                    definition_version=1,
+                    layout=NodePosition(x=900 if public_api else 600, y=0),
+                ),
+            ]
+        )
+        bindings = [
+            Binding(
+                target_node_id=save,
+                target_field="external_id",
+                source=LiteralValue(value="public-post-1" if public_api else "welcome-note"),
+            ),
+            Binding(
+                target_node_id=output,
+                target_field="text",
+                source=LiteralValue(
+                    value="Saved to your table. Run again to update the same record."
+                ),
+            ),
+            Binding(
+                target_node_id=output,
+                target_field="structured",
+                source=NodeOutputRef(node_id=save, port="out"),
+            ),
+        ]
+        if public_api:
+            for label, path in [("Title", "title"), ("Notes", "body"), ("Source ID", "id")]:
+                bindings.append(
+                    Binding(
+                        target_node_id=save,
+                        target_field=f"values/{label}",
+                        source=NodeOutputRef(
+                            node_id=request, port="out", field_path=("body", path)
+                        ),
+                    )
+                )
+        else:
+            bindings.append(
+                Binding(
+                    target_node_id=save,
+                    target_field="values",
+                    source=LiteralValue(
+                        value={
+                            "Title": "Welcome to workflow notes",
+                            "Notes": "---\nstatus: draft\n---\n\n# Workflow notes\n\n- [x] Create the table automatically\n- [ ] Add your own ideas\n",
+                            "Source ID": 1,
+                        }
+                    ),
+                )
+            )
+        graph = WorkflowGraph(
+            entry_node_id=start,
+            nodes=nodes,
+            edges=[
+                Edge(
+                    id=uuid4(),
+                    source_node_id=before.id,
+                    source_port="out",
+                    target_node_id=after.id,
+                    target_port="in",
+                )
+                for before, after in pairwise(nodes)
+            ],
+            bindings=bindings,
+        )
+        return await validate_graph(self.db, ctx, graph)
 
     async def _available_name(self, ctx: AuthContext, base_name: str) -> tuple[str, str]:
         """A `(name, slug)` whose handle nobody in the org has taken yet.
@@ -595,7 +747,7 @@ class WorkflowRegistryService:
             raise WorkflowSettingsInvalidError(
                 field=field, message="No workflow you can run has that id"
             )
-        if target.live_trigger != WORKFLOW_FAILED:
+        if WORKFLOW_FAILED not in (target.live_triggers or [target.live_trigger]):
             raise WorkflowSettingsInvalidError(
                 field=field,
                 message="Publish that workflow starting from On failure of a workflow first",
@@ -923,7 +1075,9 @@ class WorkflowRegistryService:
             )
         if ctx.api_key_id is not None:
             entry = draft_graph.node_by_id.get(draft_graph.entry_node_id)
-            if entry is not None and entry.definition_id in UNATTENDED:
+            if entry is not None and any(
+                node.definition_id in UNATTENDED for node in entry_nodes(draft_graph)
+            ):
                 require_human_publisher(ctx)
         graph = _without_pins(await validate_graph(self.db, ctx, draft_graph))
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
@@ -965,6 +1119,8 @@ class WorkflowRegistryService:
             trigger=switched.trigger,
             exposure=switched.exposure,
             webhook_secret=switched.webhook_secret,
+            exposures=list(switched.exposures),
+            trigger_secrets=switched.trigger_secrets or {},
         )
 
     async def usable_mcp_connections(

@@ -308,6 +308,7 @@ export interface WorkflowRead {
    * trigger (by hand) or was never published.
    */
   live_trigger: string | null;
+  live_triggers?: string[];
   /** Labels the workflow is filed under, lower case, each once. */
   tags: string[];
   /**
@@ -424,6 +425,8 @@ export interface WorkflowPublished extends WorkflowVersionRead {
   trigger: string | null;
   exposure: WorkflowExposureRead | null;
   webhook_secret: string | null;
+  exposures?: WorkflowExposureRead[];
+  trigger_secrets?: Record<string, string>;
 }
 
 /**
@@ -442,6 +445,7 @@ export interface WorkflowVersionList {
 
 /** Create a workflow. Mirrors `WorkflowCreate`. */
 export interface WorkflowCreate {
+  template_id?: "publicApi" | "markdownNotes";
   name: string;
   description?: string | null;
   visibility?: string;
@@ -687,6 +691,7 @@ export interface WorkflowRunFileList {
 
 /** What starting a run sends. Mirrors `WorkflowRunStart`. */
 export interface WorkflowRunStart {
+  entry_node_id?: Uuid;
   workflow_id: Uuid;
   mode?: "real" | "test";
   input?: Record<string, unknown>;

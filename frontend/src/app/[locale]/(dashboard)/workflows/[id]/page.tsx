@@ -33,6 +33,9 @@ import { TriggerPanel } from "@/components/workflows/triggers";
 import { NodeEditorDialog, StepDataFeed } from "@/components/workflows/node-editor";
 import {
   Button,
+  Input,
+  Label,
+  Textarea,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -55,9 +58,7 @@ import {
 } from "@/hooks";
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
-import { WorkflowDescription } from "@/components/workflows/editor/workflow-description";
 import { WorkflowStatus } from "@/components/workflows/editor/workflow-status";
-import { WorkflowTitle } from "@/components/workflows/editor/workflow-title";
 import { ROUTES } from "@/lib/constants";
 import type { WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores";
@@ -182,11 +183,6 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   const statusBadge = (
     <div className="flex flex-wrap items-center gap-2">
       <WorkflowStatus workflow={workflow} draft={draft} />
-      <TagsEditor
-        tags={workflow.tags}
-        canEdit={editing}
-        onChange={(tags) => actions.update.mutate({ id: workflow.id, update: { tags } })}
-      />
       {canEdit && <DraftAutosave saveDraft={saveDraft.mutateAsync} />}
     </div>
   );
@@ -199,26 +195,7 @@ export default function WorkflowEditorPage({ params }: PageProps) {
         // The canvas is the page: the header gives it the height a list page
         // would keep for breathing room.
         className="mb-0 md:mb-0"
-        title={
-          <WorkflowTitle
-            name={workflow.name}
-            canEdit={editing}
-            onRename={(name) => actions.update.mutate({ id: workflow.id, update: { name } })}
-          />
-        }
-        descriptionMode="summary"
-        description={
-          // An editor is offered one to write; a reader sees none that is not there.
-          editing || workflow.description ? (
-            <WorkflowDescription
-              description={workflow.description}
-              canEdit={editing}
-              onChange={(description) =>
-                actions.update.mutate({ id: workflow.id, update: { description } })
-              }
-            />
-          ) : undefined
-        }
+        title={workflow.name}
         breadcrumbs={[{ label: t("title"), href: ROUTES.WORKFLOWS }, { label: workflow.name }]}
         badges={statusBadge}
         actions={
@@ -346,7 +323,46 @@ export default function WorkflowEditorPage({ params }: PageProps) {
             <SheetTitle>{t("settings")}</SheetTitle>
             <SheetClose onClick={() => setSettingsOpen(false)} />
           </SheetHeader>
-          <div className="p-4">
+          <div className="space-y-6 p-5">
+            <section className="space-y-4 border-b pb-6">
+              <p className="text-muted-foreground text-xs">{t("detailsAutosave")}</p>
+              <div className="space-y-1.5">
+                <Label htmlFor="workflow-name">{t("detailsName")}</Label>
+                <Input
+                  id="workflow-name"
+                  defaultValue={workflow.name}
+                  disabled={!editing}
+                  maxLength={128}
+                  onBlur={(event) => {
+                    const name = event.target.value.trim();
+                    if (name && name !== workflow.name)
+                      actions.update.mutate({ id: workflow.id, update: { name } });
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="workflow-description">{t("detailsDescription")}</Label>
+                <Textarea
+                  id="workflow-description"
+                  defaultValue={workflow.description ?? ""}
+                  disabled={!editing}
+                  maxLength={2000}
+                  onBlur={(event) => {
+                    const description = event.target.value.trim() || null;
+                    if (description !== workflow.description)
+                      actions.update.mutate({ id: workflow.id, update: { description } });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("detailsTags")}</Label>
+                <TagsEditor
+                  tags={workflow.tags}
+                  canEdit={editing}
+                  onChange={(tags) => actions.update.mutate({ id: workflow.id, update: { tags } })}
+                />
+              </div>
+            </section>
             {settingsOpen && (
               <WorkflowSettingsForm
                 workflow={workflow}

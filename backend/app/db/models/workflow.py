@@ -118,6 +118,9 @@ class Workflow(Base, TimestampMixin):
     # `current_version_id`, so a surface listing the workflows it can start
     # (the chat's picker) filters on a column rather than parsing every graph.
     live_trigger: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    live_triggers: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

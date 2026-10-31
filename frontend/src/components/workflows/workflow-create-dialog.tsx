@@ -19,11 +19,7 @@ import {
 import { NodeTile } from "@/components/workflows/node-tile";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import {
-  AUTOMATION_TEMPLATES,
-  WORKFLOW_TEMPLATES,
-  type WorkflowTemplate,
-} from "@/lib/workflows/templates";
+import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@/lib/workflows/templates";
 import {
   API_TRIGGER,
   CHANNEL_MESSAGE_TRIGGER,
@@ -90,6 +86,7 @@ export function startingGraph(definitionId: string): WorkflowGraph {
 
 /** What the reader chose: a blank draft (`graph` null) or a template's seed graph. */
 export interface WorkflowCreateChoice {
+  template_id?: "publicApi" | "markdownNotes";
   name: string;
   graph: WorkflowGraph | null;
 }
@@ -108,7 +105,9 @@ export function WorkflowCreateDialog({
   onOpenChange,
   onChoose,
   busy,
+  canProvisionTables = true,
 }: {
+  canProvisionTables?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChoose: (choice: WorkflowCreateChoice) => void;
@@ -155,7 +154,26 @@ export function WorkflowCreateDialog({
               <p className="text-muted-foreground pt-2 text-xs font-medium tracking-wide uppercase">
                 {t("automationsHeading")}
               </p>
-              <TemplateList templates={AUTOMATION_TEMPLATES} busy={busy} onChoose={onChoose} />
+              {(["publicApi", "markdownNotes"] as const).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={busy || !canProvisionTables}
+                  title={!canProvisionTables ? t("templatesNeedTables") : undefined}
+                  className="hover:bg-accent/50 flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors"
+                  onClick={() =>
+                    onChoose({ name: t(`templates.${id}.name`), graph: null, template_id: id })
+                  }
+                >
+                  <Workflow className="text-muted-foreground mt-0.5 size-5 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold">{t(`templates.${id}.name`)}</span>
+                    <span className="text-muted-foreground mt-1 block text-sm">
+                      {t(`templates.${id}.description`)}
+                    </span>
+                  </span>
+                </button>
+              ))}
             </TabsContent>
           </div>
         </Tabs>

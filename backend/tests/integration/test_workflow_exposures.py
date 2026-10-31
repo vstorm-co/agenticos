@@ -220,6 +220,128 @@ async def _due(db: AsyncSession, exposure_id: uuid.UUID) -> datetime:
     return exposure.next_fire_at
 
 
+class TestMultipleEntries:
+    async def test_independent_entries_keep_their_exposures_and_run_only_the_selected_branch(
+        self, db, tenant
+    ):
+        from app.services.workflow_execution.dispatcher import resolve_graph
+        from app.services.workflow_triggers import WorkflowTriggerSync
+
+        owner, org, workflow = tenant
+        ctx = _ctx(owner, org)
+        manual = _graph("trigger.manual").nodes[0]
+        webhook = _graph("trigger.webhook").nodes[0]
+        schedule = _graph("trigger.schedule", HOURLY).nodes[0]
+        output = _graph("core.output").nodes[0]
+        graph = WorkflowGraph(
+            entry_node_id=webhook.id,
+            nodes=(webhook, manual, schedule, output),
+            edges=tuple(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=node.id,
+                    source_port="out",
+                    target_node_id=output.id,
+                    target_port="in",
+                )
+                for node in (manual, webhook, schedule)
+            ),
+        )
+        published = await _publish(db, ctx, workflow, graph)
+        assert {exposure.adapter for exposure in published.exposures} == {"webhook", "schedule"}
+        assert set(workflow.live_triggers) == {
+            "trigger.manual",
+            "trigger.webhook",
+            "trigger.schedule",
+        }
+        assert set(published.trigger_secrets) == {str(webhook.id)}
+        again = await _publish(db, ctx, workflow, graph)
+        assert {item.id for item in again.exposures} == {item.id for item in published.exposures}
+        assert again.trigger_secrets == {}
+
+        started = await WorkflowExecutionService(db).start(ctx, workflow.id)
+        run = await db.get(WorkflowRun, started.id)
+        assert run is not None and run.entry_node_id == manual.id and run.node_count == 2
+        assert {node.id for node in (await resolve_graph(db, run)).nodes} == {manual.id, output.id}
+        with pytest.raises(WorkflowTriggerMismatchError):
+            await WorkflowExecutionService(db).start(ctx, workflow.id, entry_node_id=webhook.id)
+        version = await db.get(WorkflowVersion, workflow.current_version_id)
+        assert version is not None
+        webhook_run, _entry = await WorkflowExecutionService(db).admit_pinned(
+            ctx,
+            workflow,
+            version,
+            triggered_by=WorkflowRunTrigger.WEBHOOK,
+            run_input={"body": {}},
+            entry_node_id=webhook.id,
+        )
+        assert webhook_run.entry_node_id == webhook.id
+        assert {node.id for node in (await resolve_graph(db, webhook_run)).nodes} == {
+            webhook.id,
+            output.id,
+        }
+        await WorkflowTriggerSync(db).set_active(ctx, workflow, False)
+        service = WorkflowExposureService(db)
+        registrations = await service.list_for_workflow(ctx, workflow.id)
+        assert len(registrations) == 2 and not any(item.is_active for item in registrations)
+        await WorkflowTriggerSync(db).set_active(ctx, workflow, True)
+        assert all(item.is_active for item in await service.list_for_workflow(ctx, workflow.id))
+        await _publish(db, ctx, workflow, _graph("trigger.manual"))
+        assert await service.list_for_workflow(ctx, workflow.id) == []
+
+    @pytest.mark.security
+    async def test_a_key_cannot_hide_an_unattended_entry_behind_manual(self, db, tenant):
+        owner, org, workflow = tenant
+        key = await _workflow_key(db, owner, org)
+        manual = _graph("trigger.manual").nodes[0]
+        webhook = _graph("trigger.webhook").nodes[0]
+        graph = WorkflowGraph(entry_node_id=manual.id, nodes=(manual, webhook))
+        with pytest.raises(AuthorizationError):
+            await _publish(db, key, workflow, graph)
+        assert list((await db.execute(select(WorkflowVersion))).scalars()) == []
+
+    async def test_registration_listing_does_not_cross_tenants(self, db, tenant):
+        owner, org, workflow = tenant
+        await _webhook(db, _ctx(owner, org), workflow)
+        outsider = await _user(db)
+        elsewhere = await _org(db, owner=outsider)
+        with pytest.raises(NotFoundError):
+            await WorkflowExposureService(db).list_for_workflow(
+                _ctx(outsider, elsewhere), workflow.id
+            )
+
+    async def test_a_shared_step_cannot_read_another_independent_start(self, db, tenant):
+        from app.workflows.graph.errors import GraphValidationError
+
+        owner, org, workflow = tenant
+        first = _graph("trigger.manual").nodes[0]
+        second = _graph("trigger.webhook").nodes[0]
+        output = _graph("core.output").nodes[0]
+        graph = WorkflowGraph(
+            entry_node_id=first.id,
+            nodes=(first, second, output),
+            edges=tuple(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=node.id,
+                    source_port="out",
+                    target_node_id=output.id,
+                    target_port="in",
+                )
+                for node in (first, second)
+            ),
+            bindings=(
+                Binding(
+                    target_node_id=output.id,
+                    target_field="value",
+                    source=NodeOutputRef(node_id=first.id, port="out", field_path=("payload",)),
+                ),
+            ),
+        )
+        with pytest.raises(GraphValidationError):
+            await _publish(db, _ctx(owner, org), workflow, graph)
+
+
 class TestPublishingSwitchesItOn:
     @pytest.mark.security
     async def test_a_webhook_reveals_its_secret_once_and_says_where_to_deliver(self, db, tenant):
@@ -3373,3 +3495,33 @@ async def test_refused_workflow_deletion_does_not_unregister_a_still_needed_gith
         with pytest.raises(WorkflowInUseError, match="depend"):
             await WorkflowRegistryService(db).delete(_ctx(owner, org), workflow.id)
     assert account.deleted == []
+
+
+@pytest.mark.parametrize("template_id", ["publicApi", "markdownNotes"])
+async def test_ready_templates_provision_a_private_table_and_validate_without_edits(
+    db, tenant, template_id
+):
+    from app.schemas.workflow import WorkflowCreate
+    from app.services.virtual_tables.facade import VirtualTableService
+    from app.workflows.graph.validate import validate_graph
+
+    owner, org, _workflow = tenant
+    ctx = _ctx(owner, org)
+    created = await WorkflowRegistryService(db).create(
+        ctx, WorkflowCreate(name="Ready example", template_id=template_id)
+    )
+    workflow = await db.get(Workflow, created.id)
+    assert created.visibility == "private"
+    assert workflow is not None and workflow.draft_revision == 1
+    graph = WorkflowGraph.model_validate(workflow.draft_graph)
+    await validate_graph(db, ctx, graph)
+    save = next(node for node in graph.nodes if node.definition_id == "table.record.upsert")
+    table = await VirtualTableService(db).describe_table(
+        ctx, uuid.UUID(save.config["table"]["table_id"])
+    )
+    assert table.visibility == "private"
+    assert [column.type for column in table.columns] == ["text", "rich_text", "integer"]
+    published = await WorkflowRegistryService(db).publish(
+        ctx, workflow.id, WorkflowPublish(expected_revision=workflow.draft_revision)
+    )
+    assert published.version == 1

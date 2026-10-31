@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -353,32 +353,22 @@ describe("the workflow editor page header", () => {
     expect(await screen.findByRole("heading", { name: "Trigger" })).toBeInTheDocument();
   });
 
-  it("renames the workflow where its name stands, keeping the old one on Escape", async () => {
+  it("keeps the header focused on the canvas and edits the name and description in Settings", async () => {
     await renderPage();
-
-    await userEvent.click(await screen.findByRole("button", { name: "My Workflow" }));
-    const field = screen.getByRole("textbox", { name: "Workflow name" });
-    await userEvent.clear(field);
-    await userEvent.type(field, "Lead intake{Enter}");
+    expect(await screen.findByRole("heading", { name: "My Workflow" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tag" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
+    const name = screen.getByRole("textbox", { name: "Workflow name" });
+    fireEvent.change(name, { target: { value: "Lead intake" } });
+    fireEvent.blur(name);
     expect(actions.update.mutate).toHaveBeenCalledWith({
       id: "w1",
       update: { name: "Lead intake" },
     });
-
-    await userEvent.click(screen.getByRole("button", { name: "My Workflow" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Workflow name" }), "x{Escape}");
-    expect(actions.update.mutate).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "My Workflow" })).toBeInTheDocument();
-  });
-
-  it("describes the workflow under its name", async () => {
-    await renderPage();
-
-    await userEvent.click(await screen.findByRole("button", { name: "Add a description" }));
-    await userEvent.type(
-      screen.getByRole("textbox", { name: "Workflow description" }),
-      "Scores new leads{Control>}{Enter}{/Control}",
-    );
+    const description = screen.getByRole("textbox", { name: "Description" });
+    fireEvent.change(description, { target: { value: "Scores new leads" } });
+    fireEvent.blur(description);
     expect(actions.update.mutate).toHaveBeenCalledWith({
       id: "w1",
       update: { description: "Scores new leads" },
@@ -394,6 +384,8 @@ describe("the workflow editor page header", () => {
 
   it("tags the workflow and takes a tag off", async () => {
     await renderPage();
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Settings" }));
 
     await userEvent.click(await screen.findByRole("button", { name: "Remove tag sales" }));
     expect(actions.update.mutate).toHaveBeenCalledWith({ id: "w1", update: { tags: [] } });

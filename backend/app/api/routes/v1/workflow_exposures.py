@@ -68,6 +68,14 @@ async def get_workflow_exposure(workflow_id: UUID, service: WorkflowExposureSvc,
     return await service.get_for_workflow(ctx, workflow_id)
 
 
+@router.get("/{workflow_id}/exposures", response_model=list[WorkflowExposureRead])
+async def list_workflow_exposures(
+    workflow_id: UUID, service: WorkflowExposureSvc, ctx: Auth
+) -> Any:
+    """All registered triggers of a published workflow, without signing secrets."""
+    return await service.list_for_workflow(ctx, workflow_id)
+
+
 @router.patch("/{workflow_id}/exposures/{exposure_id}", response_model=WorkflowExposureRead)
 async def update_workflow_exposure(
     workflow_id: UUID,

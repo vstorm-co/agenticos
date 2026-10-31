@@ -23,7 +23,16 @@ import { type FormValue, type InputField, runInputFrom } from "@/lib/workflows/i
 
 import { RunField } from "./run-field";
 
+export interface RunEntry {
+  id: string;
+  name: string;
+  fields: readonly InputField[];
+  sample: Record<string, unknown>;
+}
+
 interface StartRunDialogProps {
+  entries?: readonly RunEntry[];
+  liveEntries?: readonly RunEntry[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whether a published version exists to run for real. */
@@ -37,7 +46,11 @@ interface StartRunDialogProps {
   testFields?: readonly InputField[];
   /** The fields the published version's trigger declares, asked for in a real run. */
   liveFields?: readonly InputField[];
-  onStart: (start: { mode: "real" | "test"; input: Record<string, unknown> }) => void;
+  onStart: (start: {
+    mode: "real" | "test";
+    input: Record<string, unknown>;
+    entry_node_id?: string;
+  }) => void;
 }
 
 /** Parse the input box: a JSON object, or the message saying what is wrong. */
@@ -62,6 +75,8 @@ export function parseRunInput(text: string): Record<string, unknown> | string {
  */
 export function StartRunDialog({
   open,
+  entries: testEntries = [],
+  liveEntries = [],
   onOpenChange,
   canRunLive,
   canTest,
@@ -78,7 +93,10 @@ export function StartRunDialog({
   );
   const [values, setValues] = useState<Record<string, FormValue>>({});
   const [tried, setTried] = useState(false);
-  const fields = mode === "test" ? testFields : liveFields;
+  const entries = mode === "test" ? testEntries : liveEntries;
+  const [entryId, setEntryId] = useState(entries[0]?.id);
+  const entry = entries.find((candidate) => candidate.id === entryId) ?? entries[0];
+  const fields = entry?.fields ?? (mode === "test" ? testFields : liveFields);
   const typed = fields.length > 0;
   const parsed = parseRunInput(text);
   const invalid = !typed && typeof parsed === "string";
@@ -88,9 +106,10 @@ export function StartRunDialog({
   const submit = () => {
     if (typed) {
       setTried(true);
-      if ("input" in fromForm) onStart({ mode, input: fromForm.input });
+      if ("input" in fromForm)
+        onStart({ mode, input: fromForm.input, ...(entry ? { entry_node_id: entry.id } : {}) });
     } else if (typeof parsed !== "string") {
-      onStart({ mode, input: parsed });
+      onStart({ mode, input: parsed, ...(entry ? { entry_node_id: entry.id } : {}) });
     }
   };
 
@@ -104,7 +123,24 @@ export function StartRunDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="run-mode">{t("startRunMode")}</Label>
-            <Select value={mode} onValueChange={(value) => setMode(value as "real" | "test")}>
+            <Select
+              value={mode}
+              onValueChange={(value) => {
+                const nextMode = value === "real" ? "real" : "test";
+                const first = (nextMode === "test" ? testEntries : liveEntries)[0];
+                setMode(nextMode);
+                setEntryId(first?.id);
+                setValues({});
+                setTried(false);
+                setText(
+                  JSON.stringify(
+                    first?.sample ?? (nextMode === "test" ? sampleInput : {}),
+                    null,
+                    2,
+                  ),
+                );
+              }}
+            >
               <SelectTrigger id="run-mode">
                 <SelectValue />
               </SelectTrigger>
@@ -114,6 +150,37 @@ export function StartRunDialog({
               </SelectContent>
             </Select>
           </div>
+          {entries.length > 1 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="run-entry">{t("startRunEntry")}</Label>
+              <Select
+                value={entry?.id}
+                onValueChange={(id) => {
+                  setEntryId(id);
+                  setValues({});
+                  setTried(false);
+                  setText(
+                    JSON.stringify(
+                      entries.find((candidate) => candidate.id === id)?.sample ?? {},
+                      null,
+                      2,
+                    ),
+                  );
+                }}
+              >
+                <SelectTrigger id="run-entry">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {entries.map((candidate) => (
+                    <SelectItem key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {typed ? (
             <div className="space-y-3">
               {fields.map((field) => (

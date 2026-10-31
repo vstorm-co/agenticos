@@ -162,7 +162,7 @@ class WorkflowExposure(Base, TimestampMixin):
     # Declared here as well as in the migration: the integration tests build the
     # schema from the models.
     __table_args__ = (
-        UniqueConstraint("workflow_id", name="uq_workflow_exposure_workflow"),
+        UniqueConstraint("workflow_id", "adapter", name="uq_workflow_exposure_workflow_adapter"),
         CheckConstraint(
             "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github', 'gmail', 'outlook')",
             name="ck_workflow_exposure_adapter",
