@@ -1,5 +1,5 @@
 ---
-source_sha: "2c696c7b6c08"
+source_sha: "a872dd6dda4a"
 ---
 
 # Workflows { #workflows }
@@ -44,7 +44,7 @@ Kopie einer veröffentlichten Version.
 
 Die sofort ausführbaren Automationen heißen **Öffentliche API → Tabelle** und **Markdown-Notizbuch**. Der Server erstellt eine private Tabelle und einen vollständig konfigurierten Entwurf in einer Transaktion. Konto, API-Schlüssel oder Tabellenauswahl sind nicht nötig. Das erste Beispiel lädt einen Beitrag von [JSONPlaceholder](https://jsonplaceholder.typicode.com/) und speichert Titel und Inhalt; das zweite schreibt eine Markdown-Notiz mit Frontmatter. Weitere Runs verwenden dieselbe Tabelle und aktualisieren denselben Beispieldatensatz. Die Erstellung benötigt Rechte zum Erstellen und Bearbeiten von Tabellen. **Starter** und **Two-step sequence** bleiben kleine lokale Beispiele.
 
-**Full screen** in der Run-Historie vergrößert die Liste; Escape oder **Exit full screen** stellt die Seite wieder her. Der Katalog füllt den verfügbaren Seitenbereich und bietet einen eigenen Vollbildknopf. Seitennavigation erscheint nur bei weiteren Seiten. Der Dateiimport bietet einen beschrifteten Bereich zum Auswählen oder Ablegen einer JSON-Datei.
+Die Run-Historie füllt den verfügbaren Seitenbereich automatisch, ohne zusätzlichen Vergrößerungsknopf. Der Katalog füllt den verfügbaren Seitenbereich und bietet einen eigenen Vollbildknopf. Seitennavigation erscheint nur bei weiteren Seiten. Der Dateiimport bietet einen beschrifteten Bereich zum Auswählen oder Ablegen einer JSON-Datei.
 
 **Export workflow** unter **More** in der Kopfzeile des Editors exportiert den Entwurf als
 `.workflow.json`-Datei. Die Datei enthält keine IDs dieses Deployments: Jeder

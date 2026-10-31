@@ -1,5 +1,5 @@
 ---
-source_sha: "2c696c7b6c08"
+source_sha: "a872dd6dda4a"
 ---
 
 # Workflows { #workflows }
@@ -41,7 +41,7 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje prywatną tabelę i kompletnie skonfigurowany szkic. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown z frontmatter. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
 
-**Full screen** na pasku historii uruchomień powiększa listę; Escape lub **Exit full screen** przywraca stronę. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
+Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez przycisku rozszerzania. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
 
 **Export workflow** w menu **More** w nagłówku edytora eksportuje szkic jako plik
 `.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy

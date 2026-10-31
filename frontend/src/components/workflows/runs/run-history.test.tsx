@@ -75,6 +75,7 @@ describe("RunHistory", () => {
     history.runs = [run(), run({ id: "r2", retry_of_run_id: "r1", status: "succeeded" })];
     history.total = 2;
     render(<RunHistory />);
+    expect(screen.queryByRole("button", { name: "Full screen" })).not.toBeInTheDocument();
 
     expect(screen.getAllByText("Lead intake")).toHaveLength(2);
     expect(screen.getByText("retry")).toBeTruthy();

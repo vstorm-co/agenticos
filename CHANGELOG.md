@@ -945,6 +945,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Workflow run history fills the available workspace by default, without a separate expansion toggle.
+
 - **Calmer workflow setup and roomier table forms.** Incomplete steps show one
   expandable setup checklist; error styling appears after a test or publish,
   while field messages still appear after leaving an empty required field.

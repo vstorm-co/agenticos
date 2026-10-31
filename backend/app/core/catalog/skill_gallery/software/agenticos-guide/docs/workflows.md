@@ -38,7 +38,7 @@ of a published version.
 
 The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a private table and a fully configured draft in one transaction. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note with frontmatter. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
 
-Use **Full screen** in the run history toolbar to expand the list; Escape or **Exit full screen** restores the page. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
+Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
 
 **Export workflow**, under **More** in the editor's header, exports the draft as a
 `.workflow.json` file. The file carries no ids of this deployment: every agent,

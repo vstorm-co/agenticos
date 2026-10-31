@@ -14,7 +14,7 @@ import { ROUTES } from "@/lib/constants";
 export default function AllWorkflowRunsPage() {
   const t = useTranslations("pages.workflows");
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
       <PageHeader
         title={t("allRunsTitle")}
         description={t("allRunsDescription")}

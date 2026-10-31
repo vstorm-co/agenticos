@@ -1,7 +1,5 @@
 "use client";
 
-import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
-import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
@@ -67,11 +65,6 @@ const SINCE_MS: Record<string, number> = {
  * naming its workflow. A row opens the run.
  */
 export function RunHistory({ workflowId }: { workflowId?: string }) {
-  const {
-    ref: fullscreenRef,
-    expanded: isFullscreen,
-    toggle: toggleFullscreen,
-  } = useWorkspaceFullscreen();
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
   const tc = useTranslations("common");
@@ -161,20 +154,14 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
   const filtered = status !== null || mode !== null || trigger !== null || reach !== undefined;
   return (
     <ListCard
-      ref={fullscreenRef}
-      role={isFullscreen ? "dialog" : undefined}
-      aria-modal={isFullscreen || undefined}
+      fill
       aria-label={t("runsTitle")}
-      className={
-        isFullscreen ? "fixed inset-0 z-40 flex flex-col overflow-auto rounded-none" : undefined
-      }
       namedByPage
       title={t("runsTitle")}
       counted={isLoading ? null : error ? "" : t("runsCount", { count: total })}
       data-tour={workflowId === undefined ? "workflows-runs" : "workflow-run-history"}
       controls={
         <div className="flex flex-wrap items-center gap-2">
-          <WorkspaceFullscreenButton expanded={isFullscreen} onToggle={toggleFullscreen} />
           <ListFilters
             compact
             active={
