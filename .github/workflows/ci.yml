@@ -269,7 +269,9 @@ jobs:
     # On the job rather than repeated under each step, which is how the `e2e` job
     # below already does it. Four identical copies is four places to forget one.
     env:
-      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
+      # Cold-import and migration tests also start Python subprocesses. Leave
+      # runner capacity for those children instead of four concurrent parents.
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "2"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
