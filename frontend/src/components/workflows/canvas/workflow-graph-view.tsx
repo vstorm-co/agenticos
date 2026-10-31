@@ -4,7 +4,6 @@ import {
   Background,
   type Connection,
   Controls,
-  MiniMap,
   ReactFlow,
   useReactFlow,
   useStoreApi,
@@ -29,10 +28,9 @@ import { validateGraph } from "@/components/workflows/validation";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
-import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
 
 import { CanvasInteractionProvider, type ConnectEndpoint } from "./canvas-context";
-import { minimapColour } from "./minimap-colour";
+import { WorkflowMinimap } from "./workflow-minimap";
 import { CanvasContextMenu } from "./canvas-context-menu";
 import { CanvasToolbar } from "./canvas-toolbar";
 import { PanePicker, type PanePoint } from "./pane-picker";
@@ -338,7 +336,6 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const addNote = useWorkflowEditorStore((state) => state.addNote);
   const moveNodes = useWorkflowEditorStore((state) => state.moveNodes);
   const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
-  const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const setSelection = useWorkflowEditorStore((state) => state.setSelection);
 
   // A right click on a step opens that step's menu; on the empty canvas, the step
@@ -505,20 +502,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               {/* Bottom-left, in a row with the minimap above it: the bottom-right
                   corner is the assistant's launcher on every dashboard page. */}
               <Controls showInteractive={false} position="bottom-left" orientation="horizontal" />
-              {minimapShown && (
-                <MiniMap
-                  pannable
-                  zoomable
-                  position="bottom-left"
-                  ariaLabel={t("minimapLabel")}
-                  {...(nodeStyle === "colour"
-                    ? { nodeColor: minimapColour }
-                    : { nodeClassName: "fill-muted-foreground/40" })}
-                  nodeBorderRadius={6}
-                  maskColor="rgb(0 0 0 / 0.06)"
-                  className="!bg-background !mb-14 !rounded-lg !border"
-                />
-              )}
+              {minimapShown && <WorkflowMinimap />}
             </ReactFlow>
           </CanvasInteractionProvider>
         </section>

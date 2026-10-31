@@ -311,13 +311,19 @@ describe("arranging and reading the canvas", () => {
     await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show the minimap" }));
     expect(container.querySelector(".react-flow__minimap")).not.toBeNull();
     expect(mark()).not.toBeNull();
-    expect(mark()?.style.fill).toBe("");
+    expect(mark()?.parentElement?.querySelector("rect + rect")).toHaveAttribute(
+      "fill",
+      "var(--color-muted-foreground)",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
     await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show steps in colour" }));
     expect(useWorkflowNodeStyleStore.getState().style).toBe("colour");
     expect(tile()).toHaveClass("node-tile-data");
-    expect(mark()?.style.fill).toBe("var(--family-map-data)");
+    expect(mark()?.parentElement?.querySelector("rect + rect")).toHaveAttribute(
+      "fill",
+      "var(--family-map-data)",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Canvas options" }));
     expect(screen.getByRole("menuitemcheckbox", { name: "Show steps plainly" })).toHaveAttribute(
       "aria-checked",
