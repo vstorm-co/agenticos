@@ -655,5 +655,5 @@ it("expands the whole record while preserving the current editor", async () => {
   expect(screen.getByRole("dialog").className).toContain("sm:w-screen");
   expect(screen.getByRole("textbox", { name: "Name" })).toBe(input);
   await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
-  expect(screen.getByRole("dialog").className).toContain("sm:w-[32rem]");
+  expect(screen.getByRole("dialog").className).toContain("sm:w-[44rem]");
 });

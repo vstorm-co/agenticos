@@ -5,6 +5,8 @@ import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
 import { useAppConnections, useMcpAppStep } from "./use-app-connections";
 
+vi.mock("@/hooks/use-mcp-servers", () => ({ useMcpCatalog: () => ({ servers: [] }) }));
+
 const gmail = { id: "c1", name: "gmail-dev", label: null, catalog_key: "google-workspace" };
 const other = { id: "c2", name: "crm", label: null, catalog_key: "hubspot" };
 
@@ -36,6 +38,7 @@ describe("useAppConnections", () => {
     const { result } = renderHook(() => useAppConnections());
     expect(result.current).toEqual({
       connections: [gmail, other],
+      servers: [],
       canConnect: true,
       unavailable: false,
     });
@@ -52,13 +55,23 @@ describe("useAppConnections", () => {
   it("reports the list unknown while loading, which is not unavailable", () => {
     state.loaded = false;
     const { result } = renderHook(() => useAppConnections());
-    expect(result.current).toEqual({ connections: null, canConnect: true, unavailable: false });
+    expect(result.current).toEqual({
+      connections: null,
+      servers: [],
+      canConnect: true,
+      unavailable: false,
+    });
   });
 
   it("reports it unavailable where the workflow cannot be edited", () => {
     state.canRead = false;
     const { result } = renderHook(() => useAppConnections());
-    expect(result.current).toEqual({ connections: null, canConnect: true, unavailable: true });
+    expect(result.current).toEqual({
+      connections: null,
+      servers: [],
+      canConnect: true,
+      unavailable: true,
+    });
   });
 });
 

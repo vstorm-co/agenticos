@@ -1,3 +1,5 @@
+import type { McpCatalogEntry } from "@/types/mcp";
+import { connectorBrand } from "@/components/icons/brand-icon";
 import { type BrandName, brandMark } from "@/components/icons/brand-icon";
 
 /**
@@ -12,7 +14,9 @@ import { type BrandName, brandMark } from "@/components/icons/brand-icon";
 export interface WorkflowApp {
   /** The picker group's id, also its `category.<id>` and `appServer.<id>` message keys. */
   id: string;
-  brand: BrandName;
+  brand?: BrandName;
+  /** Catalog name for apps without curated translations. */
+  name?: string;
   /** The definition ids of the app's native triggers. */
   triggers: readonly string[];
   /**
@@ -164,7 +168,7 @@ export const WORKFLOW_APPS: readonly WorkflowApp[] = [
 
 /** A step's own group marks: what the picker and the cards draw for the app. */
 export const APP_MARKS = Object.fromEntries(
-  WORKFLOW_APPS.map((app) => [app.id, brandMark(app.brand)]),
+  WORKFLOW_APPS.flatMap((app) => (app.brand === undefined ? [] : [[app.id, brandMark(app.brand)]])),
 );
 
 /** The sign-in tools of the servers: a step never offers them, the connection handles signing in. */
@@ -263,4 +267,18 @@ export function suggestedBindingsFor(
     if (fields !== undefined) return { triggers: app.triggers, fields };
   }
   return null;
+}
+
+/** A catalog service keeps its own name without requiring a hardcoded app registry. */
+export function catalogWorkflowApp(entry: McpCatalogEntry): WorkflowApp {
+  return {
+    id: `mcp:${entry.key}`,
+    name: entry.name,
+    brand: connectorBrand(entry.icon ?? entry.key),
+    triggers: [],
+    fallback: true,
+    catalogKeys: [entry.key],
+    tools: {},
+    suggestedBindings: {},
+  };
 }

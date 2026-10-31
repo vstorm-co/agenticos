@@ -139,7 +139,7 @@ describe("Markdown table cells", () => {
     expect(screen.getByRole("button", { name: "Expand editor" })).toHaveFocus();
   });
 
-  it("starts read-only cells in preview and never renders executable HTML or remote images", async () => {
+  it("starts read-only cells in preview and renders images while refusing executable HTML", async () => {
     render(
       <RecordCellEditor
         column={column}
@@ -152,7 +152,10 @@ describe("Markdown table cells", () => {
     );
     expect(await screen.findByRole("heading", { name: "Read only" })).toBeVisible();
     expect(document.querySelector("script")).toBeNull();
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Remote" })).toHaveAttribute(
+      "src",
+      "https://example.test/pixel.png",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Write" }));
     expect(screen.getByRole("textbox", { name: "Notes" })).toBeDisabled();
   });

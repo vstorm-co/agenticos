@@ -201,8 +201,8 @@ describe("NodePicker app groups", () => {
   it("groups the trigger and each tool of the organization's connection, MCP badge and all", async () => {
     apps.connections = [connection()];
     const onPick = mountApps();
-    // The trigger and the generic MCP call stay where they were.
-    expect(screen.getByRole("option", { name: /Call an MCP tool/ })).toBeTruthy();
+    // App tools replace the generic MCP call in the picker.
+    expect(screen.queryByRole("option", { name: /Call an MCP tool/ })).toBeNull();
     expect(screen.getByRole("option", { name: /^Gmail/ })).toBeTruthy();
 
     await openGmail();

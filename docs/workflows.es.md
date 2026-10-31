@@ -1,5 +1,5 @@
 ---
-source_sha: "078231ef2689"
+source_sha: "567495b4bc6f"
 ---
 
 # Workflows { #workflows }
@@ -69,7 +69,9 @@ etiquetas, un filtro de etiquetas acota la lista a una, y el orden es la última
 el nombre o los más nuevos primero. Todo se guarda en la dirección, así que recargar o
 un enlace compartido muestran la misma lista.
 
-**More → Settings** contiene el nombre, descripción y etiquetas del workflow; los cambios se guardan automáticamente. Los ajustes de ejecución permanecen en el mismo panel. Los diálogos de pasos ajustan su altura al contenido: la tarjeta principal muestra la configuración y las tarjetas laterales, la entrada y salida. Los valores de registros tienen campos con los nombres de las columnas de la tabla. Los detalles opcionales de configuración quedan plegados. Las notas ofrecen **Open note**, tamaños predefinidos y controles para cambiar anchura y altura.
+**More → Settings** contiene el nombre, la descripción, las etiquetas y los ajustes de ejecución; los cambios se guardan automáticamente. El editor ocupa la ventana disponible: Input a la izquierda, Parameters y Settings en el centro y Output a la derecha. Los disparadores usan dos paneles porque no reciben datos anteriores. En pantallas grandes cada panel se desplaza por separado; en móviles hay una columna. Las ejecuciones guardadas muestran sus parámetros de solo lectura junto a sus datos. Los valores del registro usan los nombres de las columnas. Las notas ofrecen Open note, tamaños y controles para redimensionar.
+
+El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas. Los pasos de colores y el minimapa están activos por defecto. Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Jev muestra modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
 
 El Architect puede descubrir el catálogo de pasos, crear y modificar borradores privados de workflows, probarlos y revisar los resultados de los runs. También crea Virtual Tables tipadas y consulta o actualiza registros. Los skills workflow-builder y virtual-tables explican cuándo usar estas funciones. Si un servicio no aparece en la galería MCP, el Architect puede envolver su API documentada con un paso HTTP request y ofrecer un workflow publicado e invocable como herramienta de un agente mediante la capability Workflows. Las credenciales permanecen en la bóveda. Las pruebas pueden realizar acciones reales; publicar con autoridad humana retenida sigue requiriendo una sesión humana.
 

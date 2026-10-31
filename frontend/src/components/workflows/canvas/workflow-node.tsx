@@ -329,7 +329,7 @@ function WorkflowCard({
     mcp === null || mcp.tool === ""
       ? null
       : t("appCardName", {
-          app: t(`category.${mcp.app.id}`),
+          app: mcp.app.name ?? t(`category.${mcp.app.id}`),
           tool: appToolLabel(mcp.app, mcp.tool, t),
         });
   const name =

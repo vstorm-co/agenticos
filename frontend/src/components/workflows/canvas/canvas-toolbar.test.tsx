@@ -293,6 +293,7 @@ describe("the canvas menu", () => {
 
 describe("arranging and reading the canvas", () => {
   it("switches the steps between colour and Simple, for this browser", async () => {
+    useWorkflowEditorStore.setState({ minimapShown: false });
     useWorkflowNodeStyleStore.setState({ style: "colour" });
     seed(node("a"));
     const { container } = render(<WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />);
@@ -329,6 +330,7 @@ describe("arranging and reading the canvas", () => {
   });
 
   it("tidies the steps in one edit, shows a minimap and the shortcut sheet", async () => {
+    useWorkflowEditorStore.setState({ minimapShown: false });
     seed(node("a", "act.one", 0), node("b", "act.one", 0));
     store.getState().applyEdgeChanges([]);
     store.setState({

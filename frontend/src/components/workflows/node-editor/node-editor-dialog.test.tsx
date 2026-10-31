@@ -255,28 +255,25 @@ describe("a read-only step's Settings", () => {
 });
 
 describe("a step looked at in a run", () => {
-  it("folds its settings away and offers nothing about slowness or failure it did not have", async () => {
+  it("keeps executed parameters visible and read-only beside the run data", () => {
     seed(node("a", "debug.echo", { message: "hi" }), node("b", "debug.echo", { message: "yo" }));
     store.getState().editNode("b");
     render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly runData />);
-
-    const fold = screen.getByText("Settings this step ran with");
-    expect(fold.closest("details")).not.toHaveAttribute("open");
-    expect(screen.queryByRole("button", { name: /When it is slow or fails/ })).toBeNull();
-    await userEvent.click(fold);
-    expect(fold.closest("details")).toHaveAttribute("open");
+    expect(screen.getByRole("tab", { name: "Parameters" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("yo")).toBeDisabled();
   });
 
-  it("shows only what the run's first step handed on, its settings folded under it", () => {
+  it("shows only what the run's first step handed on, its parameters beside it", () => {
     seed(node("a", "debug.echo", { message: "hi" }), node("b"));
     store.getState().editNode("a");
     render(<NodeEditorDialog workflowId="wf" catalog={[DEBUG_ECHO]} readOnly runData />);
 
     expect(screen.queryByRole("region", { name: "Input" })).toBeNull();
     const output = screen.getByRole("region", { name: "Output" });
-    // One column of data, with the settings below it rather than beside it.
-    expect(output.closest(".grid")).toHaveClass("lg:grid-rows-[minmax(0,1fr)_auto]");
+    // Triggers have no incoming data: parameters and output use the whole editor.
+    expect(output.closest(".grid")).toHaveClass(
+      "lg:grid-cols-[minmax(24rem,1.25fr)_minmax(15rem,1fr)]",
+    );
     expect(output.closest(".grid")).not.toHaveClass("lg:grid-cols-2");
   });
 });

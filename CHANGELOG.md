@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Workflow panes, app discovery and document media.** Configure steps between their input and output in a window-sized editor. Discover unconnected MCP catalog apps and use their individual tools, connect a mailbox from the email step, and set model temperature and reasoning effort directly. Kanban uses pointer previews and immediate lane moves with rollback on refusal. Markdown documents offer formatting controls, images and direct video playback.
+
 - **Column defaults, choice colors and system properties.** Configure typed defaults and select colors in the console. New select defaults may name labels before option IDs exist. Every table shows immutable creation/update dates and actors from its record metadata, also included in console CSV exports.
 
 - **Document templates and properties.** Rich-text columns offer editable default templates for notes, meetings and project briefs. New records apply the template automatically; existing documents can apply it after confirmation. Dates and author are shown above Markdown from authoritative record metadata, and custom frontmatter properties have their own controls.

@@ -1,5 +1,5 @@
 ---
-source_sha: "2adc37c143bf"
+source_sha: "9f8b82e00fb0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -99,7 +99,9 @@ odczytują jako etykiety, także opcji zarchiwizowanej. Wartość, która nie ws
 
 ### Tekst formatowany i Markdown { #rich-text }
 
-Wybierz **Rich text (Markdown)** dla notatki z nagłówkami, listami, zadaniami, tabelami, linkami i kodem. Kliknięcie komórki w siatce otwiera panel rekordu. **Write** edytuje źródło Markdown z podświetleniem składni; **Preview** pokazuje podgląd, a **Expand editor** otwiera większy obszar pracy. Rekordy tylko do odczytu zaczynają od podglądu i pozwalają czytać źródło. Zdalne obrazy są linkami i nie ładują się automatycznie.
+Wybierz **Rich text (Markdown)** dla notatek z nagłówkami, listami, zadaniami, tabelami, linkami i kodem. Kliknięcie komórki otwiera rekord. **Write** oferuje pole dokumentu i pasek pogrubienia, kursywy, linków, obrazów i filmów. **Preview** używa renderera czatu dla linków i obrazów; bezpośrednie linki HTTP(S) do MP4, WebM lub Ogg stają się filmami z kontrolkami, bez autoodtwarzania. Surowy HTML nie jest wykonywany. **Expand editor** otwiera większy obszar pracy. Dokument tylko do odczytu zaczyna od podglądu.
+
+Kanban pokazuje kartę pod kursorem i docelową kolumnę, animuje przejście i od razu przenosi kartę na czas zapisu. Odmowa zapisu przywraca poprzednią kolumnę i zachowuje obsługę konfliktu. Menu Move to pozostaje dostępne z klawiatury.
 
 Właściwości dokumentu są nad edytorem Markdown. **Utworzono**, **Ostatnia zmiana** i **Autor** pochodzą z rekordu i nie można ich zmienić przez Markdown. Data ostatniej zmiany uwzględnia zapis całego rekordu, także innych komórek; przed pierwszą zmianą pokazuje datę utworzenia.
 

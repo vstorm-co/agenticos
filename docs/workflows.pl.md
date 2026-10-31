@@ -1,5 +1,5 @@
 ---
-source_sha: "078231ef2689"
+source_sha: "567495b4bc6f"
 ---
 
 # Workflows { #workflows }
@@ -65,7 +65,9 @@ zawęża listę do jednego tagu, a kolejność to ostatnia edycja, nazwa albo na
 najpierw. Wszystko zostaje w adresie, więc przeładowanie lub udostępniony link
 pokazują tę samą listę.
 
-**More → Settings** zawiera nazwę, opis i tagi workflow; zmiany zapisują się automatycznie. Ustawienia wykonania pozostają w tym samym panelu. Dialog kroku dopasowuje wysokość do zawartości: konfiguracja zajmuje główną kartę, a wejście i wynik są obok. Wartości rekordu mają pola nazwane według kolumn tabeli. Opcjonalne szczegóły konfiguracji są zwinięte. Notatki mają **Open note**, gotowe rozmiary i uchwyty do zmiany szerokości oraz wysokości.
+**More → Settings** zawiera nazwę, opis, tagi i ustawienia wykonania workflow, zapisywane automatycznie. Edytor kroku wypełnia dostępne okno: Input po lewej, Parameters i Settings pośrodku, Output po prawej. Wyzwalacze mają dwa panele, bo nie odbierają danych z poprzednich kroków. Na dużym ekranie panele przewijają się osobno, a na telefonie tworzą jedną przewijaną kolumnę. Zapisane wykonanie pokazuje parametry tylko do odczytu obok danych. Wartości rekordu mają pola nazwane według kolumn tabeli. Notatki oferują Open note, gotowe rozmiary i uchwyty zmiany rozmiaru.
+
+Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje. Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Decyzje Jev pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
 
 Architect potrafi poznać katalog kroków, tworzyć i zmieniać prywatne szkice workflows, testować je oraz sprawdzać wyniki runów. Tworzy też typowane Virtual Tables oraz wyszukuje i aktualizuje rekordy. Skille workflow-builder i virtual-tables wyjaśniają, kiedy używać tych funkcji. Jeśli usługi nie ma w galerii MCP, Architect może opakować jej udokumentowane API krokiem HTTP request i udostępnić opublikowany workflow jako narzędzie agenta przez capability Workflows. Poświadczenia pozostają w sejfie. Testy mogą wykonywać rzeczywiste działania; publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji.
 

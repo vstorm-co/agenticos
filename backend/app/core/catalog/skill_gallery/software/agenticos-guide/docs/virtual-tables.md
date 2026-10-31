@@ -94,7 +94,9 @@ option is refused with the options the column has.
 
 ### Rich text and Markdown { #rich-text }
 
-Choose **Rich text (Markdown)** for a note with headings, lists, task lists, tables, links and code. In the grid, clicking its cell opens the record panel. **Write** edits the Markdown source with syntax highlighting; **Preview** reads it, and **Expand editor** opens a larger workspace. Read-only records start in preview and allow reading the source. Remote images appear as links rather than loading automatically.
+Choose **Rich text (Markdown)** for notes with headings, lists, tasks, tables, links and code. Clicking its cell opens the record. **Write** offers a document text area and a toolbar for bold, italic, links, images and video; **Preview** uses the chat renderer for links and images, and direct HTTP(S) MP4, WebM or Ogg links become videos with playback controls and no autoplay. Raw HTML is not executed. **Expand editor** opens a larger workspace. Read-only documents start in preview.
+
+Kanban cards move with a pointer preview and destination highlight, animate between lanes and appear in the target lane while saving. A refused write restores the prior lane and preserves conflict actions. The Move to menu remains available to keyboard users.
 
 Document properties sit above the Markdown editor. **Created**, **Last updated** and **Created by** come from the record and cannot be changed through Markdown. The last-update date follows record writes, including changes to other cells; it falls back to the creation date before the first update.
 

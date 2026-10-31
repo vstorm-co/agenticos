@@ -172,7 +172,7 @@ export function RecordDetailSheet({
     <Sheet open={open} onOpenChange={close}>
       <SheetContent
         side="right"
-        className={cn("w-full", expanded ? "inset-x-0 sm:w-screen" : "sm:w-[32rem]")}
+        className={cn("w-full", expanded ? "inset-x-0 sm:w-screen" : "sm:w-[44rem]")}
       >
         <SheetHeader>
           <SheetTitle className="truncate">{heading || t("title")}</SheetTitle>
@@ -188,7 +188,7 @@ export function RecordDetailSheet({
           <div
             className={cn(
               "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6",
-              expanded && "w-full sm:px-8 sm:py-6",
+              expanded && "mx-auto w-full max-w-[100rem] sm:px-12 sm:py-10",
             )}
           >
             {columns
@@ -203,7 +203,15 @@ export function RecordDetailSheet({
                   ? (conflict.pendingValues[column.id] as CellValue)
                   : (record.values[column.id] ?? null);
                 return (
-                  <div key={column.id} className="space-y-1">
+                  <div
+                    key={column.id}
+                    className={cn(
+                      "space-y-2",
+                      column.type === "rich_text"
+                        ? "border-t pt-6"
+                        : "grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start",
+                    )}
+                  >
                     <Label htmlFor={`cell-${column.id}`} className="flex items-center gap-1.5">
                       <ColumnTypeIcon type={column.type} className="text-muted-foreground" />
                       {column.label}

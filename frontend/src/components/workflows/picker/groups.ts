@@ -1,10 +1,17 @@
+import type { McpCatalogEntry } from "@/types/mcp";
 import {
   HIDDEN_CATEGORIES,
   PICKER_SECTIONS,
   categoryRank,
   operationRank,
 } from "@/components/workflows/node-visuals";
-import { type WorkflowApp, WORKFLOW_APPS, appForCatalogKey } from "@/components/workflows/apps";
+import {
+  type WorkflowApp,
+  WORKFLOW_APPS,
+  appForCatalogKey,
+  catalogWorkflowApp,
+  LOGIN_TOOLS,
+} from "@/components/workflows/apps";
 import { connectionLabel, offeredTools } from "@/lib/mcp-servers";
 import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { NodeDefinition } from "@/lib/workflows/types";
@@ -40,6 +47,7 @@ export interface AppSource {
   connections: readonly UsableMcpConnectionRecord[] | null;
   /** Whether the member may connect one, so a group may offer to. */
   canConnect: boolean;
+  catalog?: readonly McpCatalogEntry[];
   /** The member may not read connections at all, as opposed to the list still loading. */
   unavailable?: boolean;
 }
@@ -74,7 +82,7 @@ export function pickerSections(
 ): PickerSection[] {
   const byCategory = new Map<string, NodeDefinition[]>();
   for (const definition of definitions) {
-    if (HIDDEN_CATEGORIES.has(definition.category)) continue;
+    if (HIDDEN_CATEGORIES.has(definition.category) || definition.id === "mcp.call") continue;
     const items = byCategory.get(definition.category) ?? [];
     items.push(definition);
     byCategory.set(definition.category, items);
@@ -98,8 +106,14 @@ export function pickerSections(
   const rest = [...byCategory.keys()]
     .filter((category) => !named.has(category))
     .sort((a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b))
-    .map((category) => ({ category, items: byCategory.get(category) ?? [] }));
-  sections.push({ id: MORE_SECTION, groups: rest });
+    .map((category) => ({
+      category,
+      items: byCategory.get(category) ?? [],
+      ...(apps.get(category)?.app === undefined ? {} : { app: apps.get(category)?.app }),
+    }));
+  const appSection = sections.find((section) => section.id === "apps");
+  appSection?.groups.push(...rest.filter((group) => group.app !== undefined));
+  sections.push({ id: MORE_SECTION, groups: rest.filter((group) => group.app === undefined) });
   return sections.filter((section) => section.groups.length > 0);
 }
 
@@ -130,11 +144,15 @@ export function matchesSearch(
  */
 function appGroups(
   definitions: readonly NodeDefinition[],
-  { connections, canConnect, unavailable = false }: AppSource,
+  { connections, canConnect, unavailable = false, catalog = [] }: AppSource,
 ): Map<string, PickerGroup & { app: PickerApp }> {
   const call = definitions.find((definition) => definition.id === "mcp.call");
   const groups = new Map<string, PickerGroup & { app: PickerApp }>();
-  for (const app of WORKFLOW_APPS) {
+  const curatedKeys = new Set(WORKFLOW_APPS.flatMap((app) => app.catalogKeys));
+  const catalogApps = catalog
+    .filter((entry) => !curatedKeys.has(entry.key))
+    .map(catalogWorkflowApp);
+  for (const app of [...WORKFLOW_APPS, ...catalogApps]) {
     const triggers = definitions.filter((definition) => app.triggers.includes(definition.id));
     const own = (connections ?? []).filter(
       (connection) =>
@@ -152,7 +170,9 @@ function appGroups(
           untested.push({ id: connection.id, name: connectionLabel(connection) });
         }
         for (const tool of tools) {
-          if (appForCatalogKey(connection.catalog_key, tool.name) !== app) continue;
+          if (LOGIN_TOOLS.has(tool.name)) continue;
+          if (app.name === undefined && appForCatalogKey(connection.catalog_key, tool.name) !== app)
+            continue;
           actions.push({
             key: `${connection.id}:${tool.name}`,
             app,
@@ -170,7 +190,10 @@ function appGroups(
         ? app.catalogKeys[0]
         : null;
     // Not known, not none: this member may not read the connections.
-    const needsPermission = app.fallback && call !== undefined && unavailable;
+    const needsPermission =
+      app.fallback &&
+      call !== undefined &&
+      (unavailable || (app.name !== undefined && !canConnect && own.length === 0));
     if (
       triggers.length === 0 &&
       actions.length === 0 &&

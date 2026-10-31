@@ -8850,7 +8850,6 @@
     "stepTabSettings": "Einstellungen",
     "stepTabSettingsSet": "Einige Einstellungen sind geändert",
     "stepRunsHint": "Aus: Der Lauf überspringt ihn und gibt weiter, was bei ihm ankam",
-    "nodeEditorRanWith": "Einstellungen, mit denen der Schritt lief",
     "versionLive": "Live",
     "publishTitleVersion": "Version {version} veröffentlichen",
     "publishNothingChanged": "Seit Version {version}, die live ist, hat sich nichts geändert: Es entsteht eine identische Version.",
@@ -9014,7 +9013,14 @@
     "noteSizeSmall": "Kompakt",
     "noteSizeWide": "Breit",
     "noteSizeLarge": "Groß",
-    "noteExpand": "Notiz öffnen"
+    "noteExpand": "Notiz öffnen",
+    "emailSender": "Absenderkonto",
+    "emailPlatformSender": "Dieser Schritt sendet über den E-Mail-Dienst der Plattform. Wähle unten ein verbundenes Postfach, um über dein eigenes Konto zu senden.",
+    "emailConnectGmail": "Gmail verbinden",
+    "emailConnectOutlook": "Outlook verbinden",
+    "emailSwitchTitle": "Dieses Postfach verwenden?",
+    "emailSwitchHint": "Der Schritt verwendet die Felder des Postfachs. Empfänger und Inhalt müssen erneut eingestellt werden. Verbindungen zu folgenden Schritten bleiben erhalten und werden geprüft.",
+    "emailSwitchConfirm": "Postfach verwenden"
   },
   "artifacts": {
     "title": "Apps",
@@ -9458,7 +9464,6 @@
     },
     "kanban": {
       "moveTo": "Verschieben nach",
-      "moveToShort": "Verschieben…",
       "conflict": "Jemand anderes hat diesen Datensatz geändert.",
       "reloadAndReapply": "Neu laden und erneut anwenden",
       "discard": "Verwerfen",
@@ -9654,7 +9659,12 @@
           "label": "Projektbeschreibung",
           "body": "# Projektbeschreibung\n\n## Ziel\n\n\n## Umfang\n\n\n## Erfolgskriterien\n\n- \n"
         }
-      }
+      },
+      "bold": "Fett",
+      "italic": "Kursiv",
+      "link": "Link einfügen",
+      "image": "Bild einfügen",
+      "video": "Video einfügen"
     },
     "defaults": {
       "value": "Standardwert",

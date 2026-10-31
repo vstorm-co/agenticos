@@ -1,9 +1,10 @@
 "use client";
 
 import { Command } from "cmdk";
+import { BrandIcon } from "@/components/icons/brand-icon";
 import { ArrowLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { appToolLabel, serverGroupId } from "@/components/workflows/apps";
 import { NodeTile } from "@/components/workflows/node-tile";
@@ -71,19 +72,28 @@ function Tile(which: TileFor) {
 export function NodePicker({ offered, onPick, draggable = false }: NodePickerProps) {
   const t = useTranslations("workflows");
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<PickerGroup | null>(null);
+  const [openGroup, setOpen] = useState<PickerGroup | null>(null);
   const coloured = useWorkflowNodeStyleStore((state) => state.style) === "colour";
 
   const label = (category: string) =>
-    t.has(`category.${category}`) ? t(`category.${category}`) : category;
+    sections.flatMap((section) => section.groups).find((group) => group.category === category)?.app
+      ?.app.name ?? (t.has(`category.${category}`) ? t(`category.${category}`) : category);
   const hint = (category: string) =>
     t.has(`categoryHint.${category}`) ? t(`categoryHint.${category}`) : null;
 
-  const { connections, canConnect, unavailable } = useAppConnections();
-  const sections = useMemo(
-    () => pickerSections(offered, { connections, canConnect, unavailable }),
-    [offered, connections, canConnect, unavailable],
-  );
+  const { connections, canConnect, unavailable, servers = [] } = useAppConnections();
+  const sections = pickerSections(offered, {
+    connections,
+    canConnect,
+    unavailable,
+    catalog: servers,
+  });
+  const open =
+    openGroup === null
+      ? null
+      : (sections
+          .flatMap((section) => section.groups)
+          .find((group) => group.category === openGroup.category) ?? openGroup);
   const searching = query.trim() !== "";
   const actionLabel = (action: AppAction) => appToolLabel(action.app, action.tool, t);
   // A few dozen steps: filtered on every keystroke, no memo to keep in step.
@@ -188,20 +198,52 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
       </div>
       <Command.List className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {searching ? (
-          found.length === 0 ? (
+          found.length === 0 &&
+          !sections.some((section) =>
+            section.groups.some(
+              (group) =>
+                group.app !== undefined &&
+                label(group.category).toLowerCase().includes(query.toLowerCase()),
+            ),
+          ) ? (
             <p className="text-muted-foreground px-3 py-8 text-center text-sm">
               {t("paletteNoMatches")}
             </p>
           ) : (
-            found.map((row) =>
-              row.kind === "step"
-                ? stepRow(row.item, "step", label(row.group.category))
-                : actionRow(
-                    row.group,
-                    row.action,
-                    `${label(row.group.category)} · ${row.action.connectionName}`,
-                  ),
-            )
+            <>
+              {sections
+                .flatMap((section) => section.groups)
+                .filter(
+                  (group) =>
+                    group.app !== undefined &&
+                    group.app.actions.length === 0 &&
+                    label(group.category).toLowerCase().includes(query.toLowerCase()),
+                )
+                .map((group) => (
+                  <Command.Item
+                    key={group.category}
+                    value={`discover:${group.category}`}
+                    onSelect={() => {
+                      setOpen(group);
+                      setQuery("");
+                    }}
+                    className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm"
+                  >
+                    <Tile kind="group" category={group.category} />
+                    {label(group.category)}
+                    <ChevronRight className="ml-auto size-4" />
+                  </Command.Item>
+                ))}
+              {found.map((row) =>
+                row.kind === "step"
+                  ? stepRow(row.item, "step", label(row.group.category))
+                  : actionRow(
+                      row.group,
+                      row.action,
+                      `${label(row.group.category)} · ${row.action.connectionName}`,
+                    ),
+              )}
+            </>
           )
         ) : open !== null ? (
           <>
@@ -220,7 +262,7 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                   {label(open.category)}
                   {open.app !== undefined && (
                     <span className="mt-0.5 block text-xs font-normal tracking-normal normal-case">
-                      {t(`appServerFull.${serverGroupId(open.app.app)}`)}
+                      {open.app.app.name ?? t(`appServerFull.${serverGroupId(open.app.app)}`)}
                     </span>
                   )}
                   {hint(open.category) !== null && (
@@ -285,7 +327,11 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
                     }}
                     className="aria-selected:bg-accent flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2"
                   >
-                    <Tile kind="group" category={group.category} />
+                    {group.app?.app.brand !== undefined ? (
+                      <BrandIcon name={group.app.app.brand} className="size-7 shrink-0 p-1" />
+                    ) : (
+                      <Tile kind="group" category={group.category} />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm">{label(group.category)}</span>
                       {hint(group.category) !== null && (
@@ -321,7 +367,7 @@ function ConnectRow({ group, catalogKey }: { group: PickerGroup; catalogKey: str
         className="aria-selected:bg-accent text-muted-foreground flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-xs"
       >
         <Plus aria-hidden="true" className="size-4 shrink-0" />
-        {t("appConnect", { server: t(`appServer.${group.category}`) })}
+        {t("appConnect", { server: group.app?.app.name ?? t(`appServer.${group.category}`) })}
       </Command.Item>
       {connecting && (
         <WorkflowConnectionsDialog open catalogKey={catalogKey} onOpenChange={setConnecting} />

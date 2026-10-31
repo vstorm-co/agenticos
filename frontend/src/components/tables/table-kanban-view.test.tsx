@@ -626,7 +626,7 @@ describe("TableKanbanView", () => {
     const card = await screen.findByText("Record r1");
     const cardRoot = card.closest("div[draggable]") as HTMLElement;
     const closedLabel = screen.getByText("Closed");
-    const laneRoot = closedLabel.closest("div.flex.w-64") as HTMLElement;
+    const laneRoot = closedLabel.closest("[data-kanban-lane]") as HTMLElement;
 
     dragStart(cardRoot);
     fireEvent.dragOver(laneRoot);
@@ -682,7 +682,7 @@ describe("TableKanbanView", () => {
     const card = await screen.findByText("Record r1");
     const cardRoot = card.closest("div[draggable]") as HTMLElement;
     const archivedLabel = screen.getByText("Archived");
-    const laneRoot = archivedLabel.closest("div.flex.w-64") as HTMLElement;
+    const laneRoot = archivedLabel.closest("[data-kanban-lane]") as HTMLElement;
 
     dragStart(cardRoot);
     fireEvent.dragOver(laneRoot);
@@ -936,7 +936,7 @@ describe("TableKanbanView", () => {
       const cardRoot = (await screen.findByText("Record r1")).closest(
         "div[draggable]",
       ) as HTMLElement;
-      const ownLane = screen.getByText("Open").closest("div.flex.w-64") as HTMLElement;
+      const ownLane = screen.getByText("Open").closest("[data-kanban-lane]") as HTMLElement;
 
       vi.mocked(apiClient.patch).mockResolvedValue(record("r1", "o2", 2));
       dragStart(cardRoot);
@@ -944,7 +944,7 @@ describe("TableKanbanView", () => {
       fireEvent.drop(ownLane);
       // A write is asynchronous, so "none yet" proves nothing: drop once more,
       // on another lane, and the only write sent is that second one.
-      const otherLane = screen.getByText("Closed").closest("div.flex.w-64") as HTMLElement;
+      const otherLane = screen.getByText("Closed").closest("[data-kanban-lane]") as HTMLElement;
       dragStart(cardRoot);
       fireEvent.dragOver(otherLane);
       fireEvent.drop(otherLane);

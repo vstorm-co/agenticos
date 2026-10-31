@@ -1,8 +1,10 @@
 "use client";
 
-import type { HTMLAttributes } from "react";
+import { useState, type HTMLAttributes } from "react";
+import { createPortal } from "react-dom";
+import { LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
 import { useLocale, useTranslations } from "next-intl";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import {
   Badge,
@@ -26,6 +28,7 @@ import { useKanbanDrag } from "./use-kanban-drag";
 import type { ColumnDef, OptionDef, RecordFilter, RecordRead, RecordSort } from "@/types/tables";
 
 const LANE_PAGE_SIZE = 25;
+type PendingMove = { record: RecordRead; target: string | null };
 
 interface Lane {
   /** `null` for the "no value" lane; a live option's id for a normal lane. */
@@ -92,63 +95,81 @@ function KanbanCard({
     .slice(0, CARD_FIELDS);
 
   return (
-    <div
-      {...dragProps}
-      className="border-border bg-card space-y-2 rounded-lg border p-2.5 text-sm shadow-sm"
+    <motion.div
+      layout="position"
+      layoutId={record.id}
+      transition={{ duration: 0.18 }}
+      className="min-w-0"
     >
-      <div className="flex items-start justify-between gap-2">
-        <button type="button" onClick={onOpen} className="truncate text-left font-medium">
-          {title || record.id}
-        </button>
-        {canEdit && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" aria-label={t("moveTo")}>
-                {t("moveToShort")}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {moveTargets.map((target) => (
-                <DropdownMenuItem
-                  key={target.id ?? "__none__"}
-                  onSelect={() => onMoveTo(target.id)}
+      <div
+        {...dragProps}
+        className="border-border/70 bg-background hover:border-border has-[[data-kanban-actions][data-state=open]]:border-border space-y-3 rounded-xl border p-3.5 text-sm shadow-sm transition-shadow hover:shadow-md"
+        style={{ touchAction: canEdit ? "pan-y" : undefined }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="min-w-0 flex-1 text-left leading-5 font-medium break-words"
+          >
+            {title || record.id}
+          </button>
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  data-kanban-actions
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label={t("moveTo")}
                 >
-                  {target.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-48">
+                {moveTargets.map((target) => (
+                  <DropdownMenuItem
+                    key={target.id ?? "__none__"}
+                    onSelect={() => onMoveTo(target.id)}
+                  >
+                    {target.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {shown.length > 0 && (
+          <dl className="space-y-1 text-xs">
+            {shown.map(({ column, value }) => (
+              <div key={column.id} className="flex min-w-0 items-center gap-2">
+                <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
+                <dd className="min-w-0 flex-1 truncate">
+                  {selectChips(column, value) ?? recordCellText(column, record, boolLabel, locale)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {conflict && (
+          <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{t("conflict")}</span>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className="underline" onClick={onReload}>
+                {t("reloadAndReapply")}
+              </button>
+              <button type="button" className="underline" onClick={onDiscard}>
+                {t("discard")}
+              </button>
+            </div>
+          </div>
         )}
       </div>
-      {shown.length > 0 && (
-        <dl className="space-y-1 text-xs">
-          {shown.map(({ column, value }) => (
-            <div key={column.id} className="flex min-w-0 items-center gap-2">
-              <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
-              <dd className="min-w-0 flex-1 truncate">
-                {selectChips(column, value) ?? recordCellText(column, record, boolLabel, locale)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {conflict && (
-        <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            <span>{t("conflict")}</span>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" className="underline" onClick={onReload}>
-              {t("reloadAndReapply")}
-            </button>
-            <button type="button" className="underline" onClick={onDiscard}>
-              {t("discard")}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -165,6 +186,7 @@ function KanbanLane({
   boolLabel,
   cardProps,
   laneDropProps,
+  pendingMoves,
   onOpenRecord,
   moveTargets,
   onMoveTo,
@@ -184,6 +206,7 @@ function KanbanLane({
   boolLabel: (value: boolean) => string;
   cardProps: (record: RecordRead) => HTMLAttributes<HTMLDivElement>;
   laneDropProps: HTMLAttributes<HTMLDivElement>;
+  pendingMoves: ReadonlyMap<string, PendingMove>;
   onOpenRecord: (record: RecordRead) => void;
   moveTargets: { id: string | null; label: string }[];
   onMoveTo: (record: RecordRead, targetOptionId: string | null) => void;
@@ -209,7 +232,10 @@ function KanbanLane({
   const deleting = useTableViewStore((state) => state.deleting);
   const records = (data?.pages ?? [])
     .flatMap((page) => page.items)
-    .filter((record) => !deleting[record.id]);
+    .filter((record) => !deleting[record.id] && !pendingMoves.has(record.id));
+  for (const { record, target } of pendingMoves.values()) {
+    if (!lane.archived && target === lane.optionId && !deleting[record.id]) records.push(record);
+  }
   const truncated = data?.pages.at(-1)?.has_more && !hasNextPage;
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
@@ -223,7 +249,10 @@ function KanbanLane({
   const noDrag = { draggable: false };
 
   return (
-    <div className="flex w-64 shrink-0 flex-col gap-2" {...laneDropProps}>
+    <div
+      className="bg-muted/30 data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-72 shrink-0 flex-col gap-3 rounded-xl p-3 transition-colors data-[drag-over=true]:ring-2"
+      {...laneDropProps}
+    >
       <div className="flex items-center justify-between px-1">
         <span className="text-sm font-medium">{lane.label}</span>
         <Badge variant="secondary">{records.length}</Badge>
@@ -322,6 +351,7 @@ export function TableKanbanView({
   canEdit: boolean;
 }) {
   const t = useTranslations("tables.kanban");
+  const locale = useLocale();
   const tCells = useTranslations("tables.cells");
   const tErrors = useTranslations("errors");
   const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
@@ -331,8 +361,10 @@ export function TableKanbanView({
   const clearConflict = useTableViewStore((state) => state.clearConflict);
   const conflicts = useTableViewStore((state) => state.conflicts);
 
-  const { cardProps, laneProps } = useKanbanDrag<RecordRead>((record, targetOptionId) =>
-    moveRecord(record, targetOptionId),
+  const [pendingMoves, setPendingMoves] = useState<ReadonlyMap<string, PendingMove>>(new Map());
+  const reducedMotion = useReducedMotion();
+  const { cardProps, laneProps, draggingItem, position } = useKanbanDrag<RecordRead>(
+    (record, targetOptionId) => moveRecord(record, targetOptionId),
   );
 
   const laneOf = (record: RecordRead) => record.values[groupByColumnId] ?? null;
@@ -342,9 +374,22 @@ export function TableKanbanView({
     // could only fail - against a revision someone else has since advanced -
     // with a conflict banner for a move the user never made.
     if (laneOf(record) === targetOptionId) return;
+    const pending = { record, target: targetOptionId };
+    setPendingMoves((current) => new Map(current).set(record.id, pending));
+    const clearPending = () =>
+      setPendingMoves((current) => {
+        if (current.get(record.id) !== pending) return current;
+        const next = new Map(current);
+        next.delete(record.id);
+        return next;
+      });
     commit(record, { [groupByColumnId]: targetOptionId }).then(
-      () => clearConflict(record.id, groupByColumnId),
+      () => {
+        clearPending();
+        clearConflict(record.id, groupByColumnId);
+      },
       (error: unknown) => {
+        clearPending();
         // Anything but a conflict was already toasted by `useRecordMutation`.
         if (isRevisionConflict(error)) {
           setConflict({
@@ -425,30 +470,50 @@ export function TableKanbanView({
   ];
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
-      {lanes.map((lane) => (
-        <KanbanLane
-          key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}
-          tableId={tableId}
-          lane={lane}
-          baseFilters={baseFilters}
-          search={search}
-          groupBy={groupByColumnId}
-          sort={sort}
-          archivedOptionIds={archivedOptionIds}
-          titleColumn={titleColumn}
-          properties={properties}
-          boolLabel={boolLabel}
-          cardProps={cardProps}
-          laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}
-          onOpenRecord={onOpenRecord}
-          moveTargets={moveTargets}
-          onMoveTo={moveRecord}
-          onReload={(recordId) => void reloadAndReapply(recordId)}
-          onDiscard={discardConflict}
-          canEdit={canEdit}
-        />
-      ))}
-    </div>
+    <MotionConfig reducedMotion="user">
+      <LayoutGroup>
+        <div data-kanban-board className="flex gap-3 overflow-x-auto pb-2">
+          {lanes.map((lane) => (
+            <KanbanLane
+              key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}
+              tableId={tableId}
+              lane={lane}
+              baseFilters={baseFilters}
+              search={search}
+              groupBy={groupByColumnId}
+              sort={sort}
+              archivedOptionIds={archivedOptionIds}
+              titleColumn={titleColumn}
+              properties={properties}
+              boolLabel={boolLabel}
+              cardProps={cardProps}
+              laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}
+              pendingMoves={pendingMoves}
+              onOpenRecord={onOpenRecord}
+              moveTargets={moveTargets}
+              onMoveTo={moveRecord}
+              onReload={(recordId) => void reloadAndReapply(recordId)}
+              onDiscard={discardConflict}
+              canEdit={canEdit}
+            />
+          ))}
+        </div>
+        {draggingItem !== null &&
+          position !== null &&
+          createPortal(
+            <div
+              className="bg-card pointer-events-none fixed z-[100] w-64 rounded-xl border p-4 text-sm font-medium shadow-xl"
+              style={{
+                left: position.x + 12,
+                top: position.y + 12,
+                transform: reducedMotion ? undefined : "rotate(2deg)",
+              }}
+            >
+              {recordCellText(titleColumn, draggingItem, boolLabel, locale)}
+            </div>,
+            document.body,
+          )}
+      </LayoutGroup>
+    </MotionConfig>
   );
 }

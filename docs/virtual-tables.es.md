@@ -1,5 +1,5 @@
 ---
-source_sha: "2adc37c143bf"
+source_sha: "9f8b82e00fb0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -101,7 +101,9 @@ la columna.
 
 ### Texto enriquecido y Markdown { #rich-text }
 
-Elige **Rich text (Markdown)** para notas con encabezados, listas, tareas, tablas, enlaces y código. Al pulsar la celda se abre el panel del registro. **Write** edita el Markdown con resaltado de sintaxis; **Preview** muestra la vista previa y **Expand editor** abre un espacio mayor. Los registros de solo lectura empiezan en vista previa y permiten leer la fuente. Las imágenes remotas aparecen como enlaces y no se cargan automáticamente.
+Elige **Rich text (Markdown)** para notas con títulos, listas, tareas, tablas, enlaces y código. Al pulsar una celda se abre el registro. **Write** ofrece un campo de documento y herramientas para negrita, cursiva, enlaces, imágenes y vídeo. **Preview** usa el renderizador del chat para enlaces e imágenes; los enlaces HTTP(S) directos a MP4, WebM u Ogg se muestran como vídeos con controles y sin reproducción automática. El HTML sin procesar no se ejecuta. **Expand editor** abre más espacio. Los documentos de solo lectura comienzan en la vista previa.
+
+Kanban muestra la tarjeta bajo el puntero y resalta el destino; durante el guardado la tarjeta ya aparece en la columna elegida. Un rechazo restaura la columna anterior y conserva las acciones del conflicto. Move to sigue disponible con el teclado.
 
 Las propiedades del documento aparecen encima del editor Markdown. **Created**, **Last updated** y **Created by** proceden del registro y no se pueden modificar mediante Markdown. La fecha de actualización sigue las escrituras de todo el registro, incluidas otras celdas; antes de la primera actualización se muestra la fecha de creación.
 

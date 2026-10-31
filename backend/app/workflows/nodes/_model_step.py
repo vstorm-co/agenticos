@@ -20,9 +20,10 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai.settings import ThinkingEffort
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, ModelSettingsSpec
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -50,6 +51,17 @@ class ModelStepConfig(BaseModel):
         json_schema_extra={"x-resource": "model_profile"},
         description="One of the organization's models.",
     )
+    temperature: float | None = Field(
+        default=None,
+        ge=0,
+        le=2,
+        description="Answer variation. Leave unset for models that do not support temperature.",
+    )
+    effort: ThinkingEffort | None = Field(
+        default=None,
+        title="Reasoning effort",
+        description="How hard the model reasons. Empty keeps the provider's default.",
+    )
     max_cost_usd: float | None = Field(
         default=None,
         gt=0,
@@ -73,6 +85,12 @@ def spec_for(
         instructions=instructions,
         model_profile_id=config.model_profile_id,
         output_schema=output_schema,
+        model_settings=ModelSettingsSpec(temperature=config.temperature),
+        capabilities=(
+            [CapabilityBindingSpec(id="thinking", config={"effort": config.effort})]
+            if config.effort is not None
+            else []
+        ),
         # One request is the whole task; a second is the model fixing an answer
         # that broke its shape.
         max_steps=3,

@@ -1650,3 +1650,44 @@ describe("the last step test", () => {
     store.getState().teardown();
   });
 });
+
+describe("mailbox steps", () => {
+  it("switches only email steps to an account tool, preserving wires and clearing incompatible inputs", () => {
+    const store = useWorkflowEditorStore;
+    store.getState().seedGraph({
+      entry_node_id: "mail",
+      nodes: [
+        {
+          id: "mail",
+          definition_id: "email.send",
+          definition_version: 1,
+          config: { reply_to: "old@example.com" },
+          layout: { x: 0, y: 0 },
+        },
+      ],
+      edges: [],
+      bindings: [
+        {
+          target_node_id: "mail",
+          target_field: "subject",
+          source: { kind: "literal", value: "Hello" },
+        },
+      ],
+      scopes: [],
+    });
+    store.getState().useEmailAccount("mail", 2, "gmail-account", "send_gmail_message");
+    expect(store.getState().graph?.nodes[0]).toMatchObject({
+      id: "mail",
+      definition_id: "mcp.call",
+      definition_version: 2,
+      config: { connection_id: "gmail-account", tool: "send_gmail_message" },
+    });
+    expect(store.getState().graph?.bindings).toEqual([]);
+    expect(store.getState().isDirty).toBe(true);
+    store.getState().undo();
+    expect(store.getState().graph?.nodes[0]?.definition_id).toBe("email.send");
+    expect(store.getState().graph?.bindings).toHaveLength(1);
+    store.getState().useEmailAccount("missing", 1, "c", "send");
+    expect(store.getState().graph?.nodes).toHaveLength(1);
+  });
+});

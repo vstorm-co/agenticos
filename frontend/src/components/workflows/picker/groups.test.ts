@@ -86,7 +86,7 @@ describe("pickerSections with apps", () => {
     const apps = pickerSections(defs, { connections: [conn()], canConnect: true }).find(
       (section) => section.id === "apps",
     );
-    expect(apps?.groups.map((group) => group.category)).toEqual(["gmail", "microsoft_365", "mcp"]);
+    expect(apps?.groups.map((group) => group.category)).toEqual(["gmail", "microsoft_365"]);
     const group = apps?.groups[0];
     expect(group?.items.map((item) => item.id)).toEqual(["trigger.gmail"]);
     expect(group?.app?.actions.map((action) => [action.connectionId, action.tool])).toEqual([
@@ -210,5 +210,53 @@ describe("pickerSections with apps", () => {
     expect(matchesAction(draft, "draft gmail", "Create draft", "Gmail")).toBe(true);
     expect(matchesAction(draft, "gmail nothing", "Create draft", "Gmail")).toBe(false);
     expect(matchesAction(draft, "  ", "Create draft", "Gmail")).toBe(true);
+  });
+});
+
+describe("MCP catalog discovery", () => {
+  const notion = {
+    key: "notion",
+    name: "Notion",
+    description: "Workspace",
+    category: "productivity",
+    auth: "oauth",
+    url: "https://mcp.notion.com/mcp",
+    docs_url: null,
+    token_hint: null,
+    icon: "notion",
+  } as const;
+  const call = step("mcp.call", "mcp");
+  it("offers a catalog app before it is connected and hides the generic call", () => {
+    const groups = pickerSections([call], {
+      connections: [],
+      canConnect: true,
+      catalog: [notion],
+    }).flatMap((section) => section.groups);
+    expect(groups).toHaveLength(3); // Google Workspace, Microsoft 365 and the catalog app.
+    const group = groups.find((one) => one.app?.app.name === "Notion");
+    expect(group?.app?.connectKey).toBe("notion");
+    expect(groups.flatMap((one) => one.items)).toEqual([]);
+  });
+  it("turns each connected app tool into a configured workflow action", () => {
+    const connection = {
+      id: "n1",
+      name: "notion-work",
+      label: "Work",
+      catalog_key: "notion",
+      is_enabled: true,
+      allowed_tools: null,
+      last_tools: [{ name: "search", description: "Find pages" }],
+    } as UsableMcpConnectionRecord;
+    const group = pickerSections([call], {
+      connections: [connection],
+      canConnect: true,
+      catalog: [notion],
+    })
+      .flatMap((section) => section.groups)
+      .find((one) => one.app?.app.name === "Notion");
+    expect(group?.app?.actions.map((one) => [one.connectionId, one.tool])).toEqual([
+      ["n1", "search"],
+    ]);
+    expect(group?.app?.connectKey).toBeNull();
   });
 });

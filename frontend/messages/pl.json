@@ -9653,7 +9653,6 @@
     "stepTabSettings": "Ustawienia",
     "stepTabSettingsSet": "Część ustawień jest zmieniona",
     "stepRunsHint": "Wyłączony: przebieg go pomija i przekazuje dalej to, co do niego dotarło",
-    "nodeEditorRanWith": "Ustawienia, z którymi krok działał",
     "versionLive": "Aktywna",
     "publishTitleVersion": "Opublikuj wersję {version}",
     "publishNothingChanged": "Nic się nie zmieniło od wersji {version}, która jest aktywna: powstanie identyczna wersja.",
@@ -9817,7 +9816,14 @@
     "noteSizeSmall": "Kompaktowa",
     "noteSizeWide": "Szeroka",
     "noteSizeLarge": "Duża",
-    "noteExpand": "Otwórz notatkę"
+    "noteExpand": "Otwórz notatkę",
+    "emailSender": "Konto nadawcy",
+    "emailPlatformSender": "Ten krok wysyła wiadomości przez pocztę platformy. Wybierz podłączoną skrzynkę poniżej, aby wysyłać ze swojego konta.",
+    "emailConnectGmail": "Połącz Gmail",
+    "emailConnectOutlook": "Połącz Outlook",
+    "emailSwitchTitle": "Użyć tej skrzynki?",
+    "emailSwitchHint": "Krok użyje pól tej skrzynki. Ustaw ponownie odbiorców i treść; połączenia z kolejnymi krokami zostaną zachowane i sprawdzone.",
+    "emailSwitchConfirm": "Użyj skrzynki"
   },
   "artifacts": {
     "title": "Aplikacje",
@@ -10261,7 +10267,6 @@
     },
     "kanban": {
       "moveTo": "Przenieś do",
-      "moveToShort": "Przenieś…",
       "conflict": "Ktoś inny zmienił ten rekord.",
       "reloadAndReapply": "Odśwież i zastosuj ponownie",
       "discard": "Odrzuć",
@@ -10457,7 +10462,12 @@
           "label": "Opis projektu",
           "body": "# Projekt\n\n## Cel\n\n\n## Zakres\n\n\n## Kryteria sukcesu\n\n- \n"
         }
-      }
+      },
+      "bold": "Pogrubienie",
+      "italic": "Kursywa",
+      "link": "Wstaw link",
+      "image": "Wstaw obraz",
+      "video": "Wstaw film"
     },
     "defaults": {
       "value": "Wartość domyślna",

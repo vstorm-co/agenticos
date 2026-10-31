@@ -8971,7 +8971,6 @@
     "stepTabSettings": "Settings",
     "stepTabSettingsSet": "Some settings are changed",
     "stepRunsHint": "Off, the run skips it and hands on what came into it",
-    "nodeEditorRanWith": "Settings this step ran with",
     "versionLive": "Live",
     "publishTitleVersion": "Publish version {version}",
     "publishNothingChanged": "Nothing has changed since version {version}, which is live: this makes an identical version.",
@@ -9135,7 +9134,14 @@
     "noteSizeSmall": "Compact",
     "noteSizeWide": "Wide",
     "noteSizeLarge": "Large",
-    "noteExpand": "Open note"
+    "noteExpand": "Open note",
+    "emailSender": "Sender account",
+    "emailPlatformSender": "This step sends through the platform mail service. Choose a connected mailbox below to send from your own account.",
+    "emailConnectGmail": "Connect Gmail",
+    "emailConnectOutlook": "Connect Outlook",
+    "emailSwitchTitle": "Use this mailbox?",
+    "emailSwitchHint": "The step will use the mailbox’s own fields. Configure its recipients and content again; existing connections to later steps are kept and checked.",
+    "emailSwitchConfirm": "Use mailbox"
   },
   "artifacts": {
     "title": "Apps",
@@ -9579,7 +9585,6 @@
     },
     "kanban": {
       "moveTo": "Move to",
-      "moveToShort": "Move…",
       "conflict": "Someone else changed this record.",
       "reloadAndReapply": "Reload and reapply",
       "discard": "Discard",
@@ -9775,7 +9780,12 @@
           "label": "Project brief",
           "body": "# Project brief\n\n## Goal\n\n\n## Scope\n\n\n## Success criteria\n\n- \n"
         }
-      }
+      },
+      "bold": "Bold",
+      "italic": "Italic",
+      "link": "Insert link",
+      "image": "Insert image",
+      "video": "Insert video"
     },
     "defaults": {
       "value": "Default value",

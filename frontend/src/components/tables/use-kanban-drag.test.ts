@@ -87,3 +87,58 @@ describe("useKanbanDrag", () => {
     expect(onDrop).not.toHaveBeenCalled();
   });
 });
+
+describe("pointer dragging", () => {
+  it("tracks the pointer after a threshold, drops in a live lane and suppresses the opening click", () => {
+    const onDrop = vi.fn();
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(onDrop));
+    const card = document.createElement("div");
+    const lane = document.createElement("div");
+    lane.dataset.kanbanLane = "done";
+    lane.dataset.kanbanAccepts = "true";
+    const hit = vi.fn(() => lane);
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: hit });
+    const item = { id: "r1" };
+    const event = (x: number) =>
+      ({
+        button: 0,
+        pointerId: 1,
+        clientX: x,
+        clientY: 20,
+        currentTarget: card,
+        target: card,
+        preventDefault: vi.fn(),
+      }) as unknown as React.PointerEvent<HTMLDivElement>;
+    act(() => result.current.cardProps(item).onPointerDown(event(10)));
+    act(() => result.current.cardProps(item).onPointerMove(event(12)));
+    expect(result.current.draggingItem).toBeNull();
+    act(() => result.current.cardProps(item).onPointerMove(event(25)));
+    expect(result.current.position).toEqual({ x: 25, y: 20 });
+    expect(result.current.laneProps("done", true)["data-drag-over"]).toBe(true);
+    act(() => result.current.cardProps(item).onPointerUp(event(25)));
+    expect(onDrop).toHaveBeenCalledExactlyOnceWith(item, "done");
+    expect(result.current.draggingItem).toBeNull();
+    const click = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    result.current.cardProps(item).onClickCapture(click as unknown as React.MouseEvent);
+    expect(click.stopPropagation).toHaveBeenCalledOnce();
+    Reflect.deleteProperty(document, "elementFromPoint");
+  });
+
+  it("cancels a pointer move without writing", () => {
+    const onDrop = vi.fn();
+    const { result } = renderHook(() => useKanbanDrag(onDrop));
+    const card = document.createElement("div");
+    const event = {
+      button: 0,
+      pointerId: 1,
+      clientX: 0,
+      clientY: 0,
+      target: card,
+      currentTarget: card,
+    } as unknown as React.PointerEvent<HTMLDivElement>;
+    act(() => result.current.cardProps("item").onPointerDown(event));
+    act(() => result.current.cardProps("item").onPointerCancel());
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(result.current.position).toBeNull();
+  });
+});

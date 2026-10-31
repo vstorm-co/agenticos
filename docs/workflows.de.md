@@ -1,5 +1,5 @@
 ---
-source_sha: "078231ef2689"
+source_sha: "567495b4bc6f"
 ---
 
 # Workflows { #workflows }
@@ -69,7 +69,9 @@ ein Tag-Filter grenzt die Liste auf einen Tag ein, und sortiert wird nach letzte
 Bearbeitung, Name oder den neuesten zuerst. Alles bleibt in der Adresse, sodass ein
 Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 
-**More → Settings** enthält Name, Beschreibung und Tags des Workflows; Änderungen werden automatisch gespeichert. Laufzeiteinstellungen bleiben im selben Panel. Schrittdialoge passen ihre Höhe dem Inhalt an: Die Hauptkarte zeigt die Konfiguration, daneben stehen Eingabe und Ausgabe. Datensatzwerte erscheinen als nach Tabellenspalten benannte Felder. Optionale Konfigurationsdetails bleiben eingeklappt. Notizen bieten **Open note**, Größenvorlagen und Ziehpunkte für Breite und Höhe.
+**More → Settings** enthält Name, Beschreibung, Tags und Laufzeiteinstellungen des Workflows; Änderungen werden automatisch gespeichert. Der Schritteditor nutzt das verfügbare Fenster: Input links, Parameters und Settings in der Mitte, Output rechts. Trigger haben zwei Bereiche, da sie keine eingehenden Daten haben. Auf großen Bildschirmen scrollt jeder Bereich separat, auf Telefonen gibt es eine Spalte. Gespeicherte Ausführungen zeigen ihre Parameter schreibgeschützt neben den Daten. Datensatzwerte verwenden die Spaltennamen der Tabelle. Notizen bieten Open note, Größen und Ziehgriffe.
+
+Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
 
 Der Architect kann den Knotenkatalog erkunden, private Workflow-Entwürfe erstellen und ändern, sie testen und Run-Ergebnisse prüfen. Er erstellt außerdem typisierte Virtual Tables und sucht oder aktualisiert Datensätze. Die Skills workflow-builder und virtual-tables erklären den passenden Einsatz. Fehlt ein Dienst im MCP-Katalog, kann der Architect dessen dokumentierte API mit einem HTTP-request-Schritt kapseln und einen veröffentlichten aufrufbaren Workflow über die Workflows-Capability als Agentenwerkzeug anbieten. Zugangsdaten bleiben im Tresor. Tests können reale Aktionen ausführen; die Veröffentlichung mit dauerhaften menschlichen Rechten erfordert weiterhin eine menschliche Sitzung.
 

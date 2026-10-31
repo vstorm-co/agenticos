@@ -25,6 +25,7 @@ import { ROUTES } from "@/lib/constants";
 import { NodeForm } from "@/components/workflows/property-panel/node-form";
 import { PolicySection } from "@/components/workflows/property-panel/policy-section";
 import { carriesField, scrollNearEdge } from "@/lib/workflows/field-drag";
+import { EmailAccountSetup } from "./email-account-setup";
 import { StepName, StepNote, StepSwitch } from "./step-details";
 import { InputPane, OutputPane } from "./step-panes";
 import {
@@ -40,7 +41,7 @@ import {
 } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
 import { validateGraph } from "@/components/workflows/validation";
-import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
@@ -211,10 +212,7 @@ export function NodeEditorDialog({
         // A field dragged from the Input pane scrolls the form, or the pane, at
         // their edges: the wheel does nothing while a browser carries a drag.
         onDragOver={(event) => carriesField(event) && scrollNearEdge(event)}
-        className={cn(
-          "gap-0 p-0 sm:p-0",
-          withData ? [DIALOG_BROAD, DIALOG_COLUMN] : [DIALOG_FORM, DIALOG_COLUMN],
-        )}
+        className={cn("gap-0 p-0 sm:p-0", withData ? DIALOG_WINDOW : [DIALOG_FORM, DIALOG_COLUMN])}
       >
         <header className="border-border flex items-start gap-3 border-b px-5 pt-5 pr-14 pb-4 sm:px-6 sm:pr-14">
           {pin?.kind === "agent" ? (
@@ -297,25 +295,16 @@ export function NodeEditorDialog({
         <div
           className={cn(
             "min-h-0 flex-1 overscroll-contain",
-            // The dialog only caps its height here, so `h-full` below it resolves to
-            // nothing: the body itself is what scrolls, or a long form runs out of it.
             !withData && "overflow-y-auto",
-            withData && "bg-muted/20 grid grid-cols-1 items-start gap-5 overflow-y-auto p-5 sm:p-6",
-            withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)]",
-            withData && !withInput && !runData && "lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)]",
-            // A run's step is read for its data: Input and Output side by side,
-            // the settings it ran with folded underneath.
-            runData && withInput && "lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)_auto]",
-            runData && !withInput && "lg:grid-rows-[minmax(0,1fr)_auto]",
+            withData && "grid grid-cols-1 overflow-y-auto lg:overflow-hidden",
+            withData &&
+              withInput &&
+              "lg:grid-cols-[minmax(15rem,1fr)_minmax(24rem,1.25fr)_minmax(15rem,1fr)]",
+            withData && !withInput && "lg:grid-cols-[minmax(24rem,1.25fr)_minmax(15rem,1fr)]",
           )}
         >
           {withInput && (
-            <div
-              className={cn(
-                "bg-card min-w-0 rounded-xl border p-4 lg:row-start-1",
-                runData ? "lg:col-start-1" : "lg:col-start-2",
-              )}
-            >
+            <div className="bg-muted/20 min-h-0 min-w-0 overflow-auto border-b p-5 lg:border-r lg:border-b-0 lg:p-6">
               <InputPane
                 graph={graph}
                 catalog={catalog}
@@ -327,59 +316,44 @@ export function NodeEditorDialog({
           )}
           <div
             className={cn(
-              "bg-card order-first min-w-0 space-y-5 rounded-xl border p-5",
-              !runData && "lg:col-start-1 lg:row-span-2 lg:row-start-1",
-              !withData && "px-6 py-5",
-              runData && "order-last lg:col-start-1 lg:row-start-2",
-              runData && withInput && "lg:col-span-2",
+              "bg-card min-h-0 min-w-0 space-y-5 p-5 sm:p-6",
+              withData && "overflow-auto border-b lg:border-r lg:border-b-0",
             )}
           >
-            {definition !== null &&
-              (runData ? (
-                // A run's step is looked at for what it did: its settings are
-                // there to check, not the first thing in the way.
-                <details className="group">
-                  <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-sm select-none">
-                    {t("nodeEditorRanWith")}
-                  </summary>
-                  <div className="mt-4">{form}</div>
-                </details>
-              ) : (
-                <Tabs value={tab} onValueChange={setTab}>
-                  <TabsList>
-                    <TabsTrigger value="parameters">{t("stepTabParameters")}</TabsTrigger>
-                    <TabsTrigger value="settings">
-                      {t("stepTabSettings")}
-                      {customised && (
-                        <span
-                          aria-label={t("stepTabSettingsSet")}
-                          className="bg-foreground/60 size-1.5 rounded-full"
-                        />
-                      )}
-                    </TabsTrigger>
-                    {evaluable && <TabsTrigger value="evals">{t("stepTabEvals")}</TabsTrigger>}
-                  </TabsList>
-                  <TabsContent value="parameters" className="mt-5">
-                    {form}
-                  </TabsContent>
-                  <TabsContent value="settings" className="mt-5">
-                    {stepSettings}
-                  </TabsContent>
-                  {evaluable && workflowId !== undefined && (
-                    <TabsContent value="evals" className="mt-5">
-                      <StepEvals workflowId={workflowId} graph={graph} node={node} />
-                    </TabsContent>
+            {definition !== null && (
+              <Tabs value={tab} onValueChange={setTab}>
+                <TabsList>
+                  <TabsTrigger value="parameters">{t("stepTabParameters")}</TabsTrigger>
+                  <TabsTrigger value="settings">
+                    {t("stepTabSettings")}
+                    {customised && (
+                      <span
+                        aria-label={t("stepTabSettingsSet")}
+                        className="bg-foreground/60 size-1.5 rounded-full"
+                      />
+                    )}
+                  </TabsTrigger>
+                  {evaluable && <TabsTrigger value="evals">{t("stepTabEvals")}</TabsTrigger>}
+                </TabsList>
+                <TabsContent value="parameters" className="mt-5">
+                  {node.definition_id === "email.send" && !readOnly && (
+                    <EmailAccountSetup nodeId={node.id} catalog={catalog} />
                   )}
-                </Tabs>
-              ))}
+                  {form}
+                </TabsContent>
+                <TabsContent value="settings" className="mt-5">
+                  {stepSettings}
+                </TabsContent>
+                {evaluable && workflowId !== undefined && (
+                  <TabsContent value="evals" className="mt-5">
+                    <StepEvals workflowId={workflowId} graph={graph} node={node} />
+                  </TabsContent>
+                )}
+              </Tabs>
+            )}
           </div>
           {withData && (
-            <div
-              className={cn(
-                "bg-card min-w-0 rounded-xl border p-4",
-                runData && !withInput ? "lg:col-start-1" : "lg:col-start-2",
-              )}
-            >
+            <div className="bg-muted/20 min-h-0 min-w-0 overflow-auto p-5 lg:p-6">
               <OutputPane
                 readOnly={runData}
                 workflowId={workflowId}

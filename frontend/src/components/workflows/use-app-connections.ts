@@ -1,8 +1,14 @@
 "use client";
 
-import { type WorkflowApp, appForCatalogKey } from "@/components/workflows/apps";
+import {
+  type WorkflowApp,
+  appForCatalogKey,
+  catalogWorkflowApp,
+} from "@/components/workflows/apps";
 import { usePermissions, useUsableMcpConnections } from "@/hooks";
 import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { useMcpCatalog } from "@/hooks/use-mcp-servers";
+import type { McpCatalogEntry } from "@/types/mcp";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -15,12 +21,14 @@ import { Perm } from "@/types/permissions";
  */
 export function useAppConnections(): {
   connections: UsableMcpConnectionRecord[] | null;
+  servers: McpCatalogEntry[];
   canConnect: boolean;
   unavailable: boolean;
 } {
   const { can } = usePermissions();
   const { connections, canRead } = useUsableMcpConnections();
-  return { connections, canConnect: can(Perm.mcpManage), unavailable: !canRead };
+  const { servers } = useMcpCatalog();
+  return { connections, servers, canConnect: can(Perm.mcpManage), unavailable: !canRead };
 }
 
 /** An `mcp.call` step whose connection belongs to an app the picker groups by. */
@@ -32,10 +40,15 @@ export interface McpAppStep {
 
 /** The app an `mcp.call` step's connection maps to, or null for any other step or a connection unknown here. */
 export function useMcpAppStep(config: Record<string, unknown>): McpAppStep | null {
-  const { connections } = useAppConnections();
+  const { connections, servers } = useAppConnections();
   const connection = connections?.find((one) => one.id === config.connection_id);
   const tool = typeof config.tool === "string" ? config.tool : "";
-  const app = connection === undefined ? null : appForCatalogKey(connection.catalog_key, tool);
+  const entry = servers.find((server) => server.key === connection?.catalog_key);
+  const app =
+    connection === undefined
+      ? null
+      : (appForCatalogKey(connection.catalog_key, tool) ??
+        (entry === undefined ? null : catalogWorkflowApp(entry)));
   if (connection === undefined || app === null) return null;
   return { app, connection, tool };
 }

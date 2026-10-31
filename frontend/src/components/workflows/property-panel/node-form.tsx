@@ -1177,6 +1177,15 @@ function NodeFields({
     // An agent step always shows `agent`: neither it nor `inline` is required
     // alone, but one of the two always is.
     (agentStep && entry.name === AGENT_SOURCE) ||
+    ((definition.id.startsWith("ai.") || definition.id.startsWith("decide.")) &&
+      [
+        "instructions",
+        "prompt",
+        "temperature",
+        "reasoning_effort",
+        "effort",
+        "model_settings",
+      ].includes(entry.name)) ||
     entry.required ||
     node.config[entry.name] !== undefined ||
     bound(entry.name);

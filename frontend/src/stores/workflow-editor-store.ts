@@ -238,6 +238,13 @@ export interface WorkflowEditorState {
   /** Delete the selected nodes and edges, pruning anything left dangling. */
   deleteSelection: () => void;
   /** Replace one node's static `config`. */
+  /** Switch an email step to its connected account's MCP action, as one undoable edit. */
+  useEmailAccount: (
+    nodeId: Uuid,
+    definitionVersion: number,
+    connectionId: string,
+    tool: string,
+  ) => void;
   updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
   /** Replace one node's policy - its time limit, retries and error routing; null clears it. */
   updateNodePolicy: (nodeId: Uuid, policy: NodePolicy | null) => void;
@@ -472,7 +479,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     generation: 0,
     expectedRevision: null,
     // The builder's own view preference: kept across workflows, not a draft's.
-    minimapShown: false,
+    minimapShown: true,
     ...CLEARED,
 
     load: ({ workflowId, expectedRevision }) => {
@@ -676,6 +683,27 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       set({ selection: EMPTY_SELECTION });
     },
 
+    useEmailAccount: (nodeId, definitionVersion, connectionId, tool) => {
+      const { graph } = get();
+      const node = graph?.nodes.find((one) => one.id === nodeId);
+      if (!graph || node?.definition_id !== "email.send") return;
+      commit({
+        ...graph,
+        nodes: graph.nodes.map((one) =>
+          one.id !== nodeId
+            ? one
+            : {
+                ...one,
+                definition_id: "mcp.call",
+                definition_version: definitionVersion,
+                config: { connection_id: connectionId, tool },
+              },
+        ),
+        // MCP argument names come from the server, so the account's form asks for
+        // them again. Keep outgoing bindings: validation flags incompatible outputs.
+        bindings: graph.bindings.filter((binding) => binding.target_node_id !== nodeId),
+      });
+    },
     updateNodeConfig: (nodeId, config) => {
       const { graph } = get();
       if (graph === null) return;

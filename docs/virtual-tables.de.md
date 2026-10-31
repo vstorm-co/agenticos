@@ -1,5 +1,5 @@
 ---
-source_sha: "2adc37c143bf"
+source_sha: "9f8b82e00fb0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -103,7 +103,9 @@ aktive Option nennt, wird mit den Optionen der Spalte abgelehnt.
 
 ### Formatierter Text und Markdown { #rich-text }
 
-Wähle **Rich text (Markdown)** für Notizen mit Überschriften, Listen, Aufgabenlisten, Tabellen, Links und Code. Ein Klick auf die Zelle öffnet das Datensatz-Panel. **Write** bearbeitet den Markdown-Quelltext mit Syntaxhervorhebung; **Preview** zeigt die Vorschau und **Expand editor** öffnet einen größeren Arbeitsbereich. Schreibgeschützte Datensätze starten in der Vorschau und erlauben das Lesen des Quelltexts. Externe Bilder erscheinen als Links und werden nicht automatisch geladen.
+Wähle **Rich text (Markdown)** für Notizen mit Überschriften, Listen, Aufgaben, Tabellen, Links und Code. Ein Zellklick öffnet den Datensatz. **Write** bietet ein Dokumentfeld mit Werkzeugen für Fett, Kursiv, Links, Bilder und Video. **Preview** nutzt den Chat-Renderer für Links und Bilder; direkte HTTP(S)-Links auf MP4, WebM oder Ogg werden als Video mit Steuerelementen ohne Autoplay angezeigt. Rohes HTML wird nicht ausgeführt. **Expand editor** öffnet mehr Platz. Schreibgeschützte Dokumente starten in der Vorschau.
+
+Kanban zeigt eine Karte unter dem Zeiger und markiert die Zielspalte; beim Speichern steht die Karte bereits dort. Bei abgelehntem Schreiben kehrt sie zurück und die Konfliktaktionen bleiben erhalten. Das Menü Move to ist per Tastatur erreichbar.
 
 Dokumenteigenschaften stehen über dem Markdown-Editor. **Erstellt**, **Zuletzt geändert** und **Erstellt von** stammen aus dem Datensatz und lassen sich nicht über Markdown ändern. Das Änderungsdatum folgt Schreibvorgängen am gesamten Datensatz, auch an anderen Zellen; vor der ersten Änderung gilt das Erstellungsdatum.
 

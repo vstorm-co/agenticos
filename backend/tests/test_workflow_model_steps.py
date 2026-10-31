@@ -77,6 +77,22 @@ class TestAskAModel:
         assert spec.capabilities == [] and spec.mcp_servers == []
         assert asked.await_args.args[2] == "Acme, 500 seats"
 
+    async def test_model_controls_reach_the_executed_spec(self, asked):
+        config = prompt.AiPromptConfig(model_profile_id=MODEL, temperature=0.4, effort="high")
+        await _run(prompt, config, prompt.AiPromptInput(prompt="Plan the launch"))
+        spec: AgentSpec = asked.await_args.args[1]
+        assert spec.model_settings.temperature == 0.4
+        assert [(binding.id, binding.config) for binding in spec.capabilities] == [
+            ("thinking", {"effort": "high"})
+        ]
+
+    async def test_unset_model_controls_preserve_provider_defaults(self, asked):
+        config = prompt.AiPromptConfig(model_profile_id=MODEL)
+        await _run(prompt, config, prompt.AiPromptInput(prompt="Hi"))
+        spec: AgentSpec = asked.await_args.args[1]
+        assert spec.model_settings.model_dump() == {}
+        assert spec.capabilities == []
+
     async def test_a_schema_asks_for_an_object_and_text_instead_fails(self, asked):
         schema = {"type": "object", "properties": {"score": {"type": "integer"}}}
         config = prompt.AiPromptConfig(model_profile_id=MODEL, structured_output_schema=schema)
