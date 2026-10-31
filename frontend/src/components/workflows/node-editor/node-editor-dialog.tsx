@@ -209,6 +209,12 @@ export function NodeEditorDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogContent
+        onEscapeKeyDown={(event) => {
+          // Radix dismisses in capture, before the inline field can cancel its rename.
+          if (event.target instanceof HTMLElement && event.target.closest("[data-step-name]")) {
+            event.preventDefault();
+          }
+        }}
         // A field dragged from the Input pane scrolls the form, or the pane, at
         // their edges: the wheel does nothing while a browser carries a drag.
         onDragOver={(event) => carriesField(event) && scrollNearEdge(event)}
@@ -223,8 +229,8 @@ export function NodeEditorDialog({
             tile
           )}
           <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <DialogTitle className="truncate text-base">
+            <div className="flex min-w-0 items-center gap-2">
+              <DialogTitle className="w-full min-w-0 text-base leading-8">
                 {definition === null ? (
                   (names.get(node.id) ?? node.definition_id)
                 ) : (
@@ -238,7 +244,7 @@ export function NodeEditorDialog({
                 )}
               </DialogTitle>
             </div>
-            <DialogDescription className="text-sm">
+            <DialogDescription className="max-w-3xl text-sm leading-6 wrap-anywhere">
               {definition === null
                 ? t("panelUnknownDefinition")
                 : // A step with a name of its own still says what kind of step it is.

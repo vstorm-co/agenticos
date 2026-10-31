@@ -212,11 +212,28 @@ describe("a step's own name and whether it runs", () => {
 
     // Two Echo steps: the header tells this one apart the way the canvas does.
     await userEvent.click(screen.getByRole("button", { name: /^Echo/ }));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Step name" }));
     await userEvent.type(screen.getByRole("textbox", { name: "Step name" }), "Say hi{Enter}");
 
     expect(store.getState().graph?.nodes[1]?.label).toBe("Say hi");
     expect(screen.getByRole("heading", { name: "Say hi" })).toBeTruthy();
     expect(screen.getByText(`Echo · ${DEBUG_ECHO.description}`)).toBeTruthy();
+  });
+
+  it("cancels an inline rename on Escape without dismissing the step", async () => {
+    seed(node("a"), node("b"));
+    store.getState().editNode("b");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO]} />);
+    const title = screen.getByRole("button", { name: /^Echo/ });
+    await userEvent.click(title);
+    const field = screen.getByRole("textbox", { name: "Step name" });
+    await userEvent.clear(field);
+    await userEvent.type(field, "Do not save");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Step name" })).not.toBeInTheDocument();
+    expect(store.getState().graph?.nodes[1]?.label).toBeUndefined();
+    expect(screen.getByRole("button", { name: /^Echo/ })).toBeVisible();
   });
 
   it("switches a step off in its Settings, but not the step the workflow starts from", async () => {

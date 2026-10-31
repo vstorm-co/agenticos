@@ -34,6 +34,8 @@ describe("StepName", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send a message" }));
     const field = screen.getByRole("textbox", { name: "Step name" });
     expect(field).toHaveAttribute("placeholder", "Send a message");
+    expect(field).toHaveValue("Send a message");
+    await userEvent.clear(field);
     await userEvent.type(field, " Tell sales {Enter}");
 
     expect(onChange).toHaveBeenCalledWith("n1", { label: "Tell sales" });
@@ -66,6 +68,13 @@ describe("StepName", () => {
     expect(outer).not.toHaveBeenCalledWith(expect.objectContaining({ key: "Escape" }));
     expect(screen.getByRole("button", { name: "Send a message" })).toBeInTheDocument();
     document.removeEventListener("keydown", outer);
+  });
+
+  it("leaves a catalog name implicit when editing ends unchanged", async () => {
+    const onChange = renderName();
+    await userEvent.click(screen.getByRole("button", { name: "Send a message" }));
+    await userEvent.tab();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("is plain text on a step that cannot be edited", () => {

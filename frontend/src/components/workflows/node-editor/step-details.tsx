@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Input, Label, Switch, Textarea } from "@/components/ui";
@@ -39,33 +40,43 @@ export function StepName({
       <button
         type="button"
         title={t("stepRenameHint")}
-        className="hover:bg-accent/60 -mx-1.5 rounded-md px-1.5 text-left"
-        onClick={() => setDraft(node.label ?? "")}
+        className="group/name hover:bg-accent/60 focus-visible:ring-ring -mx-1.5 inline-flex min-h-8 max-w-full items-center gap-2 rounded-md px-1.5 text-left outline-none focus-visible:ring-2"
+        onClick={() => setDraft(node.label ?? name)}
       >
-        {name}
+        <span className="min-w-0 truncate">{name}</span>
+        <Pencil
+          aria-hidden="true"
+          className="text-muted-foreground size-3.5 shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100 group-focus-visible/name:opacity-100"
+        />
       </button>
     );
   }
 
   const finish = () => {
-    const next = draft.trim() || null;
+    const trimmed = draft.trim();
+    const next = trimmed === name && !node.label ? null : trimmed || null;
     setDraft(null);
     if (next !== (node.label ?? null)) onChange(node.id, { label: next });
   };
   return (
     <Input
       aria-label={t("stepName")}
+      data-step-name
       value={draft}
       maxLength={64}
       placeholder={catalogName}
-      className="h-8 max-w-sm text-base font-semibold"
+      className="border-input focus-visible:border-foreground/50 h-8 w-full max-w-2xl min-w-0 rounded-none border-x-0 border-t-0 border-b bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0 md:text-base"
+      onFocus={(event) => event.currentTarget.select()}
       // Opened by the click that asked for it, so taking focus is expected.
       // eslint-disable-next-line jsx-a11y/no-autofocus
       autoFocus
       onChange={(event) => setDraft(event.target.value)}
       onBlur={finish}
       onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
         if (event.key === "Escape") {
           // The dialog closes on Escape too; this one only ends the rename.
           event.stopPropagation();
