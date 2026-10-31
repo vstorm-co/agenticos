@@ -111,7 +111,7 @@ class TableOperations(Operations):
             )
 
         async def action() -> TableRead:
-            columns = build_columns(data.columns, [])
+            columns = build_columns(data.columns, [], initial=True)
             await self._check_references(ctx, columns, [])
             await self._claim_name(ctx, data.name)
             await enforce_table_count(self.db, ctx)

@@ -11,10 +11,11 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator
+from pydantic import ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.virtual_table import TableCreate, TableRead
 from app.schemas.workflow_exposure import WorkflowExposureRead
 from app.workflows.graph.model import WorkflowGraph
 
@@ -345,3 +346,39 @@ class NodeCatalogEntry(BaseSchema):
 class NodeCatalog(BaseSchema):
     items: list[NodeCatalogEntry]
     total: int
+
+
+class WorkflowPreparationCreate(BaseSchema):
+    """One reviewed private draft and optional table, committed together.
+
+    The placeholder is a local UUID, used only in TableIORef table_id fields;
+    column IDs are left unset because the new table allocates them.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=2000)
+    graph: WorkflowGraph
+    table: TableCreate | None = None
+    table_placeholder_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _paired_table(self) -> WorkflowPreparationCreate:
+        if (self.table is None) != (self.table_placeholder_id is None):
+            raise ValueError("Provide both table and table_placeholder_id, or neither")
+        return self
+
+
+class WorkflowPreparationRead(BaseSchema):
+    workflow: WorkflowDetail
+    table: TableRead | None = None
+
+
+class WorkflowDraftCheck(BaseSchema):
+    workflow_id: UUID
+    draft_revision: int
+    graph_valid: bool
+    integration_verified: Literal[False] = False
+    execution_performed: Literal[False] = False
+    requires_live_test: bool
+    step_types: list[str]

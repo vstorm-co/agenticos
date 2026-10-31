@@ -1,5 +1,5 @@
 ---
-source_sha: "4a79bbcf30b6"
+source_sha: "471c1b95b199"
 ---
 
 # Workflows { #workflows }
@@ -1334,3 +1334,5 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   result** raz na każdy element.
 - **Runs** wymienia każdy run, **Start a run** testuje draft albo uruchamia
   opublikowaną wersję, a run pokazuje swój graf krok po kroku tak, jak przebiegł.
+
+Nową automatyzację można przekazać przez `prepare_workflow_draft`: jedna akceptacja tworzy prywatną tabelę i kompletny graf w jednej transakcji. Błąd walidacji wycofuje oba zasoby. `check_workflow_draft` sprawdza graf i odwołania do zasobów bez uruchamiania kroków i bez akceptacji zapisu. Jawnie informuje, że integracje pozostają niezweryfikowane. Testy wykonujące akcje nadal wymagają zgody; test harmonogramu przyjmuje zwykłe dane i automatycznie dodaje czas zdarzenia oraz skonfigurowane wartości. Widok runa odróżnia test szkieletu od weryfikacji integracji.

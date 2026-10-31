@@ -1,5 +1,5 @@
 ---
-source_sha: "4a79bbcf30b6"
+source_sha: "471c1b95b199"
 ---
 
 # Workflows { #workflows }
@@ -1444,3 +1444,5 @@ Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und 
 - **Runs** listet jeden Run, **Start a run** testet den Draft oder führt die
   veröffentlichte Version aus, und ein Run zeigt seinen Graphen Schritt für Schritt,
   wie er abgelaufen ist.
+
+Neue Automatisierungen können mit `prepare_workflow_draft` eingereicht werden: Eine Freigabe erstellt eine private Tabelle und den vollständigen Graphen atomar. Bei ungültigen Daten bleibt keine der Ressourcen bestehen. `check_workflow_draft` prüft Graph und Ressourcenverweise ohne Ausführung oder Schreibfreigabe und meldet Integrationen ausdrücklich als ungeprüft. Aktionstests benötigen weiterhin eine Freigabe. Zeitplantests nehmen einfache Beispieldaten an und ergänzen Zeitstempel und konfigurierte Vorgaben. Die Run-Seite unterscheidet Grundgerüsttests von Integrationsprüfungen.

@@ -1213,6 +1213,10 @@ it at a compatible target.
 The canvas shortcuts fire only while the focus is inside the editor, so they
 never steal a key from a field elsewhere on the page:
 
+Drag with the left mouse button to select objects. Hold Shift while dragging to pan; middle and right drag also pan. `Ctrl`/`Cmd` + `A` selects every object in the current scope, including notes at the root.
+
+Watched runs show a moving pulse into the active step and a border sweep on its card. A short completion sweep keeps fast runs legible without changing their actual status or timing. Historical runs stay still; system reduced-motion preferences disable movement. Duration, cost and completed steps align in the summary, with the start time beside the status.
+
 | Keys | Does |
 |---|---|
 | `Tab` | Open the step picker |
@@ -1293,3 +1297,5 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
   **Loop result** once per item.
 - **Runs** lists every run, **Start a run** tests the draft or runs the published
   version, and a run shows its graph step by step as it happened.
+
+New automations can be submitted through `prepare_workflow_draft`: one approval creates a private table and complete graph atomically. A failed validation leaves neither resource behind. `check_workflow_draft` checks the graph and its resource references without executing handlers or requiring a write approval. It explicitly reports that integrations remain unverified. Test runs with actions still require approval; schedule tests accept plain sample input and supply the event timestamp and configured defaults automatically. The run page distinguishes skeleton checks from integration verification.

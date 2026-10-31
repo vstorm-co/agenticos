@@ -3894,7 +3894,9 @@
       "templatesNeedTables": "Wymaga uprawnień do tworzenia i edycji tabel.",
       "cardNoDescription": "Brak opisu.",
       "importPasteTab": "Wklej JSON",
-      "importFormat": "Formatuj JSON"
+      "importFormat": "Formatuj JSON",
+      "testSkeletonVerified": "Sprawdzono tylko szkielet workflow. Nie wykonano żadnych akcji integracji.",
+      "testVerificationScope": "Run testowy: sprawdź wynik każdej akcji, aby potwierdzić jej efekt. Sam sukces runa nie potwierdza działania całej integracji."
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",

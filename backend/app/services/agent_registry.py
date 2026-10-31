@@ -3649,8 +3649,6 @@ class AgentRegistryService:
         if platform is None:
             return spec
         required = {"list_projects", "get_project", "create_project"}
-        if platform.allowed_tools is not None and not required.issubset(platform.allowed_tools):
-            return spec
         assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
         if assistant is None or assistant.organization_id != agent.organization_id:
             return spec
@@ -3659,7 +3657,12 @@ class AgentRegistryService:
             .read_text()
             .strip()
         )
-        additions = [guidance] if guidance not in spec.instructions else []
+        project_tools_available = platform.allowed_tools is None or required.issubset(
+            platform.allowed_tools
+        )
+        additions = (
+            [guidance] if project_tools_available and guidance not in spec.instructions else []
+        )
         workflow_tools = {"list_workflow_nodes", "create_workflow_draft", "list_virtual_tables"}
         if platform.allowed_tools is None or workflow_tools.issubset(platform.allowed_tools):
             workflow_guidance = (
@@ -3669,11 +3672,16 @@ class AgentRegistryService:
             )
             if workflow_guidance not in spec.instructions:
                 additions.append(workflow_guidance)
-        if not additions:
+        instructions = spec.instructions
+        if platform.allowed_tools is None or workflow_tools.issubset(platform.allowed_tools):
+            instructions = re.sub(
+                r"- Workflows and tables are not something you can reach yet; say so rather than\s+guessing\.\n?",
+                "",
+                instructions,
+            )
+        if not additions and instructions == spec.instructions:
             return spec
-        return spec.model_copy(
-            update={"instructions": "\n\n".join([spec.instructions, *additions])}
-        )
+        return spec.model_copy(update={"instructions": "\n\n".join([instructions, *additions])})
 
     async def refuse_a_switched_off_assistant(self, agent_id: UUID) -> None:
         """Refuse running - or continuing a run of - an assistant somebody switched off (#2063).

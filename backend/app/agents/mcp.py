@@ -32,11 +32,21 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import httpx2
+from pydantic import JsonValue, TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
+from pydantic_ai.exceptions import ToolFailed
 
 # At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
 # and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
 # inside the first chat turn each process served, before the model was asked.
-from pydantic_ai.mcp import MCPToolset, infer_transport_type_from_url
+from pydantic_ai.mcp import (
+    CallToolFunc,
+    MCPToolset,
+    infer_transport_type_from_url,
+)
+from pydantic_ai.mcp import (
+    ToolResult as McpToolResult,
+)
 from pydantic_ai.messages import InstructionPart
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets import WrapperToolset
@@ -339,6 +349,29 @@ def prefix_collisions[T](holders: Iterable[tuple[str, T]]) -> dict[str, list[T]]
     return {prefix: held for prefix, held in grouped.items() if len(held) > 1}
 
 
+_PLATFORM_ERROR_RESULT = TypeAdapter(dict[str, JsonValue])
+
+
+async def _platform_domain_result(
+    ctx: RunContext[object], call_tool: CallToolFunc, name: str, arguments: dict[str, JsonValue]
+) -> McpToolResult:
+    """Keep our controlled domain refusals readable without exposing vendor failures.
+
+    Only the in-process platform binding installs this adapter. External MCP
+    clients still receive isError=true; third-party tool failures remain masked.
+    """
+    try:
+        return await call_tool(name, arguments)
+    except ToolFailed as error:
+        try:
+            result = _PLATFORM_ERROR_RESULT.validate_json(str(error))
+        except PydanticValidationError:
+            raise error from None
+        if not isinstance(result.get("error"), dict):
+            raise
+        return result
+
+
 def _make_toolset(spec: McpServerSpec) -> Any:
     """Build a pydantic-ai toolset for one MCP server.
 
@@ -363,6 +396,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
+        process_tool_call=_platform_domain_result if spec.in_process else None,
         include_instructions=spec.include_instructions,
     )
     if spec.allowed_tools is not None:

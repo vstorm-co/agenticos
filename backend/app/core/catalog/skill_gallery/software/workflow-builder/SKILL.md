@@ -64,3 +64,7 @@ conflicts. Do not use another tool to bypass a refusal. Publish only after actua
 verification, and name any verification the deployment could not perform.
 
 A graph may have independent trigger roots. Keep existing starts when adding another; each run follows one reachable branch. Use one of each unattended kind. Shared steps must not read a different start's unavailable output. Test each entry using its `entry_node_id`, and explain that publication activates all configured unattended entries.
+
+## Prepare once, verify the right thing
+
+For new workflows prefer `prepare_workflow_draft`: the reviewed graph and optional private table commit together after one approval. Use a local UUID as `table_placeholder_id` in node `config.table` or TableIORef sources; leave column IDs unset and address record values by label. Nothing executes or publishes. Use `check_workflow_draft` for structural validation without side effects; its `integration_verified=false` is deliberate. A skeleton containing only a trigger and output needs no live test. For action steps, obtain test approval and verify the actual effect. Schedule tests accept ordinary sample input: the server adds `fired_at` and configured defaults. Link missing providers with `/mcp-servers?connect=<catalog key>` using a discovered catalog key.

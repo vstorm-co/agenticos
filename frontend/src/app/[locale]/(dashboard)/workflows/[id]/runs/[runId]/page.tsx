@@ -236,6 +236,30 @@ export default function WorkflowRunPage({ params }: PageProps) {
         }
       />
 
+      {run.mode === "test" && (
+        <p
+          className="bg-muted/40 text-muted-foreground shrink-0 rounded-lg border px-4 py-3 text-sm"
+          role="note"
+        >
+          {t(
+            run.status === "succeeded" &&
+              graph !== null &&
+              graph.nodes.every((node) =>
+                [
+                  "trigger.manual",
+                  "core.input",
+                  "trigger.schedule",
+                  "core.output",
+                  "debug.echo",
+                  "debug.relay",
+                ].includes(node.definition_id),
+              )
+              ? "testSkeletonVerified"
+              : "testVerificationScope",
+          )}
+        </p>
+      )}
+
       <dl className="bg-card grid shrink-0 divide-y overflow-hidden rounded-xl border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {[
           {

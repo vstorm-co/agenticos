@@ -5609,3 +5609,44 @@ class TestAssistantRuntimeGuidance:
             assert actual is not spec
         else:
             assert actual is spec
+
+
+@pytest.mark.anyio
+async def test_runtime_architect_removes_only_the_known_obsolete_workflow_denial():
+    ctx = _ctx()
+    text = "Custom rule\n- Workflows and tables are not something you can reach yet; say so rather than\n  guessing.\nKeep this custom instruction."
+    spec = _spec(instructions=text, mcp_servers=[{"account": "platform"}])
+    with patch(
+        f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+        new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+    ):
+        current = await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec)
+    assert "not something you can reach yet" not in current.instructions
+    assert "Keep this custom instruction." in current.instructions
+    assert spec.instructions == text
+
+
+@pytest.mark.anyio
+async def test_workflow_guidance_does_not_depend_on_unrelated_project_tools():
+    ctx = _ctx()
+    spec = _spec(
+        instructions="Custom wording",
+        mcp_servers=[
+            {
+                "account": "platform",
+                "allowed_tools": [
+                    "list_workflow_nodes",
+                    "create_workflow_draft",
+                    "list_virtual_tables",
+                ],
+            }
+        ],
+    )
+    with patch(
+        f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+        new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
+    ):
+        actual = await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec)
+    assert "# Build automations and integrations" in actual.instructions
+    assert "# Ongoing work belongs in Projects" not in actual.instructions
+    assert actual.mcp_servers == spec.mcp_servers

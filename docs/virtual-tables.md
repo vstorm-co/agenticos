@@ -746,3 +746,5 @@ an editor in `record-cell-editor.tsx`, a choice in the schema and create-table
 dialogs, and its label in the three message catalogs. Tests belong in
 `backend/tests/test_virtual_table_types.py` for the validator, and in an integration
 test that writes, filters and sorts a record of the new type.
+
+When creating an empty table, required columns do not need defaults: every new record must supply their values. Adding a required column to an existing schema still requires a default to protect existing records.

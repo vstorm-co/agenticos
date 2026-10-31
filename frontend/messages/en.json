@@ -5558,7 +5558,9 @@
       "templatesNeedTables": "Requires permission to create and edit tables.",
       "cardNoDescription": "No description.",
       "importPasteTab": "Paste JSON",
-      "importFormat": "Format JSON"
+      "importFormat": "Format JSON",
+      "testSkeletonVerified": "Only the workflow skeleton was tested. No integration actions were executed.",
+      "testVerificationScope": "Test run: check each action’s result to confirm the intended effect. A successful run alone does not verify the complete integration."
     },
     "retention": {
       "title": "Data retention",

@@ -6531,3 +6531,33 @@ class TestPortalReadToken:
         service = McpConnectionService(AsyncMock())
         assert await service.portal_read_token(organization_id=org_a, portal_key="google") is None
         renew.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "content", ["vendor error with secret", "{}", "[]", '{"error":"wrong shape"}']
+)
+async def test_platform_adapter_does_not_reclassify_unexpected_failures(content):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from pydantic_ai.exceptions import ToolFailed
+
+    from app.agents.mcp import _platform_domain_result
+
+    error = ToolFailed(content)
+    call = AsyncMock(side_effect=error)
+    with pytest.raises(ToolFailed):
+        await _platform_domain_result(MagicMock(), call, "test", {})
+
+
+@pytest.mark.anyio
+async def test_platform_adapter_keeps_successful_answers_unchanged():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents.mcp import _platform_domain_result
+
+    result = {"items": []}
+    assert (
+        await _platform_domain_result(MagicMock(), AsyncMock(return_value=result), "list", {})
+        == result
+    )

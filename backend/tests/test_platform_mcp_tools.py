@@ -750,14 +750,14 @@ class TestTheInProcessCall:
                 },
             )
 
-        with pytest.raises(ToolError, match="403 AUTHORIZATION_ERROR: Insufficient permissions"):
+        with pytest.raises(ToolError, match="Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
 
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(502, json=["not", "an", "envelope"])
 
-        with pytest.raises(ToolError, match="502 ERROR: The request was refused"):
+        with pytest.raises(ToolError, match="The platform request failed"):
             await _api(handler).request("GET", "/agents")
 
     async def test_no_content_is_none(self) -> None:
@@ -1109,3 +1109,51 @@ def test_workflow_and_table_mcp_writes_wait_for_approval():
         for name in ["run_workflow", "upsert_virtual_table_record", "delete_virtual_table_record"]
     )
     assert not tools["get_virtual_table_record"].writes
+
+
+async def test_domain_errors_retain_safe_fields_in_the_recorded_tool_answer():
+    from app.services.platform_mcp import _tool_error
+
+    api = PlatformApi(MagicMock(), token=lambda: "test", on_refusal=_tool_error)
+    api._transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            422,
+            json={
+                "error": {
+                    "code": "INVALID_SCHEMA",
+                    "message": "Invalid column",
+                    "details": {
+                        "fields": [{"field": "columns.0.default", "message": "Needs a default"}]
+                    },
+                }
+            },
+        )
+    )
+    from app.services.platform_mcp import _with_domain_errors
+
+    async def call():
+        return await api.request("POST", "/tables")
+
+    result = await _with_domain_errors(call)()
+    assert result.is_error
+    assert result.structured_content["error"]["code"] == "INVALID_SCHEMA"
+    assert (
+        result.structured_content["error"]["details"]["fields"][0]["field"] == "columns.0.default"
+    )
+
+
+async def test_unexpected_platform_failures_stay_masked():
+    from fastmcp import Client
+
+    from app.services.platform_mcp import _with_domain_errors
+
+    server = FastMCP("test", mask_error_details=True)
+
+    async def broken() -> dict[str, object]:
+        raise RuntimeError("confidential internal detail")
+
+    server.tool(_with_domain_errors(broken))
+    async with Client(server) as client:
+        result = await client.call_tool("broken", {}, raise_on_error=False)
+    assert result.is_error
+    assert "confidential" not in str(result.content)

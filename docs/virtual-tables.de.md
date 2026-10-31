@@ -1,5 +1,5 @@
 ---
-source_sha: "2c005af81253"
+source_sha: "03a31d127513"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -832,3 +832,5 @@ einen Editor in `record-cell-editor.tsx`, eine Auswahl in den Dialogen für Sche
 neue Tabelle und seine Beschriftung in den drei Meldungskatalogen. Tests gehören für den
 Validator in `backend/tests/test_virtual_table_types.py` und in einen
 Integrationstest, der einen Datensatz des neuen Typs schreibt, filtert und sortiert.
+
+Beim Erstellen einer leeren Tabelle benötigen Pflichtspalten keine Vorgaben: Jeder neue Datensatz muss ihre Werte liefern. Neue Pflichtspalten in einem bestehenden Schema benötigen weiterhin einen Standardwert zum Schutz vorhandener Datensätze.

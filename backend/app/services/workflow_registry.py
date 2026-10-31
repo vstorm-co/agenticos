@@ -31,6 +31,7 @@ from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
 from app.db.updates import writable
@@ -46,9 +47,12 @@ from app.schemas.workflow import (
     StoredWorkflowSettings,
     WorkflowCreate,
     WorkflowDetail,
+    WorkflowDraftCheck,
     WorkflowDraftUpdate,
     WorkflowLastRun,
     WorkflowList,
+    WorkflowPreparationCreate,
+    WorkflowPreparationRead,
     WorkflowPublish,
     WorkflowPublished,
     WorkflowRead,
@@ -465,6 +469,95 @@ class WorkflowRegistryService:
             details={"name": workflow.name},
         )
         return _read(workflow)
+
+    async def prepare(
+        self, ctx: AuthContext, data: WorkflowPreparationCreate
+    ) -> WorkflowPreparationRead:
+        """Create reviewed resources atomically; no execution or publication."""
+        if not ctx.has(Perm.WORKFLOWS_EDIT):
+            raise AuthorizationError(message="Preparing a workflow requires workflows:edit")
+        async with self.db.begin_nested():
+            table = None
+            graph = data.graph
+            if data.table is not None:
+                table = await VirtualTableService(self.db).create_table(
+                    ctx, data.table.model_copy(update={"visibility": Visibility.PRIVATE})
+                )
+                ref = TableIORef(table_id=table.id, schema_version=table.schema_version)
+                nodes = []
+                for node in graph.nodes:
+                    candidate = node.config.get("table")
+                    if isinstance(candidate, dict) and candidate.get("table_id") in (
+                        data.table_placeholder_id,
+                        str(data.table_placeholder_id),
+                    ):
+                        if candidate.get("column_ids"):
+                            raise BadRequestError(
+                                message="A new table reference must use all columns"
+                            )
+                        node = node.model_copy(
+                            update={"config": {**node.config, "table": ref.model_dump(mode="json")}}
+                        )
+                    nodes.append(node)
+                if any(
+                    isinstance(binding.source, TableIORef)
+                    and binding.source.table_id == data.table_placeholder_id
+                    and binding.source.column_ids
+                    for binding in graph.bindings
+                ):
+                    raise BadRequestError(message="A new table reference must use all columns")
+                bindings = [
+                    binding.model_copy(update={"source": ref})
+                    if isinstance(binding.source, TableIORef)
+                    and binding.source.table_id == data.table_placeholder_id
+                    else binding
+                    for binding in graph.bindings
+                ]
+                graph = graph.model_copy(
+                    update={"nodes": tuple(nodes), "bindings": tuple(bindings)}
+                )
+            workflow = await self.create(
+                ctx,
+                WorkflowCreate(
+                    name=data.name, description=data.description, visibility=Visibility.PRIVATE
+                ),
+            )
+            detail = await self.update_draft(
+                ctx,
+                workflow.id,
+                WorkflowDraftUpdate(
+                    graph=graph.model_dump(mode="json"), expected_revision=workflow.draft_revision
+                ),
+            )
+            # Full catalog/resource validation before either resource can commit.
+            await validate_graph(self.db, ctx, graph)
+            return WorkflowPreparationRead(workflow=detail, table=table)
+
+    async def check_draft(self, ctx: AuthContext, workflow_id: UUID) -> WorkflowDraftCheck:
+        """Validate without running handlers or changing resources.
+
+        Even a valid graph says nothing about a provider's credentials or responses.
+        """
+        workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_VIEW)
+        graph = await validate_graph(
+            self.db, ctx, _parse_submitted_graph(workflow.draft_graph or {})
+        )
+        structural_only = {
+            "trigger.manual",
+            "core.input",
+            "trigger.schedule",
+            "core.output",
+            "debug.echo",
+            "debug.relay",
+        }
+        types = sorted({node.definition_id for node in graph.nodes if not node.disabled})
+        return WorkflowDraftCheck(
+            workflow_id=workflow.id,
+            draft_revision=workflow.draft_revision,
+            graph_valid=True,
+            requires_live_test=any(kind not in structural_only for kind in types),
+            step_types=types,
+        )
 
     async def _ready_template(
         self,

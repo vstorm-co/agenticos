@@ -1,5 +1,5 @@
 ---
-source_sha: "4a79bbcf30b6"
+source_sha: "471c1b95b199"
 ---
 
 # Workflows { #workflows }
@@ -1371,3 +1371,5 @@ Las galerías de skills y contexto del agente integrado cargan todas las página
   **Loop item** a **Loop result** una vez por elemento.
 - **Runs** enumera cada run, **Start a run** prueba el draft o ejecuta la versión
   publicada, y un run muestra su grafo paso a paso tal como ocurrió.
+
+Las nuevas automatizaciones pueden enviarse con `prepare_workflow_draft`: una aprobación crea una tabla privada y el grafo completo de forma atómica. Una validación fallida no deja ninguno de los recursos. `check_workflow_draft` comprueba el grafo y sus referencias sin ejecutar pasos ni solicitar aprobación de escritura, e indica expresamente que las integraciones siguen sin verificar. Las pruebas con acciones requieren aprobación. Las pruebas de horarios aceptan datos sencillos y añaden la fecha del evento y los valores configurados. La página del run distingue las pruebas de estructura de la verificación de integraciones.

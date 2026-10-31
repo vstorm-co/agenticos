@@ -1,5 +1,5 @@
 ---
-source_sha: "2c005af81253"
+source_sha: "03a31d127513"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -785,3 +785,5 @@ editor en `record-cell-editor.tsx`, una opción en los diálogos de esquema y de
 tabla, y su etiqueta en los tres catálogos de mensajes. Las pruebas van en
 `backend/tests/test_virtual_table_types.py` para el validador, y en una prueba de
 integración que escribe, filtra y ordena un registro del tipo nuevo.
+
+Al crear una tabla vacía, las columnas obligatorias no necesitan valores predeterminados: cada registro nuevo debe proporcionar sus valores. Añadir una columna obligatoria a un esquema existente sigue requiriendo un valor predeterminado para proteger los registros existentes.

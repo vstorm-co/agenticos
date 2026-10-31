@@ -333,3 +333,17 @@ describe("a step that needs attention", () => {
     expect(state.resolve).not.toHaveBeenCalled();
   });
 });
+
+it("labels a successful skeleton as unverified for integrations", async () => {
+  state.status = "succeeded";
+  await renderPage();
+  expect(screen.getByRole("note")).toHaveTextContent(
+    "Only the workflow skeleton was tested. No integration actions were executed.",
+  );
+});
+
+it("does not show test verification copy on a real run", async () => {
+  state.mode = "real";
+  await renderPage();
+  expect(screen.queryByRole("note")).toBeNull();
+});

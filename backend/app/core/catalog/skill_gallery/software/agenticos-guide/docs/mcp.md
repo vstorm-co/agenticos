@@ -1006,7 +1006,7 @@ claude mcp add --transport http agenticos https://<your-deployment>/mcp \
 The connection acts as the member who issued the key, within the key's
 permissions. Each tool is a call to the [public API](api.md) made with that key,
 so it is refused, rate limited and audited exactly as the same request over HTTP
-would be; a refusal comes back as a tool error naming the missing permission.
+would be; an expected refusal returns an explicit error envelope naming the missing permission.
 
 | Tool | Needs |
 |---|---|
@@ -1144,3 +1144,7 @@ For operational records use `list_virtual_tables`, `get_virtual_table`, `create_
 
 
 Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, and writes retain approval. Saved-view listing uses the same authenticated public API and table access checks. Legacy capability bindings remain editable with their resource grants; they are not automatically converted to broader MCP access.
+
+Expected API refusals return an explicit `error` envelope with HTTP status, code, message and safe field details. This is a refused operation, never a successful write. The envelope stays visible in chat history; unexpected server failures still use masked MCP errors. New workflow drafts can use `prepare_workflow_draft` to review their table and graph together. The read-only `check_workflow_draft` validates without executing actions. Refreshing an unmodified Architect also installs and binds its workflow-builder and virtual-tables skills, preserving existing bindings and refusing to overwrite pending draft changes.
+
+For existing customized Architects, run `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.

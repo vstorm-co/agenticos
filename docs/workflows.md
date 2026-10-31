@@ -1297,3 +1297,5 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
   **Loop result** once per item.
 - **Runs** lists every run, **Start a run** tests the draft or runs the published
   version, and a run shows its graph step by step as it happened.
+
+New automations can be submitted through `prepare_workflow_draft`: one approval creates a private table and complete graph atomically. A failed validation leaves neither resource behind. `check_workflow_draft` checks the graph and its resource references without executing handlers or requiring a write approval. It explicitly reports that integrations remain unverified. Test runs with actions still require approval; schedule tests accept plain sample input and supply the event timestamp and configured defaults automatically. The run page distinguishes skeleton checks from integration verification.

@@ -1,5 +1,5 @@
 ---
-source_sha: "85a7e5ac7cdf"
+source_sha: "ab427a229108"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1190,3 +1190,7 @@ Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `
 
 
 Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Istniejące capabilities pozostają edytowalne ze swoimi grantami; nie są automatycznie zamieniane na szerszy dostęp MCP.
+
+Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala zaakceptować tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
+
+Dla istniejącego Architekta z własnymi zmianami uruchom `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.

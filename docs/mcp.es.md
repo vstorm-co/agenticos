@@ -1,5 +1,5 @@
 ---
-source_sha: "85a7e5ac7cdf"
+source_sha: "ab427a229108"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1223,3 +1223,7 @@ Para registros operativos usa `list_virtual_tables`, `get_virtual_table`, `creat
 
 
 Workflows y Tables usan el servidor AgenticOS MCP como interfaz común de herramientas. Permite al agente solo las herramientas necesarias. `run_workflow` inicia un workflow publicado y devuelve la ejecución admitida; consulta el resultado con `get_workflow_execution`. Las tablas ofrecen `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` y `list_virtual_table_views`. Actualizaciones y eliminaciones usan la revisión leída, y las escrituras siguen requiriendo aprobación. Las vistas guardadas usan la misma API pública autenticada y los controles de acceso a tablas. Los bindings existentes conservan sus permisos por recurso y no se convierten automáticamente en acceso MCP más amplio.
+
+Los rechazos esperados de la API devuelven un objeto `error` explícito con estado HTTP, código, mensaje y detalles seguros de los campos. Es una operación rechazada, nunca una escritura exitosa. El objeto queda visible en el historial; los errores inesperados del servidor siguen enmascarados. `prepare_workflow_draft` agrupa tabla y grafo en una aprobación; `check_workflow_draft` los comprueba sin acciones. Actualizar un Architect sin modificaciones también instala y vincula los skills workflow-builder y virtual-tables, conserva los vínculos existentes y no sobrescribe cambios pendientes del borrador.
+
+Para un Architect existente con cambios propios, ejecuta `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.

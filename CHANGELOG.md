@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Review an automation once.** Prepare a private workflow and its table atomically with one MCP approval, then check its graph without executing actions. Run pages state the scope of test verification.
+
 - **People, agents and document libraries in Tables.** Reference one or many organization members or accessible AI agents, choosing names with avatars. Save named Markdown templates per column, customize and reuse them, and choose an automatic default for new records.
 
 - **Document blocks and pasted images.** Markdown table documents offer a searchable `/` block menu and accept clipboard images at the cursor. Images inherit table access, survive archiving and share the table storage quota, with a 5 MiB limit per image.
@@ -966,6 +968,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
 
 ### Fixed
+
+- **Architect workflow construction.** Refreshing shipped Architects binds workflow and table skills, runtime guidance removes the obsolete workflow denial, required columns work when creating empty tables, schedule tests prepare their trigger input, planning returns step IDs immediately, and expected MCP refusals retain safe field errors in chat history.
 
 - **Stable record navigation.** Selecting rows shows a floating action bar without shifting data. The record opener stays pinned at the start of wide tables. Every record panel shows creation and update times and authors, while full-page documents start in Write mode.
 

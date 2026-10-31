@@ -6991,7 +6991,9 @@
       "templatesNeedTables": "Benötigt Rechte zum Erstellen und Bearbeiten von Tabellen.",
       "cardNoDescription": "Keine Beschreibung.",
       "importPasteTab": "JSON einfügen",
-      "importFormat": "JSON formatieren"
+      "importFormat": "JSON formatieren",
+      "testSkeletonVerified": "Nur das Workflow-Grundgerüst wurde getestet. Es wurden keine Integrationsaktionen ausgeführt.",
+      "testVerificationScope": "Testlauf: Prüfe das Ergebnis jeder Aktion. Ein erfolgreicher Run allein bestätigt nicht die gesamte Integration."
     },
     "adminApns": {
       "title": "iPhone-Benachrichtigungen",

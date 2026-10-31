@@ -366,6 +366,17 @@ class WorkflowExecutionService:
         if step is not None:
             graph = step_subgraph(graph, step.node_id, step.outputs)
             draft_snapshot = graph.model_dump(mode="json")
+        if (
+            mode is WorkflowRunMode.TEST
+            and step is None
+            and selected.definition_id == "trigger.schedule"
+            and "fired_at" not in payload
+        ):
+            configured = selected.config.get("input", {})
+            payload = {
+                "fired_at": datetime.now(UTC).isoformat(),
+                "input": {**configured, **payload},
+            }
         _check_declared_input(graph, payload)
         run, _entry = await self._admit(
             ctx,

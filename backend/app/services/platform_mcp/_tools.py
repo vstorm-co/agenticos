@@ -29,7 +29,7 @@ from app.schemas.virtual_table import (
     RecordUpsert,
     SchemaUpdate,
 )
-from app.schemas.workflow import NodeCatalog
+from app.schemas.workflow import NodeCatalog, WorkflowPreparationCreate
 from app.services.platform_mcp._api import PlatformApi
 from app.services.workflow_execution import context as workflow_context
 from app.workflows.graph.model import WorkflowGraph
@@ -570,7 +570,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Matches name, description and category, the reviewed catalog first. Each
         result has its `key`, what it does and how it signs in (`oauth`, `token` or
         `none`). A person connects one from its card on the MCP servers page,
-        `/mcp-servers`. Needs `agents:view`.
+        `/mcp-servers?connect=<key>`. Needs `agents:view`.
         """
         return await api.request("GET", "/agents/mcp-servers", params={"q": query, "limit": limit})
 
@@ -723,7 +723,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         Returns IDs, versions, names, descriptions and categories. Use get_workflow_node
         for the exact config, input and output schemas; never invent a step or a port.
         """
-        catalog = NodeCatalog.model_validate(await api.request("GET", "/workflows/node-catalog"))
+        response = await api.request("GET", "/workflows/node-catalog")
+        catalog = NodeCatalog.model_validate(response)
         return {
             "items": [
                 {
@@ -745,7 +746,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `http.request`, using a vault secret reference; do not put credentials in the graph.
         Unknown IDs return a refusal instead of an invented definition.
         """
-        catalog = NodeCatalog.model_validate(await api.request("GET", "/workflows/node-catalog"))
+        response = await api.request("GET", "/workflows/node-catalog")
+        catalog = NodeCatalog.model_validate(response)
         for node in catalog.items:
             if node.id == definition_id:
                 return node.model_dump(mode="json")
@@ -764,6 +766,35 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "/workflows",
             json={"name": name, "description": description, "visibility": "private"},
         )
+
+    async def prepare_workflow_draft(
+        preparation: WorkflowPreparationCreate,
+    ) -> dict[str, JsonValue]:
+        """Create a complete private draft and optional table in one approval.
+
+        Needs workflows:create/edit and table permissions when a table is included.
+        Show the complete proposed graph and schema before this call. Use one local
+        UUID as table_placeholder_id in node config.table and TableIORef sources;
+        leave column_ids unset and bind record values by column labels. The server
+        replaces that reference with the new table and validates everything in one
+        transaction. Failure leaves neither resource behind. Returns workflow and
+        table. Does not run handlers, send messages, publish or activate schedules.
+        Prefer this over separate create/save calls for a new automation.
+        """
+        return await api.request(
+            "POST", "/workflows/prepare", json=preparation.model_dump(mode="json")
+        )
+
+    async def check_workflow_draft(workflow_id: UUID) -> dict[str, JsonValue]:
+        """Validate a draft without execution or approval. Needs workflows:view.
+
+        Returns graph_valid, step_types and requires_live_test. It explicitly
+        reports integration_verified=false and execution_performed=false. For a
+        skeleton containing only triggers and output, this structural check is
+        enough; do not execute it repeatedly to prove an absent integration works.
+        External actions still need test_workflow_draft and its separate approval.
+        """
+        return await api.request("GET", f"/workflows/{workflow_id}/check")
 
     async def update_workflow_draft(
         workflow_id: UUID, graph: WorkflowGraph, expected_revision: int
@@ -787,6 +818,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     ) -> dict[str, JsonValue]:
         """Execute a workflow's draft and inspect its result. Needs edit and run access; waits for approval.
 
+        A schedule accepts ordinary sample input; the server supplies fired_at and
+        merges the schedule defaults. An explicit fired_at/input envelope is also accepted.
         Test mode still calls real APIs and can change external systems. Use sample
         inputs approved for those effects. Returns a run ID and initial state;
         poll get_workflow_execution and inspect get_workflow_execution_steps before claiming success.
@@ -1034,6 +1067,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_workflow_nodes, False),
         (get_workflow_node, False),
         (create_workflow_draft, True),
+        (prepare_workflow_draft, True),
+        (check_workflow_draft, False),
         (update_workflow_draft, True),
         (test_workflow_draft, True),
         (get_workflow_execution, False),

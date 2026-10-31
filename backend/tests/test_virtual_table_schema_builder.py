@@ -704,3 +704,16 @@ def test_an_unknown_default_option_label_is_refused() -> None:
 def test_record_metadata_names_belong_to_system_fields(name: str) -> None:
     with pytest.raises(InvalidSchemaError):
         build_columns([ColumnInput(label=name, type="text")], [])
+
+
+def test_initial_required_column_does_not_need_a_default():
+    (column,) = build_columns(
+        [ColumnInput(label="Contact ID", type="text", nullable=False)], [], initial=True
+    )
+    assert column.nullable is False
+    assert column.default is None
+
+
+def test_schema_extension_still_requires_a_default_for_required_columns():
+    with pytest.raises(InvalidSchemaError, match="needs a default"):
+        build_columns([ColumnInput(label="Contact ID", type="text", nullable=False)], [_existing()])

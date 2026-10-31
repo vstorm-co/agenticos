@@ -30,8 +30,11 @@ from app.schemas.workflow import (
     WorkflowActiveUpdate,
     WorkflowCreate,
     WorkflowDetail,
+    WorkflowDraftCheck,
     WorkflowDraftUpdate,
     WorkflowList,
+    WorkflowPreparationCreate,
+    WorkflowPreparationRead,
     WorkflowPublish,
     WorkflowPublished,
     WorkflowRead,
@@ -82,6 +85,19 @@ async def create_workflow(data: WorkflowCreate, service: WorkflowRegistrySvc, ct
     publication remains an explicit action.
     """
     return await service.create(ctx, data)
+
+
+@router.post(
+    "/prepare",
+    response_model=WorkflowPreparationRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.WORKFLOWS_CREATE))],
+)
+async def prepare_workflow(
+    data: WorkflowPreparationCreate, service: WorkflowRegistrySvc, ctx: Auth
+) -> Any:
+    """Create a private table and validated draft together; execute and publish nothing."""
+    return await service.prepare(ctx, data)
 
 
 @router.post(
@@ -277,3 +293,9 @@ async def publish_workflow(
     webhook's signing secret is in `webhook_secret` on the publish that first
     switched it on, and nowhere else."""
     return await service.publish(ctx, workflow_id, data)
+
+
+@router.get("/{workflow_id}/check", response_model=WorkflowDraftCheck)
+async def check_workflow_draft(workflow_id: UUID, service: WorkflowRegistrySvc, ctx: Auth) -> Any:
+    """Read-only graph/resource validation; it does not verify external integrations."""
+    return await service.check_draft(ctx, workflow_id)

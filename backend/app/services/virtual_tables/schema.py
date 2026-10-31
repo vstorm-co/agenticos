@@ -225,11 +225,6 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         column = column.model_copy(update={"default": validate_default(column)})
     except CellProblem as problem:
         raise InvalidSchemaError(f"{where}.default", str(problem)) from None
-    if previous is None and not column.nullable and column.default is None:
-        raise InvalidSchemaError(
-            f"{where}.default",
-            "A new required column needs a default, because existing records hold nothing for it",
-        )
     return column
 
 
@@ -379,7 +374,7 @@ def _check_links(columns: Sequence[ColumnDef]) -> None:
 
 
 def build_columns(
-    submitted: Sequence[ColumnInput], previous: Sequence[ColumnDef]
+    submitted: Sequence[ColumnInput], previous: Sequence[ColumnDef], *, initial: bool = False
 ) -> list[ColumnDef]:
     """The full column list of the next version, or :class:`InvalidSchemaError`.
 
@@ -396,7 +391,13 @@ def build_columns(
             if item.id in seen:
                 raise InvalidSchemaError(f"columns.{index}.id", "This column is listed twice")
             seen.add(item.id)
-        columns.append(_column(index, item, known.get(item.id) if item.id else None))
+        column = _column(index, item, known.get(item.id) if item.id else None)
+        if not initial and item.id is None and not column.nullable and column.default is None:
+            raise InvalidSchemaError(
+                f"columns.{index}.default",
+                "A new required column needs a default, because existing records hold nothing for it",
+            )
+        columns.append(column)
     columns.extend(
         old.model_copy(update={"archived": True}) for old in previous if old.id not in seen
     )

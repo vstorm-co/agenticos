@@ -1,5 +1,5 @@
 ---
-source_sha: "2c005af81253"
+source_sha: "03a31d127513"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -779,3 +779,5 @@ Konsola potrzebuje typu w `ColumnTypeName` w `frontend/src/types/tables.ts`, edy
 w trzech katalogach komunikatów. Testy należą do
 `backend/tests/test_virtual_table_types.py` dla walidatora oraz do testu
 integracyjnego, który zapisuje, filtruje i sortuje rekord nowego typu.
+
+Przy tworzeniu pustej tabeli wymagane kolumny nie potrzebują wartości domyślnych: każdy nowy rekord musi podać ich wartości. Dodanie wymaganej kolumny do istniejącego schematu nadal wymaga wartości domyślnej, aby chronić istniejące rekordy.
