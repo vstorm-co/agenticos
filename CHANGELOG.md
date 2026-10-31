@@ -29,6 +29,11 @@ Two things are versioned separately from this file and worth knowing about:
   `DIAGNOSTICS_ENABLED`; set it to `false` to opt out. Reporting uses the Vstorm collector by default; operators can override its origins. No
   prompts, conversations, files, keys, account names or emails are sent.
 
+### Fixed
+
+- Opening an action menu on a touchscreen no longer selects an item underneath
+  the opening gesture. Mouse and keyboard behavior stay unchanged.
+
 ## [1.32.0] - 2026-10-31
 
 ### Added

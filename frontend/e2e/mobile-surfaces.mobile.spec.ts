@@ -137,9 +137,17 @@ for (const platform of ["ios", "android"] as const) {
       await page.goto("/agents");
       const more = page.getByRole("button", { name: /^More actions for/ }).first();
       await expectTouchTarget(more);
+      const clones: string[] = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && /\/api\/agents\/[^/]+\/clone$/.test(request.url())) {
+          clones.push(request.url());
+        }
+      });
       await more.tap();
       await expect(page.getByRole("menu")).toBeVisible();
+      expect(clones).toEqual([]);
       await page.keyboard.press("Escape");
+      await expect(page.getByRole("menu")).toBeHidden();
       await page.getByRole("button", { name: "New agent", exact: true }).tap();
       const dialog = page.getByRole("dialog");
       await expect(dialog).toBeVisible();
