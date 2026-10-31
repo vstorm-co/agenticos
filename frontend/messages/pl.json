@@ -10300,7 +10300,11 @@
         "lookup": "Odczyt z powiązania",
         "rollup": "Podsumowanie powiązań",
         "formula": "Formuła",
-        "rich_text": "Tekst formatowany (Markdown)"
+        "rich_text": "Tekst formatowany (Markdown)",
+        "user": "Osoba",
+        "multi_user": "Osoby",
+        "agent": "Agent AI",
+        "multi_agent": "Wielu agentów AI"
       },
       "fromCsv": "Zacznij od pliku CSV",
       "fromCsvHint": "Jego nagłówek staje się kolumnami, każda z typem odczytanym z wartości, a wiersze zostaną zaimportowane po utworzeniu tabeli.",

@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AlreadyExistsError, ConcurrentChangeError
 from app.core.permissions import AuthContext
 from app.repositories import virtual_table_repo
-from app.schemas.virtual_table import RecordCreate, RecordUpsert
+from app.schemas.virtual_table import RecordCreate, RecordSource, RecordUpsert
 from app.services.virtual_tables import records
 from app.services.virtual_tables.exceptions import RevisionConflictError, RevisionRequiredError
 from app.services.virtual_tables.records import RecordOperations
@@ -44,6 +44,10 @@ def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace
     async def columns(table):
         return []
 
+    async def source_for(db, ctx):
+        return RecordSource(kind="user", id=ctx.user_id, name="Record author")
+
+    monkeypatch.setattr(records, "source_for", source_for)
     monkeypatch.setattr(service, "_load_table", load)
     monkeypatch.setattr(service, "_columns", columns)
     monkeypatch.setattr(records, "run_once", passthrough)

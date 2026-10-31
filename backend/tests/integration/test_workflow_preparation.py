@@ -134,6 +134,7 @@ async def test_invalid_graph_rolls_back_both_new_resources(db: AsyncSession):
         assert count == 0
 
 
+@pytest.mark.security
 async def test_structural_check_is_read_only_and_tenant_scoped(db: AsyncSession):
     from app.core.exceptions import NotFoundError
     from app.db.models.workflow_run import WorkflowRun

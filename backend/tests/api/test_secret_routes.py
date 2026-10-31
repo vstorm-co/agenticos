@@ -126,6 +126,7 @@ class TestListing:
             "http_credential",
             "microsoft_oauth_app",
             "openai_codex",
+            "smtp_account",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
 

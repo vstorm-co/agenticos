@@ -122,6 +122,7 @@ async def test_inherits_only_the_authorized_source_project(monkeypatch):
 
 
 @pytest.mark.parametrize("source", [None, SimpleNamespace(organization_id=uuid4())])
+@pytest.mark.security
 async def test_a_missing_or_other_tenant_source_is_refused(monkeypatch, source):
     monkeypatch.setattr(
         chats.conversation_repo, "get_conversation_by_id", AsyncMock(return_value=source)

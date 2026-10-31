@@ -9618,7 +9618,11 @@
         "lookup": "Lookup",
         "rollup": "Rollup",
         "formula": "Formula",
-        "rich_text": "Rich text (Markdown)"
+        "rich_text": "Rich text (Markdown)",
+        "user": "Person",
+        "multi_user": "People",
+        "agent": "AI agent",
+        "multi_agent": "Multiple AI agents"
       },
       "fromCsv": "Start from a CSV file",
       "fromCsvHint": "Its header becomes the columns, each typed from its values, and its rows are imported once the table exists.",

@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { useTablePrincipals } from "./use-table-principals";
 import { useAgents } from "./use-agents";
 vi.mock("./use-agents", () => ({
@@ -18,12 +18,25 @@ vi.mock("./use-agents", () => ({
     error: null,
   })),
 }));
+const directory = vi.hoisted(() => ({
+  org: "org" as string | null,
+  members: [
+    { user_id: "anna", full_name: "Anna", email: "anna@example.test" },
+    { user_id: "jan", full_name: null, email: "jan@example.test" },
+  ],
+  error: null as Error | null,
+  loading: false,
+}));
 vi.mock("./use-members", () => ({
-  useMembers: () => ({ members: [], isLoading: false, error: null }),
+  useMembers: () => ({
+    members: directory.members,
+    isLoading: directory.loading,
+    error: directory.error,
+  }),
 }));
 vi.mock("@/stores/org-store", () => ({
-  useOrgStore: (select: (state: { activeOrgId: string }) => unknown) =>
-    select({ activeOrgId: "org" }),
+  useOrgStore: (select: (state: { activeOrgId: string | null }) => unknown) =>
+    select({ activeOrgId: directory.org }),
 }));
 it("resolves an archived agent's existing identity and avatar", () => {
   const { result } = renderHook(() => useTablePrincipals("agent"));
@@ -34,4 +47,26 @@ it("resolves an archived agent's existing identity and avatar", () => {
     archived: true,
     has_avatar: true,
   });
+});
+
+beforeEach(() => {
+  directory.org = "org";
+  directory.error = null;
+  directory.loading = false;
+});
+it("resolves organization members by name with an email fallback", () => {
+  const { result, rerender } = renderHook(() => useTablePrincipals("user"));
+  expect(result.current.items.map((item) => item.name)).toEqual(["Anna", "jan@example.test"]);
+  directory.error = new Error("Unavailable");
+  directory.loading = true;
+  rerender();
+  expect(result.current.error).toBe(directory.error);
+  expect(result.current.isLoading).toBe(true);
+});
+it("disables the agent directory when no organization is selected", () => {
+  directory.org = null;
+  renderHook(() => useTablePrincipals("agent"));
+  expect(useAgents).toHaveBeenLastCalledWith({ includeArchived: true, enabled: false });
+  renderHook(() => useTablePrincipals("user"));
+  expect(useAgents).toHaveBeenLastCalledWith({ includeArchived: true, enabled: false });
 });

@@ -88,10 +88,9 @@ export function MarkdownInput({
     }
     setActive(0);
   };
-  const insertBlock = (body: string) => {
-    if (!slash) return;
-    onValueChange(value.slice(0, slash.start) + body + value.slice(slash.end));
-    const caret = slash.start + body.length;
+  const insertBlock = (body: string, at: Slash) => {
+    onValueChange(value.slice(0, at.start) + body + value.slice(at.end));
+    const caret = at.start + body.length;
     setSlash(null);
     requestAnimationFrame(() => {
       input.current?.focus();
@@ -129,7 +128,7 @@ export function MarkdownInput({
             );
           } else if (event.key === "Enter" && !event.nativeEvent.isComposing && matches[active]) {
             event.preventDefault();
-            insertBlock(matches[active].body);
+            insertBlock(matches[active].body, slash);
           }
         }}
         onPaste={async (event) => {
@@ -208,7 +207,7 @@ export function MarkdownInput({
                 tabIndex={-1}
                 className={`flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm ${active === index ? "bg-accent" : "hover:bg-accent"}`}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => insertBlock(body)}
+                onClick={() => insertBlock(body, slash)}
               >
                 <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
                 {t(`blocks.${key}`)}

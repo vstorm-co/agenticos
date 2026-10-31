@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   archiveTable,
+  countRecords,
+  uploadTableImage,
+  discardTableImage,
   batchRefusal,
   createRecord,
   createRecords,
@@ -29,6 +32,7 @@ vi.mock("@/lib/api-client", () => ({
     patch: vi.fn(),
     delete: vi.fn(),
     raw: vi.fn(),
+    upload: vi.fn(),
   },
 }));
 vi.mock("./file-access", () => ({ saveBlob: vi.fn() }));
@@ -227,4 +231,15 @@ describe("listAllTables", () => {
       .mockResolvedValueOnce({ items: [], total: 2 });
     expect(await listAllTables()).toHaveLength(1);
   });
+});
+
+it("counts matching records and scopes image uploads and abandoned-image cleanup", async () => {
+  await countRecords("table", { filters: [] });
+  expect(apiClient.post).toHaveBeenCalledWith("/tables/table/records/count", { filters: [] });
+  const file = new File(["png"], "clipboard.png", { type: "image/png" });
+  vi.mocked(apiClient.upload).mockResolvedValueOnce({ id: "image", url: "/image" });
+  expect(await uploadTableImage("table", file)).toEqual({ id: "image", url: "/image" });
+  expect(apiClient.upload).toHaveBeenCalledWith("/tables/table/media", file);
+  await discardTableImage("table", "image");
+  expect(apiClient.delete).toHaveBeenCalledWith("/tables/table/media/image");
 });

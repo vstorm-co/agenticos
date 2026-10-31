@@ -480,3 +480,19 @@ describe("CreateTableDialog", () => {
     });
   });
 });
+
+it("names organization identity column types in the creation picker", async () => {
+  render(
+    <CreateTableDialog
+      open
+      onOpenChange={vi.fn()}
+      onCreate={vi.fn()}
+      isCreating={false}
+      error={null}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox", { name: "Column type" }));
+  for (const name of ["Person", "People", "AI agent", "Multiple AI agents"]) {
+    expect(screen.getByRole("option", { name })).toBeVisible();
+  }
+});

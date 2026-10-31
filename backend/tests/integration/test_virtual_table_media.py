@@ -18,6 +18,7 @@ pytestmark = pytest.mark.anyio
 PNG = b"\x89PNG\r\n\x1a\nexample"
 
 
+@pytest.mark.security
 async def test_table_images_are_private_tenant_scoped_and_counted(db: AsyncSession):
     owner = await make_user(db)
     colleague = await make_user(db)

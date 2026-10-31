@@ -32,6 +32,7 @@ def account() -> SmtpAccountSecret:
     )
 
 
+@pytest.mark.security
 def test_smtp_round_trip_binds_the_destination_and_never_exposes_a_password_hint() -> None:
     scope = VaultScope.organization(uuid4())
     value = account()
@@ -61,11 +62,13 @@ def test_smtp_round_trip_binds_the_destination_and_never_exposes_a_password_hint
         ("from_name", "Name\r\nBcc: other@example.com"),
     ],
 )
+@pytest.mark.security
 def test_malformed_or_unencrypted_accounts_are_refused(field: str, value: object) -> None:
     with pytest.raises(ValidationError):
         SmtpAccountSecret.model_validate({**account().model_dump(), field: value})
 
 
+@pytest.mark.security
 async def test_service_rechecks_scope_kind_and_grants_before_opening(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -70,6 +70,7 @@ async def test_template_table_follows_an_explicit_organization_audience(db: Asyn
     assert table is not None and table.visibility == "org"
 
 
+@pytest.mark.security
 async def test_cross_tenant_audience_rolls_back_the_new_workflow(db: AsyncSession):
     owner, outsider = await make_user(db), await make_user(db)
     org = await make_org(db, owner=owner)

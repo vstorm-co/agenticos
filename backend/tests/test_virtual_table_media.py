@@ -41,6 +41,7 @@ def setup(context: AuthContext, monkeypatch: pytest.MonkeyPatch):
     return service, table, loaded, created, found
 
 
+@pytest.mark.security
 async def test_upload_and_read_use_table_permissions_and_tenant(context, setup):
     service, table, loaded, created, found = setup
     image = await service.upload_image(context, table.id, PNG)
