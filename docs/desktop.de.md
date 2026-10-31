@@ -1,5 +1,5 @@
 ---
-source_sha: "515d60086c9f"
+source_sha: "8d5ef23b70de"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -49,7 +49,9 @@ Beim ersten Start führt dich der Assistent zur Serververbindung oder einer loka
 
 Starte unter macOS 14 oder neuer die installierte App einmal. Klicke dann mit der rechten Maustaste auf den Schreibtisch, wähle **Widgets bearbeiten** und suche nach **AgenticOS**. Das kleine Widget öffnet Quick Ask; das mittlere zusätzlich Chat, Inbox und Activity. Widgets folgen dem Systemdesign und enthalten nur Verknüpfungen ohne Kontodaten. Ein Klick startet niemals eine Aufnahme oder einen Anruf.
 
-Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows und Linux. Öffentliche macOS-Pakete benötigen Developer-ID-Signierung und Beglaubigungszugangsdaten in der Release-Umgebung. Ein lokaler Ad-hoc-Entwicklungsbuild ist kein öffentliches beglaubigtes Release.
+Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows und Linux. Standardmäßig verwenden macOS-Pakete Ad-hoc-Signaturen ohne Beglaubigung durch Apple. Kopiere die App nach Applications und versuche, sie zu öffnen. Blockiert macOS sie wegen eines nicht verifizierten Entwicklers, wähle **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen** und bestätige. Verwaltete Computer können diese Ausnahme verbieten. Siehe [Apples Anleitung](https://support.apple.com/de-de/102445). Heruntergeladene Updates benötigen weiterhin eine gültige Signatur mit dem Update-Schlüssel des Releases.
+
+Nach einem Ad-hoc-Update kann macOS erneut Zugriff auf Mikrofon, Bildschirmaufnahme, Bedienungshilfen oder Schlüsselbund verlangen. Geht die Gerätekopplung verloren, verbinde das Gerät erneut. Update-Signaturen prüfen das Paket, bieten aber keine stabile Apple-Signierungsidentität.
 
 ## Starten { #running-it }
 
@@ -547,6 +549,7 @@ Vor einem Release die GitHub-Umgebung `apps-release` konfigurieren:
 
 - Variable `AGENTICOS_UPDATER_PUBLIC_KEY`; Secrets `TAURI_SIGNING_PRIVATE_KEY`
   und `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (dauerhaftes Update-Schlüsselpaar).
+- Optionale macOS-Developer-ID-Signierung: Setze die Repository-Variable `AGENTICOS_MACOS_SIGNING_ENABLED=true` und konfiguriere die folgenden Apple-Zugangsdaten. Fehlende Daten stoppen den Build ohne Ad-hoc-Fallback. Ohne Flag oder bei false werden Ad-hoc-Signaturen ohne Beglaubigung verwendet und Apple-Zugangsdaten ignoriert.
 - macOS: `APPLE_CERTIFICATE` (Base64-P12), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (App-Passwort)
   und `APPLE_TEAM_ID` für Developer-ID-Signatur und Notarisierung.

@@ -1,5 +1,5 @@
 ---
-source_sha: "515d60086c9f"
+source_sha: "8d5ef23b70de"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -49,7 +49,9 @@ Pierwsze uruchomienie prowadzi przez połączenie z serwerem lub stworzenie loka
 
 Na macOS 14 lub nowszym uruchom zainstalowaną aplikację raz, kliknij pulpit prawym przyciskiem, wybierz **Edytuj widżety** i wyszukaj **AgenticOS**. Mały widget otwiera Quick Ask, a średni również Chat, Inbox i Activity. Widgety korzystają z wyglądu systemowego i zawierają tylko skróty, bez danych konta. Kliknięcie widgetu nigdy nie rozpoczyna nagrywania ani połączenia.
 
-CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Publiczne paczki macOS wymagają danych podpisu Developer ID i notaryzacji w środowisku wydania. Lokalny build deweloperski z podpisem ad-hoc nie jest publicznym, notaryzowanym wydaniem.
+CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Linuksa. Domyślnie paczki macOS mają podpis ad-hoc, bez notaryzacji Apple. Po skopiowaniu aplikacji do Applications spróbuj ją uruchomić. Jeśli macOS blokuje ją z powodu niezweryfikowanego dewelopera, wybierz **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to** i potwierdź. Zarządzane komputery mogą zabraniać tego wyjątku. Zobacz [instrukcję Apple](https://support.apple.com/pl-pl/102445). Pobierane aktualizacje nadal wymagają poprawnego podpisu kluczem aktualizacji wydania.
+
+Po aktualizacji z podpisem ad-hoc macOS może ponownie poprosić o dostęp do mikrofonu, nagrywania ekranu, dostępności lub Pęku kluczy. Jeśli urządzenie utraci sparowanie, połącz je ponownie. Podpis aktualizacji weryfikuje paczkę, ale nie zapewnia stałej tożsamości podpisu Apple.
 
 ## Uruchamianie { #running-it }
 
@@ -518,6 +520,7 @@ Przed wydaniem skonfiguruj środowisko GitHub `apps-release`:
 
 - Zmienna `AGENTICOS_UPDATER_PUBLIC_KEY`; sekrety `TAURI_SIGNING_PRIVATE_KEY`
   i `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (stała para kluczy aktualizatora).
+- Opcjonalny podpis macOS Developer ID: ustaw zmienną repozytorium `AGENTICOS_MACOS_SIGNING_ENABLED=true` i skonfiguruj poniższe dane Apple. Brak danych zatrzymuje build, bez przejścia na podpis ad-hoc. Gdy flaga nie jest ustawiona lub jest fałszywa, paczki używają podpisu ad-hoc bez notaryzacji, a dane Apple są ignorowane.
 - macOS: `APPLE_CERTIFICATE` (P12 w base64), `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (hasło aplikacji)
   i `APPLE_TEAM_ID` do podpisu Developer ID i notaryzacji.
