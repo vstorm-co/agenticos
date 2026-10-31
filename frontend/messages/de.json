@@ -9375,7 +9375,8 @@
         "link": "Verknüpfung",
         "lookup": "Nachschlagen",
         "rollup": "Zusammenfassung",
-        "formula": "Formel"
+        "formula": "Formel",
+        "rich_text": "Formatierter Text (Markdown)"
       },
       "fromCsv": "Mit einer CSV-Datei beginnen",
       "fromCsvHint": "Ihre Kopfzeile wird zu den Spalten, jede mit dem Typ ihrer Werte, und ihre Zeilen werden importiert, sobald die Tabelle existiert.",
@@ -9418,7 +9419,8 @@
         "link": "Verknüpfung",
         "lookup": "Nachschlagen",
         "rollup": "Zusammenfassung",
-        "formula": "Formel"
+        "formula": "Formel",
+        "rich_text": "Formatierter Text (Markdown)"
       },
       "required": "Erforderlich",
       "archiveColumn": "{column} archivieren",
@@ -9599,6 +9601,15 @@
       "placeholder": "'{Price}' * '{Quantity}'",
       "columns": "Verwendbare Spalten",
       "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+    },
+    "markdown": {
+      "write": "Schreiben",
+      "preview": "Vorschau",
+      "expand": "Editor vergrößern",
+      "properties": "Frontmatter",
+      "hint": "Schreibe Markdown. Optionales YAML-Frontmatter steht zwischen --- am Anfang.",
+      "empty": "Noch kein Inhalt für die Vorschau.",
+      "done": "Fertig"
     }
   },
   "groups": {

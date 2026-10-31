@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Rich text columns in Tables.** Choose Markdown for notes with headings, task lists, tables, links and code, with source highlighting, preview and an expanded editor. Optional YAML frontmatter is preserved with the document and shown separately in preview. API writes, text queries, CSV round-trips and conversions to and from plain text keep the source intact.
+
 - **A published page can show a workflow's log live.** `publish_artifact` takes a
   second kind of binding, `"kind": "workflow_log"`: a workflow (id or exact name), an
   optional step, outcomes, run and `include_test`, and either `lines` (the newest N, at

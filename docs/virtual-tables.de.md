@@ -1,5 +1,5 @@
 ---
-source_sha: "c036c5758ee0"
+source_sha: "19c522bfb389"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -60,6 +60,7 @@ die Sie als `null` senden, bleibt leer.
 |---|---|---|
 | `text` | Text bis 1.000 Zeichen | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Text bis 100.000 Zeichen | wie `text` |
+| `rich_text` | Markdown-Quelltext mit bis zu 100.000 Zeichen | wie `text` |
 | `email` | Eine Adresse mit einem `@` und einem Punkt in der Domain, bis 254 Zeichen | wie `text` |
 | `url` | Eine `http`- oder `https`-Adresse mit Host, bis 2.048 Zeichen | wie `text` |
 | `phone` | Ziffern, Leerzeichen und `+ ( ) - . /`, mindestens fünf Ziffern | wie `text` |
@@ -90,6 +91,12 @@ Auswahl stattdessen über das Label ihrer Option, ohne Beachtung der Groß- und
 Kleinschreibung: Sie schreiben und filtern per Label und lesen die Auswahl eines
 Datensatzes als Labels zurück, auch die einer archivierten Option. Ein Wert, der keine
 aktive Option nennt, wird mit den Optionen der Spalte abgelehnt.
+
+### Formatierter Text und Markdown { #rich-text }
+
+Wähle **Rich text (Markdown)** für Notizen mit Überschriften, Listen, Aufgabenlisten, Tabellen, Links und Code. Ein Klick auf die Zelle öffnet das Datensatz-Panel. **Write** bearbeitet den Markdown-Quelltext mit Syntaxhervorhebung; **Preview** zeigt die Vorschau und **Expand editor** öffnet einen größeren Arbeitsbereich. Schreibgeschützte Datensätze starten in der Vorschau und erlauben das Lesen des Quelltexts. Externe Bilder erscheinen als Links und werden nicht automatisch geladen.
+
+Optionales YAML-Frontmatter steht zwischen `---` am Dokumentanfang. Die Vorschau zeigt diesen Block unter **Frontmatter**, getrennt vom Inhalt. Er bleibt Quelltext, ohne YAML-Validierung oder Umwandlung in Tabellenspalten. API, CSV-Export und Import erhalten Markdown und Frontmatter zusammen, einschließlich Leerzeichen und Zeilenumbrüchen. Textfilter, Suche und Sortierung verwenden den Quelltext. Eine Spalte `text` oder `long_text` kann zu `rich_text` und zurück wechseln; beim Wechsel zu `text` muss jeder Wert weiterhin in die Grenze von 1.000 Zeichen passen.
 
 ## Verknüpfungen, Nachschlagen und Zusammenfassungen { #links-lookups-and-rollups }
 

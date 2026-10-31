@@ -32,6 +32,7 @@ from pydantic import (
 ColumnTypeName = Literal[
     "text",
     "long_text",
+    "rich_text",
     "email",
     "url",
     "phone",

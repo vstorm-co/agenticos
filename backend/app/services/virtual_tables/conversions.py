@@ -15,12 +15,13 @@ from datetime import UTC, datetime
 from app.schemas.virtual_table import CellValue, ColumnDef, ColumnTypeName
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem
 
-_TEXTS: frozenset[ColumnTypeName] = frozenset({"text", "long_text"})
+_TEXTS: frozenset[ColumnTypeName] = frozenset({"text", "long_text", "rich_text"})
 
 CONVERSIONS: dict[ColumnTypeName, frozenset[ColumnTypeName]] = {
     "text": frozenset(
         {
             "long_text",
+            "rich_text",
             "email",
             "url",
             "phone",
@@ -34,8 +35,20 @@ CONVERSIONS: dict[ColumnTypeName, frozenset[ColumnTypeName]] = {
         }
     ),
     "long_text": frozenset(
-        {"text", "email", "url", "phone", "number", "integer", "boolean", "date", "datetime"}
+        {
+            "text",
+            "rich_text",
+            "email",
+            "url",
+            "phone",
+            "number",
+            "integer",
+            "boolean",
+            "date",
+            "datetime",
+        }
     ),
+    "rich_text": frozenset({"text", "long_text"}),
     "email": frozenset({"text", "long_text"}),
     "url": frozenset({"text", "long_text"}),
     "phone": frozenset({"text", "long_text"}),

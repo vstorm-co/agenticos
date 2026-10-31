@@ -1,5 +1,6 @@
 import {
   AlignLeft,
+  FileText,
   Calendar,
   CalendarClock,
   CircleDot,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 const ICON: Record<ColumnTypeName, LucideIcon> = {
   text: Type,
   long_text: AlignLeft,
+  rich_text: FileText,
   email: Mail,
   url: Globe,
   phone: Phone,

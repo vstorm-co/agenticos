@@ -1,3 +1,4 @@
+import { markdownDocument } from "@/lib/markdown-document";
 import { MAX_RATING, type CellValue, type ColumnDef, type RecordRead } from "@/types/tables";
 
 /**
@@ -26,6 +27,8 @@ export function formatCellValue(
   if (value === null || value === undefined) return "";
 
   switch (column.type) {
+    case "rich_text":
+      return typeof value === "string" ? markdownDocument(value).body.trim() : "";
     case "boolean":
       return typeof value === "boolean" ? boolLabel(value) : "";
     case "single_select": {

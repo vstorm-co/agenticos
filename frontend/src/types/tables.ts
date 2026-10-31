@@ -7,6 +7,7 @@
 export const COLUMN_TYPES = [
   "text",
   "long_text",
+  "rich_text",
   "email",
   "url",
   "phone",
@@ -56,6 +57,7 @@ export type Aggregate = (typeof AGGREGATES)[number];
 export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[]> = {
   text: [
     "long_text",
+    "rich_text",
     "email",
     "url",
     "phone",
@@ -67,7 +69,19 @@ export const COLUMN_CONVERSIONS: Record<ColumnTypeName, readonly ColumnTypeName[
     "datetime",
     "single_select",
   ],
-  long_text: ["text", "email", "url", "phone", "number", "integer", "boolean", "date", "datetime"],
+  rich_text: ["text", "long_text"],
+  long_text: [
+    "rich_text",
+    "text",
+    "email",
+    "url",
+    "phone",
+    "number",
+    "integer",
+    "boolean",
+    "date",
+    "datetime",
+  ],
   email: ["text", "long_text"],
   url: ["text", "long_text"],
   phone: ["text", "long_text"],

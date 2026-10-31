@@ -212,6 +212,10 @@ export function TableGridView({
             writeCell(record, column.id, value !== true);
             return;
           }
+          if (column.type === "rich_text") {
+            onOpenRecord(record);
+            return;
+          }
           setEditing({ recordId: record.id, columnId: column.id });
         }}
       >

@@ -1,5 +1,5 @@
 ---
-source_sha: "c036c5758ee0"
+source_sha: "19c522bfb389"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -59,6 +59,7 @@ columna rellena solo las celdas que omites; una celda que envías como `null` qu
 |---|---|---|
 | `text` | Texto de hasta 1.000 caracteres | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Texto de hasta 100.000 caracteres | igual que `text` |
+| `rich_text` | Fuente Markdown de hasta 100.000 caracteres | igual que `text` |
 | `email` | Una dirección con una `@` y un punto en el dominio, de hasta 254 caracteres | igual que `text` |
 | `url` | Una dirección `http` o `https` con host, de hasta 2.048 caracteres | igual que `text` |
 | `phone` | Dígitos, espacios y `+ ( ) - . /`, al menos cinco dígitos | igual que `text` |
@@ -88,6 +89,12 @@ elección por la etiqueta de su opción, sin distinguir mayúsculas: escriben y 
 etiqueta, y leen las elecciones de un registro como etiquetas, también la de una opción
 archivada. Un valor que no nombra ninguna opción activa se rechaza con las opciones de
 la columna.
+
+### Texto enriquecido y Markdown { #rich-text }
+
+Elige **Rich text (Markdown)** para notas con encabezados, listas, tareas, tablas, enlaces y código. Al pulsar la celda se abre el panel del registro. **Write** edita el Markdown con resaltado de sintaxis; **Preview** muestra la vista previa y **Expand editor** abre un espacio mayor. Los registros de solo lectura empiezan en vista previa y permiten leer la fuente. Las imágenes remotas aparecen como enlaces y no se cargan automáticamente.
+
+El frontmatter YAML opcional va entre líneas `---` al inicio del documento. La vista previa muestra ese bloque bajo **Frontmatter**, separado del cuerpo. Se conserva como fuente, sin validar YAML ni convertirlo en columnas de tabla. La API, la exportación y la importación CSV mantienen juntos Markdown y frontmatter, incluidos espacios y saltos de línea. Los filtros de texto, la búsqueda y el orden usan la fuente. Una columna `text` o `long_text` puede convertirse a `rich_text` y volver; al volver a `text`, cada valor debe caber en su límite de 1.000 caracteres.
 
 ## Enlaces, búsquedas y resúmenes { #links-lookups-and-rollups }
 

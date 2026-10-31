@@ -1,5 +1,5 @@
 ---
-source_sha: "c036c5758ee0"
+source_sha: "19c522bfb389"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -58,6 +58,7 @@ pusta.
 |---|---|---|
 | `text` | Tekst do 1000 znaków | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Tekst do 100 000 znaków | tak samo jak `text` |
+| `rich_text` | Źródło Markdown do 100 000 znaków | tak samo jak `text` |
 | `email` | Adres z jednym `@` i kropką w domenie, do 254 znaków | tak samo jak `text` |
 | `url` | Adres `http` lub `https` z hostem, do 2048 znaków | tak samo jak `text` |
 | `phone` | Cyfry, spacje i `+ ( ) - . /`, co najmniej pięć cyfr | tak samo jak `text` |
@@ -86,6 +87,12 @@ Narzędzia tabel agenta i kroki tabel w workflow nazywają wybór etykietą opcj
 bez rozróżniania wielkości liter: po etykiecie zapisują i filtrują, a wybory rekordu
 odczytują jako etykiety, także opcji zarchiwizowanej. Wartość, która nie wskazuje
 żadnej aktywnej opcji, jest odrzucana wraz z listą opcji kolumny.
+
+### Tekst formatowany i Markdown { #rich-text }
+
+Wybierz **Rich text (Markdown)** dla notatki z nagłówkami, listami, zadaniami, tabelami, linkami i kodem. Kliknięcie komórki w siatce otwiera panel rekordu. **Write** edytuje źródło Markdown z podświetleniem składni; **Preview** pokazuje podgląd, a **Expand editor** otwiera większy obszar pracy. Rekordy tylko do odczytu zaczynają od podglądu i pozwalają czytać źródło. Zdalne obrazy są linkami i nie ładują się automatycznie.
+
+Opcjonalny frontmatter YAML umieść między liniami `---` na początku dokumentu. Podgląd pokazuje ten blok pod **Frontmatter**, oddzielnie od treści. Jest zachowywany jako źródło, bez walidacji YAML ani zamiany na kolumny tabeli. API, eksport i import CSV zachowują Markdown i frontmatter razem, ze spacjami i końcami linii. Filtry tekstowe, wyszukiwanie i sortowanie używają źródła. Kolumnę `text` lub `long_text` można zmienić na `rich_text` i odwrotnie; powrót do `text` nadal wymaga, by każda wartość mieściła się w limicie 1000 znaków.
 
 ## Powiązania, odczyty i podsumowania { #links-lookups-and-rollups }
 

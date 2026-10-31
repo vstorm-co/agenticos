@@ -123,6 +123,7 @@ export function NewRecordDialog({
                 key={column.id}
                 className={
                   column.type === "long_text" ||
+                  column.type === "rich_text" ||
                   column.type === "link" ||
                   column.type === "multi_select"
                     ? "space-y-1.5 sm:col-span-2"

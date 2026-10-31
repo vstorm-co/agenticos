@@ -85,6 +85,14 @@ beforeEach(() => {
 });
 
 describe("TableGridView", () => {
+  it("opens a Markdown cell in the record panel instead of squeezing its editor into a row", async () => {
+    const rich: ColumnDef = { ...columns[0]!, type: "rich_text", label: "Notes" };
+    const props = renderEditable({ columns: [rich] });
+    await userEvent.click(screen.getAllByRole("button", { name: "Edit Notes" })[0]!);
+    expect(props.onOpenRecord).toHaveBeenCalledWith(records[0]);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("renders one column per live column and one row per record", () => {
     render(
       <TableGridView

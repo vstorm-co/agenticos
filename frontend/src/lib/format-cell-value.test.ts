@@ -19,6 +19,11 @@ function column(overrides: Partial<ColumnDef>): ColumnDef {
 }
 
 describe("formatCellValue", () => {
+  it("shows a rich-text body instead of its frontmatter in compact views", () => {
+    const col = column({ type: "rich_text" });
+    expect(formatCellValue(col, "---\ntitle: Hidden\n---\n# Body\n", boolLabel)).toBe("# Body");
+    expect(formatCellValue(col, 5, boolLabel)).toBe("");
+  });
   it("renders nothing for null or undefined", () => {
     const col = column({ type: "text" });
     expect(formatCellValue(col, null, boolLabel)).toBe("");

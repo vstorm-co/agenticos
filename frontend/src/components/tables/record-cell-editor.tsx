@@ -13,6 +13,7 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { MarkdownCellEditor } from "./markdown-cell-editor";
 import { DateCell } from "./date-cell";
 import { DatetimeCell } from "./datetime-cell";
 import { LinkCell } from "./link-cell";
@@ -157,6 +158,38 @@ function RatingCellInput({
   );
 }
 
+function RichTextCellInput({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+  errorId,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  errorId: string;
+  error?: string;
+}) {
+  const buffer = useTextBuffer(value, onChange);
+  return (
+    <MarkdownCellEditor
+      id={id}
+      label={label}
+      value={buffer.draft}
+      onChange={buffer.onChange}
+      onCommit={buffer.onBlur}
+      disabled={disabled}
+      invalid={error !== undefined}
+      describedBy={error === undefined ? undefined : errorId}
+    />
+  );
+}
+
 function LongTextCellInput({
   id,
   value,
@@ -285,6 +318,18 @@ export function RecordCellEditor({
           onChange={onChange}
           disabled={disabled}
           nullable={column.nullable}
+        />
+      )}
+
+      {column.type === "rich_text" && (
+        <RichTextCellInput
+          id={id}
+          label={column.label}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          disabled={disabled}
+          error={error}
+          errorId={errorId}
         />
       )}
 

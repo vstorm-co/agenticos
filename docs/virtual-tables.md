@@ -53,6 +53,7 @@ you leave out; a cell you send as `null` stays empty.
 |---|---|---|
 | `text` | Text up to 1,000 characters | `eq` `ne` `contains` `starts_with` `in` `is_null` |
 | `long_text` | Text up to 100,000 characters | the same as `text` |
+| `rich_text` | Markdown source up to 100,000 characters | the same as `text` |
 | `email` | An address with one `@` and a dot in its domain, up to 254 characters | the same as `text` |
 | `url` | An `http` or `https` address with a host, up to 2,048 characters | the same as `text` |
 | `phone` | Digits, spaces and `+ ( ) - . /`, at least five digits | the same as `text` |
@@ -81,6 +82,12 @@ An agent's table tools and a workflow's table steps name a choice by its option'
 label instead, matched case-insensitively: they write and filter by label, and read a
 record's choices back as labels, an archived option's too. A value naming no live
 option is refused with the options the column has.
+
+### Rich text and Markdown { #rich-text }
+
+Choose **Rich text (Markdown)** for a note with headings, lists, task lists, tables, links and code. In the grid, clicking its cell opens the record panel. **Write** edits the Markdown source with syntax highlighting; **Preview** reads it, and **Expand editor** opens a larger workspace. Read-only records start in preview and allow reading the source. Remote images appear as links rather than loading automatically.
+
+Optional YAML frontmatter goes between `---` lines at the start of the document. Preview shows that block under **Frontmatter**, separately from the body. It is preserved as source, without YAML validation or conversion to table columns. The API, CSV export and import keep the Markdown and frontmatter together, including whitespace and newlines. Text filters, search and sorting use the source. A `text` or `long_text` column can become `rich_text` and back; converting back to `text` still requires every value to fit its 1,000-character limit.
 
 ## Links, lookups and rollups { #links-lookups-and-rollups }
 

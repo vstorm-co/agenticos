@@ -32,6 +32,7 @@ def test_every_declared_type_is_registered():
     assert set(COLUMN_TYPES) == {
         "text",
         "long_text",
+        "rich_text",
         "email",
         "url",
         "phone",

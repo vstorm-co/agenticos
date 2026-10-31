@@ -10178,7 +10178,8 @@
         "link": "Powiązanie",
         "lookup": "Odczyt z powiązania",
         "rollup": "Podsumowanie powiązań",
-        "formula": "Formuła"
+        "formula": "Formuła",
+        "rich_text": "Tekst formatowany (Markdown)"
       },
       "fromCsv": "Zacznij od pliku CSV",
       "fromCsvHint": "Jego nagłówek staje się kolumnami, każda z typem odczytanym z wartości, a wiersze zostaną zaimportowane po utworzeniu tabeli.",
@@ -10221,7 +10222,8 @@
         "link": "Powiązanie",
         "lookup": "Odczyt z powiązania",
         "rollup": "Podsumowanie powiązań",
-        "formula": "Formuła"
+        "formula": "Formuła",
+        "rich_text": "Tekst formatowany (Markdown)"
       },
       "required": "Wymagana",
       "archiveColumn": "Zarchiwizuj {column}",
@@ -10402,6 +10404,15 @@
       "placeholder": "'{Price}' * '{Quantity}'",
       "columns": "Kolumny do użycia",
       "hint": "Kolumnę podaj w nawiasach klamrowych. Działa + - * / %, = <> < > and, or, not oraz IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+    },
+    "markdown": {
+      "write": "Pisz",
+      "preview": "Podgląd",
+      "expand": "Powiększ edytor",
+      "properties": "Frontmatter",
+      "hint": "Pisz w Markdown. Opcjonalny frontmatter YAML umieść między liniami --- na początku.",
+      "empty": "Nie ma jeszcze treści do podglądu.",
+      "done": "Gotowe"
     }
   },
   "groups": {

@@ -18,6 +18,10 @@ const col = (type: ColumnTypeName): ColumnDef => ({
 });
 
 describe("readCell", () => {
+  it("preserves Markdown with frontmatter and newlines", () => {
+    const value = "---\ntitle: Note\n---\n# Heading\n\n- [ ] Review\n";
+    expect(readCell(col("rich_text"), value)).toEqual({ value });
+  });
   it("reads an empty cell as no value, whatever the column", () => {
     expect(readCell(col("integer"), "  ")).toEqual({ value: null });
   });

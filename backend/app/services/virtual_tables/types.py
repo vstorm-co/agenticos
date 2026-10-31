@@ -250,6 +250,7 @@ COLUMN_TYPES: dict[ColumnTypeName, ColumnType] = {
     for column_type in (
         ColumnType("text", SqlKind.TEXT, _TEXTUAL, True, _text_of(MAX_TEXT)),
         ColumnType("long_text", SqlKind.TEXT, _TEXTUAL, True, _text_of(MAX_LONG_TEXT)),
+        ColumnType("rich_text", SqlKind.TEXT, _TEXTUAL, True, _text_of(MAX_LONG_TEXT)),
         ColumnType("email", SqlKind.TEXT, _TEXTUAL, True, _email),
         ColumnType("url", SqlKind.TEXT, _TEXTUAL, True, _url),
         ColumnType("phone", SqlKind.TEXT, _TEXTUAL, True, _phone),
@@ -287,7 +288,7 @@ COMPUTED_TYPES: frozenset[ColumnTypeName] = frozenset(
 READ_THROUGH_LINK: frozenset[ColumnTypeName] = frozenset({"lookup", "rollup"})
 """The computed types that read the records a link column of the same table names."""
 SEARCHED_TYPES: frozenset[ColumnTypeName] = frozenset(
-    {"text", "long_text", "email", "url", "phone"}
+    {"text", "long_text", "rich_text", "email", "url", "phone"}
 )
 """The types a table's search box reads as text."""
 

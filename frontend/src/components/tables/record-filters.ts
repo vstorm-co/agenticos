@@ -25,6 +25,7 @@ const ORDERED: FilterChoice[] = ["eq", "ne", "lt", "lte", "gt", "gte", "empty", 
 const CHOICES: Record<ColumnTypeName, FilterChoice[]> = {
   text: TEXTUAL,
   long_text: TEXTUAL,
+  rich_text: TEXTUAL,
   email: TEXTUAL,
   url: TEXTUAL,
   phone: TEXTUAL,

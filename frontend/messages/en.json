@@ -9496,7 +9496,8 @@
         "link": "Link",
         "lookup": "Lookup",
         "rollup": "Rollup",
-        "formula": "Formula"
+        "formula": "Formula",
+        "rich_text": "Rich text (Markdown)"
       },
       "fromCsv": "Start from a CSV file",
       "fromCsvHint": "Its header becomes the columns, each typed from its values, and its rows are imported once the table exists.",
@@ -9539,7 +9540,8 @@
         "link": "Link",
         "lookup": "Lookup",
         "rollup": "Rollup",
-        "formula": "Formula"
+        "formula": "Formula",
+        "rich_text": "Rich text (Markdown)"
       },
       "required": "Required",
       "archiveColumn": "Archive {column}",
@@ -9720,6 +9722,15 @@
       "placeholder": "'{Price}' * '{Quantity}'",
       "columns": "Columns to use",
       "hint": "Name a column in braces. Use + - * / %, = <> < > and, or, not, and IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+    },
+    "markdown": {
+      "write": "Write",
+      "preview": "Preview",
+      "expand": "Expand editor",
+      "properties": "Frontmatter",
+      "hint": "Write Markdown. Optional YAML frontmatter goes between --- lines at the start.",
+      "empty": "Nothing to preview yet.",
+      "done": "Done"
     }
   },
   "groups": {

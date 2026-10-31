@@ -71,6 +71,7 @@ export function readCell(column: ColumnDef, raw: string): CsvCell {
   switch (column.type) {
     case "text":
     case "long_text":
+    case "rich_text":
       return { value: text };
     case "email":
       return EMAIL.test(trimmed) ? { value: trimmed } : { problem: "email" };
