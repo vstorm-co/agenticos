@@ -36,6 +36,8 @@ export interface SecretPickerProps {
   kind?: StorableSecretKind | (string & {});
   /** A validation message from the property panel, shown under the control. */
   error?: string;
+  /** Non-secret defaults shown for review when a credential is created. */
+  initialValue?: Record<string, unknown>;
 }
 
 /**
@@ -52,12 +54,26 @@ export interface SecretPickerProps {
  * fixed to the field's kind, choosing the new secret on save. The value goes
  * from that form to the vault and nowhere else - only the id comes back.
  */
-export function SecretPicker({ value, onChange, disabled, kind, error, label }: SecretPickerProps) {
+export function SecretPicker({
+  value,
+  onChange,
+  disabled,
+  kind,
+  error,
+  label,
+  initialValue,
+}: SecretPickerProps) {
   const t = useTranslations("workflows");
   const caption = label ?? t("pickerSecretLabel");
   const smtp = kind === "smtp_account";
   const newLabel = t(
-    smtp ? "emailSmtpNew" : kind === "api_key" ? "pickerApiKeyNew" : "pickerSecretNew",
+    smtp
+      ? "emailSmtpNew"
+      : kind === "http_credential"
+        ? "httpAuthNewCredential"
+        : kind === "api_key"
+          ? "pickerApiKeyNew"
+          : "pickerSecretNew",
   );
   const { secrets, kinds, isLoading, create } = useSecrets();
   const { can } = usePermissions();
@@ -102,7 +118,9 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
               <span className="flex items-center gap-2">
                 <KeyRound className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{secret.name}</span>
-                {!smtp && <Badge variant="outline">{secret.kind}</Badge>}
+                {!smtp && kind !== "http_credential" && (
+                  <Badge variant="outline">{secret.kind}</Badge>
+                )}
               </span>
             </SelectItem>
           ))}
@@ -147,7 +165,7 @@ export function SecretPicker({ value, onChange, disabled, kind, error, label }: 
         <AddSecretDialog
           open={adding}
           onOpenChange={setAdding}
-          initial={{ name: caption }}
+          initial={{ name: caption, value: initialValue }}
           kinds={kinds}
           kind={shape?.kind}
           isPending={create.isPending}

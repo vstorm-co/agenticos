@@ -27,7 +27,9 @@ with the origins it may be sent to, such as `https://api.example.com`. The
 config names the secret, never a value. `auth.kind` decides how the token is
 sent: `bearer`, `basic` (with the secret's username), `header` (in
 `auth.header_name`) or `query` (in the URL parameter `auth.query_name`, added
-only on a URL the secret allows).
+only on a URL the secret allows). A custom header can be `Authorization`;
+`auth.header_prefix: Token` sends `Authorization: Token <key>`, while an empty
+prefix sends just the token. Transport-owned headers remain unavailable.
 
 The origin is checked on the URL the step is about to call, after binding, so
 a URL taken from a run's input cannot aim the credential elsewhere. A URL

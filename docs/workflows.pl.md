@@ -1,5 +1,5 @@
 ---
-source_sha: "f0d6860faa96"
+source_sha: "8dea63ec1904"
 ---
 
 # Workflows { #workflows }
@@ -70,6 +70,8 @@ pokazują tę samą listę.
 Picker aplikacji pokazuje serwery z katalogu MCP także przed połączeniem; ogólna pozycja Call an MCP tool jest ukryta. Połącz usługę na miejscu, a następnie wybierz wykryte narzędzie. Lista dozwolonych narzędzi połączenia nadal obowiązuje. Kanwa domyślnie pokazuje kolorowe kroki i minimapę. Kroki modeli AI odsłaniają instrukcje, temperaturę i effort; puste ustawienia zachowują domyślne wartości dostawcy. Decyzje Jev pokazują model, pytanie i próg pewności. Send an email używa nadawcy platformy albo łączy Gmail lub Outlook i po potwierdzeniu zmienia krok na rzeczywiste narzędzie MCP tej skrzynki. Zmiana usuwa niezgodne mapowania wejścia i można ją cofnąć.
 
 Krok **Send an email** oferuje też **SMTP account → Nowe konto SMTP**. W formularzu vault podaj serwer, port, login, hasło i nadawcę. STARTTLS zwykle korzysta z 587, a implicit TLS z 465; oba tryby weryfikują certyfikat. Workflow zapisuje tylko `smtp_secret_id`. Opcja **Nadawca platformy** usuwa wybór. Publikacja i wykonanie sprawdzają dostęp do sekretu; niedostępne konto zatrzymuje krok zamiast zmieniać nadawcę.
+
+HTTP request, upload i download mają wspólny panel **Uwierzytelnianie**: brak, Bearer, klucz API w nagłówku, klucz API w parametrze URL albo Basic Auth. Wybierz istniejące **HTTP credential** z vault lub utwórz je w kroku; dozwolony adres API jest podpowiadany na podstawie URL. Workflow zapisuje tylko `auth.secret_id`. Własna nazwa nagłówka i opcjonalny prefiks obsługują np. `Authorization: Token …`. Basic Auth używa nazwy użytkownika i tokenu z vault jako loginu i hasła. Zmiana metody usuwa nieaktualne ustawienia, zachowując referencję; wyłączenie uwierzytelniania usuwa też referencję.
 
 Wyszukiwanie aplikacji obejmuje też lustrzany rejestr MCP, także niepodłączone usługi. Podłączony serwer bez listy narzędzi udostępnia administratorom połączeń **Refresh tools**. Kroki kanałów pozwalają utworzyć i wybrać konto bota bez opuszczania workflow; przycisk widzą tylko osoby z prawem zarządzania kanałami.
 

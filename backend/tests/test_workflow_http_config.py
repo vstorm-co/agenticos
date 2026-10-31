@@ -112,3 +112,37 @@ def test_json_escaped_credentials_are_scrubbed_after_decoding(token: str) -> Non
     response = httpx2.Response(200, json={token: [token, {"nested": token}, False, None, 1]})
     output = response_output(response, response.content, secret)
     assert output.body == {"[redacted]": ["[redacted]", {"nested": "[redacted]"}, False, None, 1]}
+
+
+@pytest.mark.parametrize("prefix", [None, "Token", "ApiKey"])
+def test_custom_authorization_headers_take_a_vault_token_with_an_optional_scheme(
+    prefix: str | None,
+) -> None:
+    from uuid import UUID
+
+    from app.core.secret_kinds import HttpCredentialSecret
+    from app.workflows.nodes._http import auth_headers
+
+    auth = HttpAuth(
+        kind="header", secret_id=UUID(_SECRET), header_name="Authorization", header_prefix=prefix
+    )
+    secret = HttpCredentialSecret(token="stored-api-key", origins=("https://api.example.com",))
+    assert auth_headers(auth, secret) == {
+        "Authorization": f"{prefix} stored-api-key" if prefix else "stored-api-key"
+    }
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"kind": "bearer", "header_prefix": "Token"},
+        {"kind": "header", "header_name": "X-Api-Key", "header_prefix": "bad prefix"},
+        {"kind": "header", "header_name": "Authorization", "header_prefix": "Token\r\nHost: evil"},
+        {"kind": "header", "header_name": "Cookie"},
+    ],
+)
+def test_invalid_schemes_and_transport_owned_headers_remain_refused(
+    fields: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        HttpAuth.model_validate({"secret_id": _SECRET, **fields})

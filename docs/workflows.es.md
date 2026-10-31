@@ -1,5 +1,5 @@
 ---
-source_sha: "f0d6860faa96"
+source_sha: "8dea63ec1904"
 ---
 
 # Workflows { #workflows }
@@ -74,6 +74,8 @@ un enlace compartido muestran la misma lista.
 El selector muestra servidores del catálogo MCP antes de conectarlos; la entrada genérica Call an MCP tool está oculta. Conecta un servicio y elige una de sus herramientas descubiertas. Se mantiene la lista de herramientas permitidas. Los pasos de colores y el minimapa están activos por defecto. Los pasos de modelos muestran instrucciones, temperatura y esfuerzo; los ajustes vacíos conservan los valores del proveedor. Jev muestra modelo, pregunta y umbral de confianza. Send an email usa el remitente de la plataforma o conecta Gmail u Outlook y, tras confirmar, cambia a la herramienta MCP real del buzón. El cambio elimina asignaciones incompatibles y se puede deshacer.
 
 El paso **Send an email** también ofrece **SMTP account → New SMTP account**. Guarda servidor, puerto, usuario, contraseña y remitente en el diálogo del vault. STARTTLS suele usar 587 y TLS implícito 465; ambos verifican certificados. El workflow solo guarda `smtp_secret_id`. **Platform sender** elimina la selección. La publicación y cada ejecución comprueban el acceso al secreto; una cuenta no disponible detiene el paso en lugar de cambiar de remitente.
+
+HTTP request, upload y download comparten el panel **Authentication**: sin autenticación, Bearer, clave API en un encabezado, clave API en un parámetro URL o Basic Auth. Elige un **HTTP credential** del vault o créalo en el paso; el origen permitido se sugiere a partir de su URL. El workflow solo guarda `auth.secret_id`. Los encabezados personalizados y prefijos opcionales admiten, por ejemplo, `Authorization: Token …`. Basic Auth usa el usuario y token del vault como usuario y contraseña. Cambiar de método elimina ajustes incompatibles y conserva la referencia; desactivar la autenticación elimina también la referencia.
 
 La búsqueda de aplicaciones también consulta el registro MCP replicado, incluidos los servicios aún no conectados. Un servidor conectado sin inventario ofrece **Refresh tools** a quienes administran conexiones. Los pasos de canales permiten crear y seleccionar una cuenta de bot dentro del workflow; solo los miembros con permiso para administrar canales ven esta acción.
 

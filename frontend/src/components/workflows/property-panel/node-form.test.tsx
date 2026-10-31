@@ -1269,7 +1269,7 @@ describe("a step's primary controls", () => {
       }),
     });
     expect(screen.getByLabelText("Method")).toBeInTheDocument();
-    expect(screen.getByLabelText("Authentication")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Authentication" })).toBeInTheDocument();
     expect(screen.getByText("Request body")).toBeInTheDocument();
     expect(screen.queryByLabelText("Timeout")).toBeNull();
   });

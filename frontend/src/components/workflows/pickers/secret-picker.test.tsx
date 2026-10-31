@@ -107,7 +107,7 @@ describe("SecretPicker", () => {
   it("stores a new secret of the field's kind and chooses it", async () => {
     const onChange = mount(null, { kind: "http_credential" });
 
-    await userEvent.click(screen.getByRole("button", { name: "New secret" }));
+    await userEvent.click(screen.getByRole("button", { name: "New API credential" }));
     await userEvent.click(screen.getByRole("button", { name: "store http_credential" }));
 
     expect(mutateAsync).toHaveBeenCalledWith({ name: "new" });

@@ -1,5 +1,5 @@
 ---
-source_sha: "f0d6860faa96"
+source_sha: "8dea63ec1904"
 ---
 
 # Workflows { #workflows }
@@ -74,6 +74,8 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
 
 Der Schritt **Send an email** bietet auch **SMTP account → Neues SMTP-Konto**. Im Vault-Dialog werden Server, Port, Benutzername, Passwort und Absender gespeichert. STARTTLS nutzt meist 587, implizites TLS meist 465; beide prüfen Zertifikate. Im Workflow steht nur `smtp_secret_id`. **Plattformabsender** entfernt die Auswahl. Veröffentlichung und Ausführung prüfen den Secret-Zugriff; ein nicht verfügbares Konto stoppt den Schritt statt den Absender zu wechseln.
+
+HTTP request, upload und download teilen das Panel **Authentifizierung**: keine, Bearer, API-Schlüssel im Header, API-Schlüssel als URL-Parameter oder Basic Auth. Wähle ein vorhandenes **HTTP credential** im Vault oder erstelle es im Schritt; die erlaubte Origin wird aus der Schritt-URL vorgeschlagen. Der Workflow speichert nur `auth.secret_id`. Eigene Headernamen und optionale Präfixe unterstützen etwa `Authorization: Token …`. Basic Auth nutzt Benutzername und Token aus dem Vault als Benutzername und Passwort. Ein Methodenwechsel entfernt unpassende Einstellungen und behält die Referenz; beim Deaktivieren wird auch die Referenz entfernt.
 
 Die App-Suche durchsucht auch die gespiegelte MCP-Registry, einschließlich noch nicht verbundener Dienste. Bei verbundenen Servern ohne Werkzeugliste können Verbindungsmanager **Refresh tools** wählen. Kanalschritte erlauben das Erstellen und Auswählen eines Bot-Kontos direkt im Workflow; nur Mitglieder mit Kanalverwaltungsrechten sehen diese Aktion.
 

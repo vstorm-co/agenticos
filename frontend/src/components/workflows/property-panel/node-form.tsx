@@ -67,11 +67,19 @@ import {
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
 import { FormPageForm } from "./form-page-form";
+import { HttpAuthField } from "./http-auth-field";
 import { InputFieldsForm } from "./input-fields-form";
 import { MergeForm } from "./merge-form";
 import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
 import { ScheduleTriggerForm } from "./schedule-trigger-form";
-import { applyRebase, rebaseClear, rebaseRemove, rebaseSwap } from "./bindings";
+import {
+  applyRebase,
+  rebaseClear,
+  rebaseRemove,
+  rebaseSwap,
+  bindingFor,
+  literalValueOf,
+} from "./bindings";
 import {
   classify,
   defsOf,
@@ -1210,6 +1218,8 @@ function NodeFields({
     );
   const agentStep = definition.id === AGENT_RUN;
   const mcpStep = definition.id === MCP_CALL;
+  const httpStep = ["http.request", "http.upload", "http.download"].includes(definition.id);
+  const httpUrlBinding = httpStep ? bindingFor(bindings, node.id, "url") : undefined;
   // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
   // tool by its server.
   const drawnElsewhere = (name: string) =>
@@ -1344,6 +1354,14 @@ function NodeFields({
                     ),
                   )
                 }
+              />
+            ) : httpStep && entry.name === "auth" ? (
+              <HttpAuthField
+                value={node.config.auth}
+                url={httpUrlBinding ? literalValueOf(httpUrlBinding) : node.config.url}
+                disabled={disabled}
+                errors={ctx.errors}
+                onChange={(next) => updateNodeConfig(node.id, setKey(node.config, "auth", next))}
               />
             ) : ANSWER_SHAPES[definition.id]?.field === entry.name ? (
               <AnswerFormatForm

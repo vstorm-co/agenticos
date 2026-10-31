@@ -86,6 +86,11 @@ class HttpAuth(BaseModel):
         pattern=HEADER_NAME,
         description="For `header`: the header the token is sent in, e.g. X-Api-Key.",
     )
+    header_prefix: str | None = Field(
+        default=None,
+        pattern=r"^[A-Za-z][A-Za-z0-9+._-]{0,31}$",
+        description="Optional scheme for a custom header, e.g. Token in Authorization: Token <key>.",
+    )
     query_name: str | None = Field(
         default=None,
         pattern=QUERY_NAME,
@@ -94,6 +99,8 @@ class HttpAuth(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> HttpAuth:
+        if self.header_prefix is not None and self.kind != "header":
+            raise ValueError("Only custom header authentication accepts a prefix")
         if self.query_name is not None and self.kind != "query":
             raise ValueError("Only query authentication names a URL parameter")
         if self.kind == "none":
@@ -106,7 +113,11 @@ class HttpAuth(BaseModel):
             raise ValueError("Name the header the token is sent in")
         if self.kind == "query" and self.query_name is None:
             raise ValueError("Name the URL parameter the token is sent in")
-        if self.header_name is not None and self.header_name.lower() in RESERVED_HEADERS:
+        if (
+            self.header_name is not None
+            and self.header_name.lower() in RESERVED_HEADERS
+            and not (self.kind == "header" and self.header_name.lower() == "authorization")
+        ):
             raise ValueError(f"{self.header_name} cannot carry a credential here")
         return self
 
@@ -181,7 +192,7 @@ def auth_headers(auth: HttpAuth, secret: HttpCredentialSecret) -> dict[str, str]
     if auth.kind == "basic":
         pair = f"{secret.username or ''}:{token}".encode()
         return {"Authorization": f"Basic {base64.b64encode(pair).decode()}"}
-    return {str(auth.header_name): token}
+    return {str(auth.header_name): f"{auth.header_prefix} {token}" if auth.header_prefix else token}
 
 
 def with_query(url: str, name: str, value: str) -> str:
