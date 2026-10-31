@@ -289,6 +289,22 @@ class TestMultipleEntries:
         await _publish(db, ctx, workflow, _graph("trigger.manual"))
         assert await service.list_for_workflow(ctx, workflow.id) == []
 
+    async def test_duplicate_unattended_kinds_are_refused_before_registration(self, db, tenant):
+        from app.workflows.graph.errors import GraphValidationError
+
+        owner, org, workflow = tenant
+        first, second = _graph("trigger.webhook").nodes[0], _graph("trigger.webhook").nodes[0]
+        with pytest.raises(GraphValidationError) as refused:
+            await _publish(
+                db,
+                _ctx(owner, org),
+                workflow,
+                WorkflowGraph(entry_node_id=first.id, nodes=(first, second)),
+            )
+        assert "one trigger of each unattended kind" in str(refused.value.details)
+        assert list((await db.execute(select(WorkflowExposure))).scalars()) == []
+        assert list((await db.execute(select(WorkflowVersion))).scalars()) == []
+
     @pytest.mark.security
     async def test_a_key_cannot_hide_an_unattended_entry_behind_manual(self, db, tenant):
         owner, org, workflow = tenant
@@ -3525,3 +3541,25 @@ async def test_ready_templates_provision_a_private_table_and_validate_without_ed
         ctx, workflow.id, WorkflowPublish(expected_revision=workflow.draft_revision)
     )
     assert published.version == 1
+
+
+@pytest.mark.security
+async def test_ready_template_refuses_missing_table_scopes_before_creating_resources(db, tenant):
+    from app.schemas.workflow import WorkflowCreate
+    from app.services.virtual_tables.facade import VirtualTableService
+
+    owner, org, original = tenant
+    key = await ApiKeyService(db).create(
+        _ctx(owner, org),
+        ApiKeyCreate(name="workflow creation only", scopes=[Perm.WORKFLOWS_CREATE]),
+    )
+    restricted = (await ApiKeyService(db).authenticate(key.key)).context
+    with pytest.raises(AuthorizationError, match="create and edit tables"):
+        await WorkflowRegistryService(db).create(
+            restricted, WorkflowCreate(name="Must not exist", template_id="publicApi")
+        )
+    workflows = list(
+        (await db.execute(select(Workflow).where(Workflow.organization_id == org.id))).scalars()
+    )
+    assert [item.id for item in workflows] == [original.id]
+    assert (await VirtualTableService(db).list_tables(_ctx(owner, org))).items == []

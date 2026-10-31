@@ -409,6 +409,17 @@ class TestResolveGraph:
         with pytest.raises(WorkflowGraphUnresolvableError):
             await dispatcher.resolve_graph(object(), run)
 
+    async def test_a_run_cannot_select_a_missing_entry(self, test_node: str):
+        graph = _graph(_node_instance(test_node))
+        run = _run(
+            mode=WorkflowRunMode.TEST.value,
+            workflow_version_id=None,
+            draft_graph_snapshot=graph.model_dump(mode="json"),
+            entry_node_id=uuid.uuid4(),
+        )
+        with pytest.raises(WorkflowGraphUnresolvableError):
+            await dispatcher.resolve_graph(object(), run)
+
 
 def _principal(**overrides: object) -> MagicMock:
     return MagicMock(**{"is_active": True, "is_app_admin": False, **overrides})
