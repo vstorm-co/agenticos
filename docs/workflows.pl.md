@@ -1,5 +1,5 @@
 ---
-source_sha: "c5ec68694f98"
+source_sha: "102f4da698e8"
 ---
 
 # Workflows { #workflows }
@@ -92,6 +92,8 @@ udostępnieniami; taki, którego przebiegi się nie zakończyły, jest odrzucany
 `WORKFLOW_IN_USE`.
 
 Kroki agentów przechowują prywatne rozmowy dla historii modelu i przestrzeni roboczych o zakresie rozmowy. Kolejne wiadomości czatu korzystają z tego samego kontekstu kroku; widoczny czat otrzymuje tylko wynik workflow. Czaty testowe mają osobne sesje, a rozpoczęcie nowego czatu testowego resetuje kontekst. Rozmowy wewnętrzne nie pojawiają się na liście czatów i są usuwane wraz z workflow lub czatem źródłowym.
+
+Agenci wywoływani z workflow mogą używać narzędzi AgenticOS MCP w workerze w tle, tak samo jak w czacie internetowym.
 
 ## Kanwa i dodawanie kroków { #the-canvas-and-the-palette }
 

@@ -7,11 +7,14 @@ for every job it will run: redaction and tracing before anything logs (#440,
 view and its browse plans on (#2099, #2128).
 """
 
-from collections.abc import Coroutine
+import asyncio
+from collections.abc import AsyncGenerator, Coroutine
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from starlette.datastructures import State
+from starlette.types import ASGIApp
 
 from app.worker import __main__ as worker_main
 from app.worker.executors import ChildPool, InProcessExecutor
@@ -119,3 +122,68 @@ async def test_serve_connects_what_a_fired_run_publishes_on_and_declares_the_sch
     assert settings.worker_id.startswith(f"{settings.hostname}:")
     worker.run.assert_awaited_once()
     closed.assert_awaited_once_with()
+
+
+@pytest.mark.parametrize("pool", [Pool.AGENT, Pool.WORKFLOW, Pool.SYSTEM, Pool.INGEST])
+@pytest.mark.parametrize("fails", [False, True])
+async def test_worker_keeps_its_platform_mcp_alive_until_agent_jobs_drain(
+    monkeypatch: pytest.MonkeyPatch, pool: Pool, fails: bool
+) -> None:
+    from contextlib import asynccontextmanager
+
+    from app.main import app
+    from app.services import platform_mcp
+
+    order: list[str] = []
+    marker = object()
+    monkeypatch.setattr(app.state, "platform_mcp", None, raising=False)
+
+    @asynccontextmanager
+    async def serving_mcp(application: ASGIApp, state: State) -> AsyncGenerator[None]:
+        assert application is app and state is app.state
+        order.append("mcp started")
+        state.platform_mcp = marker
+        try:
+            yield
+        finally:
+            order.append("mcp stopped")
+            state.platform_mcp = None
+
+    @asynccontextmanager
+    async def session() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    async def run(_stop: asyncio.Event) -> None:
+        assert app.state.platform_mcp is (None if pool is Pool.INGEST else marker)
+        order.append("jobs drained")
+        if fails:
+            raise RuntimeError("worker failed")
+
+    async def close() -> None:
+        order.append("db closed")
+
+    worker = MagicMock()
+    worker.run = run
+    with (
+        patch("app.services.change_feed.connect_in_worker", new=AsyncMock()),
+        patch("app.services.live_browse.connect_in_worker", new=AsyncMock()),
+        patch("app.services.browse_plans.connect_in_worker", new=AsyncMock()),
+        patch.object(worker_main, "claim_pooled_engines"),
+        patch.object(worker_main, "get_db_context", session),
+        patch.object(worker_main.schedules, "declare", new=AsyncMock()),
+        patch.object(worker_main, "executors_for", return_value={}),
+        patch.object(worker_main, "Worker", return_value=worker),
+        patch.object(worker_main, "close_db", close),
+        patch.object(platform_mcp, "serve_platform_mcp", serving_mcp),
+    ):
+        if fails:
+            with pytest.raises(RuntimeError, match="worker failed"):
+                await worker_main.serve([pool])
+        else:
+            await worker_main.serve([pool])
+    assert app.state.platform_mcp is None
+    assert order == (
+        ["jobs drained", "db closed"]
+        if pool is Pool.INGEST
+        else ["mcp started", "jobs drained", "mcp stopped", "db closed"]
+    )

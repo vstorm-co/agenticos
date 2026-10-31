@@ -974,6 +974,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Workers keep the internal AgenticOS MCP server available until agent and workflow jobs finish, so platform-bound agents can run outside the web API process.
+
 - Workflow agent steps retain private conversation history and sandbox workspaces, including isolated test chats, without duplicating intermediate responses in the user chat.
 - Bound public form proxy reads, release abandoned image uploads, retain archived agent identities and enforce principal and notification-channel limits.
 

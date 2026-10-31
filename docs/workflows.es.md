@@ -1,5 +1,5 @@
 ---
-source_sha: "c5ec68694f98"
+source_sha: "102f4da698e8"
 ---
 
 # Workflows { #workflows }
@@ -96,6 +96,8 @@ versiones, ejecuciones y permisos compartidos; uno cuyas ejecuciones no han term
 rechaza con `WORKFLOW_IN_USE`.
 
 Los pasos de agentes conservan conversaciones privadas para el historial del modelo y los espacios de trabajo vinculados a la conversación. Los turnos del chat reutilizan el contexto del paso; el chat visible recibe solo el resultado del flujo. Los chats de prueba tienen sesiones aisladas y un nuevo chat de prueba reinicia el contexto. Las conversaciones internas no aparecen en la lista de chats y se eliminan junto con su flujo o chat de origen.
+
+Los agentes llamados desde flujos pueden usar sus herramientas de AgenticOS MCP tanto en el worker en segundo plano como en el chat web.
 
 ## El lienzo y cómo añadir pasos { #the-canvas-and-the-palette }
 

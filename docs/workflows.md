@@ -88,6 +88,8 @@ runs have not ended is refused with `WORKFLOW_IN_USE`.
 
 Agent steps keep private conversations for their model history and conversation-scoped workspaces. Chat turns reuse the same step context; the visible chat receives only the workflow result. Test chats have isolated sessions, and starting a new test chat resets that context. These internal conversations are absent from the chat list and are removed with their workflow or source chat.
 
+Agents called from workflows can use their AgenticOS MCP tools in the background worker as well as in the web chat.
+
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 
 The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
