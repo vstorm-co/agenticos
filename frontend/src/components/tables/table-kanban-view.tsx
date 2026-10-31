@@ -260,7 +260,7 @@ function KanbanLane({
 
   return (
     <div
-      className="bg-muted/30 data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-72 shrink-0 flex-col gap-3 rounded-xl p-3 transition-colors data-[drag-over=true]:ring-2"
+      className="bg-muted/30 data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-72 shrink-0 flex-col gap-3 rounded-xl p-3 transition-colors data-[drag-over=true]:ring-2 data-[drag-over=true]:ring-inset"
       {...laneDropProps}
     >
       <div className="flex items-center justify-between px-1">
@@ -483,7 +483,7 @@ export function TableKanbanView({
   return (
     <MotionConfig reducedMotion="user">
       <LayoutGroup>
-        <div data-kanban-board className="flex gap-3 overflow-x-auto pb-2">
+        <div data-kanban-board className="flex gap-3 overflow-x-auto p-3">
           {lanes.map((lane) => (
             <KanbanLane
               key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}

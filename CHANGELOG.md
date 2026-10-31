@@ -957,6 +957,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Give Kanban lanes room below the toolbar and draw the drop highlight inside the lane so its top edge stays visible while dragging.
+
 - Keep workflow step titles, rename fields and descriptions aligned without clipped focus borders or narrow placeholder-only name inputs.
 
 - Align table-card footers, put quick add immediately after table rows and pin run-history pagination to the panel bottom. Keep run history and detail clear of floating controls using the standard page clearance. Remove the table workspace expansion toggle, simplify run details and give pasted JSON a dedicated import editor.
