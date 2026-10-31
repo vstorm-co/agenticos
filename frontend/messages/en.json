@@ -9766,10 +9766,27 @@
       "hint": "Name a column in braces. Use + - * / %, = <> < > and, or, not, and IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     },
     "markdown": {
+      "insertBlock": "Insert a block",
+      "noBlocks": "No matching blocks",
+      "uploadingImage": "Uploading image…",
+      "imageUploadError": "Could not paste the image. Use PNG, JPEG, GIF or WebP up to 5 MiB and try again.",
+      "blocks": {
+        "todo": "To-do list",
+        "heading": "Heading",
+        "bullet": "Bulleted list",
+        "numbered": "Numbered list",
+        "quote": "Quote",
+        "code": "Code block",
+        "divider": "Divider",
+        "table": "Table",
+        "image": "Image",
+        "video": "Video",
+        "link": "Link"
+      },
       "write": "Write",
       "preview": "Preview",
       "expand": "Expand editor",
-      "hint": "Write Markdown. Manage record properties in table columns.",
+      "hint": "Write Markdown. Type / for blocks or paste images. Manage record properties in table columns.",
       "empty": "Nothing to preview yet.",
       "done": "Done",
       "createdAt": "Created",

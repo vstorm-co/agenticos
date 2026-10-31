@@ -57,6 +57,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.resource_grant import Visibility
 from app.db.models.virtual_table import (
     VirtualTable,
+    VirtualTableMedia,
     VirtualTableOutbox,
     VirtualTableReceipt,
     VirtualTableRecord,
@@ -74,6 +75,9 @@ async def storage_bytes(db: AsyncSession, *, organization_id: UUID) -> int:
     Callers serialize checks and writes with the organization's storage lock.
     """
     totals = union_all(
+        select(
+            func.coalesce(func.sum(func.octet_length(VirtualTableMedia.data)), 0).label("bytes")
+        ).where(VirtualTableMedia.organization_id == organization_id),
         select(
             func.coalesce(func.sum(func.pg_column_size(VirtualTableRecord.values)), 0).label(
                 "bytes"
@@ -1121,3 +1125,29 @@ async def set_receipt_outcome(
 ) -> None:
     receipt.outcome = outcome
     await db.flush()
+
+
+async def create_media(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID, mime_type: str, data: bytes
+) -> VirtualTableMedia:
+    """Persist an image in its quota admission transaction."""
+    media = VirtualTableMedia(
+        organization_id=organization_id, table_id=table_id, mime_type=mime_type, data=data
+    )
+    db.add(media)
+    await db.flush()
+    await db.refresh(media)
+    return media
+
+
+async def get_media(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID, media_id: UUID
+) -> VirtualTableMedia | None:
+    """Resolve an image only inside its tenant and table."""
+    return await db.scalar(
+        select(VirtualTableMedia).where(
+            VirtualTableMedia.organization_id == organization_id,
+            VirtualTableMedia.table_id == table_id,
+            VirtualTableMedia.id == media_id,
+        )
+    )

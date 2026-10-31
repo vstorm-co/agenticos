@@ -157,3 +157,11 @@ export function deleteRecord(
     `/tables/${tableId}/records/${recordId}?expected_revision=${expectedRevision}`,
   );
 }
+
+/** Pasted media inherits the table's grants and storage ceiling. */
+export function uploadTableImage(
+  tableId: string,
+  file: File,
+): Promise<{ id: string; url: string }> {
+  return apiClient.upload(`/tables/${tableId}/media`, file);
+}

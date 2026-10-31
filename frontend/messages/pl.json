@@ -10448,10 +10448,27 @@
       "hint": "Kolumnę podaj w nawiasach klamrowych. Działa + - * / %, = <> < > and, or, not oraz IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     },
     "markdown": {
+      "insertBlock": "Wstaw blok",
+      "noBlocks": "Brak pasujących bloków",
+      "uploadingImage": "Przesyłanie zdjęcia…",
+      "imageUploadError": "Nie udało się wkleić zdjęcia. Użyj PNG, JPEG, GIF lub WebP do 5 MiB i spróbuj ponownie.",
+      "blocks": {
+        "todo": "Lista zadań",
+        "heading": "Nagłówek",
+        "bullet": "Lista punktowana",
+        "numbered": "Lista numerowana",
+        "quote": "Cytat",
+        "code": "Blok kodu",
+        "divider": "Separator",
+        "table": "Tabela",
+        "image": "Zdjęcie",
+        "video": "Wideo",
+        "link": "Link"
+      },
       "write": "Pisz",
       "preview": "Podgląd",
       "expand": "Powiększ edytor",
-      "hint": "Pisz w Markdown. Właściwości rekordu ustawiaj w kolumnach tabeli.",
+      "hint": "Pisz w Markdown. Wpisz /, aby wstawić blok, lub wklej zdjęcie. Właściwości rekordu zmienisz w kolumnach tabeli.",
       "empty": "Nie ma jeszcze treści do podglądu.",
       "done": "Gotowe",
       "createdAt": "Utworzono",

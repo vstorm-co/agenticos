@@ -38,6 +38,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     String,
     UniqueConstraint,
     text,
@@ -366,3 +367,33 @@ class VirtualTableOutbox(Base):
 
     def __repr__(self) -> str:
         return f"<VirtualTableOutbox(event={self.event_type}, record={self.record_id})>"
+
+
+class VirtualTableMedia(Base, TimestampMixin):
+    """Bounded images retained with the table, protected by its grants."""
+
+    __tablename__ = "virtual_table_media"
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=False, index=True
+    )
+    table_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    mime_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "table_id"],
+            ["virtual_tables.organization_id", "virtual_tables.id"],
+            ondelete="CASCADE",
+            name="virtual_table_media_org_table_fkey",
+        ),
+        CheckConstraint("octet_length(data) BETWEEN 1 AND 5242880", name="media_size"),
+        CheckConstraint(
+            "mime_type IN ('image/png', 'image/jpeg', 'image/gif', 'image/webp')", name="media_type"
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<VirtualTableMedia(id={self.id}, table={self.table_id})>"

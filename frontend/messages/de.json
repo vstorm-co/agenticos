@@ -9645,10 +9645,27 @@
       "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
     },
     "markdown": {
+      "insertBlock": "Block einfügen",
+      "noBlocks": "Keine passenden Blöcke",
+      "uploadingImage": "Bild wird hochgeladen…",
+      "imageUploadError": "Das Bild konnte nicht eingefügt werden. Verwenden Sie PNG, JPEG, GIF oder WebP bis 5 MiB und versuchen Sie es erneut.",
+      "blocks": {
+        "todo": "Aufgabenliste",
+        "heading": "Überschrift",
+        "bullet": "Aufzählung",
+        "numbered": "Nummerierte Liste",
+        "quote": "Zitat",
+        "code": "Codeblock",
+        "divider": "Trennlinie",
+        "table": "Tabelle",
+        "image": "Bild",
+        "video": "Video",
+        "link": "Link"
+      },
       "write": "Schreiben",
       "preview": "Vorschau",
       "expand": "Editor vergrößern",
-      "hint": "Schreibe Markdown. Verwalte Datensatzeigenschaften in den Tabellenspalten.",
+      "hint": "Schreiben Sie Markdown. Tippen Sie / für Blöcke oder fügen Sie Bilder ein. Datensatzeigenschaften verwalten Sie in den Tabellenspalten.",
       "empty": "Noch kein Inhalt für die Vorschau.",
       "done": "Fertig",
       "createdAt": "Erstellt",

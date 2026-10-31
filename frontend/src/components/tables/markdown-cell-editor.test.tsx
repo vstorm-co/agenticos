@@ -2,8 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { RecordCellEditor } from "./record-cell-editor";
+import { uploadTableImage } from "@/lib/tables-api";
 import { markdownDocument } from "@/lib/markdown-document";
 import type { ColumnDef } from "@/types/tables";
+
+vi.mock("@/lib/tables-api", () => ({ uploadTableImage: vi.fn() }));
 
 const column: ColumnDef = {
   id: "notes",
@@ -161,4 +164,101 @@ describe("Markdown table cells", () => {
     rerender(<RecordCellEditor column={column} value="# Updated" onChange={vi.fn()} />);
     expect(await screen.findByRole("heading", { name: "Updated" })).toBeVisible();
   });
+});
+
+it("inserts a todo from the searchable slash menu using the keyboard", async () => {
+  const change = vi.fn();
+  render(
+    <>
+      <RecordCellEditor column={column} value={"Before\n"} onChange={change} />
+      <button>Outside</button>
+    </>,
+  );
+  const input = screen.getByRole("textbox", { name: "Notes" });
+  await userEvent.click(input);
+  if (!(input instanceof HTMLTextAreaElement)) throw new Error("Expected textarea");
+  input.setSelectionRange(input.value.length, input.value.length);
+  await userEvent.keyboard("/todo");
+  expect(input).toHaveValue("Before\n/todo");
+  expect(screen.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
+  await userEvent.keyboard("{Enter}");
+  expect(input).toHaveValue("Before\n- [ ] ");
+  await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+  expect(change).toHaveBeenCalledWith("Before\n- [ ] ");
+});
+
+it("does not treat a slash inside a URL as a block command", async () => {
+  render(<RecordCellEditor column={column} value="" onChange={vi.fn()} />);
+  await userEvent.type(screen.getByRole("textbox", { name: "Notes" }), "https://example.test/");
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+});
+
+it("pastes an image at the cursor, saves its scoped address and preserves surrounding text", async () => {
+  vi.mocked(uploadTableImage).mockResolvedValueOnce({
+    id: "image",
+    url: "/api/tables/table/media/image",
+  });
+  const change = vi.fn();
+  render(
+    <RecordCellEditor tableId="table" column={column} value="Before after" onChange={change} />,
+  );
+  const input = screen.getByRole("textbox", { name: "Notes" });
+  await userEvent.click(input);
+  if (!(input instanceof HTMLTextAreaElement)) throw new Error("Expected a textarea");
+  input.setSelectionRange(7, 7);
+  const file = new File(["PNG"], "clipboard.png", { type: "image/png" });
+  fireEvent.paste(input, { clipboardData: { files: [file] } });
+  await waitFor(() =>
+    expect(change).toHaveBeenCalledWith("Before ![](/api/tables/table/media/image)after"),
+  );
+  expect(uploadTableImage).toHaveBeenCalledWith("table", file);
+});
+
+it("keeps the document unchanged and explains a failed image upload", async () => {
+  vi.mocked(uploadTableImage).mockRejectedValueOnce(new Error("Denied"));
+  const change = vi.fn();
+  render(<RecordCellEditor tableId="table" column={column} value="Keep me" onChange={change} />);
+  const input = screen.getByRole("textbox", { name: "Notes" });
+  fireEvent.paste(input, {
+    clipboardData: { files: [new File(["PNG"], "clipboard.png", { type: "image/png" })] },
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not paste the image");
+  expect(input).toHaveValue("Keep me");
+  expect(change).not.toHaveBeenCalled();
+});
+
+it("navigates block choices and lets Escape close the menu without replacing text", async () => {
+  render(<RecordCellEditor column={column} value="" onChange={vi.fn()} />);
+  const input = screen.getByRole("textbox", { name: "Notes" });
+  await userEvent.type(input, "/");
+  await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowUp}{Enter}");
+  expect(input).toHaveValue("## ");
+  await userEvent.clear(input);
+  await userEvent.type(input, "/missing-block");
+  expect(screen.getByText("No matching blocks")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  expect(input).toHaveValue("/missing-block");
+});
+
+it("ignores a completed image upload after the record editor unmounts", async () => {
+  let finish: ((image: { id: string; url: string }) => void) | undefined;
+  vi.mocked(uploadTableImage).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const change = vi.fn();
+  const mounted = render(
+    <RecordCellEditor tableId="table" column={column} value="Keep" onChange={change} />,
+  );
+  fireEvent.paste(screen.getByRole("textbox", { name: "Notes" }), {
+    clipboardData: { files: [new File(["PNG"], "image.png", { type: "image/png" })] },
+  });
+  expect(screen.getByRole("status")).toHaveTextContent("Uploading image");
+  mounted.unmount();
+  finish?.({ id: "late", url: "/api/tables/table/media/late" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(change).not.toHaveBeenCalled();
 });

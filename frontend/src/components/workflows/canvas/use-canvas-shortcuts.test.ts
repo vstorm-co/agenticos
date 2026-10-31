@@ -221,3 +221,14 @@ describe("the picker and the sheet from the keyboard", () => {
     expect(store.getState().overlay).toBeNull();
   });
 });
+
+it("leaves navigation and editing keys inside a canvas dialog to that dialog", () => {
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  const button = document.createElement("button");
+  dialog.append(button);
+  const { handle } = handlerFor(false);
+  const event = keyEvent({ key: "Tab", target: button });
+  handle(event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+});

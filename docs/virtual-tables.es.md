@@ -1,5 +1,5 @@
 ---
-source_sha: "07d0e3bf20fc"
+source_sha: "fe56f1c799b3"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -24,6 +24,8 @@ Cada tabla muestra los campos bloqueados `created_at`, `updated_at`, `created_by
 Configura un **Default value** con su tipo en los ajustes o al añadir una columna. Los registros nuevos lo usan solo si se omite el campo; un valor explícito o null tiene prioridad. Al enviar un esquema, los valores predeterminados de selección pueden usar IDs o etiquetas; el servidor guarda IDs. Elige el color de cada opción en su lista; **Automatic** conserva la paleta original. Cambiar el color mantiene los IDs y la revisión de significado de la columna.
 
 La entrada rápida está justo después de las filas cargadas, en su área de desplazamiento. El CSV de la consola incluye las cuatro propiedades del registro. Las exportaciones API mantienen su formato salvo que se solicite `include_metadata: true`. Al crear una tabla desde un CSV exportado se omiten las propiedades del sistema; los registros importados reciben nuevos metadatos del sistema.
+
+En un documento Markdown, escribe `/` al principio de una línea para buscar un bloque: tarea, título, lista, cita, código, separador, tabla, imagen, vídeo o enlace. Las flechas y Enter eligen el bloque; Escape cierra el menú. Pega imágenes copiadas directamente en el editor. Las imágenes PNG, JPEG, GIF y WebP de hasta 5 MiB se guardan con la tabla, cuentan para su cuota y respetan sus permisos actuales. Siguen disponibles tras archivar la tabla, también mediante las referencias del historial de registros.
 
 ## Clientes externos { #external-clients }
 

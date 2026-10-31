@@ -775,6 +775,7 @@ def test_the_openapi_document_lists_429_on_every_write_and_402_only_where_someth
         (f"{prefix}/{{table_id}}/records/export", "post"),
     }
     storing = {
+        (f"{prefix}/{{table_id}}/media", "post"),
         (prefix, "post"),
         (f"{prefix}/{{table_id}}/records", "post"),
         (f"{prefix}/{{table_id}}/records/{{record_id}}", "patch"),
@@ -791,3 +792,26 @@ def test_the_export_is_served_by_a_table_service_on_the_session_it_is_given():
     session = MagicMock()
 
     assert deps.get_streaming_virtual_table_service(session).db is session
+
+
+async def test_table_image_upload_and_private_bytes(client, service):
+    from app.db.models.virtual_table import VirtualTableMedia
+
+    media_id = uuid.uuid4()
+    image = VirtualTableMedia(id=media_id, data=b"\x89PNG\r\n\x1a\n", mime_type="image/png")
+    service.upload_image = AsyncMock(return_value=image)
+    service.read_image = AsyncMock(return_value=image)
+    async with client() as http:
+        uploaded = await http.post(
+            _url(f"/{_TABLE}/media"), files={"file": ("image.png", image.data, "image/png")}
+        )
+        assert uploaded.status_code == 201
+        assert (
+            uploaded.json()["url"]
+            == f"/api/tables/{_TABLE}/media/{media_id}?organization_id={_ORG}"
+        )
+        served = await http.get(_url(f"/{_TABLE}/media/{media_id}"))
+        assert served.content == image.data
+        assert served.headers["cache-control"] == "private, no-store"
+        assert served.headers["x-content-type-options"] == "nosniff"
+        assert served.headers["content-type"] == "image/png"

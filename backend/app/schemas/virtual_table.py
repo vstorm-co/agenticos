@@ -515,3 +515,10 @@ class ErrorEnvelope(_Schema):
     """The one error shape every table route answers with, for OpenAPI clients."""
 
     error: ErrorBody
+
+
+class TableImageRead(BaseModel):
+    """A table-scoped address, with no bytes or storage details in JSON."""
+
+    id: UUID
+    url: str

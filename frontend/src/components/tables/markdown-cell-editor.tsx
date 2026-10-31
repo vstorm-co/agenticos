@@ -15,16 +15,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  Textarea,
 } from "@/components/ui";
 import { DIALOG_BODY, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { DocumentProperties, type DocumentMetadata } from "./document-properties";
 import { withDocumentBody } from "@/lib/document-properties";
+import { MarkdownInput } from "./markdown-input";
 import { markdownDocument } from "@/lib/markdown-document";
 
 /** Metadata and Markdown share one buffered cell; body edits preserve the header. */
 export function MarkdownCellEditor({
+  tableId,
+  onCommitValue,
   fill,
   metadata,
   template,
@@ -37,6 +39,8 @@ export function MarkdownCellEditor({
   invalid,
   describedBy,
 }: {
+  tableId?: string;
+  onCommitValue?: (value: string) => void;
   metadata?: DocumentMetadata;
   template?: string;
   id: string;
@@ -174,13 +178,15 @@ export function MarkdownCellEditor({
           )}
         </div>
       ) : (
-        <Textarea
+        <MarkdownInput
+          tableId={tableId}
           id={fieldId}
           aria-label={label}
           aria-invalid={invalid}
           aria-describedby={describedBy}
           value={parts.body}
-          onChange={(event) => onChange(withDocumentBody(value, event.target.value))}
+          onValueChange={(body) => onChange(withDocumentBody(value, body))}
+          onImageInserted={(body) => onCommitValue?.(withDocumentBody(value, body))}
           disabled={disabled}
           readOnly={disabled}
           maxLength={100000}

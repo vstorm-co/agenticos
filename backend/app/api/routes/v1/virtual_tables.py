@@ -44,7 +44,7 @@ is refused. Keys are scoped to the caller and the kind of write. A replayed dele
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
+from fastapi import APIRouter, Depends, Header, Path, Query, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
@@ -78,10 +78,12 @@ from app.schemas.virtual_table import (
     SchemaVersionList,
     SortDirection,
     TableCreate,
+    TableImageRead,
     TableList,
     TableRead,
     TableUpdate,
 )
+from app.services.virtual_tables.media import MAX_IMAGE_BYTES
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -462,4 +464,42 @@ async def delete_record(
         record_id,
         expected_revision=expected_revision,
         operation_key=idempotency_key,
+    )
+
+
+@router.post(
+    "/{table_id}/media",
+    status_code=201,
+    response_model=TableImageRead,
+    responses={
+        **_STORING_REFUSALS,
+        400: {"model": ErrorEnvelope, "description": "Unsupported or oversized image"},
+    },
+    dependencies=[Depends(limit_table_write)],
+)
+async def upload_table_image(
+    table_id: UUID, file: UploadFile, ctx: Auth, service: VirtualTableSvc
+) -> Any:
+    """Paste a raster image (at most 5 MiB), visible only to table readers."""
+    try:
+        data = await file.read(MAX_IMAGE_BYTES + 1)
+    finally:
+        await file.close()
+    media = await service.upload_image(ctx, table_id, data)
+    return TableImageRead(
+        id=media.id,
+        url=f"/api/tables/{table_id}/media/{media.id}?organization_id={ctx.organization_id}",
+    )
+
+
+@router.get("/{table_id}/media/{media_id}", response_model=None, responses=_REFUSALS)
+async def read_table_image(
+    table_id: UUID, media_id: UUID, ctx: Auth, service: VirtualTableSvc
+) -> Any:
+    """Read an image under the table's current grants; never cache private bytes."""
+    media = await service.read_image(ctx, table_id, media_id)
+    return Response(
+        content=media.data,
+        media_type=media.mime_type,
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
     )

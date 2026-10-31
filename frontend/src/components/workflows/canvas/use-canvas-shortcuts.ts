@@ -30,7 +30,9 @@ export function pasteFromClipboard(store: WorkflowEditorState): void {
 function isTyping(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
-    target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]') !== null
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], [role="textbox"], [role="dialog"], [role="menu"], [role="listbox"]',
+    ) !== null
   );
 }
 

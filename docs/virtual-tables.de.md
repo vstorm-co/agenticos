@@ -1,5 +1,5 @@
 ---
-source_sha: "07d0e3bf20fc"
+source_sha: "fe56f1c799b3"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -24,6 +24,8 @@ Jede Tabelle zeigt die gesperrten Datensatzfelder `created_at`, `updated_at`, `c
 Lege einen typisierten **Standardwert** in den Spalteneinstellungen oder beim Hinzufügen einer Spalte fest. Neue Datensätze verwenden ihn nur, wenn das Feld fehlt; ein expliziter Wert oder null hat Vorrang. Auswahl-Standardwerte dürfen beim Einreichen eines Schemas IDs oder Bezeichnungen nennen; der Server speichert IDs. Wähle die Farbe jeder Option in ihrer Liste; **Automatisch** behält die bisherige Palette. Farbänderungen erhalten Options-IDs und die Bedeutungsrevision der Spalte.
 
 Die Schnelleingabe steht direkt hinter den geladenen Zeilen in deren Scrollbereich. Der CSV-Export der Konsole enthält die vier Datensatzeigenschaften. API-Exporte behalten ihr bisheriges Format, sofern nicht `include_metadata: true` angefordert wird. Beim Erstellen einer Tabelle aus einem exportierten CSV werden Systemeigenschaften übersprungen; importierte Datensätze erhalten neue Systemmetadaten.
+
+Geben Sie in einem Markdown-Dokument `/` am Zeilenanfang ein, um einen Block zu suchen: Aufgabe, Überschrift, Liste, Zitat, Code, Trennlinie, Tabelle, Bild, Video oder Link. Pfeiltasten und Eingabe wählen einen Block; Escape schließt das Menü. Kopierte Bilder lassen sich direkt einfügen. PNG-, JPEG-, GIF- und WebP-Bilder bis 5 MiB werden mit der Tabelle gespeichert, zählen zu ihrem Speicherlimit und unterliegen ihren aktuellen Zugriffsrechten. Sie bleiben nach der Archivierung verfügbar, auch über Verweise im Datensatzverlauf.
 
 ## Externe Clients { #external-clients }
 

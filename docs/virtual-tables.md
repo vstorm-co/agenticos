@@ -20,6 +20,8 @@ Set a typed **Default value** in column settings or when adding a column. New re
 
 Quick add sits directly after the loaded rows in their scroll area. The console's CSV export includes the four record properties. API exports keep their existing shape unless `include_metadata: true` is requested. System properties are skipped when creating a table from an exported CSV; imported records receive fresh system metadata.
 
+In a Markdown document, type `/` at the beginning of a line to search for a block: to-do, heading, list, quote, code, divider, table, image, video or link. Arrow keys and Enter choose a block; Escape closes the menu. Paste copied images directly into the editor. PNG, JPEG, GIF and WebP images up to 5 MiB are stored with the table, count against its storage quota and follow its current access grants. Images remain available when the table is archived, including references retained in record history.
+
 ## External clients { #external-clients }
 
 Write provenance is recorded separately from the member authorizing it. New writes store `created_source` and `updated_source` with the source kind, ID and display name: person, agent, API key, workflow or system. The console shows a person's avatar, an agent's portrait, or an API/workflow icon beside the name in system columns and document properties. Creating sets both sources; later writes preserve the creator. Existing records retain their recorded member without inventing a historical origin. These fields cannot be supplied through record inputs or Markdown.

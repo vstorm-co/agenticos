@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Document blocks and pasted images.** Markdown table documents offer a searchable `/` block menu and accept clipboard images at the cursor. Images inherit table access, survive archiving and share the table storage quota, with a 5 MiB limit per image.
+
 - **HTTP authentication from Vault.** Request, upload and download steps share a method-aware authentication form for Bearer, Basic Auth, header and query API keys. Create origin-bound credentials in place with the API origin prefilled, keep only their IDs in workflows, and configure custom authorization prefixes such as `Token`.
 
 - **SMTP accounts for workflow email.** Add your own server, sender and login directly from the email step. Credentials stay encrypted together in Vault; workflows reference only the account ID. STARTTLS and implicit TLS verify certificates, access is checked at publication and runtime, and revoked accounts never fall back to another sender.

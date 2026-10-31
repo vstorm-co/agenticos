@@ -1,5 +1,5 @@
 ---
-source_sha: "07d0e3bf20fc"
+source_sha: "fe56f1c799b3"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -23,6 +23,8 @@ Każda tabela pokazuje zablokowane pola `created_at`, `updated_at`, `created_by`
 Typowaną **Wartość domyślną** ustawisz w ustawieniach lub przy dodawaniu kolumny. Nowe rekordy używają jej tylko po pominięciu pola; jawna wartość lub null ma pierwszeństwo. Domyślne opcje select mogą przy wysyłaniu schematu wskazywać ID albo etykiety; serwer zapisuje ID. Kolor opcji wybierzesz na liście opcji; **Automatyczny** zachowuje dotychczasową paletę. Zmiana koloru zachowuje identyfikatory i rewizję znaczenia kolumny.
 
 Szybkie dodawanie jest bezpośrednio za załadowanymi wierszami, w ich obszarze przewijania. Eksport CSV w konsoli zawiera cztery właściwości rekordu. Eksport API zachowuje dotychczasowy format, chyba że podasz `include_metadata: true`. Przy tworzeniu tabeli z eksportowanego CSV pola systemowe są pomijane; importowane rekordy dostają nowe metadane systemowe.
+
+W dokumencie Markdown wpisz `/` na początku wiersza, aby wyszukać blok: zadanie, nagłówek, listę, cytat, kod, separator, tabelę, zdjęcie, wideo lub link. Strzałki i Enter wybierają blok; Escape zamyka menu. Skopiowane zdjęcia można wkleić bezpośrednio do edytora. Zdjęcia PNG, JPEG, GIF i WebP do 5 MiB są przechowywane z tabelą, wliczane do jej limitu miejsca i objęte jej bieżącymi uprawnieniami dostępu. Pozostają dostępne po archiwizacji tabeli, również przez odwołania zachowane w historii rekordów.
 
 ## Klienci zewnętrzni { #external-clients }
 

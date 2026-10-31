@@ -217,6 +217,8 @@ export function RecordDetailSheet({
                       {column.label}
                     </Label>
                     <RecordCellEditor
+                      key={`${record.id}:${column.id}`}
+                      tableId={tableId}
                       column={column}
                       metadata={record}
                       fillEditor={expanded && column.type === "rich_text"}

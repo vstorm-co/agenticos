@@ -161,6 +161,7 @@ function RatingCellInput({
 }
 
 function RichTextCellInput({
+  tableId,
   metadata,
   template,
   fillEditor,
@@ -172,6 +173,7 @@ function RichTextCellInput({
   errorId,
   error,
 }: {
+  tableId?: string;
   id: string;
   label: string;
   value: string;
@@ -186,6 +188,8 @@ function RichTextCellInput({
   const buffer = useTextBuffer(value, onChange);
   return (
     <MarkdownCellEditor
+      tableId={tableId}
+      onCommitValue={onChange}
       metadata={metadata}
       template={template}
       fill={fillEditor}
@@ -273,6 +277,7 @@ function NumberCellInput({
  * is shown); `null` means explicitly cleared.
  */
 export function RecordCellEditor({
+  tableId,
   metadata,
   fillEditor,
   column,
@@ -283,6 +288,7 @@ export function RecordCellEditor({
   error,
   placeholder,
 }: {
+  tableId?: string;
   column: ColumnDef;
   metadata?: DocumentMetadata;
   fillEditor?: boolean;
@@ -338,6 +344,7 @@ export function RecordCellEditor({
 
       {column.type === "rich_text" && (
         <RichTextCellInput
+          tableId={tableId}
           metadata={metadata}
           template={typeof column.default === "string" ? column.default : undefined}
           fillEditor={fillEditor}

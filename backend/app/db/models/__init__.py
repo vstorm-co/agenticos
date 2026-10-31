@@ -56,6 +56,7 @@ from app.db.models.context import ContextFile, ContextMode
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.virtual_table import (
     VirtualTable,
+    VirtualTableMedia,
     VirtualTableOutbox,
     VirtualTableReceipt,
     VirtualTableRecord,
@@ -227,6 +228,7 @@ __all__ = [
     "ContextMode",
     "AgentMemoryFile",
     "VirtualTable",
+    "VirtualTableMedia",
     "VirtualTableOutbox",
     "VirtualTableReceipt",
     "VirtualTableRecord",
