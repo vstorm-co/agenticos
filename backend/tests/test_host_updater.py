@@ -130,7 +130,12 @@ def instance(host, tmp_path, monkeypatch):
 
     monkeypatch.setattr(host, "HTTPSConnection", Connection)
     config = host.Config(
-        app, tmp_path / "state", tmp_path / "runtime", "agenticos", api_gid=os.getgid()
+        app,
+        tmp_path / "state",
+        tmp_path / "runtime",
+        "agenticos",
+        proxy="nginx",
+        api_gid=os.getgid(),
     )
     commands = Commands()
     updater = host.Updater(config, commands)
@@ -305,3 +310,115 @@ def test_unix_protocol_rejects_extra_fields_before_auditing_and_preserves_actor(
         finally:
             server.shutdown()
             thread.join()
+
+
+def test_proxy_choice_is_explicit_and_preserves_traefik_overlays(host, instance):
+    from dataclasses import replace
+
+    updater, commands = instance
+    compose = host.Compose(replace(updater.config, proxy="traefik"), commands)
+    assert any(arg.endswith("docker-compose-prod.traefik.yml") for arg in compose.args())
+    assert any(
+        arg.endswith("docker-compose-prod.frontend.traefik.yml")
+        for arg in compose.args(frontend=True)
+    )
+    with pytest.raises(host.Refused, match="unsupported_configuration"):
+        host.Compose(replace(updater.config, proxy=""), commands).args()
+
+
+def test_sandbox_compose_receives_the_host_docker_socket_group(host, instance, monkeypatch):
+    from types import SimpleNamespace
+
+    updater, _ = instance
+    (updater.config.app_dir / "backend/.env").write_text("SANDBOXD_TOKEN=local-test\n")
+    monkeypatch.delenv("DOCKER_GID", raising=False)
+    original = Path.stat
+
+    def stat(path, *args, **kwargs):
+        return (
+            SimpleNamespace(st_gid=998)
+            if str(path) == "/var/run/docker.sock"
+            else original(path, *args, **kwargs)
+        )
+
+    monkeypatch.setattr(Path, "stat", stat)
+    assert updater.compose.env()["DOCKER_GID"] == "998"
+    monkeypatch.setenv("DOCKER_GID", "123")
+    assert updater.compose.env()["DOCKER_GID"] == "123"
+    monkeypatch.setenv("DOCKER_GID", "invalid")
+    with pytest.raises(host.Refused, match="unsupported_configuration"):
+        updater.compose.env()
+
+
+def test_stale_dependency_health_is_retried_once_but_other_failures_are_not(
+    host, instance, monkeypatch
+):
+    updater, _ = instance
+    attempts = []
+
+    def run(*args, **kwargs):
+        attempts.append(args)
+        if len(attempts) == 1:
+            raise host.Refused("stale_health")
+        return ""
+
+    monkeypatch.setattr(updater.compose, "run", run)
+    updater.start_services(frontend=False, override=Path("pin.json"), release="1.33.0")
+    assert len(attempts) == 2
+
+    def fail(*args, **kwargs):
+        attempts.append(args)
+        raise host.Refused("command_failed")
+
+    monkeypatch.setattr(updater.compose, "run", fail)
+    with pytest.raises(host.Refused, match="command_failed"):
+        updater.start_services(frontend=False, override=Path("pin.json"), release="1.33.0")
+    assert len(attempts) == 3
+
+
+def test_drain_counts_only_live_heartbeats_and_unexpired_leases(host, instance):
+    updater, commands = instance
+    assert updater.active_work() == 0
+    query = commands.calls[-1][-1]
+    assert "COALESCE(GREATEST(heartbeat_at, updated_at, started_at), created_at)" in query
+    assert "make_interval(secs => 120.0)" in query
+    assert "modality != 'voice'" in query
+    assert "lease_until >= now()" in query
+    assert "heartbeat_at >= now() - interval '45 seconds'" in query
+
+
+def test_runtime_directory_is_preserved_across_service_restarts():
+    source = (Path(__file__).resolve().parents[2] / "deploy/updater/install.py").read_text()
+    assert "RuntimeDirectoryPreserve=yes" in source
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [(b"container db is unhealthy", "stale_health"), (b"permission denied", "command_failed")],
+)
+def test_commands_classifies_only_compose_health_failures(
+    host, tmp_path, monkeypatch, message, expected
+):
+    import subprocess
+
+    def fail(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, args[0], stderr=message)
+
+    monkeypatch.setattr(host.subprocess, "run", fail)
+    with pytest.raises(host.Refused, match=expected):
+        host.Commands().run(["docker", "compose", "up", "-d"], cwd=tmp_path)
+    with pytest.raises(host.Refused, match="command_failed"):
+        host.Commands().run(["git", "status"], cwd=tmp_path)
+
+
+@pytest.mark.parametrize("stopped", [False, True])
+def test_stale_health_retry_is_bounded_and_interruptible(host, instance, monkeypatch, stopped):
+    updater, _ = instance
+    from unittest.mock import Mock
+
+    run = Mock(side_effect=host.Refused("stale_health"))
+    monkeypatch.setattr(updater.compose, "run", run)
+    monkeypatch.setattr(updater.stop, "wait", lambda seconds: stopped)
+    with pytest.raises(host.Refused, match="interrupted" if stopped else "stale_health"):
+        updater.start_services(frontend=True, override=Path("pin.json"), release="1.33.0")
+    assert run.call_count == (1 if stopped else 2)

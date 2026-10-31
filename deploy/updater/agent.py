@@ -8,6 +8,7 @@ cannot supply paths, image references, repository URLs or shell commands.
 import argparse
 import fcntl
 import json
+import math
 import os
 import re
 import shutil
@@ -146,6 +147,7 @@ class Config:
     state_dir: Path
     runtime_dir: Path
     backend_project: str
+    proxy: str = ""
     frontend_project: str = "agenticos-frontend"
     api_gid: int = 1000
     min_free_bytes: int = 4 * 1024**3
@@ -159,6 +161,7 @@ class Config:
             state_dir=Path(text(value["state_dir"])).resolve(),
             runtime_dir=Path(text(value["runtime_dir"])).resolve(),
             backend_project=text(value["backend_project"]),
+            proxy=text(value.get("proxy", "")),
             frontend_project=text(value.get("frontend_project", "agenticos-frontend")),
             api_gid=int(number(value.get("api_gid", 1000))),
             min_free_bytes=int(number(value.get("min_free_bytes", 4 * 1024**3))),
@@ -187,12 +190,20 @@ class Commands:
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=output or subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 timeout=timeout,
                 check=True,
                 user=user,
                 group=group,
             )
+        except subprocess.CalledProcessError as exc:
+            stale_health = (
+                args[:2] == ["docker", "compose"]
+                and "up" in args
+                and isinstance(exc.stderr, bytes)
+                and b"is unhealthy" in exc.stderr
+            )
+            raise Refused("stale_health" if stale_health else "command_failed") from exc
         except (subprocess.SubprocessError, OSError) as exc:
             raise Refused("command_failed") from exc
         return completed.stdout.decode().strip() if output is None else ""
@@ -207,6 +218,13 @@ class Compose:
         if release:
             env["AGENTICOS_VERSION"] = release
         env["UPDATE_STATE_DIR"] = str(self.config.runtime_dir)
+        docker_gid = env.get("DOCKER_GID") or self.values().get("DOCKER_GID")
+        if docker_gid is None and self.values().get("SANDBOXD_TOKEN"):
+            docker_gid = str(Path("/var/run/docker.sock").stat().st_gid)
+        if docker_gid is not None:
+            if not docker_gid.isdecimal():
+                raise Refused("unsupported_configuration")
+            env["DOCKER_GID"] = docker_gid
         return env
 
     def values(self) -> dict[str, str]:
@@ -223,7 +241,7 @@ class Compose:
     ) -> list[str]:
         checkout = checkout or self.config.app_dir
         values = self.values()
-        proxy = values.get("PROXY", "nginx") or "nginx"
+        proxy = self.config.proxy
         if proxy not in {"nginx", "traefik"}:
             raise Refused("unsupported_configuration")
         files = ["docker-compose-prod.frontend.yml"] if frontend else ["docker-compose-prod.yml"]
@@ -622,7 +640,19 @@ class Updater:
 
     def active_work(self) -> int:
         # The query returns one integer, never a transcript, account or job payload.
-        query = "SELECT (SELECT count(*) FROM agent_runs WHERE status = 'running') + (SELECT count(*) FROM background_jobs WHERE status = 'running') + (SELECT count(*) FROM voice_calls WHERE ended_at IS NULL);"
+        stale_seconds = float(self.compose.values().get("STALE_RUN_REAPED_AFTER_SECONDS", "120"))
+        if not math.isfinite(stale_seconds) or stale_seconds <= 0:
+            raise Refused("unsupported_configuration")
+        # Match the stale-run and voice reapers; expired leases cannot finish
+        # while new job claims are closed, and must not hold draining forever.
+        query = (
+            "SELECT (SELECT count(*) FROM agent_runs WHERE status = 'running' "  # noqa: S608 - only a finite, positive float is interpolated
+            "AND modality != 'voice' AND COALESCE(GREATEST(heartbeat_at, updated_at, started_at), "
+            f"created_at) >= now() - make_interval(secs => {stale_seconds})) + "
+            "(SELECT count(*) FROM background_jobs WHERE status = 'running' "
+            "AND lease_until >= now()) + (SELECT count(*) FROM voice_calls "
+            "WHERE ended_at IS NULL AND heartbeat_at >= now() - interval '45 seconds');"
+        )
         result = self.compose.run(
             [
                 "exec",
@@ -644,6 +674,17 @@ class Updater:
             cwd=self.config.app_dir,
         )
         return status == "healthy"
+
+    def start_services(self, *, frontend: bool, override: Path, release: str) -> None:
+        args = ["up", "-d", "--pull", "never", "--wait", "--wait-timeout", "180"]
+        try:
+            self.compose.run(args, frontend=frontend, override=override, release=release)
+        except Refused as exc:
+            if exc.code != "stale_health":
+                raise
+            if self.stop.wait(15):
+                raise Refused("interrupted") from exc
+            self.compose.run(args, frontend=frontend, override=override, release=release)
 
     def _apply(self, operation: Operation) -> None:
         if self.git("rev-parse", "HEAD") != operation.previous_commit or self.git(
@@ -687,12 +728,7 @@ class Updater:
                 self.config.state_dir
                 / f"{operation.id}-{'frontend' if frontend else 'backend'}.json"
             )
-            self.compose.run(
-                ["up", "-d", "--pull", "never", "--wait", "--wait-timeout", "180"],
-                frontend=frontend,
-                override=override,
-                release=operation.version,
-            )
+            self.start_services(frontend=frontend, override=override, release=operation.version)
         self.update("checking")
         if not self.healthy("app", frontend=False) or not self.healthy("frontend", frontend=True):
             raise Refused("health_failed")

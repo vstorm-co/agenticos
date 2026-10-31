@@ -26,8 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Deployment diagnostics with an hourly signed heartbeat, installation-scoped
   user pseudonyms, foreground web/desktop/mobile presence and a read-only admin
   status card. Reporting defaults to enabled even when an older `.env` omits
-  `DIAGNOSTICS_ENABLED`; set it to `false` to opt out. Collector URLs temporarily
-  default to localhost until a public analytics endpoint is configured. No
+  `DIAGNOSTICS_ENABLED`; set it to `false` to opt out. Reporting uses the Vstorm collector by default; operators can override its origins. No
   prompts, conversations, files, keys, account names or emails are sent.
 
 ## [1.32.0] - 2026-10-31

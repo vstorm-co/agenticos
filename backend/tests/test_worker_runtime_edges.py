@@ -489,3 +489,11 @@ async def test_executor_whose_start_fails_is_still_closed(repos: MagicMock) -> N
     with pytest.raises(RuntimeError, match="partial startup"):
         await worker.run(asyncio.Event())
     executor.close.assert_awaited_once()
+
+
+async def test_draining_worker_does_not_open_a_claim_transaction(monkeypatch):
+    sessions, opened = _sessions()
+    worker = _worker(sessions)
+    monkeypatch.setattr(runtime, "draining", lambda: True)
+    assert await worker._claim(Pool.SYSTEM) is None
+    assert opened == []

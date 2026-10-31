@@ -1,5 +1,5 @@
 ---
-source_sha: "fb6050687e09"
+source_sha: "b19982dc6555"
 ---
 
 # Configuración { #configuration }
@@ -1458,8 +1458,7 @@ el estado y el último informe correcto; no incluyen un interruptor.
 
 `DIAGNOSTICS_COLLECTOR_URL` es el origen del colector para el servidor;
 `DIAGNOSTICS_PUBLIC_URL` es el origen accesible desde el navegador, que el frontend
-también usa en su Content Security Policy. Ambos son temporalmente
-`http://localhost:8010`. Todavía no hay un dominio público de Vstorm configurado.
+también usa en su Content Security Policy. Ambos usan `https://analytics-agenticos.testapp.ovh` por defecto.
 Para un colector en el host de Docker Desktop, use
 `http://host.docker.internal:8010` para el servidor y `http://localhost:8010` para
 el navegador. Los orígenes remotos requieren HTTPS. No incluya rutas, credenciales

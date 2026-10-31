@@ -231,3 +231,38 @@ async def test_no_identity_does_not_create_one_from_presence_or_status(
     service = DiagnosticsService(mock_db_session)
     assert await service.presence(user_id=uuid4(), surface="mobile") is None
     assert (await service.status()).instance_id is None
+
+
+async def test_initialization_is_idempotent_when_identity_already_exists(
+    diagnostic_repo, mock_db_session
+):
+    await DiagnosticsService(mock_db_session).initialize()
+    repo.initialize.assert_not_awaited()
+
+
+async def test_hourly_job_commits_identity_before_sending(monkeypatch, mock_db_session):
+    from contextlib import asynccontextmanager
+
+    from app.worker.tasks import diagnostics_tasks
+
+    events = []
+
+    @asynccontextmanager
+    async def session():
+        events.append("open")
+        yield mock_db_session
+        events.append("commit")
+
+    async def initialize(self):
+        events.append("initialize")
+
+    async def send(self):
+        events.append("send")
+        return "sent"
+
+    monkeypatch.setattr(settings, "DIAGNOSTICS_ENABLED", True)
+    monkeypatch.setattr(diagnostics_tasks, "get_db_context", session)
+    monkeypatch.setattr(DiagnosticsService, "initialize", initialize)
+    monkeypatch.setattr(DiagnosticsService, "send", send)
+    assert await send_diagnostics(Tick(scheduled_for=NOW)) == "sent"
+    assert events == ["open", "initialize", "commit", "open", "send", "commit"]

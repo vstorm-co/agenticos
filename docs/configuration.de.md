@@ -1,5 +1,5 @@
 ---
-source_sha: "fb6050687e09"
+source_sha: "b19982dc6555"
 ---
 
 # Konfiguration { #configuration }
@@ -1527,8 +1527,7 @@ Bericht, aber keinen Schalter.
 
 `DIAGNOSTICS_COLLECTOR_URL` ist die Kollektor-Adresse für den Server;
 `DIAGNOSTICS_PUBLIC_URL` ist die browserseitige Adresse, die auch das Frontend für
-seine Content Security Policy liest. Beide sind vorläufig `http://localhost:8010`.
-Eine öffentliche Vstorm-Domain ist noch nicht konfiguriert. Für einen Kollektor auf
+seine Content Security Policy liest. Beide verwenden standardmäßig `https://analytics-agenticos.testapp.ovh`. Für einen Kollektor auf
 dem Docker-Desktop-Host serverseitig `http://host.docker.internal:8010` und öffentlich
 `http://localhost:8010` verwenden. Entfernte Adressen benötigen HTTPS. Keine Pfade,
 Zugangsdaten oder Abfrageparameter angeben.

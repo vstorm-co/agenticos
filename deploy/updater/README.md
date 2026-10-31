@@ -28,8 +28,12 @@ checkout, explicitly install the service (replace the path and project name):
 
 ```bash
 sudo /usr/bin/python3 deploy/updater/install.py \
-  --app-dir /srv/agenticos --backend-project agenticos --api-gid 1000
+  --app-dir /srv/agenticos --backend-project agenticos --api-gid 1000 --proxy nginx
 ```
+
+Choose `--proxy traefik` when the existing deployment uses Traefik, including
+when it was selected only through `make prod PROXY=traefik`. The proxy choice is
+persisted in the root-owned updater configuration.
 
 This copies the helper to `/opt/agenticos-updater`, installs its systemd unit and
 starts the helper. It does **not** restart or update AgenticOS. The default GID

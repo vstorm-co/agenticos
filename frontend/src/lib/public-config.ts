@@ -81,7 +81,7 @@ export interface PublicConfig {
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
-  diagnosticsUrl: "http://localhost:8010",
+  diagnosticsUrl: "https://analytics-agenticos.testapp.ovh",
   apiUrl: "http://localhost:8000",
   wsUrl: "ws://localhost:8000",
   artifactUrl: "http://localhost:8000",
@@ -145,7 +145,7 @@ export function readPublicConfig(env: Readonly<Record<string, string | undefined
       env.DIAGNOSTICS_ENABLED?.trim().toLowerCase() ?? "",
     )
       ? undefined
-      : origin(env.DIAGNOSTICS_PUBLIC_URL, "http://localhost:8010"),
+      : origin(env.DIAGNOSTICS_PUBLIC_URL, "https://analytics-agenticos.testapp.ovh"),
     apiUrl: origin(env.PUBLIC_API_URL, DEFAULT_PUBLIC_CONFIG.apiUrl),
     wsUrl: origin(env.PUBLIC_WS_URL, DEFAULT_PUBLIC_CONFIG.wsUrl),
     artifactUrl: origin(

@@ -62,8 +62,8 @@ class Settings(BaseSettings):
 
     # Missing from an older .env deliberately means enabled. No UI override.
     DIAGNOSTICS_ENABLED: bool = True
-    DIAGNOSTICS_COLLECTOR_URL: str = "http://localhost:8010"
-    DIAGNOSTICS_PUBLIC_URL: str = "http://localhost:8010"
+    DIAGNOSTICS_COLLECTOR_URL: str = "https://analytics-agenticos.testapp.ovh"
+    DIAGNOSTICS_PUBLIC_URL: str = "https://analytics-agenticos.testapp.ovh"
 
     @field_validator("DIAGNOSTICS_COLLECTOR_URL", "DIAGNOSTICS_PUBLIC_URL")
     @classmethod

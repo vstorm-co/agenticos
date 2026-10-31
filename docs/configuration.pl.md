@@ -1,5 +1,5 @@
 ---
-source_sha: "fb6050687e09"
+source_sha: "b19982dc6555"
 ---
 
 # Konfiguracja { #configuration }
@@ -1440,8 +1440,7 @@ wdrożenia pokazują stan i ostatni pomyślny raport; nie mają przełącznika.
 
 `DIAGNOSTICS_COLLECTOR_URL` to adres kolektora dla serwera, a
 `DIAGNOSTICS_PUBLIC_URL` to adres dostępny z przeglądarki, odczytywany też przez
-frontend dla Content Security Policy. Oba tymczasowo mają wartość
-`http://localhost:8010`. Publiczna domena kolektora Vstorm nie jest jeszcze ustawiona.
+frontend dla Content Security Policy. Oba domyślnie wskazują `https://analytics-agenticos.testapp.ovh`.
 Dla kolektora na hoście Docker Desktop ustaw serwerowi
 `http://host.docker.internal:8010`, pozostawiając publiczny adres
 `http://localhost:8010`. Zdalne adresy wymagają HTTPS. Nie podawaj ścieżek,

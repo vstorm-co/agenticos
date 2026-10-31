@@ -14,9 +14,11 @@ import sys
 from pathlib import Path
 
 
-def install(*, app_dir: Path, backend_project: str, api_gid: int) -> None:
+def install(*, app_dir: Path, backend_project: str, api_gid: int, proxy: str) -> None:
     if os.geteuid() != 0 or shutil.which("systemctl") is None:
         raise SystemExit("Run as root on a Linux server with systemd; see deploy/updater/README.md")
+    if proxy not in {"nginx", "traefik"}:
+        raise SystemExit("Choose the active production proxy: nginx or traefik")
     app_dir = app_dir.resolve(strict=True)
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", backend_project):
         raise SystemExit("Invalid Compose project name")
@@ -44,12 +46,13 @@ def install(*, app_dir: Path, backend_project: str, api_gid: int) -> None:
         "runtime_dir": str(runtime),
         "backend_project": backend_project,
         "api_gid": api_gid,
+        "proxy": proxy,
     }
     (program / "config.json").write_text(json.dumps(config))
     (program / "config.json").chmod(0o600)
     (Path("/etc/systemd/system") / "agenticos-updater.service").write_text(
         "[Unit]\nDescription=AgenticOS local Compose updater\nAfter=docker.service\nRequires=docker.service\n"
-        "[Service]\nType=simple\nUser=root\nUMask=0077\nRuntimeDirectory=agenticos-updater\nRuntimeDirectoryMode=0750\n"
+        "[Service]\nType=simple\nUser=root\nUMask=0077\nRuntimeDirectory=agenticos-updater\nRuntimeDirectoryMode=0750\nRuntimeDirectoryPreserve=yes\n"
         "ExecStart=/usr/bin/python3 /opt/agenticos-updater/agent.py --config /opt/agenticos-updater/config.json\n"
         "Restart=on-failure\nRestartSec=5\nTimeoutStopSec=1500\nNoNewPrivileges=true\nPrivateTmp=true\n"
         "[Install]\nWantedBy=multi-user.target\n"
@@ -73,6 +76,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app-dir", type=Path, required=True)
     parser.add_argument("--backend-project", required=True)
+    parser.add_argument("--proxy", choices=("nginx", "traefik"), required=True)
     parser.add_argument("--api-gid", type=int, default=1000)
     args = parser.parse_args()
-    install(app_dir=args.app_dir, backend_project=args.backend_project, api_gid=args.api_gid)
+    install(
+        app_dir=args.app_dir,
+        backend_project=args.backend_project,
+        api_gid=args.api_gid,
+        proxy=args.proxy,
+    )

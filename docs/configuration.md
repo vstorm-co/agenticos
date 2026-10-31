@@ -1406,8 +1406,7 @@ settings page shows status and the last successful report; it has no toggle.
 
 `DIAGNOSTICS_COLLECTOR_URL` is the server's collector origin;
 `DIAGNOSTICS_PUBLIC_URL` is the browser-reachable origin, also read by the frontend
-for its Content Security Policy. Both temporarily default to
-`http://localhost:8010`. No public Vstorm collector hostname is configured yet.
+for its Content Security Policy. Both default to `https://analytics-agenticos.testapp.ovh`.
 For a locally running collector reached from Docker Desktop, use
 `http://host.docker.internal:8010` for the server origin and keep the public origin
 at `http://localhost:8010`. Remote origins require HTTPS. Do not include paths,
