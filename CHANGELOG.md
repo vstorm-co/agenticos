@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- **Full-screen workspaces and ready templates.** Expand a table, an entire record or workflow run history without remounting editors. Catalogs fit their contents, cards keep actions on one row, tables lose redundant frames and workflow import accepts a dropped file. Public API and Markdown notebook templates provision a private table and a valid draft automatically; later runs reuse it and upsert the example record.
+- **Full-screen workspaces and ready templates.** Expand a table, an entire record or workflow run history without remounting editors. Catalogs fill the workspace and expand over the shell, cards align their metadata and actions, tables lose redundant frames and workflow import accepts a dropped file. Public API and Markdown notebook templates provision a private table and a valid draft automatically; later runs reuse it and upsert the example record.
 
 - **Independent workflow starts.** Add different triggers to the same canvas, choose a start for a test, and run only its reachable branch. Publication retains each webhook or schedule registration; Active controls all of them. Existing single-entry workflows remain compatible.
 - **Architect builds automations and tables.** Platform tools discover step schemas, create and revise drafts, test and inspect runs, publish reviewed workflows and manage typed table records. Bundled skills explain API integrations beyond the MCP gallery and callable workflow tools. Signing secrets are withheld from model results.
@@ -960,6 +960,53 @@ Two things are versioned separately from this file and worth knowing about:
   only settings grant is `org:settings`.
 - Offer Push preferences for workflow notifications, log alerts, page ownership
   changes and page requests, alongside their existing in-app and email controls.
+
+## [1.32.0] - 2026-10-31
+
+### Added
+
+- `refresh-assistant [--org <id>] [--dry-run] [--replace-edited]` reports and
+  refreshes installed Architect instructions and its AgenticOS guide. New
+  instructions publish as a new agent version, preserving configuration and
+  history. Organization edits are skipped unless explicitly replaced; unrelated
+  pending draft changes block the refresh. After upgrading, run the command to
+  adopt updated templates in existing organizations (#2520).
+
+### Fixed
+
+- Update the locked pyasn1 parser to 0.6.5 to fix four ASN.1 decoding denial-of-service advisories.
+
+- Refresh recognizes the stock desktop-era Architect from 1.31.x while preserving organization edits.
+
+- Channel messages store only the sender's text. Author context is assembled
+  from erasable channel identities at dispatch, so the console,
+  copy, pin and shortcut actions do not expose JSON envelopes or platform IDs.
+  Account deletion removes those author labels from future model history while
+  preserving shared message bodies. Manifests omit request-only channel parts;
+  paused runs retain opaque author references instead of platform labels.
+- Replay saved channel user turns through the current agent's input guardrails before model dispatch, preserving stored messages while withholding blocked values and redacting protected text.
+- Editable channel reference values follow the configured input guardrails.
+  Protected values are redacted or withheld without treating fixed metadata
+  syntax or platform identifiers as the user's question.
+
+- Rolling back the channel prompt migration restores the preceding release's
+  defaults while retaining custom additions, including bindings created after
+  upgrade.
+- Bulk `refresh-assistant` runs skip organizations without an owner and continue
+  refreshing the remaining organizations. A targeted run still fails explicitly.
+
+- Explicit `@slug` channel invocations retain saved conversation history, just
+  like default bot replies, so follow-up requests keep earlier results and App
+  references after the initial thread backfill.
+- Channel replies retain each message's author, answer the current request without
+  reviving unrelated tasks, and explain how to revise a published App when its
+  original sandbox is unavailable. Channel defaults now come from the current deployment; a one-time
+  migration removes recognized stored copies while preserving custom additions.
+  Author metadata stays outside the actual prompt screened by input guardrails.
+- Read-only MCP tools no longer require approval solely because a linked
+  member's run is in Mattermost, Slack, Teams or Telegram. Unlinked senders still
+  require approval for every MCP call. Writes and tools without a read-only hint
+  still require approval; an explicit all-tools policy continues to include reads.
 
 ## [1.31.3] - 2026-10-30
 

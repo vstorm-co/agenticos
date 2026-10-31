@@ -8,6 +8,11 @@ than the whole page again. `list_artifacts` names the pages a run may open, and
 `preview_artifact` draws one and says what went wrong while it ran. `share_artifact`
 asks for one to be shared; it never shares anything itself (see below).
 
+Source lives in artifact storage, independently of a conversation's sandbox: a later
+conversation reads it by the same name and republishes edits or replacement content
+behind the existing link. It needs no access to the original workspace. View and edit
+permissions remain separate.
+
 ## Layout
 
 | File | Holds |

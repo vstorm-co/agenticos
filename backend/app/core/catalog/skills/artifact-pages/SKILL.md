@@ -366,6 +366,15 @@ button.addEventListener("click", function () {
 
 ## Changing a page you published
 
+A published app's source is stored independently of the conversation's sandbox.
+If the original file is absent in this conversation, call `read_artifact` with
+its existing name. Recover it from the earlier publication result in this
+thread; do not invent a handle or infer that the app is gone from an empty
+workspace. You can use the returned source directly or write it into the current
+workspace for a larger redesign. Republish under the same name to keep one app
+and its link, with earlier versions retained. Respect an edit refusal: access to
+view an app alone is not permission to change it.
+
 Do not rebuild a page to change a word. Call `read_artifact` with its name,
 then `publish_artifact` with the same name and `edits`: each edit replaces text
 that appears exactly once, copied from what `read_artifact` returned. If the

@@ -124,12 +124,21 @@ server would aim its token endpoint at a listed host.
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.
 
-## MCP tools are not gated
+## MCP approvals
 
-`approval_required_tools` iterates `spec.capabilities` only. MCP tools are discovered
-at run time, so nothing declared them and nothing approves them. Say so plainly when
-reviewing a change that adds a connection to a published agent — do not imply a gate
-exists.
+`approval_required_tools` covers capability tools; MCP tools are marked separately
+by `ApprovalMarked` and enforced by the same `ApprovalGate`. A binding's `writes`
+policy trusts only `readOnlyHint: true`; missing or false hints require approval.
+`all` also gates reads, and `none` waives the binding's gate. The platform server
+always enforces at least `writes`, with deliberate exceptions in `HELD` and
+`UNGATED` in `services/platform_mcp/_tools.py`.
+
+Channel runs, including delegates and resumptions, enforce at least `writes` on
+all MCP bindings. Read-only calls no longer acquire an extra approval merely by
+running in a chat app for a linked member. Unlinked room participants still
+require approval for every MCP call, including organization reads. Personal
+connections resolve for each message's linked sender, never the publisher or a
+different participant.
 
 Cost is the same story: what a server does on its own side is outside this platform's
 budget. Only model tokens are counted.

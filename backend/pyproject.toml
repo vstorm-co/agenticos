@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.31.3"
+version = "1.32.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -628,6 +628,7 @@ missing-argument = "warn"
 include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
+    "app/commands/refresh_assistant.py",
     "app/commands/audit_skill_bindings.py",
     "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",
@@ -1265,6 +1266,7 @@ generated_at = "2026-07-26T18:01:04.489757+00:00"
 include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
+    "app/commands/refresh_assistant.py",
     "app/commands/audit_skill_bindings.py",
     "app/commands/audit_verify.py",
     "app/commands/vault_rotate.py",

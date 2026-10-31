@@ -329,6 +329,8 @@ retention is [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit | Nothing, once the flow has run; `sync_logs` counts remain |
 | Deleting an organization | Everything scoped to it, with the same deferred teardown - its generated media by prefix, including files written before they were recorded | Personal collections that merely carried the id |
 
+Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
+
 None of these reach a backup. A restore brings back what was erased, so the
 backup expiry is part of the retention policy and is written down with it.
 

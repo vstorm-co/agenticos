@@ -1,5 +1,5 @@
 ---
-source_sha: "57f52661251e"
+source_sha: "b9f6b8f40258"
 ---
 
 # Ochrona danych { #data-protection }
@@ -339,6 +339,8 @@ harmonogramu to [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | `DELETE /users/{id}` | Konto, jego sesje, jego osobistą organizację i osobiste kolekcje wraz z ich tabelami wektorowymi i plikami, jawnym teardownem; konwersacje poza projektami i pliki czatu kaskadą; ich bajty, odpięte po commicie; obrazy, mowę i wideo wygenerowane przez agentów w tych konwersacjach - wiersze w usunięciu, bajty przez zadanie zakolejkowane razem z nim; oraz to, do czego nie sięga żadna kaskada — notatki, które agenci zapisali o tej osobie (`owner_key` to string, nie klucz obcy), jej tożsamości platformowe i workspace'y przypisane do użytkownika | Wpisy audytowe nazywające id aktora, a przy niektórych akcjach e-mail — zatrzymywane celowo, bo wpis z usuniętym aktorem jest gorszy niż wpis nazywający usunięte konto. Wiadomości w konwersacjach należących do kogoś innego oraz czaty projektów, które ta osoba zaczęła - zostają dla zespołu, bez autora, razem z wygenerowanymi w nich mediami; jej wiadomości są w nich pokazywane jako byłego członka. Media, które osoba wygenerowała bez konwersacji - podglądy i przebiegi testowe, wtrącenia `/btw` w kanałach, runy API, które nie wskazały konwersacji - których żaden wiersz z nią nie łączy; odchodzą po 7 dniach |
 | Usunięcie dokumentu albo kolekcji | Wiersze, tabelę wektorową i zapisany plik, przez trwały flow po commicie | Nic, gdy flow już przebiegł; liczniki `sync_logs` zostają |
 | Usunięcie organizacji | Wszystko do niej ograniczone, tym samym odroczonym rozmontowaniem - jej wygenerowane media po prefiksie, łącznie z plikami zapisanymi, zanim zaczęto je rejestrować | Kolekcje osobiste, które jedynie niosły to id |
+
+Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
 
 Żadne z tych nie sięga kopii zapasowej. Odtworzenie przywraca to, co usunięto,
 więc wygaśnięcie kopii jest częścią polityki retencji i jest spisane razem z nią.

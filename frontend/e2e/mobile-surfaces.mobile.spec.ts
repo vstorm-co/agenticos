@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import type { ArtifactDetail } from "../src/types/artifact";
 
 import { expect, test } from "./fixtures";
-import { OWNER_EMAIL, OWNER_PASSWORD } from "./helpers";
+import { AUTH_STATE } from "./helpers";
 
 async function expectTouchTarget(control: Locator) {
   await expect(control).toBeVisible();
@@ -28,7 +28,12 @@ async function expectContained(page: Page) {
 
 for (const platform of ["ios", "android"] as const) {
   test.describe(`${platform} surfaces`, () => {
-    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    test.use({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      storageState: AUTH_STATE,
+    });
     test.beforeEach(async ({ page }) => {
       await page.addInitScript((platform) => {
         window.__AGENTICOS_SHELL__ = {
@@ -46,11 +51,10 @@ for (const platform of ["ios", "android"] as const) {
           document.documentElement.style.setProperty("--shell-inset-bottom", "24px");
         });
       }, platform);
-      await page.goto("/login");
+      // Reuse the authenticated setup: these layout checks must not exhaust
+      // the real sign-in rate limit with a new session before every test.
+      await page.goto("/dashboard");
       await expect(page.getByRole("dialog", { name: "We use cookies" })).toHaveCount(0);
-      await page.getByLabel("Email", { exact: true }).fill(OWNER_EMAIL);
-      await page.getByLabel("Password", { exact: true }).fill(OWNER_PASSWORD);
-      await page.getByRole("button", { name: "Login", exact: true }).tap();
       await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/, { timeout: 30_000 });
     });
 

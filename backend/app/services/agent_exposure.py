@@ -49,7 +49,6 @@ from app.schemas.channel_bot import UsageReporting
 from app.services.agent_registry import AgentRegistryService
 from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
-from app.services.channels.formatting import house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
 
 # How many bots one organization can have bound before the picker stops being a
@@ -335,12 +334,7 @@ class AgentExposureService:
             channel_bot_id=bot.id,
             created_by_user_id=ctx.user_id,
             environment_id=data.environment_id,
-            # The platform's own style, as the binding's starting text rather
-            # than something applied invisibly at run time. It is what the
-            # agent will be told, so it is what somebody editing it should see
-            # and be able to change. The cost is that it is a copy: improving
-            # the default later does not reach a binding that already exists.
-            prompt=house_style(surface.value),
+            prompt=None,
             session_scope=data.session_scope,
         )
         await record_audit(

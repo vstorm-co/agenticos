@@ -55,7 +55,7 @@ class ArtifactsConfig(BaseModel):
         CapabilityToolInfo(
             id="read_artifact",
             description=(
-                "Read the current version of a page this agent published, as it was written."
+                "Read a published app's source across conversations and sandboxes before updating it."
             ),
         ),
         CapabilityToolInfo(
