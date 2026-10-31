@@ -42,6 +42,7 @@ from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
+from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -160,6 +161,11 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
     router = "app.services.channels.router"
     with (
         patch(f"{router}.channel_bot_repo.get_for_inbound", AsyncMock(return_value=bot)),
+        # No workflow listens to this bot: its messages are the agent's.
+        patch(
+            f"{router}.WorkflowExposureService.receive_channel_message",
+            AsyncMock(return_value=False),
+        ),
         patch(
             f"{router}.channel_identity_repo.get_by_platform_user",
             AsyncMock(return_value=identity),
@@ -737,6 +743,11 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(f"{router}.get_adapter", return_value=adapter),
         patch(f"{router}.unseal_bot_token", return_value="tok"),
         patch(f"{router}.channel_bot_repo.get_for_inbound", AsyncMock(return_value=bot)),
+        # No workflow listens to this bot: its messages are the agent's.
+        patch(
+            f"{router}.WorkflowExposureService.receive_channel_message",
+            AsyncMock(return_value=False),
+        ),
         patch(
             f"{router}.channel_identity_repo.get_by_platform_user",
             AsyncMock(return_value=identity),
@@ -1059,6 +1070,52 @@ class TestATypedAnswerIsNotATurn:
         }
         router._receive_files.assert_not_awaited()
         router._answer_mention.assert_not_awaited()
+        assert rows == []
+
+
+class TestAWorkflowListeningToTheBot:
+    """A workflow whose Channel message trigger listens to the bot takes the
+    message in the agent's place; what it leaves, the agent answers as before."""
+
+    async def test_a_message_the_workflow_takes_runs_no_agent_and_keeps_no_file(self):
+        router, replies, rows = _router()
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        agents = _agent_router()
+        listener = AsyncMock(return_value=True)
+
+        with (
+            _channel(agents, rows),
+            patch(
+                "app.services.channels.router.WorkflowExposureService.receive_channel_message",
+                listener,
+            ),
+        ):
+            await router._route_inner(_incoming("refund order 42"), MagicMock())
+
+        agents.return_value.answer_default.assert_not_awaited()
+        assert listener.await_args.kwargs["sender_user_id"] is not None
+        assert rows == []
+        replies.assert_not_awaited()
+
+    async def test_a_run_it_cannot_admit_is_said_in_the_chat(self):
+        router, replies, rows = _router()
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        agents = _agent_router()
+        refused = WorkflowAdmissionQuotaError(
+            scope="organization", limit=1, outstanding=1, requested=1
+        )
+
+        with (
+            _channel(agents, rows),
+            patch(
+                "app.services.channels.router.WorkflowExposureService.receive_channel_message",
+                AsyncMock(side_effect=refused),
+            ),
+        ):
+            await router._route_inner(_incoming("refund order 42"), MagicMock())
+
+        agents.return_value.answer_default.assert_not_awaited()
+        assert "Too much workflow work" in replies.await_args.args[2]
         assert rows == []
 
 

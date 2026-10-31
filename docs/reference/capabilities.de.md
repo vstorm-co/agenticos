@@ -1,5 +1,5 @@
 ---
-source_sha: "1b69b2b86c1a"
+source_sha: "30ec7731488d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -71,6 +71,8 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | unverändert |
 | `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich | unverändert |
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
+| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | unverändert |
+| `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | unverändert |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
@@ -93,7 +95,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `media` | Bilder auslagern | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
 | `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
@@ -872,7 +874,11 @@ Chromium: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt u
 isoliert. Die Compose-Dateien enthalten einen hinter dem Profil `browser` — `docker
 compose --profile browser up -d browser`, erreichbar als `http://browser:9222`. Der Host
 muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere
-Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
+Liste — der Standard — lehnt Browser-Automatisierung ganz ab. Der Host von
+[`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts) wird
+abgelehnt, selbst wenn die Allowlist ihn nennt: Dieser Browser zeichnet die Seiten
+von Personen für `preview_artifact` und gehört nie einem Autor. Geprüft **bei der
+Veröffentlichung**, beim Speichern des Spec, nicht bei jedem Run.
 
 Der compose-Browser liegt in einem eigenen Docker-Netz, dem nur die API und der
 Worker beitreten, um ihn zu erreichen: Eine Seite, die er öffnet oder auf die er
@@ -1767,11 +1773,19 @@ Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
 `read_artifact` — *liest die aktuelle Version einer Seite, die dieser Agent
 veröffentlicht hat, so wie sie geschrieben wurde.*
+`list_artifacts` — *listet die Seiten auf, die dieser Agent veröffentlicht hat
+und die dieser Run öffnen darf, die neueste zuerst.*
+`preview_artifact` — *zeigt eine veröffentlichte Seite so, wie jemand sie beim
+Öffnen sähe: ein Bild und was schiefgegangen ist.*
+`share_artifact` — *bittet darum, eine Seite, die Sie veröffentlicht haben, mit
+mehr Personen zu teilen; das teilt selbst nichts.*
 
 Veröffentlicht ein in sich geschlossenes HTML- oder Markdown-Dokument als
 [App](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
 Sichtbarkeit und Grants, die im Browser unter einem Link geöffnet wird, der
-bleibt. Keine Konfiguration.
+bleibt. Eine Einstellung: `preview_screenshot` (standardmäßig an) übergibt dem
+Modell das Bild, das eine Vorschau zeichnet; schalten Sie sie für ein Modell aus,
+das keine Bilder lesen kann.
 
 **Der Name ist die Identität.** `(organization, agent, environment, name)` wählt
 die App aus, sodass der nächste Run desselben Agents, der `weekly-report`
@@ -1797,6 +1811,28 @@ und den Quelltext, bei 100.000 Zeichen abgeschnitten, was die Kopfzeile sagt. Es
 öffnet nur, was die Person des Runs in der Konsole öffnen darf, und nichts in einem öffentlichen Widget, einem Embed, einem Zeitplan oder einem
 Ereignis-Trigger, wo keine identifizierte Person zuhört.
 
+**Auflisten.** `list_artifacts` liefert JSON: die Seiten dieses Agents in der
+Umgebung des Runs, die neueste zuerst und höchstens 50, mit `total`, jede mit
+Name, Titel, Version, Format, Bindings, Sichtbarkeit, öffentlichem Link,
+Veröffentlichungszeit, `url` in der Konsole und `may_edit` (ob eine
+Veröffentlichung unter diesem Namen aus diesem Run sie aktualisiert). Gelesen wird
+als die zuhörende Person, nach der Listenregel der Konsole; in einem Gruppenchat
+werden nur Seiten der ganzen Organisation aufgeführt, nie eine, die nur diese
+Person erreicht. Wo keine identifizierte Person zuhört, wird nichts aufgeführt.
+
+**Vorschau.** `preview_artifact` zeichnet die aktuelle Version 1280 Pixel breit
+und höchstens 2400 hoch in einem Browser, den der Betreiber bereitstellt
+([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), mit Daten,
+die als die zuhörende Person gelesen werden. In einem Gruppenchat öffnet es nur
+eine Seite der ganzen Organisation und zeichnet sie ohne Daten; ebenso für einen
+Run, für den niemand einsteht, etwa einen, den ein Webhook oder ein Formular
+gestartet hat. Es liefert einen Textbericht (Daten je Binding, nicht abgefangene Fehler, Konsolenfehler,
+Ablehnungen der Policy, abgelehnte Anfragen, Dialoge, die Warnungen beim
+Veröffentlichen) und das Bild als Bildteil. Jede Anfrage des Renderings
+beantwortet die API oder lehnt sie ab. Ohne Renderer oder das Extra `browser`
+oder nach einer Frist von 15 Sekunden kommt der Bericht allein und sagt, warum.
+[Die Seite sehen](../artifacts.md#seeing-the-page-preview) hat den Rest.
+
 **Ohne Seiteneffekte.** Eine erste Veröffentlichung ist privat für die Person,
 für die der Run lief, und nur eine Person erweitert, wer sie liest; das
 Genehmigungs-Gate würde also nur den geplanten Bericht parken, für den das hier
@@ -1809,6 +1845,93 @@ Modell, seine eigenen Daten einzubetten und Diagramme aus dem
 [Bibliothekssatz](../artifacts.md#the-library-set) des Deployments statt aus einem
 CDN zu laden. Siehe
 [wie die Seite isoliert wird](../artifacts.md#how-the-page-is-isolated).
+
+**Wie eine Seite aussieht.** Die Capability fügt den Anweisungen des Agents einen
+kurzen, statischen Seitenvertrag hinzu: das Grundgerüst, die meistgenutzten
+Klassen des Kits, Lucide-Icons statt Emoji und `AO.records` für gebundene Daten.
+Bietet der Run den Skill `artifact-pages` ungeladen an, ist die erste vollständige
+HTML-Seite des Runs ein Retry, der das Modell bittet, ihn zu laden und neu zu
+bauen; einmal pro Run, und beim letzten Versuch wird die Seite stattdessen mit
+diesem Hinweis veröffentlicht. Jede veröffentlichte HTML-Seite wird geprüft, und
+die `warning` des Ergebnisses führt auf, was falsch aussieht, ein Problem pro
+Zeile - siehe
+[den Seitenvertrag und die Warnungen beim Veröffentlichen](../artifacts.md#the-page-contract-and-the-publish-warnings).
+Eine Warnung hält eine Veröffentlichung nie auf.
+
+**Live-Daten.** `bindings` an `publish_artifact` binden eine HTML-Seite an
+Tabellendaten, als `{name: query}`. Eine Abfrage nennt eine `table` (ID oder exakter
+Name, aus `list_tables`) oder eine gespeicherte `view` (ID oder exakter Name, aus
+`list_views`), nie beides, und `fields`, das jeden Namen, den die Seite liest, per
+ID oder Label einer Spalte zuordnet. Optional: `filters` (`[{column, op, value}]`,
+alle müssen zutreffen, zu denen einer Ansicht hinzugefügt; eine Auswahl per Label),
+`sort` (`{by, direction}`) und `limit` (höchstens und standardmäßig 1.000), die die
+der Ansicht ersetzen. Die Filter und die Sortierung einer Ansicht werden beim
+Veröffentlichen der Seite **kopiert**, und spätere Änderungen an der Ansicht ändern
+nichts; ihre `visible_columns` und `group_by` werden ignoriert, und eine Ansicht
+mit Freitextsuche oder mit einem Filter auf eine nicht mehr vorhandene Spalte wird
+abgelehnt. Ohne `bindings` bleiben die aktuellen der Seite erhalten; `{}` entfernt
+sie.
+
+Der Spec des Agents muss Lesezugriff auf die Tabelle freigeben, und die Person
+hinter dem Run muss jede Tabelle lesen können, die die Abfrage erreicht,
+verknüpfte eingeschlossen. Die Seite ruft `agenticos.onData(render)` auf, das mit
+den ersten Daten und bei jeder Aktualisierung läuft; `agenticos.data` ist ein
+Promise auf die ersten Daten. **Alle, die die Seite öffnen, lesen dieselben
+Datensätze, gelesen mit dem Zugriff ihres Besitzers**, sobald der Besitzer das
+Teilen bestätigt hat; binden Sie nur, was alle sehen dürfen. Ein Binding, das nicht
+ausgeliefert werden kann, kommt als `unavailable` an. Namen folgen
+`^[a-z_][a-z0-9_]{0,63}$`, höchstens 5 Bindings mit je 50 Feldern.
+[Live-Daten](../artifacts.md#live-data) nennt die Grenzen.
+
+**Das Ergebnis der Veröffentlichung.** Es gibt jede Abfrage in Worten wieder -
+`table`, `filters`, `sort`, `limit` und jedes Feld mit dem, was es liest (`Status
+(single_select)`, `Pay band: formula over Salary, Level`) - oder `kept` für ein
+übernommenes Binding; dieses Echo ist das, wozu der Besitzer einwilligt, deshalb
+prüft der Agent es. `consent` sagt, wo die Daten der Version stehen (`not_needed`,
+`pending`, `consented`, `declined`, `withdrawn`), und `audience` sagt, was alle
+anderen sehen, solange sie wartet: „the audience still sees v2 until Alex
+confirms“. Eine `pending`-Version muss die Person in der Konsole bestätigen; der
+Agent sagt es ihr. Eine neue Seite ist privat für die Person, für die der Run
+lief.
+
+**Aktionen.** `actions` an `publish_artifact` deklariert bis zu fünf Workflows, die die
+Knöpfe der Seite starten lassen dürfen, als `[{workflow, label}]` - ein Workflow per ID oder
+exaktem Namen und das, wie die Seite ihn nennt. Jeder muss in der
+[Workflows](#workflows)-Capability des Agents gebunden sein, live sein und aus **Manual**
+oder **API request** gestartet werden, und die Person hinter dem Run muss ihn ansehen und
+ausführen dürfen; einen, den die Person nicht erreicht, weist die Plattform ab, als wäre er
+nicht gebunden, und einen archivierten oder nicht von Hand startbaren, den sie erreicht,
+weist sie mit Namen ab. Ohne `actions` bleiben die bisherigen erhalten, `[]` entfernt sie,
+und ein Run ohne Person dahinter kann sie nicht ändern. Das Ergebnis führt in `actions`
+jede nach Name und Label auf, oder `kept`. Der Agent startet nichts: Der Betrachter
+bestätigt jeden Run in der Konsole, und er läuft als er. Die Seite ruft `AO.run` auf. Siehe
+[Aktionen](../artifacts.md#actions).
+
+**`share_artifact(name, visibility?, people?)`.** Bittet darum, eine Seite zu
+teilen. Es teilt nie etwas und wird **nicht** durch eine Tool-Freigabe abgesichert:
+Es stellt eine `audience`-[Anfrage](../artifacts.md#share-requests) als die Person
+des Runs - der eigene Run des Besitzers eingeschlossen - und antwortet „Waiting for
+Alex to approve in the page's Share dialog“. Der Besitzer antwortet in der Konsole,
+als er selbst angemeldet. `visibility` ist `team` oder `org`, ein `public` gibt es
+nicht, und `people` sind Mitglieder per vollem Namen oder E-Mail und Gruppen per
+Namen, jeweils auf Leseebene angefragt; ein Name, der auf niemanden oder auf
+mehrere passt, wird gemeldet, nie geraten. Ein Run ohne Person dahinter und die
+Seite eines Gruppenchats, die nicht für die ganze Organisation gilt, können nicht
+anfragen. Es ist `side_effecting=False`: Der Aufruf wendet nichts an.
+
+**Ein Run ohne Person.** Eine Seite mit Bindings veröffentlicht nur ein Run, der
+für ein Mitglied handelt: das angemeldete Mitglied (Web-Chat, HTTP-API), ein
+verknüpfter Absender in einem Kanal oder der Ersteller eines Zeitplans. Der
+Besucher eines Widgets, eines Embeds oder einer gehosteten Seite, ein nicht
+verknüpfter Absender in einem Kanal, die Zustellung eines Ereignis-Triggers eines
+Agents (GitHub, E-Mail, Webhook-Relay) und ein Workflow-Run, den ein öffentlicher
+Eingang zugelassen hat, oder irgendein Run in der Kette eines solchen Runs
+veröffentlichen keine gebundene Seite. Ein Autor, der jede erneute
+Veröffentlichung einer gebundenen Seite genehmigt haben möchte, setzt
+`tool_approval` auf `publish_artifact`. Ein Run ohne Person darf eine gebundene
+Seite nur unverändert erneut veröffentlichen, und die Veröffentlichung eines Editors
+wird abgelehnt, wenn der Besitzer der Seite eine Tabelle, die sie erreicht, nicht
+lesen kann.
 
 ## Delegation { #delegation }
 
@@ -2380,6 +2503,71 @@ die die [Kontextverwaltung](#context-management) für ihren Zusammenfasser triff
 Bei jedem Fehler, oder wenn das reservierte Budget bereits verbraucht ist, fällt
 sie auf die Zielanker-Zeile zurück. Eine fehlgeschlagene Erzeugung blockiert den
 Run nie.
+
+## Tabellen { #tables }
+
+Liest und schreibt die [Virtual Tables](../virtual-tables.md), die das Binding
+freigibt. Das Panel im Builder listet die Tabellen der Organisation. Haken Sie eine
+an und wählen Sie, was der Agent darin tun darf: Datensätze lesen, hinzufügen,
+ändern und löschen. Ein Upsert braucht Hinzufügen und Ändern, weil er den Datensatz
+anlegt, wenn keiner seinen Schlüssel hat.
+
+Die Freigaben sind Teil des veröffentlichten Specs, den das Modell nicht ändern
+kann. Ein Aufruf, der eine andere Tabelle oder eine nicht freigegebene Operation
+nennt, wird abgelehnt, bevor etwas gelesen wird. Jeder Aufruf durchläuft außerdem
+die eigene Zugriffsprüfung des Tabellen-Service als das Mitglied, für das der Run
+handelt, bei jedem Aufruf aus seiner Mitgliedschaft neu aufgebaut. Eine nicht mehr
+geteilte Tabelle oder eine eingeschränkte Rolle stoppt also den nächsten Aufruf.
+
+`create_table` wird nur mit **Allow create** angeboten, und das Mitglied braucht
+weiterhin `tables:create`. Datensatz-Tools legen nie Tabellen an. Eine Tabelle, die
+der Agent anlegt, ist für den Rest dieses Runs nutzbar.
+
+`list_views` liefert die gespeicherten Ansichten der Tabellen, die der Agent lesen
+darf, mit der ID jeder Ansicht, ihren Spalten und ob sie geteilt ist. Eine Seite
+kann ihre Abfrage von einer aus beginnen, was die Filter und die Sortierung der
+Ansicht kopiert; danach bleibt nichts an der Ansicht verknüpft, und eine Ansicht
+mit Suche lässt sich nicht binden. [Seiten und Ansichten](../virtual-tables.md#views-for-pages)
+sagt, wie eine Seite eine Tabelle liest. Das Tool `share_view` gibt es nicht mehr,
+und ein Spec, der es noch absichert oder umbenennt, lädt ohne es, mit einer Warnung
+im Log.
+
+Die Schreib-Tools sind pro Tool als seiteneffektbehaftet markiert, sodass eine
+Freigaberichtlinie sie erfasst und nicht die Lesezugriffe. Der Operationsschlüssel
+eines Schreibzugriffs stammt aus dem Run und dem Tool-Aufruf, daher spielt ein
+wiederholter Aufruf seine erste Antwort erneut ab. Werte werden per Spalten-ID oder
+Label angegeben, und die Auswahl einer Auswahlspalte ist das Label ihrer Option -
+beim Schreiben, Filtern und Lesen gleich. Konflikte, Validierung, Kontingente, Historie und Audit sind
+dieselben wie in der Konsole und der API, weil jedes Tool denselben Service aufruft.
+
+## Workflows { #workflows }
+
+Lässt den Agenten die veröffentlichten [Workflows](../workflows.md) starten, die sein
+Binding nennt, und lesen, wie sie liefen. Das Panel im Builder listet die Workflows der
+Organisation, eine Zeile je Workflow, und eine angehakte Zeile ist einer, den der Agent
+starten darf. Ein Entwurf oder ein Workflow, der über einen Webhook, einen Zeitplan,
+eine Chatnachricht oder eine Tabelle startet, wird angezeigt, lässt sich aber nicht
+anhaken: Ein Agent startet nur, was von Hand, per API oder per Aufruf aus einem anderen
+Workflow beginnt. **Wait for a run** begrenzt, wie lange ein Aufruf wartet: 60 Sekunden,
+sofern nicht anders gesetzt, zwischen 5 und 300.
+
+`list_workflows` nennt die, die der Agent starten darf, mit den Eingabefeldern, die
+jeder deklariert. `run_workflow` startet einen mit diesen Feldern und wartet auf seine
+Antwort, und `get_workflow_run` liest einen Lauf, der noch lief, als das Warten endete.
+Jeder Start ist dieselbe Anfrage wie in der API, ausgeführt als das Mitglied, für das
+der Lauf handelt, bei jedem Aufruf aus seiner Mitgliedschaft neu aufgebaut: Sein
+Zugriff, die deklarierte Eingabe, Budgets und Aufnahmekontingente gelten, und der Lauf
+sagt, dass **An agent** ihn gestartet hat.
+
+Ein Workflow außerhalb des Bindings wird abgelehnt, bevor etwas startet. `run_workflow`
+hat Nebenwirkungen, also kann eine Freigaberichtlinie es sperren, während die Lesezugriffe
+frei laufen. Ein Agent, der als Schritt eines Workflows läuft, startet auf diesem Weg
+nichts: Ein Schritt **Run a workflow** ruft einen anderen Workflow auf und behält die
+Schleifen- und Tiefengrenzen der Kette. Deshalb bietet auch der Agentendialog des
+Schritts diese Capability nicht an.
+Ein Run, hinter dem kein Mitglied steht (der Besucher eines Widgets, eines Embeds
+oder einer gehosteten Seite, ein nicht verknüpfter Absender in einem Kanal, die
+Zustellung eines Ereignis-Triggers eines Agents), startet keinen.
 
 ## Datum und Uhrzeit { #date-and-time }
 
@@ -2977,9 +3165,12 @@ geprüft wird, wenn der Agent zusammengebaut wird:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `tables:read` | `virtual_tables` und jeder [Workflow-Knoten für Tabellen](workflow-nodes.md#virtual-tables) |
+| `tables:write` | die Workflow-Knoten für Tabellen, die schreiben |
+| `workflows:run` | `workflows` |
 | `computer:use` | `computer_use` |
 
-!!! note "Alle neun werden heute standardmäßig gewährt"
+!!! note "Alle zwölf werden heute standardmäßig gewährt"
 
     `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`. Die Verwaltung
     von Scopes pro Organisation ist [Roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md)-Arbeit;

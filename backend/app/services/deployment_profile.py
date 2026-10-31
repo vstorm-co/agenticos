@@ -33,6 +33,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.sanitize import deployment_allowlist, parse_private_allowlist
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
@@ -124,6 +125,7 @@ async def evaluate(db: AsyncSession, profile: ProfileName) -> list[ControlResult
         _postgres_in_transit(),
         _redis_in_transit(),
         _browser_in_transit(),
+        _private_network(),
         _credentials_at_rest(),
         _content_at_rest(),
         await _model_requests_stay_here(db),
@@ -232,6 +234,48 @@ def _browser_in_transit() -> ControlResult:
         "every published address is https, and `Strict-Transport-Security` is sent "
         "in a production build. Terminating TLS, and the certificate it presents, "
         "is the operator's reverse proxy",
+    )
+
+
+def _private_network() -> ControlResult:
+    """§164.312(e)(1), for the addresses a member's request may reach.
+
+    Both lists count: `OUTBOUND_PRIVATE_ALLOWLIST` reaches workflow HTTP steps,
+    connectors, A2A and MCP, and `MCP_ALLOWED_HOSTS` reaches MCP connections. A
+    listed host is open to every member of every organization, and what that host
+    does with the request is its own control, so it is attested with its entries.
+    """
+    reaches = (
+        (
+            "OUTBOUND_PRIVATE_ALLOWLIST",
+            deployment_allowlist().entries,
+            "workflow HTTP steps, connectors, A2A and MCP",
+        ),
+        (
+            "MCP_ALLOWED_HOSTS",
+            parse_private_allowlist(settings.MCP_ALLOWED_HOSTS).entries,
+            "MCP connections",
+        ),
+    )
+    listed = [
+        f"{setting} admits {', '.join(entries)}: every member of every organization "
+        f"can reach these hosts through {through}"
+        for setting, entries, through in reaches
+        if entries
+    ]
+    if not listed:
+        return _met(
+            "private-network",
+            "§164.312(e)(1)",
+            "OUTBOUND_PRIVATE_ALLOWLIST and MCP_ALLOWED_HOSTS are empty, so no workflow "
+            "HTTP step, git, web or S3 source, A2A call or MCP connection can reach a "
+            "private address",
+        )
+    return _attested(
+        "private-network",
+        "§164.312(e)(1)",
+        "; ".join(listed)
+        + "; that each one checks its own credential is the operator's to evidence",
     )
 
 

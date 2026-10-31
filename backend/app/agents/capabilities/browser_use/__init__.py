@@ -14,6 +14,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_use._capability import WebBrowser
 from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
+from app.agents.capabilities.browser_use._endpoint import is_renderer
 from app.agents.capabilities.browser_use._history import BROWSER_REPORT_TOOLS
 from app.agents.capabilities.browser_use._local import page_factory as local_page_factory
 from app.agents.capabilities.browser_use._route import (
@@ -320,9 +321,12 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
     This one no longer resolves DNS, so it does not block and the caller does not
     need a thread for it.
 
+    The page renderer's host (`ARTIFACT_RENDER_CDP_URL`) is refused even when the
+    allowlist names it: that browser is deployment config, never an author's.
+
     Raises:
-        UrlRefusedError: The URL is missing, malformed, not a CDP scheme, or names
-            a host this deployment does not allow.
+        UrlRefusedError: The URL is missing, malformed, not a CDP scheme, names
+            the page renderer, or names a host this deployment does not allow.
     """
     if config.connection in ("hosted", "local"):
         # The hosted browser is the endpoint; `connection_problems` checks it.
@@ -344,6 +348,15 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         _ = parsed.port
     except ValueError as exc:
         raise UrlRefusedError(f"The cdp_url has an invalid port: {exc}") from exc
+    if is_renderer(config.cdp_url):
+        # Before the allowlist, so listing the renderer there by mistake still
+        # refuses it: that browser draws people's records for `preview_artifact`
+        # and is the operator's alone. Matched by name, as the allowlist is; an
+        # alias or address of it is kept out by the allowlist itself.
+        raise UrlRefusedError(
+            f"'{parsed.hostname}' is this deployment's page renderer "
+            f"(ARTIFACT_RENDER_CDP_URL), which a browsing agent may not drive"
+        )
     allowed = {host.strip().lower() for host in settings.BROWSER_CDP_ALLOWED_HOSTS}
     if parsed.hostname.lower() not in allowed:
         # The host is named: it came from a stored spec rather than from anything

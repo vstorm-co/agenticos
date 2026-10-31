@@ -27,6 +27,7 @@ from app.core.secret_kinds import (
     ApiKeySecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
+    MicrosoftOAuthAppSecret,
     SecretKind,
     SecretValue,
     StorableSecret,
@@ -44,9 +45,9 @@ from app.schemas.secret import SecretSummary, SecretUsage
 from app.services.access import SECRET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.notifications import NotificationService
 
-# The two credentials a connect flow spends: identical fields, separate kinds,
-# because a kind names what a credential is for.
-OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret
+# The credentials a connect flow spends: separate kinds even where the fields are
+# identical, because a kind names what a credential is for.
+OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret | MicrosoftOAuthAppSecret
 
 
 class OrganizationSecretService:
@@ -62,14 +63,17 @@ class OrganizationSecretService:
         The shape check is the one that matters: a purpose says which service
         the key is for, and every service knows what a credential for it looks
         like. Storing an AWS pair as an OpenAI key produces a vault entry that
-        reads correctly and fails at the first run.
+        reads correctly and fails at the first run. `custom` is the one that
+        takes any shape: it names no service, so it has no shape to insist on -
+        and it is how a credential for something the catalog does not know, an
+        HTTP API's for one, is stored at all.
         """
         entry = secret_purposes.get(purpose)
         if entry is None:
             raise BadRequestError(
                 message=f"Unknown purpose: {purpose}", details={"purpose": purpose}
             )
-        if entry.kind is not kind:
+        if entry.id != CUSTOM and entry.kind is not kind:
             raise BadRequestError(
                 message=(f"{entry.label} needs a {entry.kind.value} credential, not {kind.value}"),
                 details={"purpose": purpose, "expected_kind": entry.kind.value},
@@ -477,10 +481,10 @@ class OrganizationSecretService:
         passes it straight to the provider's token endpoint - it is never returned to
         a client, logged, or written to the audit trail.
 
-        One method over two kinds, because the rule is the same for both and it is
-        the rule that matters: `github_oauth_app` connects a repository account,
-        `google_oauth_app` a mailbox, and each organization registers its own client
-        for either. A deployment-wide client read from the environment would be a
+        One method over every such kind, because the rule is the same for each and
+        it is the rule that matters: `github_oauth_app` connects a repository
+        account, `google_oauth_app` and `microsoft_oauth_app` a mailbox, and each
+        organization registers its own client for any of them. A deployment-wide client read from the environment would be a
         second mechanism for a credential at rest, which this repository does not
         have.
 

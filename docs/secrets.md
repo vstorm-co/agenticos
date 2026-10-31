@@ -91,6 +91,8 @@ decides which fields exist.
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
 | `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
 | `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
+| `http_credential` | A token a workflow's HTTP step sends, an optional username, and the origins it may be sent to |
+| `microsoft_oauth_app` | The same three fields, for an app registration people sign in through |
 | `openai_codex` | A ChatGPT sign-in: an access token, a refresh token and the account id |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
@@ -119,6 +121,19 @@ whoever edits the source chooses. Bound to the host the token was added with, th
 token cannot be aimed at another server by editing the source, and no other key
 can stand in for it.
 
+`http_credential` is `git_token`'s rule for a workflow's
+[`http.request`](reference/workflow-nodes.md#http-request) step: the step's URL is
+typed by whoever edits the workflow, and may be bound from a run's input, so the
+origins the token may go to are sealed with it, such as `https://api.example.com`.
+The step checks the origin of the URL it is about to call, and of every redirect it
+follows, and sends the token nowhere else. No other kind of secret can stand in for
+it.
+
+A workflow step's secret field offers **New secret**: the vault's own form, fixed
+to the kind the field takes and stored as `custom`, the one purpose that takes any
+shape. The new secret is chosen on save. Its value goes to the vault and nowhere
+else, and the graph holds only its id.
+
 `entra_app` is what a SharePoint or OneDrive sync source signs in as. Its reach is
 set in Microsoft Entra, not here: the Graph permissions an administrator consented
 to decide which sites it can read, and a token does not say which those are. Grant
@@ -126,6 +141,13 @@ it `Sites.Selected` on the one site the source reads — see [SharePoint and One
 setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Its hint is
 the last four characters of the client id, which is public, rather than of the
 secret.
+
+`microsoft_oauth_app` has the same fields and is spent differently: the Outlook
+trigger's connect flow signs a person in through it, with the delegated
+`Mail.Read` of whoever consents - their own mailbox and the shared ones they can
+already open - where an `entra_app` acts with the application permissions granted
+for the whole tenant. Like `github_oauth_app` it must be org-visible, and there
+must be exactly one. See [Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `openai_codex` is the one kind nobody types. It is stored by [signing in with
 ChatGPT](models.md#running-on-a-chatgpt-subscription), and it changes while it is
@@ -205,6 +227,12 @@ stored inline on the trigger row with the `key_version` that sealed it, the same
 as a channel bot's signing secret. It is never returned or logged in the clear; the
 verification unseals it, compares in constant time, and a delivery that fails is a 403.
 See [Concepts](concepts.md#trigger).
+
+**Workflow webhooks.** The HMAC key a workflow webhook's deliveries are signed with,
+minted by the platform, sealed to the organization and stored on the webhook's row
+with its `key_version`. It is shown once, when it is made or replaced, and never
+again; a master-key rotation rewraps it with the rest. See
+[Workflows](workflows.md#a-webhook-or-a-schedule).
 
 **Embeds.** A `jwt` widget verifies visitor tokens against an HS256 signing secret
 the customer's backend holds. It is sealed to the agent's organization and records

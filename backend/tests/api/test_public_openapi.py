@@ -143,3 +143,42 @@ def test_a_route_can_declare_refusals_of_its_own() -> None:
         "$ref": "#/components/schemas/ErrorEnvelope"
     }
     assert "x-error-responses" not in operation
+
+
+async def test_table_operations_are_part_of_the_public_contract(document: dict[str, Any]) -> None:
+    prefix = f"{settings.API_V1_STR}/tables"
+    paths = document["paths"]
+    assert "post" in paths[prefix]
+    assert "put" in paths[f"{prefix}/{{table_id}}/schema"]
+    assert "post" in paths[f"{prefix}/{{table_id}}/records/query"]
+    assert "post" in paths[f"{prefix}/{{table_id}}/records"]
+    assert "put" in paths[f"{prefix}/{{table_id}}/records/by-external-id/{{external_id}}"]
+
+
+async def test_workflow_runs_are_public_but_authoring_stays_session_only(
+    document: dict[str, Any],
+) -> None:
+    prefix = f"{settings.API_V1_STR}/workflow-runs"
+    paths = document["paths"]
+    assert "post" in paths[prefix]
+    assert "get" in paths[f"{prefix}/{{run_id}}"]
+    assert "get" in paths[f"{prefix}/{{run_id}}/events"]
+    assert f"{settings.API_V1_STR}/workflows/{{workflow_id}}/draft" not in paths
+
+
+async def test_a_workflows_log_is_readable_with_a_key_and_documented(
+    document: dict[str, Any],
+) -> None:
+    paths = document["paths"]
+    prefix = settings.API_V1_STR
+    listing = paths[f"{prefix}/workflows/{{workflow_id}}/logs"]["get"]
+    summary = paths[f"{prefix}/workflows/{{workflow_id}}/logs/summary"]["get"]
+    assert "get" in paths[f"{prefix}/workflow-runs/{{run_id}}/logs"]
+    assert "get" in paths[f"{prefix}/workflow-logs"]
+    assert "newest first" in listing["description"]
+    assert {"from", "to", "q", "include_test", "run", "skip", "limit"} <= {
+        parameter["name"] for parameter in listing["parameters"]
+    }
+    assert "IANA time zone" in summary["description"]
+    assert "tz" in {parameter["name"] for parameter in summary["parameters"]}
+    assert f"{prefix}/workflows/{{workflow_id}}/log-alerts" not in paths

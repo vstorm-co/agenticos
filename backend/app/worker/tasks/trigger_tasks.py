@@ -15,7 +15,7 @@ Two halves (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.db.session import get_worker_db_context
@@ -51,29 +51,90 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     fires were queued.
     """
     from app.services.agent_trigger import AgentTriggerService
-    from app.services.mcp_connection import McpConnectionService
+    from app.services.mcp_connection import McpConnectionService, RevokedGrant
+    from app.services.workflow_exposure import WorkflowExposureService
 
-    read = await McpConnectionService(db).poll_grant(grant)
+    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
+    triggers = AgentTriggerService(db)
+    places = await triggers.polled_places(
+        organization_id=grant.organization_id, event_source=source
+    )
+    workflows = WorkflowExposureService(db)
+    watched_by_workflows: dict[str, datetime] = {}
+    if source == "outlook":
+        # Graph is read a folder at a time, so the folders workflows watch are read
+        # too; a place both watch is read from the earlier of their moments.
+        watched_by_workflows = await workflows.polled_places(organization_id=grant.organization_id)
+        for place, since in watched_by_workflows.items():
+            places[place] = min(places.get(place, since), since)
+    # Only a workflow reads a message's HTML, so only its places pay for the request.
+    read = await McpConnectionService(db).poll_grant(
+        grant, places=places, html_places=watched_by_workflows.keys()
+    )
+    if isinstance(read, RevokedGrant):
+        # Retrying a refused grant every minute fires nothing and says nothing; off,
+        # the triggers show they stopped, and the card says to reconnect (#1984).
+        await triggers.disable_polled(
+            organization_id=grant.organization_id,
+            event_source=source,
+            reason="mailbox_access_revoked",
+        )
+        return 0
     if read is None:
         return 0
-    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
-    decisions = await AgentTriggerService(db).prepare_polled_fires(
+    if read.unreadable:
+        await triggers.disable_polled(
+            organization_id=grant.organization_id,
+            event_source=source,
+            reason="mailbox_folder_unreadable",
+            places=read.unreadable,
+        )
+        if source == "outlook":
+            await workflows.disable_unreadable(
+                organization_id=grant.organization_id, places=read.unreadable
+            )
+    stored = (grant.poll_cursor or {}).get("trigger_announced")
+    cutoff = datetime.now(UTC) - timedelta(minutes=30)
+    announced: dict[str, str] = {}
+    if isinstance(stored, dict):
+        for key, value in stored.items():
+            if isinstance(key, str) and isinstance(value, str):
+                try:
+                    stamp = datetime.fromisoformat(value)
+                except ValueError:
+                    continue
+                if stamp.tzinfo is not None and stamp >= cutoff:
+                    announced[key] = value
+    decisions = await triggers.prepare_polled_fires(
         organization_id=grant.organization_id,
         event_source=source,
         events=read.events,
+        announced=announced,
     )
-    service = AgentTriggerService(db)
+    read.cursor["trigger_announced"] = announced
     for decision in decisions:
-        await service.queue_fire(
+        await triggers.queue_fire(
             decision.trigger_id,
             organization_id=grant.organization_id,
             event_context=decision.event_context,
         )
+    # The workflows listening to this mailbox, in the same transaction as the fires
+    # and the cursor: a run is admitted and its message recorded, or neither, and a
+    # run the organization had no room for keeps the cursor where it was.
+    # Only the mailboxes': workflows have a Gmail and an Outlook trigger, not one for
+    # the other polled sources.
+    admitted_every_run = source not in ("gmail", "outlook") or await workflows.receive_polled_email(
+        organization_id=grant.organization_id, source=source, events=read.events
+    )
     # In the fires' own transaction: the cursor moves exactly when the fires for
     # what it read are queued, so a crash re-reads the window - which the
     # delivery-id claim then dedups - rather than dropping a polled message that,
-    # unlike a webhook, no provider will ever resend.
-    await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    # unlike a webhook, no provider will ever resend. A poll some workflow had no
+    # room to admit a run for keeps its place and reads the same window again.
+    if admitted_every_run:
+        await McpConnectionService(db).store_poll_cursor(grant, cursor=read.cursor)
+    else:
+        logger.warning("portal_poll_cursor_retained", extra={"grant_id": str(grant.id)})
     return len(decisions)
 
 
@@ -83,8 +144,8 @@ async def poll_portal_grants() -> None:
     The `poll-portal-grants` schedule, beside `check_agent_triggers`, and the one
     that makes a polled portal a delivery mechanism
     rather than a second kind of trigger. Gmail pushes nothing without a Cloud
-    Pub/Sub topic and a registration that expires weekly, so this asks - once a
-    minute, one request per connected mailbox - and hands whatever it finds to the
+    Pub/Sub topic and a registration that expires weekly, so this asks - each connected mailbox on its own interval, a minute unless
+    set otherwise, one request per read - and hands whatever it finds to the
     same match-then-fire path a webhook delivery takes.
 
     Each mailbox owns a transaction advisory lock until its cursor and queued
@@ -179,7 +240,8 @@ def _polled_source(portal_key: str | None) -> str | None:
     """The `event_source` a portal's presets fire through, or `None` for no portal.
 
     Read off the catalog rather than assumed from the key, because they are not the
-    same word: the portal is `google` and the source is `gmail`.
+    same word: the portal is `google` and the source is `gmail`, the portal
+    `microsoft` and the source `outlook`.
     """
     from app.services.portal_catalog import get_portal
 

@@ -267,6 +267,7 @@ nav:
           - howto/slack-handbook-assistant.md
           - howto/support-ticket-triage.md
           - howto/email-triage.md
+          - howto/answer-mail-with-approved-draft.md
           - howto/onboarding-helpdesk.md
       - Research and analysis:
           - howto/deep-research-subagents.md
@@ -326,6 +327,8 @@ nav:
           - models.md
           - skills.md
           - context.md
+          - virtual-tables.md
+          - workflows.md
           - file-processing.md
           - mcp.md
           - sandbox.md
@@ -362,6 +365,7 @@ nav:
       - commands.md
       - reference/spec.md
       - reference/capabilities.md
+      - reference/workflow-nodes.md
       - reference/permissions.md
       - reference/components.md
       - reference/glossary.md

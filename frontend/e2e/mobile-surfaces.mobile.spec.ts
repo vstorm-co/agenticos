@@ -271,6 +271,8 @@ for (const platform of ["ios", "android"] as const) {
         size_bytes: 48,
         run_id: null,
         created_at: new Date().toISOString(),
+        restored_from: null,
+        consent_state: "not_needed" as const,
       };
       const artifact: ArtifactDetail = {
         id,
@@ -298,6 +300,14 @@ for (const platform of ["ios", "android"] as const) {
           embed_origins: [],
           embed_url: null,
         },
+        live: false,
+        archived_at: null,
+        may_change_owner: false,
+        may_grant_edit_data: false,
+        bindings: [],
+        may_confirm_public_data: false,
+        public_data: null,
+        consent: null,
       };
       await page.route(`**/api/apps/${id}`, (route) => route.fulfill({ json: artifact }));
       await page.route(`**/api/apps/${id}/versions`, (route) =>

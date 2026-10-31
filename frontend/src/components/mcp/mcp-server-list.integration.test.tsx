@@ -430,6 +430,22 @@ describe("McpServerList", () => {
     expect(window.location.search).toBe("?server=github");
   });
 
+  it("opens an embedded service without changing the workflow address", async () => {
+    window.history.replaceState({}, "", "/workflows/draft?tab=editor");
+    serve([connection()], []);
+    render(
+      <McpServerList canManageOrganization initialServerKey="github" persistSelection={false} />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByRole("heading", { name: "GitHub" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(window.location.pathname + window.location.search).toBe("/workflows/draft?tab=editor");
+    await openConnections();
+    expect(window.location.pathname + window.location.search).toBe("/workflows/draft?tab=editor");
+  });
+
   it("follows a disconnect at once, without being closed and opened again", async () => {
     await mount({ org: [connection()] });
     const connections = await openConnections();

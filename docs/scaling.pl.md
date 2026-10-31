@@ -1,5 +1,5 @@
 ---
-source_sha: "4d597d189a74"
+source_sha: "628f3497bb0d"
 ---
 
 # Skalowanie poza jeden host { #scale-beyond-one-host }
@@ -144,7 +144,7 @@ Dlaczego kolejka to wiersze w Postgresie, zmierzone na tle dziewięciu innych
 silników, opisuje [benchmark zadań w tle](task-queue-benchmark.md).
 
 Rozdziel pule, gdy parsowanie konkuruje z uruchomieniami agentów.
-`WORKER_POOLS=agent,system` na jednych procesach i `WORKER_POOLS=ingest` na
+`WORKER_POOLS=agent,system,workflow` na jednych procesach i `WORKER_POOLS=ingest` na
 hostach z zapasem pamięci sprawiają, że duży upload nie opóźnia rutyny. Sonda
 zdrowia i `agenticos cmd doctor` zgłaszają pulę, której nie obsługuje żaden żywy
 worker. Ustawienia z sekcji

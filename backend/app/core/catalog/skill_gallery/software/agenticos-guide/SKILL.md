@@ -42,3 +42,5 @@ Read the file first when one is listed; it is the documentation page itself, bun
 - Where the page names a place in the console ("Settings → MCP clients"), send the person there: it shows values for their own deployment, such as its address, which the documentation can only write as a placeholder.
 - Look at the person's own organization with your tools when the answer depends on it - whether a connection exists, what a key may do - instead of describing the general case.
 - When neither the files nor the site answer the question, say so and say what you did find; do not fill the gap from another product's documentation.
+
+For workflow construction, execution, triggers and API integration, read `docs/workflows.md`. For typed records, table schemas and Markdown notes, read `docs/virtual-tables.md`. Load workflow-builder and virtual-tables for the building procedure.

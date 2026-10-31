@@ -1119,6 +1119,16 @@ Four properties worth knowing:
   deliberate: an agent that has been running like this stops, with a message
   saying what to change. What stops is an agent whose operator asked for an
   approval nobody was ever being asked for.
+- **A parked call can name what its ids stand for.** A tool may describe its own
+  call: the table writes give the table's name. A record is never named, because a record's label is the text of
+  one of its cells, and the approval keeps it. The names are resolved as the run's
+  person when the call parks, so nothing that person may not see is named, and
+  are stored on the approval as `context`. The chat card and the Approvals page
+  lead with a sentence built from them, such as "Share the view Closed tickets of
+  Support with everyone who may read the table", above the arguments, which stay
+  what runs. The sentence is found by the tool's stable id, so a tool that a
+  binding renamed keeps it. A failed or slow description parks the call without
+  one, and a call that a resumed run already decided is not described again.
 - **One model step can park several calls.** A model that answers with two
   side-effecting calls at once - "email the customer and the account manager" -
   parks both, each its own approval row decided on its own. The rows are written
@@ -1332,6 +1342,68 @@ it spent.
     stricter setting applies to a schedule or another entry point. Tools
     executed inside a model provider do not pass through the local approval gate.
 
+### A workflow step that asks a person { #workflow-step-approvals }
+
+A workflow asks with a [`human.approval`](reference/workflow-nodes.md#human-approval)
+step rather than a gated tool: the step writes its own request - a title, the
+details it was given, who may decide and until when - and its run waits on it.
+The **Approvals** tab lists these above the tool calls, and deciding one wakes the
+run, which goes on by the answer. A decision is final and is recorded in the audit
+trail with what was asked, and stays listed under **Decided** with the tool calls'
+own record. A step that names its approvers can be decided only by
+them. One nobody decides in time expires, and a cancelled run cancels its requests.
+
+A step that is `editable` also shows the approver a proposal, such as a drafted
+reply, which they may change before approving it. The audit entry records whether
+the step was editable, whether the approver edited it (`edited`) and the length of
+the proposal and of the approved text (`proposal_length`, `final_length`), never
+the text itself. The text is kept on the request, in plaintext, until the run's
+history is deleted.
+
+The requests are also counted. A workflow's Stats card and its stats API report, per
+step and per day, how many were approved as proposed, edited, rejected or expired,
+how long people took to decide and how much their edits changed, each edit as a
+ratio from `0` to `1` (`edit_ratio`, also in the audit entry); see
+[Running a workflow](workflows.md#running-a-workflow). The organization-wide
+summary, `GET /api/v1/workflow-approvals/stats`, needs `workflows:view` and covers
+only the workflows the member may view. It holds no proposal or approved text and no
+figure for any one approver: it counts requests, not people.
+
+### Artifact entries
+
+A page that reads table data is shared on its owner's consent, and each step of that
+leaves an entry with the person who took it. None of them carries a record, a filter
+value or a row: they hold versions, fingerprints, request ids and the words a person
+confirmed.
+
+| Action | Recorded when |
+|---|---|
+| `artifact.published` | A version was published, with its number, the fingerprint of its page queries and `actions`, the ids of the workflows it declares |
+| `artifact.data_consented` | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it |
+| `artifact.data_withdrawn` | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit` |
+| `artifact.auto_consent_changed` | The owner turned "Share new versions automatically" on or off, with the text they confirmed |
+| `artifact.edit_data_granted` | The owner, or an Owner or Admin, gave a person or a group "Can edit, including data", with the text they confirmed |
+| `artifact.owner_changed` | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped |
+| `artifact.share_requested` | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run |
+| `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom |
+| `organization.public_live_data_changed` | An Owner or Admin switched **Public pages with live data** on or off for the organization, with the old and the new value |
+| `artifact.public_data_consented` | The owner, or an Owner or Admin for them, confirmed that anyone with the page's public link, and the sites that embed it, may read its data. Names the version, the fingerprint, the tables and columns, the embedding sites and whether a password is set, and `for_owner` when someone confirmed for them |
+| `artifact.public_data_withdrawn` | An editor took that consent back, signed in as themselves (not impersonating), with the fingerprint it held |
+| `artifact.public_data_voided` | The consent was cleared because something under it changed, with a `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` or `archived` |
+| `artifact.action_started` | A member confirmed and started a workflow from a page's action. Names the page, the version, the workflow and the run, never the input values, which are on the run |
+
+**Public pages with live data** is an organization setting, off by default, in the
+organization's settings beside the approval waiver. It decides whether a page's data may
+reach people with no account through a public link or an embed. Unlike the waiver, it needs
+`org:settings` - Owner or Admin - and must be changed signed in as themselves: an impersonating
+session is refused. The page still needs its owner's
+[public data consent](artifacts.md#live-data-on-a-public-link). Turning the switch off is a
+kill switch: public pages lose their data at the next load and keep their consent, which
+holds again when it is switched back on.
+
+Widening a page's visibility or grants is recorded as `resource.share`, `resource.unshare` and
+`resource.visibility_changed` entries, as for any other resource. The tool `share_view` is gone, and with it the approval that gated it.
+
 ## Alerts
 
 Every alert here is about a run nobody is looking at. A chat run that stops on its
@@ -1351,6 +1423,8 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round.
+
+Page-sharing requests and page ownership changes name the page and person, never its data.
 
 The same page also carries every other
 event the inbox delivers: a run finishing or failing unattended - a routine's
@@ -1429,6 +1503,12 @@ same setting, so the only way to quieten the first was to go deaf to the second.
 | **Budget** | this agent reached its own monthly cap | the admins and the agent's owner |
 | **Approvals** | a tool call parked | whoever started the run, plus the admins |
 | **Usage** | weekly and monthly, what this agent spent | off |
+
+A workflow's log has alerts of its own, set on the workflow's Logs page rather than in
+a spec; see [Alerts](workflows.md#log-alerts). They fire when a rule's matching lines
+reach its threshold within its window, and go to the workflow's owner unless the rule
+says otherwise. They follow the same bell and email preferences as the rest of this
+section, under **Workflow log alerts**.
 
 An audience is a list of roles, not addresses:
 
@@ -1670,6 +1750,12 @@ obligations get a setting.
 Set it at **Organizations → a workspace → Members → Retention**, gated on
 `org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
 the rows would not be a policy.
+
+[Virtual Tables](virtual-tables.md#limits-and-retention) data joins the same sweep, on
+deployment-wide periods that no organization sets: idempotency receipts after 24 hours,
+dispatched outbox rows after 3 days and record history after 365 days, which is also what
+removes the history of a deleted record. The entry it writes names `table_receipts`,
+`table_outbox` or `table_history` and a count.
 
 The deployment's own three numbers - `retention_defaults`, `retention_max_days`
 and `audit_retention_floor_days` - are fields on the deployment settings, written

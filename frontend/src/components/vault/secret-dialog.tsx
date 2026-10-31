@@ -74,6 +74,19 @@ interface AddSecretDialogProps {
    * start where the caller pointed them.
    */
   purposeId?: string;
+  /**
+   * The one shape the caller can use, fixed - a workflow step's secret field
+   * names it in `x-secret-kind`. The service questions go: the secret is stored
+   * as `custom`, the purpose that takes any shape, and asking which service it
+   * is for would offer answers the field would then refuse.
+   */
+  kind?: StorableSecretKind;
+  /**
+   * What the form starts with - a credential lifted out of a pasted cURL, on
+   * its way to the vault instead of the graph. Read once, when the dialog is
+   * made, and cleared with everything else once stored.
+   */
+  initial?: { name?: string; value?: Record<string, unknown> };
 }
 
 /**
@@ -112,6 +125,8 @@ export function AddSecretDialog({
   onSubmit,
   isPending,
   purposeId,
+  kind: fixedKind,
+  initial,
 }: AddSecretDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
@@ -130,10 +145,10 @@ export function AddSecretDialog({
   // `null` is "nobody has typed a name", which is not the same as an empty one:
   // it is what lets the field follow the chosen service until somebody makes it
   // theirs. Once typed, it stays typed - including when typed back to blank.
-  const [name, setName] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(initial?.name ?? null);
   const [description, setDescription] = useState("");
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
-  const [value, setValue] = useState<Record<string, unknown>>({});
+  const [value, setValue] = useState<Record<string, unknown>>(initial?.value ?? {});
   const [callbackUrl, setCallbackUrl] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const chatgpt = useChatGPTSignIn();
@@ -145,8 +160,9 @@ export function AddSecretDialog({
   // The shape follows from the service for everything except `custom`: OpenAI
   // takes an API key, Bedrock takes an AWS pair, and asking somebody to pick
   // that a second time is asking them to get it wrong.
-  const effectiveKind = chosen && chosen.id !== "custom" ? chosen.kind : kind;
+  const effectiveKind = fixedKind ?? (chosen && chosen.id !== "custom" ? chosen.kind : kind);
   const isCustom = chosen === null || chosen.id === "custom";
+  const asksKind = fixedKind === undefined && isCustom;
   const info = kindInfo(kinds, effectiveKind);
   // The one shape nobody types: it is stored by signing in, and it is somebody's
   // own subscription - so it starts private, where every other key starts shared.
@@ -156,7 +172,8 @@ export function AddSecretDialog({
   // What the field shows: what was typed, or the service's own name. Switching
   // from OpenAI to Anthropic with the field still reading "OpenAI" leaves a key
   // named after the wrong provider, in a list people scan by name.
-  const suggestedName = chosen === null || chosen.id === "custom" ? "" : chosen.label;
+  const suggestedName =
+    fixedKind !== undefined || chosen === null || chosen.id === "custom" ? "" : chosen.label;
   const shownName = name ?? suggestedName;
   const complete =
     shownName.trim().length > 0 &&
@@ -217,7 +234,7 @@ export function AddSecretDialog({
           name: shownName.trim(),
           description: description.trim() || null,
           value: toSecretPayload(effectiveKind, value),
-          purpose: chosen?.id ?? "custom",
+          purpose: fixedKind === undefined ? (chosen?.id ?? "custom") : "custom",
           visibility,
         });
       }
@@ -263,94 +280,98 @@ export function AddSecretDialog({
         <div className={cn(DIALOG_BODY, "space-y-5")}>
           {/* A caption over a group of buttons, not a `Label`: a label names
               one control, and this one names five. */}
-          <div className="space-y-2">
-            <p id="secret-purpose-family" className="text-sm leading-none font-medium">
-              {t("what")}
-            </p>
-            {/* A tile per kind of key, each wearing the marks of the services it
+          {fixedKind === undefined && (
+            <div className="space-y-2">
+              <p id="secret-purpose-family" className="text-sm leading-none font-medium">
+                {t("what")}
+              </p>
+              {/* A tile per kind of key, each wearing the marks of the services it
                 covers - "Model provider" says less at a glance than the OpenAI,
                 Anthropic and Gemini marks do. Taken from the catalog, so a new
                 service shows up here without a change to this file. */}
-            <div
-              role="group"
-              aria-labelledby="secret-purpose-family"
-              className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-            >
-              {PURPOSE_GROUPS.map((group) => (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() => chooseCategory(group.id)}
-                  aria-pressed={category === group.id}
-                  title={t(`${group.words}Hint`)}
-                  className={cn(
-                    "flex flex-col items-start gap-2 rounded-xl border p-3 text-left text-sm font-medium transition-colors",
-                    category === group.id
-                      ? "border-foreground bg-accent text-foreground"
-                      : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
-                  )}
-                >
-                  <span className="text-foreground flex h-5 items-center gap-1.5" aria-hidden>
-                    {group.id === "other" ? (
-                      <KeyRound className="h-4 w-4" />
-                    ) : (
-                      purposes
-                        .filter((entry) => entry.category === group.id)
-                        .slice(0, 3)
-                        .map((entry) => (
-                          <ProviderIcon
-                            key={entry.id}
-                            provider={entry.id}
-                            brand={entry.icon}
-                            className="h-4 w-4"
-                          />
-                        ))
+              <div
+                role="group"
+                aria-labelledby="secret-purpose-family"
+                className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+              >
+                {PURPOSE_GROUPS.map((group) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => chooseCategory(group.id)}
+                    aria-pressed={category === group.id}
+                    title={t(`${group.words}Hint`)}
+                    className={cn(
+                      "flex flex-col items-start gap-2 rounded-xl border p-3 text-left text-sm font-medium transition-colors",
+                      category === group.id
+                        ? "border-foreground bg-accent text-foreground"
+                        : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
                     )}
-                  </span>
-                  {t(group.words)}
-                </button>
-              ))}
+                  >
+                    <span className="text-foreground flex h-5 items-center gap-1.5" aria-hidden>
+                      {group.id === "other" ? (
+                        <KeyRound className="h-4 w-4" />
+                      ) : (
+                        purposes
+                          .filter((entry) => entry.category === group.id)
+                          .slice(0, 3)
+                          .map((entry) => (
+                            <ProviderIcon
+                              key={entry.id}
+                              provider={entry.id}
+                              brand={entry.icon}
+                              className="h-4 w-4"
+                            />
+                          ))
+                      )}
+                    </span>
+                    {t(group.words)}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="secret-purpose">
-              {category === "other" ? t("service") : t("whichOne")}
-            </Label>
-            {/* The entry that is in force, fallback included - the raw choice
+          {fixedKind === undefined && (
+            <div className="space-y-2">
+              <Label htmlFor="secret-purpose">
+                {category === "other" ? t("service") : t("whichOne")}
+              </Label>
+              {/* The entry that is in force, fallback included - the raw choice
                   is empty until somebody picks, and a trigger bound to it read as
                   blank while the hint under it already named the first service. */}
-            <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
-              <SelectTrigger id="secret-purpose">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                {inCategory.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
-                    {/* The mark, where there is one. A vault is scanned rather
+              <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
+                <SelectTrigger id="secret-purpose">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {inCategory.map((entry) => (
+                    <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
+                      {/* The mark, where there is one. A vault is scanned rather
                           than read, and a logo is what the eye lands on. */}
-                    <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">
-              {chosen?.description ?? t("namingServiceWhatLets")}
-              {chosen?.help_url && (
-                <>
-                  {" "}
-                  <a
-                    href={chosen.help_url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="underline underline-offset-4"
-                  >
-                    {t("whereDoIGet2")}
-                  </a>
-                </>
-              )}
-            </p>
-          </div>
+                      <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {chosen?.description ?? t("namingServiceWhatLets")}
+                {chosen?.help_url && (
+                  <>
+                    {" "}
+                    <a
+                      href={chosen.help_url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="underline underline-offset-4"
+                    >
+                      {t("whereDoIGet2")}
+                    </a>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
 
           {info && signsIn && (
             <ChatGPTSignInSteps
@@ -380,7 +401,7 @@ export function AddSecretDialog({
               // Full width unless the Kind select is beside it: a lone half-width
               // input with empty space to its right reads as a field that failed
               // to render its neighbour.
-              className={isCustom ? undefined : "sm:col-span-2"}
+              className={asksKind ? undefined : "sm:col-span-2"}
             >
               <Input
                 value={shownName}
@@ -393,7 +414,7 @@ export function AddSecretDialog({
             {/* Only for `custom`: every named service declares the shape it
                 takes, and asking twice is asking somebody to disagree with the
                 server. */}
-            {isCustom && (
+            {asksKind && (
               <div className="space-y-2">
                 <Label htmlFor="secret-kind">{t("kind")}</Label>
                 <Select value={kind} onValueChange={chooseKind}>

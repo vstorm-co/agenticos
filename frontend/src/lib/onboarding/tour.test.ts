@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AGENT_BUILDER,
+  ARTIFACT_DETAIL,
   KB_DETAIL,
   GROUP_DETAIL,
   ORG_DIRECTORY,
@@ -15,10 +16,14 @@ import {
   stepsForPage,
   TOUR_STEPS,
   visibleTourSteps,
+  WORKFLOW_LOGS_DETAIL,
+  WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
+import { FLOWS } from "@/lib/onboarding/flows";
+import en from "../../../messages/en.json";
 import { Perm, type Permission } from "@/types/permissions";
 
 // The curated launch pass a caller with no permissions sees: the interstitials
@@ -64,6 +69,7 @@ const ORG_STEPS = [
   "org-governance",
   "org-proactivity",
   "org-proactivity-model",
+  "org-public-live-data",
   "org-voice",
   "org-assistant",
   "org-members",
@@ -98,6 +104,35 @@ describe("pageKey", () => {
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
     expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
     expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
+  });
+
+  it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
+    expect(pageKey(ROUTES.WORKFLOW_RUNS("wf-1"))).toBe(WORKFLOW_RUNS_DETAIL);
+    expect(pageKey(ROUTES.WORKFLOW_ALL_RUNS)).toBe(ROUTES.WORKFLOW_ALL_RUNS);
+    expect(pageKey(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"))).toBe(
+      ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-1"),
+    );
+    expect(stepsForPage(ROUTES.WORKFLOW_RUNS("wf-1"), () => true).map((s) => s.id)).toEqual([
+      "workflow-stats",
+      "workflow-run-history",
+    ]);
+  });
+});
+
+describe("a workflow's log page", () => {
+  it("collapses one workflow's log onto its identity and describes it", () => {
+    expect(pageKey(ROUTES.WORKFLOW_LOGS("wf-1"))).toBe(WORKFLOW_LOGS_DETAIL);
+    expect(stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => true).map((s) => s.id)).toEqual([
+      "workflow-logs",
+      "workflow-log-alerts",
+    ]);
+    expect(stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => false).map((s) => s.id)).toEqual([
+      "workflow-logs",
+    ]);
+    const alerts = stepsForPage(ROUTES.WORKFLOW_LOGS("wf-1"), () => true).find(
+      (s) => s.id === "workflow-log-alerts",
+    );
+    expect(alerts).toEqual(expect.objectContaining({ optional: true }));
   });
 });
 
@@ -452,6 +487,12 @@ describe("the groups and directory pages", () => {
       ORG_STEPS,
     );
   });
+
+  it("shows the public live data switch only to who may change organization settings", () => {
+    const without = stepsForPage("/orgs/some-id/members", (perm) => perm !== "org:settings");
+
+    expect(without.map((step) => step.id)).not.toContain("org-public-live-data");
+  });
 });
 
 describe("the Routines page", () => {
@@ -473,6 +514,61 @@ describe("the Routines page", () => {
 
     expect(refused).toEqual(["routines-list", "routines-watches"]);
     expect(allowed).toEqual(["routines-list", "routines-watches", "routines-create"]);
+  });
+});
+
+describe("an artifact's page", () => {
+  it("collapses every artifact route onto one identity, apart from the list", () => {
+    expect(pageKey("/apps/some-id")).toBe(ARTIFACT_DETAIL);
+    expect(pageKey(ROUTES.ARTIFACTS)).toBe(ROUTES.ARTIFACTS);
+  });
+
+  it("walks the strip, then consent, requests, review, actions and the owner, all but the strip optional", () => {
+    const steps = stepsForPage("/apps/some-id", () => true);
+
+    expect(steps.map((step) => step.id)).toEqual([
+      "artifact-strip",
+      "artifact-consent",
+      "artifact-public-data",
+      "artifact-requests",
+      "artifact-review",
+      "artifact-actions",
+      "artifact-change-owner",
+    ]);
+    expect(steps.filter((step) => step.optional !== true).map((step) => step.id)).toEqual([
+      "artifact-strip",
+    ]);
+    expect(pageHasSteps("/apps/some-id")).toBe(true);
+  });
+
+  it("shows a plain reader the strip stop, and stays out of the first-run tour", () => {
+    const viewer = stepsForPage("/apps/some-id", (permission) => permission === Perm.artifactsView);
+
+    expect(viewer.map((step) => step.id)).toEqual([
+      "artifact-strip",
+      "artifact-consent",
+      "artifact-public-data",
+      "artifact-requests",
+      "artifact-review",
+      "artifact-actions",
+      "artifact-change-owner",
+    ]);
+    expect(visibleTourSteps(() => true).some((step) => step.page === ARTIFACT_DETAIL)).toBe(false);
+  });
+});
+
+describe("every step's copy", () => {
+  // The engine builds `steps.<id>.title` from a template, so the i18n guard cannot
+  // see these keys, and a missing one renders as the key itself in the caption.
+  const steps: Record<string, { title?: string; body?: string }> = en.onboarding.steps;
+  const ids = [
+    ...TOUR_STEPS.map((step) => step.id),
+    ...Object.values(FLOWS).flatMap((flow) => flow.steps.map((step) => step.id)),
+  ];
+
+  it.each(ids)("%s has a title and a body in en.json", (id) => {
+    expect(steps[id]?.title).toEqual(expect.any(String));
+    expect(steps[id]?.body).toEqual(expect.any(String));
   });
 });
 

@@ -41,11 +41,16 @@ export function Providers({ children }: ProvidersProps) {
             className="console-toasts"
             position="top-right"
             gap={8}
-            offset={{ top: "calc(var(--shell-inset-top, 0px) + 1rem)", right: "1rem" }}
+            offset={{
+              top: "calc(var(--shell-inset-top, 0px) + 1rem)",
+              right: "1rem",
+              bottom: "5rem",
+            }}
             mobileOffset={{
               top: "calc(var(--shell-inset-top, 0px) + 1rem)",
               left: "1rem",
               right: "1rem",
+              bottom: "5rem",
             }}
             toastOptions={{
               style: {

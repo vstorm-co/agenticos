@@ -1,5 +1,5 @@
 ---
-source_sha: "ef05ac38d95b"
+source_sha: "79e2e3f1d2d8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2676,6 +2676,16 @@ Tres cosas que merece la pena saber antes de concederlas:
   `tool_approval` en la vinculación es la forma de hacer que pregunte.
 
 El contexto automático incluye nombre, propósito y una lista visible limitada, marcados como datos y no instrucciones. Las herramientas concedidas por vinculación permiten consultas adicionales y envío explícito de ficheros; retirar una herramienta no elimina el contexto automático.
+
+## Un bot cuyos mensajes inician un workflow { #a-bot-whose-messages-start-a-workflow }
+
+Un workflow con un trigger **Channel message** recibe los mensajes de un bot en lugar
+de su agente. Solo le llegan los mensajes que el agente habría respondido, y de ellos
+solo los que encajan con el filtro del trigger: un mensaje que nombra a otro agente
+por `@handle` sigue yendo a ese agente, y uno que el filtro deja fuera lo responde el
+agente del bot como hasta ahora. El workflow responde con su propio paso **Send a
+message**, en el hilo del que vino el mensaje. Ver
+[Desde un mensaje en un canal](workflows.md#from-a-channel-message).
 
 ## Elegir { #choosing }
 

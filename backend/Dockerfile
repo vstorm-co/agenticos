@@ -108,8 +108,7 @@ RUN if echo "${EXTRAS}" | grep -q kerberos; then \
         && apt-get clean && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Copy virtual environment from builder
-COPY --from=builder /app/.venv /app/.venv
+# Application and its virtual environment, from the builder
 COPY --from=builder /app /app
 
 # The licence, the notice and the generated index of every third-party component
@@ -125,10 +124,12 @@ COPY frontend/licenses/texts /app/licenses/texts
 # Add venv to path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Create non-root user and writable directories
-RUN adduser --disabled-password --gecos "" appuser && \
+# Non-root user. Code and venv stay root-owned and read-only to it; only the
+# directories it writes at run time are its own. uid pinned: media_data volumes
+# created by earlier images are owned by 1000.
+RUN adduser --disabled-password --gecos "" --uid 1000 appuser && \
     mkdir -p /app/media /app/data /app/chroma_data /app/models_cache && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app/media /app/data /app/chroma_data /app/models_cache
 USER appuser
 
 EXPOSE 8000

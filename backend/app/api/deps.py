@@ -847,6 +847,52 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.virtual_tables import VirtualTableService
+
+
+def get_virtual_table_service(db: DBSession) -> VirtualTableService:
+    """Create VirtualTableService instance with database session."""
+    return VirtualTableService(db)
+
+
+VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
+
+
+def get_streaming_virtual_table_service(db: StreamingDBSession) -> VirtualTableService:
+    """The table service for a CSV export, and nothing else.
+
+    The export's lines are read from the database while the response is being
+    sent, after an ordinary `DBSession` has committed and closed. The export
+    writes nothing, which is what makes a request-scoped session acceptable
+    here; see `StreamingDBSession`.
+    """
+    return VirtualTableService(db)
+
+
+StreamingVirtualTableSvc = Annotated[
+    VirtualTableService, Depends(get_streaming_virtual_table_service)
+]
+
+from app.services.virtual_tables import TableViewService
+
+
+def get_table_view_service(db: DBSession) -> TableViewService:
+    """Create TableViewService instance with database session."""
+    return TableViewService(db)
+
+
+TableViewSvc = Annotated[TableViewService, Depends(get_table_view_service)]
+
+from app.services.virtual_tables.triggers import TableTriggerService
+
+
+def get_table_trigger_service(db: DBSession) -> TableTriggerService:
+    """Create TableTriggerService instance with database session."""
+    return TableTriggerService(db)
+
+
+TableTriggerSvc = Annotated[TableTriggerService, Depends(get_table_trigger_service)]
+
 
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)
@@ -855,6 +901,8 @@ def get_mention_service(db: DBSession) -> MentionService:
 MentionSvc = Annotated[MentionService, Depends(get_mention_service)]
 
 from app.services.artifact import ArtifactService
+from app.services.artifact_public_data import ArtifactPublicDataService
+from app.services.artifact_request_service import ArtifactRequestService
 
 
 def get_artifact_service(db: DBSession) -> ArtifactService:
@@ -863,6 +911,24 @@ def get_artifact_service(db: DBSession) -> ArtifactService:
 
 
 ArtifactSvc = Annotated[ArtifactService, Depends(get_artifact_service)]
+
+
+def get_artifact_request_service(db: DBSession) -> ArtifactRequestService:
+    """Create ArtifactRequestService instance with database session."""
+    return ArtifactRequestService(db)
+
+
+ArtifactRequestSvc = Annotated[ArtifactRequestService, Depends(get_artifact_request_service)]
+
+
+def get_artifact_public_data_service(db: DBSession) -> ArtifactPublicDataService:
+    """Create ArtifactPublicDataService instance with database session."""
+    return ArtifactPublicDataService(db)
+
+
+ArtifactPublicDataSvc = Annotated[
+    ArtifactPublicDataService, Depends(get_artifact_public_data_service)
+]
 
 from app.services.memory import MemoryService
 
@@ -888,6 +954,102 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
+
+from app.services.workflow_registry import WorkflowRegistryService
+
+
+def get_workflow_registry_service(db: DBSession) -> WorkflowRegistryService:
+    """Create WorkflowRegistryService instance with database session."""
+    return WorkflowRegistryService(db)
+
+
+WorkflowRegistrySvc = Annotated[WorkflowRegistryService, Depends(get_workflow_registry_service)]
+
+from app.services.workflow_stats import WorkflowStatsService
+
+
+def get_workflow_stats_service(db: DBSession) -> WorkflowStatsService:
+    """Create WorkflowStatsService instance with database session."""
+    return WorkflowStatsService(db)
+
+
+WorkflowStatsSvc = Annotated[WorkflowStatsService, Depends(get_workflow_stats_service)]
+
+from app.services.workflow_evals import WorkflowEvalService
+
+
+def get_workflow_eval_service(db: DBSession) -> WorkflowEvalService:
+    """Create WorkflowEvalService instance with database session."""
+    return WorkflowEvalService(db)
+
+
+WorkflowEvalSvc = Annotated[WorkflowEvalService, Depends(get_workflow_eval_service)]
+
+from app.services.workflow_log_alerts import WorkflowLogAlertService
+
+
+def get_workflow_log_alert_service(db: DBSession) -> WorkflowLogAlertService:
+    """Create WorkflowLogAlertService instance with database session."""
+    return WorkflowLogAlertService(db)
+
+
+WorkflowLogAlertSvc = Annotated[WorkflowLogAlertService, Depends(get_workflow_log_alert_service)]
+
+from app.services.workflow_portable import WorkflowPortableService
+
+
+def get_workflow_portable_service(db: DBSession) -> WorkflowPortableService:
+    return WorkflowPortableService(db)
+
+
+WorkflowPortableSvc = Annotated[WorkflowPortableService, Depends(get_workflow_portable_service)]
+
+from app.services.workflow_execution import WorkflowExecutionService
+
+
+def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
+    return WorkflowExecutionService(db)
+
+
+WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
+
+from app.services.workflow_execution.approvals import WorkflowApprovalService
+
+
+def get_workflow_approval_service(db: DBSession) -> WorkflowApprovalService:
+    return WorkflowApprovalService(db)
+
+
+WorkflowApprovalSvc = Annotated[WorkflowApprovalService, Depends(get_workflow_approval_service)]
+
+from app.services.workflow_exposure import WorkflowExposureService
+
+
+def get_workflow_exposure_service(db: DBSession) -> WorkflowExposureService:
+    return WorkflowExposureService(db)
+
+
+WorkflowExposureSvc = Annotated[WorkflowExposureService, Depends(get_workflow_exposure_service)]
+
+from app.services.workflow_execution.resume import WorkflowResumeService
+
+
+def get_workflow_resume_service(db: DBSession) -> WorkflowResumeService:
+    return WorkflowResumeService(db)
+
+
+WorkflowResumeSvc = Annotated[WorkflowResumeService, Depends(get_workflow_resume_service)]
+
+from app.services.workflow_webhook_test import WorkflowWebhookTestService
+
+
+def get_workflow_webhook_test_service(db: DBSession, redis: Redis) -> WorkflowWebhookTestService:
+    return WorkflowWebhookTestService(db, redis)
+
+
+WorkflowWebhookTestSvc = Annotated[
+    WorkflowWebhookTestService, Depends(get_workflow_webhook_test_service)
+]
 
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
@@ -1099,6 +1261,25 @@ async def limit_agent_run(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
 
 
+async def limit_workflow_run(ctx: Auth) -> None:
+    """Refuse a caller starting more workflow runs than its share.
+
+    The same allowance as `limit_agent_run`, counted on a surface of its own:
+    each start queues dispatch work - outbox rows, worker flow runs, events -
+    and a run's nodes can spend the organization's budget.
+
+    Usage::
+
+        @router.post("", dependencies=[Depends(limit_workflow_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="workflow_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    _refuse_if_over(decision, "Too many workflow runs in the last minute. Wait and try again.")
+
+
 async def limit_ml_call(ctx: Auth) -> None:
     """Refuse a caller asking the ML services for more than their share.
 
@@ -1118,6 +1299,59 @@ async def limit_ml_call(ctx: Auth) -> None:
         limit=rate_limit.ml_limit(),
     )
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
+
+
+async def limit_table_write(ctx: Auth) -> None:
+    """Refuse a member writing to Virtual Tables faster than the deployment allows.
+
+    Keyed on the member and the organization, so one person's loop does not spend
+    another's allowance and the same person in two organizations has two. Unlike the
+    run and ML limits this one also covers the console: a table write from the browser
+    stores exactly what the same write from a script does, so metering only the script
+    would leave the cheap way in open.
+
+    Unlike the run and ML limits this one is a storage boundary, not just a load
+    control: every write stores a history row and, when keyed, a receipt, faster
+    than the retention sweep can remove them if left unbounded. So it keeps a
+    per-process floor when the shared limiter cannot count (Redis down or
+    unconfigured), rather than inheriting the fail-open default that would leave
+    every table write unmetered for the length of a cache outage (#1823).
+
+    Usage::
+
+        @router.post("/{table_id}/records", dependencies=[Depends(limit_table_write)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="table_write",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.table_write_limit(),
+    )
+    _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
+
+
+async def limit_artifact_data(ctx: Auth, rows: bool = Query(True)) -> None:
+    """Refuse a member loading live pages' data faster than the deployment allows.
+
+    A read that loads no records (`rows=false`, an editor's strip asking why a source
+    is empty) still runs each page query, so it has an allowance of its own, of the
+    same size, and does not use up the one for loads.
+
+    Keyed on the member and the organization, as table writes are. Every load runs
+    each of the page's bindings as a query, so like table writes it keeps a
+    per-process floor while the shared limiter cannot count, rather than leaving
+    every page unmetered for the length of a cache outage.
+
+    Usage::
+
+        @router.get("/{artifact_id}/versions/{version_id}/data",
+                    dependencies=[Depends(limit_artifact_data)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="artifact_data" if rows else "artifact_data_reasons",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.artifact_data_limit(),
+    )
+    _refuse_if_over(decision, "Too many data loads in the last minute. Wait and try again.")
 
 
 async def limit_dictation(ctx: Auth) -> None:
@@ -1256,6 +1490,33 @@ async def limit_public_artifact(public_key: str) -> None:
     """Refuse a public artifact link opened too often. Per link, not per address."""
     _refuse_if_over(
         await rate_limit.public_artifact_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_form_page(token: str) -> None:
+    """Refuse a workflow's public form read too often. Per form, before any read."""
+    _refuse_if_over(
+        await rate_limit.form_page_allowed(token), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_form_submission(token: str) -> None:
+    """Refuse a workflow's public form submitted too often. Per form, before any read."""
+    _refuse_if_over(
+        await rate_limit.form_submission_allowed(token),
+        "This form is taking too many answers. Try again in a minute.",
+    )
+
+
+async def limit_workflow_webhook(request: Request) -> None:
+    """Refuse an address sending the workflow webhook doors too much. Before any read.
+
+    The per-webhook allowance is spent later, inside the service, once a delivery's
+    signature has verified.
+    """
+    _refuse_if_over(
+        await rate_limit.workflow_webhook_ip_allowed(request),
         "Too many requests. Try again shortly.",
     )
 

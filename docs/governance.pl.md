@@ -1,5 +1,5 @@
 ---
-source_sha: "512a23d1b175"
+source_sha: "5f4471e1f0e0"
 ---
 
 # Governance { #governance }
@@ -1201,6 +1201,18 @@ Cztery właściwości, które warto znać:
   Koszt jest realny i zamierzony: agent, który dotąd tak działał, zatrzymuje się,
   z komunikatem mówiącym, co zmienić. Zatrzymuje się agent, którego operator
   poprosił o zatwierdzenie, o które nigdy nikogo nie proszono.
+- **Zaparkowane wywołanie może nazwać to, co oznaczają jego id.** Narzędzie może
+  opisać własne wywołanie: zapisy do tabel podają nazwę tabeli. Rekord nigdy nie jest nazywany, bo etykieta rekordu
+  to tekst jednej z jego komórek, a zatwierdzenie by go przechowało. Nazwy są
+  ustalane jako osoba runa w chwili parkowania wywołania, więc nie pojawia się nic,
+  czego ta osoba nie może zobaczyć, i są zapisywane w zatwierdzeniu jako
+  `context`. Karta w czacie i strona Approvals zaczynają od zbudowanego z nich
+  zdania, na przykład „Share the view Closed tickets of Support with everyone who
+  may read the table”, nad argumentami, które pozostają tym, co się wykona.
+  Zdanie jest odnajdywane po stałym id narzędzia, więc narzędzie przemianowane
+  przez binding je zachowuje. Nieudany albo zbyt wolny opis parkuje wywołanie bez
+  niego, a wywołanie już rozstrzygnięte przez wznowiony run nie jest opisywane
+  ponownie.
 - **Jeden krok modelu może zaparkować kilka wywołań.** Model, który odpowiada
   dwoma wywołaniami ze skutkami ubocznymi naraz — „wyślij e-mail do klienta i do
   opiekuna konta” — parkuje oba, każde jako własny wiersz zatwierdzenia
@@ -1431,6 +1443,71 @@ delegacja uruchomiona od nowa i tak wydała to, co wydała.
     harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane po stronie
     dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
 
+### Krok workflow, który pyta osobę { #workflow-step-approvals }
+
+Workflow pyta krokiem [`human.approval`](reference/workflow-nodes.md#human-approval),
+a nie narzędziem za bramką: krok zapisuje własną prośbę - tytuł, podane mu
+szczegóły, kto może zdecydować i do kiedy - a jego run na nią czeka. Zakładka
+**Approvals** pokazuje je nad wywołaniami narzędzi, a decyzja budzi run, który idzie
+dalej według odpowiedzi. Decyzja jest ostateczna i trafia do dziennika audytu razem
+z tym, o co pytano, i zostaje na liście **Decided** razem z zapisem wywołań
+narzędzi. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
+oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
+swoje prośby.
+
+Krok `editable` pokazuje też zatwierdzającemu propozycję, na przykład przygotowaną
+odpowiedź, którą może zmienić przed zatwierdzeniem. Wpis audytu zapisuje, czy krok
+był edytowalny, czy zatwierdzający go zmienił (`edited`) oraz długość propozycji i
+zatwierdzonego tekstu (`proposal_length`, `final_length`) - nigdy sam tekst. Tekst
+jest przechowywany przy prośbie, jawnym tekstem, dopóki historia runa nie zostanie
+usunięta.
+
+Prośby są też liczone. Karta Stats workflow i jego API statystyk podają, per krok i
+per dzień, ile zatwierdzono bez zmian, ile zmieniono, odrzucono lub ile wygasło, jak
+długo ludzie decydowali i jak bardzo ich poprawki coś zmieniły, każda jako stosunek od
+`0` do `1` (`edit_ratio`, także we wpisie audytu); zob.
+[Running a workflow](workflows.md#running-a-workflow). Zbiorcze zestawienie
+organizacji, `GET /api/v1/workflow-approvals/stats`, wymaga `workflows:view` i obejmuje
+tylko workflow, które członek może oglądać. Nie zawiera ani propozycji, ani
+zatwierdzonego tekstu, ani liczby dla pojedynczego zatwierdzającego: liczy prośby, nie
+ludzi.
+
+### Wpisy artefaktów { #artifact-entries }
+
+Strona czytająca dane tabel jest udostępniana za zgodą swojego właściciela i każdy
+krok tego procesu zostawia wpis z osobą, która go wykonała. Żaden z nich nie niesie
+rekordu, wartości filtra ani wiersza: zawierają wersje, odciski, identyfikatory
+próśb i słowa, które osoba potwierdziła.
+
+| Akcja | Zapisywana, gdy |
+|---|---|
+| `artifact.published` | Opublikowano wersję, z jej numerem, odciskiem jej zapytań strony i `actions`, czyli id workflowów, które deklaruje |
+| `artifact.data_consented` | Właściciel potwierdził dane wersji albo wyrażono na nie zgodę automatycznie (`automatic`). Nazywa wersję i odcisk, `for_owner`, gdy potwierdził za niego Owner lub Admin, oraz `via_grant`, gdy dał ją grant `edit_data` |
+| `artifact.data_withdrawn` | Edytor zatrzymał udostępnianie danych przez stronę; nazywa wersję, którą serwowano odbiorcom, i czy auto-zgoda była włączona, oraz ile grantów `edit_data` obniżono do `edit` |
+| `artifact.auto_consent_changed` | Właściciel włączył albo wyłączył „Share new versions automatically", z tekstem, który potwierdził |
+| `artifact.edit_data_granted` | Właściciel, albo Owner lub Admin, nadał osobie albo grupie „Can edit, including data", z tekstem, który potwierdził |
+| `artifact.owner_changed` | Strona zmieniła właściciela: dawny i nowy właściciel, kto to zrobił i jakie granty `edit_data` odrzucono |
+| `artifact.share_requested` | Złożono prośbę — typu `audience`, `access` albo `version` — przez osobę albo przez run jej agenta |
+| `artifact.share_request_approved` i `artifact.share_request_declined` | Prośbę rozstrzygnięto i kto to zrobił |
+| `organization.public_live_data_changed` | Owner albo Admin włączył lub wyłączył dla organizacji **Public pages with live data**, ze starą i nową wartością |
+| `artifact.public_data_consented` | Właściciel, albo w jego imieniu Owner lub Admin, potwierdził, że każdy z publicznym linkiem strony i witryny, które ją osadzają, mogą czytać jej dane. Nazywa wersję, odcisk, tabele i kolumny, witryny osadzające i to, czy hasło jest ustawione, oraz `for_owner`, gdy ktoś potwierdził w jego imieniu |
+| `artifact.public_data_withdrawn` | Edytor cofnął tę zgodę, zalogowany jako on sam (bez impersonacji), z odciskiem, który ona trzymała |
+| `artifact.public_data_voided` | Zgoda została wyczyszczona, bo zmieniło się coś pod nią, z `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` albo `archived` |
+| `artifact.action_started` | Członek potwierdził i uruchomił workflow z akcji strony. Wskazuje stronę, wersję, workflow i run, nigdy wartości wejścia, które są na runie |
+
+**Public pages with live data** to ustawienie organizacji, domyślnie wyłączone, w
+ustawieniach organizacji obok zrzeczenia się zatwierdzeń. Decyduje, czy dane strony
+mogą dotrzeć do osób bez konta przez publiczny link albo embed. W odróżnieniu od
+zrzeczenia wymaga `org:settings` — Owner albo Admin — i trzeba je zmienić, będąc
+zalogowanym jako ten sam użytkownik: sesja z impersonacją jest odrzucana. Strona nadal
+potrzebuje [zgody właściciela na dane publiczne](artifacts.md#live-data-on-a-public-link).
+Wyłączenie jest wyłącznikiem awaryjnym: publiczne strony tracą dane przy następnym
+ładowaniu i zachowują swoją zgodę, która znów obowiązuje po ponownym włączeniu.
+
+Poszerzenie widoczności albo grantów strony jest zapisywane jako wpisy
+`resource.share`, `resource.unshare` i `resource.visibility_changed`, jak dla każdego
+innego zasobu. Narzędzie `share_view` zniknęło, a wraz z nim zatwierdzenie, które je bramkowało.
+
 ## Alerty { #alerts }
 
 Każdy alert tutaj dotyczy runa, na którego nikt nie patrzy. Run czatu, który
@@ -1450,6 +1527,8 @@ SMTP — a drugi nigdy się o tym nie dowie.
 Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
 zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie.
+
+Prośba o udostępnienie strony i zmiana jej właściciela podają nazwę strony i osoby, nigdy jej dane.
 
 Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
@@ -1535,6 +1614,12 @@ drugiego.
 | **Budget** | ten agent osiągnął swój własny limit miesięczny | administratorzy i właściciel agenta |
 | **Approvals** | wywołanie narzędzia zaparkowało | ten, kto uruchomił run, plus administratorzy |
 | **Usage** | tygodniowo i miesięcznie, ile ten agent wydał | wyłączone |
+
+Log workflow ma własne alerty, ustawiane na jego stronie Logs, a nie w specyfikacji;
+zob. [Alerty](workflows.md#log-alerts). Odpalają się, gdy pasujące wiersze reguły
+osiągną jej próg w jej oknie, i trafiają do właściciela workflow, o ile reguła nie mówi
+inaczej. Podlegają tym samym preferencjom dzwonka i e-maila co reszta tej sekcji, w
+**Workflow log alerts**.
 
 Odbiorcy to lista ról, a nie adresów:
 
@@ -1786,6 +1871,12 @@ Dlatego okres jest **na klasę** i oba obowiązki dostają swoje ustawienie.
 Ustawisz to w **Organizacje → workspace → Członkowie → Retencja**, za bramką
 `org:settings`. Sweep chodzi raz dziennie i **usuwa twardo**: polityka, która
 zostawiałaby wiersze, nie byłaby polityką.
+
+Dane [Virtual Tables](virtual-tables.md#limits-and-retention) wchodzą do tego samego sweepa,
+z okresami całego wdrożenia, których nie ustawia żadna organizacja: receipts idempotencji
+po 24 godzinach, wysłane wiersze outbox po 3 dniach i history rekordu po 365 dniach, co
+usuwa też history usuniętego rekordu. Wpis, który zapisuje, nazywa `table_receipts`,
+`table_outbox` lub `table_history` i liczbę.
 
 Trzy własne liczby wdrożenia — `retention_defaults`, `retention_max_days` i
 `audit_retention_floor_days` — to pola ustawień wdrożenia, zapisywane przez app

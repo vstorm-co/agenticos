@@ -27,6 +27,7 @@ import {
   InviteMemberDialog,
   OrgApprovalWaiver,
   OrgAssistant,
+  OrgPublicLiveData,
   OrgProactivity,
   OrgSpendingLimit,
   OrgVoiceSettings,
@@ -132,7 +133,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       id: "governance",
       label: "tabGovernance",
       icon: ShieldCheck,
-      visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide),
+      visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide) || canSettings,
     },
     {
       id: "proactivity",
@@ -662,6 +663,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         >
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
+          {org && <OrgPublicLiveData org={org} />}
         </TabsContent>
         <TabsContent
           value="proactivity"

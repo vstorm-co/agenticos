@@ -48,6 +48,41 @@ describe("the frame inbox", () => {
     expect(deliver).toHaveBeenCalledTimes(2);
   });
 
+  it("flushes at once when a single frame exceeds the byte bound", () => {
+    const deliver = vi.fn();
+    const inbox = new FrameInbox(deliver);
+    const big = new MessageEvent("message", { data: "x".repeat(600_000) });
+    inbox.push(big);
+    expect(deliver).toHaveBeenCalledExactlyOnceWith([big]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("flushes when several frames cross the byte bound, then counts again", () => {
+    const deliver = vi.fn();
+    const inbox = new FrameInbox(deliver);
+    const chunk = () => new MessageEvent("message", { data: "x".repeat(200_000) });
+    for (let n = 0; n < 2; n++) inbox.push(chunk());
+    expect(deliver).not.toHaveBeenCalled();
+    inbox.push(chunk());
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(deliver.mock.calls[0]![0]).toHaveLength(3);
+    // The count restarted: two more chunks stay queued until the timer.
+    for (let n = 0; n < 2; n++) inbox.push(chunk());
+    expect(deliver).toHaveBeenCalledTimes(1);
+    vi.advanceTimersToNextFrame();
+    expect(deliver).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps small frames waiting for the count or the timer", () => {
+    const deliver = vi.fn();
+    const inbox = new FrameInbox(deliver);
+    for (let n = 0; n < 100; n++)
+      inbox.push(new MessageEvent("message", { data: "x".repeat(1000) }));
+    expect(deliver).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(50);
+    expect(deliver).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels all deferred delivery when its owner leaves", () => {
     const deliver = vi.fn();
     const inbox = new FrameInbox(deliver);

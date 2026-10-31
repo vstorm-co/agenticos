@@ -1,4 +1,4 @@
-<!-- source_sha: 5a4d6fb78011 -->
+<!-- source_sha: f04030a1e1ca -->
 
 <div align="center">
 
@@ -149,9 +149,9 @@ Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 2
 
 **Wie sich AgenticOS in ein Unternehmen einfügt:** Abteilungen wie Finanzen, Betrieb oder Vorstand nutzen gemeinsame Agenten im Webchat, in Slack oder in einem privaten Workspace. Deine Systeme rufen Agenten über die API auf, und Ereignisse oder Zeitpläne starten sie automatisch. Jede Anfrage durchläuft dieselben Kontrollen: Rollen, Budgets, Freigaben, Guardrails und einen aufgezeichneten Run. Deine Daten, Vektoren, Code-Sandboxes, der Vault für Zugangsdaten und optionale lokale Modelle bleiben auf deiner Infrastruktur. Gehostete Modelle, SaaS-Werkzeuge und externe Dokumentquellen werden nur genutzt, wenn du sie konfigurierst.
 
-<img src="docs/assets/readme/figures.webp" alt="29 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 28 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 29 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 28 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 30 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
 
-<p align="center"><sub><b>Auf einen Blick:</b> 29 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 28 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 29 Tutorials.</sub></p>
+<p align="center"><sub><b>Auf einen Blick:</b> 29 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 28 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 30 Tutorials.</sub></p>
 
 ## ✨ Was du damit machen kannst
 
@@ -174,7 +174,7 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 
 Unter Windows führst du denselben Befehl in WSL2 aus, mit eingeschalteter WSL2-Integration in Docker Desktop. Der Installer fragt nach Modellanbieter und Schlüssel, deinem Login und dem Namen der Organisation, lädt die veröffentlichten Images und startet eine Bereitstellung mit einem funktionierenden Agenten. Ein Host mit 4 vCPU und 8 GB RAM reicht dafür. Öffne dann **http://localhost:3000** und melde dich mit dem bei der Installation gewählten Login an.
 
-**Dein erster Agent:** Folge der [Anleitung für einen Dokumentassistenten](https://vstorm-co.github.io/agenticos/de/howto/first-document-agent/), lade ein Handbuch hoch, stelle Fragen und prüfe die Antworten anhand der zitierten Quellen. Wähle danach eine nächste Aufgabe aus [29 Tutorials](https://vstorm-co.github.io/agenticos/de/use-cases/), jedes mit Beispieleingabe und einer Prüfung, die du ausführen kannst.
+**Dein erster Agent:** Folge der [Anleitung für einen Dokumentassistenten](https://vstorm-co.github.io/agenticos/de/howto/first-document-agent/), lade ein Handbuch hoch, stelle Fragen und prüfe die Antworten anhand der zitierten Quellen. Wähle danach eine nächste Aufgabe aus [30 Tutorials](https://vstorm-co.github.io/agenticos/de/use-cases/), jedes mit Beispieleingabe und einer Prüfung, die du ausführen kannst.
 
 <details>
 <summary>Installer prüfen oder eine andere Bereitstellung wählen</summary>
@@ -304,11 +304,11 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 </details>
 
 <details>
-<summary><b>Du suchst eine erste Aufgabe</b>: 29 Tutorials, jedes mit einer Prüfung, die du ausführen kannst</summary>
+<summary><b>Du suchst eine erste Aufgabe</b>: 30 Tutorials, jedes mit einer Prüfung, die du ausführen kannst</summary>
 
 <br>
 
-<img src="docs/assets/readme/first-tasks.webp" alt="29 Tutorials, gruppiert nach Dokumenten, Support, Recherche und Analyse, Automatisierung, Inhalte und Produktivität, Engineering und Sicherheit." width="100%">
+<img src="docs/assets/readme/first-tasks.webp" alt="30 Tutorials, gruppiert nach Dokumenten, Support, Recherche und Analyse, Automatisierung, Inhalte und Produktivität, Engineering und Sicherheit." width="100%">
 
 [Alle Tutorials](https://vstorm-co.github.io/agenticos/de/use-cases/). Für 24 davon gibt es einen Referenz-Run der Maintainer; sie sind Ausgangspunkte, keine Kundenergebnisse.
 

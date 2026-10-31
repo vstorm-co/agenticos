@@ -1,5 +1,5 @@
 ---
-source_sha: "7eb7fc89ff7d"
+source_sha: "fed639325e0e"
 ---
 
 # Konsola { #the-console }
@@ -47,7 +47,7 @@ Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają br
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje czterdzieści pięć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści dziewięć kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -73,6 +73,19 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 | _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły                                                                                                                              |
 | **Needs attention**      | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell)                                                 |
 | **Usage & cost**         | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+
+Karta **Wyniki zatwierdzeń (Approval outcomes)** czeka w katalogu, dla każdego, kto może
+oglądać workflow. Pokazuje, jak ludzie rozstrzygali [kroki zatwierdzenia](workflows.md#running-a-workflow),
+o które pytały workflow w danym okresie. Pokazuje odsetek zatwierdzonych bez zmian,
+poprawki i medianę ich zmiany, czas do decyzji oraz pięć workflow z największą liczbą
+próśb. Jest pusta, gdy w okresie ustawionym na dashboardzie nie padła żadna prośba.
+
+Karta **Logi workflow (Workflow logs)** też czeka w katalogu, dla każdego, kto może
+oglądać workflow. Pokazuje najnowsze wpisy, które [Quick Logi](workflows.md#the-logs-page)
+workflow, które możesz oglądać, zapisały w prawdziwych runach, oraz ile wpisów doszło
+w ciągu ostatnich 24 godzin, w tym błędów. Wpis prowadzi do swojego runu, a nazwa
+workflow do jego strony Logs. Jest pusta, dopóki nie uruchomi się krok z Quick Logiem,
+i nie zważa na okres ustawiony na dashboardzie.
 
 Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
 kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym
@@ -534,6 +547,12 @@ ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
 niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
 pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 
+**Kroki workflow** w tej samej karcie wybierają, jak kanwa workflow rysuje krok:
+**W kolorze (In colour)** (domyślnie) rysuje każdy krok w barwie jego rodziny,
+**Prosty (Simple)** zostawia kafelki neutralne, a minimapę szarą. Ustawienie jest
+zapamiętywane dla każdej przeglądarki; ten sam przełącznik jest na pasku narzędzi
+kanwy. Zobacz [Jak rysowany jest krok](workflows.md#how-a-step-is-drawn).
+
 ### Karta Głos (Voice) { #the-voice-card }
 
 Na stronie **Członkowie (Members)** organizacji, dla kogoś z `org:settings`.
@@ -671,24 +690,26 @@ rzadko: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes)
 **Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
 każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 
-| Obszar            | Zawiera                                                                                   | Przeczytaj                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| **Agents**        | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność                            | [Twój pierwszy agent](first-agent.md)                                    |
-| **Chat**          | Rozmowa z opublikowanym agentem                                                           | [Powierzchnie](channels.md)                                              |
-| **Knowledge**     | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii                           | [Przetwarzanie plików](file-processing.md)                               |
-| **Skills**        | Spisane procedury, które agent wczytuje na żądanie                                        | [Skille](skills.md)                                                      |
-| **Context**       | Stała wiedza przypięta do wielu agentów                                                   | [Pliki kontekstowe](context.md)                                          |
-| **Routines**      | Harmonogramy i wyzwalacze zdarzeń                                                         | [Wyzwalacze](triggers.md)                                                |
-| **Runs**          | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem              | [Nadzór](governance.md#audit)                                            |
-| **Documents**     | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali   | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes**     | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka                                 | [Sandbox](sandbox.md)                                                    |
-| **MCP servers**   | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację                     | [MCP](mcp.md)                                                            |
-| **Channels**      | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony                    | [Powierzchnie](channels.md)                                              |
-| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents)                  |
-| **Vault**         | Poświadczenia, zapieczętowane per organizacja                                             | [Sekrety](secrets.md)                                                    |
-| **Organizations** | Członkowie, role, zaproszenia                                                             | [Uprawnienia](permissions.md)                                            |
-| **Settings**      | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil               | [Konfiguracja](configuration.md)                                         |
-| **Admin**         | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu       | [Deployment](deployment.md)                                              |
+| Obszar | Zawiera | Przeczytaj |
+|---|---|---|
+| **Agents** | Katalog, Builder, wersje, udostępnianie, testowanie, aktywność | [Twój pierwszy agent](first-agent.md) |
+| **Chat** | Rozmowa z opublikowanym agentem | [Powierzchnie](channels.md) |
+| **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
+| **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
+| **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
+| **Tables** | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Wieloetapowe automatyzacje, które uruchamiają Twoje agenty, budowane na kanwie | [Workflows](workflows.md) |
+| **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
+| **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
+| **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
+| **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
+| **Channels** | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
+| **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
+| **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
+| **Settings** | Providerzy, domyślne ustawienia ingestii, powiadomienia, twój własny profil | [Konfiguracja](configuration.md) |
+| **Admin** | Sam deployment: użytkownicy, najemcy, system, zadania w tle, ustawienia deploymentu | [Deployment](deployment.md) |
 
 Katalog **Agents** można filtrować po **category** i **tag** — edytowalnych,
 lokalnych dla organizacji etykietach pokazywanych na karcie każdego agenta.
@@ -740,7 +761,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **czterdzieści pięć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści dziewięć widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

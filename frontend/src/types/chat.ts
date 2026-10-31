@@ -178,7 +178,18 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer";
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run";
+
+/** A workflow answering a chat turn: which run it is and where it stands. */
+export interface WorkflowRunPart {
+  workflowId: string;
+  /** What the workflow was called when it answered. */
+  workflowName: string | null;
+  /** Null until the socket has admitted the run. */
+  runId: string | null;
+  status: string;
+  error: string | null;
+}
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
@@ -197,6 +208,8 @@ export interface MessagePart {
    * asked it itself, and on every question stored before the field existed.
    */
   askedBy?: string;
+  /** The run, for a "workflow_run" part. */
+  workflowRun?: WorkflowRunPart;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -466,6 +479,19 @@ export interface ActionRequest {
   tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
+  /**
+   * The stable id the capability declares the tool under - `update_record` for a
+   * binding that renamed it `change_order`. The card's sentence is looked up by
+   * this, never by `tool_name`. Null or absent for a tool no capability owns.
+   */
+  capability_tool_id?: string | null;
+  /**
+   * The ids in `args` as names the run's person may see - `{table}` for
+   * `update_record` - for the sentence the card leads with. Null or absent when the
+   * tool has no describer or describing it failed; the card then shows the
+   * arguments alone, as it always did.
+   */
+  context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
 }

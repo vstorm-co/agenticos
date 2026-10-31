@@ -1,7 +1,8 @@
 """Security utilities for JWT authentication."""
 
+import hashlib
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 import bcrypt
@@ -98,7 +99,9 @@ def create_refresh_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | None:
+def verify_token(
+    token: str, *, verify_exp: bool = True, audience: tuple[str, ...] | None = None
+) -> dict[str, Any] | None:
     """Verify a JWT token and return payload.
 
     `verify_exp=False` decodes a signature-valid token whose `exp` has passed. It
@@ -109,12 +112,17 @@ def verify_token(token: str, *, verify_exp: bool = True) -> dict[str, Any] | Non
     running (#1437). Revocation is judged from the session and account state
     instead. The signature is still verified; every other caller keeps expiry
     enforced.
+
+    A token that carries an `aud` claim is refused unless the caller names it in
+    `audience`, so a token minted for one purpose (an artifact's content address)
+    is never read as another.
     """
     try:
         return jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            audience=list(audience) if audience is not None else None,
             options={"verify_exp": verify_exp},
         )
     except jwt.PyJWTError:
@@ -207,25 +215,87 @@ def create_magic_link_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_artifact_view_token(version_id: UUID, *, expires_in: timedelta) -> str:
+ArtifactTokenAudience = Literal["member", "public"]
+"""Who an artifact content address was minted for: a signed-in member, or a public link."""
+
+
+def public_key_digest(public_key: str) -> str:
+    """What a public artifact address carries of the link's key, so that rotating the key
+    ends the addresses minted for the old one."""
+    return hashlib.sha256(public_key.encode()).hexdigest()
+
+
+def password_digest(password_hash: str | None) -> str | None:
+    """A short fingerprint of a link's current password hash, or `None` with no password,
+    so that changing or removing the password ends the addresses minted under the old one."""
+    if password_hash is None:
+        return None
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def create_artifact_view_token(
+    version_id: UUID,
+    *,
+    expires_in: timedelta,
+    nonce: str,
+    live: bool,
+    audience: ArtifactTokenAudience,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+    inject: bool = False,
+    actions: bool = False,
+    public_key: str | None = None,
+    password_hash: str | None = None,
+) -> str:
     """A short-lived address for one artifact version's bytes.
 
     The content route authenticates nothing else, which is the point: the page is
     served where no cookie reaches, so the access decision is taken when the token
     is minted - by a member's grant or by a public link - and the token carries
-    only its outcome. It names a version rather than an artifact, so a frame that
-    was drawn for version 3 still shows version 3 after version 4 lands.
+    who it was minted for. It names a version rather than an artifact, so a frame
+    that was drawn for version 3 still shows version 3 after version 4 lands.
+
+    Claims: `aud` is `member` or `public`. A member token carries the viewer
+    (`uid`, `org`) and `inj` - whether the page is served with its data written
+    in, which the route decides afresh for that viewer on every load, and `acts` - the
+    address is the page viewer's, whose frame may start the page's declared actions (not
+    the impersonation `act`). A public
+    token carries `pk`, a hash of the link's key - which the route requires to still be
+    the link's - and, when the link's data gate held at mint time, `inj`, with `pw`,
+    a digest of the link's password hash (`None` with no password); the route serves data only while both
+    hold, and decides the rest afresh on every load. `n` is the
+    nonce the served page and the console match their messages on, and `live`
+    says whether the page asks the console for its bindings' data at all.
     """
     expire = datetime.now(UTC) + expires_in
-    to_encode = {"exp": expire, "sub": str(version_id), "type": "artifact_view"}
+    to_encode: dict[str, Any] = {
+        "exp": expire,
+        "sub": str(version_id),
+        "type": "artifact_view",
+        "aud": audience,
+        "n": nonce,
+        "live": live,
+    }
+    if audience == "member":
+        if user_id is None or organization_id is None:
+            raise ValueError("A member's artifact address names the member and their organization")
+        to_encode.update(uid=str(user_id), org=str(organization_id), inj=inject, acts=actions)
+    elif public_key is not None:
+        to_encode.update(
+            pk=public_key_digest(public_key), inj=inject, pw=password_digest(password_hash)
+        )
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_special_token(token: str, expected_type: str) -> dict[str, Any] | None:
+def verify_special_token(
+    token: str, expected_type: str, *, audience: tuple[str, ...] | None = None
+) -> dict[str, Any] | None:
     """Verify a non-access JWT (password_reset, magic_link) and require a
     specific `type` claim. Returns payload on success, None otherwise.
+
+    A token with an `aud` claim passes only for a caller that names it in `audience`.
     """
-    payload = verify_token(token)
+    payload = verify_token(token, audience=audience)
     if payload is None:
         return None
     if payload.get("type") != expected_type:

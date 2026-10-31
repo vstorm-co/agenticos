@@ -1,0 +1,492 @@
+"use client";
+
+import type { DocumentMetadata } from "./document-properties";
+
+import { useState } from "react";
+import { Star } from "lucide-react";
+import { useTranslations } from "next-intl";
+import {
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
+import { MarkdownCellEditor } from "./markdown-cell-editor";
+import { DateCell } from "./date-cell";
+import { DatetimeCell } from "./datetime-cell";
+import { LinkCell } from "./link-cell";
+import { MultiSelectCell } from "./multi-select-cell";
+import { OptionChip } from "./option-chip";
+import { cn } from "@/lib/utils";
+import { formatCellValue } from "@/lib/format-cell-value";
+import {
+  COMPUTED_TYPES,
+  MAX_RATING,
+  type CellValue,
+  type ColumnDef,
+  type LinkedRecord,
+} from "@/types/tables";
+
+const UNSET = "__unset__";
+
+/** The input each text-like column is typed into, for the keyboard a phone shows. */
+const TEXT_INPUT_TYPE = { text: "text", email: "email", url: "url", phone: "tel" } as const;
+
+/**
+ * A local, re-seeded text buffer - the same render-time pattern
+ * `DatetimeCell` uses, generalized to any control whose native `onChange`
+ * fires once per keystroke. Committing straight to the caller's `onChange`
+ * there means every keystroke in a detail sheet or grid cell fires a PATCH,
+ * racing later keystrokes against earlier ones and against a concurrent
+ * editor's own writes; buffering locally and committing on blur makes one
+ * PATCH per edit, the same as every other control here (a `Select`, a
+ * `Switch`, `DateCell`, `DatetimeCell` all commit once per discrete choice).
+ */
+function useTextBuffer(value: string, onCommit: (raw: string) => void) {
+  const [seen, setSeen] = useState(value);
+  const [draft, setDraft] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    setDraft(value);
+  }
+  return {
+    draft,
+    onChange: setDraft,
+    onBlur: () => {
+      if (draft !== seen) onCommit(draft);
+    },
+  };
+}
+
+function TextCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  ...invalid
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+} & Record<string, unknown>) {
+  const buffer = useTextBuffer(value, onChange);
+  return (
+    <Input
+      id={id}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+function TextLikeCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  type,
+  ...invalid
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string | null) => void;
+  disabled?: boolean;
+  type: (typeof TEXT_INPUT_TYPE)[keyof typeof TEXT_INPUT_TYPE];
+} & Record<string, unknown>) {
+  // An address or a number left empty is no value, not an empty one the
+  // column's own check would refuse.
+  const buffer = useTextBuffer(value, (raw) => onChange(raw.trim() === "" ? null : raw.trim()));
+  return (
+    <Input
+      id={id}
+      type={type}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+/**
+ * A rating as stars: choosing one sets it, choosing the one already set clears
+ * it where the column may be empty.
+ */
+function RatingCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  nullable,
+}: {
+  id: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+  disabled?: boolean;
+  nullable: boolean;
+}) {
+  const t = useTranslations("tables.cells");
+  return (
+    <div id={id} role="group" aria-label={t("rating")} className="flex items-center gap-0.5 py-1">
+      {Array.from({ length: MAX_RATING }, (_, index) => index + 1).map((star) => (
+        <button
+          key={star}
+          type="button"
+          disabled={disabled}
+          aria-label={t("rateStars", { count: star, max: MAX_RATING })}
+          aria-pressed={value === star}
+          className="text-muted-foreground rounded-sm p-0.5 hover:text-amber-500 focus-visible:outline-2"
+          onClick={() => onChange(value === star && nullable ? null : star)}
+        >
+          <Star
+            aria-hidden="true"
+            className={cn(
+              "size-4",
+              value !== null && star <= value && "fill-amber-400 text-amber-500",
+            )}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RichTextCellInput({
+  metadata,
+  template,
+  fillEditor,
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+  errorId,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  errorId: string;
+  error?: string;
+  metadata?: DocumentMetadata;
+  template?: string;
+  fillEditor?: boolean;
+}) {
+  const buffer = useTextBuffer(value, onChange);
+  return (
+    <MarkdownCellEditor
+      metadata={metadata}
+      template={template}
+      fill={fillEditor}
+      id={id}
+      label={label}
+      value={buffer.draft}
+      onChange={buffer.onChange}
+      onCommit={buffer.onBlur}
+      disabled={disabled}
+      invalid={error !== undefined}
+      describedBy={error === undefined ? undefined : errorId}
+    />
+  );
+}
+
+function LongTextCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  ...invalid
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+} & Record<string, unknown>) {
+  const buffer = useTextBuffer(value, onChange);
+  return (
+    <Textarea
+      id={id}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+function NumberCellInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  truncate,
+  ...invalid
+}: {
+  id: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+  disabled?: boolean;
+  truncate?: boolean;
+} & Record<string, unknown>) {
+  const stored = typeof value === "number" ? String(value) : "";
+  const buffer = useTextBuffer(stored, (raw) => {
+    if (raw === "") {
+      onChange(null);
+      return;
+    }
+    onChange(truncate ? Math.trunc(Number(raw)) : Number(raw));
+  });
+  return (
+    <Input
+      id={id}
+      type="number"
+      step={truncate ? "1" : "any"}
+      value={buffer.draft}
+      disabled={disabled}
+      onChange={(event) => buffer.onChange(event.target.value)}
+      onBlur={buffer.onBlur}
+      {...invalid}
+    />
+  );
+}
+
+/**
+ * One column's control, dispatched on `ColumnDef.type`.
+ *
+ * The shape `schema-form.tsx` uses - controlled `value`/`onChange`, `disabled`,
+ * an `error` shown beside the control - but as a single field rather than a
+ * whole generated form: a table cell is edited one at a time, inline in a grid
+ * or N times inside `record-detail-sheet.tsx`, not as one form that opens every
+ * column at once. `undefined` means untouched (the record's own stored value
+ * is shown); `null` means explicitly cleared.
+ */
+export function RecordCellEditor({
+  metadata,
+  fillEditor,
+  column,
+  value,
+  links,
+  onChange,
+  disabled,
+  error,
+  placeholder,
+}: {
+  column: ColumnDef;
+  metadata?: DocumentMetadata;
+  fillEditor?: boolean;
+  value: CellValue;
+  /** A link column's records, named as the record was read. */
+  links?: LinkedRecord[];
+  onChange: (value: CellValue) => void;
+  disabled?: boolean;
+  error?: string;
+  /** What a typed value's empty field says - text and numbers only. */
+  placeholder?: string;
+}) {
+  const t = useTranslations("tables.cells");
+  const id = `cell-${column.id}`;
+  const errorId = `${id}-error`;
+  const invalid =
+    error === undefined ? {} : { "aria-invalid": true as const, "aria-describedby": errorId };
+
+  return (
+    <div className="space-y-1.5">
+      {column.type === "text" && (
+        <TextCellInput
+          id={id}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          disabled={disabled}
+          placeholder={placeholder}
+          {...invalid}
+        />
+      )}
+
+      {(column.type === "email" || column.type === "url" || column.type === "phone") && (
+        <TextLikeCellInput
+          id={id}
+          type={TEXT_INPUT_TYPE[column.type]}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          disabled={disabled}
+          placeholder={placeholder}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "rating" && (
+        <RatingCellInput
+          id={id}
+          value={typeof value === "number" ? value : null}
+          onChange={onChange}
+          disabled={disabled}
+          nullable={column.nullable}
+        />
+      )}
+
+      {column.type === "rich_text" && (
+        <RichTextCellInput
+          metadata={metadata}
+          template={typeof column.default === "string" ? column.default : undefined}
+          fillEditor={fillEditor}
+          id={id}
+          label={column.label}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          disabled={disabled}
+          error={error}
+          errorId={errorId}
+        />
+      )}
+
+      {column.type === "long_text" && (
+        <LongTextCellInput
+          id={id}
+          value={typeof value === "string" ? value : ""}
+          onChange={onChange}
+          disabled={disabled}
+          placeholder={placeholder}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "number" && (
+        <NumberCellInput
+          id={id}
+          value={typeof value === "number" ? value : null}
+          onChange={onChange}
+          disabled={disabled}
+          placeholder={placeholder}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "integer" && (
+        <NumberCellInput
+          id={id}
+          value={typeof value === "number" ? value : null}
+          onChange={onChange}
+          disabled={disabled}
+          truncate
+          placeholder={placeholder}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "boolean" &&
+        (column.nullable ? (
+          <Select
+            value={value === true ? "true" : value === false ? "false" : UNSET}
+            disabled={disabled}
+            onValueChange={(next) => onChange(next === UNSET ? null : next === "true")}
+          >
+            <SelectTrigger id={id}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNSET}>{t("notSet")}</SelectItem>
+              <SelectItem value="true">{t("true")}</SelectItem>
+              <SelectItem value="false">{t("false")}</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <Switch
+            id={id}
+            checked={value === true}
+            onCheckedChange={onChange}
+            disabled={disabled}
+            {...invalid}
+          />
+        ))}
+
+      {column.type === "date" && (
+        <DateCell
+          id={id}
+          value={typeof value === "string" ? value : null}
+          onChange={onChange}
+          disabled={disabled}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "datetime" && (
+        <DatetimeCell
+          id={id}
+          value={typeof value === "string" ? value : null}
+          onChange={onChange}
+          disabled={disabled}
+          {...invalid}
+        />
+      )}
+
+      {column.type === "single_select" && (
+        <Select
+          value={typeof value === "string" ? value : UNSET}
+          disabled={disabled}
+          onValueChange={(next) => onChange(next === UNSET ? null : next)}
+        >
+          <SelectTrigger id={id}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={UNSET}>{t("notSet")}</SelectItem>
+            {column.options
+              .filter((option) => !option.archived || option.id === value)
+              .map((option) => (
+                // Tinted as the grid shows it, so a choice reads the same in the list.
+                <SelectItem key={option.id} value={option.id}>
+                  <OptionChip column={column} optionId={option.id} />
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {column.type === "link" && (
+        <LinkCell
+          id={id}
+          column={column}
+          value={Array.isArray(value) ? value : []}
+          links={links ?? []}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
+
+      {COMPUTED_TYPES.has(column.type) && (
+        // Worked out from other columns or linked records; there is nothing to edit.
+        <p id={id} className="text-muted-foreground min-h-9 py-2 text-sm">
+          {formatCellValue(column, value, (on) => t(on ? "true" : "false")) || t("workedOut")}
+        </p>
+      )}
+
+      {column.type === "multi_select" && (
+        <MultiSelectCell
+          id={id}
+          options={column.options}
+          value={Array.isArray(value) ? value : []}
+          onChange={onChange}
+          disabled={disabled}
+        />
+      )}
+
+      {error !== undefined && (
+        <p id={errorId} className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

@@ -112,6 +112,10 @@ function rowDescription(row: McpServerRow, t: (key: string) => string): string {
 interface McpServerListProps {
   /** False for a member without `connections:manage` - the organization column reads only. */
   canManageOrganization: boolean;
+  /** An embedded account picker starts on the service its caller needs. */
+  initialServerKey?: string;
+  /** The full page bookmarks its selection; an embedded picker keeps its caller’s URL. */
+  persistSelection?: boolean;
 }
 
 /**
@@ -142,7 +146,11 @@ function hasAccount(scope: Scope, row: McpServerRow): boolean {
   return (scope === "organization" ? row.organizations : row.personals).length > 0;
 }
 
-export function McpServerList({ canManageOrganization }: McpServerListProps) {
+export function McpServerList({
+  canManageOrganization,
+  initialServerKey,
+  persistSelection = true,
+}: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const { organization, personal, recordTools } = useMcpServers();
@@ -235,14 +243,16 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // The open server by key, read from live data below: a disconnect then shows
   // at once, where a row held from the moment it opened kept the account on
   // screen until the dialog was closed and opened again.
-  const [managingKey, setManagingKey] = useState<string | null>(() =>
-    typeof window === "undefined"
-      ? null
-      : new URL(window.location.href).searchParams.get(SERVER_PARAM),
+  const [managingKey, setManagingKey] = useState<string | null>(
+    () =>
+      initialServerKey ??
+      (typeof window === "undefined"
+        ? null
+        : new URL(window.location.href).searchParams.get(SERVER_PARAM)),
   );
   const manage = (key: string | null) => {
     setManagingKey(key);
-    setUrlParam(SERVER_PARAM, key);
+    if (persistSelection) setUrlParam(SERVER_PARAM, key);
   };
   const managing = useMemo((): McpServerRow | null => {
     if (managingKey === null) return null;

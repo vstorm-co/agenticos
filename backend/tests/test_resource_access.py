@@ -15,6 +15,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.access import (
     COLLECTION,
     accessible_ids,
+    member_context,
     publisher_context,
     resolve_access,
     visible_resource_ids,
@@ -682,3 +683,40 @@ class TestWhatAnAnonymousSurfaceRunsAs:
 
         assert ctx.channel_identity_id == asker
         assert ctx.user_id is None
+
+
+@pytest.mark.anyio
+async def test_member_context_reads_the_current_role_and_refuses_a_deactivated_member():
+    """The role is the one held now, read off a membership that can still sign in."""
+    organization, person = uuid.uuid4(), uuid.uuid4()
+    active = AsyncMock(return_value=MagicMock(role=OrgRoleName.BUILDER.value))
+    account = AsyncMock(return_value=MagicMock(is_app_admin=True))
+
+    with (
+        patch("app.services.access.member_repo.get_active", new=active),
+        patch("app.services.access.user_repo.get_by_id", new=account),
+    ):
+        ctx = await member_context(MagicMock(), organization_id=organization, user_id=person)
+    with (
+        patch("app.services.access.member_repo.get_active", new=AsyncMock(return_value=None)),
+        patch("app.services.access.user_repo.get_by_id", new=AsyncMock()) as unread,
+    ):
+        deactivated = await member_context(
+            MagicMock(), organization_id=organization, user_id=person
+        )
+    with (
+        patch("app.services.access.member_repo.get_active", new=active),
+        patch("app.services.access.user_repo.get_by_id", new=AsyncMock(return_value=None)),
+    ):
+        gone = await member_context(MagicMock(), organization_id=organization, user_id=person)
+
+    assert ctx is not None
+    assert (ctx.user_id, ctx.organization_id, ctx.role, ctx.is_app_admin) == (
+        person,
+        organization,
+        OrgRoleName.BUILDER.value,
+        True,
+    )
+    assert active.await_args.kwargs == {"organization_id": organization, "user_id": person}
+    assert (deactivated, gone) == (None, None)
+    unread.assert_not_awaited()

@@ -32,6 +32,7 @@ export function ListCard({
   children,
   ...rest
 }: {
+  ref?: import("react").Ref<HTMLDivElement>;
   title: string;
   /**
    * The count line, already formatted through the caller's ICU plural

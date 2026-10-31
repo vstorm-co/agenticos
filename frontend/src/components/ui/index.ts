@@ -6,6 +6,7 @@ export { SectionHeading } from "./section-heading";
 export { Input } from "./input";
 export { Label } from "./label";
 export { Textarea } from "./textarea";
+export { LineDiff } from "./line-diff";
 export { MarkdownEditor, MarkdownModeToggle, type MarkdownMode } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Figure, FigureCard, DeltaChip, type FigureProps } from "./figure";
@@ -83,6 +84,19 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
 } from "./dropdown-menu";
+export {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from "./context-menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
 export { Checkbox } from "./checkbox";
 export { Spinner } from "./spinner";

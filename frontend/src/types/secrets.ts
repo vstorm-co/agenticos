@@ -20,6 +20,8 @@ export type SecretKind =
   | "google_oauth_app"
   | "git_token"
   | "entra_app"
+  | "http_credential"
+  | "microsoft_oauth_app"
   | "openai_codex";
 
 /**

@@ -1,0 +1,12 @@
+[
+  {
+    "id": "jev-latest",
+    "name": "Jev (latest)",
+    "description": "The current release. Moves when TypeSafe ships one, which is what most agents want."
+  },
+  {
+    "id": "jev-preview",
+    "name": "Jev (preview)",
+    "description": "Runs ahead of the latest release when there is a preview build, and is the same model otherwise."
+  }
+]

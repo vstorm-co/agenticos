@@ -1,5 +1,5 @@
 ---
-source_sha: "4b8832761f4a"
+source_sha: "66957b7e7527"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -137,6 +137,50 @@ El mismo agent como grafo: qué lo alcanza y hacia qué alcanza él. Una caja di
 
 ![Visual map](assets/screens/light/agent-map.webp#only-light)
 ![Visual map](assets/screens/dark/agent-map.webp#only-dark)
+
+## Workflows y tablas { #workflows-and-tables }
+
+### Workflows { #workflows }
+
+El catálogo de automatizaciones, una tarjeta por cada una: su estado, quién puede alcanzarla, si tiene una versión en vivo y cuándo se editó por última vez, con sus runs, el editor y una copia a un clic.
+
+> **Captura pendiente — Workflows.**
+
+### El editor de workflows { #the-workflow-editor }
+
+El lienzo tiene todo el ancho: el grafo como tarjetas que dicen para qué está configurado cada paso o a qué grupo pertenece, los ajustes de un paso en un diálogo sobre él, y cada paso por añadir a un clic - o un clic derecho - de distancia. Un bucle muestra cuántos pasos contiene su cuerpo.
+
+> **Captura pendiente — El editor de workflows.**
+
+### El cuerpo de un bucle { #a-loops-body }
+
+Dentro de un bucle, con un paso seleccionado: la tabla que escribe y sus columnas, un id de registro leído del elemento actual del bucle, los valores que escribe y su política - tres intentos, y fallos encaminados por su puerto **Error** rojo hacia un gestor de errores en lugar de hacer fallar el run.
+
+> **Captura pendiente — El cuerpo de un bucle.**
+
+### Runs { #runs }
+
+Cada run de un workflow, del más reciente al más antiguo: si ejecutó el draft o la versión publicada, qué lo inició, cuándo, cuánto duró y cuánto costó. **Start a run** prueba el draft con un input propio.
+
+> **Captura pendiente — Runs.**
+
+### Un run { #a-run }
+
+Un run tal como ocurrió: el grafo que ejecutó, con cada paso marcado por lo que hizo, la salida con la que respondió y cada paso que dio, iteración a iteración.
+
+> **Captura pendiente — Un run.**
+
+### Tablas { #tables }
+
+Registros tipados que tus agents, workflows e integraciones leen y escriben, una tarjeta por tabla con quién puede alcanzarla y su versión de esquema.
+
+> **Captura pendiente — Tablas.**
+
+### Una tabla { #a-table }
+
+Los registros de una tabla después de que el run de arriba subiera cada puntuación baja: los valores de selección como chips de colores, y los mismos registros como tablero kanban o lista a una pestaña.
+
+> **Captura pendiente — Una tabla.**
 
 ## Knowledge { #knowledge }
 

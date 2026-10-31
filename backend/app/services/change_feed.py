@@ -55,6 +55,8 @@ from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import member as member_repo
 from app.repositories import organization_secret as secret_repo
 from app.repositories import skill as skill_repo
+from app.repositories import virtual_table as virtual_table_repo
+from app.repositories import workflow as workflow_repo
 from app.schemas.change_event import ChangeAction, ChangeEvent, ChangeResource, ChangeSurface
 from app.services.access import (
     AGENT,
@@ -64,6 +66,8 @@ from app.services.access import (
     MCP_CONNECTION,
     SECRET,
     SKILL,
+    TABLE,
+    WORKFLOW,
     OwnedResource,
     ResourceType,
     resolve_access,
@@ -148,6 +152,17 @@ _FEEDS = (
     _Feed("/artifacts/{artifact_id}/follow", None),
     _shared("/artifacts", "artifact"),
     _Feed("/artifacts", "artifact", "artifact_id"),
+    # Reading records, counting or exporting them, testing a webhook or running a
+    # step's evals are POSTs that change no row.
+    _Feed("/tables/{table_id}/records/query", None),
+    _Feed("/tables/{table_id}/records/count", None),
+    _Feed("/tables/{table_id}/records/export", None),
+    _shared("/tables", "table"),
+    _Feed("/tables", "table", "table_id"),
+    _Feed("/workflows/{workflow_id}/webhook-test", None),
+    _Feed("/workflows/{workflow_id}/steps/{node_id}/eval-runs", None),
+    _shared("/workflows", "workflow"),
+    _Feed("/workflows", "workflow", "workflow_id"),
     _shared("/context", "context"),
     _Feed("/context", "context", "context_id"),
     _shared("/kb", "knowledge_base"),
@@ -178,6 +193,8 @@ _OWNED: dict[ChangeResource, ResourceType] = {
     "context": CONTEXT,
     "knowledge_base": COLLECTION,
     "artifact": ARTIFACT,
+    "table": TABLE,
+    "workflow": WORKFLOW,
     "secret": SECRET,
     "mcp_connection": MCP_CONNECTION,
 }
@@ -402,6 +419,10 @@ async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResou
         return await context_repo.get(db, row_id, organization_id=organization_id)
     if event.resource == "artifact":
         return await artifact_repo.get(db, row_id, organization_id=organization_id)
+    if event.resource == "table":
+        return await virtual_table_repo.get_table(db, row_id, organization_id=organization_id)
+    if event.resource == "workflow":
+        return await workflow_repo.get(db, row_id, organization_id=organization_id)
     return await knowledge_base_repo.get_by_id(db, row_id)
 
 

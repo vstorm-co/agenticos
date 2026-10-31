@@ -492,13 +492,40 @@ own — that fixture is what puts the schema in place.
 
 The `schema_url` fixture runs `create_all` a single time. The function-scoped
 `engine` fixture then hands each test an empty database by `TRUNCATE`-ing every model
-table — and dropping any table a test created outside the models, a runtime
-`rag_<collection>` or an ordering probe — rather than rebuilding the schema.
+table that holds a row — and dropping any table a test created outside the models, a
+runtime `rag_<collection>` or an ordering probe — rather than rebuilding the schema.
+One `EXISTS` per table finds the populated ones, and every sequence is reset in place,
+so an empty table whose identity advanced still starts from 1.
 
 It used to `drop_all` + `create_all` before *every* test: ~0.4s of DDL that was very
 nearly the entire runtime of a suite whose assertions are microseconds of Postgres
 work. Building it once cut `tests/integration` from ~125s to ~50s
 ([#215](https://github.com/vstorm-co/agenticos/issues/215)).
+
+**`make test`, `make test-fast`, `make test-integration` and `make test-cov` run against a
+throwaway Postgres, not your development one.**
+
+`make docker-test-db` starts it from `docker-compose.test.yml` (a project of its own,
+`agenticos-test`, on `localhost:5433`), and those targets start it for you and point
+pytest at it. It runs with `fsync=off`, `synchronous_commit=off` and
+`full_page_writes=off`, and its data directory is `tmpfs`, so a crash loses the cluster
+— which is fine, because the suite creates and drops its own database in it.
+
+The reason is fsync. Every `TRUNCATE` gives each table it touches new relation files
+that Postgres must flush, and on WSL2 or a Docker volume one flush costs ~7 ms: a full
+run took about three hours where CI takes ten minutes. Without the flush the same run
+is CI-fast, and the development database stays untouched and durable.
+
+```bash
+make docker-test-db        # start it (idempotent); waits until it is healthy
+make docker-test-db-down   # stop it and discard its data
+make test TEST_DB_PORT=5434          # another port, when 5433 is taken
+make test TEST_DB=external           # no container: use the database POSTGRES_* / .env name
+```
+
+A scoped `pytest` run is not wrapped by `make`, so point it there yourself:
+`POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres uv run pytest tests/integration/test_x.py`.
+CI sets `CI`, which selects `TEST_DB=external` — its service container is the database.
 
 `TRUNCATE` rather than a transaction rollback, because the API-flow tests commit
 through the real `get_db_session` and their rows outlive a rollback.
@@ -564,9 +591,10 @@ did not start is not an environment that cannot answer, and the two are
 indistinguishable in pytest's output.
 
 `make test-migrations` still exists and is still the one to run by hand after
-touching `alembic/versions/`, but it points at whatever `backend/.env` says, which
-on a laptop is the database with your own work in it. Prefer
-`uv run pytest tests/test_migrations.py`, which cannot reach it.
+touching `alembic/versions/`, and on a laptop it runs against
+a database of its own on the throwaway test Postgres (:5433), so it cannot reach the
+one with your own work in it. In CI (`TEST_DB=external`) it uses the database
+`POSTGRES_*` names. `uv run pytest tests/test_migrations.py` is the quicker check.
 
 ## The worker's tests
 

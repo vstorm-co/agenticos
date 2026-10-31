@@ -32,6 +32,8 @@ PAGES = (
     "mcp.md",
     "api.md",
     "projects.md",
+    "workflows.md",
+    "virtual-tables.md",
     "desktop.md",
     "mobile.md",
     "sandbox.md",

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
+import { TablesSection } from "@/components/agents/tables-section";
+import { WorkflowsSection } from "@/components/agents/workflows-section";
 import { TextToSpeechSection } from "@/components/agents/text-to-speech-section";
 import { VideoGenerationSection } from "@/components/agents/video-generation-section";
 import {
@@ -19,6 +21,8 @@ import { CapabilityGallery } from "@/components/agents/capability-art/capability
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
+  VIRTUAL_TABLES_ID,
+  WORKFLOWS_ID,
   MEMORY_FILES_ID,
   MEMORY_MEM0_ID,
   SANDBOX_ID,
@@ -61,8 +65,10 @@ interface CapabilityWorkbenchProps {
    * Only one panel needs it - memory, whose notes are cleared from inside the
    * capability that keeps them, because there is no browsing surface for them
    * anywhere else (#1470). Everything else here edits a spec and needs no id.
+   * Null for a spec no agent row holds yet - a workflow step's, before its first
+   * run - which has no notes to clear.
    */
-  agentId: string;
+  agentId: string | null;
   catalog: CapabilityCatalogEntry[];
   selected: CapabilityBindingSpec[];
   onToggle: (capabilityId: string) => void;
@@ -220,6 +226,26 @@ export function CapabilityWorkbench({
               disabled={disabled || !isOn}
               readOnly={disabled}
             />
+          ) : focused.id === VIRTUAL_TABLES_ID ? (
+            <TablesSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : focused.id === WORKFLOWS_ID ? (
+            <WorkflowsSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
           ) : focused.id === TEXT_TO_SPEECH_ID ? (
             <TextToSpeechSection
               definition={focused}
@@ -289,7 +315,7 @@ export function CapabilityWorkbench({
               // them, because nothing anywhere else in the console reads or
               // writes them.
               settingsFooter={
-                focused.id === MEMORY_FILES_ID && isOn ? (
+                focused.id === MEMORY_FILES_ID && isOn && agentId !== null ? (
                   <ClearAgentMemory
                     agentId={agentId}
                     usesMem0={selected.some(

@@ -123,7 +123,7 @@ async def test_a_portal_poll_claim_does_not_block_its_credential_refresh(
         kwargs = {
             "connection_id": row.id,
             "portal_keys": ["google"],
-            "not_polled_since": datetime.now(UTC),
+            "now": datetime.now(UTC),
         }
         grant = await mcp_connection_repo.claim_portal_grant_to_poll(poller, **kwargs)
         assert grant is not None

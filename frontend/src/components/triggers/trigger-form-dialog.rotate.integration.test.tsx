@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +39,7 @@ function eventTrigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: null,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: "github",
     event_config: {},
@@ -57,7 +58,9 @@ function eventTrigger(overrides: Partial<Trigger> = {}): Trigger {
 }
 
 function serve() {
-  vi.mocked(apiClient.get).mockImplementation(async () => ({ items: [], total: 0 }));
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 },
+  );
 }
 
 beforeEach(() => {
@@ -125,4 +128,56 @@ describe("TriggerFormDialog rotate secret", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByRole("button", { name: "Rotate signing secret" })).toBeNull();
   });
+});
+
+describe("Polled trigger editing", () => {
+  it.each(["google_drive", "microsoft_files", "google_calendar", "outlook_calendar"] as const)(
+    "edits %s filters and hides webhook credential actions",
+    async (source) => {
+      render(
+        <TriggerFormDialog
+          agentId="a1"
+          open
+          trigger={eventTrigger({
+            event_source: source,
+            delivery_mode: "polling",
+            webhook_url: null,
+            event_config:
+              source === "microsoft_files"
+                ? { site_url: "https://acme.sharepoint.com/sites/Finance", folder_path: "Invoices" }
+                : source === "google_drive"
+                  ? { folder_id: "folder", name_contains: "invoice" }
+                  : { subject_contains: "Review", attendee_contains: "@client.test" },
+          })}
+          onOpenChange={vi.fn()}
+        />,
+        { wrapper },
+      );
+      const dialog = within(await screen.findByRole("dialog"));
+      expect(dialog.queryByRole("button", { name: "Rotate signing secret" })).toBeNull();
+      expect(dialog.getAllByRole("textbox").length).toBeGreaterThanOrEqual(4);
+    },
+  );
+});
+
+it("saves calendar options while retaining its other filters", async () => {
+  const trigger = eventTrigger({
+    event_source: "outlook_calendar",
+    delivery_mode: "polling",
+    event_config: { subject_contains: "Review", external_only: true, minutes_before: 15 },
+  });
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger);
+  render(<TriggerFormDialog agentId="a1" open trigger={trigger} onOpenChange={vi.fn()} />, {
+    wrapper,
+  });
+  const dialog = within(await screen.findByRole("dialog"));
+  fireEvent.change(dialog.getByLabelText("Minutes before the meeting"), {
+    target: { value: "60" },
+  });
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", {
+      event_config: { subject_contains: "Review", external_only: true, minutes_before: 60 },
+    }),
+  );
 });

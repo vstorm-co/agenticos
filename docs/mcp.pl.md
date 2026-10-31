@@ -1,5 +1,5 @@
 ---
-source_sha: "c8ff8031efa5"
+source_sha: "f50735cb69c2"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -62,16 +62,24 @@ niczego do konfigurowania.
     Operator może pozwolić połączeniu sięgać do serwera we własnej sieci
     wdrożenia, na przykład do usługi compose albo serwera w VPN-ie lub
     tailnecie. W tym celu wpisuje jego host do
-    [`MCP_ALLOWED_HOSTS`](configuration.md#project-settings). Host z listy
-    pomija tylko sprawdzenie adresu. URL nadal musi mieć `http` albo `https`.
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): dokładny
+    host, sufiks z kropką na początku, taki jak `.corp.example` (który nie
+    pasuje do samego `corp.example`), adres IP albo zakres CIDR, taki jak
+    `10.1.2.0/24`. To ustawienie obejmuje też kroki HTTP workflow, konektory i A2A.
+    `MCP_ALLOWED_HOSTS` przyjmuje te same formy, ale sięga tylko do MCP, więc
+    użyj go, gdy nic innego nie ma sięgać do hosta. Host z listy może rozwiązywać się na adres
+    prywatny, ale odpowiedzi loopback, link-local i metadanych są odrzucane, a nazwę
+    z listy, która jeszcze się nie rozwiązuje, nadal można zapisać. URL nadal musi
+    mieć `http` albo `https`.
 
     Do serwera z listy można też logować się przez OAuth. Taki serwer często
     sam prowadzi logowanie, więc jego wykrywanie, rejestracja klienta i
     żądania tokenów mogą sięgać do hostów z listy, i do żadnego innego adresu
     prywatnego. Każde żądanie nadal jest przypięte do adresu, który sprawdzono,
     a nazwa z listy, która odpowiada adresem loopback, link-local albo adresem
-    metadanych chmury, jest odrzucana. Logowanie do serwera publicznego nigdy
-    nie sięga do hosta z listy, nawet gdy jego metadane go wskazują.
+    metadanych chmury, jest odrzucana. Lista obowiązuje tylko łańcuch, który
+    zaczyna się od hosta z listy: logowanie do serwera publicznego nigdy nie
+    sięga do hosta z listy, nawet gdy jego metadane go wskazują.
 
     Każde konto we wdrożeniu może wtedy sięgnąć do każdego portu tego hosta.
     Wpisuj więc tylko serwer, który sprawdza token, i nigdy `localhost` ani
@@ -79,6 +87,11 @@ niczego do konfigurowania.
     przy zapisie połączenia oraz przy każdym logowaniu i odświeżeniu tokenu.
     Usunięcie hosta nie rozłącza zapisanego połączenia, ale połączenie OAuth
     do niego przestaje odnawiać token.
+
+    Serwera, który mówi wyłącznie przez stdio, nie da się połączyć, bo
+    połączenie to URL. Uruchom w sieci prywatnej most ze stdio na Streamable
+    HTTP, wpisz host mostu na listę i połącz się z nim. Most musi sam sprawdzać
+    token, bo każde konto może do niego sięgnąć.
 
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
@@ -123,6 +136,9 @@ rozmawia z agentem, dostarcza do niej własne połączenie.
 GET  /api/v1/me/mcp-connections     personal
 GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
                                     narrowed to groups only for them
+GET  /api/v1/workflows/{id}/mcp-connections   the servers a step of this workflow may
+                                    bind - for whoever may edit it (role or grant); name,
+                                    tools, no URL or credential
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
 GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
                                             grant routes as an agent's
@@ -400,9 +416,13 @@ Zostają dwa brzegi, oba wąskie i oba celowe:
   rozwiązuje go sama. Nie ma tu czego przypinać.
 - **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
   gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem. Host z `MCP_ALLOWED_HOSTS` pomija sprawdzenie adresu, a żądania
-  OAuth połączenia, którego własny host jest na liście, mogą sięgać do hostów
-  z listy, przypięte jak każdy inny krok.
+  operatorem. Host z listy (`OUTBOUND_PRIVATE_ALLOWLIST` albo
+  `MCP_ALLOWED_HOSTS`) też jest rozwiązywany, a każda odpowiedź sprawdzana:
+  odpowiedź prywatna przechodzi tylko dla hosta, który lista dopuszcza, odpowiedź
+  loopback lub metadanych nigdy, a host wpisany po nazwie, który jeszcze się nie
+  rozwiązuje, nadal można zapisać. Żądania OAuth połączenia, którego własny host
+  jest na liście, mogą sięgać do hostów z listy, przypięte jak każdy inny
+  krok.
 
 Nic, co wybiera *model*, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.
@@ -825,8 +845,8 @@ dostawca wydaje endpoint osobno dla każdego konta.
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
 | Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
-| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
-| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
+| Google Workspace (self-hosted) | oauth | self-hosted |
+| Microsoft 365 (self-hosted) | oauth | self-hosted |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -906,10 +926,6 @@ dostawca wydaje endpoint osobno dla każdego konta.
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
-| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
-| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
-| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
-| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Wszystko inne { #anything-else }
 
@@ -936,17 +952,48 @@ Aby dodać wpis do listy, zobacz
 
 ### Microsoft 365 i Outlook { #microsoft-365-and-outlook }
 
-Microsoft publikuje własne serwery MCP dla Microsoft 365, a katalog je wymienia:
-**Work IQ** - jeden endpoint do poczty, spotkań, czatów i plików - oraz osobne
-serwery Mail, Calendar, Teams, SharePoint, OneDrive i Word. Każdy wymaga licencji
-Microsoft 365 Copilot i aplikacji zarejestrowanej w Microsoft Entra: dodaj
-uprawnienie Work IQ danego serwera (dla poczty `WorkIQ-MailServer`) oraz
-przekierowujący URL tej konsoli, który pokazuje okno połączenia, a przy łączeniu
-wpisz client ID aplikacji.
+Do Microsoft 365 prowadzą dwa wpisy katalogu i robią co innego.
 
-Entra nie rejestruje klienta na miejscu, więc client ID
-nie jest opcjonalny. Microsoft oznacza serwery per aplikacja jako utrzymywane dla
-zgodności i kieruje nowe projekty do Work IQ.
+**Microsoft 365 (self-hosted)** to
+[`softeria/ms-365-mcp-server`](https://github.com/softeria/ms-365-mcp-server),
+serwer, który uruchamiasz z `--http` i z aplikacją zarejestrowaną w Microsoft
+Entra. Przeszukuje i czyta pocztę Outlooka, tworzy szkice odpowiedzi w wątku,
+wysyła je i zarządza wydarzeniami w kalendarzu. Dodaj `--org-mode`, by sięgnąć do
+skrzynek współdzielonych i Teams. Wpisz jego adres, kończący się na `/mcp`; każde
+połączenie loguje się jako jedno konto Microsoft. Host w Twojej własnej sieci
+wymaga `OUTBOUND_PRIVATE_ALLOWLIST` albo `MCP_ALLOWED_HOSTS`, jak wyżej. To wpis,
+którego workflow używa do odpowiadania na pocztę: zobacz [odpowiedz na pocztę
+zatwierdzonym szkicem](howto/answer-mail-with-approved-draft.md).
+
+**Microsoft Work IQ** to hostowany serwer samego Microsoftu, do pytania o pocztę,
+spotkania, czaty i pliki jednym wywołaniem. Różni się tym, na co pozwala:
+
+- Blokuje zmiany - tworzenie, aktualizację, wysyłanie - dopóki administrator
+  tenanta nie dopuści ich polityką.
+- Jest rozliczany w Copilot Credits i domyślnie zwraca 25 wyników.
+- Loguje wyłącznie przez Microsoft Entra, jako osoba, która się łączy: zarejestruj
+  aplikację z uprawnieniem Work IQ i
+  przekierowującym URL tej konsoli, który pokazuje okno połączenia, a przy
+  łączeniu wpisz jej client ID. Entra nie rejestruje klienta na miejscu, więc
+  client ID nie jest opcjonalny.
+
+Serwerów Work IQ per aplikacja - Mail, Calendar, Teams, SharePoint, OneDrive i
+Word - nie ma już w katalogu, bo Microsoft utrzymuje je tylko dla zgodności.
+Połączenie już utworzone z jednym z nich działa dalej, po swoim adresie. Agent,
+który podpina taki serwer jako własną usługę każdej osoby, zostanie odrzucony przy
+następnej publikacji: podepnij zamiast niego **Microsoft 365 (self-hosted)** albo
+**Microsoft Work IQ**.
+
+### Gmail i Google Workspace { #gmail-and-google-workspace }
+
+**Google Workspace (self-hosted)** to
+[`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
+uruchamiany z `--transport streamable-http` i `MCP_ENABLE_OAUTH21=true`, z Twoim
+własnym klientem Google OAuth. Przeszukuje i czyta Gmaila, tworzy szkice i wysyła
+pocztę w wątku oraz obsługuje Calendar, Drive i Sheets. Wpisz jego adres,
+kończący się na `/mcp`; każde połączenie loguje się jako jedno konto Google. [Odpowiedz
+na pocztę zatwierdzonym szkicem](howto/answer-mail-with-approved-draft.md) pokazuje,
+jak odpowiada na pocztę z workflow.
 
 Outlook jest też dostępny przez zewnętrzne usługi MCP. Dołączony rejestr zawiera
 wpisy MintMCP dla poczty i kalendarza:
@@ -1134,3 +1181,9 @@ Każda zaplanowana kontrola obejmuje najwyżej 64 aktywne serwery organizacji, z
 Odświeżenie OAuth ma osobną krótką transakcję: blokuje i ponownie sprawdza konto, wymienia poświadczenie i zatwierdza zapis przed zwróceniem tokena. Anulowanie czeka na zakończenie tej operacji; późniejszy rollback uruchomienia jej nie cofa. Błąd zapisu po wymianie u dostawcy jawnie przerywa żądanie i może wymagać ponownej autoryzacji konta. Polling skrzynek używa osobnej blokady doradczej konta; pozycja odczytu i zlecone zadania zatwierdzają się razem, a nieprawidłowa odpowiedź wycofuje tylko pracę tej skrzynki.
 
 Kolejka kontroli stanu korzysta z osobnego, indeksowanego znacznika czasu. Odświeżenie OAuth ani polling skrzynki nie przesuwają kolejnej kontroli serwera. Po migracji istniejące serwery trafiają do kolejki jako jeszcze niesprawdzone.
+
+## Budowanie workflows i tabel { #workflow-and-table-tools }
+
+Serwer platformy MCP udostępnia też narzędzia workflows i Virtual Tables. Zacznij od `list_workflow_definitions`, `get_workflow_definition`, `list_workflow_nodes` i `get_workflow_node`. Twórz i zapisuj prywatne grafy przez `create_workflow_draft` i `update_workflow_draft`, zachowując `expected_revision`. `test_workflow_draft` przyjmuje opcjonalne `entry_node_id`; przed ogłoszeniem sukcesu sprawdź `get_workflow_execution` i `get_workflow_execution_steps`. Test może wywołać prawdziwe API i zapisać dane. `publish_workflow` aktywuje skonfigurowane wejścia, wymaga dotychczasowych uprawnień publikacji i ukrywa przed modelem jednorazowe sekrety podpisu. Publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji; klucz API nie może ich przejąć.
+
+Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.

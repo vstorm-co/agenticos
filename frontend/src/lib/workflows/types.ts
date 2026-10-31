@@ -1,0 +1,1091 @@
+/**
+ * TypeScript mirror of the backend workflow + node-catalog contracts (#1786).
+ *
+ * These interfaces mirror, field for field, the Pydantic models the API serves:
+ * - `app/schemas/workflow.py` — the registry and the node catalog.
+ * - `app/workflows/graph/model.py` — the graph shape (nodes, edges, scopes).
+ * - `app/workflows/contracts/io.py` — a binding and its source union.
+ *
+ * The wire is JSON, so every `UUID` arrives as a string and every Python
+ * `tuple`/`frozenset` as an array. The names here are the JSON field names the
+ * backend emits (snake_case), not camelCased, so a value can be handed to
+ * `apiClient` unchanged.
+ *
+ * This module is the single import point for downstream editor code: the canvas,
+ * palette, property panel, pickers, validation mirror, store and hooks all take
+ * their types from here. Nothing here renders; nothing here fetches.
+ */
+
+/** A serialized UUID. An alias, so a signature reads as the contract does. */
+export type Uuid = string;
+
+/** JSON Schema as the catalog serves it, for building a form from a port/config. */
+export type JsonSchema = Record<string, unknown>;
+
+// Node catalog — `app/schemas/workflow.py`
+
+/**
+ * One port of a catalog entry — a connection point the canvas draws.
+ *
+ * `kind` decides handle placement directly; the canvas never infers direction
+ * from a port id convention. `schema` is null for a control port with no
+ * payload. The backend field is `schema` (aliased from `schema_`), so it is
+ * `schema` on the wire and here.
+ */
+export interface Port {
+  id: string;
+  label: string;
+  kind: "input" | "output";
+  schema: JsonSchema | null;
+}
+
+/**
+ * One registered node type, as the palette shows it and the property panel
+ * builds a form from. Mirrors `NodeCatalogEntry`. No handler crosses the wire.
+ */
+export interface NodeDefinition {
+  id: string;
+  version: number;
+  name: string;
+  category: string;
+  description: string;
+  kind: "action" | "control" | "waiting";
+  config_schema: JsonSchema | null;
+  input_schema: JsonSchema | null;
+  output_schema: JsonSchema | null;
+  ports: Port[];
+  effect_kind: "pure" | "read" | "write";
+  retry_guarantee: "none" | "idempotent" | "at_least_once";
+  scopes: string[];
+  /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
+  loop_body_only?: boolean;
+  /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
+  exclusive_branches?: boolean;
+}
+
+/** Every registered node type — the palette's backing list. Mirrors `NodeCatalog`. */
+export interface NodeCatalog {
+  items: NodeDefinition[];
+  total: number;
+}
+
+// Bindings — `app/workflows/contracts/io.py`
+
+/** A reference to an uploaded file. Mirrors `FileRef`. */
+export interface FileRef {
+  kind: "file";
+  file_id: Uuid;
+  content_type: string;
+  byte_size: number;
+}
+
+/**
+ * A reference into one virtual table, optionally narrowed to some columns.
+ * Mirrors `TableIORef`. `column_ids` null means "all live columns".
+ */
+export interface TableIORef {
+  kind: "table";
+  table_id: Uuid;
+  column_ids: Uuid[] | null;
+  schema_version: number;
+}
+
+/**
+ * A reference to another node's output port, or a field within it. Mirrors
+ * `NodeOutputRef`. `field_path` empty means "the whole port value".
+ */
+export interface NodeOutputRef {
+  kind: "node_output";
+  node_id: Uuid;
+  port: string;
+  field_path: string[];
+}
+
+/** A constant value, typed by whatever field it is bound to. Mirrors `LiteralValue`. */
+export interface LiteralValue {
+  kind: "literal";
+  value: unknown;
+}
+
+/**
+ * Text with values from earlier steps in it, rendered when the step runs. Mirrors
+ * `TemplateValue`: `parts` alternate between text and references.
+ */
+export interface TemplateValue {
+  kind: "template";
+  parts: (string | NodeOutputRef)[];
+}
+
+/** What a target field's binding resolves to. Mirrors `BindingSource`, discriminated on `kind`. */
+export type BindingSource = FileRef | TableIORef | NodeOutputRef | TemplateValue | LiteralValue;
+
+/** Every other step's output a source reads: itself, a template's placeholders, or none. */
+export function outputRefs(source: BindingSource): NodeOutputRef[] {
+  if (source.kind === "node_output") return [source];
+  if (source.kind === "template") {
+    return source.parts.filter((part): part is NodeOutputRef => typeof part !== "string");
+  }
+  return [];
+}
+
+/** `source` with each step it reads renamed by `rename` - a paste's new ids, a replaced step. */
+export function renameOutputRefs(
+  source: BindingSource,
+  rename: (nodeId: Uuid) => Uuid,
+): BindingSource {
+  if (source.kind === "node_output") return { ...source, node_id: rename(source.node_id) };
+  if (source.kind === "template") {
+    return {
+      ...source,
+      parts: source.parts.map((part) =>
+        typeof part === "string" ? part : { ...part, node_id: rename(part.node_id) },
+      ),
+    };
+  }
+  return source;
+}
+
+/**
+ * One field of one node instance, bound to a source. Mirrors `Binding`.
+ *
+ * `target_field` is a plain string. For a leaf nested in an array-of-rows or a
+ * nested object it carries a JSON-Pointer-style path — see `bindingFieldPath`
+ * / `parseBindingFieldPath` below, the one place that convention is defined.
+ */
+export interface Binding {
+  target_node_id: Uuid;
+  target_field: string;
+  source: BindingSource;
+}
+
+// Graph — `app/workflows/graph/model.py`
+
+/** Where the editor draws a node. Never read by validation or execution. Mirrors `NodePosition`. */
+export interface NodePosition {
+  x: number;
+  y: number;
+  /**
+   * The size a person gave a step; absent until it is resized, and then the
+   * default. `null` reads as absent: the API leaves a size out, but a draft
+   * saved by an earlier build may hold one.
+   */
+  width?: number | null;
+  height?: number | null;
+}
+
+/**
+ * One node in the graph: which definition, pinned to which version, configured
+ * how. Mirrors `NodeInstance`. `config` holds only literal, static settings —
+ * a runtime value lives in `bindings`, never here.
+ */
+export interface NodeInstance {
+  id: Uuid;
+  definition_id: string;
+  definition_version: number;
+  config: Record<string, unknown>;
+  policy?: NodePolicy | null;
+  layout: NodePosition;
+  /** What the builder calls this step, unique in the graph; the catalog name when unset. */
+  label?: string | null;
+  /** A note on the step, shown on the canvas. */
+  notes?: string | null;
+  /** Switched off: skipped when the run reaches it, handing the run on. */
+  disabled?: boolean;
+  /** Data a test run hands on as this step's output instead of running it. */
+  pinned_output?: Record<string, unknown> | null;
+  /** A line written to the workflow's log each time the step settles; null for none. */
+  quick_log?: QuickLog | null;
+}
+
+/** The longest message a quick log may have. */
+export const QUICK_LOG_MESSAGE_MAX = 500;
+
+/** What a quick log says unless the builder writes something else. */
+export const QUICK_LOG_DEFAULT_MESSAGE = "{{step}} → {{outcome}}";
+
+/** Mirrors `QuickLog`: a message template and the outputs that log, null for every one. */
+export interface QuickLog {
+  message: string;
+  outputs: string[] | null;
+}
+
+/** The steps a quick log cannot sit on: a loop's own item and yield steps. */
+export function canQuickLog(definitionId: string): boolean {
+  return definitionId !== "loop.item" && definitionId !== "loop.yield";
+}
+
+/** How many tries a failing step gets, and the wait between them. Mirrors `RetryPolicy`. */
+export interface RetryPolicy {
+  max_attempts: number;
+  backoff?: "fixed" | "exponential";
+  base_delay_seconds?: number;
+  max_delay_seconds?: number;
+}
+
+/**
+ * One node's time limit, retries and failure routing, beside its config. Mirrors
+ * `NodePolicy`. `on_error: "route"` gives the node an `error` output port.
+ */
+export interface NodePolicy {
+  timeout_seconds?: number | null;
+  retry?: RetryPolicy | null;
+  on_error?: "fail_run" | "route";
+}
+
+/** One control-flow or data-flow connection between two node ports. Mirrors `Edge`. */
+export interface WorkflowEdge {
+  id: Uuid;
+  source_node_id: Uuid;
+  source_port: string;
+  target_node_id: Uuid;
+  target_port: string;
+}
+
+/**
+ * A control node and the body it owns, as the server has computed it. Mirrors
+ * `ScopeBoundary`.
+ *
+ * `body_node_ids` is **server-derived** from edge topology, never client-authored:
+ * a draft save that implies a different membership than the server recomputes has
+ * that implication overwritten, not honored. The editor reads this to filter the
+ * scoped view; it never writes it.
+ */
+export interface ScopeBoundary {
+  scope_node_id: Uuid;
+  body_node_ids: Uuid[];
+  entry_port: string;
+  exit_node_id: Uuid;
+  exit_port: string;
+}
+
+/**
+ * One workflow graph — what a draft holds and what a published version freezes.
+ * Mirrors `WorkflowGraph`. The lists are flat; nesting is expressed by `scopes`,
+ * not by a recursive subgraph.
+ */
+/** A note on the canvas beside the steps. Never run or validated. Mirrors `CanvasNote`. */
+/** A note's tint. Mirrors `NoteColor`. */
+export type NoteColor = "default" | "yellow" | "green" | "blue" | "purple" | "red";
+
+export interface CanvasNote {
+  id: Uuid;
+  /** Markdown. */
+  text: string;
+  layout: NodePosition;
+  width?: number;
+  height?: number;
+  color?: NoteColor;
+}
+
+export interface WorkflowGraph {
+  entry_node_id: Uuid;
+  nodes: NodeInstance[];
+  edges: WorkflowEdge[];
+  bindings: Binding[];
+  scopes: ScopeBoundary[];
+  /** Notes on the canvas; absent on a graph written before there were any. */
+  notes?: CanvasNote[];
+}
+
+// Registry resource — `app/schemas/workflow.py`
+
+/** The lifecycle states the list groups by, matching `Agent`'s. */
+export type WorkflowStatus = "draft" | "published" | "archived";
+
+/** A workflow as the list shows it. Mirrors `WorkflowRead`. */
+export interface WorkflowRead {
+  id: Uuid;
+  slug: string;
+  name: string;
+  description: string | null;
+  status: string;
+  visibility: string;
+  owner_user_id: Uuid | null;
+  current_version_id: Uuid | null;
+  /**
+   * The trigger node the published version starts from - `core.input`,
+   * `trigger.chat`, `trigger.webhook`, ... - or null when it starts from no
+   * trigger (by hand) or was never published.
+   */
+  live_trigger: string | null;
+  live_triggers?: string[];
+  /** Labels the workflow is filed under, lower case, each once. */
+  tags: string[];
+  /**
+   * Whether the published version's unattended trigger - a webhook, a schedule,
+   * a new table record - is on; null when it has none.
+   */
+  trigger_active: boolean | null;
+  draft_revision: number;
+  /** The node type the draft starts from - its trigger - or null for a draft with no steps. */
+  entry_node: string | null;
+  /** How many steps the draft has. */
+  step_count: number;
+  /** Its most recent run, test runs included; null in a single workflow's read and for one never run. */
+  last_run: WorkflowLastRun | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** A workflow's most recent run, as its card says it. Mirrors `WorkflowLastRun`. */
+export interface WorkflowLastRun {
+  id: Uuid;
+  status: WorkflowRunStatus;
+  mode: "real" | "test";
+  created_at: string | null;
+}
+
+/**
+ * A workflow plus the graph currently being edited. Mirrors `WorkflowDetail`.
+ *
+ * `draft_graph` is null for a workflow nobody has ever edited — there is no
+ * meaningful empty graph to report, only the absence of one.
+ */
+/** What a workflow is run with rather than what it does. Mirrors `WorkflowSettings`. */
+/** A pin a workflow file does not carry. Mirrors `UnresolvedResource`. */
+export interface UnresolvedResource {
+  node_id: Uuid;
+  /** The step's name, as the editor shows it. */
+  step: string;
+  field: string;
+  kind: string;
+}
+
+/** A workflow as a file another deployment can import. Mirrors `WorkflowExport`. */
+export interface WorkflowExport {
+  format: "agenticos.workflow";
+  format_version: 1;
+  name: string;
+  description: string | null;
+  tags: string[];
+  settings: WorkflowSettings;
+  graph: WorkflowGraph | null;
+  unresolved: UnresolvedResource[];
+}
+
+/** What an import made. Mirrors `WorkflowImported`. */
+export interface WorkflowImported {
+  workflow: WorkflowRead;
+  unresolved: UnresolvedResource[];
+}
+
+export interface WorkflowSettings {
+  /** An IANA timezone: the one a schedule's cron expression is read in. */
+  timezone: string;
+  /** The deadline a run gets when whatever starts it names none. */
+  default_deadline_seconds: number | null;
+  /** A published workflow starting from On failure of a workflow, started when a run fails. */
+  error_workflow_id: Uuid | null;
+  /** Days a run is kept after it ends; kept for good when null. */
+  run_retention_days: number | null;
+  keep_succeeded_runs: boolean;
+  /** How many of its runs may be under way at once; no limit when null. */
+  max_concurrent_runs: number | null;
+  /** The most one run may spend, in US dollars; no limit when null. */
+  run_budget_usd: number | null;
+  /** The most its runs may spend in a calendar month, UTC; no limit when null. */
+  monthly_budget_usd: number | null;
+}
+
+/** The settings as the workflow holds them. Mirrors `StoredWorkflowSettings`. */
+export interface StoredWorkflowSettings extends WorkflowSettings {
+  /** The member the error workflow runs as: whoever chose it. */
+  error_workflow_run_as: Uuid | null;
+}
+
+export interface WorkflowDetail extends WorkflowRead {
+  draft_graph: WorkflowGraph | null;
+  settings: StoredWorkflowSettings;
+  /** Whether this caller may edit this workflow, resolved server-side; false once archived. */
+  can_edit: boolean;
+}
+
+/** A page of workflows. Mirrors `WorkflowList`. */
+export interface WorkflowList {
+  items: WorkflowRead[];
+  total: number;
+}
+
+/** One published, immutable version, as the lean history list shows it. Mirrors `WorkflowVersionRead`. */
+export interface WorkflowVersionRead {
+  id: Uuid;
+  version: number;
+  note: string | null;
+  published_by_user_id: Uuid | null;
+  budget_limit: number | null;
+  created_at: string | null;
+}
+
+/**
+ * The publish response: the new version, and the trigger it switched on.
+ * Mirrors `WorkflowPublished`. `webhook_secret` is a webhook's signing secret,
+ * only on the publish that first switched that webhook on.
+ */
+export interface WorkflowPublished extends WorkflowVersionRead {
+  trigger: string | null;
+  exposure: WorkflowExposureRead | null;
+  webhook_secret: string | null;
+  exposures?: WorkflowExposureRead[];
+  trigger_secrets?: Record<string, string>;
+}
+
+/**
+ * One version plus its frozen graph, fetched on demand to view it read-only.
+ * Mirrors `WorkflowVersionDetail`. The list stays lean; the graph rides only here.
+ */
+export interface WorkflowVersionDetail extends WorkflowVersionRead {
+  graph: WorkflowGraph;
+}
+
+/** One published-version metadata page, newest first. Mirrors `WorkflowVersionList`. */
+export interface WorkflowVersionList {
+  items: WorkflowVersionRead[];
+  next_before?: number | null;
+}
+
+/** Create a workflow. Mirrors `WorkflowCreate`. */
+export interface WorkflowCreate {
+  template_id?: "publicApi" | "markdownNotes";
+  name: string;
+  description?: string | null;
+  visibility?: string;
+}
+
+/**
+ * Replace the draft graph, gated on the revision the caller last read. Mirrors
+ * `WorkflowDraftUpdate`. `graph` is a raw JSON object on the wire (the backend
+ * parses and validates it after authorization), so the editor sends its working
+ * `WorkflowGraph` here as-is.
+ */
+export interface WorkflowDraftUpdate {
+  graph: WorkflowGraph;
+  expected_revision: number;
+}
+
+/** Make a published version the draft again, gated like a draft write. Mirrors `WorkflowVersionRestore`. */
+export interface WorkflowVersionRestore {
+  expected_revision: number;
+}
+
+/** Publish the current draft, gated on the same revision. Mirrors `WorkflowPublish`. */
+export interface WorkflowPublish {
+  note?: string | null;
+  expected_revision: number;
+}
+
+// Centralized conventions the design flags as open (§ "Open questions for #1786")
+
+/**
+ * Build a `Binding.target_field` path from segments, JSON-Pointer style.
+ *
+ * A binding-aware leaf nested inside an array-of-rows or an object needs a path,
+ * not a bare field name: `mappings[0].value` is `mappings/0/value`. This is the
+ * one place the frontend encodes that path; the client-side validator and the
+ * property panel both call it so a single convention reaches the wire. A numeric
+ * index is stringified. `/` and `~` inside a segment are escaped per RFC 6901
+ * (`~1` and `~0`) so a segment containing a slash cannot forge a boundary.
+ */
+export function bindingFieldPath(segments: ReadonlyArray<string | number>): string {
+  return segments
+    .map((segment) => String(segment).replace(/~/g, "~0").replace(/\//g, "~1"))
+    .join("/");
+}
+
+/**
+ * Split a `Binding.target_field` path back into its segments — the inverse of
+ * `bindingFieldPath`. Escapes are decoded `~1`→`/` before `~0`→`~`, the RFC 6901
+ * order, so an escaped tilde does not swallow the character after it.
+ */
+export function parseBindingFieldPath(path: string): string[] {
+  if (path === "") return [];
+  return path.split("/").map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
+}
+
+/** How many characters of a node id are enough to tell two same-named nodes apart. */
+export const NODE_ID_SUFFIX_LENGTH = 6;
+
+/**
+ * The head of a node id, for disambiguating two nodes of the same definition.
+ *
+ * `NodeInstance` has no per-instance label in #1786's model, so the canvas shows
+ * the catalog's static name and this suffix beside it. Centralized so every
+ * surface derives the same suffix from the same id.
+ */
+export function shortNodeId(nodeId: Uuid): string {
+  return nodeId.slice(0, NODE_ID_SUFFIX_LENGTH);
+}
+
+/**
+ * The name to show for a node instance: the catalog definition's name, suffixed
+ * with a short id when a disambiguator is asked for.
+ *
+ * The separator is not copy — it is a mid-dot joining a name and an id fragment,
+ * the same shape `collection-picker` uses to disambiguate same-named rows — so it
+ * needs no translation. A caller that has resolved the definition passes its
+ * `name`; one that has not passes a fallback (the definition id).
+ */
+export function nodeDisplayName(
+  definitionName: string,
+  nodeId: Uuid,
+  disambiguate = false,
+  label?: string | null,
+): string {
+  // A step the builder named is called that: names are unique in a graph.
+  const own = label?.trim();
+  if (own) return own;
+  return disambiguate ? `${definitionName} · ${shortNodeId(nodeId)}` : definitionName;
+}
+
+// Runs - `app/schemas/workflow_run.py`
+
+export type WorkflowRunStatus =
+  | "queued"
+  | "running"
+  | "waiting_approval"
+  | "waiting_retry"
+  | "needs_attention"
+  | "budget_exceeded"
+  | "failed"
+  | "cancelled"
+  | "succeeded";
+
+export type NodeRunStatus =
+  | "pending"
+  | "running"
+  | "waiting"
+  | "needs_attention"
+  | "succeeded"
+  | "failed"
+  | "skipped"
+  | "cancelled";
+
+/** How a step's latest try ended. Mirrors `NodeAttemptStatus`. */
+type NodeAttemptStatus = "in_flight" | "completed" | "failed" | "uncertain";
+
+/** What a person decides for a step that needs attention. Mirrors `StepChoice`. */
+export type StepChoice = "run_again" | "use_error_route" | "fail_run" | "use_late_result";
+
+/** One run of a workflow. Mirrors `WorkflowRunRead`. */
+export interface WorkflowRunRead {
+  id: Uuid;
+  workflow_id: Uuid;
+  workflow_version_id: Uuid | null;
+  mode: "real" | "test";
+  status: WorkflowRunStatus;
+  triggered_by: string;
+  budget_limit: number | null;
+  spent_cost: number;
+  /** Own provider charges, excluding called runs; older APIs omit this. */
+  own_cost?: number;
+  cost_is_partial: boolean;
+  deadline_at: string | null;
+  paused_reason: string | null;
+  error: { code: string; message: string; details?: Record<string, unknown> } | null;
+  output: Record<string, unknown> | null;
+  root_run_id: Uuid;
+  causation_run_id: Uuid | null;
+  /** The run this one retries; its succeeded steps were not run again. */
+  retry_of_run_id: Uuid | null;
+  depth: number;
+  /** Whether the caller may cancel the run and resolve its steps; the single-run read says so. */
+  can_cancel: boolean;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string | null;
+}
+
+export interface WorkflowRunList {
+  items: WorkflowRunRead[];
+  total: number;
+}
+
+/** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
+export interface WorkflowNodeRunRead {
+  id: Uuid;
+  node_instance_id: Uuid;
+  scope_path: { loop_node_id: Uuid; index: number }[];
+  status: NodeRunStatus;
+  waiting_reason: string | null;
+  attempts: number;
+  cost: number;
+  error: { code: string; message: string; details?: Record<string, unknown> } | null;
+  /** What the step handed on, once it succeeded; null before, and when it failed. */
+  output: Record<string, unknown> | null;
+  /** How the step's latest try ended; `uncertain` is one nobody could confirm. Null before any try. */
+  last_attempt_status: NodeAttemptStatus | null;
+  /** What the step reported after its try was given up on, to use instead of running it again. */
+  late_output: Record<string, unknown> | null;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+export interface WorkflowNodeRunList {
+  items: WorkflowNodeRunRead[];
+  total: number;
+}
+
+/** One line a step's quick log wrote. Mirrors `WorkflowLogEntryRead`. */
+export interface WorkflowLogEntry {
+  id: Uuid;
+  workflow_id: Uuid;
+  run_id: Uuid;
+  node_instance_id: Uuid;
+  /** The step's name as it was when the line was written. */
+  step_label: string;
+  /** The port the step left by, or `error`. */
+  outcome: string;
+  status: string;
+  message: string;
+  is_test: boolean;
+  is_pinned: boolean;
+  created_at: string;
+}
+
+export interface WorkflowLogList {
+  items: WorkflowLogEntry[];
+  total: number;
+}
+
+/** A line of the log with its workflow's name. Mirrors `WorkflowRecentLogEntry`. */
+export interface WorkflowRecentLogEntry extends WorkflowLogEntry {
+  workflow_name: string;
+}
+
+/** The newest real-run lines across the workflows the caller may view. Mirrors `WorkflowRecentLogs`. */
+export interface WorkflowRecentLogs {
+  items: WorkflowRecentLogEntry[];
+  /** Lines the last 24 hours wrote, by outcome; an outcome with none is absent. */
+  counts: Record<string, number>;
+}
+
+/** What a workflow's Logs page is narrowed to, and which page of it. */
+export interface LogQuery {
+  workflowId: Uuid;
+  nodeInstanceId?: Uuid;
+  /** Only lines that left by any of these ports, or `error`. */
+  outcomes?: string[];
+  /** Only lines written at or after this instant, ISO 8601. */
+  from?: string;
+  /** Text in the message. */
+  q?: string;
+  /** A run id, or the start of one: only that run's lines. */
+  run?: string;
+  includeTest: boolean;
+  /** Zero-based. */
+  page: number;
+}
+
+/** A file one of the run's steps stored. Mirrors `WorkflowFileRead`. */
+export interface WorkflowRunFile {
+  id: Uuid;
+  filename: string | null;
+  content_type: string;
+  byte_size: number;
+  producing_node_run_id: Uuid | null;
+  created_at: string;
+}
+
+export interface WorkflowRunFileList {
+  items: WorkflowRunFile[];
+}
+
+/** What starting a run sends. Mirrors `WorkflowRunStart`. */
+export interface WorkflowRunStart {
+  entry_node_id?: Uuid;
+  workflow_id: Uuid;
+  mode?: "real" | "test";
+  input?: Record<string, unknown>;
+  /** Test only this step of the draft, with what earlier steps are known to hand on. */
+  step?: { node_id: Uuid; outputs: Record<Uuid, Record<string, unknown>> };
+}
+
+/** What a run history is narrowed to, and which page of it. */
+export interface RunHistoryQuery {
+  /** One workflow's runs; every workflow the caller may see when unset. */
+  workflowId?: Uuid;
+  status?: WorkflowRunStatus;
+  mode?: "real" | "test";
+  triggeredBy?: string;
+  /** Only runs started at or after this instant, ISO 8601. */
+  createdAfter?: string;
+  /** Zero-based. */
+  page: number;
+}
+
+/** Whether a run can be retried from where it stopped. Mirrors `_RETRYABLE`. */
+export function isRunRetryable(status: WorkflowRunStatus): boolean {
+  return ["failed", "cancelled", "budget_exceeded"].includes(status);
+}
+
+/** Whether a run has ended for good. */
+export function isRunTerminal(status: WorkflowRunStatus): boolean {
+  return ["succeeded", "failed", "cancelled", "budget_exceeded"].includes(status);
+}
+
+/** The two ways a workflow runs with nobody pressing Start. */
+export type ExposureAdapter =
+  "webhook" | "schedule" | "form" | "channel" | "github" | "gmail" | "outlook";
+
+/** A schedule's cadence: every N seconds, or a crontab evaluated in UTC. */
+export type ExposureScheduleKind = "interval" | "cron";
+
+/**
+ * A workflow's webhook or schedule - its trigger node, switched on by a publish.
+ * Mirrors `WorkflowExposureRead`. The version it runs is the one that switched
+ * it on, and it runs as the member who published that version.
+ */
+export interface WorkflowExposureRead {
+  id: Uuid;
+  workflow_id: Uuid;
+  workflow_version_id: Uuid;
+  version_number: number;
+  node_instance_id: Uuid;
+  adapter: ExposureAdapter;
+  is_active: boolean;
+  execution_principal_user_id: Uuid | null;
+  run_input: Record<string, unknown>;
+  schedule_kind: ExposureScheduleKind | null;
+  interval_seconds: number | null;
+  cron_expression: string | null;
+  next_fire_at: string | null;
+  last_fired_at: string | null;
+  last_run_id: Uuid | null;
+  /** Where a webhook's or a GitHub hook's deliveries are POSTed - the public API address. */
+  webhook_url: string | null;
+  /** A form's link, the page's only credential; null for any other trigger. */
+  form_token: string | null;
+  /** Where a form's page is, on the console's own address. */
+  form_url: string | null;
+  /** The bot whose messages a channel trigger takes; null for any other trigger. */
+  channel_bot_id: Uuid | null;
+  /** The repository a GitHub hook was registered on through the connected account. */
+  provider_target: string | null;
+  /** Whether the connected account registered the GitHub hook, or it is pasted by hand. */
+  registered_on_provider: boolean;
+  created_at: string | null;
+}
+
+/** The rotate response - carries a webhook's new signing secret, once. */
+export interface WorkflowExposureWithSecret extends WorkflowExposureRead {
+  reveal_secret: string;
+}
+
+/** A webhook's test URL for the draft, open for one call. Mirrors `WebhookTestListening`. */
+export interface WebhookTestListening {
+  test_token: string;
+  url: string;
+  expires_at: string;
+}
+
+/** Where a test URL stands, and the call it caught. Mirrors `WebhookTestCapture`. */
+export interface WebhookTestCapture {
+  state: "listening" | "caught" | "expired";
+  delivery: { body: Record<string, unknown>; delivery_id: string } | null;
+}
+
+/** Pause or resume it. Mirrors `WorkflowExposureUpdate`. */
+export interface WorkflowExposureUpdate {
+  is_active: boolean;
+}
+
+// Approvals - `app/schemas/workflow_approval.py`
+
+export type WorkflowApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "cancelled";
+
+/** One `human.approval` step's request, as the approver sees it. */
+export interface WorkflowApprovalRead {
+  id: Uuid;
+  workflow_id: Uuid;
+  workflow_name: string;
+  workflow_run_id: Uuid;
+  node_run_id: Uuid;
+  title: string;
+  details: string | null;
+  /** Who may decide it; empty means anyone holding `approvals:decide`. */
+  approver_user_ids: Uuid[];
+  status: WorkflowApprovalStatus;
+  expires_at: string | null;
+  decided_by_user_id: Uuid | null;
+  decided_at: string | null;
+  note: string | null;
+  created_at: string;
+  /** Whether the approver may edit the proposal before approving it. */
+  editable: boolean;
+  /** What the step proposes: a draft, a reply, a value. */
+  proposal: string | null;
+  proposal_format: "text" | "markdown";
+  /** What the step calls its proposal; absent shows a generic heading. */
+  proposal_label: string | null;
+  /** What was approved, once decided; the proposal as it stood or the edit. */
+  final: string | null;
+  /** Whether the approved text differs from the proposal. */
+  edited: boolean;
+  /** The ways of approving the step offered, in order; empty when it offered none. */
+  choices: WorkflowApprovalChoice[];
+  /** The id of the one the approver took, once approved. */
+  choice: string | null;
+}
+
+/** One way of approving a step offered: its id and the button's label, as its author wrote it. */
+export interface WorkflowApprovalChoice {
+  id: string;
+  label: string;
+}
+
+/**
+ * The longest proposal or edit the server accepts. Mirrors `MAX_PROPOSAL_CHARS`
+ * in `app/schemas/workflow_approval.py`.
+ */
+export const MAX_PROPOSAL_CHARS = 100_000;
+
+export interface WorkflowApprovalList {
+  items: WorkflowApprovalRead[];
+  total: number;
+}
+
+/** Rename a workflow, describe it or tag it. An absent field is kept. Mirrors `WorkflowUpdate`. */
+export interface WorkflowUpdate {
+  name?: string;
+  description?: string | null;
+  tags?: string[];
+}
+
+/** One day of a workflow's real runs. Mirrors `WorkflowStatsDay`. */
+export interface WorkflowStatsDay {
+  /** The day, YYYY-MM-DD, in UTC. */
+  day: string;
+  succeeded: number;
+  failed: number;
+  /** Every other run that day: cancelled, out of budget, or still under way. */
+  other: number;
+  cost_usd: number;
+}
+
+/** One step's share of a workflow's real runs. Mirrors `WorkflowStatsStep`. */
+export interface WorkflowStatsStep {
+  node_instance_id: Uuid;
+  /** The step's name in the live version, or its type's when it has none. */
+  label: string | null;
+  definition_id: string | null;
+  runs: number;
+  failed: number;
+  cost_usd: number;
+  avg_seconds: number | null;
+}
+
+/** How many approved requests changed the proposal by a share within one range. Mirrors `EditRatioBucket`. */
+export interface EditRatioBucket {
+  /** The upper bound: 0, 0.1, 0.25, 0.5 or 1. The 0 bucket holds exactly 0. */
+  upto: number;
+  count: number;
+}
+
+/** What approval requests of real runs came to over a window. Mirrors `ApprovalOutcomes`. */
+export interface ApprovalOutcomes {
+  requests: number;
+  pending: number;
+  /** Approved as proposed, steps that cannot be edited included. */
+  approved_unchanged: number;
+  approved_edited: number;
+  rejected: number;
+  /** Ran out of time with no decision; not counted as decided. */
+  expired: number;
+  cancelled: number;
+  /** Approved out of the decided requests; null when none was decided. */
+  acceptance_rate: number | null;
+  /** Approved unchanged out of the decided requests; null when none was decided. */
+  unchanged_rate: number | null;
+  decide_p50_seconds: number | null;
+  decide_p95_seconds: number | null;
+  /** The median share of a proposal an approver changed, over measured edits; null when none. */
+  edit_ratio_median: number | null;
+  edit_ratios: EditRatioBucket[];
+}
+
+/** One UTC day's approval requests, by how they ended. Mirrors `WorkflowApprovalDay`. */
+export interface WorkflowApprovalDay {
+  /** The day, YYYY-MM-DD, in UTC. */
+  day: string;
+  approved_unchanged: number;
+  approved_edited: number;
+  rejected: number;
+  expired: number;
+}
+
+/** One approval step's outcomes. Mirrors `WorkflowApprovalStep`. */
+export interface WorkflowApprovalStep extends ApprovalOutcomes {
+  node_instance_id: Uuid;
+  /** The step's name in the live version, or null. */
+  label: string | null;
+  definition_id: string | null;
+}
+
+/** A workflow's approval outcomes over its stats window. Mirrors `WorkflowApprovalStats`. */
+export interface WorkflowApprovalStats extends ApprovalOutcomes {
+  by_day: WorkflowApprovalDay[];
+  /** Each approval step, most requests first. */
+  steps: WorkflowApprovalStep[];
+}
+
+/** One workflow's real runs over the dashboard's window. Mirrors `WorkflowSummaryRow`. */
+export interface WorkflowSummaryRow {
+  id: string;
+  name: string;
+  runs: number;
+  failed: number;
+  cost_usd: number;
+}
+
+/** One workflow's approval outcomes over the dashboard's window. Mirrors `WorkflowApprovalsSummaryRow`. */
+export interface WorkflowApprovalsSummaryRow extends ApprovalOutcomes {
+  id: string;
+  name: string;
+}
+
+/** The approval outcomes of every workflow the caller may see. Mirrors `WorkflowApprovalsSummary`. */
+export interface WorkflowApprovalsSummary extends ApprovalOutcomes {
+  /** The five with the most requests. */
+  workflows: WorkflowApprovalsSummaryRow[];
+}
+
+/** The real runs of every workflow the caller may see. Mirrors `WorkflowsSummary`. */
+export interface WorkflowsSummary {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  cost_usd: number;
+  /** Runs under way now that wait for an approval or a person's attention. */
+  needs_you: number;
+  /** The busiest five, most runs first. */
+  workflows: WorkflowSummaryRow[];
+}
+
+/** What a workflow's real runs did over a window. Mirrors `WorkflowStats`. */
+export interface WorkflowStats {
+  days: number;
+  since: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  /** The runs that ended, whichever way. */
+  ended: number;
+  /** Succeeded out of the runs that ended; null when none ended. */
+  success_rate: number | null;
+  duration_p50_seconds: number | null;
+  duration_p95_seconds: number | null;
+  cost_usd: number;
+  cost_is_partial: boolean;
+  /** Every run's spend this calendar month in UTC, test runs included - what the budget counts. */
+  month_cost_usd: number;
+  monthly_budget_usd: number | null;
+  by_day: WorkflowStatsDay[];
+  steps: WorkflowStatsStep[];
+  approvals: WorkflowApprovalStats;
+}
+
+/** What a model step's answer should say. Mirrors `EvalExpectation`. */
+export interface EvalExpectation {
+  kind: "contains" | "not_contains" | "equals";
+  /** A path into the step's output, such as `text` or `category`; the whole output when null. */
+  field: string | null;
+  value: string;
+}
+
+/** A case a model step is tried on. Mirrors `EvalCaseCreate`. */
+export interface EvalCaseCreate {
+  name: string;
+  run_input: Record<string, unknown>;
+  outputs: Record<Uuid, Record<string, unknown>>;
+  expectation: EvalExpectation;
+}
+
+/** Mirrors `EvalCaseRead`. */
+export interface EvalCase extends EvalCaseCreate {
+  id: Uuid;
+  node_instance_id: Uuid;
+  created_at: string | null;
+}
+
+/** How one case fared in a try. Mirrors `EvalResult`. */
+export interface EvalResult {
+  eval_id: Uuid;
+  name: string;
+  workflow_run_id: Uuid | null;
+  status: string;
+  /** Null while its run is still going. */
+  passed: boolean | null;
+  actual: string | null;
+  reason: string | null;
+  cost_usd: number;
+}
+
+/** One try of a step's cases. Mirrors `EvalRunRead`. */
+export interface EvalRun {
+  id: Uuid;
+  node_instance_id: Uuid;
+  created_at: string | null;
+  results: EvalResult[];
+  passed: number;
+  failed: number;
+  pending: number;
+  cost_usd: number;
+}
+
+/** A step's cases and its latest try. Mirrors `EvalCaseList`. */
+export interface EvalCaseList {
+  items: EvalCase[];
+  latest: EvalRun | null;
+}
+
+/** Who a log alert reaches; an agent alert's audience, less the run's initiator. */
+export type LogAlertAudience = "admins" | "owner" | "chosen";
+
+/** The minutes back a rule counts lines over; the only ones the API accepts. */
+export const LOG_ALERT_WINDOWS = [5, 15, 30, 60, 240, 1440] as const;
+export type LogAlertWindow = (typeof LOG_ALERT_WINDOWS)[number];
+
+export const LOG_ALERT_THRESHOLD_MAX = 1000;
+export const LOG_ALERT_NAME_MAX = 100;
+export const LOG_ALERT_TEXT_MAX = 200;
+
+/** One time a rule fired. Mirrors `WorkflowLogAlertFiringRead`. */
+export interface LogAlertFiring {
+  id: Uuid;
+  fired_at: string;
+  count: number;
+  window_start: string;
+}
+
+/** A rule on a workflow's log. Mirrors `WorkflowLogAlertRead`. */
+export interface LogAlertRule {
+  id: Uuid;
+  workflow_id: Uuid;
+  name: string;
+  outcomes: string[];
+  node_instance_id: Uuid | null;
+  message_contains: string | null;
+  threshold: number;
+  window_minutes: number;
+  audience: LogAlertAudience[];
+  user_ids: Uuid[];
+  enabled: boolean;
+  last_firing: LogAlertFiring | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+/** What a rule is created with. Mirrors `WorkflowLogAlertCreate`. */
+export interface LogAlertInput {
+  name: string;
+  outcomes: string[];
+  node_instance_id: Uuid | null;
+  message_contains: string | null;
+  threshold: number;
+  window_minutes: LogAlertWindow;
+  audience: LogAlertAudience[];
+  user_ids: Uuid[];
+  enabled: boolean;
+}
+
+/** Fields of a rule to change; the step and the text take `null` to clear. */
+export type LogAlertPatch = Partial<LogAlertInput>;

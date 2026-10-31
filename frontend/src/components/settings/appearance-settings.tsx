@@ -12,10 +12,12 @@ import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import { useMotionStore, type MotionPreference } from "@/stores/motion-store";
 import { useThemeStore, type Theme } from "@/stores/theme-store";
 import { useVoiceGlowStore, type VoiceGlowStyle } from "@/stores/voice-glow-store";
+import { useWorkflowNodeStyleStore, type NodeStyle } from "@/stores/workflow-node-style-store";
 
 const THEMES: readonly Theme[] = ["light", "dark", "system"];
 const GLOW_STYLES: readonly VoiceGlowStyle[] = ["vivid", "subtle", "off"];
 const MOTIONS: readonly MotionPreference[] = ["system", "reduce", "full"];
+const NODE_STYLES: readonly NodeStyle[] = ["colour", "simple"];
 
 /** One labelled choice in the card: a name, the group, and what it means. */
 function Setting({ id, label, children }: { id: string; label: string; children: ReactNode }) {
@@ -31,9 +33,9 @@ function Setting({ id, label, children }: { id: string; label: string; children:
 
 /**
  * How the console looks and moves for this person: the theme, the style, the
- * voice glow and the Motion preference, side by side.
+ * voice glow, Motion preference and how workflow steps are drawn, side by side.
  *
- * All three are kept in this browser rather than on the account, like the
+ * All four are kept in this browser rather than on the account, like the
  * theme always was, so each applies the moment it is picked and there is
  * nothing to save. Gated on `useMounted` for the reason the account menu's
  * Appearance submenu is: the stored values are unknown on the server, so
@@ -52,6 +54,7 @@ export function AppearanceSettings() {
   const resolved = useResolvedTheme();
   const { style, setStyle } = useVoiceGlowStore();
   const { motion, setMotion } = useMotionStore();
+  const { style: nodeStyle, setStyle: setNodeStyle } = useWorkflowNodeStyleStore();
   const reduced = useReducedMotion();
   const glow: VoiceGlowStyle = reduced ? "off" : style;
 
@@ -96,6 +99,15 @@ export function AppearanceSettings() {
               onChange={setMotion}
             />
             <p className="text-muted-foreground mt-1.5 text-xs">{t("motionHint")}</p>
+          </Setting>
+          <Setting id="appearance-workflow-nodes" label={t("workflowNodes")}>
+            <ChoiceGroup
+              labelledBy="appearance-workflow-nodes"
+              value={mounted ? nodeStyle : undefined}
+              options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
+              onChange={setNodeStyle}
+            />
+            <p className="text-muted-foreground mt-1.5 text-xs">{t("workflowNodesHint")}</p>
           </Setting>
         </div>
       </SectionCard>

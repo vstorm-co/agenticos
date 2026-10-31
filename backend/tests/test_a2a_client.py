@@ -26,6 +26,7 @@ from pydantic_ai.messages import (
 
 from app.agents import a2a_delegate as delegate_module
 from app.agents.a2a_delegate import a2a_delegate, latest_prompt, thread_of
+from app.core.config import settings
 from app.services import a2a_client
 from app.services.a2a_client import A2AClientError, card_address, fetch_card, send_message
 
@@ -38,6 +39,9 @@ CARD = {
     "url": "https://agents.example.com/a2a/reviewer",
     "skills": [{"id": "review", "name": "Review", "description": "Review a contract"}],
 }
+
+
+CARD_URL = "https://agents.example.com"
 
 
 @pytest.fixture(autouse=True)
@@ -173,6 +177,53 @@ class TestReadingACard:
 
         with pytest.raises(A2AClientError, match="could not be fetched"):
             await fetch_card("https://agents.example.com", transport=httpx2.MockTransport(down))
+
+
+class TestAListedHost:
+    @pytest.fixture(autouse=True)
+    def _listed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", ["10.0.0.0/24"])
+
+    @pytest.mark.security
+    async def test_an_agent_card_on_a_listed_host_is_fetched(self) -> None:
+        seen: list[httpx2.Request] = []
+
+        card = await fetch_card(
+            "https://internal.corp.example",
+            transport=_wire(httpx2.Response(200, json=CARD), seen),
+        )
+
+        assert card.name == "Contract reviewer"
+        assert [request.headers["host"] for request in seen] == ["internal.corp.example"]
+
+    @pytest.mark.security
+    async def test_a_public_card_cannot_name_an_endpoint_on_a_listed_host(self) -> None:
+        seen: list[httpx2.Request] = []
+
+        with pytest.raises(A2AClientError, match="not one this deployment may call"):
+            await send_message(
+                "https://internal.corp.example/a2a",
+                "Hi",
+                context_id=None,
+                bearer=None,
+                registered_url="https://agents.example.com",
+                transport=_wire(_rpc(_task("completed", answer="x")), seen),
+            )
+
+        assert seen == []
+
+    @pytest.mark.security
+    async def test_a_listed_registration_may_name_a_listed_endpoint(self) -> None:
+        reply = await send_message(
+            "https://internal2.corp.example/a2a",
+            "Hi",
+            context_id=None,
+            bearer=None,
+            registered_url="https://internal.corp.example",
+            transport=_wire(_rpc(_task("completed", answer="Fine."))),
+        )
+
+        assert reply.text == "Fine."
 
 
 class TestSendingAMessage:
@@ -427,7 +478,9 @@ class TestDelegatingToARemoteAgent:
             patch.object(delegate_module, "assert_ambient_budget", budget),
             patch.object(delegate_module, "record_ambient_usage") as booked,
         ):
-            agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer="tok")()
+            agent = a2a_delegate(
+                handle="reviewer", endpoint=CARD["url"], card_url=CARD_URL, bearer="tok"
+            )()
             first = await agent.run("Review the contract")
             second = await agent.run("And clause 9?", message_history=first.all_messages())
 
@@ -437,6 +490,7 @@ class TestDelegatingToARemoteAgent:
             "context_id": None,
             "task_id": None,
             "bearer": "tok",
+            "registered_url": CARD_URL,
         }
         assert sent.await_args_list[1].kwargs["context_id"] == "ctx-1"
         assert budget.await_count == 2
@@ -459,7 +513,9 @@ class TestDelegatingToARemoteAgent:
             patch.object(delegate_module, "assert_ambient_budget", AsyncMock()),
             patch.object(delegate_module, "record_ambient_usage"),
         ):
-            agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)()
+            agent = a2a_delegate(
+                handle="reviewer", endpoint=CARD["url"], card_url=CARD_URL, bearer=None
+            )()
             history: list[ModelMessage] = []
             for prompt in ("Review it", "contract.pdf", "Now clause 9"):
                 history = (await agent.run(prompt, message_history=history)).all_messages()
@@ -486,7 +542,9 @@ class TestDelegatingToARemoteAgent:
             patch.object(delegate_module, "assert_ambient_budget", AsyncMock()),
             patch.object(delegate_module, "record_ambient_usage"),
         ):
-            agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)()
+            agent = a2a_delegate(
+                handle="reviewer", endpoint=CARD["url"], card_url=CARD_URL, bearer=None
+            )()
             firsts: dict[str, list[ModelMessage]] = {}
 
             async def delegate(topic: str) -> None:
@@ -517,9 +575,9 @@ class TestDelegatingToARemoteAgent:
             patch.object(delegate_module, "assert_ambient_budget", AsyncMock()),
             patch.object(delegate_module, "record_ambient_usage") as booked,
         ):
-            result = await a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)().run(
-                "Hi"
-            )
+            result = await a2a_delegate(
+                handle="reviewer", endpoint=CARD["url"], card_url=CARD_URL, bearer=None
+            )().run("Hi")
 
         assert result.output == "The remote agent reviewer did not answer: down"
         # A call that dropped may still have been worked on: booked unpriced, so
@@ -534,6 +592,8 @@ class TestDelegatingToARemoteAgent:
             patch.object(delegate_module, "assert_ambient_budget", AsyncMock()),
             patch.object(delegate_module, "record_ambient_usage"),
         ):
-            agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)()
+            agent = a2a_delegate(
+                handle="reviewer", endpoint=CARD["url"], card_url=CARD_URL, bearer=None
+            )()
             async with agent.run_stream("Hi") as run:
                 assert await run.get_output() == "Streamed"

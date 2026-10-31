@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -15,11 +16,17 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { GroupIcon as GroupIconName } from "@/types/groups";
-import type { GrantSubject, ResourceGrant, ShareInput } from "@/types/sharing";
-import { LEVEL_OPTIONS, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
+import type { GrantSubject, ResourceGrant, ShareInput, SharingResourceType } from "@/types/sharing";
+import { EditDataConfirm } from "./edit-data-confirm";
+import { levelOptions, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
 
 interface GrantRowProps {
   grant: ResourceGrant;
+  resourceType: SharingResourceType;
+  /** Whether the caller may give "including data" - the server's answer, never worked out here. */
+  mayGrantEditData: boolean;
+  /** The member's full name, when they have one: the confirmation names them as the audit does. */
+  fullName?: string | null;
   /** The group's own icon, when the grant is to a group the organization still has. */
   groupIcon: GroupIconName | null;
   canManage: boolean;
@@ -39,6 +46,9 @@ interface GrantRowProps {
  */
 export function GrantRow({
   grant,
+  resourceType,
+  mayGrantEditData,
+  fullName,
   groupIcon,
   canManage,
   revoking,
@@ -47,6 +57,7 @@ export function GrantRow({
 }: GrantRowProps) {
   const t = useTranslations("sharing");
   const tc = useTranslations("common");
+  const [asking, setAsking] = useState(false);
   const subject = subjectOf(grant);
   const name = subjectLabel(grant);
   const id = `level-${grant.id}`;
@@ -74,7 +85,12 @@ export function GrantRow({
       <Select
         value={grant.level}
         disabled={!canManage}
-        onValueChange={(value) => onShare(shareInput(subject, toLevel(value)))}
+        onValueChange={(value) => {
+          const level = toLevel(value);
+          // "Data included" says what it does first; any other level goes at once.
+          if (level === "edit_data") setAsking(true);
+          else onShare(shareInput(subject, level));
+        }}
       >
         <SelectTrigger
           id={id}
@@ -83,13 +99,23 @@ export function GrantRow({
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="end">
-          {LEVEL_OPTIONS.map((option) => (
+          {levelOptions(resourceType, { mayGrantEditData, held: grant.level }).map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {t(option.words)}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      <EditDataConfirm
+        open={asking}
+        onOpenChange={setAsking}
+        name={fullName || name}
+        kind={subject.kind}
+        onConfirm={() => {
+          setAsking(false);
+          onShare(shareInput(subject, "edit_data"));
+        }}
+      />
       {canManage && (
         <IconButton
           aria-label={tc("removeNamed", { name })}

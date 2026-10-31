@@ -1781,6 +1781,8 @@ export function useChat(options: UseChatOptions = {}) {
             tool_call_id: call.tool_call_id ?? "",
             tool_name: call.tool_name,
             args: call.tool_args,
+            capability_tool_id: call.capability_tool_id,
+            context: call.context,
             account: call.account,
           })),
           // The same shape the live frame carries: editing a parked call is not
@@ -1945,6 +1947,8 @@ export function useChat(options: UseChatOptions = {}) {
             tool_call_id: call.tool_call_id ?? "",
             tool_name: call.tool_name,
             args: call.tool_args,
+            capability_tool_id: call.capability_tool_id,
+            context: call.context,
             account: call.account,
           })),
           reviewConfigs: parkedAgain.map((call) => ({

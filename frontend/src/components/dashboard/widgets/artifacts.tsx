@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight, PanelsTopLeft } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { LiveBadge } from "@/components/artifacts/live-badge";
 import { useArtifacts } from "@/hooks/use-artifacts";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
@@ -59,6 +60,7 @@ export function ArtifactsWidget({ title, hint, seeAll, options }: DashboardWidge
                     {timeAgo(artifact.published_at, tTime, locale)}
                   </span>
                 </span>
+                {artifact.live && <LiveBadge />}
                 <ArrowUpRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
               </Link>
             </li>

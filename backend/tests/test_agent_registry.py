@@ -200,6 +200,8 @@ def _agent(ctx: AuthContext, **overrides):
     agent.tags = []
     agent.draft_spec = _spec().model_dump(mode="json")
     agent.current_version_id = None
+    # A catalog agent: no workflow step owns it.
+    agent.workflow_id = None
     agent.created_at = None
     agent.updated_at = None
     for key, value in overrides.items():
@@ -2224,6 +2226,30 @@ class TestValidateSpec:
             )
 
         assert "no-such-server" in refused.value.details["problems"][0]
+
+    @pytest.mark.anyio
+    async def test_an_agent_binding_a_removed_personal_service_is_refused_at_publish(self):
+        """The Work IQ application servers left the catalog, so an agent binding
+        each person's own `m365-mail` is refused at its next publish - bind
+        `ms-365` or `work-iq` instead."""
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(
+                _ctx(),
+                _spec(
+                    mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="m365-mail")],
+                    model_profile_id=uuid.uuid4(),
+                ),
+            )
+
+        assert refused.value.details["problems"][0].startswith(
+            "No MCP catalog entry is called 'm365-mail'."
+        )
 
     @pytest.mark.anyio
     async def test_a_service_is_bound_to_each_persons_own_account_once(self):
@@ -5154,7 +5180,7 @@ class TestTheAssistantIsSettings:
 
     @pytest.mark.anyio
     async def test_a_builder_may_run_it_but_not_change_it(self, monkeypatch: pytest.MonkeyPatch):
-        agent = MagicMock(id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), workflow_id=None)
         service = self._service(monkeypatch, agent)
         builder = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="builder")
 
@@ -5166,7 +5192,7 @@ class TestTheAssistantIsSettings:
 
     @pytest.mark.anyio
     async def test_an_owner_changes_it_but_cannot_archive_it(self, monkeypatch: pytest.MonkeyPatch):
-        agent = MagicMock(id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), workflow_id=None)
         service = self._service(monkeypatch, agent)
         owner = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
 
@@ -5538,6 +5564,12 @@ class TestAssistantRuntimeGuidance:
         ctx = _ctx()
         guidance = (
             (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/PROJECTS.md")
+            .read_text()
+            .strip()
+        )
+        guidance += (
+            "\n\n"
+            + (agent_templates.TEMPLATES_ROOT / "general/platform-assistant/WORKFLOWS.md")
             .read_text()
             .strip()
         )

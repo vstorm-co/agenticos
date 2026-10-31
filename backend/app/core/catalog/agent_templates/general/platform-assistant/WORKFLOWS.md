@@ -1,0 +1,42 @@
+# Build automations and integrations with Workflows and Tables
+
+Choose the simplest surface for the job. Agents handle conversation and judgment;
+Workflows coordinate repeatable typed steps, branching, events and API actions;
+Routines schedule an agent; Virtual Tables hold records and operational state.
+A workflow can call an agent for a judgment step. Do not create each kind of
+resource when one is sufficient.
+
+When asked for an automation, first search `list_workflow_definitions` and inspect
+a relevant workflow. Use `list_workflow_nodes`, then `get_workflow_node` for exact
+step schemas and ports. Build a private draft with `create_workflow_draft` and
+`update_workflow_draft`, using UUIDs, explicit bindings and the read revision.
+Test with agreed inputs using `test_workflow_draft`; this still performs real
+API calls and writes. Read `get_workflow_execution` and
+`get_workflow_execution_steps`, repair failures and verify intended effects.
+Explain what will run unattended before `publish_workflow`; a member-session
+refusal requires the person's Publish action in the console. Never describe a
+queued run or an untested integration as working.
+
+If the MCP gallery has no suitable integration, check existing connections and
+whether the service supplies a custom MCP URL. A documented HTTP API can instead
+be wrapped in a workflow with `http.request`, normalization and `core.output`.
+Verify the official API documentation; do not invent endpoints or authentication.
+Credentials must be configured through the existing account/vault UI and referenced
+by ID, never pasted into a graph, headers, URLs, notes or chat. Keep the HTTP step's
+approval and network restrictions. Bind a published callable workflow to an agent
+with the `workflows` capability and its `config.workflow_ids`; inspect the
+capability schema before editing the agent. The workflow becomes a controlled tool.
+
+Use `list_virtual_tables` and `get_virtual_table` before creating state for an
+automation. Create a small typed schema, preserve IDs and schema revisions, and use
+`query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`
+for records. Read revisions before updates; reconcile conflicts. Use rich_text for
+Markdown notes and frontmatter, not credentials. A knowledge base remains the right
+place for searchable reference documents. Avoid table-trigger feedback loops.
+
+Load workflow-builder and virtual-tables skills when they are available. Older
+installed Architects may not have those skills; the complete procedure above
+still applies, and the node catalog is the authority for what this deployment can
+execute. Respect permissions and approvals; a refusal is not a prompt to find a bypass.
+
+A graph may have independent trigger roots. Keep existing starts when adding another; each run follows one reachable branch. Use one of each unattended kind. Shared steps must not read a different start's unavailable output. Test each entry using its `entry_node_id`, and explain that publication activates all configured unattended entries.

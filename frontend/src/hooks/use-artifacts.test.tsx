@@ -6,14 +6,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useArtifact,
   useArtifactAgents,
+  useArtifactData,
+  useArtifactDisclosure,
   useArtifacts,
   useArtifactView,
   usePublicArtifactUnlock,
+  usePublicDataDisclosure,
 } from "./use-artifacts";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import type { ArtifactDetail } from "@/types/artifact";
 
 vi.mock("@/lib/api-client", () => ({
+  ApiError: class ApiError extends Error {
+    constructor(
+      public status: number,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
   apiClient: { get: vi.fn(), put: vi.fn(), patch: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 const unlock = vi.fn();
@@ -25,10 +36,12 @@ vi.mock("@/components/public-config/public-config-provider", () => ({
 }));
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const toastWarning = vi.fn();
 vi.mock("sonner", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccess(...args),
     error: (...args: unknown[]) => toastError(...args),
+    warning: (...args: unknown[]) => toastWarning(...args),
   },
 }));
 
@@ -48,10 +61,18 @@ const DETAIL: ArtifactDetail = {
   environment_name: null,
   public_url: null,
   published_at: "2026-09-22T10:00:00Z",
+  archived_at: null,
   current_version: null,
   created_at: "2026-09-01T10:00:00Z",
   updated_at: null,
   can_edit: true,
+  may_change_owner: false,
+  may_grant_edit_data: false,
+  may_confirm_public_data: false,
+  public_data: null,
+  live: false,
+  bindings: [],
+  consent: null,
   following: false,
   public_link: {
     expires_at: null,
@@ -110,6 +131,14 @@ describe("useArtifacts", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/apps?skip=0&limit=50&project_id=p1"),
     );
   });
+
+  it("asks for archived pages only when told to", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(() => useArtifacts({ includeArchived: true }), { wrapper });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/apps?include_archived=true&skip=0&limit=50"),
+    );
+  });
 });
 
 describe("useArtifactAgents", () => {
@@ -142,6 +171,36 @@ describe("useArtifact", () => {
     await waitFor(() => expect(result.current.artifact?.title).toBe("Weekly report"));
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/versions"));
     expect(result.current.versions).toEqual([]);
+  });
+
+  it("asks for no versions of an archived page, which serves none", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...DETAIL, archived_at: "2026-10-01T00:00:00Z" });
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact?.archived_at).not.toBeNull());
+    expect(apiClient.get).not.toHaveBeenCalledWith("/apps/a1/versions");
+  });
+
+  it("archives and restores it, and says so, or toasts the refusal", async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ ...DETAIL, archived_at: "2026-10-01T00:00:00Z" })
+      .mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.archive.mutateAsync());
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/archive");
+    expect(toastSuccess).toHaveBeenCalledWith("Artifact archived");
+    await act(() => result.current.unarchive.mutateAsync());
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/unarchive");
+    expect(toastSuccess).toHaveBeenCalledWith("Artifact restored");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("no"));
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.archive.mutateAsync().catch(() => undefined);
+      await result.current.unarchive.mutateAsync().catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledTimes(2);
   });
 
   it("reports a refusal as an error rather than an empty artifact", async () => {
@@ -211,6 +270,8 @@ describe("useArtifact", () => {
         media_type: "text/html",
         size_bytes: 1,
         run_id: null,
+        restored_from: null,
+        consent_state: "not_needed",
         created_at: "2026-09-30T10:00:00Z",
       },
     });
@@ -230,6 +291,193 @@ describe("useArtifact", () => {
       await result.current.restoreVersion.mutateAsync("v0").catch(() => undefined);
     });
     expect(toastError).toHaveBeenCalled();
+    expect(toastWarning).not.toHaveBeenCalled();
+  });
+});
+
+describe("a page's consent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/versions") ? { items: [], total: 0 } : DETAIL),
+    );
+  });
+
+  it("confirms the fingerprint shown, and leaves a refusal to the dialog", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() =>
+      result.current.confirmData.mutateAsync({ versionId: "v2", fingerprint: "f".repeat(64) }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/versions/v2/consent", {
+      fingerprint: "f".repeat(64),
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Data confirmed");
+
+    // Another refusal is the dialog's to show: no toast, nothing read again.
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "not yours"));
+    const reads = vi.mocked(apiClient.get).mock.calls.length;
+    await act(async () => {
+      await result.current.confirmData
+        .mutateAsync({ versionId: "v2", fingerprint: "d".repeat(64) })
+        .catch(() => undefined);
+    });
+    expect(toastError).not.toHaveBeenCalled();
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(reads);
+
+    // A 409 means a newer version landed: say so and read the page again.
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(409, "changed"));
+    await act(async () => {
+      await result.current.confirmData
+        .mutateAsync({ versionId: "v2", fingerprint: "e".repeat(64) })
+        .catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(reads));
+  });
+
+  it("withdraws, and toasts a refusal", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.withdrawConsent.mutateAsync());
+    expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1/consent");
+    expect(toastSuccess).toHaveBeenCalledWith("Data sharing stopped");
+
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.withdrawConsent.mutateAsync().catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+  });
+
+  it("switches auto-consent with the text confirmed, and toasts a refusal", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({ ...DETAIL });
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() =>
+      result.current.setAutoConsent.mutateAsync({ enabled: true, confirmed: "auto_consent.v2" }),
+    );
+    expect(apiClient.patch).toHaveBeenCalledWith("/apps/a1/auto-consent", {
+      enabled: true,
+      confirmed: "auto_consent.v2",
+    });
+
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.setAutoConsent.mutateAsync({ enabled: false }).catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+  });
+
+  it("hands the page to another member, and toasts a refusal", async () => {
+    vi.mocked(apiClient.put).mockResolvedValueOnce({ ...DETAIL, owner_user_id: "u2" });
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.changeOwner.mutateAsync("u2"));
+    expect(apiClient.put).toHaveBeenCalledWith("/apps/a1/owner", { user_id: "u2" });
+    expect(toastSuccess).toHaveBeenCalledWith("Owner changed");
+
+    vi.mocked(apiClient.put).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.changeOwner.mutateAsync("u3").catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+  });
+
+  it("reads the disclosure only while the dialog is open", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ version: 2 });
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) => useArtifactDisclosure("a1", "v2", open),
+      { wrapper, initialProps: { open: false } },
+    );
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.data).toEqual({ version: 2 }));
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/versions/v2/disclosure");
+  });
+});
+
+describe("a page's data on its public link", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/versions") ? { items: [], total: 0 } : DETAIL),
+    );
+  });
+
+  it("confirms with both digests and says so, and leaves a refusal to the dialog", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() =>
+      result.current.confirmPublicData.mutateAsync({
+        fingerprint: "f".repeat(64),
+        audience_digest: "d".repeat(64),
+      }),
+    );
+    expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/public-data", {
+      fingerprint: "f".repeat(64),
+      audience_digest: "d".repeat(64),
+      confirmed: true,
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("Live data shown on the public link");
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(403, "not yours"));
+    const reads = vi.mocked(apiClient.get).mock.calls.length;
+    await act(async () => {
+      await result.current.confirmPublicData
+        .mutateAsync({ fingerprint: "a".repeat(64), audience_digest: "b".repeat(64) })
+        .catch(() => undefined);
+    });
+    expect(toastError).not.toHaveBeenCalled();
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBe(reads);
+
+    // A 409: the queries or the audience moved, so say so and read the page again.
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(409, "changed"));
+    await act(async () => {
+      await result.current.confirmPublicData
+        .mutateAsync({ fingerprint: "a".repeat(64), audience_digest: "b".repeat(64) })
+        .catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(reads));
+  });
+
+  it("withdraws, and toasts a refusal", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValueOnce(DETAIL);
+    const { result } = renderHook(() => useArtifact("a1"), { wrapper });
+    await waitFor(() => expect(result.current.artifact).not.toBeNull());
+
+    await act(() => result.current.withdrawPublicData.mutateAsync());
+    expect(apiClient.delete).toHaveBeenCalledWith("/apps/a1/public-data");
+    expect(toastSuccess).toHaveBeenCalledWith("Live data hidden from the public link");
+
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("no"));
+    await act(async () => {
+      await result.current.withdrawPublicData.mutateAsync().catch(() => undefined);
+    });
+    expect(toastError).toHaveBeenCalledOnce();
+  });
+
+  it("reads the disclosure only while the dialog is open", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ version: 2 });
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) => usePublicDataDisclosure("a1", open),
+      { wrapper, initialProps: { open: false } },
+    );
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    rerender({ open: true });
+    await waitFor(() => expect(result.current.data).toEqual({ version: 2 }));
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/public-data");
   });
 });
 
@@ -295,8 +543,118 @@ describe("useArtifactView", () => {
     );
   });
 
+  it("asks for no data unless told to, and says so when it is", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ url: "u", expires_at: "", version: {} });
+    renderHook(() => useArtifactView("a1", null, true, true), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/view?data=true"));
+    renderHook(() => useArtifactView("a1", "v 2", true, true), { wrapper });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/view?version_id=v%202&data=true"),
+    );
+  });
+
   it("asks nothing until it is enabled", () => {
     renderHook(() => useArtifactView("a1", null, false), { wrapper });
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("useArtifactData", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the data of the version it was given", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      bindings: {},
+      current: true,
+      read_at: "2026-10-20T10:00:00Z",
+    });
+    const { result } = renderHook(() => useArtifactData("a1", "v1", true), { wrapper });
+    await waitFor(() => expect(result.current.data?.bindings).toEqual({}));
+    expect(apiClient.get).toHaveBeenCalledWith("/apps/a1/versions/v1/data");
+  });
+
+  it("waits until it is enabled and has a version", () => {
+    renderHook(() => useArtifactData("a1", undefined, true), { wrapper });
+    renderHook(() => useArtifactData("a1", "v1", false), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("retries a busy answer and nothing else", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(apiClient.get).mockRejectedValue(new ApiError(429, "busy"));
+      const busy = renderHook(() => useArtifactData("a1", "v1", true), { wrapper });
+      await vi.advanceTimersByTimeAsync(3000);
+      await waitFor(() => expect(busy.result.current.isError).toBe(true));
+      expect(apiClient.get).toHaveBeenCalledTimes(3);
+
+      vi.mocked(apiClient.get).mockClear();
+      vi.mocked(apiClient.get).mockRejectedValue(new ApiError(500, "boom"));
+      const broken = renderHook(() => useArtifactData("a2", "v1", true), { wrapper });
+      await vi.advanceTimersByTimeAsync(3000);
+      await waitFor(() => expect(broken.result.current.isError).toBe(true));
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("settle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/versions")
+          ? { items: [], total: 0 }
+          : path.includes("/view")
+            ? { url: "u", expires_at: "", version: {} }
+            : path.endsWith("/data")
+              ? { bindings: {}, current: true, read_at: "" }
+              : DETAIL,
+      ),
+    );
+  });
+
+  function both(id: string) {
+    return renderHook(
+      () => ({
+        artifact: useArtifact(id),
+        view: useArtifactView(id, null, true),
+        data: useArtifactData(id, "v1", true),
+      }),
+      { wrapper },
+    );
+  }
+  const calls = (suffix: string) =>
+    vi.mocked(apiClient.get).mock.calls.filter(([p]) => String(p).includes(suffix)).length;
+
+  it("does not reload an open page when the public link changes", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({ ...DETAIL, public_url: "https://x/a/k" });
+    const { result } = both("a1");
+    await waitFor(() => expect(result.current.view.data).toBeDefined());
+    await waitFor(() => expect(result.current.data.data).toBeDefined());
+    const views = calls("/view");
+    const dataLoads = calls("/data");
+    const linked = { ...DETAIL, public_url: "https://x/a/k" };
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/versions") ? { items: [], total: 0 } : linked),
+    );
+    await act(() => result.current.artifact.enablePublicLink.mutateAsync());
+    await waitFor(() => expect(result.current.artifact.artifact?.public_url).toBe("https://x/a/k"));
+    expect(calls("/view")).toBe(views);
+    expect(calls("/data")).toBe(dataLoads);
+  });
+
+  it("reloads the current page after a restore", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(DETAIL);
+    const { result } = both("a1");
+    await waitFor(() => expect(result.current.view.data).toBeDefined());
+    await waitFor(() => expect(result.current.data.data).toBeDefined());
+    const views = calls("/view");
+    const dataLoads = calls("/data");
+    await act(() => result.current.artifact.restoreVersion.mutateAsync("v2"));
+    await waitFor(() => expect(calls("/view")).toBeGreaterThan(views));
+    await waitFor(() => expect(calls("/data")).toBeGreaterThan(dataLoads));
   });
 });

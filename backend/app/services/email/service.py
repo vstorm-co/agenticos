@@ -32,6 +32,9 @@ class EmailKey(enum.StrEnum):
     # bespoke template renders through this one, off `summary`/`context_url`
     # alone - a template per event type is not scope that feature takes on.
     NOTIFICATION = "notification"
+    # A workflow's `email.send` step: the subject and body are the workflow's
+    # own, to an address it chose - often somebody outside the organization.
+    WORKFLOW_MESSAGE = "workflow_message"
 
 
 class EmailCategory(enum.StrEnum):
@@ -61,6 +64,9 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
     # `notify_impersonated_users` policy, not a preference of the recipient - a
     # person cannot opt out of being told an administrator acted as them.
     EmailKey.IMPERSONATION_NOTICE: EmailCategory.TRANSACTIONAL,
+    # Transactional: the recipient is whoever the workflow addressed, usually
+    # with no account here and no preference to consult.
+    EmailKey.WORKFLOW_MESSAGE: EmailCategory.TRANSACTIONAL,
 }
 
 
@@ -95,6 +101,7 @@ class EmailService:
         key: EmailKey,
         to: str,
         context: dict[str, Any],
+        reply_to: str | None = None,
     ) -> SendResult:
         """Render and send one email.
 
@@ -104,6 +111,9 @@ class EmailService:
         are declinable, and their check lives in NotificationService, where
         recipients are resolved - an address that reaches this method has
         already passed it. The transactional keys have no preference at all.
+
+        `reply_to` replaces the deployment's own reply address for this one
+        message - a workflow's mail is answered to whoever runs that process.
         """
         subject, html, text = render_email(key.value, context)
 
@@ -114,7 +124,7 @@ class EmailService:
             subject=subject,
             html=html,
             text=text,
-            reply_to=getattr(settings, "EMAIL_REPLY_TO", None),
+            reply_to=reply_to or getattr(settings, "EMAIL_REPLY_TO", None),
             tags=[_CATEGORIES[key].value, key.value],
         )
 

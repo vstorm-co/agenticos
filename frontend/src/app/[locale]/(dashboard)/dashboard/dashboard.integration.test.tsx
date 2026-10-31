@@ -343,6 +343,8 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       };
     case "/admin/ratings/summary":
       return RATINGS;
+    case "/workflows/summary":
+      return { runs: 0, succeeded: 0, failed: 0, cost_usd: 0, needs_you: 0, workflows: [] };
     default:
       return { items: [], total: 0 };
   }

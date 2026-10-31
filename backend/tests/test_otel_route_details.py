@@ -44,6 +44,20 @@ class TestTheWrapper:
 
         assert otel_compat.route_details({"path": "/api/v1/auth/login"}) == "/api/v1/auth/login"
 
+    def test_a_fallback_path_does_not_name_a_span_after_an_artifact_s_credential(self, monkeypatch):
+        """A wrong-method request to a signed content address names its span after
+        the raw path, and that span is exported wherever tracing is configured."""
+
+        def raises(_scope: Any) -> Any:
+            raise AttributeError("'_IncludedRouter' object has no attribute 'path'")
+
+        monkeypatch.setattr(otel_compat, "_upstream_route_details", raises)
+
+        assert (
+            otel_compat.route_details({"path": "/api/v1/artifact-content/eyJsecret.eyJx.sig"})
+            == "/api/v1/artifact-content/[REDACTED]"
+        )
+
     def test_a_scope_with_no_path_is_still_answered(self, monkeypatch):
         def raises(_scope: Any) -> Any:
             raise AttributeError("no path")

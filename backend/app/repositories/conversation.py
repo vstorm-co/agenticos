@@ -1076,6 +1076,11 @@ async def get_messages_by_conversation(
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
+    `latest` selects the newest page, still returned oldest first; `before` selects
+    messages older than that message of this conversation (a conversation-scoped
+    ordinal cursor). Combine both to page backwards without concurrent appends
+    shifting offsets. The default is ascending offset pagination.
+
     Ordered by `ordinal` rather than `created_at`: one turn writes the question
     and the answer in a single transaction, and `func.now()` gives both the same
     timestamp - so this used to return the answer above the question whenever the
