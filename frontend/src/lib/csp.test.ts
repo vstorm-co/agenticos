@@ -83,6 +83,7 @@ describe("the console's content security policy", () => {
       "'self'",
       "https://api.acme.example",
       "wss://ws.acme.example",
+      "http://localhost:8010",
     ]);
   });
 
@@ -96,6 +97,7 @@ describe("the console's content security policy", () => {
       "'self'",
       "https://acme.example",
       "wss://acme.example",
+      "http://localhost:8010",
     ]);
   });
 

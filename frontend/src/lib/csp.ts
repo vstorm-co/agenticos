@@ -84,7 +84,14 @@ export function cspDirectives(
     // the hosted chat's uploads - and the chat's WebSocket. Named from the
     // deployment's configuration, not a scheme: `wss:` alone would let the socket
     // open to any host.
-    "connect-src": [...new Set(["'self'", originOf(config.apiUrl), originOf(config.wsUrl)])],
+    "connect-src": [
+      ...new Set([
+        "'self'",
+        originOf(config.apiUrl),
+        originOf(config.wsUrl),
+        ...(config.diagnosticsUrl ? [originOf(config.diagnosticsUrl)] : []),
+      ]),
+    ],
     // Nothing may frame the console, itself included. The embed widget is served
     // from its own route, which sets its own header.
     "frame-ancestors": ["'none'"],

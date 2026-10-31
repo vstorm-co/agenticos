@@ -1,5 +1,5 @@
 ---
-source_sha: "f4d69e52c099"
+source_sha: "b6ae74c8da8e"
 ---
 
 # Ochrona danych { #data-protection }
@@ -381,3 +381,10 @@ wytwarza.
 
 Przegląd, który zastanie każdy wiersz powyżej albo zamknięty, albo zaakceptowany
 na piśmie, ma to, co ta strona może mu dać. Reszta należy do wdrożenia.
+
+## Diagnostyka wdrożenia { #deployment-diagnostics }
+
+Opcjonalny kolektor otrzymuje stan instalacji, przedziały użycia i pseudonimową
+aktywność okien. Raportowanie jest domyślnie włączone, również po aktualizacji ze
+starszym `.env`. [Konfiguracja diagnostyki](configuration.md#diagnostics) opisuje
+pola, retencję, domyślny lokalny adres i sposób wyłączenia.

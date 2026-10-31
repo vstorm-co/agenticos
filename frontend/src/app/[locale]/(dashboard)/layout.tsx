@@ -1,3 +1,4 @@
+import { DiagnosticsPresence } from "@/components/layout/diagnostics-presence";
 import { ReleaseNotes } from "@/components/layout/release-notes";
 import { Suspense } from "react";
 
@@ -37,6 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
       <AccountTimeZone />
+      <DiagnosticsPresence />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
       {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}

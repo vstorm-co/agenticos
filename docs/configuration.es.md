@@ -1,5 +1,5 @@
 ---
-source_sha: "64123a5c5854"
+source_sha: "fb6050687e09"
 ---
 
 # Configuración { #configuration }
@@ -1448,3 +1448,69 @@ las invitaciones, los restablecimientos de contraseña y las notificaciones se q
 todos sin enviar, en silencio, hasta que `SMTP_HOST` y el resto de
 [Correo (SMTP)](#email-smtp) apunten a un servidor de verdad — así que un despliegue
 que se lo salte debería saltárselo a sabiendas.
+
+## Diagnóstico del despliegue { #diagnostics }
+
+`DIAGNOSTICS_ENABLED` vale `true` por defecto, incluso al actualizar con un `.env`
+antiguo sin esta clave. Para desactivarlo, establezca `DIAGNOSTICS_ENABLED=false`
+en backend y frontend y reinicie los servicios. Los ajustes del despliegue muestran
+el estado y el último informe correcto; no incluyen un interruptor.
+
+`DIAGNOSTICS_COLLECTOR_URL` es el origen del colector para el servidor;
+`DIAGNOSTICS_PUBLIC_URL` es el origen accesible desde el navegador, que el frontend
+también usa en su Content Security Policy. Ambos son temporalmente
+`http://localhost:8010`. Todavía no hay un dominio público de Vstorm configurado.
+Para un colector en el host de Docker Desktop, use
+`http://host.docker.internal:8010` para el servidor y `http://localhost:8010` para
+el navegador. Los orígenes remotos requieren HTTPS. No incluya rutas, credenciales
+ni parámetros de consulta.
+
+El worker duradero existente informa cada hora. Su semilla Ed25519 se cifra con el
+vault, se guarda antes de la primera petición, se comparte entre réplicas y se
+renueva con `vault-rotate`. Un colector inaccesible no bloquea el inicio de sesión,
+el chat ni el arranque del worker.
+
+Los informes contienen versión, estado de base
+de datos y worker, estado de Redis explícitamente desconocido y rangos de ejecuciones
+y proyectos, skills y documentos creados en 30 días. Solo salen nombres de funciones
+de un catálogo cerrado. Los errores agrupan ejecuciones fallidas, trabajos agotados
+y errores de ingesta de la hora UTC completa anterior, con un máximo de 1000 por
+categoría. No se exportan excepciones libres de la API.
+
+La actividad web, desktop y móvil utiliza declaraciones firmadas de 60 segundos
+para la cuenta autenticada. Un seudónimo específico de la instalación sustituye su
+ID. Las ventanas visibles y enfocadas informan tras una interacción como máximo
+cada cinco minutos; las pestañas inactivas o en segundo plano no mantienen presencia.
+El navegador envía directamente sin cookies ni referrer, permitiendo agrupar por
+país/región aproximados. No se envían prompts, conversaciones, nombres de archivos,
+nombres de cuentas, correos, claves de proveedores ni mensajes de excepciones.
+
+El [colector analytics](https://github.com/vstorm-co/agenticos-analytics) separado
+conserva eventos siete días y actividad diaria seudónima y agregados 90 días. Online
+significa actividad en diez minutos; instalación activa significa contacto en 24
+horas. Sin contacto significa desconocido, no una caída confirmada. El colector no
+guarda IP ni GPS; los registros del proxy son responsabilidad del operador. La
+vista previa del mapa tiene su propio modo demo; AgenticOS no genera eventos
+ficticios en producción.
+
+## Actualizaciones desde administración { #updates-from-the-administration-panel }
+
+La página de despliegue muestra el changelog y el estado de preparación,
+programación y recuperación. Las actualizaciones son opcionales: instala el
+asistente en un único host Linux/systemd con Compose y conecta API y worker con
+la superposición del actualizador. Consulta la [guía de instalación y recuperación](https://github.com/vstorm-co/agenticos/tree/main/deploy/updater).
+
+La preparación comprueba configuración y espacio, descarga las imágenes publicadas,
+fija sus digests y crea una copia preliminar sin reiniciar. Actualiza ahora o
+programa dentro de siete días. El asistente bloquea trabajo nuevo, espera las
+ejecuciones, tareas y llamadas activas, detiene los procesos que escriben, guarda
+PostgreSQL, medios y configuración y ejecuta migraciones. Solo reabre el tráfico
+tras comprobar la disponibilidad. El progreso persiste en el host y el panel
+se reconecta cuando vuelve la API.
+
+Un fallo después de iniciar la migración mantiene el modo de mantenimiento para
+recuperación manual; no hay reversión automática de la base de datos. Las copias
+permanecen hasta su eliminación manual y no sustituyen copias externas. Prueba la
+restauración en un despliegue desechable antes de producción. Varios hosts,
+superposiciones Compose propias y almacenamiento externo requieren tu pipeline:
+`UPDATE_PIPELINE_URL` muestra su enlace HTTPS sin iniciar el despliegue.

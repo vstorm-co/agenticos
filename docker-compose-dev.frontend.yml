@@ -26,6 +26,8 @@ services:
       # Where artifact pages are framed from, when not the API origin above.
       - ARTIFACT_ORIGIN=${ARTIFACT_ORIGIN:-}
       - CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
+      - DIAGNOSTICS_ENABLED=${DIAGNOSTICS_ENABLED:-true}
+      - DIAGNOSTICS_PUBLIC_URL=${DIAGNOSTICS_PUBLIC_URL:-http://localhost:8010}
       - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
       - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-}
       - OIDC_ICON=${OIDC_ICON:-}

@@ -376,3 +376,10 @@ egress and legal pages of the previous section. Each is the kind of evidence
 
 A review that finds every row above either closed or accepted in writing has
 what this page can give it. The rest is the deployment's.
+
+## Deployment diagnostics { #deployment-diagnostics }
+
+The optional collector receives installation health, coarse usage buckets and
+pseudonymous foreground presence. Reporting is enabled by default, including
+upgrades with older `.env` files. See [diagnostic configuration](configuration.md#diagnostics)
+for the exact fields, retention, local-only default endpoint and opt-out.

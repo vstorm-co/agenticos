@@ -26,6 +26,8 @@ export type SignInProvider = AuthProvider | "oidc" | "ldap" | "kerberos";
 const UNBRANDED: readonly SignInProvider[] = ["oidc", "ldap", "kerberos"];
 
 export interface PublicConfig {
+  /** Optional collector origin for signed presence, never a credential. */
+  diagnosticsUrl?: string;
   /** The API origin the browser calls directly: OAuth login, embed uploads, `/docs`. */
   apiUrl: string;
   /** The WebSocket origin the browser opens for chat and the hosted embed. */
@@ -79,6 +81,7 @@ export interface PublicConfig {
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
+  diagnosticsUrl: "http://localhost:8010",
   apiUrl: "http://localhost:8000",
   wsUrl: "ws://localhost:8000",
   artifactUrl: "http://localhost:8000",
@@ -138,6 +141,11 @@ function icon(value: string | undefined): AuthProvider | null {
  */
 export function readPublicConfig(env: Readonly<Record<string, string | undefined>>): PublicConfig {
   return {
+    diagnosticsUrl: ["false", "0", "off", "no"].includes(
+      env.DIAGNOSTICS_ENABLED?.trim().toLowerCase() ?? "",
+    )
+      ? undefined
+      : origin(env.DIAGNOSTICS_PUBLIC_URL, "http://localhost:8010"),
     apiUrl: origin(env.PUBLIC_API_URL, DEFAULT_PUBLIC_CONFIG.apiUrl),
     wsUrl: origin(env.PUBLIC_WS_URL, DEFAULT_PUBLIC_CONFIG.wsUrl),
     artifactUrl: origin(

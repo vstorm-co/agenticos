@@ -36,6 +36,7 @@ from pydantic import JsonValue
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.update_gate import draining
 from app.repositories import background_job as job_repo
 from app.repositories import background_task_kind as kind_repo
 from app.repositories import background_worker as worker_repo
@@ -191,6 +192,8 @@ class Worker:
             task.add_done_callback(self._finished)
 
     async def _claim(self, pool: Pool) -> ClaimedJob | None:
+        if draining():
+            return None
         async with self.sessions() as db:
             return await job_repo.claim(
                 db, pool=pool.value, worker_id=self.settings.worker_id, lease=self.settings.lease
