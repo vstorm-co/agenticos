@@ -1,5 +1,5 @@
 ---
-source_sha: "0c50e86d9bc5"
+source_sha: "866805b58c36"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -109,7 +109,7 @@ Kanban muestra la tarjeta bajo el puntero y resalta el destino; durante el guard
 
 Las propiedades del documento aparecen encima del editor Markdown. **Created**, **Last updated** y **Created by** proceden del registro y no se pueden modificar mediante Markdown. La fecha de actualización sigue las escrituras de todo el registro, incluidas otras celdas; antes de la primera actualización se muestra la fecha de creación.
 
-Las propiedades de texto propias se añaden, editan y eliminan sin escribir YAML. Las propiedades estructuradas importadas se conservan en modo de solo lectura. El frontmatter importado no válido se conserva con un aviso; editar el contenido no lo elimina. Editar el contenido conserva los bytes originales de la cabecera; cambiar una propiedad serializa solo la cabecera YAML. La API y CSV siguen incluyendo el frontmatter propio con Markdown, mientras las fechas y el autor permanecen en los metadatos del registro.
+Guarda las propiedades del documento en columnas tipadas de la tabla. El editor Markdown ya no añade ni edita propiedades YAML. Las nuevas plantillas de cuaderno contienen solo Markdown. Las cabeceras importadas existentes se conservan al editar el contenido para evitar perder datos históricos. Las fechas automáticas y las identidades de origen siguen procediendo del registro.
 
 Elige una plantilla predeterminada al crear una columna de texto enriquecido o en **Columns**. Puedes personalizar un documento vacío, una nota, notas de reunión o una descripción de proyecto. Se utiliza el `default` existente de la columna: consola, API y workflow lo aplican al crear cuando se omite la celda. Un valor explícito, incluida una cadena vacía, tiene prioridad. Cambiar la plantilla solo afecta a registros nuevos. **Use column template** sustituye el contenido de un documento existente tras confirmar y conserva sus propiedades. Las consultas de texto y las conversiones mantienen sus contratos anteriores.
 

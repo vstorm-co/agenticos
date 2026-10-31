@@ -23,7 +23,7 @@ stable column IDs and current schema version. Design a small schema around the
 queries and next action: a short name, a status, dates, identifiers, required
 values and useful defaults. Use numeric/date types for comparisons, select types
 for a controlled status, links for actual record relationships and `rich_text`
-for Markdown notes, including optional YAML frontmatter. Frontmatter stays part
+for Markdown notes. Keep properties in typed table columns. Legacy frontmatter stays part
 of the document; it does not create queryable table columns. The console edits
 custom properties above the body; created/updated dates and author come from the
 record itself, so never fabricate them in Markdown. For a reusable document

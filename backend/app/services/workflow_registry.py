@@ -568,7 +568,7 @@ class WorkflowRegistryService:
                     source=LiteralValue(
                         value={
                             "Title": "Welcome to workflow notes",
-                            "Notes": "---\nstatus: draft\n---\n\n# Workflow notes\n\n- [x] Create the table automatically\n- [ ] Add your own ideas\n",
+                            "Notes": "# Workflow notes\n\n- [x] Create the table automatically\n- [ ] Add your own ideas\n",
                             "Source ID": 1,
                         }
                     ),

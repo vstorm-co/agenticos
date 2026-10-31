@@ -1,5 +1,5 @@
 ---
-source_sha: "be9d01592ba2"
+source_sha: "ced20c94960b"
 ---
 
 # Workflows { #workflows }
@@ -39,7 +39,7 @@ Duplikat to nowy workflow z własnym draftem, nigdy kopia opublikowanej wersji.
 
 ### Szablony, eksport i import { #templates-exporting-and-importing }
 
-Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje prywatną tabelę i kompletnie skonfigurowany szkic. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown z frontmatter. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
+Gotowe automatyzacje to **Publiczne API → tabela** i **Notatnik Markdown**. Serwer w jednej transakcji przygotowuje prywatną tabelę i kompletnie skonfigurowany szkic. Nie trzeba wybierać konta, klucza API ani tabeli. Pierwszy przykład pobiera wpis z [JSONPlaceholder](https://jsonplaceholder.typicode.com/) i zapisuje tytuł oraz treść; drugi zapisuje notatkę Markdown. Kolejne runy używają tej samej tabeli i aktualizują ten sam przykładowy rekord. Utworzenie wymaga uprawnień do tworzenia i edycji tabel. **Starter** i **Two-step sequence** pozostają małymi lokalnymi przykładami.
 
 Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez przycisku rozszerzania. Katalog wypełnia dostępną wysokość strony i ma własny przycisk pełnego ekranu. Paginacja pojawia się dopiero przy kolejnej stronie. Import ma opisany obszar wyboru pliku, który przyjmuje też upuszczony plik JSON.
 

@@ -951,6 +951,10 @@ Two things are versioned separately from this file and worth knowing about:
   more than its own cap; a step whose siblings hold the rest waits and asks again
   with a growing delay. (#1800)
 
+### Changed
+
+- **Document properties use table columns.** Remove the Markdown YAML-property editor and stop generating frontmatter in the notebook template. Keep automatic record metadata and preserve existing imported headers during body edits.
+
 ### Fixed
 
 - Align table-card footers, put quick add immediately after table rows and pin run-history pagination to the panel bottom. Keep run history and detail clear of floating controls using the standard page clearance. Remove the table workspace expansion toggle, simplify run details and give pasted JSON a dedicated import editor.

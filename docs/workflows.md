@@ -36,7 +36,7 @@ of a published version.
 
 ### Templates, exporting and importing { #templates-exporting-and-importing }
 
-The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a private table and a fully configured draft in one transaction. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note with frontmatter. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
+The ready-to-run automations are **Public API → table** and **Markdown notebook**. The server prepares a private table and a fully configured draft in one transaction. No account, API key or table selection is needed. The first fetches a sample post from [JSONPlaceholder](https://jsonplaceholder.typicode.com/) and saves its title and body; the second writes a Markdown note. Later runs reuse the table and upsert the same example record. Creating them requires permission to create and edit tables. **Starter** and **Two-step sequence** remain small local examples.
 
 Run history fills the available page area by default, without an expansion control. The catalog fills the available page area and offers its own Full screen control. Pagination appears only when there is another page. File import has a labelled upload area that accepts a file picker or a dropped JSON file.
 

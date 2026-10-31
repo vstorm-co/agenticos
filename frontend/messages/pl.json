@@ -3347,7 +3347,7 @@
         },
         "markdownNotes": {
           "name": "Notatnik Markdown",
-          "description": "Utwórz tabelę z notatką Markdown i frontmatter. Gotowy do uruchomienia, bez podłączania kont."
+          "description": "Utwórz tabelę z notatką Markdown. Jej właściwości przechowuj w kolumnach tabeli. Gotowe do uruchomienia, bez podłączania kont."
         }
       },
       "notFound": "Nie znaleziono workflow",
@@ -10425,8 +10425,7 @@
       "write": "Pisz",
       "preview": "Podgląd",
       "expand": "Powiększ edytor",
-      "properties": "Własne właściwości",
-      "hint": "Pisz Markdown poniżej. Daty i autor są uzupełniane automatycznie; własne właściwości są nad treścią.",
+      "hint": "Pisz w Markdown. Właściwości rekordu ustawiaj w kolumnach tabeli.",
       "empty": "Nie ma jeszcze treści do podglądu.",
       "done": "Gotowe",
       "createdAt": "Utworzono",
@@ -10434,18 +10433,12 @@
       "createdBy": "Autor",
       "onCreation": "Przy tworzeniu",
       "automatic": "Automatyzacja lub nieznany autor",
-      "legacyProperties": "Tych importowanych właściwości nie można tutaj edytować. Zmiany dokumentu zachowają ich oryginalną treść.",
-      "propertyName": "Nazwa właściwości",
-      "propertyValue": "Wartość właściwości",
-      "addProperty": "Dodaj właściwość",
-      "removeProperty": "Usuń {name}",
       "chooseTemplate": "Wybierz szablon początkowy",
       "template": "Domyślny szablon dokumentu",
       "templateHint": "Stosowany automatycznie w nowych rekordach, jeśli nie podano wartości. Istniejące dokumenty pozostają bez zmian. Treść szablonu możesz edytować poniżej.",
       "applyTemplate": "Użyj szablonu kolumny",
       "replaceTitle": "Zastąpić treść dokumentu?",
       "replaceDescription": "Treść dokumentu zostanie zastąpiona aktualnym szablonem kolumny. Właściwości i historia zostaną zachowane.",
-      "complexProperty": "Złożona właściwość (zachowana)",
       "templates": {
         "blank": {
           "label": "Pusty",

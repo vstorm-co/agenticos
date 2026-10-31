@@ -88,7 +88,7 @@ from app.services.workflow_webhook_test import (
     WebhookTestTooLargeError,
     WorkflowWebhookTestService,
 )
-from app.workflows.contracts.io import Binding, NodeOutputRef
+from app.workflows.contracts.io import Binding, LiteralValue, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.workflow_run_support import SeededRun, drive, worker_running
 
@@ -3538,6 +3538,15 @@ async def test_ready_templates_provision_a_private_table_and_validate_without_ed
     )
     assert table.visibility == "private"
     assert [column.type for column in table.columns] == ["text", "rich_text", "integer"]
+    if template_id == "markdownNotes":
+        values = next(
+            binding.source for binding in graph.bindings if binding.target_field == "values"
+        )
+        assert isinstance(values, LiteralValue)
+        assert isinstance(values.value, dict)
+        note = values.value["Notes"]
+        assert isinstance(note, str) and note.startswith("# Workflow notes")
+        assert "status: draft" not in note
     published = await WorkflowRegistryService(db).publish(
         ctx, workflow.id, WorkflowPublish(expected_revision=workflow.draft_revision)
     )

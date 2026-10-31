@@ -900,7 +900,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """Query visible records using typed filters, search, sorting and paging. Needs `tables:view`.
 
         Returns items and has_more. Follow pages when needed; never treat one page
-        as all records. rich_text search reads the Markdown source and frontmatter.
+        as all records. rich_text search reads the Markdown source; record properties belong in columns.
         """
         return await api.request(
             "POST",

@@ -1,5 +1,5 @@
 ---
-source_sha: "be9d01592ba2"
+source_sha: "ced20c94960b"
 ---
 
 # Workflows { #workflows }
@@ -41,7 +41,7 @@ versión publicada.
 
 ### Plantillas, exportar e importar { #templates-exporting-and-importing }
 
-Las automatizaciones listas para ejecutar son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla privada y un borrador completamente configurado en una transacción. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown con frontmatter. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
+Las automatizaciones listas para ejecutar son **Public API → table** y **Markdown notebook**. El servidor prepara una tabla privada y un borrador completamente configurado en una transacción. No hace falta elegir cuenta, clave API ni tabla. El primer ejemplo obtiene una publicación de [JSONPlaceholder](https://jsonplaceholder.typicode.com/) y guarda su título y contenido; el segundo escribe una nota Markdown. Los runs siguientes reutilizan la tabla y actualizan el mismo registro de ejemplo. Crearlos requiere permisos para crear y editar tablas. **Starter** y **Two-step sequence** siguen siendo pequeños ejemplos locales.
 
 El historial ocupa automáticamente el espacio disponible de la página, sin un control para ampliarlo. El catálogo ocupa el espacio disponible y ofrece su propio botón de pantalla completa. Solo muestra paginación si hay más páginas. La importación ofrece una zona etiquetada para seleccionar o soltar un archivo JSON.
 

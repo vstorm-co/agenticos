@@ -164,13 +164,7 @@ export function MarkdownCellEditor({
           )}
         </div>
       </div>
-      <DocumentProperties
-        id={fieldId}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        metadata={metadata}
-      />
+      <DocumentProperties metadata={metadata} />
       {preview ? (
         <div className="min-h-72 min-w-0 flex-1 space-y-4 overflow-auto px-4 py-6 sm:px-6">
           {parts.body.trim() ? (

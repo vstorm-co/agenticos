@@ -18,7 +18,7 @@ const source =
   "---\ntitle: Example\ntags: [team, notes]\n---\n# Meeting\n\n**Important**\n\n- [x] Done\n";
 
 describe("Markdown table cells", () => {
-  it("edits properties above Markdown and protects automatic metadata", async () => {
+  it("keeps automatic record metadata without a separate property editor", async () => {
     const change = vi.fn();
     render(
       <>
@@ -42,24 +42,14 @@ describe("Markdown table cells", () => {
     expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(
       markdownDocument(source).body,
     );
-    await userEvent.click(screen.getByText("Custom properties"));
-    fireEvent.change(screen.getByRole("textbox", { name: "title" }), {
-      target: { value: "Revised" },
+    expect(screen.queryByText("Custom properties")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add property" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Notes" }), {
+      target: { value: "# Revised body" },
     });
-    fireEvent.change(screen.getByRole("textbox", { name: "Property name" }), {
-      target: { value: "created_at" },
-    });
-    expect(screen.getByRole("button", { name: "Add property" })).toBeDisabled();
-    fireEvent.change(screen.getByRole("textbox", { name: "Property name" }), {
-      target: { value: "owner" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Property value" }), {
-      target: { value: "Sam" },
-    });
-    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     await userEvent.click(screen.getByRole("button", { name: "Outside" }));
-    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("owner: Sam"));
-    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("title: Revised"));
+    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("# Revised body"));
+    expect(change).toHaveBeenLastCalledWith(expect.stringContaining("title: Example"));
   });
 
   it("confirms applying a new template without replacing document properties", async () => {
@@ -98,8 +88,7 @@ describe("Markdown table cells", () => {
     expect(change).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", { name: "Meeting" })).toBeVisible();
     expect(screen.getByText("Important").tagName).toBe("STRONG");
-    await userEvent.click(screen.getByText("Custom properties"));
-    expect(screen.getByRole("textbox", { name: "title", hidden: true })).toHaveValue("Example");
+    expect(screen.queryByText("Custom properties")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Write" }));
     expect(screen.getByRole("textbox", { name: "Notes" })).toHaveValue(
       markdownDocument(source).body,

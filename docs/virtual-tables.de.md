@@ -1,5 +1,5 @@
 ---
-source_sha: "0c50e86d9bc5"
+source_sha: "866805b58c36"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -111,7 +111,7 @@ Kanban zeigt eine Karte unter dem Zeiger und markiert die Zielspalte; beim Speic
 
 Dokumenteigenschaften stehen über dem Markdown-Editor. **Erstellt**, **Zuletzt geändert** und **Erstellt von** stammen aus dem Datensatz und lassen sich nicht über Markdown ändern. Das Änderungsdatum folgt Schreibvorgängen am gesamten Datensatz, auch an anderen Zellen; vor der ersten Änderung gilt das Erstellungsdatum.
 
-Eigene Texteigenschaften lassen sich ohne YAML hinzufügen, ändern und entfernen. Importierte strukturierte Eigenschaften bleiben erhalten und schreibgeschützt. Ungültiges importiertes Frontmatter bleibt mit einem Hinweis erhalten; Änderungen am Inhalt verwerfen es nicht. Inhaltsänderungen erhalten die ursprünglichen Header-Bytes; Eigenschaftsänderungen serialisieren nur den YAML-Header. API und CSV enthalten eigenes Frontmatter weiterhin zusammen mit Markdown; Systemdatum und Autor bleiben Datensatzmetadaten.
+Dokumenteigenschaften gehören in typisierte Tabellenspalten. Der Markdown-Editor erstellt oder bearbeitet keine YAML-Eigenschaften mehr. Neue Notizbuchvorlagen enthalten nur Markdown. Bereits importierte Header bleiben bei Inhaltsänderungen unverändert erhalten, damit historische Daten nicht verloren gehen. Automatische Datumsangaben und Schreibquellen stammen weiterhin aus dem Datensatz.
 
 Wähle die Standardvorlage beim Erstellen einer Rich-Text-Spalte oder unter **Columns**. Leeres Dokument, Notiz, Besprechungsnotizen und Projektbeschreibung sind anpassbare Startpunkte. Die Vorlage nutzt den vorhandenen Spaltenwert `default`: Konsole, API und Workflow übernehmen ihn beim Erstellen, wenn die Zelle fehlt. Ein ausdrücklich angegebener Wert, auch eine leere Zeichenfolge, hat Vorrang. Eine Vorlagenänderung betrifft nur neue Datensätze. **Spaltenvorlage verwenden** ersetzt nach Bestätigung den Inhalt eines bestehenden Dokuments und behält seine Eigenschaften. Textabfragen und Konvertierungen behalten ihre bisherigen Verträge.
 

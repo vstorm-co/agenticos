@@ -6444,7 +6444,7 @@
         },
         "markdownNotes": {
           "name": "Markdown-Notizbuch",
-          "description": "Eine Tabelle mit Markdown-Notiz und Frontmatter erstellen. Sofort ausführbar, ohne Kontoverbindung."
+          "description": "Erstelle eine Tabelle mit einer Markdown-Notiz. Eigenschaften gehören in Tabellenspalten. Sofort ausführbar, ohne Kontoverbindung."
         }
       },
       "notFound": "Workflow nicht gefunden",
@@ -9622,8 +9622,7 @@
       "write": "Schreiben",
       "preview": "Vorschau",
       "expand": "Editor vergrößern",
-      "properties": "Eigene Eigenschaften",
-      "hint": "Schreibe unten Markdown. Datum und Autor werden automatisch verwaltet; eigene Eigenschaften stehen über dem Inhalt.",
+      "hint": "Schreibe Markdown. Verwalte Datensatzeigenschaften in den Tabellenspalten.",
       "empty": "Noch kein Inhalt für die Vorschau.",
       "done": "Fertig",
       "createdAt": "Erstellt",
@@ -9631,18 +9630,12 @@
       "createdBy": "Erstellt von",
       "onCreation": "Bei der Erstellung",
       "automatic": "Automatisierung oder unbekannter Autor",
-      "legacyProperties": "Diese importierten Eigenschaften können hier nicht bearbeitet werden. Ihr ursprünglicher Inhalt bleibt bei Änderungen am Dokument erhalten.",
-      "propertyName": "Eigenschaftsname",
-      "propertyValue": "Eigenschaftswert",
-      "addProperty": "Eigenschaft hinzufügen",
-      "removeProperty": "{name} entfernen",
       "chooseTemplate": "Startvorlage wählen",
       "template": "Standardvorlage für Dokumente",
       "templateHint": "Wird bei neuen Datensätzen ohne angegebenen Wert automatisch verwendet. Bestehende Dokumente bleiben unverändert. Passe den Inhalt unten an.",
       "applyTemplate": "Spaltenvorlage verwenden",
       "replaceTitle": "Dokumentinhalt ersetzen?",
       "replaceDescription": "Ersetzt den Dokumentinhalt durch die aktuelle Spaltenvorlage. Eigenschaften und Verlauf bleiben erhalten.",
-      "complexProperty": "Strukturierte Eigenschaft (erhalten)",
       "templates": {
         "blank": {
           "label": "Leer",
