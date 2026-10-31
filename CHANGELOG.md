@@ -947,7 +947,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Align table-card footers, put quick add immediately after table rows and pin run-history pagination to the panel bottom. Remove the table workspace expansion toggle, simplify run details and give pasted JSON a dedicated import editor.
+- Align table-card footers, put quick add immediately after table rows and pin run-history pagination to the panel bottom. Keep run history and detail clear of floating controls using the standard page clearance. Remove the table workspace expansion toggle, simplify run details and give pasted JSON a dedicated import editor.
 
 - Workflow run history fills the available workspace by default, without a separate expansion toggle.
 

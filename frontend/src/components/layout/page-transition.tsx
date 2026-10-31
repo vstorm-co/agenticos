@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { stripLocale } from "@/lib/active-route";
 import { directionFor } from "@/lib/navigation-direction";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,9 @@ const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const workflowRunPage = /^\/workflows\/(?:runs|[^/]+\/runs(?:\/[^/]+)?)\/?$/.test(
+    stripLocale(pathname),
+  );
   // The phone app slides a page in from the side it came from (`desktop.css`);
   // everywhere else the attribute changes nothing.
   const direction = directionFor(pathname);
@@ -57,8 +61,8 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       data-direction={direction}
       className={cn(
         "page-enter flex flex-1 flex-col",
-        OWN_SCROLL_PANE.test(pathname) && "min-h-0",
-        !OWN_BOTTOM_ROOM.test(pathname) && PAGE_CLEARANCE,
+        OWN_SCROLL_PANE.test(pathname) && !workflowRunPage && "min-h-0",
+        (!OWN_BOTTOM_ROOM.test(pathname) || workflowRunPage) && PAGE_CLEARANCE,
       )}
     >
       {children}

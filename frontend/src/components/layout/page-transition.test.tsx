@@ -35,6 +35,14 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/workflows")).not.toContain("min-h-0");
   });
 
+  it.each(["/workflows/runs", "/pl/workflows/wf-1/runs", "/en/workflows/wf-1/runs/run-1"])(
+    "keeps workflow run content clear of floating controls: %s",
+    (path) => {
+      expect(rootClasses(path)).toContain(PAGE_CLEARANCE);
+      expect(rootClasses(path)).not.toContain("min-h-0");
+    },
+  );
+
   it("leaves long pages unconstrained so the room under them lands after the content", () => {
     expect(rootClasses("/en/agents")).not.toContain("min-h-0");
   });
