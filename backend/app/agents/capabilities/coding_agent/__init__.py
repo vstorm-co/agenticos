@@ -207,7 +207,9 @@ class CodingAgentConfig(BaseModel):
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         also_accepts=(SecretKind.OPENAI_CODEX,),
-        # On the person's computer the agent signs in with its own command.
+        # On the person's computer the agent signs in with its own command: no key is
+        # needed, and the picker still offers one with a "none" choice.
+        required_when=SecretCondition(field="runs_on", equals=("sandbox",)),
         optional_when=SecretCondition(field="runs_on", equals=("this_computer",)),
         # The harness decides the provider, so the picker and publish narrow to
         # its keys. Behind `base_url` the key is the gateway's - OpenRouter,

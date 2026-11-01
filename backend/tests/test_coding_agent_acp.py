@@ -598,6 +598,10 @@ def test_running_on_this_computer_is_the_one_case_that_needs_no_key() -> None:
     assert secret is not None and secret.optional_when is not None
     assert secret.optional_when.is_met(config)
     assert not secret.optional_when.is_met(CodingAgentConfig())
+    # Publish demands a key where the agent runs in the sandbox, and only there.
+    assert secret.required_when is not None
+    assert secret.required_when.is_met(CodingAgentConfig())
+    assert not secret.required_when.is_met(config)
 
 
 async def test_a_poll_without_a_cursor_keeps_the_last_one() -> None:
