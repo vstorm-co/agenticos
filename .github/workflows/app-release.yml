@@ -307,6 +307,7 @@ jobs:
   homebrew:
     timeout-minutes: 10
     needs: [resolve, desktop]
+    environment: apps-release
     runs-on: ubuntu-latest
     permissions: {contents: write}
     steps:
@@ -321,3 +322,24 @@ jobs:
           gh release download "$TAG" --pattern '*.dmg' --dir "$RUNNER_TEMP/dmgs"
           python3 scripts/homebrew_cask.py "$RUNNER_TEMP/dmgs" "$TAG" > "$RUNNER_TEMP/agenticos.rb"
           gh release upload "$TAG" "$RUNNER_TEMP/agenticos.rb" --clobber
+      - name: Publish the cask to the Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set, so vstorm-co/homebrew-agenticos was not updated."
+            exit 0
+          fi
+          gh repo clone vstorm-co/homebrew-agenticos "$RUNNER_TEMP/tap"
+          mkdir -p "$RUNNER_TEMP/tap/Casks"
+          cp "$RUNNER_TEMP/agenticos.rb" "$RUNNER_TEMP/tap/Casks/agenticos.rb"
+          cd "$RUNNER_TEMP/tap"
+          git add Casks/agenticos.rb
+          if git diff --cached --quiet; then
+            echo "The tap already has $TAG."
+            exit 0
+          fi
+          git -c user.name="agenticos-release" -c user.email="release@vstorm.co" commit -m "agenticos $TAG"
+          git push origin HEAD

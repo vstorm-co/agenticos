@@ -88,6 +88,9 @@ def test_homebrew_cask_hashes_both_architectures_and_refuses_ambiguity(tmp_path:
     assert result.count("sha256") == 2
     assert 'version "1.8.3"' in result
     assert "AgenticOS_1.8.3_aarch64.dmg" in result
+    # An unnotarized app installed by Homebrew keeps its quarantine flag, which
+    # makes Gatekeeper refuse it, so the cask clears it from the installed app.
+    assert 'args: ["-dr", "com.apple.quarantine", "#{appdir}/AgenticOS.app"]' in result
     (tmp_path / "duplicate_aarch64.dmg").write_bytes(b"other")
     with pytest.raises(ValueError, match="exactly one"):
         module.cask(tmp_path, "v1.8.3")
