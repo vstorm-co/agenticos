@@ -29,7 +29,7 @@ from app.services.channels.sms import (
     twilio_signature,
 )
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 TOKEN = "AC123:secret-token:+15550001111"
 VECTOR_URL = "https://mycompany.com/myapp.php?foo=1&bar=2"

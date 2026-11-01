@@ -33,7 +33,7 @@ from app.services.channels.email import (
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.email.providers.base import SendResult
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 BOT_ADDRESS = "Agent@Mail.Acme.com"
 SECRET = "relay-secret-1234"

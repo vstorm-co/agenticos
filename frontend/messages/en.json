@@ -8415,6 +8415,17 @@
       "sandbox": "The agent's sandbox",
       "pick": "Choose a folder…",
       "useSandbox": "Use the sandbox"
+    },
+    "answerToLabel": "Also answer in",
+    "answerTo": {
+      "primary": "My conversation with this agent",
+      "run_log": "The run log only",
+      "conversation": "The chat it was made in"
+    },
+    "answerToHint": {
+      "primary": "Each result is also posted to your own conversation with this agent, so everything it tells you is in one place.",
+      "run_log": "Results stay in the run log; nothing is posted to your chats.",
+      "conversation": "Each result is posted to the chat this routine was made for."
     }
   },
   "portals": {

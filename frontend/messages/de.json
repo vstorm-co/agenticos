@@ -8294,6 +8294,17 @@
       "sandbox": "Die Sandbox des Agenten",
       "pick": "Ordner wählen…",
       "useSandbox": "Sandbox verwenden"
+    },
+    "answerToLabel": "Auch antworten in",
+    "answerTo": {
+      "primary": "Meine Unterhaltung mit diesem Agenten",
+      "run_log": "Nur das Ausführungsprotokoll",
+      "conversation": "Der Chat, in dem es erstellt wurde"
+    },
+    "answerToHint": {
+      "primary": "Jedes Ergebnis wird auch in Ihrer eigenen Unterhaltung mit diesem Agenten gepostet, sodass alles an einem Ort steht.",
+      "run_log": "Ergebnisse bleiben im Ausführungsprotokoll; in Ihren Chats wird nichts gepostet.",
+      "conversation": "Jedes Ergebnis wird in dem Chat gepostet, für den diese Routine erstellt wurde."
     }
   },
   "portals": {

@@ -526,6 +526,7 @@ class TestEffectiveTools:
         assert (tool.id, tool.name) == ("search_documents", "search_refund_policy")
         assert tool.description == get("knowledge").tools[0].description
 
+    @pytest.mark.security
     def test_a_rename_cannot_take_a_tool_off_its_mandatory_approval(self):
         shared = {
             tool.id: tool

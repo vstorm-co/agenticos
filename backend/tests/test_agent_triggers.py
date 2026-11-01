@@ -130,6 +130,9 @@ def _trigger(**overrides: object) -> MagicMock:
         "runs_as_creator": False,
         "local_target": None,
         "overlap": "skip",
+        "answer_to": "run_log",
+        "delivery_conversation_id": None,
+        "ends_at": None,
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -4110,6 +4113,253 @@ class TestPostingTheAnswerToTeams:
                 trigger.id,
                 TriggerUpdate(teams_conversation_id=uuid.uuid4()),
             )
+
+
+class TestDeliveringTheAnswerToItsPerson:
+    """A fire's answer also lands where its person reads it, beside the run log (#2575)."""
+
+    @staticmethod
+    async def _fire(trigger: MagicMock, *, status: str = RunStatus.COMPLETED.value):
+        agent = _agent(name="Nightly")
+        service = _service(agent)
+        run = MagicMock(id=uuid.uuid4(), status=status)
+        primary = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.agent_trigger.PrimaryConversationService.ensure",
+                new=AsyncMock(return_value=primary),
+            ) as ensure,
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            conversations.create_message = AsyncMock()
+            runner_cls.return_value.execute = AsyncMock(return_value=("Three PRs merged.", run))
+            await service.fire(trigger.id)
+        return conversations.create_message, ensure, primary, run, agent
+
+    async def test_a_chosen_conversation_gets_the_answer_under_the_triggers_name(self):
+        target = uuid.uuid4()
+        trigger = _trigger(answer_to="conversation", delivery_conversation_id=target)
+        trigger.name = "Daily digest"
+
+        post, ensure, _, run, agent = await self._fire(trigger)
+
+        ensure.assert_not_awaited()
+        assert post.await_args.kwargs == {
+            "conversation_id": target,
+            "role": "assistant",
+            "content": "**Daily digest**\n\nThree PRs merged.",
+            "agent_id": agent.id,
+            "run_id": run.id,
+        }
+
+    async def test_the_primary_conversation_is_the_creators_own_with_the_agent(self):
+        trigger = _trigger(answer_to="primary")
+        trigger.name = None
+
+        post, ensure, primary, _, agent = await self._fire(trigger)
+
+        assert ensure.await_args.kwargs == {
+            "organization_id": trigger.organization_id,
+            "user_id": trigger.created_by_user_id,
+            "agent_id": agent.id,
+            "title": agent.name,
+        }
+        assert post.await_args.kwargs["conversation_id"] == primary
+        assert post.await_args.kwargs["content"] == "**Nightly**\n\nThree PRs merged."
+
+    async def test_nothing_is_delivered_beyond_the_log_when_that_is_all_that_was_asked(self):
+        post, *_ = await self._fire(_trigger(answer_to="run_log"))
+
+        post.assert_not_awaited()
+
+    async def test_a_chat_that_was_deleted_leaves_the_fire_in_the_log_only(self):
+        post, *_ = await self._fire(
+            _trigger(answer_to="conversation", delivery_conversation_id=None)
+        )
+
+        post.assert_not_awaited()
+
+    async def test_a_failed_fire_delivers_nothing(self):
+        post, *_ = await self._fire(_trigger(answer_to="primary"), status=RunStatus.FAILED.value)
+
+        post.assert_not_awaited()
+
+    async def test_an_answer_already_in_the_run_log_is_not_delivered_twice(self):
+        (post,) = await self._fire_into_the_log(_trigger(answer_to="primary"))
+
+        post.assert_not_awaited()
+
+    @staticmethod
+    async def _fire_into_the_log(trigger: MagicMock):
+        trigger.conversation_id = uuid.uuid4()
+        agent = _agent(name="Nightly")
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.agent_trigger.PrimaryConversationService.ensure",
+                new=AsyncMock(return_value=trigger.conversation_id),
+            ),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_message = AsyncMock()
+            run = MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value)
+            runner_cls.return_value.execute = AsyncMock(return_value=("Done.", run))
+            await service.fire(trigger.id)
+        return (conversations.create_message,)
+
+    async def test_a_routine_past_its_end_stops_instead_of_firing(self):
+        service = _service()
+        trigger = _trigger(ends_at=datetime.now(UTC) - timedelta(minutes=1))
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()) as audit,
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            await service.fire(trigger.id)
+
+        assert trigger.is_active is False
+        assert audit.call_args.kwargs["details"]["reason"] == "ended"
+        runner_cls.assert_not_called()
+
+    async def test_a_routine_before_its_end_still_fires(self):
+        trigger = _trigger(ends_at=datetime.now(UTC) + timedelta(hours=1), answer_to="run_log")
+
+        post, *_ = await self._fire(trigger)
+
+        assert trigger.is_active is True
+        post.assert_not_awaited()
+
+
+class TestChoosingWhereTheAnswerGoes:
+    @staticmethod
+    def _chat(owner: uuid.UUID | None = _CALLER, org: uuid.UUID = _ORG) -> MagicMock:
+        return MagicMock(user_id=owner, organization_id=org)
+
+    async def test_a_new_routine_answers_in_the_creators_primary_conversation_by_default(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=_trigger())
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            ends = datetime.now(UTC) + timedelta(hours=2)
+            await service.create(
+                _ctx(),
+                agent.id,
+                TriggerCreate(prompt="Watch the deploy", interval_seconds=600, ends_at=ends),
+            )
+
+        kwargs = repo.create.call_args.kwargs
+        assert (kwargs["answer_to"], kwargs["delivery_conversation_id"]) == ("primary", None)
+        assert kwargs["ends_at"] == ends
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("answer_to", "conversation", "found", "refusal"),
+        [
+            ("conversation", None, None, BadRequestError),
+            ("primary", uuid.uuid4(), None, BadRequestError),
+            ("conversation", uuid.uuid4(), None, NotFoundError),
+            ("conversation", uuid.uuid4(), "theirs", NotFoundError),
+            ("conversation", uuid.uuid4(), "elsewhere", NotFoundError),
+        ],
+    )
+    async def test_a_delivery_with_nowhere_of_the_callers_own_is_refused(
+        self, answer_to: str, conversation: uuid.UUID | None, found: str | None, refusal: type
+    ):
+        service = _service()
+        chat = {
+            None: None,
+            "theirs": self._chat(owner=uuid.uuid4()),
+            "elsewhere": self._chat(org=uuid.uuid4()),
+        }[found]
+        with (
+            patch(
+                "app.services.agent_trigger.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=chat),
+            ),
+            pytest.raises(refusal),
+        ):
+            await service._delivery_target(_ctx(), answer_to, conversation)
+
+    async def test_a_chat_of_their_own_is_accepted_and_a_nobody_gets_only_the_log(self):
+        service = _service()
+        with patch(
+            "app.services.agent_trigger.conversation_repo.get_conversation_by_id",
+            new=AsyncMock(return_value=self._chat()),
+        ):
+            await service._delivery_target(_ctx(), "conversation", uuid.uuid4())
+        await service._delivery_target(_ctx(), "run_log", None)
+        nobody = AuthContext(user_id=None, organization_id=_ORG, role=OrgRoleName.OWNER)
+        await service._delivery_target(nobody, "run_log", None)
+        with pytest.raises(BadRequestError):
+            await service._delivery_target(nobody, "primary", None)
+
+    async def test_an_end_in_the_past_is_refused_on_create_and_on_edit(self):
+        agent = _agent()
+        service = _service(agent)
+        past = datetime.now(UTC) - timedelta(minutes=5)
+        with pytest.raises(BadRequestError):
+            await service.create(
+                _ctx(), agent.id, TriggerCreate(prompt="x", interval_seconds=600, ends_at=past)
+            )
+        trigger = _trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            pytest.raises(BadRequestError),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            await _service(_agent(agent_id=trigger.agent_id)).update(
+                _ctx(), trigger.agent_id, trigger.id, TriggerUpdate(ends_at=past)
+            )
+
+    async def test_moving_away_from_a_conversation_forgets_it(self):
+        trigger = _trigger(answer_to="conversation", delivery_conversation_id=uuid.uuid4())
+        service = _service(_agent(agent_id=trigger.agent_id))
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(), trigger.agent_id, trigger.id, TriggerUpdate(answer_to="primary")
+            )
+
+        assert repo.update.call_args.kwargs["update_data"]["delivery_conversation_id"] is None
+
+    @pytest.mark.security
+    async def test_somebody_elses_edit_of_where_it_is_delivered_ends_its_acting_as_the_creator(
+        self,
+    ):
+        trigger = _trigger(runs_as_creator=True)
+        other = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.OWNER)
+        changes = {"answer_to": "run_log"}
+
+        AgentTriggerService._guard_acting_as_creator(other, trigger, changes)
+
+        assert changes["runs_as_creator"] is False
+
+    def test_the_schema_refuses_a_null_answer_destination_on_edit(self):
+        with pytest.raises(PydanticValidationError):
+            TriggerUpdate.model_validate({"answer_to": None})
 
 
 class TestASharedMailbox:

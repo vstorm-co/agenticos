@@ -60,7 +60,8 @@ from app.core.field_errors import field_details, refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
-from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.agent_trigger import (
     AgentTrigger,
     EventSource,
@@ -102,6 +103,7 @@ from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.services.primary_conversation import PrimaryConversationService
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 logger = logging.getLogger(__name__)
@@ -296,6 +298,12 @@ def _audit_changes(changes: dict[str, Any]) -> dict[str, Any]:
     return cast(dict[str, Any], jsonable_encoder(changes))
 
 
+def _refuse_past_end(ends_at: datetime | None) -> None:
+    """A routine that ends before it begins is a mistake, not a schedule."""
+    if ends_at is not None and ends_at <= datetime.now(UTC):
+        raise BadRequestError(message="The end must be in the future", details={"field": "ends_at"})
+
+
 def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     """Whether this caller is `person`, in person, and so may let a trigger act as them (#2027).
 
@@ -311,7 +319,14 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     )
 
 
-_WHAT_IT_DOES = ("prompt", "environment_id", "event_config", "teams_conversation_id")
+_WHAT_IT_DOES = (
+    "prompt",
+    "environment_id",
+    "event_config",
+    "teams_conversation_id",
+    "answer_to",
+    "delivery_conversation_id",
+)
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
 
 
@@ -698,6 +713,8 @@ class AgentTriggerService:
             await self._environment_of(ctx, agent.id, data.environment_id)
         if data.teams_conversation_id is not None:
             await self._teams_target(ctx, data.teams_conversation_id)
+        await self._delivery_target(ctx, data.answer_to, data.delivery_conversation_id)
+        _refuse_past_end(data.ends_at)
         if data.runs_as_creator and not _acts_as_themselves(ctx, ctx.user_id):
             raise AuthorizationError(
                 message="Only you, signed in as yourself, can let a trigger act as you",
@@ -832,6 +849,9 @@ class AgentTriggerService:
             ),
             overlap=data.overlap or TriggerOverlap.SKIP.value,
             teams_conversation_id=data.teams_conversation_id,
+            answer_to=data.answer_to,
+            delivery_conversation_id=data.delivery_conversation_id,
+            ends_at=data.ends_at,
         )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -1101,6 +1121,15 @@ class AgentTriggerService:
             await self._environment_of(ctx, agent_id, changes["environment_id"])
         if changes.get("teams_conversation_id") is not None:
             await self._teams_target(ctx, changes["teams_conversation_id"])
+        if "answer_to" in changes or "delivery_conversation_id" in changes:
+            answer_to = changes.get("answer_to", trigger.answer_to)
+            target = changes.get("delivery_conversation_id", trigger.delivery_conversation_id)
+            if answer_to != "conversation":
+                target = None
+                changes["delivery_conversation_id"] = None
+            await self._delivery_target(ctx, answer_to, target)
+        if changes.get("ends_at") is not None:
+            _refuse_past_end(changes["ends_at"])
 
         # A cadence change or a resume takes effect from now: a schedule shrunk from
         # daily to minutely, switched to cron, or resumed must not wait out the old
@@ -2050,6 +2079,11 @@ class AgentTriggerService:
         if not trigger.is_active:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger.id)})
             return
+        if trigger.ends_at is not None and trigger.ends_at <= datetime.now(UTC):
+            # "Until Friday" was said when it was set up: the first fire after it stops
+            # the routine, the way a creator who left does, with the reason on record.
+            await self._disable(trigger, reason="ended")
+            return
         ctx = await self._creator_context(trigger)
         if ctx is None:
             # No *active* membership to take a role from - the creator left the
@@ -2186,6 +2220,9 @@ class AgentTriggerService:
                 f"**{trigger.name or agent.name}**\n\n{answer}",
             )
 
+        if run.status == RunStatus.COMPLETED.value and answer:
+            await self._deliver(trigger, agent=agent, run=run, answer=answer)
+
         trigger.last_run_id = run.id
         # And the run says which trigger made it: with `user_id`, "trigger X,
         # acting as member Y" rather than a run that reads as the member's own.
@@ -2316,6 +2353,78 @@ class AgentTriggerService:
                 message="Environment not found",
                 details={"environment_id": str(environment_id)},
             )
+
+    async def _delivery_target(
+        self, ctx: AuthContext, answer_to: str, conversation_id: UUID | None
+    ) -> None:
+        """Refuse a delivery that has nowhere of the caller's own to land (#2575).
+
+        `primary` is the creator's conversation with the agent, which exists for any
+        signed-in person; `conversation` names one of the caller's own chats - another
+        person's is not found, the same answer a missing one gets.
+
+        Raises:
+            BadRequestError: A conversation without an id (or an id without the mode),
+                or a delivery to a person for a caller who is nobody.
+            NotFoundError: The chat is not the caller's.
+        """
+        if answer_to == "conversation" and conversation_id is None:
+            raise BadRequestError(
+                message="Name the conversation to deliver to",
+                details={"field": "delivery_conversation_id"},
+            )
+        if answer_to != "conversation" and conversation_id is not None:
+            raise BadRequestError(
+                message="A conversation is only for delivering to one",
+                details={"field": "delivery_conversation_id"},
+            )
+        if answer_to != "run_log" and ctx.user_id is None:
+            raise BadRequestError(
+                message="Only a signed-in person has somewhere to be answered",
+                details={"field": "answer_to"},
+            )
+        if conversation_id is None:
+            return
+        chat = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if (
+            chat is None
+            or chat.organization_id != ctx.organization_id
+            or chat.user_id != ctx.user_id
+        ):
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"delivery_conversation_id": str(conversation_id)},
+            )
+
+    async def _deliver(
+        self, trigger: AgentTrigger, *, agent: Agent, run: AgentRun, answer: str
+    ) -> None:
+        """Put a fire's answer where its person reads it, beside the run log (#2575).
+
+        Best effort by design: the run is done and recorded, so a delivery that cannot
+        land - the chat was deleted, the person left - says so in the log and never
+        undoes or retries the fire.
+        """
+        target: UUID | None = None
+        if trigger.answer_to == "conversation":
+            target = trigger.delivery_conversation_id
+        elif trigger.answer_to == "primary" and trigger.created_by_user_id is not None:
+            target = await PrimaryConversationService(self.db).ensure(
+                organization_id=trigger.organization_id,
+                user_id=trigger.created_by_user_id,
+                agent_id=agent.id,
+                title=agent.name,
+            )
+        if target is None or target == trigger.conversation_id:
+            return
+        await conversation_repo.create_message(
+            self.db,
+            conversation_id=target,
+            role="assistant",
+            content=f"**{trigger.name or agent.name}**\n\n{answer}",
+            agent_id=agent.id,
+            run_id=run.id,
+        )
 
     async def _teams_target(self, ctx: AuthContext, conversation_id: UUID) -> None:
         """Refuse a Teams conversation that is not one of this organization's to post into.

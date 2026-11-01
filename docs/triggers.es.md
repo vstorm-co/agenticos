@@ -1,5 +1,5 @@
 ---
-source_sha: "517be3b7106d"
+source_sha: "046c3c0825f5"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -67,6 +67,23 @@ pasa:
 Un trigger de evento no tiene este ajuste: cada entrega es su propio disparo.
 
 Todo lo de abajo es para el caso de los eventos.
+
+## Adónde va la respuesta y cuándo termina una rutina { #answers-and-ends }
+
+Cada ejecución queda registrada en el registro de ejecuciones del trigger. `answer_to` dice adónde va
+además la respuesta, para la persona que lo creó (#2575): `primary`, el valor por defecto, es su propia
+conversación con el agente, así que todo lo que le dice está en un solo lugar; `conversation` es uno de
+sus otros chats (`delivery_conversation_id`), para una rutina creada en ese chat; `run_log` no la publica
+en ningún otro sitio.
+
+Solo se entrega una ejecución completada con respuesta, y una entrega que no puede
+llegar - el chat se borró - deja la ejecución en el registro en lugar de hacerla fallar. Un chat que no es
+del solicitante es un 404, y si alguien distinto del creador cambia adónde va la respuesta, el trigger
+deja de actuar como su creador, porque eso decide quién lee lo que devolvieron las conexiones del creador.
+
+`ends_at` detiene una rutina por sí sola, para "vigila esto hasta el viernes". La primera ejecución
+debida después pausa el trigger en lugar de ejecutarlo y registra `ended` en la pista de auditoría; un fin
+que ya pasó se rechaza. Reanudarlo requiere un `ends_at` posterior o ninguno.
 
 ## Dónde viven en el producto, y cómo llamarlos { #where-they-live-in-the-product-and-what-to-call-them }
 

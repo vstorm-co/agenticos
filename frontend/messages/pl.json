@@ -7263,6 +7263,17 @@
       "sandbox": "Piaskownica agenta",
       "pick": "Wybierz folder…",
       "useSandbox": "Użyj piaskownicy"
+    },
+    "answerToLabel": "Odpowiadaj też w",
+    "answerTo": {
+      "primary": "Moja rozmowa z tym agentem",
+      "run_log": "Tylko dziennik uruchomień",
+      "conversation": "Czat, w którym ją utworzono"
+    },
+    "answerToHint": {
+      "primary": "Każdy wynik trafia też do Twojej własnej rozmowy z tym agentem, więc wszystko, co Ci mówi, jest w jednym miejscu.",
+      "run_log": "Wyniki zostają w dzienniku uruchomień; nic nie trafia do Twoich czatów.",
+      "conversation": "Każdy wynik trafia na czat, dla którego utworzono tę rutynę."
     }
   },
   "portals": {

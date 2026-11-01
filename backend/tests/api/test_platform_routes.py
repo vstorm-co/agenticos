@@ -1894,6 +1894,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # would simply mean the integration never worked.
         ("POST", f"{V1}/slack/{{bot_id}}/events"),
         ("POST", f"{V1}/telegram/{{bot_id}}/webhook"),
+        # SMS and e-mail are the same arrangement: Twilio signs its request with the
+        # account's auth token, and a mail relay signs its own with the bot's secret;
+        # each handler verifies that against the bot named in the path (#2082).
+        ("POST", f"{V1}/sms/{{bot_id}}/webhook"),
+        ("POST", f"{V1}/email/{{bot_id}}/inbound"),
         # Mattermost is the same arrangement with a weaker primitive: it does
         # not sign bodies, so the handler compares the shared token the
         # integration was created with, and refuses when none is configured.

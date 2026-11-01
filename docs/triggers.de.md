@@ -1,5 +1,5 @@
 ---
-source_sha: "517be3b7106d"
+source_sha: "046c3c0825f5"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -67,6 +67,24 @@ Ein Event-Trigger hat keine solche Einstellung: Jede Zustellung ist ein eigenes
 Auslösen.
 
 Alles Weitere unten gilt dem Event-Fall.
+
+## Wohin die Antwort geht und wann eine Routine endet { #answers-and-ends }
+
+Jeder Lauf wird im Ausführungsprotokoll des Triggers festgehalten. `answer_to` sagt, wohin die Antwort
+zusätzlich an die Person geht, die ihn angelegt hat (#2575): `primary`, der Standard, ist ihre eigene
+Unterhaltung mit dem Agenten, sodass alles, was er ihr sagt, an einem Ort steht; `conversation` ist einer
+ihrer anderen Chats (`delivery_conversation_id`), für eine in diesem Chat angelegte Routine; `run_log`
+postet sonst nirgends.
+
+Nur ein abgeschlossener Lauf mit Antwort wird zugestellt, und eine Zustellung, die
+nicht ankommen kann - der Chat wurde gelöscht - lässt den Lauf im Protokoll, statt ihn scheitern zu lassen.
+Ein Chat, der nicht dem Aufrufer gehört, ist ein 404, und wenn jemand anderes als der Ersteller ändert,
+wohin die Antwort geht, endet das Handeln des Triggers als Ersteller, weil es entscheidet, wer liest, was
+die Verbindungen des Erstellers geliefert haben.
+
+`ends_at` stoppt eine Routine von selbst, für „behalte das bis Freitag im Auge". Der erste danach fällige
+Lauf pausiert den Trigger, statt ihn auszuführen, und hält `ended` im Audit-Trail fest; ein bereits
+vergangenes Ende wird abgelehnt. Zum Fortsetzen braucht es ein späteres `ends_at` oder keines.
 
 ## Wo sie im Produkt liegen, und wie man sie nennt { #where-they-live-in-the-product-and-what-to-call-them }
 
