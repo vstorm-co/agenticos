@@ -56,7 +56,7 @@ Sovereignty here means four things you decide: where the product runs, which mod
 
 | Product | Where it runs | Models you may use | What the licence lets you do | Sign-in, audit and spend controls |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Your infrastructure; a fresh install sends nothing anywhere | Any of 28 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others; the default PDF parser is AGPL-3.0, so a modified image you serve to others owes them its source ([details](../licenses.md#the-agpl-component)) | Sign-in: OIDC SSO, LDAP and Kerberos · Audit: tamper-evident log · Spend: budgets per agent and per organization · all in every deployment |
+| **AgenticOS** | Your infrastructure; a fresh install sends no prompts or documents anywhere, and diagnostics are on by default and can be switched off | Any of 28 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others; the default PDF parser is AGPL-3.0, so a modified image you serve to others owes them its source ([details](../licenses.md#the-agpl-component)) | Sign-in: OIDC SSO, LDAP and Kerberos · Audit: tamper-evident log · Spend: budgets per agent and per organization · all in every deployment |
 | Claude Team / Enterprise | Anthropic's cloud | Claude only | Proprietary | Sign-in: SSO on Team and Enterprise · Audit: Enterprise, 180 days of events · Spend: organization and user caps |
 | ChatGPT Business / Enterprise | OpenAI's cloud; storage residency in ten regions on Enterprise | OpenAI only | Proprietary | Sign-in: SAML SSO on Business; SCIM and role-based access controls on Enterprise · Audit: Compliance API on Enterprise and Edu · Spend: credit pools and overage limits |
 | Copilot Studio | Microsoft's cloud, in Power Platform environments | GPT models by default, Claude models, Azure Foundry models billed separately | Proprietary | Sign-in: Entra ID · Audit: Purview · Spend: monthly limits per agent |
@@ -75,13 +75,13 @@ Sovereignty here means four things you decide: where the product runs, which mod
 
 Dify and n8n also run on your own servers with local models, and Wonderful offers air-gapped on-premises deployment. Among the products in this table, AgenticOS is the one where all four answers stay with you.
 
-Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
+Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [what leaves by default](../data-protection.md#nothing-leaves-by-default).
 
 ## What AgenticOS brings to every comparison
 
 These run through every guide, so they are stated once here.
 
-- **The deployment is yours.** It runs on your hardware with your own Postgres and storage, and a fresh install sends nothing anywhere. A fully local setup is possible, with local chat models, local embeddings and local parsing. See [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
+- **The deployment is yours.** It runs on your hardware with your own Postgres and storage, and a fresh install sends no prompts or documents anywhere; deployment diagnostics are on by default and can be switched off. A fully local setup is possible, with local chat models, local embeddings and local parsing. See [what leaves by default](../data-protection.md#nothing-leaves-by-default).
 - **Any model, switched in one place.** [28 providers](../models.md#providers) sit behind a [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks). Change the profile and every agent using it moves, without a republish.
 - **An agent is a versioned document.** Publishing freezes a [version](../concepts.md#version), [environments](../environments.md#what-an-environment-is) point at versions, and the spec [exports as YAML](../features.md#exportable-into-your-own-repository) into your own git repository.
 - **Governance is in the open-source product.** [Budgets](../governance.md#enforcement-is-before-the-request) are checked before each model request. [Approvals](../governance.md#approvals) park a run until someone decides. The [audit log](../governance.md#audit) is tamper-evident. None of it waits for an enterprise tier.
