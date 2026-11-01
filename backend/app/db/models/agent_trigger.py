@@ -38,6 +38,7 @@ would this fire" always has exactly one answer.
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -47,6 +48,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     text,
@@ -323,6 +325,30 @@ class AgentTrigger(Base, TimestampMixin):
         nullable=True,
     )
 
+    # Where a fire's answer is delivered to its person (#2575), beside the run log that
+    # always records it: `primary` is the creator's own conversation with the agent -
+    # one place to read everything this agent tells them - and `conversation` is one
+    # of their other chats, so "watch this for two hours" answers where it was asked.
+    # SET NULL on the chat, and a `conversation` with none left delivers nowhere but
+    # the run log rather than failing the fire.
+    answer_to: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="run_log", server_default="run_log"
+    )
+    delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # What this routine may spend a month (#2575), counted from the runs it started. Once
+    # the month's runs have cost this much its fires are skipped - the routine is shown
+    # "Paused - budget" and starts again on the first of the next month, with nothing to
+    # resume by hand. Null is no limit of its own; the agent's and the organization's
+    # limits apply either way, and this only ever narrows.
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    # When a schedule stops by itself - "keep an eye on this until Friday". Null runs
+    # until somebody stops it. The first fire due after this instant pauses it instead.
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # How an event trigger was set up, when it came from a portal preset rather
     # than the raw source picker. All nullable: every schedule, and every
     # hand-wired event trigger, leaves them null and behaves exactly as before -
@@ -356,6 +382,12 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint("trigger_type IN ('schedule', 'event')", name="ck_trigger_type"),
         CheckConstraint("schedule_kind IN ('interval', 'cron')", name="ck_trigger_schedule_kind"),
         CheckConstraint("overlap IN ('skip', 'queue', 'allow')", name="ck_trigger_overlap"),
+        CheckConstraint(
+            "monthly_budget_usd IS NULL OR monthly_budget_usd > 0", name="ck_trigger_budget"
+        ),
+        CheckConstraint(
+            "answer_to IN ('run_log', 'primary', 'conversation')", name="ck_trigger_answer_to"
+        ),
         CheckConstraint(
             "event_source IS NULL OR event_source IN "
             "('github', 'gmail', 'google_calendar', 'google_drive', 'hubspot', "

@@ -67,6 +67,7 @@ def _export() -> PersonalDataExport:
         sessions=[],
         runs=[],
         memory=[],
+        memory_claims=[],
         channel_identities=[],
         slash_commands=[],
         dashboard_layouts=[],

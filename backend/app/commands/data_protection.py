@@ -123,7 +123,6 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "computer_use": "the agent's sandbox connection, or the computerd host on COMPUTER_DAEMON_ALLOWED_HOSTS",
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
-    "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
     "text_to_speech": "the speech provider named in the binding",
     "video_generation": "the video provider named in the binding, with any starting image",
@@ -246,7 +245,6 @@ def _settings_section() -> Section:
         ["SMTP_TLS", _yes_no(settings.SMTP_TLS)],
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
-        ["MEM0_ALLOWED_HOSTS", ", ".join(settings.MEM0_ALLOWED_HOSTS) or "none"],
         # Its host only: an address can carry a token, and this report is attached
         # to reviews.
         ["VISUAL_RENDER_CDP_URL", urlsplit(settings.VISUAL_RENDER_CDP_URL).hostname or "unset"],

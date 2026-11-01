@@ -416,6 +416,11 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
+    # How long a phone number stays linked to an account before it has to be linked again.
+    # A number is a claim of identity that outlives the person's hold on it - reassigned,
+    # ported, taken over - so an SMS link lapses (#2082). 0 keeps links for ever.
+    SMS_LINK_MAX_AGE_DAYS: int = 90
+
     # The scheme the desktop shell registers for the sign-in return (#1532).
     #
     # Google's authorization endpoint refuses an embedded user-agent, and the
@@ -1086,10 +1091,6 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
-    # Without an allowlist a builder who can bind a shared mem0 key could point
-    # `mem0_base_url` at their own server and capture it (docs/secrets.md).
-    MEM0_ALLOWED_HOSTS: list[str] = []
-
     # Hosts a browsing agent may drive a Chromium at. `cdp_url` lives in an agent
     # spec, which anyone holding `edit` on that agent writes - so it is
     # tenant-controlled, and an unbounded one is a request this deployment makes
@@ -1098,7 +1099,7 @@ class Settings(BaseSettings):
     # service on the deployment's own network that `docs/reference/capabilities.md`
     # tells an operator to run, and accepts a CDP debugger exposed to the
     # internet, which is worse. So the operator names the hosts instead, exactly
-    # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
+    # like any spec-supplied address. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
     # The browser a person signs in to a site with from Settings (#2129). An

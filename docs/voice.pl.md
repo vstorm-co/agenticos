@@ -1,5 +1,5 @@
 ---
-source_sha: "dc7308008f49"
+source_sha: "0ff785349ff9"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -154,7 +154,7 @@ rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 
 | Głosowo | Capabilities |
 |---|---|
-| Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, pamięć mem0, planowanie, limity wyjścia narzędzi, generowanie obrazów, zamiana tekstu na mowę |
+| Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, planowanie, limity wyjścia narzędzi, generowanie obrazów, zamiana tekstu na mowę |
 | Na ekranie | pytania do użytkownika: w `/chat` karta pytań pojawia się w widoku rozmowy i jest też czytana na głos, a rozmówca stuka odpowiedź albo ją mówi; rozmowa z widgetu ani strony hostowanej ich nie dostaje |
 | Dostosowane | skille: ładowane na żądanie jako instrukcje, bez narzędzi, którymi run tekstowy je czyta |
 | Pominięte | wyszukiwanie narzędzi: narzędzia MCP, które by odroczyło, są przekazywane rozmowie bezpośrednio |
@@ -199,7 +199,7 @@ rozmowie nie może zrobić. Po nich następują własne uwagi do głosu agenta.
 
 Przez WebRTC agent jest rozwiązywany dwa razy: raz, żeby odpowiedzieć na ofertę,
 i raz dla połączenia sideband. Serwery MCP są łączone dwa razy, a dynamiczne
-instrukcje wykonują się dwa razy, więc za wyszukiwanie w pamięci mem0 płaci się
+instrukcje wykonują się dwa razy, więc za wyszukiwanie w pamięci płaci się
 podwójnie; oba są mierzone na runie.
 
 ## Zatwierdzenia w rozmowie { #approvals-in-a-call }

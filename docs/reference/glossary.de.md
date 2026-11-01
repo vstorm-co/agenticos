@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa1c09d5f47"
+source_sha: "5141fd725ab4"
 ---
 
 # Glossar { #glossary }
@@ -82,7 +82,6 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Wissenssuche | `knowledge` |
 | Bilder auslagern | `media` |
 | Gedächtnis | `memory_files` |
-| Gedächtnis (mem0) | `memory_mem0` |
 | Planung | `planning` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
 | Sandbox | `sandbox` |

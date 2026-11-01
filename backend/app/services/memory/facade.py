@@ -15,50 +15,65 @@ ends up half-done.
 the counterpart to the per-person delete: a store nobody can clear is a liability
 (#788).
 
-Both reach mem0 as well as this database, when an agent binds it. A clear that
-reported success while mem0 still remembered would be a partial wipe wearing a
-success, which is exactly the failure mode this feature exists to avoid - so the
-result carries what each half actually removed.
+Native memory is the only store (mem0 was removed, #2090), so one delete is the
+whole erasure.
 """
 
 import logging
-from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
-from app.agents.capabilities.memory_mem0._client import mem0_forget_agent, mem0_forget_person
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, ExternalServiceError, NotFoundError
-from app.core.memory_keys import INDEX_NAME, is_person_key, person_owner_key
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
-from app.core.secret_kinds import ApiKeySecret
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
-from app.repositories import agent_repo, memory_repo, organization_repo
-from app.schemas.memory import MemoryErasureResult, MemoryNoteList, MemoryNoteRead
+from app.db.models.memory_claim import MemoryClaim
+from app.repositories import agent_repo, memory_claim, memory_repo, organization_repo
+from app.schemas.memory import (
+    MemoryClaimCorrect,
+    MemoryClaimDetail,
+    MemoryClaimList,
+    MemoryClaimRead,
+    MemoryErasureResult,
+    MemoryNoteList,
+    MemoryNoteRead,
+)
 from app.services.access import AGENT, resolve_access
-from app.services.organization_secret import OrganizationSecretService
+from app.services.memory import _claims
 
 logger = logging.getLogger(__name__)
 
+_LIVE_STATUSES = ("current", "disputed")
+_ALL_STATUSES = ("current", "disputed", "superseded", "merged", "retracted")
 
-@dataclass(frozen=True)
-class _Mem0Target:
-    agent_id: UUID
-    secret_id: UUID
-    base_url: str | None
+
+def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
+    return MemoryClaimRead(
+        id=row.id,
+        agent_id=row.agent_id,
+        agent_name=names.get(row.agent_id) if row.agent_id else None,
+        scope="profile" if row.agent_id is None else "agent",
+        subject=row.subject,
+        statement=row.statement,
+        kind=row.kind,
+        origin=row.origin,  # ty: ignore[invalid-argument-type]
+        status=row.status,  # ty: ignore[invalid-argument-type]
+        observed_at=row.observed_at,
+        effective_from=row.effective_from,
+        effective_to=row.effective_to,
+        supersedes_id=row.supersedes_id,
+        derived_from_count=len(row.derived_from or []),
+    )
 
 
 class MemoryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self.secrets = OrganizationSecretService(db)
 
     async def mine(self, ctx: AuthContext, *, skip: int, limit: int) -> MemoryNoteList:
         """What the agents in this organization have written down about the caller.
@@ -71,6 +86,115 @@ class MemoryService:
         return await self._notes_for(
             ctx.organization_id, person_owner_key(ctx.subject_id), skip=skip, limit=limit
         )
+
+    async def my_claims(
+        self, ctx: AuthContext, *, skip: int, limit: int, history: bool
+    ) -> MemoryClaimList:
+        """The claims recorded about the caller, under every agent, current ones by default.
+
+        `history` adds what was superseded, merged or retracted: the record of how
+        each current claim came to say what it says.
+        """
+        statuses = _ALL_STATUSES if history else _LIVE_STATUSES
+        rows, total = await memory_claim.list_for_owner(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=person_owner_key(ctx.subject_id),
+            statuses=statuses,
+            skip=skip,
+            limit=limit,
+        )
+        names = await self._agent_names({row.agent_id for row in rows if row.agent_id})
+        return MemoryClaimList(items=[_claim_read(row, names) for row in rows], total=total)
+
+    async def claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
+        """One of the caller's claims with its ancestry, filtered to what they may read.
+
+        The caller reads their own scope; a source that lives anywhere else - a copy
+        another person shared into, say - is counted as withheld rather than shown.
+        """
+        row = await self._own_claim(ctx, claim_id)
+        scope_key = person_owner_key(ctx.subject_id)
+        found = await _claims.provenance(self.db, claim=row, readable_keys=[scope_key])
+        related = [row, *found.sources, *([found.superseded] if found.superseded else [])]
+        names = await self._agent_names({item.agent_id for item in related if item.agent_id})
+        return MemoryClaimDetail(
+            **_claim_read(row, names).model_dump(),
+            sources=[_claim_read(item, names) for item in found.sources],
+            withheld=found.withheld,
+            superseded=_claim_read(found.superseded, names) if found.superseded else None,
+        )
+
+    async def correct_claim(
+        self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
+    ) -> MemoryClaimRead:
+        """Replace one of the caller's claims with their own words, keeping its history."""
+        row = await self._own_live_claim(ctx, claim_id)
+        fixed = await _claims.correct(
+            self.db,
+            claim=row,
+            statement=data.statement,
+            author_user_id=ctx.subject_id,
+            effective_from=data.effective_from,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.claim.corrected",
+            target_type="memory_claim",
+            target_id=str(claim_id),
+            # Never the statements: an entry holding what it corrected keeps it.
+            details={"replacement": str(fixed.id)},
+        )
+        names = await self._agent_names({fixed.agent_id} if fixed.agent_id else set())
+        return _claim_read(fixed, names)
+
+    async def retract_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimRead:
+        """Take one of the caller's claims out of use; sources and history stay."""
+        row = await self._own_live_claim(ctx, claim_id)
+        await _claims.retract(self.db, claim=row)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.claim.retracted",
+            target_type="memory_claim",
+            target_id=str(claim_id),
+            details={},
+        )
+        names = await self._agent_names({row.agent_id} if row.agent_id else set())
+        return _claim_read(row, names)
+
+    async def _own_live_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaim:
+        """One of the caller's claims that is still in use, for a change.
+
+        History is read-only: retracting a superseded claim would rewrite when it stopped
+        holding, and correcting one would supersede the unrelated current claim on the
+        same subject.
+
+        Raises:
+            ConflictError: The claim is in the history.
+        """
+        row = await self._own_claim(ctx, claim_id)
+        if row.status not in _LIVE_STATUSES:
+            raise ConflictError(
+                message="That claim is in the history and cannot be changed",
+                details={"claim_id": claim_id, "status": row.status},
+            )
+        return row
+
+    async def _own_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaim:
+        """One claim, only if it is in the caller's own scope - a miss is a 404, never a 403."""
+        row = await memory_claim.get_owned(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=person_owner_key(ctx.subject_id),
+            claim_id=claim_id,
+        )
+        if row is None:
+            raise NotFoundError(message="Memory claim not found", details={"claim_id": claim_id})
+        return row
 
     async def for_person(
         self,
@@ -205,33 +329,7 @@ class MemoryService:
             )
             for row in rows
         ]
-        external = await self._external_stores(organization_id)
-        return MemoryNoteList(items=items, total=total, external_stores=external)
-
-    async def _external_stores(self, organization_id: UUID) -> list[str]:
-        """Agents whose memories live in a service this listing cannot read.
-
-        The **published** spec where there is one, falling back to the draft for
-        an agent that has never been published. Erasure reads the draft
-        deliberately - deleting a namespace that holds nothing is free - but a
-        disclosure read off the draft says the wrong thing in both directions: an
-        agent whose unpublished edit dropped mem0 is still writing there, and one
-        that only added it in a draft has written nothing yet (#1594 review).
-        """
-        rows = await self.db.execute(
-            select(Agent, AgentVersion.spec)
-            .outerjoin(AgentVersion, Agent.current_version_id == AgentVersion.id)
-            .where(Agent.organization_id == organization_id)
-        )
-        named: set[str] = set()
-        for agent, published in rows.all():
-            spec = published if isinstance(published, dict) else agent.draft_spec
-            if any(
-                binding.get("id") == MEMORY_MEM0_CAPABILITY_ID and binding.get("enabled", True)
-                for binding in _capabilities(spec)
-            ):
-                named.add(agent.name)
-        return sorted(named)
+        return MemoryNoteList(items=items, total=total)
 
     async def _prune_index(self, row: AgentMemoryFile) -> None:
         """Drop the suppressed note's line from the store's `MEMORY.md`.
@@ -292,7 +390,9 @@ class MemoryService:
         notes = await memory_repo.delete_for_person(
             self.db, organization_id=ctx.organization_id, owner_key=owner_key
         )
-        cleared = await self._forget_in_mem0(ctx, owner_key)
+        claims = await memory_claim.delete_for_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=owner_key
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -300,9 +400,9 @@ class MemoryService:
             action="memory.person.forgotten",
             target_type="user",
             target_id=str(user_id),
-            details={"notes": notes, "mem0_agents": cleared},
+            details={"notes": notes, "claims": claims},
         )
-        return MemoryErasureResult(notes_deleted=notes, mem0_agents_cleared=cleared)
+        return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)
 
     async def clear_agent(self, ctx: AuthContext, agent_id: UUID) -> MemoryErasureResult:
         """Delete every note one agent holds, in every store.
@@ -321,15 +421,9 @@ class MemoryService:
         notes = await memory_repo.delete_all_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
-        targets = await self._mem0_bindings(ctx.organization_id, agent_id=agent_id)
-        for target, secret in await self._mem0_credentials(ctx, targets):
-            await mem0_forget_agent(
-                base_url=target.base_url,
-                api_key=secret.api_key.get_secret_value(),
-                organization_id=ctx.organization_id,
-                agent_id=target.agent_id,
-            )
-        cleared = len({target.agent_id for target in targets})
+        claims = await memory_claim.delete_for_agent(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -337,84 +431,6 @@ class MemoryService:
             action="memory.agent.cleared",
             target_type="agent",
             target_id=str(agent_id),
-            details={"notes": notes, "mem0_agents": cleared},
+            details={"notes": notes, "claims": claims},
         )
-        return MemoryErasureResult(notes_deleted=notes, mem0_agents_cleared=cleared)
-
-    async def _forget_in_mem0(self, ctx: AuthContext, owner_key: str) -> int:
-        """Clear this person's mem0 namespace under every agent that binds mem0.
-
-        The half the database cannot reach. Each agent has its own namespace and
-        may have its own key, so this is one call per binding rather than one for
-        the organization.
-
-        A failure is raised, not swallowed: the person is being told their memory
-        is gone, and finding out later that half of it was not is worse than an
-        error now (#1470).
-        """
-        assert is_person_key(owner_key), "only a person is forgotten this way"
-        targets = await self._mem0_bindings(ctx.organization_id)
-        for target, secret in await self._mem0_credentials(ctx, targets):
-            await mem0_forget_person(
-                base_url=target.base_url,
-                api_key=secret.api_key.get_secret_value(),
-                organization_id=ctx.organization_id,
-                agent_id=target.agent_id,
-                owner_key=owner_key,
-            )
-        return len({target.agent_id for target in targets})
-
-    async def _mem0_bindings(
-        self, organization_id: UUID, *, agent_id: UUID | None = None
-    ) -> list[_Mem0Target]:
-        """Every retained mem0 destination, including pinned and retired versions."""
-        snapshots = await agent_repo.memory_erasure_capabilities(
-            self.db, organization_id=organization_id, agent_id=agent_id
-        )
-        bindings: dict[_Mem0Target, None] = {}
-        for held_id, capabilities in snapshots:
-            for binding in _capabilities({"capabilities": capabilities}):
-                if binding.get("id") == MEMORY_MEM0_CAPABILITY_ID and binding.get("secret_id"):
-                    target = _Mem0Target(
-                        held_id,
-                        UUID(str(binding["secret_id"])),
-                        _mem0_base_url(binding),
-                    )
-                    bindings[target] = None
-        return list(bindings)
-
-    async def _mem0_credentials(
-        self, ctx: AuthContext, targets: list[_Mem0Target]
-    ) -> list[tuple[_Mem0Target, ApiKeySecret]]:
-        if not targets:
-            return []
-        resolved = await self.secrets.resolve_for_bindings(
-            ctx, list(dict.fromkeys(target.secret_id for target in targets))
-        )
-        credentials: list[tuple[_Mem0Target, ApiKeySecret]] = []
-        for target in targets:
-            secret = resolved.get(target.secret_id)
-            if not isinstance(secret, ApiKeySecret):
-                raise ExternalServiceError(
-                    message="External memory could not be erased because its credential is unavailable",
-                    details={"operation": "forget", "agent_id": target.agent_id},
-                )
-            credentials.append((target, secret))
-        return credentials
-
-
-def _capabilities(spec: dict[str, Any]) -> list[dict[str, Any]]:
-    """The capability bindings of a stored spec, tolerant of a shape it does not have."""
-    capabilities = spec.get("capabilities")
-    if not isinstance(capabilities, list):
-        return []
-    return [binding for binding in capabilities if isinstance(binding, dict)]
-
-
-def _mem0_base_url(binding: Mapping[str, object]) -> str | None:
-    """The URL declared by an already selected mem0 binding, if it has one."""
-    config = binding.get("config")
-    if not isinstance(config, dict):
-        return None
-    url = config.get("base_url")
-    return url if isinstance(url, str) else None
+        return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)

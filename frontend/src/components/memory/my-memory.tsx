@@ -4,6 +4,7 @@ import { Brain, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { MyClaims } from "@/components/memory/my-claims";
 import { PAGE_SIZE, useMyMemory } from "@/hooks/use-my-memory";
 import type { MemoryNote } from "@/lib/memory-api";
 import { useFormatter, useTranslations } from "next-intl";
@@ -32,25 +33,23 @@ export function MyMemory() {
   // resolves tells somebody nothing about why (#1594 review).
   if (error || !page) return <ErrorState />;
 
-  if (page.items.length === 0 && page.external_stores.length === 0) {
+  if (page.items.length === 0) {
     return (
-      <EmptyState
-        className="flex-1"
-        icon={Brain}
-        title={t("nothingYet")}
-        description={t("nothingYetWhy")}
-      />
+      <div className="flex flex-1 flex-col space-y-6">
+        <MyClaims />
+        <EmptyState
+          className="flex-1"
+          icon={Brain}
+          title={t("nothingYet")}
+          description={t("nothingYetWhy")}
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {page.external_stores.length > 0 ? (
-        <p className="text-muted-foreground text-xs">
-          {t("externalStores", { agents: page.external_stores.join(", ") })}
-        </p>
-      ) : null}
-
+      <MyClaims />
       {page.items.map((note) => (
         <Card key={note.id} data-tour={note === page.items[0] ? "my-memory" : undefined}>
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b px-5 py-4">

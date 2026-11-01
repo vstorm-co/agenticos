@@ -35,6 +35,8 @@ def tool_needs_approval(*, tool: CapabilityToolInfo, binding: CapabilityBindingS
     Keyed on the tool's stable id rather than the name the model sees, so a
     renamed tool keeps the gate its operator put on it.
     """
+    if tool.always_requires_approval:
+        return True
     for mode in (binding.tool_approval.get(tool.id, "default"), binding.approval):
         if mode != "default":
             return mode == "required"

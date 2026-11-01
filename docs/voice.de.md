@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "dc7308008f49"
+source_sha: "0ff785349ff9"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -164,7 +164,7 @@ Textmodell des Agenten.
 
 | Per Sprache | Capabilities |
 |---|---|
-| Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation, text to speech |
+| Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, planning, tool output limits, image generation, text to speech |
 | Auf dem Bildschirm | ask the user: In `/chat` erscheint die Fragekarte in der Anrufansicht und wird auch vorgelesen; der Anrufer tippt eine Antwort an oder sagt sie. Ein Anruf aus einem Widget oder einer gehosteten Seite bekommt sie nicht |
 | Angepasst | skills: bei Bedarf als Anweisungen geladen, ohne die Tools, mit denen ein Text-Run sie liest |
 | Weggelassen | tool search: Die MCP-Tools, die sie zurückgestellt hätte, werden dem Anruf direkt übergeben |
@@ -215,7 +215,7 @@ folgt darauf.
 Über WebRTC wird der Agent zweimal aufgelöst, einmal, um das Angebot zu
 beantworten, und einmal für die Sideband-Verbindung. MCP-Server werden zweimal
 verbunden und dynamische Anweisungen laufen zweimal, also wird ein
-mem0-Memory-Lookup zweimal bezahlt; beides wird auf dem Run gemessen.
+Memory-Lookup zweimal bezahlt; beides wird auf dem Run gemessen.
 
 ## Freigaben in einem Anruf { #approvals-in-a-call }
 

@@ -11,6 +11,7 @@ else; what a person may do is suppress one, restore it, or delete it.
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
@@ -19,17 +20,10 @@ from app.schemas.base import BaseSchema
 
 
 class MemoryErasureResult(BaseSchema):
-    """What a "forget everything about me" actually removed.
-
-    Two counts rather than one, because the two halves can fail independently: the
-    notes are rows in this database, the mem0 memories are somebody else's service.
-    A caller that reported one number could not tell somebody their notes are gone
-    but their mem0 memories are not - which is the partial wipe this reports rather
-    than hides.
-    """
+    """What a "forget everything about me" actually removed."""
 
     notes_deleted: int
-    mem0_agents_cleared: int
+    claims_deleted: int = 0
 
 
 class MemoryNoteRead(BaseSchema):
@@ -58,17 +52,10 @@ class MemoryNoteRead(BaseSchema):
 
 
 class MemoryNoteList(BaseSchema):
-    """A page of somebody's notes, and what the platform could not include.
-
-    `external_stores` is the honest half. An agent bound to mem0 keeps memories
-    in somebody else's service, and this listing does not reach them: showing a
-    page of native notes while calling it a complete inventory would be worse than
-    saying which stores are outside it (#1594).
-    """
+    """A page of somebody's notes."""
 
     items: list[MemoryNoteRead]
     total: int
-    external_stores: list[str] = Field(default_factory=list)
 
 
 class MemoryNoteUpdate(BaseSchema):
@@ -81,3 +68,48 @@ class MemoryNoteUpdate(BaseSchema):
     """
 
     active: bool
+
+
+class MemoryClaimRead(BaseSchema):
+    """One recorded claim as its subject sees it: what it says, whose it is, where it came from."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+    scope: Literal["profile", "agent"] = "agent"
+    """`profile` serves every agent acting for the person; `agent` is one agent's relationship."""
+
+    subject: str | None = None
+    statement: str
+    kind: str
+    origin: Literal["agent", "person", "consolidation"]
+    status: Literal["current", "disputed", "superseded", "merged", "retracted"]
+    observed_at: datetime
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    supersedes_id: UUID | None = None
+    derived_from_count: int = 0
+
+
+class MemoryClaimList(BaseSchema):
+    items: list[MemoryClaimRead]
+    total: int
+
+
+class MemoryClaimDetail(MemoryClaimRead):
+    """A claim with the claims it was drawn from and the one it replaced."""
+
+    sources: list[MemoryClaimRead] = Field(default_factory=list)
+    withheld: int = 0
+    """Sources the reader may not see; counted so the ancestry is never silently shorter."""
+
+    superseded: MemoryClaimRead | None = None
+
+
+class MemoryClaimCorrect(BaseSchema):
+    """A person's correction: the new statement, and when it began to hold."""
+
+    statement: str = Field(min_length=1, max_length=600)
+    effective_from: datetime | None = None

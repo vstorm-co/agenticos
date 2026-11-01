@@ -233,6 +233,8 @@ class TestThinking:
         assert service.return_value.resolve.await_args.kwargs == {"profile_id": MODEL}
         assert create_run.await_args.kwargs["surface"] == RunSurface.PROACTIVE.value
         assert create_run.await_args.kwargs["user_id"] == USER
+        # Attributed to the platform role that did the work, not left as the starter's.
+        assert create_run.await_args.kwargs["system_role"] == "daily_briefing"
         finished = finish_run.await_args.kwargs
         assert finished["status"] == RunStatus.COMPLETED.value
         # The test model is not priced: recorded as zero and marked partial, not lost.
@@ -1123,3 +1125,86 @@ async def test_terminal_persistence_errors_surface_without_masking_a_provider_bu
         finished.await_args.kwargs["status"]
         == (RunStatus.FAILED if provider_fails else RunStatus.COMPLETED).value
     )
+
+
+def _role_profile(
+    *, enabled: bool = True, model: uuid.UUID | None = MODEL, budget: str | None = None
+) -> MagicMock:
+    return MagicMock(
+        enabled=enabled,
+        model_profile_id=model,
+        monthly_budget_usd=None if budget is None else Decimal(budget),
+    )
+
+
+class TestMemoryMaintenanceAllowance:
+    """The role answers to its own profile and budget, never to a person's limit."""
+
+    @pytest.mark.parametrize(
+        ("organization", "profile", "org_spent", "role_spent", "allowed"),
+        [
+            (None, _role_profile(), "0", "0", False),
+            (_organization(), None, "0", "0", False),
+            (_organization(), _role_profile(enabled=False), "0", "0", False),
+            (_organization(), _role_profile(model=None), "0", "0", False),
+            (_organization(cap="10"), _role_profile(), "10", "0", False),
+            (_organization(), _role_profile(budget="2"), "0", "2", False),
+            (_organization(cap="10"), _role_profile(budget="2"), "9", "1.99", True),
+            (_organization(), _role_profile(), "0", "500", True),
+        ],
+        ids=[
+            "no-organization",
+            "never-provisioned",
+            "switched-off",
+            "no-model-chosen",
+            "organization-cap-reached",
+            "role-budget-reached",
+            "inside-both",
+            "no-budget-of-its-own",
+        ],
+    )
+    async def test_it_runs_only_on_a_chosen_model_inside_both_limits(
+        self, organization, profile, org_spent, role_spent, allowed
+    ):
+        with (
+            patch(
+                f"{THINKER}.organization_repo.get_by_id", new=AsyncMock(return_value=organization)
+            ),
+            patch(f"{THINKER}.system_agent_repo.get", new=AsyncMock(return_value=profile)),
+            patch(
+                f"{THINKER}.organization_monthly_spend",
+                new=AsyncMock(return_value=Decimal(org_spent)),
+            ),
+            patch(
+                f"{THINKER}.agent_run_repo.role_spend_since",
+                new=AsyncMock(return_value=Decimal(role_spent)),
+            ) as spent,
+            patch(f"{THINKER}.agent_run_repo.proactive_spend_since", new=AsyncMock()) as personal,
+        ):
+            allowance = await ProactiveThinker(MagicMock()).allowance(_ctx(), "maintenance")
+
+        assert allowance == (profile.model_profile_id if allowed else None)
+        assert not personal.await_count, "a person's proactivity limit is not this role's"
+        if profile is not None and profile.monthly_budget_usd is not None and organization:
+            assert spent.await_args.kwargs["role"] == "memory_maintenance"
+
+    async def test_its_runs_are_attributed_to_the_role(self):
+        get_slug, limits, version, profiles, create, finish = TestThinking._patches(TestModel())
+        with (
+            get_slug,
+            limits,
+            version,
+            profiles,
+            create as create_run,
+            finish,
+            patch.object(_thinker.run_manifest_repo, "record", new=AsyncMock()),
+        ):
+            await ProactiveThinker(_session()).think(
+                _ctx(),
+                feature="maintenance",
+                output_type=NightlyReading,
+                instructions="Read.",
+                prompt="{}",
+            )
+
+        assert create_run.await_args.kwargs["system_role"] == "memory_maintenance"

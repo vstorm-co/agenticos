@@ -55,6 +55,9 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
+from app.db.models.primary_conversation import PrimaryConversation
+from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableMedia,
@@ -70,6 +73,7 @@ from app.db.models.skill_proposal import ProposalStatus, SkillProposal
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
+from app.db.models.outcome import Outcome, OutcomeStatus
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -229,6 +233,10 @@ __all__ = [
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",
+    "MemoryClaim",
+    "MemoryScopeState",
+    "PrimaryConversation",
+    "SystemAgentProfile",
     "VirtualTable",
     "VirtualTableMedia",
     "VirtualTableOutbox",
@@ -246,6 +254,8 @@ __all__ = [
     "Group",
     "GroupMember",
     "Visibility",
+    "Outcome",
+    "OutcomeStatus",
     "Notification",
     "NotificationChannel",
     "NotificationEventType",

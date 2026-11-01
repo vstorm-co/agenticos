@@ -177,8 +177,7 @@ do not lend it their **identity**. Nobody is listening to an unattended run, so
 it answers to no identified person, the same as an embedded widget visitor. These
 per-person stores are closed to it:
 
-- [Memory](reference/capabilities.md#memory-files) and
-  [mem0](reference/capabilities.md#memory-mem0): every tool answers that the
+- [Memory](reference/capabilities.md#memory-files): every tool answers that the
   conversation has no memory.
 - [Past conversations](reference/capabilities.md#conversation-search): both
   tools refuse.

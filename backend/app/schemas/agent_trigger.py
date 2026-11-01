@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -448,6 +449,31 @@ class TriggerCreate(BaseSchema):
             "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
         ),
     )
+    monthly_budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "What this routine's runs may cost in a calendar month. Once spent its fires are "
+            "skipped - it shows as paused for its budget - and it starts again on the first. "
+            "Narrows the agent's and the organization's limits; never lifts them (#2575)"
+        ),
+    )
+    answer_to: Literal["run_log", "primary", "conversation"] = Field(
+        default="primary",
+        description=(
+            "Where each fire's answer goes to the person, beside the run log that always "
+            "records it: `primary` is their own conversation with this agent, `conversation` "
+            "is one of their chats (`delivery_conversation_id`), `run_log` only the log (#2575)"
+        ),
+    )
+    delivery_conversation_id: UUID | None = Field(
+        default=None,
+        description="With `answer_to` = `conversation`: one of the caller's own chats",
+    )
+    ends_at: datetime | None = Field(
+        default=None,
+        description="A schedule stops by itself at this instant; null runs until stopped (#2575)",
+    )
     runs_as_creator: bool = Field(
         default=False,
         description=(
@@ -601,7 +627,7 @@ class TriggerCreate(BaseSchema):
             raise ValueError("cron_expression is not valid for an event trigger")
 
 
-_UPDATE_NOT_NULLABLE = ("prompt", "is_active", "runs_as_creator", "overlap")
+_UPDATE_NOT_NULLABLE = ("prompt", "is_active", "runs_as_creator", "overlap", "answer_to")
 
 
 class TriggerUpdate(BaseSchema):
@@ -658,6 +684,21 @@ class TriggerUpdate(BaseSchema):
             "Also post each fire's answer to this Teams channel or group chat - one "
             "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
         ),
+    )
+    monthly_budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="This routine's own monthly limit; null removes it",
+    )
+    answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
+        default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
+    )
+    delivery_conversation_id: UUID | None = Field(
+        default=None,
+        description="With `answer_to` = `conversation`: one of the caller's own chats; null clears it",
+    )
+    ends_at: datetime | None = Field(
+        default=None, description="When a schedule stops by itself; null runs until stopped"
     )
     runs_as_creator: bool | None = Field(
         default=None,
@@ -726,6 +767,14 @@ class TriggerRead(BaseSchema, TimestampSchema):
     is_active: bool
     environment_id: UUID | None = None
     teams_conversation_id: UUID | None = None
+    answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
+    delivery_conversation_id: UUID | None = None
+    ends_at: datetime | None = None
+    monthly_budget_usd: Decimal | None = None
+    spent_this_month: Decimal | None = None
+    """What this routine's runs cost this month; set only where `monthly_budget_usd` is."""
+    paused_for_budget: bool = False
+    """Its month's budget is spent, so fires are skipped until the first."""
     runs_as_creator: bool = False
     local_target: LocalTarget | None = None
     trigger_type: Literal["schedule", "event"]

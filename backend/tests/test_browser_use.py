@@ -441,7 +441,7 @@ class TestWhichBrowsersTheOperatorAllows:
     SSRF guard was the wrong answer in both directions: it refused the isolated
     browser service on the deployment's own network that the docs tell an operator
     to run, and it accepted a CDP debugger exposed to the open internet. So the
-    operator names the hosts, as `MEM0_ALLOWED_HOSTS` does.
+    operator names the hosts.
     """
 
     @pytest.fixture(autouse=True)
@@ -517,7 +517,7 @@ class TestWhichBrowsersTheOperatorAllows:
     def test_an_empty_allowlist_refuses_browser_automation_outright(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        # The same default `MEM0_ALLOWED_HOSTS` takes: nothing is allowed until an
+        # Nothing is allowed until an
         # operator says what is.
         monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
         with pytest.raises(UrlRefusedError):

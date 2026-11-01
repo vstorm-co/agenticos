@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "71f0ab393cac"
 ---
 
 # Seguridad { #security }
@@ -138,12 +138,7 @@ agent del que depende el equipo.
 
 !!! warning "Lo que el borrado no alcanza — y lo dice la documentación, no el despliegue al descubrirlo"
 
-    **Un almacén de memoria externo configurado.** `mem0` guarda lo que un agent
-    recordó en el sistema de un tercero, y este despliegue solo puede pedir que
-    lo olvide mientras tenga la credencial de la organización.
-    `MemoryService.forget_person` lo hace para una persona que sigue siendo
-    miembro; las notas de una cuenta borrada en un almacén externo son del
-    operador.
+    **Recuerdos en una integración de mem0 eliminada.** Un despliegue que usaba mem0 (eliminado en #2090) sigue teniendo esos recuerdos en el servicio mem0. La actualización quitó los vínculos y las credenciales que llegaban a él, así que olvidar a una persona o vaciar un agent aquí ya no los toca; bórralos en el propio mem0.
 
     **Las copias de seguridad.** Un borrado quita filas de la base de datos viva.
     El calendario de copias que ejecute un despliegue las conserva hasta su

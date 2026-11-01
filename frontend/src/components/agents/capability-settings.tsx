@@ -546,7 +546,7 @@ interface SecretFieldProps {
 }
 
 /**
- * What the key chosen here would be for - "tavily", "mem0" - or null when
+ * What the key chosen here would be for - "tavily", "llamaparse" - or null when
  * nothing says.
  *
  * Where `purposesOf` has no mapping to read, it is the one service the slot
@@ -557,7 +557,7 @@ interface SecretFieldProps {
  * has the answer. A capability with one service needs its key unconditionally, so
  * there is no condition to read and the requirement names the service outright.
  *
- * Reading only the condition is what left the mem0 picker offering every API key
+ * Reading only the condition is what left the picker offering every API key
  * in the vault, and storing an inline-created one as `custom` (#1470).
  */
 function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequirement): string | null {
@@ -853,7 +853,7 @@ function signInFor(binding: CapabilityBindingSpec): "chatgpt" | "claudeToken" | 
  * What a key added through the inline form is stored as.
  *
  * The one API-key service this slot narrows to: web search's chosen method,
- * mem0's own service, or Codex's `openai` - its other purpose is the ChatGPT
+ * LlamaParse's own service, or Codex's `openai` - its other purpose is the ChatGPT
  * sign-in, a kind of its own that this form does not make. Stored as `custom`,
  * a Codex key was offered to Claude Code after a harness switch and published,
  * to fail at run time (#2485). Claude Code's key stays `custom`: it may be a

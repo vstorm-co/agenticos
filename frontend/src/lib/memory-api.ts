@@ -30,12 +30,6 @@ export interface MemoryNote {
 export interface MemoryPage {
   items: MemoryNote[];
   total: number;
-  /**
-   * Agents whose memories live in somebody else's service (mem0) and are not in
-   * `items`. Named rather than left out: a page of native notes presented as a
-   * complete inventory would be worse than saying what it misses.
-   */
-  external_stores: string[];
 }
 
 const ROOT = "/memory";
@@ -67,4 +61,55 @@ export async function getPersonMemory(
   });
   if (reason) query.set("reason", reason);
   return apiClient.get<MemoryPage>(`${ROOT}/person/${userId}?${query}`);
+}
+
+export type ClaimStatus = "current" | "disputed" | "superseded" | "merged" | "retracted";
+
+/** One recorded fact, preference or decision, with where it came from. */
+export interface MemoryClaim {
+  id: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  /** `profile` serves every agent acting for the person; `agent` is one agent's relationship. */
+  scope: "profile" | "agent";
+  subject: string | null;
+  statement: string;
+  kind: string;
+  origin: "agent" | "person" | "consolidation";
+  status: ClaimStatus;
+  observed_at: string;
+  effective_from: string | null;
+  effective_to: string | null;
+  supersedes_id: string | null;
+  derived_from_count: number;
+}
+
+export interface MemoryClaimPage {
+  items: MemoryClaim[];
+  total: number;
+}
+
+export const CLAIMS_PAGE_SIZE = 100;
+
+export async function getMyClaims(history: boolean, skip = 0): Promise<MemoryClaimPage> {
+  return apiClient.get<MemoryClaimPage>(
+    `${ROOT}/claims/mine?limit=${CLAIMS_PAGE_SIZE}&skip=${skip}&history=${history}`,
+  );
+}
+
+/** Replace a claim with the person's own words; the old one stays in the history. */
+export async function correctClaim(
+  id: string,
+  statement: string,
+  effectiveFrom: string | null,
+): Promise<MemoryClaim> {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
+    statement,
+    effective_from: effectiveFrom,
+  });
+}
+
+/** Take a claim out of use. It and everything it came from stay in the history. */
+export async function retractClaim(id: string): Promise<MemoryClaim> {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/retract`, {});
 }

@@ -926,6 +926,13 @@ async def archive_conversation(
     return db_conversation
 
 
+async def get_owner(db: AsyncSession, conversation_id: UUID | None) -> UUID | None:
+    """Whose conversation this is, or `None` for one with no owner or none at all."""
+    if conversation_id is None:
+        return None
+    return await db.scalar(select(Conversation.user_id).where(Conversation.id == conversation_id))
+
+
 async def delete_conversation(db: AsyncSession, *, db_conversation: Conversation) -> None:
     """Delete a conversation and all related messages/tool_calls (cascades)."""
     await db.delete(db_conversation)

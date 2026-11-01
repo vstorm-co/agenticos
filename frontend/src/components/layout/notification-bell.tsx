@@ -17,6 +17,7 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui";
+import { OutcomeActions } from "@/components/chat/outcome-cards";
 import { NotificationGlyph } from "@/components/layout/notification-glyph";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
@@ -374,6 +375,9 @@ function NotificationRow({
     // outer click in whichever direction the browser resolves it.
     <li className="group relative">
       {body}
+      {item.outcome_id && (
+        <OutcomeActions id={item.outcome_id} via="inbox" className="px-3 pb-3 pl-14" />
+      )}
       <button
         type="button"
         onClick={() => void onDismiss(item.id).catch(() => {})}

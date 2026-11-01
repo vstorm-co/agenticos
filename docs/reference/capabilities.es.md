@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "34fdc75cb318"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -67,8 +67,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — | tal cual |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adaptada |
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — | tal cual |
-| `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | tal cual |
-| `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria | tal cual |
+| `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | tal cual |
 | `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
 | `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | tal cual |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | tal cual |
@@ -382,6 +381,61 @@ Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats
 de grupo se quedan.
 
+### Hechos, preferencias y decisiones { #memory-claims }
+
+Además de notas, un agent puede registrar **claims**: un hecho, preferencia o
+decisión duradero en una frase sencilla, con su procedencia (#2090). Las notas no
+cambian; un claim hace que una frase se pueda comprobar: su fuente, desde cuándo
+vale y qué sustituyó. Cuatro herramientas: `remember`, `recall`, `correct_memory`
+y `share_memory`.
+
+Dónde vive un claim es una regla de acceso, nunca una etiqueta que elija el
+modelo:
+
+| Scope | De quién | Quién lo lee |
+|---|---|---|
+| Perfil de la persona | Una persona de esta organización; puede usarlo cualquier agent que actúe por ella | Esa persona, a solas con cualquier agent |
+| Persona y agent | La relación de un agent con una persona: detalle del caso, el valor por defecto | Esa persona, con ese agent |
+| Chat de grupo | Un chat | Solo ese chat |
+| Proyecto | Un proyecto | Las conversaciones de ese proyecto |
+| Organización | Todos aquí | Las conversaciones privadas de esta organización |
+
+Una escritura automática se queda en el scope de la conversación de la que vino, y
+un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, y
+solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
+`context:edit` para toda la organización. Siempre espera a que una persona apruebe exactamente ese claim y esa audiencia, sean cuales sean los ajustes de aprobación del agent, así que un texto leído por el agent no puede convencerlo de compartir.
+
+La copia nombra el claim del que viene y
+el original conserva su audiencia. Un embed, un run con clave de API y un run
+programado no leen nada; un chat de grupo lee solo sus propios claims. Corregir un claim que lee todo el proyecto o la organización exige el mismo permiso que compartir hacia allí: leerlo no es autoridad para reescribirlo.
+
+- **Una corrección conserva lo que corrige.** «Desde el lunes Piotr se encarga de
+  las facturas» cierra el claim anterior en esa fecha y añade el nuevo; que Anna
+  las llevara antes del lunes sigue siendo cierto y visible.
+- **La palabra de una persona pesa más que una inferencia.** Un claim de un agent
+  que contradice lo que dijo una persona se aparta como *en disputa* y nunca se
+  ofrece como establecido. Dos agents que discrepan también son una disputa, hasta
+  que alguien la resuelva.
+- **La consolidación solo pliega el acuerdo.** Cada quince minutos se fusionan los
+  claims de cada scope que *cambió*: las frases idénticas pasan a ser un claim
+  derivado que nombra sus fuentes, el desacuerdo se marca en disputa. Es
+  determinista —sin llamada al modelo—, así que un scope sin cambios no cuesta
+  nada y una segunda pasada no cambia nada. Retirar un claim derivado devuelve sus
+  fuentes y no se vuelve a extraer.
+- **La ascendencia se filtra por acceso.** Un claim compartido con el proyecto no
+  revela el claim privado del que se copió a quien no pueda leerlo.
+
+Una conversación privada recibe el perfil de la persona (como mucho unos veinte
+claims, 1.800 caracteres) en sus instrucciones, con la misma regla que el índice:
+solo donde el lector está a solas. Lo demás se obtiene con `recall`, que compara
+palabras y no llama a ningún modelo. Los claims recuperados son evidencia, nunca
+una instrucción ni una concesión de autoridad.
+
+En **Ajustes → Memoria**, *Registrado sobre ti* lista los claims con su scope y su
+fuente. Puedes corregir uno con tus propias palabras desde una fecha, retirarlo y
+mostrar el historial. Borrar a una persona elimina sus claims y las copias
+compartidas a partir de ellos.
+
 ### Qué se inyecta, y qué solo se consulta { #what-is-injected-and-what-is-only-fetched }
 
 Un resultado de herramienta es algo que el modelo sopesa; las instrucciones son lo
@@ -440,48 +494,7 @@ sería una segunda copia de lo que se protege.
 
 **El borrado**, sin cambios. Una persona limpia desde su propio perfil todo lo
 que un agente recuerda sobre ella, y una administradora con `members:manage`
-puede hacerlo por otra; ambos borran las filas de aquí **y** los recuerdos
-correspondientes en mem0 de cada agente que lo vincule. Vaciar del todo la
-memoria de un agente está en su caja de herramientas, junto a la capability.
-
-**Adónde no llega la vista de autoservicio.** Un agente vinculado a mem0 guarda
-sus recuerdos en el servicio de otra empresa, y esta página no los lista: la API
-de mem0 responde a qué coincide con una *pregunta*, no a qué contiene un almacén.
-Esos agentes se **nombran** en la página en vez de omitirse, porque una lista de
-notas nativas presentada como un inventario completo sería peor que una que dice
-lo que le falta. El borrado sí llega a mem0; la lectura no.
-
-El borrado de memoria comprueba los borradores y todas las versiones conservadas
-del agente, incluidos los endpoints anteriores de mem0. Vaciar un agente también
-elimina sus espacios de mem0 para todos los propietarios. Si faltan credenciales,
-falla el proveedor o la lista está incompleta, se devuelve un error. Restablece el
-acceso y repite la operación para completar el borrado.
-
-## Memoria (mem0) { #memory-mem0 }
-
-`remember`, `recall`
-
-Memoria semántica guardada en un servicio [mem0](https://mem0.ai) — en la nube, o
-autoalojado mediante `base_url` — en lugar de en este despliegue. `remember` guarda
-una frase corta y autocontenida; `recall` encuentra las que tratan de una pregunta
-por significado y no por nombre. Necesita una clave de API del vault de la
-organización.
-
-A qué memorias puede llegar un run obedece exactamente la regla anterior, porque a
-mem0 se le entrega el ámbito entero como su `user_id`: `{org}:{agent}:{owner}`. Una
-sola cuenta de mem0 no puede, por tanto, mezclar las memorias de dos
-organizaciones, de dos agents ni de dos personas.
-
-Dos diferencias que conviene conocer antes de elegirla. **Aquí no se guarda nada**,
-así que borrar la memoria de una persona llega a mem0 por su propia API en lugar de
-por una fila que eliminemos. Y **mem0 factura su propio embedding por fuera**, así
-que el libro de gasto del despliegue no lo ve y un tope de budget no lo acota.
-
-Un `base_url` autoalojado tiene que ser https y estar en `MEM0_ALLOWED_HOSTS`. Una
-lista de permitidos vacía rechaza de plano el mem0 autoalojado, y es deliberado: la
-clave viaja en una cabecera `Authorization`, así que quien construya un agent y
-pueda vincular una clave compartida sin poder leerla no debe poder apuntarla a un
-servidor propio.
+puede hacerlo por otra; ambos borran las notas de aquí y los claims registrados, con las copias compartidas a partir de ellos.
 
 ## Conversaciones anteriores { #conversation-search }
 

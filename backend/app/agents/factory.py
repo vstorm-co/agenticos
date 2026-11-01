@@ -71,7 +71,6 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
-from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
@@ -112,7 +111,6 @@ _AUDIENCE_AWARE = frozenset(
         ARTIFACTS_CAPABILITY_ID,
         BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
-        MEMORY_MEM0_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
     }
 )

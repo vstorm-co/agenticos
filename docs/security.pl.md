@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "71f0ab393cac"
 ---
 
 # Bezpieczeństwo { #security }
@@ -133,11 +133,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 
 !!! warning "Czego usunięcie nie dosięga — i mówią to dokumenty, a nie wdrożenie po fakcie"
 
-    **Skonfigurowany zewnętrzny magazyn pamięci.** `mem0` trzyma to, co agent
-    zapamiętał, w cudzym systemie, a to wdrożenie może poprosić o zapomnienie
-    tylko dopóki ma poświadczenie organizacji. `MemoryService.forget_person`
-    robi to dla osoby, która wciąż jest członkiem; notatki usuniętego konta
-    w zewnętrznym magazynie należą do operatora.
+    **Wspomnienia w usuniętej integracji mem0.** Wdrożenie, które używało mem0 (usuniętego w #2090), nadal ma te wspomnienia w usłudze mem0. Aktualizacja usunęła powiązania i poświadczenia, które do niej docierały, więc zapomnienie osoby lub wyczyszczenie agenta tutaj już ich nie dotyka; usuń je w samym mem0.
 
     **Kopie zapasowe.** Usunięcie kasuje wiersze z żywej bazy. Harmonogram kopii,
     który uruchamia wdrożenie, trzyma je do swojej rotacji i żadne usunięcie na

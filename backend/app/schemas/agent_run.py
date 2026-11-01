@@ -29,6 +29,14 @@ class AgentRunRead(BaseSchema):
     agent_version_id: UUID | None = None
     user_id: UUID | None = None
     surface: str
+    system_role: str | None = Field(
+        default=None,
+        description=(
+            "The platform role that did this run when no agent's instructions ran - "
+            "`daily_briefing` or `memory_maintenance` (#2575). The run is recorded under the "
+            "starter agent so it has a row, a cost and a trace; this says whose work it was"
+        ),
+    )
     is_test: bool = Field(
         default=False, description="Started from the Builder's test panel (#2074)"
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa1c09d5f47"
+source_sha: "5141fd725ab4"
 ---
 
 # Glosario { #glossary }
@@ -83,7 +83,6 @@ se describe en [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
-| Memory (mem0) | `memory_mem0` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Sandbox | `sandbox` |

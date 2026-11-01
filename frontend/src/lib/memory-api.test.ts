@@ -1,19 +1,54 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteNote, getMyMemory, getPersonMemory, setNoteActive } from "./memory-api";
+import {
+  correctClaim,
+  deleteNote,
+  getMyClaims,
+  getMyMemory,
+  getPersonMemory,
+  retractClaim,
+  setNoteActive,
+} from "./memory-api";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), patch: vi.fn(), delete: vi.fn(), post: vi.fn() },
 }));
 
-const PAGE = { items: [], total: 0, external_stores: [] };
+const PAGE = { items: [], total: 0 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue(PAGE);
   vi.mocked(apiClient.patch).mockResolvedValue({ id: "n-1" });
   vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+});
+
+describe("the claims API", () => {
+  it("reads the live claims, or the history too", async () => {
+    await getMyClaims(false);
+    await getMyClaims(true, 100);
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=0&history=false",
+    );
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=100&history=true",
+    );
+  });
+
+  it("posts a correction with its effective date, and a retraction with nothing", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "c-1" });
+
+    await correctClaim("c-1", "New", "2026-11-03T00:00:00Z");
+    await retractClaim("c-1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/memory/claims/mine/c-1/correct", {
+      statement: "New",
+      effective_from: "2026-11-03T00:00:00Z",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/memory/claims/mine/c-1/retract", {});
+  });
 });
 
 describe("the memory API", () => {

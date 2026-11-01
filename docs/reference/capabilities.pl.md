@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "34fdc75cb318"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -67,8 +67,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — | bez zmian |
 | `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — | dostosowana |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — | bez zmian |
-| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | bez zmian |
-| `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany | bez zmian |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | bez zmian |
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
 | `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | bez zmian |
 | `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | bez zmian |
@@ -376,6 +375,61 @@ Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całośc
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych
 zostają.
 
+### Fakty, preferencje i decyzje { #memory-claims }
+
+Obok notatek agent może zapisywać **claimy**: jeden trwały fakt, preferencję lub
+decyzję w jednym prostym zdaniu, razem ze źródłem (#2090). Notatki się nie
+zmieniają; claim sprawia, że zdanie można sprawdzić — jego źródło, od kiedy
+obowiązuje i co zastąpiło. Cztery narzędzia: `remember`, `recall`,
+`correct_memory` i `share_memory`.
+
+Gdzie claim żyje, to reguła dostępu, nigdy etykieta wybierana przez model:
+
+| Zakres | Czyj | Kto go czyta |
+|---|---|---|
+| Profil osoby | Jedna osoba w tej organizacji; może go używać każdy agent działający dla niej | Ta osoba, sam na sam z dowolnym agentem |
+| Osoba i agent | Relacja jednego agenta z jedną osobą — szczegóły sprawy, domyślnie | Ta osoba, z tym agentem |
+| Czat grupowy | Jeden czat | Tylko ten czat |
+| Projekt | Jeden projekt | Rozmowy w tym projekcie |
+| Organizacja | Wszyscy tutaj | Prywatne rozmowy w tej organizacji |
+
+Zapis automatyczny zostaje w zakresie rozmowy, z której pochodzi, a czat grupowy
+nigdy nie zapisuje profilu. Tylko `share_memory` poszerza claim, i to tylko na
+polecenie osoby, która może: `projects:edit` w projekcie albo `context:edit` dla
+całej organizacji. Zawsze czeka, aż osoba zatwierdzi dokładnie ten claim i odbiorców, niezależnie od ustawień zatwierdzeń agenta, więc tekst przeczytany przez agenta nie może go skłonić do udostępnienia.
+
+Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
+swoich odbiorców. Embed, run z kluczem API i run z harmonogramu nie czytają
+niczego; czat grupowy czyta tylko własne claimy. Poprawienie claimu, który czyta cały projekt lub organizacja, wymaga tego samego uprawnienia co udostępnienie do niego: odczyt nie jest uprawnieniem do przepisywania.
+
+- **Poprawka zachowuje to, co poprawia.** „Od poniedziałku Piotr przejmuje
+  faktury” zamyka wcześniejszy claim w tej dacie i dodaje nowy; to, że Anna
+  obsługiwała je przed poniedziałkiem, pozostaje prawdą i jest widoczne.
+- **Słowo osoby ma pierwszeństwo przed wnioskiem.** Claim agenta sprzeczny z tym,
+  co powiedziała osoba, jest odkładany jako *sporny* i nigdy nie jest podawany
+  jako ustalony. Dwóch agentów, którzy się nie zgadzają, to też spór, dopóki ktoś
+  go nie rozstrzygnie.
+- **Konsolidacja scala tylko zgodność.** Co piętnaście minut claimy każdego
+  zakresu, który *się zmienił*, są scalane: identyczne zdania stają się jednym
+  claimem pochodnym ze wskazanymi źródłami, niezgodność jest oznaczana jako
+  spór. Jest deterministyczna — bez wywołania modelu — więc niezmieniony zakres
+  nic nie kosztuje, a drugi przebieg niczego nie zmienia. Wycofanie claimu
+  pochodnego zwraca jego źródła i nie jest on wyciągany ponownie.
+- **Pochodzenie jest filtrowane dostępem.** Claim udostępniony projektowi nie
+  ujawnia prywatnego claimu, z którego go skopiowano, nikomu, kto nie może go
+  czytać.
+
+Rozmowa prywatna dostaje w instrukcjach profil osoby (najwyżej około dwudziestu
+claimów, 1800 znaków), według tej samej reguły co indeks: tylko tam, gdzie
+czytelnik jest sam. Resztę pobiera się przez `recall`, który dopasowuje słowa i
+nie wywołuje modelu. Przywołane claimy są dowodem, nigdy poleceniem ani
+przyznaniem uprawnień.
+
+W **Ustawienia → Pamięć** sekcja *Zapisane o Tobie* pokazuje claimy z zakresem i
+źródłem. Możesz poprawić claim własnymi słowami od wybranej daty, wycofać go i
+pokazać historię. Wymazanie osoby usuwa jej claimy i kopie z nich udostępnione
+dalej.
+
 ### Co jest wstrzykiwane, a co tylko pobierane { #what-is-injected-and-what-is-only-fetched }
 
 Wynik narzędzia to coś, co model waży; instrukcje to coś, czego słucha. Dlatego
@@ -432,46 +486,8 @@ patrzył, byłby drugą kopią tego, co jest chronione.
 
 **Wymazywanie**, bez zmian. Osoba czyści ze swojego profilu wszystko, co agent o
 niej pamięta, a administrator z `members:manage` może to zrobić za kogoś innego;
-oba usuwają wiersze tutaj **i** odpowiadające wspomnienia w mem0 dla każdego
-agenta, który je wiąże. Wyczyszczenie pamięci jednego agenta w całości jest w
+oba usuwają notatki tutaj i zapisane claimy, razem z kopiami z nich udostępnionymi dalej.
 jego przyborniku, obok capability.
-
-**Czego samoobsługowy widok nie sięga.** Agent związany z mem0 trzyma wspomnienia
-w cudzej usłudze i ta strona ich nie listuje — API mem0 odpowiada, co pasuje do
-*pytania*, a nie co magazyn trzyma. Tacy agenci są na stronie **nazwani**, a nie
-pominięci, bo lista notatek natywnych podana jako pełny inwentarz byłaby gorsza
-niż taka, która mówi, czego jej brakuje. Wymazywanie sięga mem0; czytanie nie.
-
-Wymazywanie pamięci sprawdza szkice i wszystkie zachowane wersje agenta, także
-dawne endpointy mem0. Czyszczenie agenta usuwa również przestrzenie mem0 wszystkich
-jego właścicieli. Brak poświadczenia, błąd dostawcy lub niepełna lista przestrzeni
-zwraca błąd; przywróć dostęp i ponów operację, aby dokończyć wymazywanie.
-
-## Pamięć (mem0) { #memory-mem0 }
-
-`remember`, `recall`
-
-Pamięć semantyczna trzymana w usłudze [mem0](https://mem0.ai) — w chmurze albo
-self-hosted przez `base_url` — a nie w tym deploymencie. `remember` zapisuje
-krótkie, samodzielne zdanie; `recall` znajduje te, których dotyczy pytanie, po
-znaczeniu, a nie po nazwie. Wymaga klucza API z vaulta organizacji.
-
-To, do których wspomnień sięga run, podlega dokładnie regule powyżej, bo mem0
-dostaje cały zakres jako swoje `user_id`: `{org}:{agent}:{owner}`. Jedno konto
-mem0 nie jest więc w stanie pomieszać wspomnień dwóch organizacji, dwóch agentów
-ani dwóch osób.
-
-Dwie różnice warte poznania przed wyborem. **Nic nie jest przechowywane tutaj**,
-więc wymazanie pamięci danej osoby sięga do mem0 przez jego własne API, a nie
-przez wiersz, który kasujemy. Oraz: **mem0 rozlicza własne embeddingi poza
-kanałem**, więc rejestr wydatków deploymentu ich nie widzi, a limit budżetu ich
-nie ogranicza.
-
-Self-hostowany `base_url` musi być https i musi znajdować się na
-`MEM0_ALLOWED_HOSTS`. Pusta lista dozwolonych hostów odrzuca self-hostowane mem0
-w całości i jest to celowe: klucz podróżuje w nagłówku `Authorization`, więc
-twórca, który może wiązać współdzielony klucz, ale nie może go odczytać, nie może
-mieć możliwości skierowania go na własny serwer.
 
 ## Poprzednie rozmowy { #conversation-search }
 

@@ -29,6 +29,7 @@ import {
   OrgAssistant,
   OrgPublicLiveData,
   OrgProactivity,
+  OrgSystemAgents,
   OrgSpendingLimit,
   OrgVoiceSettings,
 } from "@/components/teams";
@@ -673,6 +674,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           className="space-y-6 data-[state=inactive]:hidden"
         >
           {org && <OrgProactivity org={org} />}
+          {org && <OrgSystemAgents org={org} />}
         </TabsContent>
         <TabsContent
           value="voice"

@@ -63,6 +63,16 @@ export interface Trigger {
   environment_id: string | null;
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
+  /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
+  answer_to?: TriggerAnswerTo;
+  /** When the routine stops by itself; null runs until stopped (#2575). */
+  ends_at?: string | null;
+  /** What this routine's runs may cost a month, or null for no limit of its own (#2575). */
+  monthly_budget_usd?: number | string | null;
+  /** What its runs cost this month; present only with a limit. */
+  spent_this_month?: number | string | null;
+  /** Its month's limit is spent, so fires are skipped until the first. */
+  paused_for_budget?: boolean;
   /**
    * Whether a fire acts as the person who made it - their memory and their own
    * MCP connections (#2027). Only they may turn it on.
@@ -124,6 +134,9 @@ export interface TriggerList {
  * `event_config` and `event_secret`. The secret is sent once, on create, and never
  * returned - the server seals it and only its ciphertext is stored.
  */
+/** Where a fire's answer is delivered to its person: their own chat with the agent, one chosen chat, or only the log. */
+export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
+
 export interface TriggerCreate {
   prompt: string;
   /** An optional title; omit to list the trigger by its agent's name. */
@@ -131,6 +144,9 @@ export interface TriggerCreate {
   trigger_type: TriggerType;
   environment_id?: string | null;
   teams_conversation_id?: string | null;
+  answer_to?: TriggerAnswerTo;
+  ends_at?: string | null;
+  monthly_budget_usd?: number | null;
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   schedule_kind?: ScheduleKind;
@@ -190,6 +206,9 @@ export interface TriggerUpdate {
   is_active?: boolean;
   environment_id?: string | null;
   teams_conversation_id?: string | null;
+  answer_to?: TriggerAnswerTo;
+  ends_at?: string | null;
+  monthly_budget_usd?: number | null;
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;

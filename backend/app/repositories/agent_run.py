@@ -67,9 +67,11 @@ async def create_run(
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
     key_scopes: list[str] | None = None,
+    system_role: str | None = None,
 ) -> AgentRun:
     run = AgentRun(
         key_scopes=key_scopes,
+        system_role=system_role,
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
@@ -677,10 +679,68 @@ async def proactive_spend_since(
             AgentRun.organization_id == organization_id,
             AgentRun.user_id == user_id,
             AgentRun.surface == RunSurface.PROACTIVE.value,
+            _in_proactivity_limit(),
             AgentRun.started_at >= since,
         )
     )
     return Decimal(result.scalar_one())
+
+
+def _in_proactivity_limit() -> Any:
+    """Background runs that count toward a person's proactivity limit.
+
+    A platform role such as memory maintenance has a budget of its own and is not
+    something the person's limit should be spent on, so only unattributed runs and
+    the daily briefing count here.
+    """
+    return or_(AgentRun.system_role.is_(None), AgentRun.system_role == "daily_briefing")
+
+
+async def role_spend_since(
+    db: AsyncSession, *, organization_id: UUID, role: str, since: datetime
+) -> Decimal:
+    """What one system role spent in this organization since `since`."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.system_role == role,
+            AgentRun.started_at >= since,
+        )
+    )
+    return Decimal(result.scalar_one())
+
+
+async def spend_by_trigger_since(
+    db: AsyncSession, *, trigger_ids: Sequence[UUID], since: datetime
+) -> dict[UUID, Decimal]:
+    """What the runs each of these triggers started have cost since `since`.
+
+    A trigger with no run in the window is absent rather than zero, so a caller asking
+    about many reads one grouped row per spender and defaults the rest itself.
+    """
+    if not trigger_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.trigger_id, func.coalesce(func.sum(AgentRun.cost_usd), 0))
+        .where(AgentRun.trigger_id.in_(list(trigger_ids)), AgentRun.started_at >= since)
+        .group_by(AgentRun.trigger_id)
+    )
+    return {
+        trigger_id: Decimal(total) for trigger_id, total in result.all() if trigger_id is not None
+    }
+
+
+async def recent_role_runs(
+    db: AsyncSession, *, organization_id: UUID, role: str, limit: int
+) -> list[AgentRun]:
+    """A system role's latest executions, newest first - its history in settings."""
+    result = await db.execute(
+        select(AgentRun)
+        .where(AgentRun.organization_id == organization_id, AgentRun.system_role == role)
+        .order_by(AgentRun.started_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
 
 
 async def last_proactive_run_at(
@@ -692,6 +752,7 @@ async def last_proactive_run_at(
             AgentRun.organization_id == organization_id,
             AgentRun.user_id == user_id,
             AgentRun.surface == RunSurface.PROACTIVE.value,
+            _in_proactivity_limit(),
         )
     )
     return result.scalar_one_or_none()

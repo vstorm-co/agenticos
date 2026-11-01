@@ -1911,7 +1911,14 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
 
 
 _CHANNEL_SURFACES = frozenset(
-    {RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST, RunSurface.TEAMS}
+    {
+        RunSurface.SLACK,
+        RunSurface.TELEGRAM,
+        RunSurface.MATTERMOST,
+        RunSurface.TEAMS,
+        RunSurface.SMS,
+        RunSurface.EMAIL,
+    }
 )
 
 _INTERRUPTED = frozenset(
@@ -5306,6 +5313,7 @@ class AgentRunnerService:
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
         await self._record_manifest(prepared)
+        await self._queue_memory_extraction(finished, prepared)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would
         # replace the failure itself, and the operator would debug the mail
@@ -5322,6 +5330,20 @@ class AgentRunnerService:
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
         return finished
+
+    async def _queue_memory_extraction(self, run: AgentRun, prepared: PreparedRun) -> None:
+        """Queue the read of a finished chat for what is worth remembering (#2090).
+
+        Guarded for the reason `_notify` is: this runs from a `finally` block, and a
+        failure to queue background work must not replace the run's own outcome.
+        """
+        try:
+            from app.services.memory.extraction import queue_extraction
+
+            async with self.db.begin_nested():
+                await queue_extraction(self.db, run, prepared.spec.model_dump(mode="json"))
+        except Exception:
+            logger.exception("memory_extraction_queue_failed", extra={"run_id": str(run.id)})
 
     async def _record_manifest(self, prepared: PreparedRun) -> None:
         """Store what this run handed its model.

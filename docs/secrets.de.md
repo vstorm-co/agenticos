@@ -1,5 +1,5 @@
 ---
-source_sha: "49565e4aa998"
+source_sha: "39e138114dc1"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -232,7 +232,7 @@ Schlüssel lässt den Agent keine Anrufe annehmen, bis ein anderer gewählt ist.
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API
 Key"; die `secret_id` eines Bindings sagt, welchen. Wo das Binding den Dienst
 nennt, für den der Key ist - den gewählten Provider oder den einen Dienst der
-Capability, etwa mem0 -, lehnt das Veröffentlichen einen Key ab, der für einen
+Capability, etwa LlamaParse -, lehnt das Veröffentlichen einen Key ab, der für einen
 anderen Dienst gespeichert ist, weil er bei jedem Aufruf an den falschen Provider
 ginge. Ein `custom`-Key, und das ist jeder vor den Zwecken gespeicherte Key, wird
 angenommen. Siehe
@@ -287,7 +287,6 @@ Organisation ihren eigenen Key mitbringen darf:
 | Exa | `web_research` |
 | Logfire | [Observability](reference/spec.md#observability) pro Agent — Traces in ein eigenes Projekt |
 | LlamaParse | PDF-Parsing, abgerechnet auf den eigenen Key der Organisation |
-| mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — die ganze Capability, die die semantischen Erinnerungen eines Agents in einem mem0-Dienst hält (Cloud oder selbst gehostet) statt hier. In diesem Deployment wird nichts gespeichert, also rechnet mem0 sein eigenes Embedding außerhalb ab, und Erinnerungen in die Cloud von mem0 zu senden ist eine Entscheidung über Datenresidenz, die der Builder benennt. Eine selbst gehostete `base_url` muss https sein und auf der Erlaubnisliste `MEM0_ALLOWED_HOSTS` stehen, sodass der Vault-Key nie an einen vom Agent kontrollierten Origin gesendet wird. Für diese Erinnerungen gibt es keine Betreiberkonsole: mem0 hat seinen eigenen Speicher, seine eigene Auflistung und sein eigenes Löschen. |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — Sprache in den Stimmen des ElevenLabs-Kontos der Organisation |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — die Seedance-Videomodelle von ByteDance |
 

@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -35,7 +35,7 @@ from app.repositories import (
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
-from app.services.channels import get_adapter, membership
+from app.services.channels import get_adapter, membership, sms_prompts
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
@@ -71,6 +71,7 @@ from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
 from app.services.ml import measure_audio_seconds
+from app.services.primary_conversation import PrimaryConversationService
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -1636,9 +1637,29 @@ class ChannelMessageRouter:
             platform_display_name=incoming.platform_display_name,
             user_id=None,
         )
+        if identity.user_id is not None and self._sms_link_lapsed(incoming.platform, identity):
+            # Dropped rather than refused: the person is asked to link again like any
+            # unlinked sender, and a sender who still holds the number can.
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
+            )
         if identity.user_id is None:
             await self._link_vouched(incoming, bot, db, identity)
         return identity
+
+    @staticmethod
+    def _sms_link_lapsed(platform: str, identity: ChannelIdentity) -> bool:
+        """Whether this phone number was linked longer ago than the deployment trusts it.
+
+        A number is not the person: it can be reassigned or taken over, and a valid Twilio
+        signature authenticates Twilio, not continued ownership. So an SMS link expires
+        (`SMS_LINK_MAX_AGE_DAYS`) and is made again by the person.
+        """
+        limit = settings.SMS_LINK_MAX_AGE_DAYS
+        if platform != "sms" or limit <= 0:
+            return False
+        linked = identity.updated_at or identity.created_at
+        return linked is not None and datetime.now(UTC) - linked > timedelta(days=limit)
 
     async def _link_vouched(
         self,
@@ -1687,28 +1708,82 @@ class ChannelMessageRouter:
             db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
         )
         if not session:
-            # The conversation belongs to the organization that owns the bot -
-            # not to the linked user's personal org. A Slack channel is the
-            # tenant's workspace, and whoever happens to speak in it does not
-            # move the conversation into their own org.
-            conv = await conversation_repo.create_conversation(
-                db,
-                title=f"{incoming.platform.capitalize()} Chat",
-                user_id=identity.user_id,
-                organization_id=bot.organization_id,
-            )
             session = await channel_session_repo.create(
                 db,
                 bot_id=bot.id,
                 identity_id=identity.id,
                 platform_chat_id=incoming.platform_chat_id,
-                conversation_id=conv.id,
+                conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
+            )
+        elif await self._owner_changed(session, incoming, identity, db):
+            # The number was linked to somebody else: what the old holder said, and above
+            # all the web conversation a private chat now continues, is not the new
+            # holder's. A fresh start, and whatever was waiting on an answer goes with it.
+            await sms_prompts.forget(
+                str(bot.id), incoming.platform_chat_id, platform=incoming.platform
+            )
+            session = await channel_session_repo.update(
+                db,
+                db_session=session,
+                update_data={
+                    "identity_id": identity.id,
+                    "conversation_id": await self._first_conversation(incoming, bot, identity, db),
+                },
             )
         # Records that this chat had a turn, which is what "report usage every n
         # messages" counts. Here rather than after the answer, because a turn that
         # failed still happened - a counter that only advanced on success would
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
+
+    @staticmethod
+    async def _owner_changed(
+        session: ChannelSession,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+    ) -> bool:
+        """Whether this private chat's conversation belongs to somebody other than who is now linked.
+
+        A phone number can be re-linked to another member; the chat's session is keyed on
+        the number, so it would otherwise carry the previous holder's history into the new
+        holder's runs. Only a private chat is checked: a room's conversation is the room's.
+        """
+        if incoming.chat_type != "private" or identity.user_id is None:
+            return False
+        owner = await conversation_repo.get_owner(db, session.conversation_id)
+        return owner is not None and owner != identity.user_id
+
+    @staticmethod
+    async def _first_conversation(
+        incoming: IncomingMessage, bot: ChannelBot, identity: ChannelIdentity, db: AsyncSession
+    ) -> Any:
+        """The conversation a chat's first message lands in.
+
+        A linked person's direct message continues the one private conversation they have
+        with the bot's agent - the same one the console opens - so what they said on the web
+        is there when they text, and the reverse (#2575). Anything else - a room, an
+        unlinked sender, a bot with no agent yet - gets a conversation of its own, owned by
+        the organization that owns the bot and not by the linked user's personal org: a Slack
+        channel is the tenant's workspace, and whoever speaks in it does not move the
+        conversation into their own org. `/new` still starts a fresh one for the chat.
+        """
+        title = f"{incoming.platform.capitalize()} Chat"
+        binding = (
+            await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+            if incoming.chat_type == "private" and identity.user_id is not None
+            else None
+        )
+        if binding is not None and identity.user_id is not None:
+            return await PrimaryConversationService(db).ensure(
+                organization_id=bot.organization_id,
+                user_id=identity.user_id,
+                agent_id=binding.agent_id,
+            )
+        conv = await conversation_repo.create_conversation(
+            db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
+        )
+        return conv.id
 
     async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
         """Count this message against the chat account's allowance on this bot.

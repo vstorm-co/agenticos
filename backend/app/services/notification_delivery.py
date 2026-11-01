@@ -36,6 +36,7 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.user import User
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
+from app.repositories import outcome as outcome_repo
 from app.repositories import user as user_repo
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
@@ -161,6 +162,14 @@ class NotificationDeliveryService:
         if notification is None:
             await self._fail(delivery, claimed_at, "notification missing")
             return "failed"
+
+        if notification.outcome_id is not None and await outcome_repo.is_settled(
+            self.db, outcome_id=notification.outcome_id
+        ):
+            # Seen or settled somewhere else while this waited its turn: the push or the
+            # mail would only say what the person already knows.
+            await self._skip(delivery, claimed_at)
+            return "skipped"
 
         event_type = NotificationEventType(notification.event_type)
         recipient = await user_repo.get_by_id(self.db, notification.recipient_user_id)

@@ -412,7 +412,6 @@ class TestTheReportItself:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", "pylf_v1_eu_secret")
         monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "client-id.apps.googleusercontent.com")
         monkeypatch.setattr(settings, "POSTGRES_SSLMODE", "require")
-        monkeypatch.setattr(settings, "MEM0_ALLOWED_HOSTS", ["mem0.internal"])
 
         cells = _cells(_settings_section())
 
@@ -420,7 +419,6 @@ class TestTheReportItself:
         assert "client-id.apps.googleusercontent.com" not in cells
         assert cells.count("set") == 2
         assert "require" in cells
-        assert "mem0.internal" in cells
 
     def test_an_unconfigured_deployment_reports_the_quiet_answer(
         self, monkeypatch: pytest.MonkeyPatch
@@ -428,7 +426,6 @@ class TestTheReportItself:
         monkeypatch.setattr(settings, "LOGFIRE_TOKEN", None)
         monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
         monkeypatch.setattr(settings, "POSTGRES_SSLMODE", "")
-        monkeypatch.setattr(settings, "MEM0_ALLOWED_HOSTS", [])
 
         cells = _cells(_settings_section())
 
@@ -447,7 +444,7 @@ class TestTheReportItself:
         self, monkeypatch: pytest.MonkeyPatch, hosts: list[str], shown: str
     ) -> None:
         """Each listed host is one this deployment may reach inside its own
-        network, so a reviewer should find it here, with the mem0 and browser
+        network, so a reviewer should find it here, with the browser
         allowlists. Read by row: `none` in the cells could come from either of
         those."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", hosts)

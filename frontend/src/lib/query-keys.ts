@@ -29,11 +29,18 @@ export const qk = {
     /** Whether the deployment names a browser to sign in with from Settings. */
     browser: () => ["browser-sign-ins", "browser"] as const,
   },
+  systemAgents: {
+    /** The platform roles and their history in one organization. */
+    list: (orgId: string) => ["system-agents", orgId] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,
     /** One page of what the agents in one organization have written about the caller. */
     mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+    /** The claims recorded about the caller; history adds what they replaced. */
+    claims: (orgId: string, history: boolean, skip: number) =>
+      ["memory", orgId, "claims", history, skip] as const,
   },
   organizations: {
     all: () => ["organizations"] as const,
@@ -573,6 +580,11 @@ export const qk = {
     // Under `mine`'s prefix, so an answer anywhere refreshes the history too.
     history: () => ["suggestions", "history"] as const,
     starters: () => ["suggestions", "starters"] as const,
+  },
+  outcomes: {
+    all: () => ["outcomes"] as const,
+    // Under `all`'s prefix, so settling one anywhere refreshes every card showing it.
+    conversation: (conversationId: string) => ["outcomes", "conversation", conversationId] as const,
   },
   notifications: {
     all: () => ["notifications"] as const,

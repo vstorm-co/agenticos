@@ -4387,7 +4387,7 @@ class TestBrowserRefusedAtPublish:
     with `edit` writes - and the guard admits only public
     addresses, which refuses the isolated browser service on the deployment's own
     network and accepts a debugger exposed to the internet. `BROWSER_CDP_ALLOWED_HOSTS`
-    is the same control `MEM0_ALLOWED_HOSTS` is, for the same reason.
+    is a host allowlist, for the reason a spec-supplied address needs one.
 
     The blank case is here too, because `cdp_url` has to stay optional for the
     capability to be enumerable - so publish is the only place to demand one.

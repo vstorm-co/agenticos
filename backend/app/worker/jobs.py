@@ -155,6 +155,13 @@ class ThinkForPerson(Payload):
     user_id: UUID
 
 
+class ExtractMemory(Payload):
+    """One finished chat run, to be read for what a later conversation should remember (#2090)."""
+
+    organization_id: UUID
+    run_id: UUID
+
+
 class LookThroughWatch(Payload):
     """One person's watch over one of their connections, due for a look (#2301)."""
 
@@ -361,6 +368,17 @@ THINK_FOR_PERSON = Task(
     timeout=timedelta(minutes=10),
     priority=Priority.BULK,
 )
+# One attempt: a model call on the maintenance role's budget for one finished run.
+# The conversation is not lost if it fails - the agent can still `remember` - and a
+# retry would pay for the same read twice.
+EXTRACT_MEMORY = Task(
+    kind="extract-memory",
+    payload_type=ExtractMemory,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.BULK,
+)
 # One attempt, like the nightly look: a model call on the person's limit, and the
 # watch's next look is the retry.
 LOOK_THROUGH_WATCH = Task(
@@ -425,6 +443,7 @@ SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
+CONSOLIDATE_MEMORY = _sweep("consolidate-memory", timeout=timedelta(minutes=10))
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minutes=2))
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
@@ -463,6 +482,7 @@ TASKS: dict[str, TaskKind] = {
         RUN_AGENT,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
+        EXTRACT_MEMORY,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,
         INSTALL_ROLE_PACK,
@@ -482,6 +502,7 @@ TASKS: dict[str, TaskKind] = {
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
+        CONSOLIDATE_MEMORY,
         REAP_VOICE_CALLS,
         WORKFLOW_DISPATCH_POLL,
         WORKFLOW_RECONCILE,

@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4471e1f0e0"
+source_sha: "6f559aeba040"
 ---
 
 # Governance { #governance }
@@ -545,17 +545,21 @@ dessen Ausgaben mit seinem Prozess sterben.
 
 ### Arbeit aus eigener Initiative { #proactive-work }
 
-Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
-Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
-festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
-Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
-Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
-Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
-Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
-behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
-erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
-aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
-Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
+Proaktive Runs werden unter dem veröffentlichten **AgenticOS**-Starter-Agent der
+Organisation (Slug `agenticos`) aufgezeichnet, damit jeder eine Zeile, Kosten und
+eine Spur hat; der Starter läuft jedoch nicht und wählt das Modell nicht: Jeder
+solche Run trägt die [Systemrolle](#system-agents), die die Arbeit erledigt hat.
+Das eigene Proaktivitätsmodell und die Limits wählen Sie unter **Organisationen →
+Mitglieder → Proaktivität**.
+
+Aktivität zeigt das Symbol und den Filter
+**Proaktiv**, die Modellanfragen und ihre Kosten sowie den aufgezeichneten
+Austausch einschließlich Tool-Ergebnissen und der strukturierten Endantwort.
+Fehlgeschlagene Prüfungen behalten den Austausch, der vor dem Fehler vorlag. Diese
+Aufzeichnungen erfordern `runs:view`, wie andere Aktivitätseinträge, und erzeugen
+keine Unterhaltungen im Chat. Ältere Runs können nie aufgezeichnete Austausche
+nicht wiederherstellen; zu große Aufzeichnungen sagen ausdrücklich, dass sie
+gekürzt wurden.
 
 Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlüssel
 wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
@@ -611,6 +615,35 @@ an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
 Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
 Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
 `{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
+
+### Systemagenten { #system-agents }
+
+Manche Arbeit gehört der Plattform selbst und braucht dennoch ein Modell. Eine
+**Systemrolle** gibt ihr einen Eigentümer, den ein Betreiber sehen kann: eine
+Konfiguration je Organisation und Rolle, nie eine Agent-Zeile, nie eine je Job und
+nie dem Starter-Agent oder einem Agent zugeschrieben, dessen Anweisungen nicht
+liefen (#2575). **Organisationen → Mitglieder → Systemagenten** (`budgets:manage`)
+listet jede Rolle mit ihrem Modell, den Ausgaben dieses Monats und ihren letzten
+Ausführungen.
+
+| Rolle | Was sie tut | Konfiguriert |
+|---|---|---|
+| `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Unter Proaktivität, oben: dasselbe Modell und Limit, hier nur lesbar |
+| `memory_maintenance` | Liest einen beendeten Web-Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
+
+Eine Rolle wird ausgeschaltet, nicht gelöscht. Die **Gedächtnispflege** läuft nur,
+wo ein Modell gewählt wurde - es gibt keinen Standard - und hält an ihrem
+Monatsbudget oder an der Obergrenze der Organisation an; das Proaktivitätslimit
+einer Person wird dafür nicht verbraucht. Sie liest einen Chat nur dort, wo das
+Gedächtnis funktioniert: ein beendeter Web-Chat mit einer Person dahinter, für
+einen Agent mit aktivem Gedächtnis.
+
+Ein Embed, ein Run mit API-Key, ein
+Gruppenchat, ein geplanter oder ereignisgesteuerter Run und eine Delegation werden
+nie gelesen. Was sie festhält, bleibt im eigenen Scope der Unterhaltung - dem
+Profil der Person oder ihrer Beziehung zu diesem Agent - und sie kann keinen Claim
+teilen oder korrigieren. Deterministische Arbeit, etwa die geplante Konsolidierung
+geänderten Gedächtnisses, braucht weder Modell noch Rolle.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
@@ -1715,6 +1748,26 @@ sind der Datensatz, und die Benachrichtigung ist nur, wie jemand davon erfahren
 hat - die berechneten Zahlen eines periodischen Berichts, die nirgends außer in
 der Benachrichtigung leben, sind das Einzige, was eine abgelaufene Zeile
 mitnimmt.
+
+### Ein Ergebnis, einmal erledigt { #one-outcome }
+
+Eine wartende Freigabe, ein fehlgeschlagener Lauf und ein Fund einer Beobachtung sind Dinge, auf die
+jemand reagieren muss, also ist jedes ein **Ergebnis**: ein Eintrag pro Person und Ursache, egal wie
+viele Stellen davon berichten (#2575). Die Karte über dem Chat, aus dem es stammt, die Zeile an der
+Glocke, der Push und die E-Mail sind Zustellungen dieses einen Ergebnisses, nicht vier Einträge.
+
+Ein Ergebnis wird einmal bestätigt, gelöst oder stummgeschaltet, von der Chat-Karte oder der Glocke
+aus, und jede Stelle folgt. Bestätigen markiert es als gelesen und storniert Push und E-Mail, die noch
+auf den Versand warten; Lösen und Stummschalten räumen es zusätzlich weg. Eine Zustellung, die ein Worker
+schon hält, wird kurz vor dem Senden erneut geprüft, sodass ein dazwischen erledigtes nicht hinausgeht.
+`POST /outcomes/{id}/settle` nimmt die Aktion entgegen, und `GET /outcomes` listet die eigenen
+Ergebnisse des Aufrufers, optional für einen Chat.
+
+Die Entscheidung über die letzte offene Freigabe eines Laufs - in der Warteschlange, im Chat oder in
+einem Anruf - löst das Ergebnis, das danach gefragt hat, ohne dass jemand die Glocke berührt. Eine
+stummgeschaltete Ursache bleibt stumm: Dieselbe Ursache, die wiederkommt, wird bei Ankunft geräumt und
+sendet nichts, während eine gelöste oder bestätigte, die wiederkommt, neu geöffnet wird. Zustände gehen
+nur vorwärts, ein gelöstes oder stummgeschaltetes Ergebnis lässt sich also nicht umkehren.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 

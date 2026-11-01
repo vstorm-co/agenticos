@@ -131,8 +131,8 @@ def _documentation_secret(definition: Any) -> ApiKeySecret | None:
     Read for its *shape* and never used: nothing here calls the service, so the
     value only has to satisfy the builder that a key exists. Without it a
     capability whose key is unconditional builds as `None`, has no toolset, and
-    falls back to the catalog's one-line summary - which is how `memory_mem0`
-    showed the Builder a sentence while the model was reading six (#1473).
+    falls back to the catalog's one-line summary - which once showed the
+    Builder a sentence while the model was reading six (#1473).
 
     Only `API_KEY`, because it is the only kind any capability requires
     unconditionally; another kind arriving that way should show up as a missing

@@ -41,7 +41,15 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.repositories import agent_repo, agent_run_repo, organization_repo, run_manifest_repo
+from app.db.models.organization import Organization
+from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    organization_repo,
+    run_manifest_repo,
+    system_agent_repo,
+)
 from app.services.model_profile import ModelProfileService
 from app.services.run_heartbeat import run_heartbeat
 from app.services.spend import month_start, organization_monthly_spend
@@ -58,8 +66,15 @@ _LIMITS = UsageLimits(request_limit=2)
 # A watch reads through a connection's tools first: a few lookups, then the answer.
 _WITH_TOOLS = UsageLimits(request_limit=8)
 
-ProactiveFeature = Literal["nightly", "watches"]
-"""Which of the organization's switches the work answers to; both share the model and limit."""
+ProactiveFeature = Literal["nightly", "watches", "maintenance"]
+"""Which switch the work answers to. The first two share the organization's proactivity model
+and per-person limit; `maintenance` answers to its own system-agent profile and budget."""
+
+_ROLE_OF: dict[str, str] = {
+    "nightly": DAILY_BRIEFING,
+    "maintenance": MEMORY_MAINTENANCE,
+}
+"""The system role a feature's runs are attributed to; watches are a person's own routine."""
 
 
 class ProactiveThinker:
@@ -78,6 +93,8 @@ class ProactiveThinker:
         and where this month's spending is at either limit.
         """
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if feature == "maintenance":
+            return await self._maintenance_allowance(organization, ctx)
         if (
             organization is None
             or not (
@@ -103,6 +120,37 @@ class ProactiveThinker:
         if mine >= organization.proactive_limit_usd:
             return None
         return organization.proactive_model_profile_id
+
+    async def _maintenance_allowance(
+        self, organization: Organization | None, ctx: AuthContext
+    ) -> UUID | None:
+        """The model memory maintenance may run on now, or `None` when it may not.
+
+        Its own profile decides - switch, model, monthly budget - and the
+        organization's monthly cap still applies. Nothing is called past either
+        limit, and nothing is called without a model somebody chose.
+        """
+        if organization is None:
+            return None
+        profile = await system_agent_repo.get(
+            self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
+        )
+        if profile is None or not profile.enabled or profile.model_profile_id is None:
+            return None
+        if organization.monthly_budget_usd is not None:
+            spent = await organization_monthly_spend(self.db, ctx.organization_id)
+            if spent >= organization.monthly_budget_usd:
+                return None
+        if profile.monthly_budget_usd is not None:
+            used = await agent_run_repo.role_spend_since(
+                self.db,
+                organization_id=ctx.organization_id,
+                role=MEMORY_MAINTENANCE,
+                since=month_start(),
+            )
+            if used >= profile.monthly_budget_usd:
+                return None
+        return profile.model_profile_id
 
     async def think[OutputT](
         self,
@@ -155,6 +203,7 @@ class ProactiveThinker:
             provider=request.provider,
             secret_id=request.secret_id,
             started_at=datetime.now(UTC),
+            system_role=_ROLE_OF.get(feature),
         )
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and

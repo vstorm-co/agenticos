@@ -58,6 +58,29 @@ An event trigger has no such setting: each delivery is its own fire.
 
 Everything below is for the event case.
 
+## Where the answer goes, and when a routine ends { #answers-and-ends }
+
+Every fire is recorded in the trigger's run log. `answer_to` says where the answer is also delivered
+to the person who made it (#2575): `primary`, the default, is their own conversation with the agent, so
+everything it tells them is in one place; `conversation` is one of their other chats
+(`delivery_conversation_id`), for a routine made in that chat; `run_log` posts nowhere else.
+
+Only a
+completed fire with an answer is delivered, and a delivery that cannot land - the chat was deleted -
+leaves the fire in the log instead of failing it. A chat that is not the caller's own is a 404, and
+changing where an answer goes ends the trigger's acting as its creator when someone else made the
+change, since it decides who reads what the creator's connections returned.
+
+`ends_at` stops a routine by itself, for "keep an eye on this until Friday". The first fire due after
+it pauses the trigger instead of running it and records `ended` in the audit trail; an end that is already
+past is refused. Resuming it needs a later `ends_at` or none.
+
+`monthly_budget_usd` gives a routine a limit of its own: what the runs it started may cost in a calendar
+month. Once that is spent its fires are skipped before a run is opened, the routine shows as paused for
+its budget, and it starts again on the first with nothing to resume by hand. It only narrows the agent's
+and the organization's limits. A fire already running when the limit is crossed finishes, because the
+limit is on what has been spent, not on a forecast.
+
 ## Where they live in the product, and what to call them
 
 **Routines** is the umbrella - the nav, the page, the agent's own panel, the chat

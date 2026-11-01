@@ -67,7 +67,7 @@ export interface SecretRequirement {
   optional_when?: SecretCondition | null;
   /**
    * Which service in the catalog the key is for - a `services.json` id such as
-   * `mem0` - or null where `required_when` already names it.
+   * `llamaparse` - or null where `required_when` already names it.
    *
    * The two are the same question asked of different capabilities. Web search
    * offers several providers and the chosen one *is* the service, so the

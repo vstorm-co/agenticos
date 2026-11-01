@@ -125,8 +125,8 @@ class TestWriteFile:
         """A room outlives every member of it, so the question does not apply -
         and a key of a shape `memory_keys` does not produce is left alone rather
         than refused by a second answer invented here."""
-        assert await _native._person_still_exists(MagicMock(), "room:slack:C1") is True
-        assert await _native._person_still_exists(MagicMock(), "person:not-a-uuid") is True
+        assert await _native.person_still_exists(MagicMock(), "room:slack:C1") is True
+        assert await _native.person_still_exists(MagicMock(), "person:not-a-uuid") is True
 
     async def _write(self, **overrides):
         return await _native.write_file(

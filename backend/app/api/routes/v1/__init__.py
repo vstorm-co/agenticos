@@ -64,9 +64,10 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import table_views
 from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
+from app.api.routes.v1 import outcomes, primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
-from app.api.routes.v1 import telegram_webhook
+from app.api.routes.v1 import email_webhook, sms_webhook, telegram_webhook
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
 from app.api.routes.v1 import teams_webhook
@@ -185,6 +186,10 @@ v1_router.include_router(
 v1_router.include_router(artifacts.embed_router, prefix="/artifact-embed", tags=["artifacts:embed"])
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
 v1_router.include_router(
+    primary_conversations.router, prefix="/agents", tags=["primary-conversations"]
+)
+v1_router.include_router(system_agents.router, prefix="/system-agents", tags=["system-agents"])
+v1_router.include_router(
     browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
 )
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
@@ -260,6 +265,9 @@ v1_router.include_router(admin_users.router, prefix="/admin/users", tags=["admin
 v1_router.include_router(channels.router, prefix="/channels", tags=["channels"])
 
 v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["telegram"])
+v1_router.include_router(sms_webhook.router, prefix="/sms", tags=["sms"])
+v1_router.include_router(email_webhook.router, prefix="/email", tags=["email"])
+v1_router.include_router(outcomes.router, prefix="/outcomes", tags=["outcomes"])
 
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 

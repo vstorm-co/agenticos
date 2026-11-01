@@ -3,6 +3,8 @@
 import asyncio
 import logging
 import uuid
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -57,7 +59,10 @@ class SMTPProvider:
             if message.from_name
             else message.from_email
         )
-        msg = MIMEMultipart("alternative")
+        body = MIMEMultipart("alternative")
+        body.attach(MIMEText(message.text, "plain"))
+        body.attach(MIMEText(message.html, "html"))
+        msg = MIMEMultipart("mixed") if message.attachments else body
         msg["Subject"] = message.subject
         msg["From"] = from_addr
         msg["To"] = ", ".join(message.to)
@@ -66,8 +71,17 @@ class SMTPProvider:
         if message.reply_to:
             msg["Reply-To"] = message.reply_to
 
-        msg.attach(MIMEText(message.text, "plain"))
-        msg.attach(MIMEText(message.html, "html"))
+        for name, value in message.headers.items():
+            msg[name] = value
+        if message.attachments:
+            msg.attach(body)
+            for attachment in message.attachments:
+                maintype, _, subtype = attachment.mime_type.partition("/")
+                part = MIMEBase(maintype or "application", subtype or "octet-stream")
+                part.set_payload(attachment.content)
+                encoders.encode_base64(part)
+                part.add_header("Content-Disposition", "attachment", filename=attachment.filename)
+                msg.attach(part)
 
         implicit_tls = self.use_tls and self._implicit_tls()
         try:

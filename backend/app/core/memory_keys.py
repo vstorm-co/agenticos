@@ -8,15 +8,17 @@ importing one model runs `app.db.models.__init__`, which reaches
 `services.channels.base` and from there back into the capability registry and
 `app.agents.deps`. So the vocabulary lives here, where it imports nothing.
 
-Two owners, told apart by prefix:
+Owners, told apart by prefix:
 
 - `person:<user_id>` - one human being.
 - `room:<platform>:<chat_id>` - one group chat.
+- `project:<project_id>` and `org:<organization_id>` - the audiences a claim may be
+  shared to, and only by an explicit instruction (#2090). Notes (the files and
+  their `MEMORY.md`) stay with a person or a room, which is why the column is
+  `NOT NULL`; the claims ledger (`memory_claims`) is what reaches the wider scopes.
 
-There is no organization-wide owner. That store existed and went: it was a second
-mechanism for what `context` already does, and the console was its only author
-(#1470). Every note now belongs to a person or to a room, which is why the column
-is `NOT NULL`.
+The organization owner is *not* the store that was removed in #1470: it is never a
+union of what individuals told their agents and nothing writes there automatically.
 
 Whose memory a note is, is deliberately not the same question as who may read it
 back; that one belongs to the run - `app.agents.audience` says who is listening
@@ -27,10 +29,14 @@ from uuid import UUID
 
 __all__ = [
     "INDEX_NAME",
+    "ORGANIZATION_PREFIX",
     "PERSON_PREFIX",
+    "PROJECT_PREFIX",
     "ROOM_PREFIX",
     "is_person_key",
+    "organization_owner_key",
     "person_owner_key",
+    "project_owner_key",
     "room_owner_key",
 ]
 
@@ -49,6 +55,8 @@ tools as any other.
 
 PERSON_PREFIX = "person:"
 ROOM_PREFIX = "room:"
+PROJECT_PREFIX = "project:"
+ORGANIZATION_PREFIX = "org:"
 
 
 def person_owner_key(user_id: UUID | str) -> str:
@@ -83,3 +91,17 @@ def is_person_key(owner_key: str) -> bool:
     a colleague also writes to.
     """
     return owner_key.startswith(PERSON_PREFIX)
+
+
+def project_owner_key(project_id: UUID | str) -> str:
+    """The claims one project's members share, and only they."""
+    return f"{PROJECT_PREFIX}{project_id}"
+
+
+def organization_owner_key(organization_id: UUID | str) -> str:
+    """What the whole organization knows.
+
+    Reached only by an explicit instruction from somebody authorized to say it
+    (`share_memory`): it is never a union of what individuals told their agents.
+    """
+    return f"{ORGANIZATION_PREFIX}{organization_id}"

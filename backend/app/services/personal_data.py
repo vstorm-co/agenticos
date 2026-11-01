@@ -44,6 +44,23 @@ _RATING_FIELDS = ("id", "message_id", "rating", "comment", "created_at")
 _SESSION_FIELDS = ("id", "device_name", "device_type", "ip_address", "created_at", "last_used_at")
 _RUN_FIELDS = ("id", "agent_id", "status", "surface", "cost_usd", "created_at")
 _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
+_CLAIM_FIELDS = (
+    "id",
+    "organization_id",
+    "agent_id",
+    "subject",
+    "statement",
+    "kind",
+    "origin",
+    "status",
+    "source_conversation_id",
+    "source_run_id",
+    "observed_at",
+    "effective_from",
+    "effective_to",
+    "supersedes_id",
+    "derived_from",
+)
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
@@ -198,6 +215,10 @@ class PersonalDataService:
             memory=personal_data_repo.as_rows(
                 await personal_data_repo.memory_about(self.db, person_owner_key(user_id)),
                 _MEMORY_FIELDS,
+            ),
+            memory_claims=personal_data_repo.as_rows(
+                await personal_data_repo.claims_about(self.db, person_owner_key(user_id)),
+                _CLAIM_FIELDS,
             ),
             channel_identities=personal_data_repo.as_rows(
                 await personal_data_repo.identities_of(self.db, user_id), _IDENTITY_FIELDS

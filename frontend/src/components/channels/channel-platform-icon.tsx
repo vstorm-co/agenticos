@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { Mail, MessageSquare, Smartphone } from "lucide-react";
 
 import { brandMark } from "@/components/icons/brand-icon";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,8 @@ const MARKS = {
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
   teams: brandMark("microsoftteams"),
+  sms: Smartphone,
+  email: Mail,
 } as const;
 
 /**

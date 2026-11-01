@@ -1595,6 +1595,8 @@
       "lookingThroughContext": "Looking through the context files",
       "memoryChecking": "Checking its memory",
       "memoryForgetting": "Forgetting a memory",
+      "memoryCorrecting": "Correcting a memory",
+      "memorySharing": "Sharing a memory",
       "memoryReading": "Reading a memory",
       "memoryRecalling": "Searching its memory",
       "memoryRemembering": "Remembering a fact",
@@ -1674,6 +1676,8 @@
       "writeMemory": "Save to memory",
       "editMemory": "Update a memory",
       "deleteMemory": "Forget a memory",
+      "correctMemory": "Correct a memory",
+      "shareMemory": "Share a memory",
       "askingAgent": "Asking {name}",
       "askedAgent": "Asked {name}",
       "stoppedAskingAgent": "Stopped asking {name}",
@@ -4651,6 +4655,10 @@
         "title": "What agents remember about you",
         "body": "Agents keep notes between conversations. This is yours: read what was written, stop a note being used without destroying it, or delete it outright. A note in an external memory service is named here but not shown."
       },
+      "my-claims": {
+        "title": "What is on record about you",
+        "body": "Beside notes, agents record facts, preferences and decisions with where each came from. Correct one in your own words, from a date, and the old version stays in the history; or take it out of use."
+      },
       "orgs-new": {
         "title": "Your organizations",
         "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to - each keeps its own agents, keys and knowledge apart."
@@ -5609,13 +5617,43 @@
       "description": "What the agents here have written down about you, and what you can do about it.",
       "nothingYet": "Nothing written down yet",
       "nothingYetWhy": "Agents write a note when they learn something worth keeping between conversations. Nothing here means none of them has.",
-      "externalStores": "These agents also keep memories in an external service, which this page cannot read: {agents}.",
       "writtenBy": "Written by {agent} · {when}",
       "anAgent": "an agent",
       "suppressed": "Suppressed",
       "suppress": "Stop using this note",
       "restore": "Use this note again",
-      "delete": "Delete this note"
+      "delete": "Delete this note",
+      "claims": {
+        "title": "On record about you",
+        "description": "Facts, preferences and decisions agents have recorded, with where each came from. Correct one in your own words; the old version stays in the history.",
+        "showHistory": "Show history",
+        "scopeProfile": "Shared with your agents",
+        "scopeAgent": "Kept by {agent}",
+        "anAgent": "an agent",
+        "since": "Since {when}",
+        "drawnFrom": "Drawn from {count} sources",
+        "correct": "Correct this",
+        "retract": "Stop using this",
+        "statement": "Corrected statement",
+        "effectiveFrom": "Holds from",
+        "cancel": "Cancel",
+        "save": "Save correction",
+        "origin": {
+          "agent": "Noted by an agent",
+          "person": "Said by you",
+          "consolidation": "Combined from several notes"
+        },
+        "status": {
+          "current": "Current",
+          "disputed": "Disputed",
+          "superseded": "Replaced",
+          "merged": "Combined",
+          "retracted": "Retracted"
+        },
+        "showing": "Showing {from}–{to} of {total}",
+        "newer": "Newer",
+        "older": "Older"
+      }
     },
     "admin": {
       "active": "Active",
@@ -5922,7 +5960,8 @@
       "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working.",
       "ownedByWorkflow": "This agent is configured in a workflow step and versioned with that workflow. Change it there.",
       "openWorkflow": "Open the workflow",
-      "goToModel": "Go to Model"
+      "goToModel": "Go to Model",
+      "continueConversation": "Continue my conversation"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -5969,11 +6008,14 @@
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
       "botTokenHintTeams": "The client secret of the Azure Bot's app registration (Certificates & secrets in Entra).",
+      "botTokenHintSms": "Twilio account SID, auth token and the number it sends from, joined with colons: ACxxxxxxxx:auth_token:+15551234567. Point the number's incoming-message webhook at the URL shown after you save.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "On the Azure Bot resource, under Configuration. Create the bot as single-tenant.",
       "teamsTenantId": "Tenant ID",
       "teamsTenantIdHint": "The Entra tenant the bot is registered in. Only that tenant's Teams can reach it.",
       "teamsEndpoint": "Messaging endpoint",
+      "smsEndpoint": "Webhook for incoming texts",
+      "smsEndpointHint": "Paste this into the Twilio number's incoming-message setting (A message comes in → Webhook, HTTP POST).",
       "teamsEndpointHint": "Paste this into the Azure Bot's configuration, and turn on its Microsoft Teams channel.",
       "teamsPackageWhy": "Upload the app package to your tenant's Teams app catalog, then add the app to a chat or a team.",
       "teamsPackageDownload": "Download app package",
@@ -6061,7 +6103,13 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
-      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
+      "botTokenHintEmail": "The address the bot answers from, for example agent@mail.example.com. Replies go out through this deployment's e-mail provider.",
+      "emailEndpoint": "Where the mail relay posts incoming mail",
+      "emailEndpointHint": "Have your relay (a Cloudflare Email Worker, a Postmark or Mailgun inbound route) POST each message here as JSON, signed with the secret below.",
+      "emailRelaySecret": "Relay signing secret",
+      "emailRelaySecretHint": "The relay signs each request with this secret (HMAC-SHA256 of timestamp.body). Copy it into the relay; it is not shown again.",
+      "emailGenerateSecret": "Generate"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -6571,10 +6619,14 @@
       "stepApprovalNotYours": "Only the people this step names can decide it.",
       "stepApprovalEdited": "Edited",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceSms": "SMS",
+      "surfaceEmail": "Email",
       "surfaceFollowUps": "Follow-ups",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "systemRoleBriefing": "Daily briefing (system)",
+      "systemRoleMaintenance": "Memory maintenance (system)"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -7873,6 +7925,39 @@
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
       "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
+    },
+    "systemAgents": {
+      "title": "System agents",
+      "description": "Work the platform does itself and that needs a model. Each role has its own configuration and history; none of it is attributed to an agent whose instructions did not run.",
+      "on": "On",
+      "off": "Off",
+      "managedIn": "Runs on {model}. Configured under Proactivity above, so there is one model and one limit.",
+      "managedInNoModel": "No model chosen yet. Configured under Proactivity above.",
+      "enabled": "Run this role",
+      "model": "Model",
+      "modelHint": "Chosen, never defaulted: the role spends money nobody asked for in the moment.",
+      "budget": "Monthly budget (USD)",
+      "noBudget": "No cap of its own",
+      "invalid": "Enter a number of zero or more.",
+      "modelRequired": "Choose the model this role runs on before turning it on.",
+      "save": "Save",
+      "saved": "Saved",
+      "savedOff": "Turned off",
+      "spent": "Spent this month: {amount}",
+      "spentOf": "Spent this month: {amount} of {budget}",
+      "noRuns": "No executions yet.",
+      "unknownModel": "model unknown",
+      "roles": {
+        "daily_briefing": {
+          "name": "Daily briefing",
+          "what": "The nightly look at each person's week and the briefing built from it."
+        },
+        "memory_maintenance": {
+          "name": "Memory maintenance",
+          "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
+        }
+      },
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
     }
   },
   "theme": {
@@ -8082,17 +8167,16 @@
   "memory": {
     "clearAction": "Clear memory",
     "clearBody": "Deletes every note this agent has written, for every person and every group chat it has talked to. Nothing brings them back.",
-    "clearBodyWithMem0": "Deletes every note this agent has written, for every person and every group chat it has talked to. It does not reach what this agent remembers in mem0 - those are addressed per person, and are removed by forgetting that person.",
     "clearConfirm": "This agent will lose everything it has written down. Its conversations are untouched.",
     "clearTitle": "Clear this agent's memory",
-    "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 note deleted} other {# notes deleted}}",
+    "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 item deleted} other {# items deleted}}",
     "forgetAction": "Forget everything about me",
-    "forgetBody": "Every agent in this organization forgets what it has written down about you - in this deployment and in mem0, where an agent keeps its memories there. Your conversations stay; only what agents noted about you goes.",
+    "forgetBody": "Every agent in this organization forgets what it has written down about you - in this deployment. Your conversations stay; only what agents noted about you goes.",
     "forgetConfirm": "Every agent in this organization will forget what it noted about you. Your conversations are untouched.",
     "forgetMemberConfirm": "Every agent in this organization will forget what it noted about {name}. Their conversations are untouched.",
     "forgetNamed": "Forget what agents know about {name}",
     "forgetTitle": "What agents remember about you",
-    "forgottenToast": "{count, plural, =0 {There was nothing to forget} =1 {1 note forgotten} other {# notes forgotten}}"
+    "forgottenToast": "{count, plural, =0 {There was nothing to forget} =1 {1 item forgotten} other {# items forgotten}}"
   },
   "avatarColor": {
     "auto": "Automatic colour",
@@ -8331,7 +8415,22 @@
       "sandbox": "The agent's sandbox",
       "pick": "Choose a folder…",
       "useSandbox": "Use the sandbox"
-    }
+    },
+    "answerToLabel": "Also answer in",
+    "answerTo": {
+      "primary": "My conversation with this agent",
+      "run_log": "The run log only",
+      "conversation": "The chat it was made in"
+    },
+    "answerToHint": {
+      "primary": "Each result is also posted to your own conversation with this agent, so everything it tells you is in one place.",
+      "run_log": "Results stay in the run log; nothing is posted to your chats.",
+      "conversation": "Each result is posted to the chat this routine was made for."
+    },
+    "budgetLabel": "Monthly budget (USD, optional)",
+    "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
+    "budgetPlaceholder": "No limit of its own",
+    "pausedBudget": "Paused - budget"
   },
   "portals": {
     "mailboxInterval": {
@@ -10564,13 +10663,6 @@
       "needs": "Nothing extra.",
       "never": "Never shows one person's notes to another. In a group chat the notes belong to the chat."
     },
-    "memory_mem0": {
-      "name": "Memory (mem0)",
-      "does": "Lets the agent remember facts and recall them by meaning, stored in a mem0 service.",
-      "example1": "Remember that a customer prefers email to phone calls",
-      "needs": "A mem0 account, cloud or self-hosted, and its API key in the vault.",
-      "never": "Never shows one person's memories to another. In a group chat they belong to the chat."
-    },
     "planning": {
       "name": "Planning",
       "does": "Lets the agent write a checklist for a bigger task and tick off each step, so the person sees its progress.",
@@ -10991,16 +11083,6 @@
       "allow_personal": {
         "title": "Keep private notes per person",
         "description": "Whether the agent keeps private notes for each person it talks to, readable only when it is alone with them. Off drops that store entirely, for compliance or privacy; the notes it keeps in group chats stay."
-      }
-    },
-    "memory_mem0": {
-      "base_url": {
-        "title": "Self-hosted mem0 URL",
-        "description": "Base URL of a self-hosted mem0; omit for mem0's managed cloud."
-      },
-      "allow_personal": {
-        "title": "Keep private memories per person",
-        "description": "Whether the agent keeps private memories for each person it talks to, readable only when it is alone with them. Off drops that store, for compliance or privacy; group-chat memory stays."
       }
     },
     "planning": {
@@ -12367,5 +12449,12 @@
         }
       }
     }
+  },
+  "outcomes": {
+    "label": "Needs your attention",
+    "acknowledge": "Seen",
+    "resolve": "Done",
+    "mute": "Stop asking",
+    "open": "Open"
   }
 }

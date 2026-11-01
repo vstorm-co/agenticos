@@ -24,7 +24,6 @@ import {
   VIRTUAL_TABLES_ID,
   WORKFLOWS_ID,
   MEMORY_FILES_ID,
-  MEMORY_MEM0_ID,
   SANDBOX_ID,
   SUBAGENTS_ID,
   TEXT_TO_SPEECH_ID,
@@ -322,13 +321,7 @@ export function CapabilityWorkbench({
               // writes them.
               settingsFooter={
                 focused.id === MEMORY_FILES_ID && isOn && agentId !== null ? (
-                  <ClearAgentMemory
-                    agentId={agentId}
-                    usesMem0={selected.some(
-                      (binding) => binding.id === MEMORY_MEM0_ID && binding.enabled !== false,
-                    )}
-                    disabled={disabled}
-                  />
+                  <ClearAgentMemory agentId={agentId} disabled={disabled} />
                 ) : undefined
               }
               // A capability nobody granted has nothing to configure yet, so

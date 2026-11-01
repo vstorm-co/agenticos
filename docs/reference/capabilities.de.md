@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "34fdc75cb318"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -68,8 +68,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — | unverändert |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | angepasst |
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — | unverändert |
-| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | unverändert |
-| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich | unverändert |
+| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | unverändert |
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
 | `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | unverändert |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | unverändert |
@@ -393,6 +392,64 @@ Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats
 geführten Notizen bleiben.
 
+### Fakten, Vorlieben und Entscheidungen { #memory-claims }
+
+Neben Notizen kann ein Agent **Claims** festhalten: eine dauerhafte Tatsache,
+Vorliebe oder Entscheidung in einem schlichten Satz, mit ihrer Herkunft (#2090).
+Notizen bleiben unverändert; ein Claim macht einen Satz nachprüfbar - seine
+Quelle, seit wann er gilt und was er ersetzt hat. Vier Tools: `remember`,
+`recall`, `correct_memory` und `share_memory`.
+
+Wo ein Claim lebt, ist eine Zugriffsregel und nie ein Etikett, das das Modell
+wählt:
+
+| Scope | Wessen | Wer ihn liest |
+|---|---|---|
+| Personenprofil | Eine Person in dieser Organisation; jeder Agent, der für sie handelt, darf es nutzen | Diese Person, allein mit einem beliebigen Agent |
+| Person und Agent | Die Beziehung eines Agents zu einer Person - Falldetails, der Standard | Diese Person, mit diesem Agent |
+| Gruppenchat | Ein Chat | Nur dieser Chat |
+| Projekt | Ein Projekt | Unterhaltungen in diesem Projekt |
+| Organisation | Alle hier | Private Unterhaltungen in dieser Organisation |
+
+Ein automatisches Schreiben bleibt im Scope der Unterhaltung, aus der es stammt,
+und ein Gruppenchat schreibt nie ein Profil. Nur `share_memory` erweitert einen
+Claim, und nur auf Anweisung einer Person, die das darf: `projects:edit` auf dem
+Projekt oder `context:edit` für die ganze Organisation. Sie wartet immer darauf, dass eine Person genau diesen Claim und Leserkreis freigibt, gleich welche Freigabe-Einstellungen der Agent hat, damit ein vom Agent gelesener Text ihn nicht zum Teilen überreden kann.
+
+Die Kopie nennt den Claim,
+aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit
+API-Key und ein geplanter Run lesen nichts; ein Gruppenchat liest nur seine
+eigenen Claims. Das Korrigieren eines Claims, den das ganze Projekt oder die ganze Organisation liest, braucht dieselbe Berechtigung wie das Teilen dorthin: Lesen ist keine Befugnis zum Umschreiben.
+
+- **Eine Korrektur behält, was sie korrigiert.** „Ab Montag übernimmt Piotr die
+  Rechnungen“ schließt den früheren Claim zu diesem Datum und fügt den neuen
+  hinzu; dass Anna sie vor Montag bearbeitet hat, bleibt wahr und sichtbar.
+- **Das Wort einer Person schlägt eine Schlussfolgerung.** Ein Agent-Claim, der
+  dem widerspricht, was eine Person gesagt hat, wird als *strittig* beiseitegelegt
+  und nie als gesichert angeboten. Auch zwei Agents, die sich widersprechen, sind
+  ein Streit, bis jemand ihn entscheidet.
+- **Die Konsolidierung faltet nur Übereinstimmung.** Alle fünfzehn Minuten werden
+  die Claims jedes Scopes, der sich *geändert* hat, zusammengeführt: gleiche Sätze
+  werden zu einem abgeleiteten Claim, der seine Quellen nennt, Widerspruch wird
+  als strittig markiert. Sie ist deterministisch - ohne Modellaufruf -, ein
+  unveränderter Scope kostet also nichts, und ein zweiter Durchlauf ändert nichts.
+  Wird ein abgeleiteter Claim zurückgezogen, kommen seine Quellen zurück und er
+  wird nicht erneut gezogen.
+- **Die Herkunft wird nach Zugriff gefiltert.** Ein ins Projekt geteilter Claim
+  verrät niemandem, der ihn nicht lesen darf, den privaten Claim, aus dem er
+  kopiert wurde.
+
+Eine private Unterhaltung bekommt das Profil der Person (höchstens etwa zwanzig
+Claims, 1.800 Zeichen) in ihren Anweisungen, nach derselben Regel wie der Index:
+nur dort, wo der Leser allein ist. Alles andere holt `recall`, das Wörter abgleicht
+und kein Modell aufruft. Abgerufene Claims sind Belege, nie eine Anweisung und nie
+eine Berechtigung.
+
+Unter **Einstellungen → Gedächtnis** listet *Zu Ihnen gespeichert* die Claims mit
+Scope und Quelle. Sie können einen Claim mit eigenen Worten ab einem Datum
+korrigieren, zurückziehen und den Verlauf anzeigen. Das Löschen einer Person
+entfernt ihre Claims und die daraus weitergegebenen Kopien.
+
 ### Was eingefügt wird, und was nur abgerufen wird { #what-is-injected-and-what-is-only-fetched }
 
 Ein Tool-Ergebnis ist etwas, das ein Modell abwägt; die Instruktionen sind das,
@@ -454,50 +511,8 @@ worauf er gesehen hat, wäre eine zweite Kopie des Geschützten.
 
 **Löschen**, unverändert. Eine Person räumt aus ihrem eigenen Profil alles weg,
 woran ein Agent sich über sie erinnert, und eine Administratorin mit
-`members:manage` kann das für jemand anderen tun; beides löscht die Zeilen hier
-**und** die zugehörigen Erinnerungen in mem0 bei jedem Agenten, der es bindet.
-Das Gedächtnis eines Agenten vollständig zu leeren steht in seinem Werkzeugkasten,
+`members:manage` kann das für jemand anderen tun; beides löscht die Notizen hier und die festgehaltenen Claims samt den daraus weitergegebenen Kopien.
 neben der Capability.
-
-**Was die Selbstauskunft nicht erreicht.** Ein an mem0 gebundener Agent hält seine
-Erinnerungen im Dienst eines Dritten, und diese Seite listet sie nicht - die API
-von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthält.
-Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
-nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
-die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
-
-Das Löschen des Speichers prüft Entwürfe und alle aufbewahrten Agentenversionen,
-auch frühere mem0-Endpunkte. Das Leeren eines Agenten entfernt außerdem seine
-mem0-Namensräume für alle Besitzer. Fehlende Zugangsdaten, Anbieterfehler oder
-unvollständige Listen führen zu einem Fehler. Stellen Sie den Zugriff wieder her
-und wiederholen Sie den Vorgang, um die Löschung abzuschließen.
-
-## Gedächtnis (mem0) { #memory-mem0 }
-
-`remember`, `recall`
-
-Semantisches Gedächtnis, das in einem [mem0](https://mem0.ai)-Dienst gehalten wird
-— in der Cloud oder selbst gehostet über `base_url` — statt in diesem Deployment.
-`remember` hält einen kurzen, in sich geschlossenen Satz fest; `recall` findet
-diejenigen, um die es in einer Frage geht, dem Sinn nach statt dem Namen nach. Es
-braucht einen API-Schlüssel aus dem Vault der Organisation.
-
-Welche Erinnerungen ein Run erreichen kann, folgt genau der obigen Regel, denn mem0
-bekommt den ganzen Scope als seine `user_id`: `{org}:{agent}:{owner}`. Ein
-mem0-Konto kann daher nicht die Erinnerungen zweier Organisationen, zweier Agents
-oder zweier Personen vermischen.
-
-Zwei Unterschiede, die man vor der Wahl kennen sollte. **Hier wird nichts
-gespeichert**, deshalb erreicht das Löschen des Gedächtnisses einer Person mem0
-über dessen eigene API und nicht über eine Zeile, die wir löschen. Und **mem0
-rechnet sein eigenes Embedding außerhalb ab**, deshalb sieht das Ausgabenkonto des
-Deployments es nicht und ein Budget-Cap begrenzt es nicht.
-
-Eine selbst gehostete `base_url` muss https sein und in `MEM0_ALLOWED_HOSTS`
-stehen. Eine leere Allowlist lehnt selbst gehostetes mem0 rundheraus ab, und das
-ist Absicht: Der Schlüssel reist in einem `Authorization`-Header, deshalb darf
-jemand, der einen geteilten Schlüssel binden, aber nicht lesen darf, ihn nicht auf
-einen eigenen Server richten können.
 
 ## Frühere Gespräche { #conversation-search }
 

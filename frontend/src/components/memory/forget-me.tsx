@@ -22,8 +22,7 @@ interface ForgetMeProps {
  *
  * It spans **every agent in the organization**, because "forget me" is a fact
  * about a person rather than about one agent they happened to talk to, and
- * answering it agent by agent is how a deletion request ends up half-done. It
- * reaches mem0 too where an agent keeps its memories there.
+ * answering it agent by agent is how a deletion request ends up half-done.
  */
 export function ForgetMe({ userId }: ForgetMeProps) {
   const t = useTranslations("memory");

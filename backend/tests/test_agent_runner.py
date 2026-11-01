@@ -3168,6 +3168,7 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ) as decide,
             patch("app.services.approvals.record_audit", new=AsyncMock()) as audit,
+            patch.object(ApprovalService, "_settle_outcomes", new=AsyncMock()),
             # Not a call's approval: the queue may decide it (#54).
             patch(
                 "app.services.approvals.voice_call_repo.is_live_run",
@@ -3223,6 +3224,7 @@ class TestApprovals:
                 new=AsyncMock(return_value=approval),
             ) as decide,
             patch("app.services.approvals.record_audit", new=AsyncMock()) as audit,
+            patch.object(ApprovalService, "_settle_outcomes", new=AsyncMock()),
             # Not a call's approval: the queue may decide it (#54).
             patch(
                 "app.services.approvals.voice_call_repo.is_live_run",

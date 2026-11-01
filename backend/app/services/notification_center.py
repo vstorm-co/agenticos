@@ -32,6 +32,7 @@ from app.services import rate_limit
 from app.services.access import ARTIFACT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
+from app.services.outcome import OutcomeService
 from app.services.push import PushService
 
 logger = logging.getLogger(__name__)
@@ -779,6 +780,11 @@ class NotificationCenterService:
         inserted = await notification_repo.insert_notification_if_new(self.db, notification)
         if not inserted:
             return None
+        # The shared state (#2575): a muted cause arrives already cleared, with nothing
+        # queued to e-mail or push.
+        outcome = await OutcomeService(self.db).attach(notification)
+        if outcome is not None and outcome.status == "muted":
+            return notification
 
         if email_enabled:
             await notification_repo.insert_delivery(

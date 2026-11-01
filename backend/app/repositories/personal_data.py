@@ -28,6 +28,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryClaim
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -37,6 +38,7 @@ from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.watch import Watch
+from app.repositories import memory_claim as memory_claim_repo
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
@@ -216,6 +218,20 @@ async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile
     return list(result.scalars().all())
 
 
+async def claims_about(db: AsyncSession, owner_key: str) -> list[MemoryClaim]:
+    """Every claim recorded about them, in every organization, whatever its status.
+
+    The history is part of what is held about a person: a claim that was corrected still
+    says what was once recorded, and it is erased with the rest.
+    """
+    result = await db.execute(
+        select(MemoryClaim)
+        .where(MemoryClaim.scope_key == owner_key)
+        .order_by(MemoryClaim.observed_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def identities_of(db: AsyncSession, user_id: UUID) -> list[ChannelIdentity]:
     """Their Slack, Telegram and Mattermost accounts, as this deployment knows them."""
     result = await db.execute(select(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
@@ -324,7 +340,10 @@ async def purge_memory_about(db: AsyncSession, owner_key: str) -> int:
         sa_delete(AgentMemoryFile).where(AgentMemoryFile.owner_key == owner_key)
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    # The ledger is the same personal data in another table, and so are the copies
+    # somebody shared out of it (`derived_from`), which do not outlive their source.
+    claims = await memory_claim_repo.delete_everywhere_about(db, scope_key=owner_key)
+    return (result.rowcount or 0) + claims  # ty: ignore[unresolved-attribute]
 
 
 async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:

@@ -955,7 +955,7 @@ class SecretRequirement(BaseModel):
         default=None,
         description=(
             "Which service in the deployment's catalog this key is for - a "
-            "`services.json` id such as `mem0`. It is what narrows the picker from "
+            "`services.json` id such as `llamaparse`. It is what narrows the picker from "
             "every key of the right *kind* to the ones that would actually work, and "
             "what a key created from the picker is stored under. Null where the "
             "capability offers several services and `required_when` already names "

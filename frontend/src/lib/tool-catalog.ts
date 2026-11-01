@@ -590,6 +590,20 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "deleteMemory",
     staysClosed: true,
   },
+  correct_memory: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "memoryCorrecting",
+    displayNameKey: "correctMemory",
+    staysClosed: true,
+  },
+  share_memory: {
+    kind: "write",
+    render: "generic",
+    captionKey: "memorySharing",
+    displayNameKey: "shareMemory",
+    staysClosed: true,
+  },
   remember: {
     kind: "write",
     render: "generic",

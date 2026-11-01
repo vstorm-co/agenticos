@@ -9,6 +9,7 @@ vi.mock("@/hooks/use-my-memory", async () => ({
   ...(await vi.importActual<object>("@/hooks/use-my-memory")),
   useMyMemory: vi.fn(),
 }));
+vi.mock("@/components/memory/my-claims", () => ({ MyClaims: () => <div>claims</div> }));
 vi.mock("next-intl", () => ({
   useTranslations:
     () =>
@@ -42,21 +43,19 @@ const showPage = vi.fn();
 
 function mount({
   items = [note()],
-  external_stores = [],
   isLoading = false,
   error = undefined,
   total = undefined,
   skip = 0,
 }: {
   items?: ReturnType<typeof note>[];
-  external_stores?: string[];
   isLoading?: boolean;
   error?: unknown;
   total?: number;
   skip?: number;
 } = {}) {
   vi.mocked(useMyMemory).mockReturnValue({
-    page: isLoading || error ? undefined : { items, total: total ?? items.length, external_stores },
+    page: isLoading || error ? undefined : { items, total: total ?? items.length },
     isLoading,
     error,
     skip,
@@ -102,14 +101,6 @@ describe("your own memory", () => {
     await userEvent.click(screen.getByRole("button", { name: "delete" }));
 
     expect(remove).toHaveBeenCalledWith("n-1");
-  });
-
-  it("names an external store rather than pretending the page is complete", () => {
-    // A page of native notes presented as a whole inventory is worse than one
-    // saying what it misses.
-    mount({ items: [], external_stores: ["Support"] });
-
-    expect(screen.getByText("externalStores:Support")).toBeInTheDocument();
   });
 
   it("says nothing is written down when nothing is", () => {

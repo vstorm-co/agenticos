@@ -37,6 +37,7 @@ export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connecti
 export { useUsableMcpConnections } from "./use-usable-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
+export { useMyClaims } from "./use-my-claims";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export { useRetention } from "./use-retention";
 export {

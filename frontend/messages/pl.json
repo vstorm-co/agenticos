@@ -685,6 +685,8 @@
       "writeMemory": "Zapis do pamięci",
       "editMemory": "Aktualizacja wspomnienia",
       "deleteMemory": "Zapomnienie wspomnienia",
+      "correctMemory": "Popraw wspomnienie",
+      "shareMemory": "Udostępnij wspomnienie",
       "askingAgent": "Pyta: {name}",
       "askedAgent": "Zapytano: {name}",
       "stoppedAskingAgent": "Zatrzymano pytanie: {name}",
@@ -805,6 +807,8 @@
       "lookingThroughContext": "Przegląda pliki kontekstu",
       "memoryChecking": "Sprawdza swoją pamięć",
       "memoryForgetting": "Zapomina wspomnienie",
+      "memoryCorrecting": "Poprawiam wspomnienie",
+      "memorySharing": "Udostępniam wspomnienie",
       "memoryReading": "Czyta wspomnienie",
       "memoryRecalling": "Przeszukuje pamięć",
       "memoryRemembering": "Zapamiętuje fakt",
@@ -1814,13 +1818,43 @@
       "description": "Co agenci tutaj zapisali o tobie i co możesz z tym zrobić.",
       "nothingYet": "Nic jeszcze nie zapisano",
       "nothingYetWhy": "Agent zapisuje notatkę, gdy nauczy się czegoś, co warto zachować między rozmowami. Pusto tutaj znaczy, że żaden tego nie zrobił.",
-      "externalStores": "Ci agenci trzymają pamięć również w zewnętrznej usłudze, której ta strona nie czyta: {agents}.",
       "writtenBy": "Zapisał {agent} · {when}",
       "anAgent": "agent",
       "suppressed": "Wyłączona",
       "suppress": "Przestań używać tej notatki",
       "restore": "Używaj tej notatki znowu",
-      "delete": "Usuń tę notatkę"
+      "delete": "Usuń tę notatkę",
+      "claims": {
+        "title": "Zapisane o Tobie",
+        "description": "Fakty, preferencje i decyzje zapisane przez agentów, razem ze źródłem. Popraw wpis własnymi słowami; stara wersja zostaje w historii.",
+        "showHistory": "Pokaż historię",
+        "scopeProfile": "Współdzielone z Twoimi agentami",
+        "scopeAgent": "Zapamiętane przez {agent}",
+        "anAgent": "agenta",
+        "since": "Od {when}",
+        "drawnFrom": "Z {count} źródeł",
+        "correct": "Popraw",
+        "retract": "Przestań używać",
+        "statement": "Poprawione zdanie",
+        "effectiveFrom": "Obowiązuje od",
+        "cancel": "Anuluj",
+        "save": "Zapisz poprawkę",
+        "origin": {
+          "agent": "Zanotowane przez agenta",
+          "person": "Powiedziane przez Ciebie",
+          "consolidation": "Połączone z kilku notatek"
+        },
+        "status": {
+          "current": "Aktualne",
+          "disputed": "Sporne",
+          "superseded": "Zastąpione",
+          "merged": "Połączone",
+          "retracted": "Wycofane"
+        },
+        "showing": "Pokazano {from}–{to} z {total}",
+        "newer": "Nowsze",
+        "older": "Starsze"
+      }
     },
     "admin": {
       "active": "Aktywny",
@@ -2125,7 +2159,8 @@
       "agentNameLabel": "Nazwa",
       "agentNameRequired": "Agent potrzebuje nazwy.",
       "identity": "Nazwa i opis",
-      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej."
+      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
+      "continueConversation": "Kontynuuj moją rozmowę"
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -2172,11 +2207,14 @@
       "botTokenHintMattermost": "Token dostępu konta bota",
       "botTokenHintSlack": "Token OAuth użytkownika-bota (xoxb-...) z Twojej aplikacji Slack",
       "botTokenHintTeams": "Sekret klienta rejestracji aplikacji Azure Bot (Certyfikaty i wpisy tajne w Entra).",
+      "botTokenHintSms": "SID konta Twilio, token autoryzacji i numer nadawcy połączone dwukropkami: ACxxxxxxxx:auth_token:+15551234567. Wskaż webhook wiadomości przychodzących numeru na adres pokazany po zapisaniu.",
       "teamsAppId": "Microsoft App ID",
       "teamsAppIdHint": "W zasobie Azure Bot, w sekcji Konfiguracja. Utwórz bota jako jednodzierżawowego.",
       "teamsTenantId": "Identyfikator dzierżawy",
       "teamsTenantIdHint": "Dzierżawa Entra, w której zarejestrowano bota. Tylko Teams tej dzierżawy może do niego pisać.",
       "teamsEndpoint": "Punkt końcowy wiadomości",
+      "smsEndpoint": "Webhook dla przychodzących SMS-ów",
+      "smsEndpointHint": "Wklej to w ustawieniu wiadomości przychodzących numeru Twilio (A message comes in → Webhook, HTTP POST).",
       "teamsEndpointHint": "Wklej go w konfiguracji Azure Bot i włącz w nim kanał Microsoft Teams.",
       "teamsPackageWhy": "Prześlij pakiet aplikacji do katalogu aplikacji Teams w swojej dzierżawie, a potem dodaj aplikację do czatu lub zespołu.",
       "teamsPackageDownload": "Pobierz pakiet aplikacji",
@@ -2265,7 +2303,13 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "transcriptionProviderNoKey": "{name} (brak pasującego klucza)",
-      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
+      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze.",
+      "botTokenHintEmail": "Adres, z którego bot odpowiada, na przykład agent@mail.example.com. Odpowiedzi wychodzą przez dostawcę poczty tej instalacji.",
+      "emailEndpoint": "Dokąd przekaźnik poczty wysyła przychodzące maile",
+      "emailEndpointHint": "Niech Twój przekaźnik (Cloudflare Email Worker, trasa przychodząca Postmark lub Mailgun) wysyła każdą wiadomość tutaj jako JSON przez POST, podpisaną sekretem poniżej.",
+      "emailRelaySecret": "Sekret podpisu przekaźnika",
+      "emailRelaySecretHint": "Przekaźnik podpisuje każde żądanie tym sekretem (HMAC-SHA256 z timestamp.body). Skopiuj go do przekaźnika; nie jest pokazywany ponownie.",
+      "emailGenerateSecret": "Wygeneruj"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -2962,10 +3006,14 @@
       "currentVersion": "Bieżąca",
       "dearestAgent": "Wydaje najwięcej",
       "surfaceTeams": "Microsoft Teams",
+      "surfaceSms": "SMS",
+      "surfaceEmail": "E-mail",
       "surfaceFollowUps": "Następne kroki",
       "surfaceProactive": "Proaktywność",
       "standaloneRequest": "Żądanie do modelu",
-      "standaloneResponse": "Odpowiedź modelu"
+      "standaloneResponse": "Odpowiedź modelu",
+      "systemRoleBriefing": "Codzienny briefing (system)",
+      "systemRoleMaintenance": "Utrzymanie pamięci (system)"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -5289,6 +5337,39 @@
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
       "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
+    },
+    "systemAgents": {
+      "title": "Agenci systemowi",
+      "description": "Praca, którą platforma wykonuje sama i która potrzebuje modelu. Każda rola ma własną konfigurację i historię; nic z tego nie jest przypisywane agentowi, którego instrukcje się nie wykonały.",
+      "on": "Włączona",
+      "off": "Wyłączona",
+      "managedIn": "Działa na {model}. Konfigurowana w Proaktywności powyżej, więc jest jeden model i jeden limit.",
+      "managedInNoModel": "Model nie został jeszcze wybrany. Konfigurowana w Proaktywności powyżej.",
+      "enabled": "Uruchamiaj tę rolę",
+      "model": "Model",
+      "modelHint": "Wybierany, nigdy domyślny: rola wydaje pieniądze, o które nikt nie prosił w danej chwili.",
+      "budget": "Budżet miesięczny (USD)",
+      "noBudget": "Bez własnego limitu",
+      "invalid": "Podaj liczbę równą zero lub większą.",
+      "modelRequired": "Wybierz model tej roli, zanim ją włączysz.",
+      "save": "Zapisz",
+      "saved": "Zapisano",
+      "savedOff": "Wyłączono",
+      "spent": "Wydano w tym miesiącu: {amount}",
+      "spentOf": "Wydano w tym miesiącu: {amount} z {budget}",
+      "noRuns": "Brak wykonań.",
+      "unknownModel": "model nieznany",
+      "roles": {
+        "daily_briefing": {
+          "name": "Codzienny briefing",
+          "what": "Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing."
+        },
+        "memory_maintenance": {
+          "name": "Utrzymanie pamięci",
+          "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
+        }
+      },
+      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
     }
   },
   "theme": {
@@ -6032,6 +6113,10 @@
       "my-memory": {
         "title": "Co agenci pamiętają o tobie",
         "body": "Agenci trzymają notatki między rozmowami. To są twoje: przeczytaj, co zapisano, przestań używać notatki bez jej niszczenia albo usuń ją zupełnie. Notatka w zewnętrznej usłudze pamięci jest tu nazwana, ale nie pokazana."
+      },
+      "my-claims": {
+        "title": "Co jest o Tobie zapisane",
+        "body": "Obok notatek agenci zapisują fakty, preferencje i decyzje razem ze źródłem. Popraw wpis własnymi słowami od wybranej daty, a stara wersja zostanie w historii; albo przestań go używać."
       },
       "orgs-new": {
         "title": "Twoje organizacje",
@@ -6926,17 +7011,16 @@
   "memory": {
     "clearAction": "Wyczyść pamięć",
     "clearBody": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nic ich nie przywróci.",
-    "clearBodyWithMem0": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nie sięga tego, co agent pamięta w mem0 - tam wpisy są przypisane do osób i usuwa się je, zapominając daną osobę.",
     "clearConfirm": "Ten agent straci wszystko, co zapisał. Jego rozmowy zostają nietknięte.",
     "clearTitle": "Wyczyść pamięć tego agenta",
-    "clearedToast": "{count, plural, =0 {Nie było nic do wyczyszczenia} one {Usunięto 1 notatkę} few {Usunięto # notatki} many {Usunięto # notatek} other {Usunięto # notatki}}",
+    "clearedToast": "{count, plural, =0 {Nie było nic do wyczyszczenia} one {Usunięto 1 wpis} few {Usunięto # wpisy} many {Usunięto # wpisów} other {Usunięto # wpisu}}",
     "forgetAction": "Zapomnij wszystko o mnie",
-    "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał - w tym wdrożeniu i w mem0, jeśli agent trzyma tam swoje wspomnienia. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
+    "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał - w tym wdrożeniu. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
     "forgetConfirm": "Każdy agent w tej organizacji zapomni, co o Tobie zanotował. Twoje rozmowy zostają nietknięte.",
     "forgetMemberConfirm": "Każdy agent w tej organizacji zapomni, co zanotował o {name}. Rozmowy tej osoby zostają nietknięte.",
     "forgetNamed": "Zapomnij, co agenci wiedzą o {name}",
     "forgetTitle": "Co agenci o Tobie pamiętają",
-    "forgottenToast": "{count, plural, =0 {Nie było nic do zapomnienia} one {Zapomniano 1 notatkę} few {Zapomniano # notatki} many {Zapomniano # notatek} other {Zapomniano # notatki}}"
+    "forgottenToast": "{count, plural, =0 {Nie było nic do zapomnienia} one {Zapomniano 1 wpis} few {Zapomniano # wpisy} many {Zapomniano # wpisów} other {Zapomniano # wpisu}}"
   },
   "avatarColor": {
     "auto": "Kolor automatyczny",
@@ -7179,7 +7263,22 @@
       "sandbox": "Piaskownica agenta",
       "pick": "Wybierz folder…",
       "useSandbox": "Użyj piaskownicy"
-    }
+    },
+    "answerToLabel": "Odpowiadaj też w",
+    "answerTo": {
+      "primary": "Moja rozmowa z tym agentem",
+      "run_log": "Tylko dziennik uruchomień",
+      "conversation": "Czat, w którym ją utworzono"
+    },
+    "answerToHint": {
+      "primary": "Każdy wynik trafia też do Twojej własnej rozmowy z tym agentem, więc wszystko, co Ci mówi, jest w jednym miejscu.",
+      "run_log": "Wyniki zostają w dzienniku uruchomień; nic nie trafia do Twoich czatów.",
+      "conversation": "Każdy wynik trafia na czat, dla którego utworzono tę rutynę."
+    },
+    "budgetLabel": "Miesięczny budżet (USD, opcjonalnie)",
+    "budgetHint": "Ile ta rutyna może wydać w miesiącu. Po wykorzystaniu wstrzymuje się i rusza od pierwszego. Zawęża limity agenta i organizacji, nigdy ich nie podnosi.",
+    "budgetPlaceholder": "Bez własnego limitu",
+    "pausedBudget": "Wstrzymana - budżet"
   },
   "portals": {
     "mailboxInterval": {
@@ -8440,16 +8539,6 @@
       "allow_personal": {
         "title": "Prywatne notatki dla każdej osoby",
         "description": "Czy agent prowadzi prywatne notatki o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn całkowicie, ze względów zgodności lub prywatności; notatki z czatów grupowych zostają."
-      }
-    },
-    "memory_mem0": {
-      "base_url": {
-        "title": "URL własnego mem0",
-        "description": "Bazowy URL samodzielnie hostowanego mem0; pomiń dla chmury mem0."
-      },
-      "allow_personal": {
-        "title": "Prywatna pamięć dla każdej osoby",
-        "description": "Czy agent zapamiętuje prywatnie rzeczy o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn, ze względów zgodności lub prywatności; pamięć czatów grupowych zostaje."
       }
     },
     "planning": {
@@ -11246,13 +11335,6 @@
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie pokazuje notatek jednej osoby drugiej. W czacie grupowym notatki należą do czatu."
     },
-    "memory_mem0": {
-      "name": "Pamięć (mem0)",
-      "does": "Agent zapamiętuje fakty i odnajduje je po znaczeniu; są przechowywane w usłudze mem0.",
-      "example1": "Zapamiętać, że klient woli e-mail od telefonu",
-      "needs": "Konto mem0, w chmurze lub własne, i jego klucz API w vault.",
-      "never": "Nigdy nie pokazuje wspomnień jednej osoby drugiej. W czacie grupowym należą do czatu."
-    },
     "planning": {
       "name": "Planowanie",
       "does": "Agent spisuje listę kroków większego zadania i odhacza każdy, więc widać postęp.",
@@ -12143,5 +12225,12 @@
         }
       }
     }
+  },
+  "outcomes": {
+    "label": "Wymaga Twojej uwagi",
+    "acknowledge": "Widziane",
+    "resolve": "Zrobione",
+    "mute": "Nie pytaj więcej",
+    "open": "Otwórz"
   }
 }
