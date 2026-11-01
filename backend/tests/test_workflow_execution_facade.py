@@ -49,7 +49,7 @@ from app.services.workflow_execution.facade import (
 )
 from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
 from app.workflows.graph.errors import GraphValidationError
-from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 
 pytestmark = pytest.mark.anyio
 
@@ -315,6 +315,80 @@ class TestStart:
         assert result.mode == WorkflowRunMode.TEST.value
         assert create_run.await_args.kwargs["workflow_version_id"] is None
         assert create_run.await_args.kwargs["draft_graph_snapshot"] is not None
+
+    async def test_a_test_run_from_a_second_trigger_snapshots_only_that_branch(self):
+        def _step(definition_id: str) -> NodeInstance:
+            return NodeInstance(
+                id=uuid.uuid4(),
+                definition_id=definition_id,
+                definition_version=1,
+                config={},
+                layout=NodePosition(x=0, y=0),
+            )
+
+        manual, webhook, after_manual, after_webhook = (
+            _step("trigger.manual"),
+            _step("trigger.webhook"),
+            _step("core.output"),
+            _step("core.output"),
+        )
+        draft = WorkflowGraph(
+            entry_node_id=manual.id,
+            nodes=(manual, webhook, after_manual, after_webhook),
+            edges=(
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=manual.id,
+                    source_port="out",
+                    target_node_id=after_manual.id,
+                    target_port="in",
+                ),
+                Edge(
+                    id=uuid.uuid4(),
+                    source_node_id=webhook.id,
+                    source_port="out",
+                    target_node_id=after_webhook.id,
+                    target_port="in",
+                ),
+            ),
+        )
+        workflow = _workflow(draft_graph=draft.model_dump(mode="json"))
+        created = _run_row(
+            workflow_id=workflow.id, mode=WorkflowRunMode.TEST.value, workflow_version_id=None
+        )
+
+        db = MagicMock()
+        service = WorkflowExecutionService(db)
+        with (
+            patch(f"{FACADE_PATH}.workflow_repo.get", new=AsyncMock(return_value=workflow)),
+            patch(f"{FACADE_PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{FACADE_PATH}.workflow_run_repo.lock_admission", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.sum_reserved_node_work",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.create_run", new=AsyncMock(return_value=created)
+            ) as create_run,
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.create_node_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(f"{FACADE_PATH}.dispatch_queue.queue_dispatch", new=AsyncMock()),
+            patch(
+                f"{FACADE_PATH}.workflow_run_repo.update_run", new=AsyncMock(return_value=created)
+            ),
+            patch(f"{FACADE_PATH}.events.append", new=AsyncMock()),
+        ):
+            await service.start(
+                _ctx(), workflow.id, mode=WorkflowRunMode.TEST, entry_node_id=webhook.id
+            )
+
+        snapshot = WorkflowGraph.model_validate(
+            create_run.await_args.kwargs["draft_graph_snapshot"]
+        )
+        assert snapshot.entry_node_id == webhook.id
+        assert {node.id for node in snapshot.nodes} == {webhook.id, after_webhook.id}
 
     async def test_a_start_over_the_admission_quota_writes_nothing(self):
         # The quota is charged after the graph resolves but before any row is

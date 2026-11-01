@@ -124,6 +124,16 @@ async def test_builder_tools_use_the_public_api_and_gate_writes(
         assert api.request.await_args.kwargs["json"] == RecordQuery().model_dump(mode="json")
 
 
+async def test_listing_tables_without_a_search_sends_only_the_page() -> None:
+    api = MagicMock(spec=PlatformApi)
+    api.request = AsyncMock(return_value={"items": [], "total": 0})
+    tool = {tool.name: tool for tool in platform_tools(api)}["list_virtual_tables"]
+
+    await tool.function()
+
+    assert api.request.await_args.kwargs["params"] == {"limit": 50, "skip": 0}
+
+
 async def test_publication_withholds_one_time_credentials() -> None:
     api = MagicMock(spec=PlatformApi)
     api.request = AsyncMock(

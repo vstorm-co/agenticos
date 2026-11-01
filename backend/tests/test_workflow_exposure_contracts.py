@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from app.core.permissions import AuthContext, OrgRoleName
 from app.services.workflow_execution import delivery
 from app.workflows.nodes._triggers import ScheduleTriggerConfig
 
@@ -104,3 +105,32 @@ async def test_background_authority_refuses_a_user_lost_after_membership_read(mo
         execution_principal_user_id=uuid.uuid4(), organization_id=uuid.uuid4()
     )
     assert await module.WorkflowExposureService(MagicMock())._fire_context(exposure) is None
+
+
+async def test_archiving_pauses_only_the_registrations_that_are_running(monkeypatch):
+    import importlib
+    from types import SimpleNamespace
+
+    module = importlib.import_module("app.services.workflow_exposure")
+    running = SimpleNamespace(id=uuid.uuid4(), workflow_id=uuid.uuid4(), adapter="webhook")
+    running.is_active = True
+    paused = SimpleNamespace(id=uuid.uuid4(), workflow_id=running.workflow_id, adapter="schedule")
+    paused.is_active = False
+    update = AsyncMock()
+    audit = AsyncMock()
+    monkeypatch.setattr(
+        module.workflow_exposure_repo,
+        "list_for_workflow",
+        AsyncMock(return_value=[paused, running]),
+    )
+    monkeypatch.setattr(module.workflow_exposure_repo, "update", update)
+    monkeypatch.setattr(module, "record_audit", audit)
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+
+    await module.WorkflowExposureService(MagicMock()).pause(
+        ctx, SimpleNamespace(id=running.workflow_id)
+    )
+
+    assert [call.kwargs["exposure"] for call in update.await_args_list] == [running]
+    assert update.await_args.kwargs["update_data"] == {"is_active": False}
+    assert [call.kwargs["action"] for call in audit.await_args_list] == ["workflow.exposure_paused"]

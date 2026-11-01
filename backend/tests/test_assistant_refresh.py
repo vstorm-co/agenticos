@@ -184,3 +184,17 @@ async def test_workflow_upgrade_is_current_when_no_support_change_is_needed(inst
     service.registry.save_draft.assert_not_awaited()
     service.registry.publish.assert_not_awaited()
     assert result.instructions == LibraryRefresh.CURRENT
+
+
+async def test_workflow_upgrade_of_an_unpublished_architect_with_nothing_to_add_writes_nothing(
+    installed,
+):
+    service, ctx, row, agent, version = installed
+    agent.current_version_id = None
+    service.registry.with_assistant_guidance = AsyncMock(side_effect=lambda agent, spec: spec)
+
+    result = await service.refresh(ctx, workflow_support_only=True)
+
+    service.registry.save_draft.assert_not_awaited()
+    service.registry.publish.assert_not_awaited()
+    assert result.instructions == LibraryRefresh.CURRENT and result.published_version is None

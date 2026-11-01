@@ -100,6 +100,25 @@ async def test_reference_membership_and_agent_visibility_apply_to_writes_and_def
     assert updated.record.values[people] == [str(owner.id), str(colleague.id)]
 
 
+async def test_a_record_naming_someone_outside_the_organization_is_never_inserted(
+    db: AsyncSession,
+):
+    owner, outsider = await make_user(db), await make_user(db)
+    org = await make_org(db, owner=owner)
+    await make_org(db, owner=outsider)
+    ctx = ctx_for(owner, org, "member")
+    service = VirtualTableService(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Assignments", columns=[ColumnInput(label="Owner", type="user")])
+    )
+    person = str(table.columns[0].id)
+
+    with pytest.raises(InvalidRecordError):
+        await service.create_record(ctx, table.id, RecordCreate(values={person: str(outsider.id)}))
+
+    assert (await service.list_records(ctx, table.id)).items == []
+
+
 async def test_a_saved_default_template_applies_to_new_records_and_never_rewrites_existing_ones(
     db: AsyncSession,
 ):
