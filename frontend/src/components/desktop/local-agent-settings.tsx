@@ -5,6 +5,7 @@ import { SectionCard } from "@/components/settings/settings-section";
 import { BrandIcon } from "@/components/icons/brand-icon";
 import { Badge, Button } from "@/components/ui";
 import { useLocalAgents } from "@/hooks/use-desktop";
+import { getErrorMessage } from "@/lib/api-error";
 import type { LocalAgent } from "@/lib/desktop/commands";
 
 /**
@@ -13,6 +14,7 @@ import type { LocalAgent } from "@/lib/desktop/commands";
  */
 export function LocalAgentSettings() {
   const t = useTranslations("desktop.settings.agents");
+  const tErrors = useTranslations("errors");
   const { state, signIn, signOut } = useLocalAgents();
   const error = state.error ?? signIn.error ?? signOut.error;
   return (
@@ -63,7 +65,7 @@ export function LocalAgentSettings() {
       <p className="text-muted-foreground mt-3 text-xs">{t("terminalNote")}</p>
       {error && (
         <p role="alert" className="text-destructive mt-3 text-sm">
-          {error.message}
+          {getErrorMessage(error, tErrors)}
         </p>
       )}
     </SectionCard>

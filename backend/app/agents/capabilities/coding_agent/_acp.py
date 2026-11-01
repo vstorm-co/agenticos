@@ -340,11 +340,12 @@ class Conversation:
 
 
 def _was_rejected(params: dict[str, Any], reply: dict[str, Any]) -> bool:
-    chosen = reply["outcome"].get("optionId")
-    for option in params.get("options") or []:
-        if isinstance(option, dict) and option.get("optionId") == chosen:
-            return str(option.get("kind", "")).startswith("reject")
-    return False
+    rejecting = {
+        option.get("optionId")
+        for option in params.get("options") or []
+        if isinstance(option, dict) and str(option.get("kind", "")).startswith("reject")
+    }
+    return reply["outcome"].get("optionId") in rejecting
 
 
 async def run_task(

@@ -598,3 +598,75 @@ def test_running_on_this_computer_is_the_one_case_that_needs_no_key() -> None:
     assert secret is not None and secret.optional_when is not None
     assert secret.optional_when.is_met(config)
     assert not secret.optional_when.is_met(CodingAgentConfig())
+
+
+async def test_a_poll_without_a_cursor_keeps_the_last_one() -> None:
+    device = FakeDevice(
+        [
+            {"lines": ['{"a": 1}'], "cursor": 1, "exit": None},
+            {"lines": ['{"b": 2}'], "exit": None},
+        ]
+    )
+    pipe = acp.DevicePipe(device, "codex")
+    await pipe.open()
+    assert await pipe.receive() == {"a": 1}
+    assert await pipe.receive() == {"b": 2}
+    polls = [args for op, args in device.calls if op == "agent.poll"]
+    assert [poll["cursor"] for poll in polls] == [0, 1]
+
+
+def test_updates_with_odd_shapes_are_read_as_far_as_they_go() -> None:
+    collector = acp._Collector()
+    assert collector.update({"sessionUpdate": "agent_message_chunk", "content": {"text": 5}}) == []
+    assert collector.said == []
+    odd = {
+        "sessionUpdate": "tool_call",
+        "toolCallId": "e",
+        "kind": "edit",
+        "title": "Edit",
+        "locations": ["not an object", {"path": 3}, {"path": "/w/ok.py"}],
+        "content": ["text", {"type": "terminal"}, {"type": "diff", "path": "/w/diff.py"}],
+    }
+    collector.update(odd)
+    assert collector.tools["e"].edits == ["/w/ok.py", "/w/diff.py"]
+
+
+async def test_a_reply_to_another_request_is_not_the_one_waited_for() -> None:
+    agent = ScriptedAgent()
+    conversation = acp.Conversation(
+        ScriptedPipe(agent), access="edit", collector=acp._Collector(), shown=_nothing
+    )
+    agent.out.append({"jsonrpc": "2.0", "id": 999, "result": {"for": "somebody else"}})
+    agent.out.append({"jsonrpc": "2.0", "id": 1, "result": {"ok": True}})
+    assert await conversation.request("initialize", {}) == {"ok": True}
+
+
+async def test_a_pipe_that_cannot_close_does_not_hide_the_report() -> None:
+    agent = ScriptedAgent()
+    pipe = ScriptedPipe(agent)
+
+    async def refuse() -> None:
+        raise OSError("already gone")
+
+    pipe.close = refuse  # type: ignore[method-assign]
+    collected: list[Any] = []
+
+    async def collect(items: list[Any]) -> None:
+        collected.extend(items)
+
+    report = await acp.run_task(
+        pipe,
+        harness="claude_code",
+        access="edit",
+        root="/w",
+        task="Fix",
+        timeout_seconds=60,
+        shown=collect,
+    )
+    assert report.outcome == "completed"
+
+
+def test_a_rejection_is_recognised_by_the_option_that_was_chosen() -> None:
+    params = {"options": [ALLOW, REJECT, "junk"]}
+    assert acp._was_rejected(params, {"outcome": {"outcome": "selected", "optionId": "no"}})
+    assert not acp._was_rejected(params, {"outcome": {"outcome": "selected", "optionId": "ok"}})
