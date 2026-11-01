@@ -195,6 +195,7 @@ async def test_read_only_refuses_a_change_and_says_what_it_refused() -> None:
     assert agent.replied == {"outcome": {"outcome": "selected", "optionId": "no"}}
     assert report.refused == ["Edit a.py"]
     assert report.steps[0].failed
+    assert report.files_changed == []
     assert agent.seen[2]["params"]["prompt"][0]["text"].startswith("You are running read-only")
 
 

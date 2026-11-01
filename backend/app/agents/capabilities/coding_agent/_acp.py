@@ -262,7 +262,7 @@ class _Collector:
             answer=bounded(answer),
             session_id=session_id,
             steps=last_steps(steps),
-            files_changed=changed,
+            files_changed=[] if access == "read_only" else changed,
             refused=self.refused,
         )
 

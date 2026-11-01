@@ -121,18 +121,17 @@ fn resolve(program: &str, path_env: Option<&std::ffi::OsStr>, home: Option<&Path
 /// `program` in `dir`; on Windows also with each `PATHEXT` extension, because npm
 /// installs `npx` and `codex` as `.cmd` shims.
 fn candidates(dir: &Path, program: &str) -> Vec<PathBuf> {
-    let bare = dir.join(program);
-    #[cfg(windows)]
-    {
+    let mut found = vec![dir.join(program)];
+    if cfg!(windows) {
         let extensions = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_owned());
-        let shims = extensions
-            .split(';')
-            .filter(|ext| !ext.is_empty())
-            .map(|ext| dir.join(format!("{program}{}", ext.to_lowercase())));
-        return std::iter::once(bare).chain(shims).collect();
+        found.extend(
+            extensions
+                .split(';')
+                .filter(|ext| !ext.is_empty())
+                .map(|ext| dir.join(format!("{program}{}", ext.to_lowercase()))),
+        );
     }
-    #[cfg(not(windows))]
-    vec![bare]
+    found
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -264,6 +263,13 @@ pub async fn local_agent_sign_in(app: AppHandle, id: AgentId) -> Result<(), Stri
     use tauri_plugin_opener::OpenerExt;
 
     let spec = spec(id);
+    if !cfg!(target_os = "macos") {
+        return Err(format!(
+            "Signing in from the app works on macOS. Run `{} {}` in a terminal instead.",
+            spec.program,
+            spec.login.join(" ")
+        ));
+    }
     let program = locate(spec.program).ok_or_else(|| format!("{} is not installed.", spec.name))?;
     let dir = app
         .path()

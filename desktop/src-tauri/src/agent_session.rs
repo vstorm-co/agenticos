@@ -173,9 +173,25 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
 
     let reader = Arc::clone(&output);
     let read_stdout = tokio::spawn(async move {
-        let mut lines = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            if line.len() <= MAX_LINE {
+        let mut lines = BufReader::new(stdout);
+        // A line is buffered only up to the limit: an adapter that never ends one
+        // would otherwise grow this buffer until the app is killed.
+        loop {
+            let mut buffer = Vec::new();
+            let read = (&mut lines)
+                .take(MAX_LINE as u64 + 1)
+                .read_until(b'\n', &mut buffer)
+                .await;
+            if read.map_or(true, |bytes| bytes == 0) {
+                break;
+            }
+            if buffer.last() == Some(&b'\n') {
+                buffer.pop();
+            }
+            if buffer.len() > MAX_LINE {
+                break;
+            }
+            if let Ok(line) = String::from_utf8(buffer) {
                 reader.with(|kept| kept.push(line));
             }
         }

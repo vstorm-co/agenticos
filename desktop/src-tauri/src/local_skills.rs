@@ -282,7 +282,13 @@ fn global_instructions(home: &Path) -> Option<(Source, String)> {
         })
         .max_by_key(|(modified, ..)| *modified)?;
     let (_, source, path) = newest;
-    let text = read_text(&path, TEXT_LIMIT).ok()?;
+    // People link `~/.codex/AGENTS.md` to the file they keep elsewhere; a link to
+    // anything that is not a Markdown file (a key, an ssh config) is not read.
+    let target = std::fs::canonicalize(&path).ok()?;
+    if !target.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("md")) {
+        return None;
+    }
+    let text = read_text(&target, TEXT_LIMIT).ok()?;
     (!text.trim().is_empty()).then_some((source, text))
 }
 
@@ -473,6 +479,24 @@ mod tests {
             Some((Source::Codex, "newer codex rules".into()))
         );
         std::fs::write(home.join(".codex/AGENTS.md"), "   \n").unwrap();
+        assert_eq!(global_instructions(&home), None);
+        std::fs::remove_dir_all(home).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_global_instruction_link_is_read_only_when_it_points_at_markdown() {
+        let home = home();
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        let rules = home.join("CLAUDE.md");
+        std::fs::write(&rules, "my rules").unwrap();
+        let link = home.join(".claude/AGENTS.md");
+        std::os::unix::fs::symlink(&rules, &link).unwrap();
+        assert_eq!(global_instructions(&home), Some((Source::Claude, "my rules".into())));
+        std::fs::remove_file(&link).unwrap();
+        let secret = home.join("id_rsa");
+        std::fs::write(&secret, "private").unwrap();
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
         assert_eq!(global_instructions(&home), None);
         std::fs::remove_dir_all(home).unwrap();
     }
