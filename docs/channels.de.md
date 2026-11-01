@@ -1,5 +1,5 @@
 ---
-source_sha: "79e2e3f1d2d8"
+source_sha: "1ea054830f9e"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1122,6 +1122,32 @@ Ein Agent, der nicht angeboten wird — aus, unveröffentlicht, archiviert oder 
 anderen Organisation —, antwortet mit `404`, Karte wie Endpunkt.
 
 ---
+
+## SMS { #sms }
+
+Eine SMS an eine Twilio-Nummer erreicht einen Agent wie eine Direktnachricht auf jeder anderen
+Plattform: über denselben Router, die verknüpfte Identität, die Zugriffsrichtlinie und die
+Budgets (#2082). Neu ist nur der Transport.
+
+**Den Bot hinzufügen** unter Channels → SMS (Twilio). Sein Token ist die Twilio-Account-SID, der
+Auth-Token und die Absendernummer, durch Doppelpunkte verbunden:
+`ACxxxxxxxx:auth_token:+15551234567`. Ein SMS-Bot arbeitet nur per Webhook; fügen Sie nach dem
+Speichern die angezeigte Webhook-URL in die Einstellung für eingehende Nachrichten der Nummer in
+der Twilio-Konsole ein.
+
+**Wer schreibt.** Eine Anfrage wird nur mit gültiger Twilio-Signatur angenommen - HMAC-SHA1 der
+Adresse, die Twilio aufgerufen hat, und ihrer Felder, unter dem Auth-Token - alles andere ist ein
+403, bevor ein Wort davon gelesen wird. Eine gültige Signatur beweist, dass die Anfrage von Twilio
+kam. Sie beweist nicht, wer der Absender ist: Die Nummer ist eine Behauptung, eine Person handelt
+also erst mit ihren eigenen Rechten, wenn sie die Nummer wie jede andere Kanal-Identität mit ihrem
+Konto verknüpft hat.
+
+**Was zurückkommt.** Der Webhook antwortet sofort, und der Agent antwortet über die Twilio-API,
+sobald er eine Antwort hat. Eine Antwort ist reiner Text - Markdown-Zeichen werden entfernt, ein
+Link wird ausgeschrieben - und bei etwa 1.500 Zeichen mit dem Hinweis gekürzt, dass der Rest in
+AgenticOS steht; eine Frage kostet so einige Segmente, nicht ein Dutzend. SMS kann nicht streamen,
+keine Nachricht bearbeiten und keine Schaltfläche drücken, eine Freigabe wird deshalb in der
+Konsole entschieden, auf die der Text verweist. Per SMS gesendete Medien werden ignoriert.
 
 ## Slack { #slack }
 

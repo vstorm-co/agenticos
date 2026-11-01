@@ -41,7 +41,7 @@ import { MentionPolicyFields } from "./mention-policy-fields";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
-const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram"];
+const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram", "sms"];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
@@ -49,6 +49,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  // i18n-exempt: Twilio is the provider's own name
+  sms: "SMS (Twilio)",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -57,6 +59,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
   teams: "botTokenHintTeams",
+  sms: "botTokenHintSms",
 };
 
 /** An Entra app or tenant id - what the backend accepts for either. */
@@ -197,6 +200,8 @@ export function AddChannelDialog({
         // Only the credential the chosen direction uses: Slack calling us is
         // verified with the signing secret, us connecting out uses the app token.
         ...(platform === "slack" ? { webhook_mode: slackWebhook } : {}),
+        // A text arrives by webhook only: there is no connection to open.
+        ...(platform === "sms" ? { webhook_mode: true } : {}),
         ...(platform === "slack" && slackWebhook && signingSecret.trim()
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),

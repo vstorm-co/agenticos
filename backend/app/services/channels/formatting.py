@@ -153,11 +153,20 @@ You are answering in Microsoft Teams, which renders a subset of Markdown.
 - Keep paragraphs short. A chat pane is narrow, and a wall of text is skimmed.
 """
 
+_SMS = """
+- Plain text only: a phone shows no bold, headings, tables or code blocks, and the
+  markers arrive as stray characters.
+- Keep it short. One or two sentences is an answer; a long one costs the person a
+  message per segment. Put anything longer in the console and say where.
+- Write a link out in full on its own line, so it is tappable.
+"""
+
 HOUSE_STYLE: dict[str, str] = {
     "mattermost": _MATTERMOST.strip(),
     "slack": _SLACK.strip(),
     "telegram": _TELEGRAM.strip(),
     "teams": _TEAMS.strip(),
+    "sms": _SMS.strip(),
 }
 """Per platform, because the differences are not preferences - they are what the
 client will and will not draw.

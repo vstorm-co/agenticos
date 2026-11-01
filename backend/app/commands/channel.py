@@ -131,7 +131,7 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--platform",
     required=True,
-    type=click.Choice(["telegram", "slack", "mattermost", "teams"]),
+    type=click.Choice(["telegram", "slack", "mattermost", "teams", "sms"]),
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")

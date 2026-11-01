@@ -310,6 +310,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # startup, and stopped after the yield below (#520).
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
+    from app.services.channels.sms import SmsAdapter
     from app.services.channels import teams as channel_teams
     from app.services.channels.teams import TeamsAdapter
     from app.services.channels.telegram import TelegramAdapter
@@ -337,6 +338,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     channel_teams.configure(redis_client)
     _teams_adapter = TeamsAdapter()
     register_adapter(_teams_adapter)
+
+    # SMS arrives only by webhook and holds no connection to open (#2082).
+    _sms_adapter = SmsAdapter()
+    register_adapter(_sms_adapter)
 
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
@@ -390,7 +395,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     await stream_lease.leases().release()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
-    for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter, _teams_adapter):
+    for _adapter in (
+        _telegram_adapter,
+        _mattermost_adapter,
+        _slack_adapter,
+        _teams_adapter,
+        _sms_adapter,
+    ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,
     # closed the same way now that nothing can still be mid-request on them (#1263).

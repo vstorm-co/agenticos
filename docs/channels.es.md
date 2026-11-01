@@ -1,5 +1,5 @@
 ---
-source_sha: "79e2e3f1d2d8"
+source_sha: "1ea054830f9e"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1069,6 +1069,31 @@ Un agent que no se sirve — desactivado, sin publicar, archivado o de otra
 organización — responde `404`, tanto la card como el endpoint.
 
 ---
+
+## SMS { #sms }
+
+Un SMS a un número de Twilio llega a un agent como un mensaje directo en cualquier otra
+plataforma: por el mismo router, la identidad vinculada, la política de acceso y los
+presupuestos (#2082). Solo el transporte es nuevo.
+
+**Añade el bot** en Canales → SMS (Twilio). Su token es el SID de la cuenta de Twilio, el token
+de autenticación y el número desde el que envía, unidos con dos puntos:
+`ACxxxxxxxx:auth_token:+15551234567`. Un bot de SMS funciona solo por webhook; tras guardarlo,
+pega la URL del webhook que se muestra en el ajuste de mensajes entrantes del número en la consola
+de Twilio.
+
+**Quién escribe.** Una petición se acepta solo con una firma de Twilio válida - HMAC-SHA1 de la
+dirección a la que Twilio llamó y de sus campos, con el token de autenticación - y cualquier otra
+recibe un 403 antes de leer una palabra. Una firma válida prueba que la petición vino de Twilio. No
+prueba quién es el remitente: el número es una afirmación, así que una persona actúa con sus propios
+permisos solo cuando ha vinculado ese número a su cuenta como cualquier otra identidad de canal.
+
+**Qué vuelve.** El webhook responde al instante y el agent contesta por la API de Twilio cuando
+tiene una respuesta. Una respuesta es texto plano - se quitan los marcadores de markdown y un
+enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso de que el resto
+está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
+transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación se decide en la
+consola a la que apunta el texto. Los archivos enviados por SMS se ignoran.
 
 ## Slack { #slack }
 

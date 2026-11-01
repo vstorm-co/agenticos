@@ -40,7 +40,9 @@ from app.services.channels import (
     get_adapter,
     inbound_webhook_url,
 )
+from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.slack_manifest import slack_manifest
+from app.services.channels.sms import split_credentials
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
@@ -247,6 +249,7 @@ class ChannelBotService:
                 data.speech_to_text_secret_id, provider=data.speech_to_text_provider
             )
         self._check_command_token(data.platform, data.command_token)
+        self._check_sms(data)
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
         webhook_secret = self._initial_webhook_secret(data)
         bot = await channel_bot_repo.create(
@@ -429,6 +432,20 @@ class ChannelBotService:
                 "has one address for everybody",
                 platform=platform,
             )
+
+    @staticmethod
+    def _check_sms(data: ChannelBotCreate) -> None:
+        """An SMS bot is a Twilio number: webhook only, and a token that can sign and send."""
+        if data.platform != "sms":
+            return
+        if not data.webhook_mode:
+            raise refused_field(
+                "webhook_mode", "SMS arrives only by webhook; there is no connection to open"
+            )
+        try:
+            split_credentials(data.token)
+        except ChannelNotConfigured as exc:
+            raise refused_field("token", exc.message) from exc
 
     @staticmethod
     def _check_command_token(platform: str, command_token: str | None) -> None:

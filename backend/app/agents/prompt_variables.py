@@ -69,6 +69,7 @@ _CHANNELS = {
     "telegram": "Telegram",
     "mattermost": "Mattermost",
     "teams": "Microsoft Teams",
+    "sms": "SMS",
     "schedule": "a scheduled run",
 }
 

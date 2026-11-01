@@ -1,5 +1,5 @@
 ---
-source_sha: "79e2e3f1d2d8"
+source_sha: "1ea054830f9e"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1050,6 +1050,30 @@ nie jest udostępniony — wyłączony, nieopublikowany, zarchiwizowany albo inn
 organizacji — odpowiada `404`, zarówno karta, jak i endpoint.
 
 ---
+
+## SMS { #sms }
+
+SMS na numer Twilio trafia do agenta tak jak wiadomość prywatna na każdej innej platformie:
+przez ten sam router, powiązaną tożsamość, politykę dostępu i budżety (#2082). Nowy jest
+tylko transport.
+
+**Dodaj bota** w Kanały → SMS (Twilio). Jego token to SID konta Twilio, token autoryzacji i
+numer nadawcy, połączone dwukropkami: `ACxxxxxxxx:auth_token:+15551234567`. Bot SMS działa
+wyłącznie przez webhook; po zapisaniu wklej pokazany adres webhooka w ustawieniu wiadomości
+przychodzących numeru w konsoli Twilio.
+
+**Kto pisze.** Żądanie jest przyjmowane tylko z poprawnym podpisem Twilio — HMAC-SHA1 adresu,
+który Twilio wywołało, i jego pól, pod tokenem autoryzacji — a wszystko inne dostaje 403, zanim
+cokolwiek zostanie odczytane. Poprawny podpis dowodzi, że żądanie przyszło od Twilio. Nie
+dowodzi, kim jest nadawca: numer jest deklaracją, więc osoba działa z własnymi uprawnieniami
+dopiero po powiązaniu numeru ze swoim kontem jak każdej innej tożsamości kanału.
+
+**Co wraca.** Webhook odpowiada od razu, a agent odpowiada przez API Twilio, gdy ma odpowiedź.
+Odpowiedź to zwykły tekst — znaczniki markdown są usuwane, a link wypisany w całości — i jest
+ucinana przy około 1500 znaków z informacją, że reszta jest w AgenticOS, więc jedno pytanie
+kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytować wiadomości ani
+przycisków, więc zatwierdzenie zapada w konsoli, do której prowadzi tekst. Multimedia wysłane
+SMS-em są ignorowane.
 
 ## Slack { #slack }
 

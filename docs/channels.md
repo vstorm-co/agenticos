@@ -1013,6 +1013,32 @@ and endpoint alike.
 
 ---
 
+## SMS { #sms }
+
+A text to a Twilio number reaches an agent the way a direct message does on any other
+platform: through the same router, linked identity, access policy and budgets (#2082).
+Only the transport is new.
+
+**Add the bot** under Channels → SMS (Twilio). Its token is the Twilio account SID, the
+auth token and the number it sends from, joined with colons:
+`ACxxxxxxxx:auth_token:+15551234567`. An SMS bot is webhook-only; after saving, paste
+the webhook URL shown for it into the number's incoming-message setting in the Twilio
+console.
+
+**Who is texting.** A request is accepted only with a valid Twilio signature - HMAC-SHA1
+of the address Twilio called and its fields, under the auth token - and anything else is
+a 403 before a word of it is read. A valid signature proves the request came from Twilio.
+It does not prove who the sender is: the number is a claim, so a person acts with their
+own permissions only once they have linked that number to their account like any other
+channel identity.
+
+**What comes back.** The webhook answers at once and the agent replies through Twilio's
+API when it has an answer. A reply is plain text - markdown markers are removed and a link
+is written out in full - and is cut at about 1,500 characters with a note that the rest is
+in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
+message or press a button, so an approval is decided in the console the text points at.
+Media sent by text is ignored.
+
 ## Slack
 
 1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the

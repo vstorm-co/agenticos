@@ -115,6 +115,7 @@ class RunSurface(enum.StrEnum):
     # Another system's agent sent it a task over A2A (#2092).
     A2A = "a2a"
     TEAMS = "teams"
+    SMS = "sms"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
