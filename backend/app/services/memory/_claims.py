@@ -112,9 +112,15 @@ async def remember(
         people = [claim for claim in live if claim.origin == "person" and claim.status == "current"]
         if origin == "person":
             for old in live:
-                await claim_repo.set_status(
-                    db, old, "superseded", effective_to=effective_from or now
-                )
+                if effective_from is not None and effective_from > now:
+                    # Dated for later: the old claim stays true until then, so it is closed
+                    # at that date and keeps its status; the new one waits for its date.
+                    old.effective_to = effective_from
+                    db.add(old)
+                else:
+                    await claim_repo.set_status(
+                        db, old, "superseded", effective_to=effective_from or now
+                    )
             supersedes = live[-1]
         elif people:
             status, disputed = "disputed", True
@@ -225,8 +231,12 @@ async def share(
         author_user_id=author_user_id,
         conversation_id=conversation_id,
     )
-    if result.created:
-        result.claim.derived_from = [str(claim.id)]
+    # A second person sharing the same sentence is deduplicated into the first copy, which
+    # then keeps both sources: erasing one person must not take the other's authorized
+    # share with it (`delete_descendants` removes a copy only when no source is left).
+    sources = [] if result.created else [str(item) for item in result.claim.derived_from]
+    if str(claim.id) not in sources:
+        result.claim.derived_from = [*sources, str(claim.id)]
         db.add(result.claim)
         await db.flush()
     return result.claim
@@ -283,7 +293,12 @@ async def profile(
     db: AsyncSession, *, organization_id: UUID, scopes: Sequence[ClaimScope]
 ) -> list[MemoryClaim]:
     return await claim_repo.list_in_scopes(
-        db, organization_id=organization_id, scopes=scopes, statuses=("current",), limit=40
+        db,
+        organization_id=organization_id,
+        scopes=scopes,
+        statuses=("current",),
+        limit=40,
+        in_effect=True,
     )
 
 

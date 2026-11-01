@@ -124,6 +124,9 @@ async def profile_block(*, organization_id: UUID, scopes: Sequence[ClaimScope]) 
         return _claims.profile_text(rows)
 
 
+_LIVE = ("current", "disputed")
+
+
 class ShareRefused(Exception):
     """The run's person may not write to that wider scope."""
 
@@ -180,7 +183,13 @@ async def correct(
     async with get_db_context() as db:
         claim = await claim_repo.get(db, organization_id=organization_id, claim_id=claim_id)
         allowed = {(scope.scope_key, scope.agent_id) for scope in scopes}
-        if claim is None or (claim.scope_key, claim.agent_id) not in allowed:
+        if (
+            claim is None
+            or (claim.scope_key, claim.agent_id) not in allowed
+            or claim.status not in _LIVE
+        ):
+            # An id from an earlier `recall` can name a claim since corrected, merged or
+            # retracted; correcting it would supersede the current one beside it.
             return None
         await _may_write_wide(
             db,
@@ -216,7 +225,11 @@ async def share(
     async with get_db_context() as db:
         claim = await claim_repo.get(db, organization_id=organization_id, claim_id=claim_id)
         allowed = {(scope.scope_key, scope.agent_id) for scope in scopes}
-        if claim is None or (claim.scope_key, claim.agent_id) not in allowed:
+        if (
+            claim is None
+            or (claim.scope_key, claim.agent_id) not in allowed
+            or claim.status not in _LIVE
+        ):
             return None
         if run_person is None:
             raise ShareRefused("Nobody who may share this is behind the run.")

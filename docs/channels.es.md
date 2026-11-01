@@ -1,5 +1,5 @@
 ---
-source_sha: "d38565e3f34e"
+source_sha: "b466859a5756"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1093,8 +1093,8 @@ tiene una respuesta. Una respuesta es texto plano - se quitan los marcadores de 
 enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso de que el resto
 está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
 transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
-llega como líneas numeradas y se responde enviando el número por SMS. Un solo dígito que encaje con
-la última pregunta enviada a ese número es la respuesta. La pregunta sigue abierta un día o hasta que otra más nueva la sustituya, así que una selección múltiple admite varios dígitos; cualquier otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
+llega como líneas numeradas y se responde enviando el número por SMS. Un solo número que nombre una
+opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
 
 ## Slack { #slack }
 

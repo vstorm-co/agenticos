@@ -412,6 +412,9 @@ class CapabilityDef:
                 # one call worth gating, which is the exact failure `id` exists
                 # to prevent.
                 side_effecting=tool.side_effecting,
+                # Carried for the same reason, and with more at stake: renaming a tool
+                # must not be a way to take it off its mandatory approval.
+                always_requires_approval=tool.always_requires_approval,
             )
             for tool in self.tools
         )

@@ -27,6 +27,8 @@ export interface SystemAgent {
   model_label: string | null;
   monthly_budget_usd: string | null;
   spent_this_month: string;
+  /** Why a role that is on would do nothing: the starter agent it is recorded under is gone. */
+  unavailable: "starter_agent" | null;
   /** Set where the role's model and limit live in another setting. */
   managed_in: "proactivity" | null;
   runs: SystemAgentRun[];

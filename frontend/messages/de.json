@@ -7828,7 +7828,8 @@
           "name": "Gedächtnispflege",
           "what": "Liest einen beendeten Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin fest, im eigenen Scope der Unterhaltung. Solange sie aus ist oder kein Modell hat, läuft nichts."
         }
-      }
+      },
+      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos."
     }
   },
   "theme": {

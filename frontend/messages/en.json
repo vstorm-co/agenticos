@@ -7949,7 +7949,8 @@
           "name": "Memory maintenance",
           "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
         }
-      }
+      },
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
     }
   },
   "theme": {

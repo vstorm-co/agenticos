@@ -133,13 +133,16 @@ async def queue_extraction(db: AsyncSession, run: AgentRun, spec: dict[str, obje
 
 
 async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
-    """Whether the person's memory or this agent's was erased after this run ended.
+    """Whether the person's memory or this agent's was erased after this run began.
 
     The transcript outlives an erasure, so without this a read queued before it - or one
     waiting on its model call - would record again what the person was told is gone.
     """
     assert run.user_id is not None
-    since = run.ended_at or run.started_at
+    # From the run's start, not its end: an erasure made while the run was still going
+    # predates the end and would otherwise be read past, and the transcript it names
+    # is the very thing the person asked to be forgotten.
+    since = run.started_at
     return since is not None and await audit_log_repo.memory_erased_since(
         db,
         organization_id=run.organization_id,

@@ -332,10 +332,10 @@ class TestNumberedAnswers:
     ) -> None:
         from app.services.channels import sms_prompts
 
-        await sms_prompts.remember("bot", "+1555", ["p:1", "p:2"])
+        await sms_prompts.remember("bot", "+1555", ["aos:a:1", "aos:a:2"], start=1)
 
-        assert await sms_prompts.answer("bot", "+1555", " 2 ") == "p:2"
-        assert await sms_prompts.answer("bot", "+1555", "1") == "p:1", "a multi-select goes on"
+        assert await sms_prompts.answer("bot", "+1555", " 2 ") == "aos:a:2"
+        assert await sms_prompts.answer("bot", "+1555", "1") == "aos:a:1", "a multi-select goes on"
         assert prompts.ttl["channel:sms:prompt:bot:+1555"] == sms_prompts.TTL_SECONDS
 
     @pytest.mark.parametrize("reply", ["3", "0", "12", "yes", "", "1 please"])
@@ -344,16 +344,18 @@ class TestNumberedAnswers:
     ) -> None:
         from app.services.channels import sms_prompts
 
-        await sms_prompts.remember("bot", "+1555", ["p:1", "p:2"])
+        await sms_prompts.remember("bot", "+1555", ["aos:a:1", "aos:a:2"], start=1)
 
         assert await sms_prompts.answer("bot", "+1555", reply) is None
-        assert await sms_prompts.answer("bot", "+1555", "1") == "p:1", "the prompt is still open"
+        assert await sms_prompts.answer("bot", "+1555", "1") == "aos:a:1", (
+            "the prompt is still open"
+        )
 
     async def test_nothing_pending_or_nowhere_to_keep_it_is_never_an_answer(self) -> None:
         from app.services.channels import sms_prompts
 
         sms_prompts.configure(None)
-        await sms_prompts.remember("bot", "+1555", ["p:1"])
+        await sms_prompts.remember("bot", "+1555", ["aos:a:1"], start=1)
         assert await sms_prompts.answer("bot", "+1555", "1") is None
         sms_prompts.configure(_Redis())  # type: ignore[arg-type]
         assert await sms_prompts.answer("bot", "+1555", "1") is None
@@ -375,15 +377,82 @@ class TestNumberedAnswers:
             PromptMessage(
                 platform_chat_id="+15559998888",
                 text="Send the invoice?",
-                choices=[ChannelChoice("Approve", "p:0"), ChannelChoice("Deny", "p:1")],
+                choices=[ChannelChoice("Approve", "aos:a:0"), ChannelChoice("Deny", "aos:a:1")],
                 bot_id="bot-1",
             ),
         )
 
         body = sent[0].content.decode()
         assert "1.+Approve" in body and "2.+Deny" in body and "Reply+with+the+number" in body
-        assert prompts.data["channel:sms:prompt:bot-1:+15559998888"] == '["p:0", "p:1"]'
+        assert prompts.data["channel:sms:prompt:bot-1:+15559998888"] == (
+            '{"1": "aos:a:0", "2": "aos:a:1"}'
+        )
         await adapter.aclose()
+
+    async def test_a_second_prompt_carries_on_numbering_and_settling_one_keeps_the_other(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+        from app.services.channels.base import ChannelChoice, PromptMessage
+
+        bodies: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            bodies.append(request.content.decode())
+            return httpx.Response(201, json={})
+
+        adapter = SmsAdapter(api="https://twilio.test")
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        for prompt_id in ("a", "b"):
+            await adapter.send_prompt(
+                TOKEN,
+                PromptMessage(
+                    platform_chat_id="+1555",
+                    text="Go?",
+                    choices=[
+                        ChannelChoice("Yes", f"aos:{prompt_id}:0"),
+                        ChannelChoice("No", f"aos:{prompt_id}:1"),
+                    ],
+                    bot_id="bot",
+                ),
+            )
+
+        assert "3.+Yes" in bodies[1] and "4.+No" in bodies[1]
+        assert await sms_prompts.answer("bot", "+1555", "3") == "aos:b:0"
+        await sms_prompts.settle("bot", "+1555", "aos:a:0")
+        assert await sms_prompts.answer("bot", "+1555", "1") is None
+        assert await sms_prompts.answer("bot", "+1555", "4") == "aos:b:1"
+        await sms_prompts.settle("bot", "+1555", "aos:b:1")
+        assert await sms_prompts.answer("bot", "+1555", "4") is None
+        await sms_prompts.settle("bot", "+1555", "not-a-press")
+        await adapter.aclose()
+
+    async def test_a_prompt_that_failed_to_send_is_not_remembered(self, prompts: _Redis) -> None:
+        from app.services.channels.base import ChannelChoice, PromptMessage
+
+        adapter = SmsAdapter(api="https://twilio.test")
+        adapter._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda request: httpx.Response(500, json={}))
+        )
+        with pytest.raises(Exception):  # noqa: B017
+            await adapter.send_prompt(
+                TOKEN,
+                PromptMessage(
+                    platform_chat_id="+1555",
+                    text="Go?",
+                    choices=[ChannelChoice("Yes", "aos:a:0")],
+                    bot_id="bot",
+                ),
+            )
+
+        assert prompts.data == {}
+        await adapter.aclose()
+
+    async def test_settling_with_nowhere_to_keep_prompts_is_harmless(self) -> None:
+        from app.services.channels import sms_prompts
+
+        sms_prompts.configure(None)
+        await sms_prompts.settle("bot", "+1555", "aos:a:0")
 
     def test_a_replacement_token_is_held_to_the_same_shape(self) -> None:
         from app.core.exceptions import BadRequestError
@@ -426,7 +495,7 @@ class TestNumberedAnswers:
         from app.services.channels import sms_prompts
 
         bot = MagicMock(id=uuid4(), platform="sms")
-        await sms_prompts.remember(str(bot.id), "+15559998888", ["p:0", "p:1"])
+        await sms_prompts.remember(str(bot.id), "+15559998888", ["aos:a:0", "aos:a:1"], start=1)
         params = {"From": "+15559998888", "Body": "2", "MessageSid": "SM9"}
         spawned: list[str] = []
         pressed = MagicMock()
@@ -453,7 +522,7 @@ class TestNumberedAnswers:
         press = pressed.call_args.args[0]
         assert (press.platform, press.value, press.platform_user_id) == (
             "sms",
-            "p:1",
+            "aos:a:1",
             "+15559998888",
         )
 
@@ -578,7 +647,7 @@ class TestAChangedOwnerStartsAgain:
         identity = SimpleNamespace(id=uuid4(), user_id=uuid4())
         session = SimpleNamespace(conversation_id=uuid4())
         fresh = uuid4()
-        await sms_prompts.remember(str(bot.id), "+1555", ["p:1"])
+        await sms_prompts.remember(str(bot.id), "+1555", ["aos:a:1"], start=1)
         updated = AsyncMock(return_value="rotated")
         with (
             patch.object(
@@ -614,13 +683,13 @@ class TestASettledPromptIsForgotten:
         from app.services.channels import sms_prompts
         from app.services.channels.base import IncomingPress
 
-        await sms_prompts.remember("bot", "+1555", ["p:1"])
+        await sms_prompts.remember("bot", "+1555", ["aos:a:1"], start=1)
         press = IncomingPress(
             platform="sms",
             bot_id="bot",
             platform_user_id="+1555",
             platform_chat_id="+1555",
-            value="p:1",
+            value="aos:a:1",
         )
 
         await SmsAdapter().settle_prompt(TOKEN, press, "Approved")
@@ -639,7 +708,7 @@ class TestASettledPromptIsForgotten:
         from app.services.channels import sms_prompts
 
         bot = MagicMock(id=uuid4(), platform="sms")
-        await sms_prompts.remember(str(bot.id), "+15559998888", ["p:0"])
+        await sms_prompts.remember(str(bot.id), "+15559998888", ["aos:a:0"], start=1)
         params = {"From": "+15559998888", "Body": "1", "MessageSid": "SM9"}
         spawned: list[str] = []
         with (

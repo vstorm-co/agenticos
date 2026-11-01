@@ -28,6 +28,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryClaim
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -213,6 +214,20 @@ async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile
         select(AgentMemoryFile)
         .where(AgentMemoryFile.owner_key == owner_key)
         .order_by(AgentMemoryFile.updated_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def claims_about(db: AsyncSession, owner_key: str) -> list[MemoryClaim]:
+    """Every claim recorded about them, in every organization, whatever its status.
+
+    The history is part of what is held about a person: a claim that was corrected still
+    says what was once recorded, and it is erased with the rest.
+    """
+    result = await db.execute(
+        select(MemoryClaim)
+        .where(MemoryClaim.scope_key == owner_key)
+        .order_by(MemoryClaim.observed_at.desc())
     )
     return list(result.scalars().all())
 

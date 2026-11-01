@@ -7,7 +7,7 @@ by what the asker may read.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,7 +74,7 @@ async def test_a_correction_keeps_what_it_corrects_and_closes_it(db: AsyncSessio
     scope = ClaimScope(person_owner_key(user.id), finance.id)
     old = (await _say(db, org, scope, "Anna handles invoices")).claim
 
-    monday = datetime(2026, 11, 2, tzinfo=UTC)
+    monday = datetime.now(UTC) - timedelta(days=1)
     new = await claims.correct(
         db,
         claim=old,
@@ -562,3 +562,64 @@ async def test_clearing_an_agent_removes_its_shared_copies_too(db: AsyncSession)
         scopes=[ClaimScope(key, support.id), ClaimScope(organization_owner_key(org.id), None)],
     )
     assert [claim.id for claim in left] == [other.claim.id]
+
+
+async def test_erasing_one_sharer_keeps_a_copy_another_person_also_shared(
+    db: AsyncSession,
+) -> None:
+    org, ada, finance, support = await _tenant(db)
+    bo = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", full_name="Bo")
+    db.add(bo)
+    await db.flush()
+    sentence = "Launch is March"
+    ada_source = (
+        await _say(db, org, ClaimScope(person_owner_key(ada.id), finance.id), sentence)
+    ).claim
+    bo_source = (
+        await _say(db, org, ClaimScope(person_owner_key(bo.id), support.id), sentence)
+    ).claim
+    target = ClaimScope(organization_owner_key(org.id), None)
+    copy = await claims.share(db, claim=ada_source, to=target, author_user_id=ada.id)
+    again = await claims.share(db, claim=bo_source, to=target, author_user_id=bo.id)
+    assert again.id == copy.id
+    assert sorted(copy.derived_from) == sorted([str(ada_source.id), str(bo_source.id)])
+
+    await claim_repo.delete_for_scope(
+        db, organization_id=org.id, scope_key=person_owner_key(ada.id)
+    )
+
+    survivor = await claim_repo.get(db, organization_id=org.id, claim_id=copy.id)
+    assert survivor is not None and survivor.derived_from == [str(bo_source.id)]
+    await claim_repo.delete_for_scope(db, organization_id=org.id, scope_key=person_owner_key(bo.id))
+    assert await claim_repo.get(db, organization_id=org.id, claim_id=copy.id) is None
+
+
+async def test_a_correction_dated_for_later_leaves_the_old_claim_true_until_then(
+    db: AsyncSession,
+) -> None:
+    org, user, finance, _ = await _tenant(db)
+    scope = ClaimScope(person_owner_key(user.id), finance.id)
+    old = (await _say(db, org, scope, "Anna handles invoices", user=user, origin="person")).claim
+    monday = datetime.now(UTC) + timedelta(days=3)
+
+    new = (
+        await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=scope,
+            statement="Piotr handles invoices",
+            subject="invoice_owner",
+            origin="person",
+            author_user_id=user.id,
+            effective_from=monday,
+        )
+    ).claim
+
+    assert old.status == "current" and old.effective_to == monday
+    profile = await claims.profile(db, organization_id=org.id, scopes=[scope])
+    assert [claim.id for claim in profile] == [old.id], "the new claim waits for its date"
+    found = await claim_repo.search(
+        db, organization_id=org.id, scopes=[scope], terms=["invoices"], limit=10
+    )
+    assert [claim.id for claim in found] == [old.id]
+    assert new.effective_from == monday

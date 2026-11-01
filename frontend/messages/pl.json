@@ -5361,7 +5361,8 @@
           "name": "Utrzymanie pamięci",
           "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
         }
-      }
+      },
+      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
     }
   },
   "theme": {

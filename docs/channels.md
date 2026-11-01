@@ -1037,8 +1037,8 @@ API when it has an answer. A reply is plain text - markdown markers are removed 
 is written out in full - and is cut at about 1,500 characters with a note that the rest is
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
 message or press a button, so an approval or a question arrives as numbered lines and is
-answered by texting the number. A lone digit that fits the last prompt sent to that number
-is the answer. The prompt stays open for a day or until a newer one replaces it, so a multi-select takes several digits; any other text is an ordinary message. Media
+answered by texting the number. A lone number that names a choice
+of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message. Media
 sent by text is ignored.
 
 ## Slack

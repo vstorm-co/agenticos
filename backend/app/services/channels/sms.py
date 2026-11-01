@@ -143,16 +143,21 @@ class SmsAdapter(ChannelAdapter):
         There are no buttons to press, so the person replies with a digit; the router
         reads it back through `sms_prompts.answer`.
         """
-        lines = [f"{number}. {choice.label}" for number, choice in enumerate(prompt.choices, 1)]
-        await sms_prompts.remember(
-            prompt.bot_id, prompt.platform_chat_id, [choice.value for choice in prompt.choices]
-        )
+        start = await sms_prompts.first_number(prompt.bot_id, prompt.platform_chat_id)
+        lines = [f"{number}. {choice.label}" for number, choice in enumerate(prompt.choices, start)]
         await self.send_message(
             bot_token,
             OutgoingMessage(
                 platform_chat_id=prompt.platform_chat_id,
                 text=f"{prompt.text}\n" + "\n".join(lines) + "\nReply with the number.",
             ),
+        )
+        # After the send: a prompt that never arrived must not stay answerable.
+        await sms_prompts.remember(
+            prompt.bot_id,
+            prompt.platform_chat_id,
+            [choice.value for choice in prompt.choices],
+            start=start,
         )
 
     async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
@@ -161,7 +166,7 @@ class SmsAdapter(ChannelAdapter):
         Not called for a choice in a multi-select that is still open, which is why the
         mapping outlives the first reply.
         """
-        await sms_prompts.forget(press.bot_id, press.platform_chat_id)
+        await sms_prompts.settle(press.bot_id, press.platform_chat_id, press.value)
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """SMS only ever arrives by webhook; there is nothing to poll."""

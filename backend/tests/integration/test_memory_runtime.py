@@ -372,3 +372,42 @@ async def test_nobody_behind_the_run_may_rewrite_a_wide_claim(db: AsyncSession) 
             author_user_id=uuid.uuid4(),
             effective_from=None,
         )
+
+
+async def test_an_id_from_an_earlier_recall_cannot_correct_or_share_what_is_no_longer_live(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, project, conversation = await _world(db)
+    mine = ClaimScope(person_owner_key(user.id), agent.id)
+    saved = await _remember(org, mine, "Launch is 3 March", user, conversation, subject="launch")
+    assert saved is not None
+    stale_id = saved[0].id
+    await runtime.correct(
+        organization_id=org.id,
+        claim_id=stale_id,
+        scopes=[mine],
+        statement="Launch is 5 March",
+        author_user_id=user.id,
+        effective_from=None,
+    )
+
+    again = await runtime.correct(
+        organization_id=org.id,
+        claim_id=stale_id,
+        scopes=[mine],
+        statement="Launch is 9 March",
+        author_user_id=user.id,
+        effective_from=None,
+    )
+    shared = await runtime.share(
+        organization_id=org.id,
+        claim_id=stale_id,
+        scopes=[mine],
+        to="organization",
+        run_person=user.id,
+        conversation_id=conversation.id,
+    )
+
+    assert again is None and shared is None
+    live = await claim_repo.list_in_scopes(db, organization_id=org.id, scopes=[mine])
+    assert [claim.statement for claim in live] == ["Launch is 5 March"]

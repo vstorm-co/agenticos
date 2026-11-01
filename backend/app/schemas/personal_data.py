@@ -49,6 +49,12 @@ class PersonalDataExport(BaseModel):
     memory: list[dict[str, Any]] = Field(
         description="What agents have written down about them, in every organization."
     )
+    memory_claims: list[dict[str, Any]] = Field(
+        description=(
+            "The facts, preferences and decisions agents recorded about them, with their "
+            "source, validity and status - the superseded, merged and retracted ones too."
+        )
+    )
     channel_identities: list[dict[str, Any]] = Field(
         description="The Slack, Telegram and Mattermost accounts they linked."
     )

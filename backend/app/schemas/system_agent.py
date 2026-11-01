@@ -32,6 +32,14 @@ class SystemAgentRead(BaseSchema):
     model_label: str | None = None
     monthly_budget_usd: Decimal | None = None
     spent_this_month: Decimal
+    unavailable: Literal["starter_agent"] | None = None
+    """Why a role that is switched on would do nothing right now.
+
+    Background model calls are recorded under the organization's published AgenticOS starter
+    agent so each has a row, a cost and a trace. Renamed, unpublished or deleted, it leaves
+    nothing to record them under, and the role silently skips its work - so it is said here.
+    """
+
     managed_in: Literal["proactivity"] | None = None
     """Set where the role's model and limit live in another setting rather than here.
 

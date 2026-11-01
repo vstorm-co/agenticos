@@ -399,6 +399,32 @@ class TestTheExport:
 
         assert [row["content"] for row in export.memory] == ["Prefers short answers."]
 
+    async def test_it_carries_the_claims_recorded_about_them_corrected_ones_too(self, db):
+        from app.repositories.memory_claim import ClaimScope
+        from app.services.memory import claims
+
+        user = await _person(db, "export-claims@example.com")
+        user_id = user.id
+        organization, agent = await _org_and_agent(db)
+        scope = ClaimScope(person_owner_key(user_id), agent.id)
+        first = (
+            await claims.remember(
+                db,
+                organization_id=organization.id,
+                scope=scope,
+                statement="Lives in Kraków",
+                subject="home",
+            )
+        ).claim
+        await claims.correct(db, claim=first, statement="Lives in Gdańsk", author_user_id=user_id)
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert {(row["statement"], row["status"]) for row in export.memory_claims} == {
+            ("Lives in Kraków", "superseded"),
+            ("Lives in Gdańsk", "current"),
+        }
+
     async def test_it_carries_the_notifications_addressed_to_them(self, db):
         """`docs/data-protection.md` classifies these rows as personal data, and
         the same page promises everything held about a person comes back from

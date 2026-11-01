@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ARRAY, Text, and_, func, literal, or_, select
+from sqlalchemy import ARRAY, Text, and_, func, literal, or_, select, true
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +32,20 @@ class ClaimScope:
 def _texts(values: list[str]) -> Any:
     """A `text[]` operand: `?|` takes one, and a bound list would arrive as `jsonb`."""
     return literal(values, type_=ARRAY(Text))
+
+
+def _in_effect() -> Any:
+    """Claims whose validity covers now: begun, and not yet ended.
+
+    A correction dated for next Monday leaves the old claim true until then and the new one
+    unspoken until then; status alone cannot say that, so what is put in front of a model
+    is filtered by the interval too.
+    """
+    now = func.now()
+    return and_(
+        or_(MemoryClaim.effective_from.is_(None), MemoryClaim.effective_from <= now),
+        or_(MemoryClaim.effective_to.is_(None), MemoryClaim.effective_to > now),
+    )
 
 
 def _in_scopes(scopes: Sequence[ClaimScope]) -> Any:
@@ -78,8 +92,9 @@ async def list_in_scopes(
     statuses: Sequence[str] = ("current",),
     limit: int = 50,
     skip: int = 0,
+    in_effect: bool = False,
 ) -> list[MemoryClaim]:
-    """Claims in the given scopes, newest first."""
+    """Claims in the given scopes, newest first; `in_effect` keeps those valid right now."""
     if not scopes:
         return []
     result = await db.execute(
@@ -88,6 +103,7 @@ async def list_in_scopes(
             MemoryClaim.organization_id == organization_id,
             _in_scopes(scopes),
             MemoryClaim.status.in_(list(statuses)),
+            _in_effect() if in_effect else true(),
         )
         .order_by(MemoryClaim.observed_at.desc(), MemoryClaim.id.asc())
         .offset(skip)
@@ -190,6 +206,7 @@ async def search(
             MemoryClaim.organization_id == organization_id,
             _in_scopes(scopes),
             MemoryClaim.status.in_(["current", "disputed"]),
+            _in_effect(),
             or_(
                 *(MemoryClaim.statement.ilike(needle) for needle in needles),
                 *(MemoryClaim.subject.ilike(needle) for needle in needles),
@@ -296,26 +313,37 @@ async def scopes_with_changes(db: AsyncSession, *, limit: int) -> list[MemorySco
 async def _delete_descendants(
     db: AsyncSession, ids: list[str], *, organization_id: UUID | None = None
 ) -> int:
-    """Delete every claim drawn, however many copies removed, from any of `ids`.
+    """Remove what was drawn from `ids`, however many copies removed - and only that.
 
     A claim shared to a project and then from the project to the organization names the
     project copy, not the original, so one pass removes only the first generation and the
-    personal statement would outlive its erasure in the second. Each pass deletes the
+    personal statement would outlive its erasure in the second. Each pass handles the
     claims that name what the last one removed, until a pass removes nothing.
+
+    A copy that two people shared independently names both. It is deleted only when none
+    of its sources survives; otherwise the erased ones are struck from its list and it
+    stays, because the other person's share is theirs to keep.
     """
     removed = 0
+    gone = set(ids)
     frontier = ids
     while frontier:
-        query = (
-            sa_delete(MemoryClaim)
-            .where(MemoryClaim.derived_from.has_any(_texts(frontier)))
-            .returning(MemoryClaim.id)
-        )
+        query = select(MemoryClaim).where(MemoryClaim.derived_from.has_any(_texts(frontier)))
         if organization_id is not None:
             query = query.where(MemoryClaim.organization_id == organization_id)
-        deleted = (await db.execute(query)).scalars().all()
-        removed += len(deleted)
-        frontier = [str(identifier) for identifier in deleted]
+        rows = (await db.execute(query)).scalars().all()
+        frontier = []
+        for row in rows:
+            remaining = [item for item in row.derived_from if item not in gone]
+            if remaining:
+                row.derived_from = remaining
+                db.add(row)
+                continue
+            frontier.append(str(row.id))
+            gone.add(str(row.id))
+            await db.delete(row)
+            removed += 1
+        await db.flush()
     return removed
 
 

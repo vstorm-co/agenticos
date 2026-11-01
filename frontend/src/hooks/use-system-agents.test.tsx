@@ -25,6 +25,7 @@ const role = (name: "daily_briefing" | "memory_maintenance", enabled: boolean) =
   monthly_budget_usd: null,
   spent_this_month: "0",
   managed_in: null,
+  unavailable: null,
   runs: [],
 });
 

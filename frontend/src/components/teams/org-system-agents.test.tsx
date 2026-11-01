@@ -14,6 +14,8 @@ const state = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
   isPending: false,
   fail: undefined as unknown,
+  loading: false,
+  failed: undefined as unknown,
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
@@ -26,6 +28,8 @@ vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => state.tenantId 
 vi.mock("@/hooks/use-system-agents", () => ({
   useSystemAgents: () => ({
     roles: state.roles,
+    isLoading: state.loading,
+    error: state.failed,
     update: { mutateAsync: state.mutateAsync, isPending: state.isPending },
   }),
 }));
@@ -68,6 +72,7 @@ function agent(overrides: Partial<SystemAgent> = {}): SystemAgent {
     monthly_budget_usd: null,
     spent_this_month: "0",
     managed_in: null,
+    unavailable: null,
     runs: [],
     ...overrides,
   };
@@ -89,6 +94,8 @@ beforeEach(() => {
   state.held = [Perm.budgetsManage];
   state.roles = [briefing, agent()];
   state.isPending = false;
+  state.loading = false;
+  state.failed = undefined;
   state.mutateAsync.mockResolvedValue(agent());
 });
 
@@ -98,7 +105,27 @@ describe("OrgSystemAgents", () => {
     expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
     state.held = [Perm.budgetsManage];
     state.roles = undefined;
+    state.loading = true;
     expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
+  });
+
+  it("says so when the roles could not be loaded, rather than reading as no settings", () => {
+    state.roles = undefined;
+    state.failed = new Error("x");
+
+    const { container } = render(<OrgSystemAgents org={ORG} />);
+
+    expect(container).not.toBeEmptyDOMElement();
+    expect(screen.queryByTestId("system-agent-memory_maintenance")).not.toBeInTheDocument();
+  });
+
+  it("says when a role that is on has no starter agent to be recorded under", () => {
+    state.roles = [briefing, agent({ enabled: true, unavailable: "starter_agent" })];
+    render(<OrgSystemAgents org={ORG} />);
+
+    expect(screen.getByTestId("system-agent-memory_maintenance")).toHaveTextContent(
+      "starterAgentMissing",
+    );
   });
 
   it("is the active organization's: another one's page shows nothing of it", () => {

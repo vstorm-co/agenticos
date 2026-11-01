@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { ErrorState } from "@/components/states";
 import { Badge, Button, Input, Label, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, usePermissions } from "@/hooks";
@@ -39,8 +40,11 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
   // person belongs to, and showing - or changing - the active organization's model and
   // budget under that other name would be a settings page lying about whose it is.
   const allowed = can(Perm.budgetsManage) && tenantId === org.id;
-  const { roles } = useSystemAgents(allowed);
-  if (!allowed || !roles) return null;
+  const { roles, isLoading, error } = useSystemAgents(allowed);
+  if (!allowed || isLoading) return null;
+  // Said, not hidden: an operator must not read a failed request as a product with no
+  // system-agent settings.
+  if (error || !roles) return <ErrorState />;
   return (
     <SettingsSection title={t("title")} description={t("description")}>
       <div className="divide-foreground/10 space-y-6 divide-y [&>*:not(:first-child)]:pt-6">
@@ -67,6 +71,11 @@ function Role({ agent }: { agent: SystemAgent }) {
           <Badge variant="outline">{agent.enabled ? t("on") : t("off")}</Badge>
         ) : null}
       </div>
+      {agent.unavailable ? (
+        <p role="status" className="text-destructive text-xs">
+          {t("starterAgentMissing")}
+        </p>
+      ) : null}
       {agent.managed_in ? (
         <p className="text-muted-foreground text-xs">
           {agent.model_label ? t("managedIn", { model: agent.model_label }) : t("managedInNoModel")}

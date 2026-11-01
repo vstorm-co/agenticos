@@ -1,7 +1,7 @@
 """System agents against Postgres (#2575): configuration, history and the memory extraction job."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -121,6 +121,19 @@ async def test_the_overview_lists_both_roles_with_the_briefing_read_from_proacti
     assert briefing.enabled and briefing.model_label == "Maintenance model"
     assert maintenance.role == MEMORY_MAINTENANCE and maintenance.managed_in is None
     assert maintenance.model_profile_id is None and maintenance.runs == []
+    assert briefing.unavailable == "starter_agent" == maintenance.unavailable, (
+        "no published starter agent, so a role that is on would record nothing"
+    )
+
+
+async def test_a_published_starter_agent_leaves_the_roles_available(db: AsyncSession) -> None:
+    user, org, agent, version, model, ctx = await _world(db)
+    agent.slug = "agenticos"
+    await db.flush()
+
+    overview = await SystemAgentService(db).overview(ctx)
+
+    assert [item.unavailable for item in overview.items] == [None, None]
 
 
 async def test_it_is_configured_with_a_model_a_budget_and_a_switch_and_the_change_is_audited(
@@ -426,6 +439,31 @@ async def test_a_chat_read_after_its_person_was_forgotten_records_nothing(
 
     assert await extraction.extract(db, org.id, run.id) == 0
     assert not think.await_count, "no model is paid to read what must not be kept"
+
+
+async def test_an_erasure_made_while_the_run_was_still_going_is_not_read_past(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.audit import record_audit
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    run.started_at = datetime(2020, 1, 1, tzinfo=UTC)
+    run.ended_at = datetime.now(UTC) + timedelta(hours=1)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    await record_audit(
+        db,
+        actor_user_id=user.id,
+        organization_id=org.id,
+        action="memory.person.forgotten",
+        target_type="user",
+        target_id=str(user.id),
+        details={},
+    )
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+    assert not think.await_count
 
 
 async def test_a_chat_read_after_its_agent_was_cleared_records_nothing(

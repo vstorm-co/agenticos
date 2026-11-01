@@ -526,6 +526,17 @@ class TestEffectiveTools:
         assert (tool.id, tool.name) == ("search_documents", "search_refund_policy")
         assert tool.description == get("knowledge").tools[0].description
 
+    def test_a_rename_cannot_take_a_tool_off_its_mandatory_approval(self):
+        shared = {
+            tool.id: tool
+            for tool in get("memory_files").effective_tools(
+                {"share_memory": ToolOverride(name="publish_memory")}
+            )
+        }["share_memory"]
+
+        assert shared.name == "publish_memory"
+        assert shared.always_requires_approval
+
     def test_a_reworded_description_keeps_the_declared_name(self):
         (tool,) = get("knowledge").effective_tools(
             {"search_documents": ToolOverride(description="Look up the refund policy.")}

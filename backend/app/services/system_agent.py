@@ -14,7 +14,7 @@ removed.
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,7 @@ from app.schemas.system_agent import (
     SystemAgentUpdate,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.proactive._thinker import ProactiveThinker
 from app.services.spend import month_start
 
 HISTORY = 10
@@ -124,6 +125,10 @@ class SystemAgentService:
                 "model_profile_id", not_chat_refusal(profile.label, profile.model, outputs)
             )
 
+    async def _unavailable(self, ctx: AuthContext) -> Literal["starter_agent"] | None:
+        starter = await ProactiveThinker(self.db).starter_agent(ctx.organization_id)
+        return None if starter is not None else "starter_agent"
+
     async def _label(self, ctx: AuthContext, profile_id: UUID | None) -> str | None:
         if profile_id is None:
             return None
@@ -149,6 +154,7 @@ class SystemAgentService:
         )
         return SystemAgentRead(
             role=MEMORY_MAINTENANCE,
+            unavailable=await self._unavailable(ctx),
             enabled=profile.enabled,
             model_profile_id=profile.model_profile_id,
             model_label=await self._label(ctx, profile.model_profile_id),
@@ -162,6 +168,7 @@ class SystemAgentService:
         profile_id = organization.proactive_model_profile_id
         return SystemAgentRead(
             role=DAILY_BRIEFING,
+            unavailable=await self._unavailable(ctx),
             enabled=organization.proactive_enabled,
             model_profile_id=profile_id,
             model_label=await self._label(ctx, profile_id),
