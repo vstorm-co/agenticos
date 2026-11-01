@@ -19,7 +19,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-
 ### Added
 
 - Workflow creation starts with a name, audience, trigger and optional description and tags, matching agent creation. A separate category gallery opens templates for review before creating their resources.
@@ -1022,6 +1021,10 @@ Two things are versioned separately from this file and worth knowing about:
   only settings grant is `org:settings`.
 - Offer Push preferences for workflow notifications, log alerts, page ownership
   changes and page requests, alongside their existing in-app and email controls.
+
+### Security
+
+- Update the desktop app's `tauri-plugin-updater` to 2.14.1, which moves its `zip` dependency from 4.6.1 to 9.2.0 and closes three Dependabot alerts (one critical, one high, one medium). Two low and medium alerts on the mobile app's `rand` 0.7 and `glib` 0.18 remain: both are transitive through Tauri, have no compatible fix yet, and neither is compiled into the iOS or Android builds that ship.
 
 ## [1.33.1] - 2026-11-01
 
