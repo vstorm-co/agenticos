@@ -7,9 +7,23 @@ import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
 import { Button, SwipeToDecide } from "@/components/ui";
+import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
+
+/**
+ * What the call will do in names, resolved when it was parked as the person the
+ * run acts for; else, for a call still waiting, the one telling argument, as a
+ * call nobody described always read. A decided row keeps its arguments folded.
+ */
+function useCallLine(approval: ToolApproval, withArguments: boolean): string | null {
+  const tTools = useTranslations("chat.tools");
+  return (
+    approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
+    (withArguments ? callSummary(approval.tool_args) : null)
+  );
+}
 
 /** Who is asking: the delegate when one is, else the run's own agent. */
 function useActor(approval: ToolApproval): string {
@@ -43,7 +57,7 @@ export function PendingApproval({
   const actor = useActor(approval);
   const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
-  const summary = callSummary(approval.tool_args);
+  const summary = useCallLine(approval, true);
 
   return (
     <li>
@@ -137,6 +151,7 @@ export function DecidedApproval({
   // "Expired" would put a specific claim on a row the backend said something
   // newer about.
   const labelKey = DECISION_LABEL[approval.status];
+  const summary = useCallLine(approval, false);
 
   return (
     <li className="px-5 py-3">
@@ -160,6 +175,11 @@ export function DecidedApproval({
           {labelKey ? t(labelKey) : approval.status}
         </span>
       </div>
+      {summary !== null && (
+        <p className="text-foreground/80 mt-1 truncate pl-10 text-sm" title={summary}>
+          {summary}
+        </p>
+      )}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-10 text-xs">
         <AccountBadge account={approval.account} />
         {approval.triggered_by_email && (

@@ -1,4 +1,4 @@
-import { Plug, Workflow } from "lucide-react";
+import { Plug, Workflow, TimerReset } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { brandForUrl, consolePageIcon, hostOf, isAppLink } from "./link-brands";
@@ -8,7 +8,8 @@ const ORIGIN = "https://agents.example.com";
 /** A console page an agent links to wears the sidebar's mark for it (#2301). */
 describe("the console page behind a link", () => {
   it("draws the section's icon for a relative link, its query and anchor aside", () => {
-    expect(consolePageIcon("/routines?highlight=routines-create", ORIGIN)).toBe(Workflow);
+    expect(consolePageIcon("/routines?highlight=routines-create", ORIGIN)).toBe(TimerReset);
+    expect(consolePageIcon("/workflows", ORIGIN)).toBe(Workflow);
     expect(consolePageIcon("/mcp-servers?highlight=mcp-add", ORIGIN)).toBe(Plug);
   });
 

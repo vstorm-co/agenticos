@@ -110,6 +110,8 @@ services:
       --ws websockets-sansio
     networks:
       - backend
+      # Where `artifact-render` is, when its profile is up. Empty otherwise.
+      - render
       - browser
     depends_on:
       migrate:
@@ -226,6 +228,7 @@ services:
       - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
     networks:
       - backend
+      - render
       - browser
     depends_on:
       migrate:
@@ -346,6 +349,49 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  artifact-render:
+    # The browser `preview_artifact` draws a page in, so an agent can see what it
+    # published. Opt-in: `docker compose --profile artifact-render up -d`, then in
+    # `backend/.env` ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222, with the
+    # backend image built with the `browser` extra (`BACKEND_EXTRAS="--extra
+    # browser"` locally). Never on BROWSER_CDP_ALLOWED_HOSTS: that list is what
+    # agent authors may drive, and the browser tool's endpoint guard
+    # (`browser_use._endpoint.is_renderer`) refuses this host anyway.
+    #
+    # On `render` alone, which has no route off the host. The API answers every
+    # request a render makes, so the browser needs no network of its own, and a
+    # page that broke out of Chromium finds nothing to talk to. Never the browser
+    # a browsing agent drives: that one needs the internet, and this one renders
+    # people's records. Chromium's own sandbox is off in this image (it needs
+    # privileges a container is not given), so the container is the boundary:
+    # read-only, no capabilities, bounded memory, CPU and processes.
+    #
+    # A version, not `latest`, so a Chromium upgrade is a decision.
+    image: chromedp/headless-shell:155.0.8059.40
+    profiles: [artifact-render]
+    # Appended to the image's own flags.
+    command:
+      - --disable-dev-shm-usage
+      - --no-first-run
+      - --disable-background-networking
+      - --disable-component-update
+      - --disable-default-apps
+      - --disable-sync
+      - --mute-audio
+      - --hide-scrollbars
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    networks:
+      - render
     restart: unless-stopped
 
   # The browser the web browser capability drives (#2127). Behind a profile,
@@ -496,6 +542,9 @@ networks:
     # compose scopes it to the project, and two stacks on one host do not share
     # a bridge on which `db` and `app` resolve to the neighbour's containers.
     driver: bridge
+  render:
+    # The page renderer's network: the API and the browser, and no way out.
+    internal: true
   browser:
     # The browser's own network, which only the API and the worker share with it
     # to reach `browser:9222`. A page it is sent to - or redirected to - cannot

@@ -1,5 +1,5 @@
 ---
-source_sha: "6e082228f717"
+source_sha: "7bd15584abde"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -267,6 +267,63 @@ proxy con el que se configuró este host y no el que asumiera un script.
     etiquetados*, así que sobrevive a que alguien añada un servicio sin pensar en
     el proxy.
 
+!!! warning "Algunas rutas y query strings de petición son credenciales"
+
+    Estos segmentos de ruta abren algo a quien los lea:
+
+    - la clave de un enlace público, en `/a/<key>`, `/api/v1/public/artifacts/<key>`
+      y `/api/v1/artifact-embed/<key>`, hasta que se rota el enlace;
+    - una dirección de contenido firmada, `/api/v1/artifact-content/<token>`,
+      mientras dura su vigencia;
+    - el token de una conversación compartida, en `/shared/<token>` y
+      `/api/v1/conversations/shared/<token>`;
+    - el token de un formulario de workflow, en `/f/<token>` y
+      `/api/v1/public/workflow-forms/<token>`;
+    - el token de una prueba de webhook, en `/api/v1/workflow-webhook-tests/<token>`
+      y `/api/v1/workflows/<id>/webhook-test/<token>`;
+    - el token de un enlace de canal, en `/link/<token>` y
+      `/api/v1/me/channel-link/<token>`;
+    - el token de una invitación, en `/invitations/<token>`,
+      `/api/v1/invitations/<token>` y `/api/v1/invitations/<token>/accept`;
+    - el token de reanudación de una ejecución de workflow, en
+      `/api/v1/workflow-resume/<run_id>/<token>`.
+
+    Y también estos parámetros de consulta:
+
+    - `visitor` y `token` en el socket del widget del agente,
+      `/api/v1/embed/<key>/ws`: la clave de una página alojada, que reanuda la
+      conversación del visitante, y el token de visitante firmado del cliente;
+    - `code` y `state` en el retorno de un proveedor de inicio de sesión,
+      `/api/v1/oauth/<provider>/callback`, y `code` en el `/auth/callback` de
+      la consola;
+    - `invitation_handle` en `/api/v1/oauth/<provider>/login` y
+      `/api/v1/auth/kerberos/login`, que canjea la invitación que representa;
+    - `token` en `/reset-password`, `/auth/magic-link` y `/auth/email-change`
+      de la consola, los enlaces que envían un restablecimiento de contraseña,
+      un enlace de inicio de sesión y un cambio de correo.
+
+    Una petición hecha desde una de esas páginas puede llevar su dirección en la
+    cabecera `Referer`. La API sustituye los segmentos de la API y los valores
+    de esos parámetros por `[REDACTED]` en su propio log de acceso, en la línea
+    de uvicorn de cada WebSocket aceptado, en cada registro de log y en los
+    spans de Logfire, incluidos la salida de consola, los argumentos del
+    endpoint y la copia que Logfire hace al empezar un span. Los demás
+    parámetros de consulta, como `q`, `skip`, `limit` y los ids, se conservan.
+
+    Traefik puede conservar, eliminar o redactar un campo entero, pero no
+    reescribir una parte de él, así que `traefik/traefik.yml` elimina
+    `RequestPath`, que incluye la query string, del log de acceso de
+    Traefik. Nginx sí puede reescribir parte de un valor, pero
+    `nginx/nginx.conf` elimina la ruta, la query string y el `Referer` de
+    la misma manera, con el formato de log `agenticos_no_path` que nombra cada
+    bloque `server`, para que la lista de rutas secretas se mantenga en un solo
+    sitio. Ambos logs siguen teniendo el cliente, el estado, el tamaño y la
+    duración. El log de errores de Nginx escribe la línea de petición y el
+    `Referer` de una petición fallida, y ningún ajuste lo cambia, así que
+    mantén el log de errores en el host. Si necesitas las rutas en el log de
+    acceso, quita esa regla de campo o ese formato de log y trata el log como un
+    secreto: guárdalo en el host y no lo envíes a un servicio de logs.
+
 ### Opción B: Nginx { #option-b-nginx }
 
 Para un host donde Nginx ya termina el TLS, o donde el proxy no está en Docker en
@@ -282,7 +339,10 @@ make prod-frontend
 `server_name` de cada bloque es `${DOMAIN:-localhost}`, y Nginx no lo expande —
 pon los dos nombres de host a mano. Los certificados son tuyos de obtener y
 renovar, y también lo es la cabecera `Strict-Transport-Security`, que el backend
-deja deliberadamente a lo que termine el TLS.
+deja deliberadamente a lo que termine el TLS. El log de acceso de la plantilla deja
+fuera la ruta de la petición, la query string y el `Referer`; *Algunas
+rutas y query strings de petición son credenciales*, más arriba, explica
+por qué y qué sigue escribiendo el log de errores.
 
 !!! warning "`BIND_HOST` es un ajuste de seguridad, no una comodidad"
 
@@ -362,6 +422,23 @@ nada más.
 
     **HSTS se deja deliberadamente al proxy**, que es donde termina el TLS. Un
     proxy que ponga su propia CSP debería ser al menos tan estricto como esta.
+
+### Servicios en tu propia red { #services-on-your-own-network }
+
+Una petición que configura un miembro - un paso HTTP de workflow, una fuente de
+Git, de sitio web o de S3, un agente A2A o una conexión MCP - se rechaza cuando su host
+resuelve a una dirección privada, así que una wiki, un servidor Git o un servidor
+MCP dentro de tu red quedan fuera de alcance por defecto.
+
+Para abrir uno, lístalo en `OUTBOUND_PRIVATE_ALLOWLIST` en `backend/.env`, como
+host, `.suffix`, dirección o rango CIDR, y reinicia la API y el worker. La fila
+de este ajuste en [la referencia de configuración](configuration.md#project-settings)
+da las formas, lo que se rechaza sea cual sea tu lista y lo que puede alcanzar
+entonces toda cuenta. Lista solo servicios que comprueben su propia credencial.
+
+`agenticos cmd doctor` informa de la lista en su línea `private network`. Falla
+cuando un rango listado cubre la base de datos o Redis, y avisa de un rango más
+ancho que /16 (IPv4) o /48 (IPv6).
 
 ### Encender la sandbox { #turning-the-sandbox-on }
 

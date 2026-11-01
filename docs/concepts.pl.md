@@ -1,5 +1,5 @@
 ---
-source_sha: "524eb90cfc8c"
+source_sha: "f96ca8950f4c"
 ---
 
 # Koncepcje { #concepts }
@@ -45,6 +45,14 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
     Nowe pola dostają wartości domyślne, więc agent opublikowany dziś nadal
     wczytuje się po aktualizacji. Usunięcie albo zmiana nazwy pola to migracja,
     a nie edycja.
+
+!!! info "Odpowiedź może być danymi"
+
+    Domyślnie agent odpowiada tekstem. Ustaw **Answer format** na dane
+    strukturalne albo `output_schema` w specu, a odpowie obiektem z nazwanymi
+    polami: model dostaje prośbę o ten kształt, a odpowiedź, która go łamie, wraca
+    do poprawki, zanim run się skończy. API zwraca obiekt jako `structured`, czat i
+    kanały pokazują go jako blok JSON, a krok `agent.run` przekazuje go dalej.
 
 !!! info "Szablon to spec, który ktoś już napisał"
 
@@ -282,7 +290,7 @@ Każdy trigger można też **uruchomić teraz**: jedno dodatkowe odpalenie na
 żądanie, które nie rusza jego kadencji.
 
 Jest ono *przyjmowane*, a nie oczekiwane. Żądanie odpowiada, gdy tylko odpalenie
-zostanie przekazane workerowi jako jego własny flow run — te same trwałe drzwi,
+zostanie zakolejkowane dla workera jako job — te same trwałe drzwi,
 przez które przechodzi odpalenie z harmonogramu albo z dostarczenia — a run
 pojawia się w rozmowie-dzienniku runów triggera na bieżąco.
 

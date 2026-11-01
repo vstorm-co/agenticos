@@ -15,6 +15,10 @@ import {
   DRAFT_AGENT_NAME,
   FAKE_KEY_LABEL,
   FAKE_KEY_SECRET,
+  LIVE_CLOSED_RECORD_TITLE,
+  LIVE_RECORD_TITLE,
+  LIVE_TABLE_NAME,
+  LIVE_VIEW_NAME,
   SEEDED_EMBEDDING_KEY_LABEL,
   SEEDED_EMBEDDING_KEY_SECRET,
   SEEDED_KB_NAME,
@@ -34,8 +38,10 @@ import {
   chooseEmbeddingKey,
   json,
   nowListed,
+  nowMatching,
   pageHeading,
   rowsAt,
+  signInAs,
   submitDialog,
 } from "./helpers";
 
@@ -346,6 +352,84 @@ setup("the organization has connected an MCP server", async ({ page }) => {
   await nowThere(page, "/api/mcp-connections", "name", SEEDED_ORG_MCP_NAME);
 });
 
+setup("a live-data table and a shared view exist", async ({ page }) => {
+  // Through the API: what a page bound to live data reads is under test, not the
+  // Tables editor, which has its own specs. Each part is checked on its own, so a
+  // run that stopped halfway finishes the fixture instead of duplicating it.
+  const request = page.request;
+  if (!(await alreadyThere(request, "/api/tables", "name", LIVE_TABLE_NAME))) {
+    const created = await request.post("/api/tables", {
+      data: {
+        name: LIVE_TABLE_NAME,
+        // Left `private`: the colleague not being able to read it is the
+        // refusal the live-data spec asserts.
+        columns: [
+          { label: "Title", type: "text" },
+          {
+            label: "Status",
+            type: "single_select",
+            options: [{ label: "Open" }, { label: "Closed" }],
+          },
+        ],
+      },
+    });
+    expect(created.ok(), `creating the live table answered ${created.status()}`).toBe(true);
+    await nowThere(page, "/api/tables", "name", LIVE_TABLE_NAME);
+  }
+
+  const table = (await rowsAt(request, "/api/tables")).find((row) => row.name === LIVE_TABLE_NAME);
+  const tableId = String(table!.id);
+  const columns = (await json<{ columns: LiveColumn[] }>(request, `/api/tables/${tableId}`))
+    .columns;
+  const title = columns.find((column) => column.label === "Title")!;
+  const status = columns.find((column) => column.label === "Status")!;
+  const optionId = (label: string) => status.options.find((option) => option.label === label)!.id;
+
+  const recordsPath = `/api/tables/${tableId}/records`;
+  for (const [name, state] of [
+    [LIVE_RECORD_TITLE, "Open"],
+    [LIVE_CLOSED_RECORD_TITLE, "Closed"],
+  ] as const) {
+    const titles = (await rowsAt(request, recordsPath)).map(
+      (record) => (record.values as Record<string, unknown>)[title.id],
+    );
+    if (titles.includes(name)) continue;
+    const created = await request.post(recordsPath, {
+      data: { values: { [title.id]: name, [status.id]: optionId(state) } },
+    });
+    expect(created.ok(), `creating the record ${name} answered ${created.status()}`).toBe(true);
+    await nowMatching(
+      request,
+      recordsPath,
+      (record) => (record.values as Record<string, unknown>)[title.id] === name,
+      `a record titled ${name}`,
+    );
+  }
+
+  const viewsPath = `/api/tables/${tableId}/views`;
+  if (await alreadyThere(request, viewsPath, "name", LIVE_VIEW_NAME)) return;
+  const view = await request.post(viewsPath, {
+    data: {
+      name: LIVE_VIEW_NAME,
+      kind: "table",
+      // Shared, so a page bound to it serves somebody other than its owner - and
+      // filtered, so a page that shows the closed record read the table rather
+      // than the view.
+      visibility: "shared",
+      config: { filters: [{ column_id: status.id, op: "eq", value: optionId("Open") }] },
+    },
+  });
+  expect(view.ok(), `creating the shared view answered ${view.status()}`).toBe(true);
+  await nowThere(page, viewsPath, "name", LIVE_VIEW_NAME);
+});
+
+/** As much of a column as the live-data fixture reads. */
+interface LiveColumn {
+  id: string;
+  label: string;
+  options: { id: string; label: string }[];
+}
+
 setup("a colleague is a member of the organization", async ({ page, browser }) => {
   const organizationId = await activeOrganizationId(page.request);
   const membersPath = `/api/orgs/${organizationId}/members`;
@@ -518,16 +602,9 @@ async function acceptAsColleague(
   browser: import("@playwright/test").Browser,
   token: string,
 ): Promise<void> {
-  const context = await browser.newContext();
+  const context = await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
   try {
     const colleague = await context.newPage();
-
-    await colleague.goto("/login");
-    await colleague.getByLabel("Email").fill(COLLEAGUE_EMAIL);
-    await colleague.getByLabel("Password").fill(COLLEAGUE_PASSWORD);
-    await colleague.getByRole("button", { name: "Login" }).click();
-    await expect(colleague).toHaveURL(/\/dashboard(\?.*)?$/);
-
     await colleague.goto(`/invitations/${token}`);
     await colleague.getByRole("button", { name: "Accept invitation" }).click();
     await expect(colleague.getByText("You joined the organization!")).toBeVisible();

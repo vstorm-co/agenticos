@@ -14,7 +14,7 @@ import type { RunStatus } from "@/types/runs";
  * colours are the platform's status tones - success, warning, destructive -
  * plus muted for the states that are simply "not on".
  */
-function StatusDot({ className }: { className: string }) {
+export function StatusDot({ className }: { className: string }) {
   return <span aria-hidden className={cn("h-1.5 w-1.5 shrink-0 rounded-full", className)} />;
 }
 

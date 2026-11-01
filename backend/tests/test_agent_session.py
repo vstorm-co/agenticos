@@ -936,6 +936,8 @@ class TestATurnThatFinished:
                 tool_call_id="call-1",
                 tool_name="send_email",
                 tool_args={"to": "ops@example.com"},
+                capability_tool_id="send_email",
+                context={"recipient": "Ops"},
             ),
         )
         turn = _finished_turn(parked=parked)
@@ -959,6 +961,11 @@ class TestATurnThatFinished:
                         "tool_call_id": "call-1",
                         "tool_name": "send_email",
                         "args": {"to": "ops@example.com"},
+                        # The tool's stable id, which the card words the call by.
+                        "capability_tool_id": "send_email",
+                        # The names the tool's describer resolved, for the sentence
+                        # the card puts above the arguments.
+                        "context": {"recipient": "Ops"},
                         "account": None,
                     }
                 ],

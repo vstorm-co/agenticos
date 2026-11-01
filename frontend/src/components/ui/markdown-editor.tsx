@@ -55,6 +55,12 @@ interface MarkdownEditorProps {
    * keeps the mode and draws the toggle above the field.
    */
   mode?: MarkdownMode;
+  /**
+   * Draw an image in the preview as a link rather than loading it - for text the
+   * person did not write, where an image URL is a request the author chose to
+   * make from this browser.
+   */
+  inertImages?: boolean;
 }
 
 /**
@@ -86,6 +92,7 @@ export function MarkdownEditor({
   maxLength,
   onKeyDown,
   mode: controlledMode,
+  inertImages,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
   const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
@@ -139,7 +146,7 @@ export function MarkdownEditor({
           {value.trim() === "" ? (
             <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
           ) : (
-            <MarkdownContent content={value} />
+            <MarkdownContent content={value} inertImages={inertImages} />
           )}
         </div>
       )}

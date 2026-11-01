@@ -1,0 +1,358 @@
+"use client";
+
+import { Fragment, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ListChecks,
+  Keyboard,
+  LayoutGrid,
+  Map as MapIcon,
+  Palette,
+  Plus,
+  Trash2,
+  Settings2,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui";
+import { isAddableInScope } from "@/components/workflows/palette/scope";
+import { NodePicker } from "@/components/workflows/picker";
+import { ProblemsFooter, nodeNames } from "@/components/workflows/property-panel/problems";
+import type { ValidationProblem } from "@/components/workflows/validation";
+import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
+import { cn } from "@/lib/utils";
+import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+
+import { ScopeBreadcrumb } from "./scope-breadcrumb";
+
+interface CanvasToolbarProps {
+  catalog: NodeDefinition[];
+  problems: readonly ValidationProblem[];
+  readOnly: boolean;
+  /** Whether the graph in view has no steps - the picker then opens from its middle. */
+  empty: boolean;
+  onAdd: (definition: NodeDefinition, config?: Record<string, unknown>) => void;
+  /** Arrange the steps in view left to right. */
+  onTidy: () => void;
+}
+
+/**
+ * What floats over the canvas: a quiet "+" for adding a step and the loop being
+ * viewed on the left, whether the draft can be published on the right, and -
+ * while several steps are selected - what can be done to all of them. An empty
+ * canvas offers **Add step** in its middle instead.
+ *
+ * The canvas has the editor's whole width, so these stay small and out of the
+ * graph's way; the step picker and the problem list open from them rather than
+ * sitting beside the graph.
+ */
+export function CanvasToolbar({
+  catalog,
+  problems,
+  readOnly,
+  empty,
+  onAdd,
+  onTidy,
+}: CanvasToolbarProps) {
+  const t = useTranslations("workflows");
+  const problemsRevealed = useWorkflowEditorStore((state) => state.problemsRevealed);
+  const graph = useWorkflowEditorStore((state) => state.graph);
+  const scopePath = useWorkflowEditorStore((state) => state.scopePath);
+  const selection = useWorkflowEditorStore((state) => state.selection);
+  const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
+  const focusNode = useWorkflowEditorStore((state) => state.focusNode);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const overlay = useWorkflowEditorStore((state) => state.overlay);
+  const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
+  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
+  const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
+  // Opened from the "+", from Tab, or from the "+" on a connection.
+  const adding = overlay === "picker" && !empty;
+  const setAdding = (open: boolean) => setOverlay(open ? "picker" : null);
+  const [listing, setListing] = useState(false);
+
+  const offered = useMemo(
+    () => catalog.filter((definition) => isAddableInScope(definition, scopePath)),
+    [catalog, scopePath],
+  );
+  const names = useMemo(
+    () => nodeNames(graph, { items: catalog, total: catalog.length }),
+    [graph, catalog],
+  );
+  const selected = selection.nodeIds;
+  const [startOpen, setStartOpen] = useState(false);
+
+  const pickerFor = (close: () => void) => (
+    <PopoverContent
+      align="start"
+      sideOffset={8}
+      className="w-[22rem] p-0"
+      onCloseAutoFocus={(event) => event.preventDefault()}
+    >
+      <NodePicker
+        offered={offered}
+        draggable
+        onPick={(definition, config) => {
+          // Added before the picker closes: closing forgets the connection it was for.
+          onAdd(definition, config);
+          close();
+        }}
+      />
+    </PopoverContent>
+  );
+  const picker = pickerFor(() => setAdding(false));
+
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+          {!readOnly && !empty && (
+            <Popover open={adding} onOpenChange={setAdding}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  aria-label={t("toolbarAddStep")}
+                  title={t("toolbarAddStep")}
+                  className="bg-background/90 hover:bg-background h-8 rounded-lg shadow-sm backdrop-blur"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t("toolbarAddStep")}
+                </Button>
+              </PopoverTrigger>
+              {picker}
+            </Popover>
+          )}
+          {!readOnly && !empty && (
+            <ToolbarIcon label={t("toolbarTidy")} onClick={onTidy}>
+              <LayoutGrid className="h-4 w-4" />
+            </ToolbarIcon>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="bg-background/90 size-8 rounded-lg shadow-sm"
+                aria-label={t("toolbarDisplay")}
+              >
+                <Settings2 className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuCheckboxItem
+                className="gap-3"
+                checked={minimapShown}
+                onCheckedChange={toggleMinimap}
+              >
+                <MapIcon className="size-4" />
+                {t(minimapShown ? "toolbarHideMinimap" : "toolbarShowMinimap")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                className="gap-3"
+                checked={nodeStyle === "colour"}
+                onCheckedChange={(on) => setNodeStyle(on ? "colour" : "simple")}
+              >
+                <Palette className="size-4" />
+                {t(nodeStyle === "colour" ? "toolbarSimpleSteps" : "toolbarColourSteps")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuItem onSelect={() => setOverlay("shortcuts")}>
+                <Keyboard className="size-4" />
+                {t("toolbarShortcuts")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <ScopeBreadcrumb catalog={catalog} />
+        </div>
+        {!readOnly && graph !== null && graph.nodes.length > 0 && (
+          <div className="pointer-events-auto">
+            {problems.length === 0 ? (
+              <span className="bg-background/90 border-border text-muted-foreground flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs shadow-sm backdrop-blur">
+                <CheckCircle2 aria-hidden="true" className="size-3.5 text-emerald-600" />
+                {t("toolbarReady")}
+              </span>
+            ) : (
+              <Popover open={listing} onOpenChange={setListing}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "bg-background/90 border-border hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur",
+                      problemsRevealed ? "text-destructive" : "text-muted-foreground",
+                    )}
+                  >
+                    {problemsRevealed ? (
+                      <AlertTriangle aria-hidden="true" className="size-3.5" />
+                    ) : (
+                      <ListChecks aria-hidden="true" className="size-3.5" />
+                    )}
+                    {t(problemsRevealed ? "panelProblemsCount" : "toolbarSetup", {
+                      count: problems.length,
+                    })}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" sideOffset={8} className="w-96 p-3">
+                  <p className="text-muted-foreground mb-2 text-xs">{t("toolbarProblemsHint")}</p>
+                  <ProblemsFooter
+                    problems={problems}
+                    names={names}
+                    defaultOpen
+                    onSelectNode={(nodeId: Uuid) => {
+                      setListing(false);
+                      focusNode(nodeId);
+                      editNode(nodeId);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+        )}
+      </div>
+      {empty && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 p-4 text-center">
+          {!readOnly && (
+            <Popover open={startOpen} onOpenChange={setStartOpen}>
+              <PopoverTrigger asChild>
+                <Button className="pointer-events-auto shadow-sm">
+                  <Plus className="h-4 w-4" />
+                  {t("toolbarAddStep")}
+                </Button>
+              </PopoverTrigger>
+              {pickerFor(() => setStartOpen(false))}
+            </Popover>
+          )}
+          <p className="text-muted-foreground text-sm">{t("canvasHint")}</p>
+        </div>
+      )}
+      {!readOnly && selected.length > 1 && (
+        <div className="bg-background/95 border-border absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-xl border px-3 py-2 shadow-md backdrop-blur">
+          <span className="text-sm">{t("panelMultiSelected", { count: selected.length })}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            onClick={() => applyNodeChanges(selected.map((id) => ({ type: "remove", id })))}
+          >
+            <Trash2 className="h-4 w-4" />
+            {t("panelBulkDelete")}
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ToolbarIcon({
+  label,
+  pressed,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      size="icon"
+      variant="outline"
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "bg-background/70 hover:bg-background size-8 rounded-lg shadow-sm backdrop-blur",
+        pressed && "bg-accent",
+      )}
+    >
+      {children}
+    </Button>
+  );
+}
+
+// A shortcut is keys pressed together, joined by "+"; where one of them may be any
+// of a few - C, V or X; Delete or Backspace - those are joined by "·", which a
+// screen reader hears as "or".
+const SHORTCUTS = [
+  [[["⌘/Ctrl"], ["A"]], "shortcutSelectAll"],
+  [[["⇧"], ["↔"]], "shortcutPan"],
+  [[["↔"]], "shortcutSelect"],
+  [[["Tab"]], "shortcutAdd"],
+  [[["⌘/Ctrl"], ["Enter"]], "shortcutRun"],
+  [[["⌘/Ctrl"], ["Z"]], "shortcutUndo"],
+  [[["⇧"], ["⌘/Ctrl"], ["Z"]], "shortcutRedo"],
+  [[["⌘/Ctrl"], ["C", "V", "X"]], "shortcutCopy"],
+  [[["Delete", "Backspace"]], "shortcutDelete"],
+  [[["Esc"]], "shortcutCancel"],
+  [[["?"]], "shortcutSheet"],
+] as const;
+
+function Joiner({ mark, spoken }: { mark: string; spoken?: string }) {
+  if (spoken === undefined) return <span className="text-muted-foreground text-xs">{mark}</span>;
+  return (
+    <>
+      <span aria-hidden="true" className="text-muted-foreground text-xs">
+        {mark}
+      </span>
+      <span className="sr-only">{` ${spoken} `}</span>
+    </>
+  );
+}
+
+/** Every keyboard shortcut the canvas answers, opened from its toolbar or with `?`. */
+export function ShortcutSheet() {
+  const t = useTranslations("workflows");
+  const overlay = useWorkflowEditorStore((state) => state.overlay);
+  const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
+  return (
+    <Dialog open={overlay === "shortcuts"} onOpenChange={(open) => !open && setOverlay(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("shortcutsTitle")}</DialogTitle>
+        </DialogHeader>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+          {SHORTCUTS.map(([keys, action]) => (
+            <div key={action} className="contents">
+              <dt className="flex items-center gap-1 whitespace-nowrap">
+                {keys.map((choices, index) => (
+                  <Fragment key={choices.join()}>
+                    {index > 0 && <Joiner mark="+" />}
+                    {choices.map((key, choice) => (
+                      <Fragment key={key}>
+                        {choice > 0 && <Joiner mark="·" spoken={t("shortcutOr")} />}
+                        <kbd className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+                          {key}
+                        </kbd>
+                      </Fragment>
+                    ))}
+                  </Fragment>
+                ))}
+              </dt>
+              <dd className="text-muted-foreground">{t(action)}</dd>
+            </div>
+          ))}
+        </dl>
+      </DialogContent>
+    </Dialog>
+  );
+}

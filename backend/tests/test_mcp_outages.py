@@ -148,7 +148,7 @@ class TestTheConsoleTest:
         self, monkeypatch, notices, outages
     ):
         server = _server()
-        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value={}))
+        monkeypatch.setattr(service, "resolve_auth_headers", AsyncMock(return_value={}))
         monkeypatch.setattr(service, "probe_mcp_server", AsyncMock(side_effect=TimeoutError))
         monkeypatch.setattr(service.mcp_connection_repo, "update", AsyncMock(return_value=server))
 
@@ -161,7 +161,7 @@ class TestTheConsoleTest:
         """No credential means nothing was dialled, so nothing is known about the server."""
         server = _server()
         opened, _ = outages
-        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value=None))
+        monkeypatch.setattr(service, "resolve_auth_headers", AsyncMock(return_value=None))
         monkeypatch.setattr(service.mcp_connection_repo, "update", AsyncMock(return_value=server))
 
         _, _, error = await service.McpConnectionService(AsyncMock())._probe(server)
@@ -191,7 +191,7 @@ class TestTheScheduledCheck:
 
         dead.url = "https://dead.example/mcp"
         update = AsyncMock(side_effect=lambda db, *, db_connection, update_data: db_connection)
-        monkeypatch.setattr(service, "_resolve_auth_headers", headers)
+        monkeypatch.setattr(service, "resolve_auth_headers", headers)
         monkeypatch.setattr(service, "probe_mcp_server", probe)
         monkeypatch.setattr(service.mcp_connection_repo, "update", update)
 
@@ -210,7 +210,7 @@ class TestTheScheduledCheck:
         servers = [_server() for _ in range(25)]
         candidates = AsyncMock(return_value=servers)
         monkeypatch.setattr(service.mcp_connection_repo, "list_org_servers_to_check", candidates)
-        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value={}))
+        monkeypatch.setattr(service, "resolve_auth_headers", AsyncMock(return_value={}))
         active = peak = 0
 
         async def probe(url: str, headers: dict[str, str]) -> list[McpToolInfo]:
@@ -231,7 +231,7 @@ class TestTheScheduledCheck:
         assert counts["answered"] == 25
         assert peak == 8
         assert candidates.call_args.kwargs == {"limit": 64}
-        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value=None))
+        monkeypatch.setattr(service, "resolve_auth_headers", AsyncMock(return_value=None))
         update.reset_mock()
         counts = await service.check_organization_servers(AsyncMock())
         assert counts["skipped"] == 25
@@ -267,7 +267,7 @@ class TestARunsProbe:
             return [(spec, None if spec.connection_id in dead else object()) for spec in specs]
 
         monkeypatch.setattr(service, "probe_toolsets", probe)
-        monkeypatch.setattr(service, "_resolve_auth_headers", AsyncMock(return_value={}))
+        monkeypatch.setattr(service, "resolve_auth_headers", AsyncMock(return_value={}))
         monkeypatch.setattr(
             service.mcp_connection_repo,
             "get_org_scoped_by_ids",

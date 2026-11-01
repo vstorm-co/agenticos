@@ -43,6 +43,19 @@ function originOf(url: string): string {
   return new URL(url).origin;
 }
 
+/**
+ * The one path a console frame loads an artifact from: the signed content route,
+ * `{ARTIFACT_ORIGIN or the API}/api/v1/artifact-content/<token>`, which the backend
+ * builds from the same variables. A source ending in `/` matches every path under
+ * it, so each token's address is allowed and nothing else on that origin is - when
+ * `ARTIFACT_ORIGIN` is unset that origin is the API itself. A browser stops
+ * matching the path after a redirect and checks only the origin, which can widen
+ * this but never refuse a frame; the content route answers without redirecting.
+ */
+function artifactContentSource(config: PublicConfig): string {
+  return `${config.artifactUrl}/api/v1/artifact-content/`;
+}
+
 /** What each directive allows for a deployment, in the order the header is written. */
 export function cspDirectives(
   config: PublicConfig,
@@ -75,10 +88,11 @@ export function cspDirectives(
     // `frame-src` exists to refuse. A blob URL can only be minted by this
     // origin's own script.
     //
-    // And the origin a published artifact is served from. That document is
+    // And the route a published artifact is served from. That document is
     // agent-authored script, which is why it is framed from another origin under
-    // a `sandbox` policy of its own rather than minted into a blob here.
-    "frame-src": [...new Set(["'self'", "blob:", originOf(config.artifactUrl)])],
+    // a `sandbox` policy of its own rather than minted into a blob here. The route,
+    // not the origin: the origin is the API's unless `ARTIFACT_ORIGIN` moved it.
+    "frame-src": ["'self'", "blob:", artifactContentSource(config)],
     "font-src": ["'self'", "data:"],
     // This origin's own BFF routes, the API the browser calls directly - OAuth,
     // the hosted chat's uploads - and the chat's WebSocket. Named from the

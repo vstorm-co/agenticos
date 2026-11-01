@@ -1,5 +1,5 @@
 ---
-source_sha: "719f619e53b6"
+source_sha: "5aa1c09d5f47"
 ---
 
 # Glossar { #glossary }
@@ -97,3 +97,5 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Visuals | `visuals` |
 | Webseiten lesen | `web_fetch` |
 | Websuche | `web_research` |
+| Tabellen | `virtual_tables` |
+| Workflows | `workflows` |

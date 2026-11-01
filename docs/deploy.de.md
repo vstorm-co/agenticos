@@ -1,5 +1,5 @@
 ---
-source_sha: "6e082228f717"
+source_sha: "7bd15584abde"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -273,6 +273,68 @@ annahm.
     gelabelt zu sein*, sie überlebt also, dass jemand einen Dienst hinzufügt, ohne an
     den Proxy zu denken.
 
+!!! warning "Manche Request-Pfade und Query-Strings sind Zugangsdaten"
+
+    Diese Pfadsegmente öffnen jedem, der sie liest, etwas:
+
+    - der Schlüssel eines öffentlichen Links, in `/a/<key>`,
+      `/api/v1/public/artifacts/<key>` und `/api/v1/artifact-embed/<key>`, bis
+      der Link rotiert wird;
+    - eine signierte Inhaltsadresse, `/api/v1/artifact-content/<token>`, für
+      ihre Lebensdauer;
+    - das Token einer geteilten Unterhaltung, in `/shared/<token>` und
+      `/api/v1/conversations/shared/<token>`;
+    - das Token eines Workflow-Formulars, in `/f/<token>` und
+      `/api/v1/public/workflow-forms/<token>`;
+    - das Token eines Webhook-Tests, in `/api/v1/workflow-webhook-tests/<token>`
+      und `/api/v1/workflows/<id>/webhook-test/<token>`;
+    - das Token einer Kanalverknüpfung, in `/link/<token>` und
+      `/api/v1/me/channel-link/<token>`;
+    - das Token einer Einladung, in `/invitations/<token>`,
+      `/api/v1/invitations/<token>` und `/api/v1/invitations/<token>/accept`;
+    - das Fortsetzungs-Token eines Workflow-Laufs, in
+      `/api/v1/workflow-resume/<run_id>/<token>`.
+
+    Dasselbe gilt für diese Query-Parameter:
+
+    - `visitor` und `token` am Socket des Agent-Widgets,
+      `/api/v1/embed/<key>/ws`: der Schlüssel einer gehosteten Seite, mit dem
+      sich die Unterhaltung des Besuchers fortsetzen lässt, und das signierte
+      Besucher-Token des Kunden;
+    - `code` und `state` bei der Rückkehr von einem Anmeldeanbieter,
+      `/api/v1/oauth/<provider>/callback`, und `code` auf `/auth/callback` der
+      Konsole;
+    - `invitation_handle` auf `/api/v1/oauth/<provider>/login` und
+      `/api/v1/auth/kerberos/login`, das die Einladung einlöst, für die es
+      steht;
+    - `token` auf `/reset-password`, `/auth/magic-link` und
+      `/auth/email-change` der Konsole, den Links, die eine
+      Passwort-Zurücksetzung, ein Anmeldelink und eine E-Mail-Änderung
+      verschicken.
+
+    Eine Anfrage, die von einer dieser Seiten ausgeht, kann deren Adresse im
+    Header `Referer` mitführen. Die API ersetzt die API-Segmente und die Werte
+    dieser Parameter durch `[REDACTED]` in ihrem eigenen Access-Log, in der
+    Zeile, die uvicorn für jedes angenommene WebSocket schreibt, in jedem
+    Log-Record und in Logfire-Spans, einschließlich der Konsolenausgabe, der
+    Argumente des Endpunkts und der Kopie, die Logfire beim Start eines Spans
+    anlegt. Andere Query-Parameter wie `q`, `skip`, `limit` und Ids bleiben
+    erhalten.
+
+    Traefik kann ein ganzes Feld behalten, verwerfen oder redigieren, aber keinen
+    Teil davon umschreiben, deshalb entfernt `traefik/traefik.yml` `RequestPath`,
+    das den Query-String enthält, aus dem Access-Log von Traefik. Nginx könnte
+    einen Teil eines Werts umschreiben, doch `nginx/nginx.conf` lässt den Pfad,
+    den Query-String und den `Referer` auf dieselbe Weise weg, mit dem Log-Format `agenticos_no_path`, das jeder
+    Server-Block nennt, sodass die Liste der geheimen Pfade an einer Stelle
+    gepflegt wird. Beide Logs enthalten weiterhin den Client, den Status, die
+    Größe und die Dauer. Das Error-Log von Nginx schreibt die Request-Zeile und
+    den `Referer` einer fehlgeschlagenen Anfrage, und keine Einstellung ändert
+    das, behalten Sie das Error-Log also auf dem Host. Wenn Sie die Pfade im
+    Access-Log brauchen, entfernen Sie diese Feldregel bzw. dieses Log-Format und
+    behandeln Sie das Log als Secret: Behalten Sie es auf dem Host und schicken
+    Sie es an keinen Log-Dienst.
+
 ### Option B: Nginx { #option-b-nginx }
 
 Für einen Host, auf dem Nginx bereits TLS terminiert, oder auf dem der Proxy gar
@@ -289,7 +351,9 @@ ausliefert: der `server_name` in jedem Block ist `${DOMAIN:-localhost}`, und
 Nginx expandiert das nicht — tragen Sie die beiden Hostnamen von Hand ein.
 Zertifikate zu beschaffen und zu erneuern ist Ihre Sache, und ebenso der Header
 `Strict-Transport-Security`, den das Backend bewusst dem überlässt, was TLS
-terminiert.
+terminiert. Das Access-Log der Vorlage lässt den Request-Pfad, den Query-String
+und den `Referer` weg; *Manche Request-Pfade und Query-Strings sind
+Zugangsdaten* oben erklärt, warum, und was das Error-Log weiterhin schreibt.
 
 !!! warning "`BIND_HOST` ist eine Sicherheitseinstellung, keine Bequemlichkeit"
 
@@ -371,6 +435,23 @@ nichts prüft.
 
     **HSTS ist bewusst dem Proxy überlassen**, denn dort terminiert TLS. Ein Proxy,
     der eine eigene CSP setzt, sollte mindestens so streng sein wie diese.
+
+### Dienste im eigenen Netzwerk { #services-on-your-own-network }
+
+Eine von einem Mitglied konfigurierte Anfrage - ein Workflow-HTTP-Schritt, eine
+Git-, Website- oder S3-Quelle, ein A2A-Agent oder eine MCP-Connection - wird
+abgelehnt, wenn ihr Host auf eine private Adresse auflöst. Ein Wiki, ein
+Git-Server oder ein MCP-Server in Ihrem Netz ist daher standardmäßig nicht
+erreichbar. Um einen zu öffnen, tragen Sie ihn in `OUTBOUND_PRIVATE_ALLOWLIST`
+in `backend/.env` ein, als Host, `.suffix`, Adresse oder CIDR-Bereich, und
+starten Sie API und Worker neu. Die Zeile dieser Einstellung in der
+[Konfigurationsreferenz](configuration.md#project-settings) nennt die Formen,
+was unabhängig von Ihrer Liste abgelehnt wird und was dann jedes Konto
+erreicht. Listen Sie nur Dienste, die ihre eigenen Zugangsdaten prüfen.
+
+`agenticos cmd doctor` meldet die Liste als Zeile `private network`. Er schlägt
+fehl, wenn ein gelisteter Bereich die Datenbank oder Redis abdeckt, und warnt
+vor einem Bereich, der größer ist als /16 (IPv4) oder /48 (IPv6).
 
 ### Die Sandbox einschalten { #turning-the-sandbox-on }
 

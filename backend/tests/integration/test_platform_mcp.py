@@ -436,7 +436,7 @@ async def test_sandbox_discovery_is_scoped_to_the_callers_organization(
 
     assert not org_connections.is_error
     assert _content(org_connections)["items"] == []
-    assert policy.is_error and "400 BAD_REQUEST" in policy.content[0].text
+    assert policy.is_error and "400" in policy.content[0].text
     assert "no longer exists" in policy.content[0].text
 
 
@@ -495,6 +495,81 @@ async def test_project_tools_keep_key_scopes_and_tenant_isolation(
         hidden = await session.call_tool("get_project", {"project_id": project["id"]})
         listing = _content(await session.call_tool("list_projects", {}))
 
-    assert refused.is_error and "403" in refused.content[0].text
+    assert refused.is_error
+    assert "403" in refused.content[0].text
     assert hidden.is_error and "404" in hidden.content[0].text
     assert listing["items"] == []
+
+
+async def test_preparation_and_structural_check_are_one_write_and_one_read(
+    db: AsyncSession, served: None
+):
+    key, _organization = await _owner_key(
+        db,
+        Perm.WORKFLOWS_CREATE,
+        Perm.WORKFLOWS_EDIT,
+        Perm.WORKFLOWS_VIEW,
+        Perm.TABLES_CREATE,
+        Perm.TABLES_EDIT,
+        Perm.TABLES_VIEW,
+    )
+    node = str(uuid.uuid4())
+    async with _connected(key) as session:
+        prepared = _content(
+            await session.call_tool(
+                "prepare_workflow_draft",
+                {
+                    "preparation": {
+                        "name": "Reviewed skeleton",
+                        "graph": {
+                            "entry_node_id": node,
+                            "nodes": [
+                                {
+                                    "id": node,
+                                    "definition_id": "trigger.manual",
+                                    "definition_version": 1,
+                                    "config": {},
+                                    "layout": {"x": 0, "y": 0},
+                                }
+                            ],
+                        },
+                        "table_placeholder_id": str(uuid.uuid4()),
+                        "table": {
+                            "name": "Leads",
+                            "columns": [{"label": "Contact ID", "type": "text", "nullable": False}],
+                        },
+                    }
+                },
+            )
+        )
+        assert "error" not in prepared
+        checked = _content(
+            await session.call_tool(
+                "check_workflow_draft", {"workflow_id": prepared["workflow"]["id"]}
+            )
+        )
+        assert checked["graph_valid"] is True
+        assert checked["requires_live_test"] is False
+        assert checked["integration_verified"] is False
+        assert checked["execution_performed"] is False
+        tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+        assert tools["check_workflow_draft"].annotations.read_only_hint is True
+        assert tools["prepare_workflow_draft"].annotations.read_only_hint is False
+
+
+async def test_architect_keeps_platform_domain_errors_readable(db: AsyncSession, served: None):
+    from contextlib import AsyncExitStack
+
+    from app.agents.mcp import build_mcp_toolsets, platform_spec
+
+    key, _organization = await _owner_key(db, Perm.AGENTS_VIEW)
+    toolsets = await build_mcp_toolsets([platform_spec(key, allowed_tools=None, approval="writes")])
+    async with AsyncExitStack() as stack:
+        toolset = await stack.enter_async_context(toolsets[0])
+        ctx = _run_context()
+        tools = await toolset.get_tools(ctx)
+        result = await toolset.call_tool(
+            "agenticos_list_workflow_nodes", {}, ctx, tools["agenticos_list_workflow_nodes"]
+        )
+    assert result["error"]["status"] == 403
+    assert result["error"]["code"] == "AUTHORIZATION_ERROR"

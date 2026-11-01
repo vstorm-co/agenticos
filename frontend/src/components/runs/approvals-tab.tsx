@@ -7,10 +7,16 @@ import { useTranslations } from "next-intl";
 import { CheckCircle2 } from "lucide-react";
 
 import { DecidedApproval, PendingApproval } from "@/components/runs/approval-cards";
+import { DecidedWorkflowApproval } from "@/components/runs/workflow-approvals-card";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { EmptyState, ErrorState } from "@/components/states";
 import { ListCard, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
-import { useApprovalHistory, useApprovals } from "@/hooks";
+import {
+  useApprovalHistory,
+  useApprovals,
+  useWorkflowApprovalHistory,
+  useWorkflowApprovals,
+} from "@/hooks";
 import { periodEnd, periodStart, type Period } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 
@@ -38,6 +44,9 @@ import { Perm } from "@/types/permissions";
 /** One server page of the queue - `GET /approvals`' own default. */
 const APPROVALS_PAGE = 50;
 
+/** When a request was made, as a number to sort on - none reads as the oldest. */
+const askedAt = (createdAt: string | undefined): number => Date.parse(createdAt ?? "") || 0;
+
 export function ApprovalsTab({
   period,
   onFocusRun,
@@ -61,7 +70,27 @@ export function ApprovalsTab({
   const { approvals, total, isLoading, error, decide, refetch } = useApprovals({
     skip: page * APPROVALS_PAGE,
   });
-  const history = useApprovalHistory(range);
+  const toolHistory = useApprovalHistory(range);
+  // The workflow steps' requests are drawn by the card above this table; this
+  // tab only has to know that some wait (so it does not say nothing does) and
+  // to keep the record of those decided, beside the tool calls' own.
+  const stepQueue = useWorkflowApprovals();
+  const stepHistory = useWorkflowApprovalHistory(range);
+  // Newest first across both kinds, as each endpoint already returns them. The
+  // two are paged separately, so the merge is cut back to one page: the newest
+  // rows of what was fetched, and the footnote below says as much.
+  const decided = [
+    ...toolHistory.approvals.map((approval) => ({ kind: "tool" as const, approval })),
+    ...stepHistory.approvals.map((approval) => ({ kind: "step" as const, approval })),
+  ]
+    .sort((a, b) => askedAt(b.approval.created_at) - askedAt(a.approval.created_at))
+    .slice(0, APPROVALS_PAGE);
+  const history = {
+    isLoading: toolHistory.isLoading || stepHistory.isLoading,
+    error: toolHistory.error ?? stepHistory.error,
+    total: toolHistory.total + stepHistory.total,
+    shown: decided.length,
+  };
 
   // A decision removes a row, so the last page can empty under the reader. Step
   // back rather than leaving them on a page that says nothing is waiting while
@@ -76,7 +105,7 @@ export function ApprovalsTab({
       counted={
         isLoading || history.isLoading
           ? null
-          : t("approvalsCounted", { waiting: total, decided: history.total })
+          : t("approvalsCounted", { waiting: total + stepQueue.total, decided: history.total })
       }
       controls={
         <div className="flex flex-wrap items-center gap-2">
@@ -118,7 +147,10 @@ export function ApprovalsTab({
               <Skeleton className="h-24 w-full" />
               <Skeleton className="h-24 w-full" />
             </div>
-          ) : approvals.length === 0 && history.approvals.length > 0 ? (
+          ) : approvals.length === 0 &&
+            decided.length > 0 &&
+            !stepQueue.error &&
+            stepQueue.total === 0 ? (
             <div className="flex items-center gap-3 px-5 py-5" role="status">
               <CheckCircle2 className="text-muted-foreground h-5 w-5 shrink-0" aria-hidden />
               <div>
@@ -129,12 +161,18 @@ export function ApprovalsTab({
               </div>
             </div>
           ) : approvals.length === 0 ? (
-            <EmptyState
-              className="flex-1 rounded-none border-0 bg-transparent shadow-none"
-              icon={CheckCircle2}
-              title={t("nothingWaiting")}
-              description={t("agentsAreRunningWithout")}
-            />
+            // Not while the card above has steps waiting on the same person:
+            // "nothing waiting" under "waiting on you" contradicts itself. Nor
+            // when that queue could not be read - then nobody knows.
+            !stepQueue.error &&
+            stepQueue.total === 0 && (
+              <EmptyState
+                className="flex-1 rounded-none border-0 bg-transparent shadow-none"
+                icon={CheckCircle2}
+                title={t("nothingWaiting")}
+                description={t("agentsAreRunningWithout")}
+              />
+            )
           ) : (
             <section aria-label={t("waitingSection")}>
               <ul className="divide-y">
@@ -150,19 +188,23 @@ export function ApprovalsTab({
               </ul>
             </section>
           )}
-          {history.approvals.length > 0 && (
+          {decided.length > 0 && (
             <section aria-label={t("decidedSection")} className="border-t">
               <h3 className="text-muted-foreground px-5 pt-4 pb-1 text-xs font-medium">
                 {t("decidedSection")}
               </h3>
               <ul className="divide-y">
-                {history.approvals.map((approval) => (
-                  <DecidedApproval
-                    key={approval.id}
-                    approval={approval}
-                    onOpenRun={() => onFocusRun(approval.run_id)}
-                  />
-                ))}
+                {decided.map((entry) =>
+                  entry.kind === "tool" ? (
+                    <DecidedApproval
+                      key={entry.approval.id}
+                      approval={entry.approval}
+                      onOpenRun={() => onFocusRun(entry.approval.run_id)}
+                    />
+                  ) : (
+                    <DecidedWorkflowApproval key={entry.approval.id} approval={entry.approval} />
+                  ),
+                )}
               </ul>
             </section>
           )}
@@ -186,11 +228,11 @@ export function ApprovalsTab({
           {/* The record is one page of the same fifty, newest first - the
               counted line above reports the window's total, so without this
               the gap between "214 decided" and fifty rows goes unexplained. */}
-          {history.total > history.approvals.length && (
+          {history.total > history.shown && (
             <ListCardFootRow>
               <p className="text-muted-foreground text-xs" role="note">
                 {t("showingTheNewestOf", {
-                  shown: history.approvals.length,
+                  shown: history.shown,
                   total: history.total,
                 })}
               </p>

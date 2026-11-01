@@ -1,5 +1,5 @@
 ---
-source_sha: "4583c2b65bee"
+source_sha: "759491a1f3dc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -345,6 +345,19 @@ w [konfiguracji](configuration.md#uploaded-files-at-rest).
 
 `agenticos cmd doctor` wypisuje, którego backendu używa działające wdrożenie
 i czy szyfrowanie jest włączone.
+
+### Załączniki poczty w workflow { #mail-attachments-in-a-workflow }
+
+[Workflow](workflows.md#from-an-email) uruchomiony wiadomością z Gmaila lub Outlooka
+zapisuje jej załączniki jako pliki tego runa, wewnątrz runa, a nigdy w pollu, który
+czytał skrzynkę. Obowiązuje je lista dozwolonych typów plików i limit rozmiaru
+uploadu czatu: z załączników podanych przez skrzynkę brane jest pod uwagę tylko
+pierwsze 10 na wiadomość, oraz 25 MiB na wiadomość. Pominięty załącznik jest
+wypisany z powodem, a testowy run niczego nie pobiera.
+
+Plik HTML w workflow, na przykład zapisaną stronę albo załącznik, czyta
+[`html.parse`](reference/workflow-nodes.md#html-parse), a nie `text.extract`, który
+czyta dokumenty i oddałby znaczniki jako tekst.
 
 ### Model ChatFile { #chatfile-model }
 

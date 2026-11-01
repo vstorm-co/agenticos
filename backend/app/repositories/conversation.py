@@ -250,7 +250,7 @@ def _list_filters(
     of conversations the caller's own scope already narrowed, so it matches
     nothing rather than confirming the agent exists.
     """
-    filters: list[ColumnElement[bool]] = []
+    filters: list[ColumnElement[bool]] = [Conversation.origin.is_distinct_from("workflow")]
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
     if hide_api:
@@ -861,6 +861,42 @@ async def create_conversation(
     return conversation
 
 
+async def ensure_workflow_conversation(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    workflow_id: UUID,
+    source_conversation_id: UUID | None,
+    project_id: UUID | None,
+) -> Conversation | None:
+    """Create a server-addressed internal thread once, without changing an existing row."""
+    await db.execute(
+        pg_insert(Conversation)
+        .values(
+            id=conversation_id,
+            organization_id=organization_id,
+            user_id=None,
+            origin="workflow",
+            workflow_id=workflow_id,
+            source_conversation_id=source_conversation_id,
+            project_id=project_id,
+        )
+        .on_conflict_do_nothing(index_elements=[Conversation.id])
+    )
+    await db.flush()
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.organization_id == organization_id,
+            Conversation.workflow_id == workflow_id,
+            Conversation.origin == "workflow",
+            Conversation.user_id.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def update_conversation(
     db: AsyncSession,
     *,
@@ -1075,6 +1111,11 @@ async def get_messages_by_conversation(
     before: UUID | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
+
+    `latest` selects the newest page, still returned oldest first; `before` selects
+    messages older than that message of this conversation (a conversation-scoped
+    ordinal cursor). Combine both to page backwards without concurrent appends
+    shifting offsets. The default is ascending offset pagination.
 
     Ordered by `ordinal` rather than `created_at`: one turn writes the question
     and the answer in a single transaction, and `func.now()` gives both the same

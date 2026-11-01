@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest";
+
+import { edge, graph, literalBinding, node } from "@/components/workflows/validation/fixtures";
+
+import { diffGraphs } from "./graph-diff";
+
+describe("diffGraphs", () => {
+  it("says which steps were added and removed, and draws both", () => {
+    const before = graph({
+      entry: "a",
+      nodes: [node("a", "trigger.manual"), node("gone", "debug.echo")],
+      edges: [edge("e1", "a", "out", "gone", "in")],
+    });
+    const after = graph({
+      entry: "a",
+      nodes: [node("a", "trigger.manual"), node("new", "debug.echo")],
+      edges: [edge("e2", "a", "out", "new", "in")],
+    });
+
+    const diff = diffGraphs(before, after);
+
+    expect(Object.fromEntries(diff.steps)).toEqual({
+      new: { change: "added", fields: [] },
+      gone: { change: "removed", fields: [] },
+    });
+    expect([diff.edgesAdded, diff.edgesRemoved]).toEqual([1, 1]);
+    expect(diff.union.nodes.map((n) => n.id)).toEqual(["a", "new", "gone"]);
+    // Drawn below the step that took its place, not over it.
+    expect(diff.union.nodes[2]?.layout).toEqual({ x: 0, y: 120 });
+    expect(diff.union.edges.map((e) => e.id)).toEqual(["e2", "e1"]);
+  });
+
+  it("lists every field a changed step changed in, and nothing it merely moved", () => {
+    const was = node("s", "debug.echo", { message: "hi", keep: { b: 1, a: 2 } });
+    const now = {
+      ...node("s", "debug.echo", { message: "hello", keep: { a: 2, b: 1 }, extra: 1 }, 2),
+      label: "Greet",
+      notes: "Say hello",
+      disabled: true,
+      policy: { timeout_seconds: 5 },
+      layout: { x: 400, y: 90 },
+      pinned_output: { echoed: "x" },
+    };
+    const before = graph({ entry: "s", nodes: [was], bindings: [literalBinding("s", "a", 1)] });
+    const after = graph({
+      entry: "s",
+      nodes: [now as typeof was],
+      bindings: [literalBinding("s", "a", 2), literalBinding("s", "b", 1)],
+    });
+
+    expect(diffGraphs(before, after).steps.get("s")).toEqual({
+      change: "changed",
+      fields: [
+        { kind: "version" },
+        { kind: "name" },
+        { kind: "note" },
+        { kind: "switchedOff" },
+        { kind: "whenItFails" },
+        { kind: "setting", name: "extra" },
+        { kind: "setting", name: "message" },
+        { kind: "input", name: "a" },
+        { kind: "input", name: "b" },
+      ],
+    });
+  });
+
+  it("reports a changed quick log as a change of that step", () => {
+    const plain = node("s", "debug.echo");
+    const logged = { ...plain, quick_log: { message: "m", outputs: null } };
+    const edited = { ...plain, quick_log: { message: "m", outputs: ["out"] } };
+    const steps = (a: typeof plain, b: typeof plain) =>
+      diffGraphs(graph({ entry: "s", nodes: [a] }), graph({ entry: "s", nodes: [b] })).steps;
+
+    expect(steps(plain, logged).get("s")).toEqual({
+      change: "changed",
+      fields: [{ kind: "quickLog" }],
+    });
+    expect(steps(logged, edited).get("s")?.fields).toEqual([{ kind: "quickLog" }]);
+    // No quick log and a null one are the same.
+    expect(steps(plain, { ...plain, quick_log: null }).size).toBe(0);
+  });
+
+  it("leaves a removed step where it stood when nothing took its place", () => {
+    const far = { ...node("far", "debug.echo"), layout: { x: 900, y: 0 } };
+    const before = graph({ entry: "a", nodes: [node("a", "debug.echo"), far] });
+    const after = graph({ entry: "a", nodes: [node("a", "debug.echo")] });
+    expect(diffGraphs(before, after).union.nodes[1]).toBe(far);
+  });
+
+  it("keeps a removed step's size when it moves out from under a draft step", () => {
+    const sized = {
+      ...node("gone", "debug.echo"),
+      layout: { x: 0, y: 0, width: 300, height: 120 },
+    };
+    const before = graph({ entry: "a", nodes: [node("a", "debug.echo"), sized] });
+    const after = graph({ entry: "a", nodes: [node("a", "debug.echo")] });
+    expect(diffGraphs(before, after).union.nodes[1]?.layout).toEqual({
+      x: 0,
+      y: 120,
+      width: 300,
+      height: 120,
+    });
+  });
+
+  it("judges a removed step against the size of the draft step it would cover", () => {
+    // A draft step resized to 400 px tall still covers a spot 120 px down, which
+    // the default 80 px card would have cleared.
+    const big = { ...node("a", "debug.echo"), layout: { x: 0, y: 0, width: 240, height: 400 } };
+    const gone = { ...node("gone", "debug.echo"), layout: { x: 0, y: 100 } };
+    const before = graph({ entry: "a", nodes: [node("a", "debug.echo"), gone] });
+    const after = graph({ entry: "a", nodes: [big] });
+    expect(diffGraphs(before, after).union.nodes[1]?.layout).toEqual({ x: 0, y: 460 });
+  });
+
+  it("finds nothing between a graph and itself moved about", () => {
+    const before = graph({ entry: "a", nodes: [node("a", "debug.echo", { list: [1, null] })] });
+    const after = graph({
+      entry: "a",
+      nodes: [{ ...node("a", "debug.echo", { list: [1, null] }), layout: { x: 9, y: 9 } }],
+    });
+    const diff = diffGraphs(before, after);
+    expect([diff.steps.size, diff.edgesAdded, diff.edgesRemoved]).toEqual([0, 0, 0]);
+  });
+});

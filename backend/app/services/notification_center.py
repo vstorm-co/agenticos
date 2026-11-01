@@ -27,8 +27,9 @@ from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
+from app.repositories import workflow as workflow_repo
 from app.services import rate_limit
-from app.services.access import ARTIFACT, resolve_access
+from app.services.access import ARTIFACT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.push import PushService
@@ -396,6 +397,7 @@ class _GateCache:
     kb_access_by_id: dict[uuid.UUID, bool]
     announcement_visible_by_id: dict[uuid.UUID, bool]
     artifact_visible_by_id: dict[uuid.UUID, bool]
+    workflow_visible_by_id: dict[uuid.UUID, bool]
 
 
 class NotificationCenterService:
@@ -1155,13 +1157,19 @@ class NotificationCenterService:
         collection_ids: set[uuid.UUID] = set()
         announcement_ids: set[uuid.UUID] = set()
         artifact_ids: set[uuid.UUID] = set()
+        workflow_ids: set[uuid.UUID] = set()
         for notification in notifications:
             gate = content_gate_for(NotificationEventType(notification.event_type))
-            if gate is ContentGate.ARTIFACTS_VIEW:
-                raw_artifact_id = (notification.render_context or {}).get("artifact_id")
+            if gate is ContentGate.WORKFLOWS_VIEW:
                 with contextlib.suppress(ValueError):
-                    artifact_ids.add(uuid.UUID(str(raw_artifact_id)))
-                continue
+                    workflow_ids.add(
+                        uuid.UUID(str((notification.render_context or {}).get("workflow_id")))
+                    )
+            if gate is ContentGate.ARTIFACTS_VIEW:
+                with contextlib.suppress(ValueError):
+                    artifact_ids.add(
+                        uuid.UUID(str((notification.render_context or {}).get("artifact_id")))
+                    )
             if gate is ContentGate.COLLECTIONS_VIEW:
                 raw_collection_id = (notification.render_context or {}).get("collection_id")
                 if raw_collection_id:
@@ -1186,29 +1194,28 @@ class NotificationCenterService:
             announcement.id: await self._resolve_announcement_visible(ctx, announcement)
             for announcement in announcements
         }
+        artifact_visible_by_id = {
+            artifact.id: await resolve_access(
+                self.db, ctx, artifact, Perm.ARTIFACTS_VIEW, resource_type=ARTIFACT
+            )
+            for artifact in await artifact_repo.get_by_ids(
+                self.db, sorted(artifact_ids), organization_id=ctx.organization_id
+            )
+        }
+        workflow_visible_by_id = {
+            workflow.id: await resolve_access(
+                self.db, ctx, workflow, Perm.WORKFLOWS_VIEW, resource_type=WORKFLOW
+            )
+            for workflow in await workflow_repo.get_by_ids(
+                self.db, sorted(workflow_ids), organization_id=ctx.organization_id
+            )
+        }
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
             announcement_visible_by_id=announcement_visible_by_id,
-            artifact_visible_by_id={
-                artifact_id: await self._artifact_visible(ctx, artifact_id)
-                for artifact_id in artifact_ids
-            },
-        )
-
-    async def _artifact_visible(self, ctx: AuthContext, artifact_id: uuid.UUID) -> bool:
-        """Whether the reader may still open the page a version notice is about.
-
-        A follower who lost access, or whose page was deleted, stops seeing the
-        notices about it - the title and the link are the page's, not theirs.
-        """
-        artifact = await artifact_repo.get(
-            self.db, artifact_id, organization_id=ctx.organization_id
-        )
-        if artifact is None:
-            return False
-        return await resolve_access(
-            self.db, ctx, artifact, Perm.ARTIFACTS_VIEW, resource_type=ARTIFACT
+            artifact_visible_by_id=artifact_visible_by_id,
+            workflow_visible_by_id=workflow_visible_by_id,
         )
 
     async def gate_for(
@@ -1259,12 +1266,9 @@ class NotificationCenterService:
         if gate is ContentGate.ANNOUNCEMENT_AUDIENCE:
             return _Gate(visible=self._announcement_visible(notification, cache))
         if gate is ContentGate.ARTIFACTS_VIEW:
-            raw_artifact_id = (notification.render_context or {}).get("artifact_id")
-            try:
-                artifact_id = uuid.UUID(str(raw_artifact_id))
-            except ValueError:
-                return _Gate(visible=False)
-            return _Gate(visible=cache.artifact_visible_by_id.get(artifact_id, False))
+            return _Gate(visible=self._artifact_visible(ctx, notification, cache))
+        if gate is ContentGate.WORKFLOWS_VIEW:
+            return _Gate(visible=self._workflow_visible(ctx, notification, cache))
         raise AssertionError(f"unhandled content gate: {gate}")  # pragma: no cover
 
     def _collections_visible(
@@ -1330,6 +1334,35 @@ class NotificationCenterService:
         # grant check for a colleague's personal collection, leaking that
         # its ingestion notifications (filenames, outcomes) exist at all.
         return cache.kb_access_by_id.get(collection_id, False)
+
+    @staticmethod
+    def _artifact_visible(ctx: AuthContext, notification: Notification, cache: _GateCache) -> bool:
+        """`render_context["artifact_id"]` is this event's own contract: the page it is
+        about, rechecked against the reader's standing now - a page they may no longer
+        open, or that is gone, hides the row. The page's previous owner
+        (`render_context["previous_owner_id"]`) always sees it: they knew its title, and
+        handing a private page over is what took their access away."""
+        if (notification.render_context or {}).get("previous_owner_id") == str(ctx.user_id):
+            return True
+        try:
+            artifact_id = uuid.UUID(str((notification.render_context or {}).get("artifact_id")))
+        except ValueError:
+            return False
+        return cache.artifact_visible_by_id.get(artifact_id, False)
+
+    @staticmethod
+    def _workflow_visible(ctx: AuthContext, notification: Notification, cache: _GateCache) -> bool:
+        """`render_context["workflow_id"]` is this event's own contract: the workflow it is
+        about, rechecked against the reader's standing now - one they may no longer view,
+        or that is gone, hides the row. An app admin was sent it as one of the `admins`
+        audience and holds no membership to check, so it stays visible to them."""
+        if ctx.is_app_admin:
+            return True
+        try:
+            workflow_id = uuid.UUID(str((notification.render_context or {}).get("workflow_id")))
+        except ValueError:
+            return False
+        return cache.workflow_visible_by_id.get(workflow_id, False)
 
     def _announcement_visible(self, notification: Notification, cache: _GateCache) -> bool:
         if notification.announcement_id is None:

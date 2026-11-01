@@ -48,6 +48,8 @@ A secret is not always a string, and the kind decides which fields exist:
 runtime can hold but nobody can store. That difference keeps "a secret with no value"
 out of the API schema. The vault refuses to seal an empty value.
 
+`smtp_account` seals the SMTP destination, TLS mode, sender and credentials together. Workflow steps store only `smtp_secret_id`; `OrganizationSecretService.smtp_email_service` checks resource access and constructs the transport directly. It exposes no password hint.
+
 Adding a kind means: a new model in `secret_kinds.py`, a branch in
 `model_resolver._build_provider` if a provider needs it, a Builder form field, and a
 migration only if a stored shape changes. Validate on the way in — the failure mode of

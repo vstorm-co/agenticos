@@ -10,14 +10,17 @@ around it; :mod:`._oauth` answers its authorization-server decisions from the
 database.
 """
 
-from collections.abc import AsyncGenerator
+import json
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from functools import wraps
 from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.http import StarletteWithLifespan
+from fastmcp.tools import ToolResult
 from mcp.types import ToolAnnotations
 from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
@@ -44,9 +47,32 @@ def _mcp_token() -> str | None:
     return token.token if token is not None else None
 
 
+class _PlatformRefusal(ToolError):
+    """A safe, controlled API envelope, distinct from unexpected tool failures."""
+
+
 def _tool_error(message: str) -> dict[str, Any]:
-    """An MCP client is told a refusal as a tool error, carrying the API's reason."""
+    if message.startswith('{"error":'):
+        raise _PlatformRefusal(message)
     raise ToolError(message)
+
+
+def _with_domain_errors(
+    function: Callable[..., Awaitable[dict[str, Any]]],
+) -> Callable[..., Awaitable[object]]:
+    """Preserve MCP isError while bypassing masking only for our API refusals."""
+
+    @wraps(function)
+    async def call(*args: object, **kwargs: object) -> object:
+        try:
+            return await function(*args, **kwargs)
+        except _PlatformRefusal as error:
+            message = str(error)
+            return ToolResult(
+                content=message, structured_content=json.loads(message), is_error=True
+            )
+
+    return call
 
 
 INSTRUCTIONS = (
@@ -55,6 +81,8 @@ Tools for operating an AgenticOS organization: its agents, runs, knowledge bases
 skills, projects and members. Every call acts as the person who issued the connection's key,
 within that key's permissions - a refusal names the permission that was missing.
 Start with `whoami` to see the organization and what this connection may do.
+An `error` envelope is an explicit domain refusal, never a successful change.
+Use its code and field details to correct input; do not bypass permission refusals.
 """
     + "\n\n"
     + APP_ENVIRONMENT_GUIDANCE
@@ -65,6 +93,7 @@ def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     """The MCP server, and the ASGI app serving it, calling `app`'s public API."""
     server = FastMCP(
         name="AgenticOS",
+        mask_error_details=True,
         instructions=INSTRUCTIONS,
         auth=PlatformOAuthProvider(),
     )
@@ -72,7 +101,10 @@ def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     for tool in platform_tools(api):
         # A held read is announced as no read-only tool, which is what holds it
         # for approval under `writes` - see `HELD`.
-        server.tool(tool.function, annotations=_WRITE if tool.writes or tool.held else _READ)
+        server.tool(
+            _with_domain_errors(tool.function),
+            annotations=_WRITE if tool.writes or tool.held else _READ,
+        )
     # Stateless, answering in JSON: a tool call is one request and one answer,
     # so any worker of any replica can serve it, with nothing to keep in memory.
     # FastMCP's Host/Origin guard stays off: it protects unauthenticated local

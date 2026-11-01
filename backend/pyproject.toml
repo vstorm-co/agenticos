@@ -103,6 +103,11 @@ dependencies = [
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
     "liteparse>=2.16.0",
+    # `html.parse` reads markup with bs4's standard-library parser and picks
+    # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
+    # web-fetch extra; declared here so a release of it cannot drop them.
+    "beautifulsoup4>=4.15.0",
+    "soupsieve>=2.9.2",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
@@ -196,6 +201,14 @@ dependencies = [
     # `bonsai`. LGPL-3.0, used unmodified and replaceable by reinstalling - the
     # decision is recorded in `licenses/policy.toml`.
     "ldap3>=2.9.1",
+    # The expression language workflow `data.map` and `logic.if` nodes evaluate:
+    # declarative JSON queries with no assignment, loops or user functions, so a
+    # graph never executes code (#1789). MIT; already installed through boto3.
+    "jmespath>=1.1.0",
+    # Checks an `agent.run` step's structured answer against the JSON Schema the
+    # step declares, before anything downstream reads it (#1789). MIT; already
+    # installed through the MCP SDK.
+    "jsonschema>=4.23.0",
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
@@ -650,7 +663,7 @@ include = [
     # Its first sync connector caller: a crawl whose every link is chosen by the
     # site it reads, and the page text that decides what a sync re-embeds (#984).
     "app/services/rag/connectors/web.py",
-    "app/services/rag/connectors/web_page.py",
+    "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
     # The query strings a knowledge search runs, and the one place an expansion
@@ -796,12 +809,22 @@ include = [
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
+    "app/services/portals/_api.py",
+    "app/services/portals/_calendar.py",
+    "app/services/portals/_files.py",
     "app/services/portals/github_oauth.py",
+    "app/services/portals/google_calendar.py",
+    "app/services/portals/google_drive.py",
+    "app/services/portals/mail_auth.py",
+    "app/services/portals/mail_thread.py",
+    "app/services/portals/microsoft_files.py",
+    "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
+    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     # Whether an agent can run on a model. A classification that quietly widens
@@ -906,9 +929,23 @@ include = [
     "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/artifact.py",
+    "app/db/models/artifact_share_request.py",
     "app/schemas/artifact.py",
+    "app/schemas/artifact_share_request.py",
     "app/repositories/artifact.py",
+    "app/repositories/artifact_share_request.py",
     "app/services/artifact.py",
+    "app/services/artifact_actions.py",
+    "app/services/artifact_bindings.py",
+    "app/services/artifact_log_bindings.py",
+    "app/services/artifact_consent.py",
+    "app/services/artifact_diff.py",
+    "app/services/artifact_lint.py",
+    "app/services/artifact_ownership.py",
+    "app/services/artifact_public_data.py",
+    "app/services/artifact_request_service.py",
+    "app/services/artifact_requests.py",
+    "app/services/artifact_render.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
     "app/db/models/visual.py",
@@ -1043,6 +1080,17 @@ include = [
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
     "app/api/routes/v1/ml.py",
+    # Typed records shared by the console, agent tools, workflow nodes and the
+    # public API. Every branch is a refusal - a stale revision, a reused
+    # operation key, another tenant's table, an archived column - and a write path
+    # that skipped one would overwrite or leak a tenant's rows silently (#1782).
+    "app/db/models/virtual_table.py",
+    "app/repositories/virtual_table.py",
+    "app/schemas/virtual_table.py",
+    "app/services/virtual_tables/**",
+    "app/api/routes/v1/virtual_tables.py",
+    "app/api/routes/v1/_table_responses.py",
+    "app/api/routes/v1/_path_convertors.py",
     # Groups, directory group mappings, and signing in with a directory (#1773).
     # Authentication and membership: what they refuse is the feature.
     "app/db/models/group.py",
@@ -1060,6 +1108,85 @@ include = [
     "app/api/routes/v1/directory_mappings.py",
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
+    # Node contracts, registry and graph validation (#1786). Mirrors the
+    # capability registry's split: typed definitions in code, a graph checked
+    # against them before it can be published.
+    "app/db/models/workflow.py",
+    "app/repositories/workflow.py",
+    "app/schemas/workflow.py",
+    "app/services/workflow_registry.py",
+    "app/schemas/workflow_portable.py",
+    "app/services/workflow_portable.py",
+    "app/services/workflow_agents.py",
+    "app/services/workflow_execution/agent_conversations.py",
+    "app/workflows/**",
+    "app/api/routes/v1/workflows.py",
+    # Durable execution: run/node/attempt state machine, the dispatch outbox,
+    # the reconciler and the event stream (#1788).
+    "app/db/models/workflow_run.py",
+    "app/repositories/workflow_run.py",
+    "app/schemas/workflow_run.py",
+    "app/services/workflow_execution/**",
+    "app/worker/tasks/workflow_tasks.py",
+    "app/api/routes/v1/workflow_runs.py",
+    # What a workflow's real runs did over a window, for its runs page.
+    "app/schemas/workflow_stats.py",
+    "app/services/workflow_stats.py",
+    # One text-similarity scorer: text.compare, approval edit ratios and evals.
+    "app/services/text_similarity.py",
+    # A model step's evals: its cases, and the test runs that tried them.
+    "app/db/models/workflow_eval.py",
+    "app/repositories/workflow_eval.py",
+    "app/schemas/workflow_eval.py",
+    "app/services/workflow_evals.py",
+    "app/api/routes/v1/workflow_evals.py",
+    # The ways in to a workflow (#1792): its webhooks and schedules, the
+    # workflow-run WebSocket and the chat's door through it, and the publish
+    # that switches its trigger node on.
+    "app/db/models/workflow_exposure.py",
+    "app/repositories/workflow_exposure.py",
+    "app/schemas/workflow_exposure.py",
+    "app/services/workflow_exposure.py",
+    "app/services/workflow_webhook_test.py",
+    "app/services/workflow_triggers.py",
+    "app/services/workflow_authority.py",
+    "app/services/workflow_run_socket.py",
+    "app/api/routes/v1/workflow_exposures.py",
+    "app/api/routes/v1/workflow_run_socket.py",
+    # A run's files (#1791): what a `FileRef` resolves to, and the one lookup
+    # every file step reads through.
+    "app/db/models/workflow_file.py",
+    "app/repositories/workflow_file.py",
+    # What a `human.approval` step asks a person, and the queue deciding it.
+    "app/db/models/workflow_approval.py",
+    "app/repositories/workflow_approval.py",
+    "app/schemas/workflow_approval.py",
+    "app/api/routes/v1/workflow_approvals.py",
+    # A workflow's own log: the lines a step's Quick Log writes as it settles.
+    "app/db/models/workflow_log_entry.py",
+    "app/repositories/workflow_log_entry.py",
+    "app/schemas/workflow_log_entry.py",
+    # Alert rules on that log, and the worker's count of each over its window.
+    "app/db/models/workflow_log_alert.py",
+    "app/repositories/workflow_log_alert.py",
+    "app/schemas/workflow_log_alert.py",
+    "app/services/workflow_log_alerts.py",
+    "app/api/routes/v1/workflow_log_alerts.py",
+    # A table's triggers (#1785): the workflows a record added to it starts,
+    # and every refusal between the two - before activation, a filter miss, a
+    # cycle, a revoked principal - is a run that must not start.
+    "app/db/models/virtual_table_trigger.py",
+    "app/repositories/virtual_table_trigger.py",
+    "app/schemas/virtual_table_trigger.py",
+    "app/api/routes/v1/virtual_table_triggers.py",
+    # A saved table/kanban/list view (#1783): a console-only sub-resource of a
+    # table, sharing its service package but with its own model, repo, schema and
+    # route file. Every branch here is also a refusal - a private view another
+    # member owns, a rename that collides, a non-owner without `tables:edit` `ALL`.
+    "app/db/models/table_view.py",
+    "app/repositories/table_view.py",
+    "app/schemas/table_view.py",
+    "app/api/routes/v1/table_views.py",
     "app/services/live_browse.py",
     "app/services/live_turn.py",
     "app/services/chat_room.py",
@@ -1182,7 +1309,7 @@ include = [
     # Its first sync connector caller: a crawl whose every link is chosen by the
     # site it reads, and the page text that decides what a sync re-embeds (#984).
     "app/services/rag/connectors/web.py",
-    "app/services/rag/connectors/web_page.py",
+    "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
     # The query strings a knowledge search runs, and the one place an expansion
@@ -1361,12 +1488,22 @@ include = [
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
+    "app/services/portals/_api.py",
+    "app/services/portals/_calendar.py",
+    "app/services/portals/_files.py",
     "app/services/portals/github_oauth.py",
+    "app/services/portals/google_calendar.py",
+    "app/services/portals/google_drive.py",
+    "app/services/portals/mail_auth.py",
+    "app/services/portals/mail_thread.py",
+    "app/services/portals/microsoft_files.py",
+    "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
+    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     # Whether an agent can run on a model. A classification that quietly widens
@@ -1471,9 +1608,23 @@ include = [
     "app/api/routes/v1/projects.py",
     "app/api/routes/v1/context.py",
     "app/db/models/artifact.py",
+    "app/db/models/artifact_share_request.py",
     "app/schemas/artifact.py",
+    "app/schemas/artifact_share_request.py",
     "app/repositories/artifact.py",
+    "app/repositories/artifact_share_request.py",
     "app/services/artifact.py",
+    "app/services/artifact_actions.py",
+    "app/services/artifact_bindings.py",
+    "app/services/artifact_log_bindings.py",
+    "app/services/artifact_consent.py",
+    "app/services/artifact_diff.py",
+    "app/services/artifact_lint.py",
+    "app/services/artifact_ownership.py",
+    "app/services/artifact_public_data.py",
+    "app/services/artifact_request_service.py",
+    "app/services/artifact_requests.py",
+    "app/services/artifact_render.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
     "app/db/models/visual.py",
@@ -1608,6 +1759,17 @@ include = [
     "app/repositories/ml_service_call.py",
     "app/schemas/ml.py",
     "app/api/routes/v1/ml.py",
+    # Typed records shared by the console, agent tools, workflow nodes and the
+    # public API. Every branch is a refusal - a stale revision, a reused
+    # operation key, another tenant's table, an archived column - and a write path
+    # that skipped one would overwrite or leak a tenant's rows silently (#1782).
+    "app/db/models/virtual_table.py",
+    "app/repositories/virtual_table.py",
+    "app/schemas/virtual_table.py",
+    "app/services/virtual_tables/**",
+    "app/api/routes/v1/virtual_tables.py",
+    "app/api/routes/v1/_table_responses.py",
+    "app/api/routes/v1/_path_convertors.py",
     # Groups, directory group mappings, and signing in with a directory (#1773).
     # Authentication and membership: what they refuse is the feature.
     "app/db/models/group.py",
@@ -1625,6 +1787,85 @@ include = [
     "app/api/routes/v1/directory_mappings.py",
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
+    # Node contracts, registry and graph validation (#1786). Mirrors the
+    # capability registry's split: typed definitions in code, a graph checked
+    # against them before it can be published.
+    "app/db/models/workflow.py",
+    "app/repositories/workflow.py",
+    "app/schemas/workflow.py",
+    "app/services/workflow_registry.py",
+    "app/schemas/workflow_portable.py",
+    "app/services/workflow_portable.py",
+    "app/services/workflow_agents.py",
+    "app/services/workflow_execution/agent_conversations.py",
+    "app/workflows/**",
+    "app/api/routes/v1/workflows.py",
+    # Durable execution: run/node/attempt state machine, the dispatch outbox,
+    # the reconciler and the event stream (#1788).
+    "app/db/models/workflow_run.py",
+    "app/repositories/workflow_run.py",
+    "app/schemas/workflow_run.py",
+    "app/services/workflow_execution/**",
+    "app/worker/tasks/workflow_tasks.py",
+    "app/api/routes/v1/workflow_runs.py",
+    # What a workflow's real runs did over a window, for its runs page.
+    "app/schemas/workflow_stats.py",
+    "app/services/workflow_stats.py",
+    # One text-similarity scorer: text.compare, approval edit ratios and evals.
+    "app/services/text_similarity.py",
+    # A model step's evals: its cases, and the test runs that tried them.
+    "app/db/models/workflow_eval.py",
+    "app/repositories/workflow_eval.py",
+    "app/schemas/workflow_eval.py",
+    "app/services/workflow_evals.py",
+    "app/api/routes/v1/workflow_evals.py",
+    # The ways in to a workflow (#1792): its webhooks and schedules, the
+    # workflow-run WebSocket and the chat's door through it, and the publish
+    # that switches its trigger node on.
+    "app/db/models/workflow_exposure.py",
+    "app/repositories/workflow_exposure.py",
+    "app/schemas/workflow_exposure.py",
+    "app/services/workflow_exposure.py",
+    "app/services/workflow_webhook_test.py",
+    "app/services/workflow_triggers.py",
+    "app/services/workflow_authority.py",
+    "app/services/workflow_run_socket.py",
+    "app/api/routes/v1/workflow_exposures.py",
+    "app/api/routes/v1/workflow_run_socket.py",
+    # A run's files (#1791): what a `FileRef` resolves to, and the one lookup
+    # every file step reads through.
+    "app/db/models/workflow_file.py",
+    "app/repositories/workflow_file.py",
+    # What a `human.approval` step asks a person, and the queue deciding it.
+    "app/db/models/workflow_approval.py",
+    "app/repositories/workflow_approval.py",
+    "app/schemas/workflow_approval.py",
+    "app/api/routes/v1/workflow_approvals.py",
+    # A workflow's own log: the lines a step's Quick Log writes as it settles.
+    "app/db/models/workflow_log_entry.py",
+    "app/repositories/workflow_log_entry.py",
+    "app/schemas/workflow_log_entry.py",
+    # Alert rules on that log, and the worker's count of each over its window.
+    "app/db/models/workflow_log_alert.py",
+    "app/repositories/workflow_log_alert.py",
+    "app/schemas/workflow_log_alert.py",
+    "app/services/workflow_log_alerts.py",
+    "app/api/routes/v1/workflow_log_alerts.py",
+    # A table's triggers (#1785): the workflows a record added to it starts,
+    # and every refusal between the two - before activation, a filter miss, a
+    # cycle, a revoked principal - is a run that must not start.
+    "app/db/models/virtual_table_trigger.py",
+    "app/repositories/virtual_table_trigger.py",
+    "app/schemas/virtual_table_trigger.py",
+    "app/api/routes/v1/virtual_table_triggers.py",
+    # A saved table/kanban/list view (#1783): a console-only sub-resource of a
+    # table, sharing its service package but with its own model, repo, schema and
+    # route file. Every branch here is also a refusal - a private view another
+    # member owns, a rename that collides, a non-owner without `tables:edit` `ALL`.
+    "app/db/models/table_view.py",
+    "app/repositories/table_view.py",
+    "app/schemas/table_view.py",
+    "app/api/routes/v1/table_views.py",
     "app/services/live_browse.py",
     "app/services/live_turn.py",
     "app/services/chat_room.py",

@@ -110,6 +110,7 @@ export function SearchInput({
   className,
   label,
   autoFocus = false,
+  maxLength,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -122,6 +123,8 @@ export function SearchInput({
    *  collapsed rail. Off everywhere else: a box that grabs the cursor on every
    *  page load takes it from whatever somebody was typing in. */
   autoFocus?: boolean;
+  /** The longest text the search accepts, where the server refuses more. */
+  maxLength?: number;
 }) {
   const t = useTranslations("ui");
   const input = useRef<HTMLInputElement>(null);
@@ -142,6 +145,7 @@ export function SearchInput({
         placeholder={placeholder}
         aria-label={label ?? placeholder}
         autoFocus={autoFocus}
+        maxLength={maxLength}
         onKeyDown={(event) => {
           if (event.key === "Escape" && value) {
             event.preventDefault();

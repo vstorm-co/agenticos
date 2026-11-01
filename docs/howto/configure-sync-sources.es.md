@@ -1,5 +1,5 @@
 ---
-source_sha: "593e85034342"
+source_sha: "71cd0f76685e"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -307,6 +307,14 @@ S3_RAG_REGION=us-east-1                    # required for AWS, optional for MinI
 En MinIO, el endpoint suele ser `http://minio:9000` (Docker) o
 `http://localhost:9000` (local).
 
+La `endpoint_url` propia de una fuente se comprueba como la URL de inicio de una
+fuente de sitio web, al guardar la fuente y de nuevo cuando empieza una
+sincronización: una dirección de loopback, link-local o de metadatos de la nube
+siempre se rechaza, y un endpoint en la red privada, como un contenedor MinIO,
+necesita su host en
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). El
+`S3_RAG_ENDPOINT` del operador no se comprueba.
+
 ### 2. Campos de configuración del connector de S3 { #2-s3-connector-config-fields }
 
 | Campo | Tipo | Obligatorio | Valor por defecto | Descripción |
@@ -351,8 +359,9 @@ uv run agenticos cmd rag-source-add \
 - **La red del deployment queda fuera de alcance.** Cada petición - robots.txt,
   el sitemap, cada página y cada redirección - se comprueba contra la misma
   política SSRF que los webhooks y los servidores MCP. Se envía a la dirección que
-  pasó la comprobación. Una URL de inicio que resuelve a una dirección privada, de
-  loopback, link-local o de metadatos de la nube se rechaza al guardar la fuente.
+  pasó la comprobación. Una URL de inicio que resuelve a una dirección de
+  loopback, link-local o de metadatos de la nube siempre se rechaza al guardar la fuente.
+  Una que resuelve a una dirección privada también se rechaza, salvo que el operador liste su host en [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
 - **Se respeta robots.txt** para sitemaps y páginas, incluido `Crawl-delay` de
   hasta diez segundos. El crawler se identifica como `AgenticOS-Crawler`. Espera
   al menos medio segundo entre peticiones, y se respeta una página que diga
@@ -463,7 +472,8 @@ La URL tiene que ser `https://`. Su host se resuelve una sola vez y se comprueba
 como cualquier otra dirección que elige un inquilino: un host que resuelve a una
 dirección privada, de loopback o link-local se rechaza al guardar la fuente y de
 nuevo al sincronizar, y git solo se conecta a las direcciones que esa
-comprobación aprobó. Las redirecciones no se siguen. Un deployment detrás de un
+comprobación aprobó. El operador puede admitir un host de la red del deployment con
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Las redirecciones no se siguen. Un deployment detrás de un
 proxy de salida (`HTTPS_PROXY`) lo sigue usando; en ese caso el proxy resuelve el
 host por su cuenta.
 
@@ -785,9 +795,9 @@ puerto (por ejemplo, `http://localhost:9000`).
 ### Sitio web: "resolves to private/internal address" { #website-resolves-to-privateinternal-address }
 
 La URL de inicio, o el sitemap, apunta dentro de la red del deployment, o su
-nombre resuelve ahí. Una fuente de sitio web solo lee direcciones públicas. Para
-indexar un sitio interno, publica sus páginas en algún lugar público o sube los
-archivos directamente.
+nombre resuelve ahí. Una fuente de sitio web solo lee direcciones públicas, salvo que el operador
+liste el host del sitio en [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Si no, publica sus páginas en algún lugar
+público o sube los archivos directamente.
 
 ### Sitio web: "The site's robots.txt could not be read, so it was not crawled" { #website-the-sites-robotstxt-could-not-be-read-so-it-was-not-crawled }
 
@@ -876,7 +886,8 @@ si la fuente ha cambiado entretanto.
 
 El host del repositorio resuelve dentro de la red del deployment, así que la
 fuente se rechaza. Una fuente de sincronización no puede llegar a un servidor Git
-autoalojado en una dirección interna.
+autoalojado en una dirección interna, salvo que el operador liste su host en
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
 
 ### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
 

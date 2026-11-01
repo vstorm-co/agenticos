@@ -8,7 +8,7 @@ create flow, never sent to the browser.
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from app.schemas.base import BaseSchema
 
@@ -19,6 +19,7 @@ class PortalPresetRead(BaseSchema):
     key: str
     label: str
     description: str
+    event_config: dict[str, JsonValue] = Field(default_factory=dict)
     target_required: bool = Field(
         description="Whether this preset needs a target (which repository) before it can be set up",
     )
@@ -67,6 +68,14 @@ class PortalRead(BaseSchema):
                 "Null exactly when connection_id is null"
             ),
         )
+    )
+    poll_interval_minutes: int | None = Field(
+        default=None,
+        description=(
+            "How many minutes pass between checks of the connected mailbox - one "
+            "setting for every trigger on it - or null for a portal that is not "
+            "polled or has no connection"
+        ),
     )
     connect_blocked_by: (
         Literal["oauth_app_secret", "ambiguous_oauth_app_secret", "oauth_unavailable"] | None

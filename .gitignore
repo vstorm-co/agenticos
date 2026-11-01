@@ -94,6 +94,8 @@ cython_debug/
 # Logs
 *.log
 logs/
+# The frontend's Logs page and its components are source, not runtime logs.
+!frontend/src/**/logs/
 
 # Docker
 .docker/

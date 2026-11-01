@@ -14,7 +14,7 @@ through the platform's MCP server with a credential minted for them.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
@@ -153,7 +153,12 @@ class AssistantService:
         return self._read(row, agent, can_use=ctx.has(Perm.AGENTS_RUN), can_configure=True)
 
     async def refresh(
-        self, ctx: AuthContext, *, dry_run: bool = False, replace_edited: bool = False
+        self,
+        ctx: AuthContext,
+        *,
+        dry_run: bool = False,
+        replace_edited: bool = False,
+        workflow_support_only: bool = False,
     ) -> AssistantRefresh:
         """Refresh installed instructions and guide, preserving organization edits.
 
@@ -185,6 +190,10 @@ class AssistantService:
             if version is None:
                 raise NotFoundError(message="The Architect's published version is missing")
             published = AgentSpec.model_validate(version.spec)
+        if workflow_support_only:
+            return await self._refresh_workflow_support(
+                ctx, agent, draft, published, dry_run=dry_run
+            )
         template = _template()
         target = instructions_fingerprint(template.instructions)
         hashes = {instructions_fingerprint(draft.instructions)}
@@ -228,9 +237,27 @@ class AssistantService:
             detail = "guide missing or detached; binding left alone"
         number = None
         if not dry_run:
-            if plan is LibraryRefresh.UPDATE:
+            added_skills: list[UUID] = []
+            if plan in (LibraryRefresh.CURRENT, LibraryRefresh.UPDATE):
+                workflow_skills = await self.registry.template_skills(
+                    ctx,
+                    replace(
+                        template, skills=("software/workflow-builder", "software/virtual-tables")
+                    ),
+                )
+                added_skills = [
+                    skill.id for skill in workflow_skills if skill.id not in draft.skill_ids
+                ]
+            if plan is LibraryRefresh.UPDATE or added_skills:
                 await self.registry.save_draft(
-                    ctx, agent.id, draft.model_copy(update={"instructions": template.instructions})
+                    ctx,
+                    agent.id,
+                    draft.model_copy(
+                        update={
+                            "instructions": template.instructions,
+                            "skill_ids": [*draft.skill_ids, *added_skills],
+                        }
+                    ),
                 )
                 if published is not None:
                     version = await self.registry.publish(
@@ -267,6 +294,58 @@ class AssistantService:
         if agent is None:  # pragma: no cover - the row cascades with its agent
             raise NotFoundError(message="The assistant's agent is gone")
         return row, agent
+
+    async def _refresh_workflow_support(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        draft: AgentSpec,
+        published: AgentSpec | None,
+        *,
+        dry_run: bool,
+    ) -> AssistantRefresh:
+        """Add shipped workflow support while retaining unrelated draft edits."""
+        if dry_run:
+            return AssistantRefresh(
+                instructions=LibraryRefresh.UPDATE,
+                detail="add workflow guidance and skills; preserve other published settings and pending draft changes",
+            )
+        skills = await self.registry.template_skills(
+            ctx,
+            replace(_template(), skills=("software/workflow-builder", "software/virtual-tables")),
+        )
+
+        async def upgraded(spec: AgentSpec) -> AgentSpec:
+            current = await self.registry.with_assistant_guidance(agent, spec)
+            return current.model_copy(
+                update={
+                    "skill_ids": list(
+                        dict.fromkeys([*spec.skill_ids, *(skill.id for skill in skills)])
+                    )
+                }
+            )
+
+        new_draft = await upgraded(draft)
+        number = None
+        if published is not None:
+            current = await upgraded(published)
+            if current != published:
+                await self.registry.save_draft(ctx, agent.id, current)
+                version = await self.registry.publish(
+                    ctx, agent.id, note="Enable workflow and table building"
+                )
+                number = version.version
+            if new_draft != current and (number is not None or new_draft != draft):
+                await self.registry.save_draft(ctx, agent.id, new_draft)
+        elif new_draft != draft:
+            await self.registry.save_draft(ctx, agent.id, new_draft)
+        return AssistantRefresh(
+            instructions=LibraryRefresh.UPDATE
+            if number is not None or new_draft != draft
+            else LibraryRefresh.CURRENT,
+            published_version=number,
+            detail="workflow guidance and skills updated; other draft changes preserved",
+        )
 
     async def _install(self, organization_id: UUID) -> Agent:
         template = _template()

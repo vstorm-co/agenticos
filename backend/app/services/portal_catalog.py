@@ -114,6 +114,12 @@ CATALOG: tuple[PortalEntry, ...] = catalog.load(
 
 BY_KEY: dict[str, PortalEntry] = {entry.key: entry for entry in CATALOG}
 
+# The polled portals whose grant is a mailbox, and so the only ones with a settable
+# check interval. The calendar and file portals are polled too, but read on a fixed
+# minute: an hourly read would drop a reminder's window (`_calendar.announce`) and
+# overrun a feed page (`MAX_FILES_PER_POLL`).
+MAILBOX_PORTAL_KEYS: frozenset[str] = frozenset({"google", "microsoft"})
+
 
 def get_portal(key: str) -> PortalEntry | None:
     return BY_KEY.get(key)

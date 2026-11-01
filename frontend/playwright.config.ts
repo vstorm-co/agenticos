@@ -31,6 +31,14 @@ const STUB_MODEL_PORT = Number(process.env.E2E_STUB_MODEL_PORT ?? 4010);
 const BASE_URL = `http://localhost:${FRONTEND_PORT}`;
 
 /**
+ * The live-data journey in WebKit as well, asked for with `E2E_WEBKIT=1` and
+ * refused under CI whatever the variable says - see the `webkit-live-data`
+ * project below.
+ */
+const WEBKIT_LIVE_DATA = process.env.E2E_WEBKIT === "1" && !process.env.CI;
+const LIVE_DATA_SPEC = /artifact-live-data\.spec\.ts/;
+
+/**
  * Playwright E2E test configuration.
  *
  * See https://playwright.dev/docs/test-configuration.
@@ -139,6 +147,10 @@ export default defineConfig({
      * because Safari revoked the grant Chrome had just asserted teaches nobody
      * anything. Cross-browser rendering is a job for the component tests, which
      * cost nothing to run in a second engine because they mutate nothing.
+     *
+     * The one exception is `webkit-live-data` below, opt-in and never in CI.
+     * While it is on, this project leaves the live-data spec to it, so the two
+     * engines never both retitle the record that spec reads.
      */
     {
       name: "chromium",
@@ -162,7 +174,32 @@ export default defineConfig({
       },
       testMatch: /\.mobile\.spec\.ts/,
       dependencies: ["seed"],
+      ...(WEBKIT_LIVE_DATA ? { testIgnore: LIVE_DATA_SPEC } : {}),
     },
+
+    /*
+     * The live-data journey in WebKit, the engine the desktop app embeds: an
+     * opaque-origin `postMessage`, the `event.source` check, structured clone,
+     * the content CSP and `frame-ancestors` behave per engine. It proves nothing
+     * about the Tauri shell or the system WebKit versions it ships on.
+     *
+     * Only with `E2E_WEBKIT=1`, and never in CI, where `CI` turns it off even
+     * with the variable set: WebKit needs system libraries the runner lacks,
+     * and `playwright install --with-deps webkit` brings back the apt stall of
+     * #879. It depends on `seed` rather than `chromium`, so
+     * `--project=webkit-live-data` runs this one spec and not the whole suite;
+     * a run without `--project` runs it here and not in `chromium`.
+     */
+    ...(WEBKIT_LIVE_DATA
+      ? [
+          {
+            name: "webkit-live-data",
+            use: { ...devices["Desktop Safari"] },
+            testMatch: LIVE_DATA_SPEC,
+            dependencies: ["seed"],
+          },
+        ]
+      : []),
   ],
 
   /*

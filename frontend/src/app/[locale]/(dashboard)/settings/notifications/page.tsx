@@ -20,6 +20,9 @@ import {
   Share2,
   Sparkles,
   UserPlus,
+  GitPullRequest,
+  UserRoundCog,
+  Workflow,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -209,6 +212,30 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "announcement",
     words: "prefAnnouncement",
     icon: Megaphone,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "workflow_notification",
+    words: "prefWorkflowNotification",
+    icon: Workflow,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "workflow_log_alert",
+    words: "prefWorkflowLogAlert",
+    icon: Bell,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "artifact_owner_changed",
+    words: "prefArtifactOwnerChanged",
+    icon: UserRoundCog,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "artifact_share_requested",
+    words: "prefArtifactShareRequested",
+    icon: GitPullRequest,
     channels: ["in_app", "email", "push"],
   },
 ];

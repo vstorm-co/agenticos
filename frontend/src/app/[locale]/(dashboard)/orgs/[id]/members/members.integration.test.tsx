@@ -361,6 +361,16 @@ describe("organization settings tabs", () => {
     expect(screen.getByDisplayValue("New workspace")).toBeVisible();
   });
 
+  it("keeps public page data controls reachable with only the organization settings grant", async () => {
+    serve("viewer", [{ permission: Perm.orgSettings, scope: "all" }]);
+    await mount();
+    const governance = await screen.findByRole("tab", { name: "Budget and approvals" });
+    expect(screen.queryByRole("switch", { name: "Public pages with live data" })).toBeNull();
+    await userEvent.click(governance);
+    expect(screen.getByRole("switch", { name: "Public pages with live data" })).toBeVisible();
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("data-tour", "org-governance");
+  });
+
   it("opens a settings tab directly from its URL", async () => {
     query.mockImplementation(() => new URLSearchParams("tab=voice"));
     serve("owner", [{ permission: Perm.orgSettings, scope: "all" }]);

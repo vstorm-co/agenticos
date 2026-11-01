@@ -5,20 +5,27 @@ predicate pieces the access layer resolved rather than re-deriving them, the
 shape `context_repo` and `skill_repo` use.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, false, func, or_, select
+from sqlalchemy import ColumnElement, and_, delete, false, func, or_, select, true
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import Scope
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun
-from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactVersion
+from app.db.models.artifact import (
+    SERVED_STATES,
+    Artifact,
+    ArtifactFollower,
+    ArtifactVersion,
+    ConsentState,
+)
 from app.db.models.conversation import Conversation
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
@@ -45,6 +52,20 @@ async def get(db: AsyncSession, artifact_id: UUID, *, organization_id: UUID) -> 
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_by_ids(
+    db: AsyncSession, artifact_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[Artifact]:
+    """The artifacts among `artifact_ids` that belong to the organization."""
+    if not artifact_ids:
+        return []
+    result = await db.execute(
+        select(Artifact).where(
+            Artifact.id.in_(artifact_ids), Artifact.organization_id == organization_id
+        )
+    )
+    return list(result.scalars())
 
 
 def _identity(
@@ -106,6 +127,27 @@ async def get_by_public_key(db: AsyncSession, public_key: str) -> Artifact | Non
     return result.scalar_one_or_none()
 
 
+def _editable(*, user_id: UUID, scope: Scope, grant_ids: list[UUID]) -> ColumnElement[bool]:
+    """The rows `artifacts:edit` reaches for one member: their role's scope, or a grant.
+
+    The SQL form of `access._scope_allows` plus an edit grant, for a listing that
+    has to page over rows only an editor may see.
+    """
+    owner = Artifact.owner_user_id == user_id
+    reach: list[ColumnElement[bool]] = [Artifact.id.in_(grant_ids)] if grant_ids else []
+    if scope is Scope.ALL:
+        return true()
+    if scope is Scope.TEAM:
+        reach.append(
+            or_(owner, Artifact.visibility.in_([Visibility.TEAM.value, Visibility.ORG.value]))
+        )
+    elif scope is Scope.SHARED:
+        reach.append(or_(owner, Artifact.visibility == Visibility.ORG.value))
+    elif scope is Scope.OWN:
+        reach.append(owner)
+    return or_(*reach) if reach else false()
+
+
 def _visible(
     *,
     organization_id: UUID,
@@ -113,9 +155,19 @@ def _visible(
     see_all: bool,
     shared_ids: list[UUID],
     shared_with_me: bool,
+    include_archived: bool = False,
+    archived_reach: ColumnElement[bool] = false(),
 ) -> list[Any]:
-    """Which rows one member may see - the predicate the list and its filters share."""
+    """Which rows one member may see - the predicate the list and its filters share.
+
+    Archived pages only when asked for, and then only those `archived_reach` admits:
+    none of them serves anything, and one exists only for the members who can edit it.
+    """
     where: list[Any] = [Artifact.organization_id == organization_id]
+    if not include_archived:
+        where.append(Artifact.archived_at.is_(None))
+    else:
+        where.append(or_(Artifact.archived_at.is_(None), archived_reach))
     if shared_with_me:
         where.append(
             and_(
@@ -145,6 +197,9 @@ async def list_visible(
     see_all: bool,
     shared_ids: list[UUID],
     shared_with_me: bool = False,
+    include_archived: bool = False,
+    edit_scope: Scope = Scope.NONE,
+    edit_ids: list[UUID] | None = None,
     search: str | None = None,
     agent_id: UUID | None = None,
     only_ids: Sequence[UUID] | None = None,
@@ -158,6 +213,10 @@ async def list_visible(
         see_all: True when the caller's role reaches the whole organization.
         shared_ids: Artifact ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
+        include_archived: List archived pages too; they are left out otherwise.
+        edit_scope: The scope of the caller's `artifacts:edit`, and `edit_ids` the pages
+            an edit grant gives them: of the archived pages only those they may edit are
+            listed.
         agent_id: Narrow to one agent's pages, on top of the visibility rules.
         only_ids: Narrow to these rows - the pages shared with one group.
         project_id: Narrow to the pages a run in one of this project's chats
@@ -169,6 +228,8 @@ async def list_visible(
         see_all=see_all,
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
+        include_archived=include_archived,
+        archived_reach=_editable(user_id=user_id, scope=edit_scope, grant_ids=edit_ids or []),
     )
     if search:
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
@@ -193,6 +254,60 @@ async def list_visible(
         .where(*where)
         .order_by(Artifact.published_at.desc(), Artifact.name.asc())
         .offset(skip)
+        .limit(limit)
+    )
+    total = await db.scalar(select(func.count(Artifact.id)).where(*where))
+    return list(items.scalars().all()), total or 0
+
+
+async def list_for_agent(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    environment_id: UUID | None,
+    reader_id: UUID,
+    member: bool,
+    room: bool,
+    see_all: bool,
+    shared_ids: list[UUID],
+    limit: int,
+) -> tuple[list[Artifact], int]:
+    """One agent's pages in one environment that a run's reader may see, newest first.
+
+    Args:
+        member: Whether the reader is an active member. One who is not keeps only
+            their own pages - and in a room only those of them that are
+            organization-wide.
+        room: The run is read by a group chat, so only what the whole
+            organization may see is listed: organization-wide pages. Never the
+            reader's private or team pages, nor one shared with the reader alone.
+        see_all: The reader's role reaches every page. Ignored in a room.
+        shared_ids: Pages explicitly shared with the reader. Ignored in a room.
+
+    An archived page is never listed: to a run it is not there.
+    """
+    where: list[Any] = [
+        Artifact.organization_id == organization_id,
+        Artifact.archived_at.is_(None),
+        Artifact.agent_id == agent_id,
+        Artifact.environment_id.is_(None)
+        if environment_id is None
+        else Artifact.environment_id == environment_id,
+    ]
+    own = Artifact.owner_user_id == reader_id
+    org_wide = Artifact.visibility == Visibility.ORG.value
+    shared = Artifact.id.in_(shared_ids) if shared_ids else false()
+    if not member:
+        where.extend([own, org_wide] if room else [own])
+    elif room:
+        where.append(org_wide)
+    elif not see_all:
+        where.append(or_(own, org_wide, shared))
+    items = await db.execute(
+        select(Artifact)
+        .where(*where)
+        .order_by(Artifact.published_at.desc(), Artifact.name.asc())
         .limit(limit)
     )
     total = await db.scalar(select(func.count(Artifact.id)).where(*where))
@@ -338,6 +453,96 @@ async def latest_versions(
     return {version.artifact_id: version for version in result.scalars().all()}
 
 
+async def latest_served(db: AsyncSession, artifact_id: UUID) -> ArtifactVersion | None:
+    """The newest version that is consented or reads no data - what the audience is served."""
+    result = await db.execute(
+        select(ArtifactVersion)
+        .where(
+            ArtifactVersion.artifact_id == artifact_id,
+            ArtifactVersion.consent_state.in_(SERVED_STATES),
+        )
+        .order_by(ArtifactVersion.number.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def latest_served_versions(
+    db: AsyncSession, artifact_ids: list[UUID]
+) -> dict[UUID, ArtifactVersion]:
+    """:func:`latest_served` for each artifact, in one query for a whole listing page."""
+    if not artifact_ids:
+        return {}
+    newest = (
+        select(
+            ArtifactVersion.artifact_id,
+            func.max(ArtifactVersion.number).label("number"),
+        )
+        .where(
+            ArtifactVersion.artifact_id.in_(artifact_ids),
+            ArtifactVersion.consent_state.in_(SERVED_STATES),
+        )
+        .group_by(ArtifactVersion.artifact_id)
+        .subquery()
+    )
+    result = await db.execute(
+        select(ArtifactVersion).join(
+            newest,
+            and_(
+                ArtifactVersion.artifact_id == newest.c.artifact_id,
+                ArtifactVersion.number == newest.c.number,
+            ),
+        )
+    )
+    return {version.artifact_id: version for version in result.scalars().all()}
+
+
+async def served_before(db: AsyncSession, artifact_id: UUID, number: int) -> ArtifactVersion | None:
+    """The newest version older than `number` that the audience could be served."""
+    result = await db.execute(
+        select(ArtifactVersion)
+        .where(
+            ArtifactVersion.artifact_id == artifact_id,
+            ArtifactVersion.number < number,
+            ArtifactVersion.consent_state.in_(SERVED_STATES),
+        )
+        .order_by(ArtifactVersion.number.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def latest_consent(
+    db: AsyncSession, artifact_id: UUID, *, membership_id: UUID, after: datetime | None
+) -> ArtifactVersion | None:
+    """The newest version consented under this membership after `after`, a withdrawal.
+
+    `None` for `after` when nothing was ever withdrawn.
+    """
+    where: list[Any] = [
+        ArtifactVersion.artifact_id == artifact_id,
+        ArtifactVersion.consent_state == ConsentState.CONSENTED.value,
+        ArtifactVersion.consented_by_membership_id == membership_id,
+    ]
+    if after is not None:
+        where.append(ArtifactVersion.consented_at > after)
+    result = await db.execute(
+        select(ArtifactVersion).where(*where).order_by(ArtifactVersion.number.desc()).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_version(
+    db: AsyncSession, *, version: ArtifactVersion, update_data: dict[str, Any]
+) -> ArtifactVersion:
+    for field, value in update_data.items():
+        setattr(version, field, value)
+    db.add(version)
+    await db.flush()
+    await db.refresh(version)
+    return version
+
+
 async def get_version(
     db: AsyncSession, version_id: UUID, *, artifact_id: UUID | None = None
 ) -> ArtifactVersion | None:
@@ -385,7 +590,12 @@ async def create_version(
     sha256: str,
     storage_path: str,
     run_id: UUID | None,
+    bindings: list[dict[str, Any]],
+    actions: list[dict[str, Any]] | None = None,
+    restored_from: int | None = None,
+    consent: dict[str, Any] | None = None,
 ) -> ArtifactVersion:
+    """A new version row. `consent` holds its publisher and consent columns by name."""
     version = ArtifactVersion(
         artifact_id=artifact_id,
         number=number,
@@ -394,6 +604,10 @@ async def create_version(
         sha256=sha256,
         storage_path=storage_path,
         run_id=run_id,
+        bindings=bindings,
+        actions=actions or [],
+        restored_from=restored_from,
+        **(consent or {}),
     )
     db.add(version)
     await db.flush()
@@ -402,12 +616,17 @@ async def create_version(
 
 
 async def versions_beyond(
-    db: AsyncSession, artifact_id: UUID, *, keep: int, pinned: int | None = None
+    db: AsyncSession,
+    artifact_id: UUID,
+    *,
+    keep: int,
+    kept: Collection[int] = (),
 ) -> list[ArtifactVersion]:
     """Every version older than the newest `keep` - what pruning removes.
 
-    `pinned` is a version number the public link shows, which is never among
-    them however old it is.
+    `kept` are version numbers that stay however old they are: the one the public
+    link shows, the one the page's audience is served and the one a republish's
+    consent is compared against.
     """
     result = await db.execute(
         select(ArtifactVersion)
@@ -415,7 +634,7 @@ async def versions_beyond(
         .order_by(ArtifactVersion.number.desc())
         .offset(keep)
     )
-    return [version for version in result.scalars().all() if version.number != pinned]
+    return [version for version in result.scalars().all() if version.number not in kept]
 
 
 async def get_version_by_number(
@@ -445,7 +664,12 @@ async def storage_paths(db: AsyncSession, artifact_id: UUID) -> list[str]:
 
 async def lock(db: AsyncSession, artifact_id: UUID) -> Artifact | None:
     """The artifact locked until the transaction ends, for a write that adds a version."""
-    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id).with_for_update())
+    result = await db.execute(
+        select(Artifact)
+        .where(Artifact.id == artifact_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 

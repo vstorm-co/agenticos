@@ -17,14 +17,16 @@ from pathlib import Path
 import httpx2
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.sanitize import NO_PRIVATE_ADDRESSES
 from app.services.rag.connectors import (
     CONNECTOR_REGISTRY,
     RemoteFile,
     RemoteListing,
     WithdrawnFile,
 )
-from app.services.rag.connectors.web import WebConnector, _retry_wait, normalized_url
+from app.services.rag.connectors.web import WebConfig, WebConnector, _retry_wait, normalized_url
 
 pytestmark = pytest.mark.anyio
 
@@ -98,6 +100,10 @@ def _dns(monkeypatch: pytest.MonkeyPatch) -> Callable[[dict[str, str]], None]:
 
 def _config(**overrides: object) -> dict[str, object]:
     return {"root_url": "https://docs.example.com/guide/", **overrides}
+
+
+def _web_settings() -> WebConfig:
+    return WebConfig.model_validate(_config())
 
 
 async def _list(site: _Site, **overrides: object) -> RemoteListing:
@@ -1121,6 +1127,76 @@ class TestTheConfigIsCheckedWhereItWasTyped:
     )
     async def test_a_public_config_is_accepted(self, config: dict[str, object]) -> None:
         assert await WebConnector().validate_config(config) is None
+
+
+class TestAListedHost:
+    @pytest.fixture(autouse=True)
+    def _listed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", ["10.1.2.0/24"])
+
+    @pytest.mark.security
+    async def test_a_start_url_inside_a_listed_range_is_accepted_by_the_form(
+        self, _dns: Callable[[dict[str, str]], None]
+    ) -> None:
+        _dns({"docs.example.com": "10.1.2.5"})
+
+        assert await WebConnector().validate_config(_config()) is None
+
+    @pytest.mark.security
+    async def test_a_start_url_outside_a_listed_range_is_still_refused(
+        self, _dns: Callable[[dict[str, str]], None]
+    ) -> None:
+        _dns({"docs.example.com": "10.9.9.9"})
+
+        refusal = await WebConnector().validate_config(_config())
+
+        assert refusal is not None
+        assert refusal.field == "root_url"
+
+    @pytest.mark.security
+    async def test_a_crawl_of_a_listed_site_reads_its_pages_and_a_single_page(
+        self, _dns: Callable[[dict[str, str]], None]
+    ) -> None:
+        _dns({"docs.example.com": "10.1.2.5"})
+        site = _Site({"docs.example.com/guide/": _html("<h1>Wiki</h1><p>text</p>")})
+        connector = _Fast(transport=site)
+
+        listing = await connector.list_files(_config(), None)
+        text = await connector._read_one("https://docs.example.com/guide/", _web_settings())
+
+        assert len(listing.files) == 1
+        assert "Wiki" in text
+        assert set(site.dialled) == {"10.1.2.5"}
+
+    @pytest.mark.security
+    async def test_a_crawl_from_a_public_site_does_not_follow_a_redirect_to_a_listed_host(
+        self, _dns: Callable[[dict[str, str]], None]
+    ) -> None:
+        _dns({"wiki.corp.example": "10.1.2.5"})
+        site = _Site(
+            {
+                "docs.example.com/guide/": _status(302, location="https://wiki.corp.example/x"),
+                "wiki.corp.example/x": _html("<p>internal</p>"),
+            }
+        )
+
+        listing = await _list(site)
+
+        assert listing.files == []
+        assert not any(key.startswith("wiki.corp.example") for key in site.requested)
+
+    @pytest.mark.security
+    async def test_a_crawl_from_a_public_site_earns_no_allowlist(
+        self, _dns: Callable[[dict[str, str]], None]
+    ) -> None:
+        """The origin rule: the start URL decides, so a public one is crawled
+        with nothing listed even though the deployment lists a range."""
+        _dns({"docs.example.com": "93.184.216.34"})
+        connector = _Fast(transport=_Site({"docs.example.com/guide/": _html("<p>text</p>")}))
+
+        await connector.list_files(_config(), None)
+
+        assert connector._private_allowlist == NO_PRIVATE_ADDRESSES
 
 
 class TestTheSpellingItCompares:

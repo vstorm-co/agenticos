@@ -1,20 +1,20 @@
 [
   {
     "key": "mail-needs-reply",
-    "catalog_key": "m365-mail",
+    "catalog_key": "ms-365",
     "instructions": "Unread mail that needs a reply from me: written by a person rather than sent in bulk, asking me something or waiting on me. Skip newsletters, notifications and receipts.",
     "interval_minutes": 60
   },
   {
     "key": "mail-invoices",
-    "catalog_key": "m365-mail",
+    "catalog_key": "ms-365",
     "instructions": "Invoices, payment reminders and anything that says a payment is due or overdue. Urgent when it is already past its due date.",
     "interval_minutes": 360,
     "urgent": true
   },
   {
     "key": "mail-newsletters",
-    "catalog_key": "m365-mail",
+    "catalog_key": "ms-365",
     "instructions": "Newsletters and promotional senders I keep receiving and never open - worth unsubscribing from. Name the sender and how many arrived lately.",
     "interval_minutes": 1440
   },
@@ -80,7 +80,7 @@
   },
   {
     "key": "teams-unanswered",
-    "catalog_key": "m365-teams",
+    "catalog_key": "ms-365",
     "instructions": "Chats and channel messages mentioning me that I have not answered yet.",
     "interval_minutes": 60
   },

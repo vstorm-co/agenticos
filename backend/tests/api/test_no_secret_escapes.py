@@ -95,6 +95,25 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "person wiring the relay can sign deliveries; TriggerRead (every read and "
         "the listing) has no such field, so it is never re-exposed"
     ),
+    "webhook_secret": (
+        "a workflow webhook's minted signing secret, returned once by the publish "
+        "that first switches it on so its publisher can sign deliveries; "
+        "WorkflowExposureRead (every read) has no such field, so it is never re-exposed"
+    ),
+    "trigger_secrets": (
+        "one-time signing secrets keyed by trigger node, only in WorkflowPublished; "
+        "workflow definitions, versions and exposure listings never return this map"
+    ),
+    "form_token": (
+        "a workflow form's public link - the page exists to be handed to strangers, "
+        "it is read only by who may view the workflow, and New link replaces it; "
+        "it opens a form that starts runs as its publisher, never anything else"
+    ),
+    "test_token": (
+        "a draft webhook's test URL, returned once to the editor who opened it and "
+        "open for one call for two minutes; reading what it caught takes the token "
+        "in the path and returns none"
+    ),
     "secret_id": "a reference to a stored secret, not the secret",
     "api_keys": (
         "the personal-data export's list of keys a person issued: name, prefix, "

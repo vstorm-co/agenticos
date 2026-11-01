@@ -43,8 +43,10 @@ from app.commands.data_protection import (
     _walk_media,
     data_protection_report,
 )
+from app.commands.vault_rotate import SEALED_TABLES
 from app.core.config import settings
 from app.db.base import Base
+from app.db.models.organization_secret import OrganizationSecret
 
 pytestmark = pytest.mark.anyio
 
@@ -56,6 +58,10 @@ def _result(rows: list[tuple]) -> MagicMock:
     result.all.return_value = rows
     result.scalars.return_value.all.return_value = [row[0] for row in rows]
     return result
+
+
+# `_credentials` counts every sealed table except `organization_secrets`, which it lists.
+SEALED_IN_PLACE = sum(1 for table in SEALED_TABLES if table.model is not OrganizationSecret)
 
 
 def _db(*row_lists: list[tuple], counts: list[int] | None = None) -> MagicMock:
@@ -87,7 +93,7 @@ class TestWhatItReports:
         assert section.rows[1][4] == "provider default"
 
     async def test_credentials_name_the_third_party_and_never_the_value(self) -> None:
-        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * 8)
+        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * SEALED_IN_PLACE)
 
         section = await _credentials(db)
 
@@ -95,7 +101,7 @@ class TestWhatItReports:
 
     async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
         """A bot token is a sealed credential that has no organization_secrets row."""
-        db = _db([], counts=[3] + [0] * 7)
+        db = _db([], counts=[3] + [0] * (SEALED_IN_PLACE - 1))
 
         section = await _credentials(db)
 
@@ -449,6 +455,24 @@ class TestTheReportItself:
         rows = {row[0]: row[1] for row in _settings_section().rows}
 
         assert rows["MCP_ALLOWED_HOSTS"] == shown
+
+    @pytest.mark.parametrize(
+        ("entries", "shown"),
+        [
+            (["wiki", ".corp.example"], "wiki, .corp.example"),
+            (["10.1.0.0/16"], "10.1.0.0/16"),
+            ([], "none"),
+        ],
+    )
+    def test_the_private_allowlist_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, entries: list[str], shown: str
+    ) -> None:
+        """Every member can reach what is listed here, so a reviewer finds it by name."""
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", entries)
+
+        rows = {row[0]: row[1] for row in _settings_section().rows}
+
+        assert rows["OUTBOUND_PRIVATE_ALLOWLIST"] == shown
 
     def test_the_settings_say_which_mail_path_is_live(
         self, monkeypatch: pytest.MonkeyPatch

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { setUrlParam } from "@/lib/utils";
+import { setUrlParam, setUrlParams } from "@/lib/utils";
 
 /**
  * Page state mirrored into one query parameter.
@@ -28,4 +28,26 @@ export function useUrlState(key: string): [string | null, (value: string | null)
     setUrlParam(key, next);
   };
   return [value, set];
+}
+
+/**
+ * A query parameter that repeats (`?outcome=a&outcome=b`), as the same kind of page
+ * state: the values as they stand, and a setter that rewrites every occurrence.
+ * A link such as a log alert's carries several, so the one-value form would read
+ * only the first.
+ */
+export function useUrlList(key: string): [string[], (values: string[]) => void] {
+  const searchParams = useSearchParams();
+  const param = searchParams.getAll(key);
+  const seen = param.join("\n");
+  const [state, setState] = useState({ seen, values: param });
+  if (state.seen !== seen) {
+    setState({ seen, values: param });
+  }
+  const values = state.seen === seen ? state.values : param;
+  const set = (next: string[]) => {
+    setState({ seen, values: next });
+    setUrlParams(key, next);
+  };
+  return [values, set];
 }

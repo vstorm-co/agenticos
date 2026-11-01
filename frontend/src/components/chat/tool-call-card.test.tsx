@@ -746,3 +746,17 @@ describe("one agent asking another", () => {
     expect(screen.queryByText("Answer")).toBeNull();
   });
 });
+
+it("does not stringify a collapsed result, and computes it only when opened (#2469)", async () => {
+  const result = { payload: "x".repeat(100_000) };
+  const stringify = vi.spyOn(JSON, "stringify");
+  try {
+    card({ result });
+    expect(stringify.mock.calls.filter(([value]) => value === result)).toHaveLength(0);
+    await open();
+    expect(stringify.mock.calls.filter(([value]) => value === result)).toHaveLength(1);
+    expect(screen.getByText(/xxx/)).toBeInTheDocument();
+  } finally {
+    stringify.mockRestore();
+  }
+});

@@ -2540,6 +2540,16 @@ Three things worth knowing before granting them:
 
 Automatic channel context includes the name, purpose and a bounded visible roster, marked as data rather than instructions. These per-binding tools grant additional lookups and explicit file delivery; clearing a tool grant does not remove the automatic context.
 
+## A bot whose messages start a workflow { #a-bot-whose-messages-start-a-workflow }
+
+A workflow with a **Channel message** trigger takes a bot's messages in its agent's
+place. Only the messages the agent would have answered reach it, and of those only
+the ones that fit the trigger's filter: a message naming another agent by `@handle`
+still goes there, and one the filter leaves is answered by the bot's agent as
+before. The workflow answers with its own **Send a message** step, into the thread
+the message came from. See
+[From a channel message](workflows.md#from-a-channel-message).
+
 ## Choosing
 
 ```mermaid

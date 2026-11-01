@@ -1,5 +1,5 @@
 ---
-source_sha: "2ef13903688f"
+source_sha: "12680197c058"
 ---
 
 # Berechtigungen { #permissions }
@@ -66,8 +66,10 @@ Ein Boolean am Nutzer, gänzlich außerhalb von Organisationen. Zwei Wirkungen:
    Organisation auflöst und keiner von ihnen "jede Organisation" ausdrücken
    kann ([Governance](governance.md#alerts)).
 2. **Eine Umgehung in `AuthContext.permissions`**, die jede Berechtigung auf
-   `Scope.ALL` zurückgibt - in jeder Organisation, auch in solchen, in denen die
-   Person keine Mitgliedschaft hat.
+   `Scope.ALL` zurückgibt - in jeder Organisation, in der die Person Mitglied ist.
+   Eine Organisation, in der sie keine Mitgliedschaft hat, erreicht sie nicht: Die
+   aktive Organisation wird aufgelöst, bevor irgendeine Berechtigung gelesen wird,
+   und diese Auflösung weist ein Nicht-Mitglied ab, einen App-Admin eingeschlossen.
 
 Die Umgehung ist Absicht, und der Docstring sagt warum: Eine solche Person
 verwaltet das Deployment und hat ohnehin Datenbankzugriff, sodass etwas anderes
@@ -291,6 +293,7 @@ ihn sieht, nicht was er tut.
 | `read` | die Konfiguration zu sehen |
 | `use` | sie außerdem auszuführen oder anzuhängen |
 | `edit` | sie außerdem zu ändern |
+| `edit_data` | außerdem zu ändern, welche Daten die Seite zeigt - [nur bei Seiten](#a-page-that-reads-data) |
 
 In der Konsole ist das ein Dialog, so wie man ein Dokument teilt: Der Button
 **Share** eines Agents, eines Skills, einer Wissensdatenbank oder einer
@@ -308,8 +311,8 @@ Gruppe, und eine Gruppe aus einer anderen Organisation erreicht hier niemanden,
 selbst wenn eine Zeile eine benennen würde.
 
 Die Tabelle ist bewusst generisch - `resource_type` + `resource_id`, ohne
-Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien
-und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
+Fremdschlüssel auf das Ziel -, weil Agents, Collections, Skills, Context-Dateien,
+[Tabellen](virtual-tables.md), Workflows und gespeicherte Schlüssel alle denselben Regeln folgen. Der Preis dafür ist,
 dass die Datenbank einen Grant nicht per Cascade löschen kann, wenn sein Ziel
 verschwindet, sodass Services Grants zusammen mit der Ressource löschen.
 
@@ -417,6 +420,86 @@ with me" eines Builders zu "die ganze Organisation minus meins" verkommen. Für
 die kb schließt er außerdem persönliche Zeilen aus (die des Aufrufers von
 Hause aus) und Zeilen mit App-Scope (die des Deployments - nie *mit* jemandem
 geteilt).
+
+### Workflow-Runs { #workflow-runs }
+
+Ein Run hat keine eigene Sichtbarkeit: Er erbt die seines Workflows. Einen zu
+starten verlangt `workflows:run` auf dem Workflow, ein `test`-Run des
+unveröffentlichten Entwurfs zusätzlich `workflows:edit`. Einen Run und seine
+Ereignisse zu lesen verlangt `workflows:view`, und die ungefilterte Liste zeigt
+Runs der Workflows, die der Aufrufer sieht - seine eigenen, die für die
+Organisation sichtbaren und die mit ihm geteilten. Ein Run, den der Aufrufer
+nicht sieht, antwortet genau wie ein Run, den es nicht gibt.
+
+**Abbrechen ist enger gefasst als Starten.** Wer einen Run gestartet hat, darf
+ihn abbrechen, solange er den Workflow noch ausführen darf, und wer den Workflow
+bearbeiten darf, darf jeden seiner Runs abbrechen. Ein Member, der einen für die
+Organisation sichtbaren Workflow ausführen darf, stoppt seine eigenen Runs,
+nicht die eines Kollegen; wer den Run sieht, aber keines der beiden Rechte hat,
+wird mit `403` abgewiesen.
+
+**Ein Run handelt im Namen der Person, die ihn gestartet hat, und die wird bei
+jedem Knoten erneut geprüft.** Ein Knoten kann Tage nach dem Start des Runs
+ausgeführt werden, deshalb verlangt jede Ausführung, dass das Konto noch aktiv
+ist, noch Mitglied der Organisation ist - auch ein App-Admin, wie bei jeder
+Anfrage - und noch `workflows:run` auf dem Workflow hat, bei einem `test`-Run
+zusätzlich `workflows:edit`. Hat sich daran etwas geändert, schlägt der Run mit
+`PRINCIPAL_REVOKED` fehl, bevor der Handler des Knotens läuft. Ein Run braucht
+eine Person, in deren Namen er handelt, also kann ein Kontext ohne Subjekt keinen
+starten.
+
+## Eine Seite, die Daten liest { #a-page-that-reads-data }
+
+Eine veröffentlichte [Seite, die an Tabellendaten gebunden ist](artifacts.md#live-data),
+ist der eine Ort, an dem eine Person eine Tabelle **mit der Befugnis eines anderen**
+liest. Jedem Betrachter werden die Datensätze der Seite über ihre Seitenabfragen
+ausgeliefert, gelesen mit dem Zugriff des **Besitzers** der Seite, gleich welche
+Rolle oder Grants er selbst auf der Tabelle hat. Die Schichten oben entscheiden
+also, wer die Seite öffnen darf, und ein weiterer Satz Regeln entscheidet, wer das
+erweitern darf.
+
+**Der Zugriff des Besitzers deckt jedes Laden.** Der Besitzer der Seite muss ein
+aktives Mitglied sein und bei jeder Auslieferung `read` auf jeder Tabelle haben,
+die die Abfragen erreichen; andernfalls sind die Daten `unavailable`
+(`creator_gone`, `creator_lost_access`). Wer veröffentlicht, muss beim
+Veröffentlichen ebenfalls jede Tabelle lesen können, damit niemand bindet, was er
+nicht lesen darf.
+
+**Die Einwilligung teilt sie.** Das Einverständnis des Besitzers, die Daten einer
+Version zu teilen, gilt pro Version, wird als er selbst erteilt (nicht unter
+Impersonation, nicht über einen API-Key, nie durch ein Agent-Tool) und mit der
+Mitgliedschaft des Besitzers gespeichert. Ein Owner oder Admin - `artifacts:edit`
+im Scope `ALL` - darf für den Besitzer bestätigen, entsprechend auditiert. Ein
+Grant zum Bearbeiten der Seite genügt nicht. Jeder Editor darf sie zurückziehen,
+da das Zurückziehen nur einschränkt; dabei fällt auch jeder `edit_data`-Grant auf
+der Seite auf `edit`.
+
+**`edit_data` ist eine Grant-Stufe, keine Rolle.** „Can edit, including data“ liegt
+über `edit` und wird nur für Seiten akzeptiert (eine Datenbank-Constraint lehnt es
+anderswo ab). Es ist eine dauerhafte Einwilligung in die erneuten
+Veröffentlichungen dieser Person oder dieser Gruppe. Nur der Besitzer oder ein
+Owner oder Admin, als er selbst, erteilt oder erhöht es, nachdem er bestätigt hat,
+was es erlaubt. Wer bearbeiten darf, senkt es. Es wird als Grant-Stufe
+(`grant_level`) gelesen, nie über `resolve_access`, und kein Rollenscope
+impliziert es.
+
+**Der Besitzer wird gewechselt, nie beansprucht.** Der Besitzer oder für jede Seite
+ein Owner oder Admin übergibt sie als er selbst an ein aktives Mitglied; ein Grant
+zum Bearbeiten erlaubt das nicht. Der Wechsel macht jede Einwilligung ungültig,
+senkt `edit_data`-Grants auf `edit` und schaltet die automatische Einwilligung aus.
+Eine Seite ohne Besitzer zu übernehmen, indem man sie privat macht, ist derselbe
+Vorgang und dieselbe Regel.
+
+**Erweitern ist abgesichert.** Vor den generischen Freigabe-Routen sitzt ein Wächter
+für Seiten, die Daten lesen: Eine weitere Sichtbarkeit, ein neuer Grant oder eine
+höhere Stufe ist die Entscheidung des Besitzers oder die eines Owners oder Admins
+für ihn, sobald die Daten bestätigt sind. Jeder andere mit `edit` bekommt statt
+einer Ablehnung eine [Anfrage](artifacts.md#share-requests). Einschränken steht
+jedem Editor offen, und eine Seite, die keine Daten liest, behält die generischen
+Regeln. Admins handeln direkt, statt eine Anfrage zu stellen. Die drei Berechtigungen,
+die eine Seite nutzt, sind `artifacts:view`, `artifacts:edit` und, für Tabellen,
+`tables:view`; Owner, Admin, Builder und Operator halten die erste und die letzte
+im Scope `ALL`, weshalb sie zur Zielgruppe jeder Seite gehören.
 
 ## Wo die Tore sitzen { #where-the-gates-go }
 
@@ -589,6 +672,9 @@ ausführt, sodass ein Client, der diese APIs ignoriert, nichts gewinnt.
   erweitert; er verengt nie.**
 - `require(...)` gehört an **Collection**-Routen. Alles, was auf einer Zeile
   handelt, übergibt die Entscheidung einem Service, der `resolve_access` aufruft.
+- Eine Seite, die Tabellendaten liest, wird mit dem Zugriff ihres **Besitzers**
+  gelesen und nur mit dessen Einwilligung geteilt; sie zu erweitern ist Sache des
+  Besitzers, und jeder andere stellt eine Anfrage.
 - Eine Oberfläche, vor der niemand steht, läuft als **wer sie veröffentlicht
   hat**, mit Rückfall auf `viewer`, wenn diese Person gegangen ist oder
   deaktiviert wurde.

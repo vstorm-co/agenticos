@@ -2177,6 +2177,10 @@ class TestWhoseMonthADelegationCountsTowards:
         """Counting both would bill the organization twice for one request."""
         with (
             patch(
+                "app.services.spend.workflow_run_repo.node_spend_since",
+                new=AsyncMock(return_value=Decimal("0.4")),
+            ),
+            patch(
                 "app.services.spend.agent_run_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("13")),
             ) as total,
@@ -2193,7 +2197,7 @@ class TestWhoseMonthADelegationCountsTowards:
         ):
             spent = await AgentRunnerService(_db()).monthly_spend(_ctx())
 
-        assert spent == Decimal("13")
+        assert spent == Decimal("13.4")
         # Left to the default rather than asked for: a caller added later gets a
         # total that does not double-count.
         assert "include_delegations" not in total.await_args.kwargs

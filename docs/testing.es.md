@@ -1,5 +1,5 @@
 ---
-source_sha: "4610ace395a3"
+source_sha: "5d173b003b4d"
 ---
 
 # Pruebas { #testing }
@@ -504,14 +504,42 @@ tests.**
 
 El fixture `schema_url` ejecuta `create_all` una sola vez. El fixture `engine`, de
 alcance de función, le entrega después a cada test una base de datos vacía haciendo
-`TRUNCATE` de todas las tablas de los modelos —y borrando cualquier tabla que un test
-creara fuera de los modelos, una `rag_<collection>` en tiempo de ejecución o una sonda
-de ordenación— en vez de reconstruir el esquema.
+`TRUNCATE` de las tablas de los modelos que contienen alguna fila —y borrando cualquier
+tabla que un test creara fuera de los modelos, una `rag_<collection>` en tiempo de
+ejecución o una sonda de ordenación— en vez de reconstruir el esquema. Un `EXISTS` por
+tabla encuentra las que tienen datos, y cada secuencia se reinicia en el sitio, así que
+una tabla vacía cuya identidad avanzó también empieza de nuevo en 1.
 
 Antes hacía `drop_all` + `create_all` antes de *cada* test: unos 0,4 s de DDL que eran
 casi por completo el tiempo de ejecución de una suite cuyas aserciones son microsegundos
 de trabajo de Postgres. Construirlo una vez bajó `tests/integration` de unos 125 s a
 unos 50 s ([#215](https://github.com/vstorm-co/agenticos/issues/215)).
+
+**`make test`, `make test-fast`, `make test-integration` y `make test-cov` se ejecutan contra
+un Postgres desechable, no contra el de desarrollo.**
+
+`make docker-test-db` lo arranca desde `docker-compose.test.yml` (un proyecto propio,
+`agenticos-test`, en `localhost:5433`); esos targets lo arrancan solos y apuntan pytest
+hacia él. Corre con `fsync=off`, `synchronous_commit=off` y `full_page_writes=off`, y su
+directorio de datos es `tmpfs`, así que un fallo pierde el clúster, lo cual no importa
+porque la suite crea y borra allí su propia base de datos.
+
+El motivo es fsync. Cada `TRUNCATE` da a cada tabla que toca archivos de relación
+nuevos que Postgres debe sincronizar, y en WSL2 o en un volumen de Docker una
+sincronización cuesta ~7 ms: una ejecución completa tardaba unas tres horas donde CI
+necesita diez minutos. Sin la sincronización, la misma ejecución es tan rápida como en
+CI, y la base de datos de desarrollo queda intacta y duradera.
+
+```bash
+make docker-test-db        # arrancarlo (idempotente); espera a que esté sano
+make docker-test-db-down   # pararlo y descartar sus datos
+make test TEST_DB_PORT=5434          # otro puerto, si el 5433 está ocupado
+make test TEST_DB=external           # sin contenedor: la base que nombran POSTGRES_* / .env
+```
+
+Una ejecución acotada de `pytest` no pasa por `make`, así que apúntala tú mismo:
+`POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres uv run pytest tests/integration/test_x.py`.
+CI define `CI`, lo que elige `TEST_DB=external`: su contenedor de servicio es la base de datos.
 
 `TRUNCATE` en vez de un rollback de transacción, porque los tests de flujo de la API
 confirman a través del `get_db_session` real y sus filas sobreviven a un rollback.
@@ -580,9 +608,10 @@ contenedor que no arrancó no es un entorno que no puede responder, y los dos so
 indistinguibles en la salida de pytest.
 
 `make test-migrations` sigue existiendo y sigue siendo lo que hay que ejecutar a mano
-después de tocar `alembic/versions/`, pero apunta a lo que diga `backend/.env`, que en un
-portátil es la base de datos con tu propio trabajo dentro. Prefiere
-`uv run pytest tests/test_migrations.py`, que no puede alcanzarla.
+después de tocar `alembic/versions/`, y en un portátil se ejecuta contra una
+base de datos propia en el Postgres de prueba desechable (:5433), así que no puede
+alcanzar la que tiene tu propio trabajo. En CI (`TEST_DB=external`) usa la base de datos
+que indiquen `POSTGRES_*`. `uv run pytest tests/test_migrations.py` es la comprobación más rápida.
 
 ## Las pruebas del worker { #the-workers-tests }
 

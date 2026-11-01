@@ -11,15 +11,23 @@ import type { EventSource } from "@/types/triggers";
  * beside them.
  */
 describe("EventSourceMark", () => {
-  it.each(["github", "email", "webhook"] as EventSource[])(
-    "draws a decorative mark for %s",
-    (source) => {
-      const { container } = render(<EventSourceMark source={source} />);
-      const mark = container.querySelector("svg");
-      expect(mark).not.toBeNull();
-      expect(mark).toHaveAttribute("aria-hidden", "true");
-    },
-  );
+  it.each([
+    "github",
+    "gmail",
+    "outlook",
+    "hubspot",
+    "zendesk",
+    "google_drive",
+    "microsoft_files",
+    "google_calendar",
+    "outlook_calendar",
+    "webhook",
+  ] as EventSource[])("draws a decorative mark for %s", (source) => {
+    const { container } = render(<EventSourceMark source={source} />);
+    const mark = container.querySelector("svg");
+    expect(mark).not.toBeNull();
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+  });
 
   it("passes its className through to the mark", () => {
     const { container } = render(<EventSourceMark source="github" className="h-4 w-4" />);
