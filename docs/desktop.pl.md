@@ -1,5 +1,5 @@
 ---
-source_sha: "fad5dba40fc4"
+source_sha: "415f949d1f5a"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -461,6 +461,10 @@ Agent, którego capability **Coding agent** ma ustawione **Where it runs: On thi
 - **Czytane na miejscu.** Nic nie jest kopiowane ani synchronizowane do AgenticOS, a aplikacja czyta tylko foldery wskazane przez czat.
 - **Konflikty.** Skill o tej samej nazwie w dwóch folderach jest brany z `.agents`, potem `.claude`, potem `.codex`, a panel liczy ukryte. Dwa dowiązania do jednego folderu to jeden skill.
 - **Instrukcje.** Używany jest tylko `AGENTS.md`. Nowszy z `~/.codex/AGENTS.md` i `~/.claude/AGENTS.md` trafia na koniec tego, co czyta model, a pod nim `AGENTS.md` folderu roboczego. Są oznaczone jako pliki z Twojego komputera i nie mogą poszerzyć tego, na co pozwala przebieg.
+
+## Diagnostyka { #diagnostics }
+
+**Help → Export Diagnostics…** zapisuje jeden plik JSON w wybranym miejscu, do załączenia do zgłoszenia błędu. Zawiera wersję, system operacyjny, na co zezwolił macOS, czy Claude Code i Codex są zainstalowane i zalogowane, adres serwera (tylko schemat, host i port) oraz ostatnie awarie. Nie zawiera poświadczeń, tokenów, rozmów ani ścieżek w folderze domowym, a nic nie jest nigdzie wysyłane. Awaria jest zapisywana w `crash.log` w folderze danych aplikacji w chwili, gdy się zdarzy.
 
 ## Lokalna przeglądarka, modele i MCP { #local-browser-models-and-mcp }
 

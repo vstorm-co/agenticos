@@ -452,6 +452,10 @@ An agent whose **Coding agent** capability is set to **Where it runs: On this co
 - **Clashes.** A skill of the same name in two folders is taken from `.agents`, then `.claude`, then `.codex`, and the panel counts the hidden ones. Two links to one folder are one skill.
 - **Instructions.** Only `AGENTS.md` is used. The newer of `~/.codex/AGENTS.md` and `~/.claude/AGENTS.md` comes last in what the model reads, with the working folder's own `AGENTS.md` under it. They are labelled as files from your computer and cannot widen what the run may do.
 
+## Diagnostics { #diagnostics }
+
+**Help → Export Diagnostics…** writes one JSON file to a place you choose, to attach to a bug report. It holds the version, the operating system, what macOS has allowed, whether Claude Code and Codex are installed and signed in, the server's address (scheme, host and port only) and the last crashes. It holds no credentials, tokens, conversations or paths under your home folder, and nothing is sent anywhere. A crash is written to `crash.log` in the app's data folder as it happens.
+
 ## Local browser, models and MCP
 
 After pairing the desktop app, select **Browser → Local browser** to override

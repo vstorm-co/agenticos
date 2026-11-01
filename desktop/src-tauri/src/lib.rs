@@ -21,6 +21,7 @@ mod computer_access;
 mod console;
 mod context;
 mod device;
+mod diagnostics;
 mod docker_install;
 mod dropped;
 mod local_agents;
@@ -85,6 +86,7 @@ const OPEN_CONSOLE: &str = "open-console";
 const BACK: &str = "back";
 const FORWARD: &str = "forward";
 const DOCUMENTATION: &str = "documentation";
+const EXPORT_DIAGNOSTICS: &str = "export-diagnostics";
 const DOCUMENTATION_URL: &str = "https://vstorm-co.github.io/agenticos/desktop/";
 /// Review this server connection and any missing account or macOS setup.
 const CONNECTION_SETUP: &str = "desktop/readiness?connection=1";
@@ -1143,13 +1145,10 @@ impl ShellMenu {
             app,
             "Help",
             true,
-            &[&MenuItem::with_id(
-                app,
-                DOCUMENTATION,
-                "AgenticOS Documentation",
-                true,
-                None::<&str>,
-            )?],
+            &[
+                &MenuItem::with_id(app, DOCUMENTATION, "AgenticOS Documentation", true, None::<&str>)?,
+                &MenuItem::with_id(app, EXPORT_DIAGNOSTICS, "Export Diagnostics…", true, None::<&str>)?,
+            ],
         )?;
         Menu::with_items(
             app,
@@ -1281,6 +1280,10 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
             }
             SCREENSHOT_CHAT => {
                 screenshot_to_chat(app);
+                Ok(())
+            }
+            EXPORT_DIAGNOSTICS => {
+                tauri::async_runtime::spawn(diagnostics::export(app.clone()));
                 Ok(())
             }
             DOCUMENTATION => app
@@ -1461,6 +1464,7 @@ pub fn run() {
         .manage(device::Device::default())
         .manage(computer_access::Access::default())
         .setup(|app| {
+            diagnostics::install_panic_hook(app.handle());
             let handle = app.handle();
             let (mut settings, unreadable) = settings::load_or_quarantine(handle);
             if let Some(typed) = server_argument(std::env::args().skip(1)) {

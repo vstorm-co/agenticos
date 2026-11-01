@@ -75,6 +75,19 @@ pub struct Agent {
     signed_in: Option<bool>,
 }
 
+impl Agent {
+    /// What a diagnostics file may say of an agent: whether it is there, which version
+    /// and whether it is signed in. Not where it is installed, which names the person.
+    pub(crate) fn summary(&self) -> serde_json::Value {
+        serde_json::json!({
+            "name": self.name,
+            "installed": self.installed,
+            "version": self.version,
+            "signed_in": self.signed_in,
+        })
+    }
+}
+
 /// Where a program installed by an agent's own installer, npm or Homebrew lives.
 /// A desktop app started from Finder does not inherit the shell's `PATH`, so
 /// these are searched after it.
