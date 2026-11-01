@@ -5618,7 +5618,35 @@
       "suppressed": "Suppressed",
       "suppress": "Stop using this note",
       "restore": "Use this note again",
-      "delete": "Delete this note"
+      "delete": "Delete this note",
+      "claims": {
+        "title": "On record about you",
+        "description": "Facts, preferences and decisions agents have recorded, with where each came from. Correct one in your own words; the old version stays in the history.",
+        "showHistory": "Show history",
+        "scopeProfile": "Shared with your agents",
+        "scopeAgent": "Kept by {agent}",
+        "anAgent": "an agent",
+        "since": "Since {when}",
+        "drawnFrom": "Drawn from {count} sources",
+        "correct": "Correct this",
+        "retract": "Stop using this",
+        "statement": "Corrected statement",
+        "effectiveFrom": "Holds from",
+        "cancel": "Cancel",
+        "save": "Save correction",
+        "origin": {
+          "agent": "Noted by an agent",
+          "person": "Said by you",
+          "consolidation": "Combined from several notes"
+        },
+        "status": {
+          "current": "Current",
+          "disputed": "Disputed",
+          "superseded": "Replaced",
+          "merged": "Combined",
+          "retracted": "Retracted"
+        }
+      }
     },
     "admin": {
       "active": "Active",

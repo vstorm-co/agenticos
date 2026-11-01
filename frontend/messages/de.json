@@ -4919,7 +4919,35 @@
       "suppressed": "Unterdrückt",
       "suppress": "Diese Notiz nicht mehr verwenden",
       "restore": "Diese Notiz wieder verwenden",
-      "delete": "Diese Notiz löschen"
+      "delete": "Diese Notiz löschen",
+      "claims": {
+        "title": "Zu Ihnen gespeichert",
+        "description": "Fakten, Vorlieben und Entscheidungen, die Agents festgehalten haben, mit ihrer Herkunft. Korrigieren Sie einen Eintrag mit eigenen Worten; die alte Fassung bleibt im Verlauf.",
+        "showHistory": "Verlauf anzeigen",
+        "scopeProfile": "Mit Ihren Agents geteilt",
+        "scopeAgent": "Gemerkt von {agent}",
+        "anAgent": "einem Agent",
+        "since": "Seit {when}",
+        "drawnFrom": "Aus {count} Quellen abgeleitet",
+        "correct": "Korrigieren",
+        "retract": "Nicht mehr verwenden",
+        "statement": "Korrigierte Aussage",
+        "effectiveFrom": "Gilt ab",
+        "cancel": "Abbrechen",
+        "save": "Korrektur speichern",
+        "origin": {
+          "agent": "Von einem Agent notiert",
+          "person": "Von Ihnen gesagt",
+          "consolidation": "Aus mehreren Notizen zusammengeführt"
+        },
+        "status": {
+          "current": "Aktuell",
+          "disputed": "Strittig",
+          "superseded": "Ersetzt",
+          "merged": "Zusammengeführt",
+          "retracted": "Zurückgezogen"
+        }
+      }
     },
     "admin": {
       "active": "Aktiv",

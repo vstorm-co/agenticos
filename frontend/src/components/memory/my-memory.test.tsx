@@ -9,6 +9,7 @@ vi.mock("@/hooks/use-my-memory", async () => ({
   ...(await vi.importActual<object>("@/hooks/use-my-memory")),
   useMyMemory: vi.fn(),
 }));
+vi.mock("@/components/memory/my-claims", () => ({ MyClaims: () => <div>claims</div> }));
 vi.mock("next-intl", () => ({
   useTranslations:
     () =>

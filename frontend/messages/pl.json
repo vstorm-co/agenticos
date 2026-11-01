@@ -1823,7 +1823,35 @@
       "suppressed": "Wyłączona",
       "suppress": "Przestań używać tej notatki",
       "restore": "Używaj tej notatki znowu",
-      "delete": "Usuń tę notatkę"
+      "delete": "Usuń tę notatkę",
+      "claims": {
+        "title": "Zapisane o Tobie",
+        "description": "Fakty, preferencje i decyzje zapisane przez agentów, razem ze źródłem. Popraw wpis własnymi słowami; stara wersja zostaje w historii.",
+        "showHistory": "Pokaż historię",
+        "scopeProfile": "Współdzielone z Twoimi agentami",
+        "scopeAgent": "Zapamiętane przez {agent}",
+        "anAgent": "agenta",
+        "since": "Od {when}",
+        "drawnFrom": "Z {count} źródeł",
+        "correct": "Popraw",
+        "retract": "Przestań używać",
+        "statement": "Poprawione zdanie",
+        "effectiveFrom": "Obowiązuje od",
+        "cancel": "Anuluj",
+        "save": "Zapisz poprawkę",
+        "origin": {
+          "agent": "Zanotowane przez agenta",
+          "person": "Powiedziane przez Ciebie",
+          "consolidation": "Połączone z kilku notatek"
+        },
+        "status": {
+          "current": "Aktualne",
+          "disputed": "Sporne",
+          "superseded": "Zastąpione",
+          "merged": "Połączone",
+          "retracted": "Wycofane"
+        }
+      }
     },
     "admin": {
       "active": "Aktywny",
