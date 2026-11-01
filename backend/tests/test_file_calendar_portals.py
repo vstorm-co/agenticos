@@ -31,6 +31,16 @@ from app.services.portals.outlook_calendar import OutlookCalendarPortalAdapter
 pytestmark = pytest.mark.anyio
 
 _NOW = datetime.now(UTC)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_now(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep `_NOW` current: the adapters read the real clock when a test runs, and a
+    full suite runs this module minutes after it was imported - long enough for an
+    event built "ten minutes from now" to have started already."""
+    monkeypatch.setitem(globals(), "_NOW", datetime.now(UTC))
+
+
 _GRAPH = "https://graph.microsoft.com/v1.0"
 Route = Callable[[httpx.Request], httpx.Response]
 
