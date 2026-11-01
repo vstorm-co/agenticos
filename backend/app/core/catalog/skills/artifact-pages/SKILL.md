@@ -29,6 +29,7 @@ version:
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7, as `window.d3`, for anything Chart.js cannot draw |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9, as `window.L`, on the deployment's map tiles when it has any |
+| `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js`, `lib/agenticos-worldmap-1.js` | `window.AOWorldMap.draw`: a world map in SVG - countries shaded by a value, pins, routes - with no tile server; load them after d3, in this order |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins in order, pause and replay, stop cards - on map tiles, or as an outline without them |
 
 Load the libraries first, the kit after them, your own script last:

@@ -24,6 +24,7 @@ exclude: |
     backend/app/core/catalog/artifact_lib/.*\.min\.js|
     backend/app/core/catalog/artifact_lib/three-[^/]+/.*\.js|
     backend/app/core/catalog/artifact_lib/leaflet-[^/]+/.*|
+    backend/app/core/catalog/artifact_lib/world-atlas-[^/]+\.js|
     frontend/src/lib/mcp-logos\.generated\.ts|
     site/.*|
     backend/media/.*

@@ -225,6 +225,26 @@ obligations = "Keep the copyright notice, the conditions and the disclaimer with
 fulfilled_by = "Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md carries the BSD-2-Clause text with both copyright lines, and NOTICE names it. The map kit draws an itinerary on the deployment's tile server with it (#2302). Copied for the same reason as Chart.js."
 
 [[component]]
+name = "topojson-client, vendored into backend/app/core/catalog/artifact_lib/"
+version = "3.1.0 (dist/topojson-client.min.js from the npm tarball)"
+kind = "source, backend image, served to published artifacts and visuals"
+license = "ISC"
+source = "https://github.com/topojson/topojson-client"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with all copies."
+fulfilled_by = "Copied byte for byte; backend/app/core/catalog/artifact_lib/README.md carries the ISC text with its copyright line, and NOTICE names it. The world map kit reads the country outlines with it. Copied for the same reason as Chart.js."
+
+[[component]]
+name = "world-atlas, vendored into backend/app/core/catalog/artifact_lib/ as world-atlas-2.0.2-110m.js"
+version = "2.0.2 (countries-110m.json from the npm tarball, behind one assignment)"
+kind = "data, backend image, served to published artifacts and visuals"
+license = "ISC (the outlines are Natural Earth, public domain)"
+source = "https://github.com/topojson/world-atlas"
+status = "accepted"
+obligations = "Keep the copyright notice and the permission notice with all copies. Natural Earth asks for no credit."
+fulfilled_by = "The JSON is unchanged inside `window.AO_WORLD_110M=...;`; backend/app/core/catalog/artifact_lib/README.md carries the ISC text with its copyright line and says where the outlines come from, and NOTICE names it. The world map kit draws countries from it with no tile server."
+
+[[component]]
 name = "Open Intelligent UI, adapted into agenticos-map-1.js and the visual-design skill"
 version = "8391a94c1c3939c679e40ddd7bfc08a9ef690e70"
 kind = "source, backend image, served to published artifacts and visuals"

@@ -791,6 +791,28 @@ class TestTheLibrarySet:
             assert data
             assert served_type == media_type
 
+    async def test_the_world_map_needs_no_tile_server_and_its_outlines_are_unaltered(self) -> None:
+        """The map draws from files the deployment serves and from nothing else."""
+        import json
+
+        data, _ = await artifacts.library_file("world-atlas-2.0.2-110m.js")
+        text = data.decode()
+        prefix, suffix = "window.AO_WORLD_110M=", ";\n"
+        assert text.startswith(prefix) and text.endswith(suffix)
+        topology = json.loads(text[len(prefix) : -len(suffix)])
+        names = {g["properties"]["name"] for g in topology["objects"]["countries"]["geometries"]}
+        assert len(names) == 177 and {"Poland", "Czechia", "United States of America"} <= names
+
+        kit = (await artifacts.library_file("agenticos-worldmap-1.js"))[0].decode()
+        assert "fetch(" not in kit and "XMLHttpRequest" not in kit and "leaflet" not in kit.lower()
+        for needed in (
+            "d3-7.9.0.min.js",
+            "topojson-client-3.1.0.min.js",
+            "world-atlas-2.0.2-110m.js",
+        ):
+            assert needed in kit
+            assert needed in artifacts.ARTIFACT_LIBRARY
+
     async def test_a_file_is_read_once(self) -> None:
         artifacts._library_bytes.pop("agenticos-1.css", None)
         with patch(f"{PATH}.asyncio.to_thread", new=AsyncMock(return_value=b"css")) as read:
