@@ -1041,6 +1041,45 @@ answered by texting the number. A lone number that names a choice
 of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message. Media
 sent by text is ignored.
 
+## Email { #email }
+
+A mail to an address reaches an agent the way a direct message does on any other platform:
+through the same router, linked identity, access policy and budgets (#2082). Only the transport
+is new.
+
+**Add the bot** under Channels → Email. Its token is the address the bot answers from, for example
+`agent@mail.example.com`, and replies leave through the deployment's own e-mail provider, so
+`EMAIL_PROVIDER` must be one that delivers - a bot on the `log` provider refuses to answer rather than
+pretend it did. An e-mail bot is webhook-only and needs a secret: use Generate, then copy it into the relay.
+
+**The relay.** Mail is not polled. Whatever receives it - a Cloudflare Email Worker, a Postmark or
+Mailgun inbound route, a script on a mail server - POSTs one JSON document per message to the
+URL shown for the bot after saving:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+and signs it with two headers: `X-AgenticOS-Timestamp` (unix seconds) and `X-AgenticOS-Signature`,
+`sha256=` plus the hex HMAC-SHA256 of `timestamp.body` under the secret. A request with no valid
+signature, or one more than five minutes off, is a 403 before a word of it is read, and a bot with no
+secret refuses everything. The body is capped at 25 MB, up to ten attachments are read, and a message id
+seen before is ignored, so a relay's retry runs the agent once.
+
+**Who is writing.** The signature proves the relay sent the request, not who wrote the mail: an
+address is a claim. A person acts with their own permissions only once they have linked that address to
+their account like any other channel identity. A relay should drop mail that fails the sender's SPF or
+DKIM before posting it.
+
+**What comes back.** The webhook answers at once and the agent replies by mail as the answer to the
+sender's last message: `Re:` and the same subject, with `In-Reply-To` and `References` set so a mail client
+files it in the thread, and any files the agent produced attached. History quoted under a reply is
+cut before the agent reads it. An approval or a question arrives as numbered lines and is answered by
+replying with just the number; the numbers behave as on SMS, and a prompt stays open for a day.
+
 ## Slack
 
 1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the

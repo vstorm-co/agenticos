@@ -1,5 +1,5 @@
 ---
-source_sha: "b466859a5756"
+source_sha: "8aa44e606a15"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1095,6 +1095,47 @@ está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. 
 transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
 llega como líneas numeradas y se responde enviando el número por SMS. Un solo número que nombre una
 opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
+
+## Correo electrónico { #email }
+
+Un correo a una dirección llega a un agente como un mensaje directo en cualquier otra plataforma: por
+el mismo router, la misma identidad vinculada, la misma política de acceso y los mismos presupuestos
+(#2082). Solo el transporte es nuevo.
+
+**Añade el bot** en Canales → Correo electrónico. Su token es la dirección desde la que responde, por
+ejemplo `agent@mail.example.com`, y las respuestas salen por el proveedor de correo del propio despliegue,
+así que `EMAIL_PROVIDER` debe ser uno que envíe de verdad: un bot con el proveedor `log` se niega a
+responder en lugar de fingir que lo hizo. Un bot de correo funciona solo por webhook y necesita un
+secreto: usa Generar y cópialo en el relay.
+
+**El relay.** El correo no se consulta. Lo que lo recibe - un Cloudflare Email Worker, una ruta entrante
+de Postmark o Mailgun, un script en un servidor de correo - envía por POST un documento JSON por mensaje
+a la URL que se muestra en el bot tras guardarlo:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+y lo firma con dos cabeceras: `X-AgenticOS-Timestamp` (segundos unix) y `X-AgenticOS-Signature`, es decir,
+`sha256=` más el HMAC-SHA256 hexadecimal de `timestamp.body` con el secreto. Una petición sin firma
+válida, o con más de cinco minutos de diferencia, recibe un 403 antes de leer una palabra, y un bot sin
+secreto rechaza todo. El cuerpo está limitado a 25 MB, se leen hasta diez adjuntos y un identificador de
+mensaje ya visto se ignora, de modo que un reintento del relay ejecuta el agente una sola vez.
+
+**Quién escribe.** La firma prueba que el relay envió la petición, no quién escribió el correo: una
+dirección es una afirmación. Una persona actúa con sus propios permisos solo cuando ha vinculado esa
+dirección a su cuenta como cualquier otra identidad de canal. Un relay debería descartar el correo que
+no pase el SPF o el DKIM del remitente antes de enviarlo.
+
+**Qué vuelve.** El webhook responde de inmediato y el agente contesta por correo como respuesta al
+último mensaje del remitente: `Re:` y el mismo asunto, con `In-Reply-To` y `References` para que el
+cliente de correo lo archive en el hilo, y con los archivos que el agente haya producido adjuntos. El
+historial citado bajo una respuesta se corta antes de que el agente lo lea. Una aprobación o una
+pregunta llega como líneas numeradas y se responde contestando solo con el número; los números se
+comportan como en SMS, y una pregunta sigue abierta un día.
 
 ## Slack { #slack }
 

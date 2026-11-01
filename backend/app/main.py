@@ -58,7 +58,7 @@ from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import connection_state as channel_connection_state
 from app.services.channels import membership as channel_membership
-from app.services.channels import sms_prompts
+from app.services.channels import email_state, sms_prompts
 from app.services.channels import stream_lease
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 from app.services.voice import LIVE_CALLS, VoiceCallReaper
@@ -311,6 +311,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # startup, and stopped after the yield below (#520).
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
+    from app.services.channels.email import EmailAdapter
     from app.services.channels.sms import SmsAdapter
     from app.services.channels import teams as channel_teams
     from app.services.channels.teams import TeamsAdapter
@@ -342,8 +343,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
 
     # SMS arrives only by webhook and holds no connection to open (#2082).
     sms_prompts.configure(redis_client)
+    email_state.configure(redis_client)
     _sms_adapter = SmsAdapter()
     register_adapter(_sms_adapter)
+
+    # E-mail arrives through a relay's webhook and leaves through the e-mail provider (#2082).
+    _email_adapter = EmailAdapter()
+    register_adapter(_email_adapter)
 
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
@@ -403,6 +409,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         _slack_adapter,
         _teams_adapter,
         _sms_adapter,
+        _email_adapter,
     ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,

@@ -161,12 +161,22 @@ _SMS = """
 - Write a link out in full on its own line, so it is tappable.
 """
 
+_EMAIL = """
+- The reply goes out as an e-mail: write it as one - a greeting is optional, a sign-off
+  is not needed, and the subject is already the thread's.
+- Plain paragraphs. Bold, tables and code blocks do not survive every mail client; use
+  short lists with a dash instead.
+- Put the answer first. Say what you did or need in the first lines; the person may read
+  only the preview.
+"""
+
 HOUSE_STYLE: dict[str, str] = {
     "mattermost": _MATTERMOST.strip(),
     "slack": _SLACK.strip(),
     "telegram": _TELEGRAM.strip(),
     "teams": _TEAMS.strip(),
     "sms": _SMS.strip(),
+    "email": _EMAIL.strip(),
 }
 """Per platform, because the differences are not preferences - they are what the
 client will and will not draw.

@@ -1917,6 +1917,7 @@ _CHANNEL_SURFACES = frozenset(
         RunSurface.MATTERMOST,
         RunSurface.TEAMS,
         RunSurface.SMS,
+        RunSurface.EMAIL,
     }
 )
 

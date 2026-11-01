@@ -32,6 +32,7 @@ INBOUND_PATHS: dict[str, str] = {
     "mattermost": "/api/v1/mattermost/{bot_id}/webhook",
     "teams": "/api/v1/teams/{bot_id}/messages",
     "sms": "/api/v1/sms/{bot_id}/webhook",
+    "email": "/api/v1/email/{bot_id}/inbound",
 }
 
 

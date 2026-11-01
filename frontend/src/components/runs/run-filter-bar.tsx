@@ -35,6 +35,7 @@ export const SURFACES = [
   "a2a",
   "teams",
   "sms",
+  "email",
   "schedule",
   "workflow",
   "follow_ups",

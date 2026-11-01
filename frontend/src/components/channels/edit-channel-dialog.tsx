@@ -43,6 +43,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   teams: "Microsoft Teams",
   // i18n-exempt: Twilio is the provider's own name
   sms: "SMS (Twilio)",
+  // i18n-exempt: the name of the protocol, written the same in every language
+  email: "Email",
 };
 
 const MAX_NAME = 255;
@@ -352,6 +354,14 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
 
         {bot.platform === "teams" && <TeamsSetup bot={bot} />}
         {bot.platform === "sms" && <SmsSetup bot={bot} />}
+        {bot.platform === "email" && (
+          <EmailSetup
+            bot={bot}
+            secret={draft.webhookSecret}
+            error={errors.webhook_secret}
+            onSecret={(value) => set("webhookSecret", value)}
+          />
+        )}
 
         {bot.platform === "slack" &&
           (draft.webhookMode ? (
@@ -514,6 +524,49 @@ function SmsSetup({ bot }: { bot: ChannelBot }) {
       <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
         {bot.messaging_endpoint}
       </code>
+    </div>
+  );
+}
+
+/** An e-mail bot: where the mail relay posts, and the secret it signs with (#2082). */
+function EmailSetup({
+  bot,
+  secret,
+  error,
+  onSecret,
+}: {
+  bot: ChannelBot;
+  secret: string;
+  error?: string;
+  onSecret: (value: string) => void;
+}) {
+  const t = useTranslations("pages.channels");
+  return (
+    <div className="border-border space-y-3 rounded-lg border p-3">
+      {bot.messaging_endpoint && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t("emailEndpoint")}</p>
+          <p className="text-muted-foreground text-xs">{t("emailEndpointHint")}</p>
+          <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+            {bot.messaging_endpoint}
+          </code>
+        </div>
+      )}
+      <FormField
+        label={t("emailRelaySecret")}
+        htmlFor="edit-channel-relay-secret"
+        error={error}
+        description={bot.has_webhook_secret ? t("credentialStored") : t("emailRelaySecretHint")}
+      >
+        <Input
+          id="edit-channel-relay-secret"
+          type="password"
+          value={secret}
+          onChange={(event) => onSecret(event.target.value)}
+          autoComplete="off"
+          maxLength={MAX_NAME}
+        />
+      </FormField>
     </div>
   );
 }

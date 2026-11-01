@@ -6103,7 +6103,13 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
-      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
+      "botTokenHintEmail": "The address the bot answers from, for example agent@mail.example.com. Replies go out through this deployment's e-mail provider.",
+      "emailEndpoint": "Where the mail relay posts incoming mail",
+      "emailEndpointHint": "Have your relay (a Cloudflare Email Worker, a Postmark or Mailgun inbound route) POST each message here as JSON, signed with the secret below.",
+      "emailRelaySecret": "Relay signing secret",
+      "emailRelaySecretHint": "The relay signs each request with this secret (HMAC-SHA256 of timestamp.body). Copy it into the relay; it is not shown again.",
+      "emailGenerateSecret": "Generate"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -6614,6 +6620,7 @@
       "stepApprovalEdited": "Edited",
       "surfaceTeams": "Microsoft Teams",
       "surfaceSms": "SMS",
+      "surfaceEmail": "Email",
       "surfaceFollowUps": "Follow-ups",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",

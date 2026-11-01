@@ -2303,7 +2303,13 @@
       "transcriptionEngine": "Provider",
       "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "transcriptionProviderNoKey": "{name} (brak pasującego klucza)",
-      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
+      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze.",
+      "botTokenHintEmail": "Adres, z którego bot odpowiada, na przykład agent@mail.example.com. Odpowiedzi wychodzą przez dostawcę poczty tej instalacji.",
+      "emailEndpoint": "Dokąd przekaźnik poczty wysyła przychodzące maile",
+      "emailEndpointHint": "Niech Twój przekaźnik (Cloudflare Email Worker, trasa przychodząca Postmark lub Mailgun) wysyła każdą wiadomość tutaj jako JSON przez POST, podpisaną sekretem poniżej.",
+      "emailRelaySecret": "Sekret podpisu przekaźnika",
+      "emailRelaySecretHint": "Przekaźnik podpisuje każde żądanie tym sekretem (HMAC-SHA256 z timestamp.body). Skopiuj go do przekaźnika; nie jest pokazywany ponownie.",
+      "emailGenerateSecret": "Wygeneruj"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -3001,6 +3007,7 @@
       "dearestAgent": "Wydaje najwięcej",
       "surfaceTeams": "Microsoft Teams",
       "surfaceSms": "SMS",
+      "surfaceEmail": "E-mail",
       "surfaceFollowUps": "Następne kroki",
       "surfaceProactive": "Proaktywność",
       "standaloneRequest": "Żądanie do modelu",

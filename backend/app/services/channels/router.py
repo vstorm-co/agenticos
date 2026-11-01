@@ -1719,7 +1719,9 @@ class ChannelMessageRouter:
             # The number was linked to somebody else: what the old holder said, and above
             # all the web conversation a private chat now continues, is not the new
             # holder's. A fresh start, and whatever was waiting on an answer goes with it.
-            await sms_prompts.forget(str(bot.id), incoming.platform_chat_id)
+            await sms_prompts.forget(
+                str(bot.id), incoming.platform_chat_id, platform=incoming.platform
+            )
             session = await channel_session_repo.update(
                 db,
                 db_session=session,

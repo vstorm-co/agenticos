@@ -14,7 +14,14 @@ import {
 import { cn } from "@/lib/utils";
 import type { ExposureSurface, ExposureTarget } from "@/types/exposures";
 
-const PLATFORMS: readonly ExposureSurface[] = ["slack", "teams", "telegram", "mattermost", "sms"];
+const PLATFORMS: readonly ExposureSurface[] = [
+  "slack",
+  "teams",
+  "telegram",
+  "mattermost",
+  "sms",
+  "email",
+];
 
 export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   slack: "Slack",
@@ -24,6 +31,8 @@ export const SURFACE_LABEL: Record<ExposureSurface, string> = {
   teams: "Microsoft Teams",
   // i18n-exempt: Twilio is the provider's own name
   sms: "SMS (Twilio)",
+  // i18n-exempt: the name of the protocol, written the same in every language
+  email: "Email",
 };
 
 const TILE =

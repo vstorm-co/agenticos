@@ -67,7 +67,7 @@ from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
-from app.api.routes.v1 import sms_webhook, telegram_webhook
+from app.api.routes.v1 import email_webhook, sms_webhook, telegram_webhook
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
 from app.api.routes.v1 import teams_webhook
@@ -266,6 +266,7 @@ v1_router.include_router(channels.router, prefix="/channels", tags=["channels"])
 
 v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["telegram"])
 v1_router.include_router(sms_webhook.router, prefix="/sms", tags=["sms"])
+v1_router.include_router(email_webhook.router, prefix="/email", tags=["email"])
 
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 

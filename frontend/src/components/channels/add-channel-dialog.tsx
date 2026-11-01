@@ -41,7 +41,14 @@ import { MentionPolicyFields } from "./mention-policy-fields";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
-const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram", "sms"];
+const PLATFORMS: readonly ChannelPlatform[] = [
+  "mattermost",
+  "slack",
+  "teams",
+  "telegram",
+  "sms",
+  "email",
+];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
@@ -51,6 +58,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   teams: "Microsoft Teams",
   // i18n-exempt: Twilio is the provider's own name
   sms: "SMS (Twilio)",
+  // i18n-exempt: the name of the protocol, written the same in every language
+  email: "Email",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -60,7 +69,17 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   mattermost: "botTokenHintMattermost",
   teams: "botTokenHintTeams",
   sms: "botTokenHintSms",
+  email: "botTokenHintEmail",
 };
+
+/** The shortest secret the backend accepts for a relay to sign with. */
+const MIN_RELAY_SECRET = 8;
+
+/** A long random string, so nobody has to invent one. */
+function generateRelaySecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 /** An Entra app or tenant id - what the backend accepts for either. */
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -147,11 +166,13 @@ export function AddChannelDialog({
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
   const badReaction =
     answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
+  const missingRelaySecret = platform === "email" && webhookSecret.trim().length < MIN_RELAY_SECRET;
   const complete =
     name.trim().length > 0 &&
     token.trim().length >= MIN_TOKEN &&
     !missingServerUrl &&
     !missingTeamsIds &&
+    !missingRelaySecret &&
     !badReaction;
 
   function reset() {
@@ -194,14 +215,14 @@ export function AddChannelDialog({
         ...(platform === "mattermost" && serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
-        ...(platform === "mattermost" && webhookSecret.trim()
+        ...((platform === "mattermost" || platform === "email") && webhookSecret.trim()
           ? { webhook_secret: webhookSecret.trim() }
           : {}),
         // Only the credential the chosen direction uses: Slack calling us is
         // verified with the signing secret, us connecting out uses the app token.
         ...(platform === "slack" ? { webhook_mode: slackWebhook } : {}),
         // A text arrives by webhook only: there is no connection to open.
-        ...(platform === "sms" ? { webhook_mode: true } : {}),
+        ...(platform === "sms" || platform === "email" ? { webhook_mode: true } : {}),
         ...(platform === "slack" && slackWebhook && signingSecret.trim()
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),
@@ -365,6 +386,34 @@ export function AddChannelDialog({
                 />
               </FormField>
             </div>
+          )}
+
+          {platform === "email" && (
+            <FormField
+              label={t("emailRelaySecret")}
+              htmlFor="channel-relay-secret"
+              error={errors.webhook_secret}
+              description={t("emailRelaySecretHint")}
+              required
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="channel-relay-secret"
+                  type="password"
+                  value={webhookSecret}
+                  onChange={(event) => setWebhookSecret(event.target.value)}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setWebhookSecret(generateRelaySecret())}
+                >
+                  {t("emailGenerateSecret")}
+                </Button>
+              </div>
+            </FormField>
           )}
 
           {platform === "teams" && (

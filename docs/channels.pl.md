@@ -1,5 +1,5 @@
 ---
-source_sha: "b466859a5756"
+source_sha: "8aa44e606a15"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1075,6 +1075,46 @@ kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytow
 przycisków, więc zatwierdzenie lub pytanie przychodzi jako ponumerowane linie, a odpowiada się
 SMS-em z numerem. Sam numer wskazujący wybór w którymś z pytań wysłanych na ten numer jest odpowiedzią. Pytania czekające jednocześnie nigdy nie dzielą numerów - drugie kontynuuje tam, gdzie skończyło się pierwsze, więc po 1 i 2 przychodzą 3 i 4 - a rozstrzygnięcie jednego zostawia drugie otwarte. Pytanie zostaje otwarte przez dobę, więc wielokrotny wybór przyjmuje kilka numerów; każdy inny tekst to zwykła wiadomość. Multimedia
 wysłane SMS-em są ignorowane.
+
+## E-mail { #email }
+
+Mail na adres trafia do agenta tak jak wiadomość prywatna na każdej innej platformie: przez ten sam
+router, powiązaną tożsamość, politykę dostępu i budżety (#2082). Nowy jest tylko transport.
+
+**Dodaj bota** w Kanały → E-mail. Jego token to adres, z którego bot odpowiada, na przykład
+`agent@mail.example.com`, a odpowiedzi wychodzą przez własnego dostawcę poczty wdrożenia, więc
+`EMAIL_PROVIDER` musi być dostawcą, który faktycznie wysyła - bot na dostawcy `log` odmawia odpowiedzi
+zamiast udawać, że odpowiedział. Bot e-mail działa tylko przez webhook i wymaga sekretu: użyj Wygeneruj, a potem skopiuj go do przekaźnika.
+
+**Przekaźnik.** Poczta nie jest odpytywana. Cokolwiek ją odbiera - Cloudflare Email Worker, trasa
+przychodząca Postmark lub Mailgun, skrypt na serwerze pocztowym - wysyła POST-em po jednym dokumencie
+JSON na wiadomość pod adres pokazany przy bocie po zapisaniu:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+i podpisuje go dwoma nagłówkami: `X-AgenticOS-Timestamp` (sekundy unix) oraz `X-AgenticOS-Signature`,
+czyli `sha256=` i szesnastkowy HMAC-SHA256 z `timestamp.body` pod sekretem. Żądanie bez poprawnego
+podpisu albo różniące się o ponad pięć minut to 403, zanim cokolwiek z niego zostanie przeczytane, a bot
+bez sekretu odrzuca wszystko. Treść ma limit 25 MB, czytanych jest do dziesięciu załączników, a
+identyfikator wiadomości widziany już wcześniej jest pomijany, więc ponowienie przez przekaźnik uruchamia
+agenta raz.
+
+**Kto pisze.** Podpis dowodzi, że żądanie wysłał przekaźnik, a nie kto napisał maila: adres to tylko
+deklaracja. Osoba działa z własnymi uprawnieniami dopiero po powiązaniu tego adresu ze swoim kontem
+jak każdej innej tożsamości kanału. Przekaźnik powinien odrzucać pocztę, która nie przechodzi SPF
+ani DKIM nadawcy, zanim ją wyśle.
+
+**Co wraca.** Webhook odpowiada od razu, a agent odpowiada mailem jako odpowiedź na ostatnią wiadomość
+nadawcy: `Re:` i ten sam temat, z ustawionymi `In-Reply-To` i `References`, żeby klient poczty
+umieścił ją w wątku, oraz z załączonymi plikami, które agent przygotował. Cytowana pod odpowiedzią
+historia jest obcinana, zanim agent ją przeczyta. Akceptacja lub pytanie przychodzi jako ponumerowane
+linie, a odpowiada się, odpisując samym numerem; numery działają jak w SMS-ach, a pytanie zostaje
+otwarte przez dobę.
 
 ## Slack { #slack }
 

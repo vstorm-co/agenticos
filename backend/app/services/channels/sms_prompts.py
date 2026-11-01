@@ -1,4 +1,4 @@
-"""Answering an approval or a question by texting its number (#2082).
+"""Answering an approval or a question by replying with its number (#2082).
 
 An SMS has no buttons, so a prompt is sent as numbered lines and the person replies with the
 number. Several prompts can be waiting on one number at once - a run that parks two
@@ -12,6 +12,8 @@ It is only the way to name a choice, not the approval's state: a prompt is dropp
 router settles it, when its owner changes, or when a day passes. A reply that is a number
 with nothing pending, or one that names no choice, is an ordinary message, so a person is
 never silenced by a prompt they ignored.
+
+SMS and e-mail share this: neither has buttons, and `platform` keeps their numbers apart.
 """
 
 import json
@@ -37,23 +39,25 @@ def configure(redis: RedisClient | None) -> None:
     _redis = redis
 
 
-def _key(bot_id: str, chat_id: str) -> str:
-    return f"channel:sms:prompt:{bot_id}:{chat_id}"
+def _key(bot_id: str, chat_id: str, platform: str) -> str:
+    return f"channel:{platform}:prompt:{bot_id}:{chat_id}"
 
 
-async def _pending(bot_id: str, chat_id: str) -> dict[str, str]:
+async def _pending(bot_id: str, chat_id: str, platform: str) -> dict[str, str]:
     if _redis is None:
         return {}
-    stored = await _redis.get(_key(bot_id, chat_id))
+    stored = await _redis.get(_key(bot_id, chat_id, platform))
     return json.loads(stored) if stored else {}
 
 
-async def first_number(bot_id: str, chat_id: str) -> int:
+async def first_number(bot_id: str, chat_id: str, *, platform: str = "sms") -> int:
     """The number the next prompt's first choice should carry: one past whatever is waiting."""
-    return max((int(code) for code in await _pending(bot_id, chat_id)), default=0) + 1
+    return max((int(code) for code in await _pending(bot_id, chat_id, platform)), default=0) + 1
 
 
-async def remember(bot_id: str, chat_id: str, values: list[str], *, start: int) -> None:
+async def remember(
+    bot_id: str, chat_id: str, values: list[str], *, start: int, platform: str = "sms"
+) -> None:
     """Keep what the numbers of a prompt that was delivered mean, beside any still waiting.
 
     Called after the text went out: a prompt the person never received must not stay
@@ -61,35 +65,35 @@ async def remember(bot_id: str, chat_id: str, values: list[str], *, start: int) 
     """
     if _redis is None:
         return
-    pending = await _pending(bot_id, chat_id)
+    pending = await _pending(bot_id, chat_id, platform)
     pending.update({str(start + offset): value for offset, value in enumerate(values)})
-    await _redis.set(_key(bot_id, chat_id), json.dumps(pending), ttl=TTL_SECONDS)
+    await _redis.set(_key(bot_id, chat_id, platform), json.dumps(pending), ttl=TTL_SECONDS)
 
 
-async def forget(bot_id: str, chat_id: str) -> None:
+async def forget(bot_id: str, chat_id: str, *, platform: str = "sms") -> None:
     """Drop everything pending for this number - its owner changed."""
     if _redis is not None:
-        await _redis.delete(_key(bot_id, chat_id))
+        await _redis.delete(_key(bot_id, chat_id, platform))
 
 
-async def settle(bot_id: str, chat_id: str, value: str) -> None:
+async def settle(bot_id: str, chat_id: str, value: str, *, platform: str = "sms") -> None:
     """Drop the prompt a decided choice belonged to, and leave any other one waiting."""
     pressed = read_press(value)
     if _redis is None or pressed is None:
         return
-    pending = await _pending(bot_id, chat_id)
+    pending = await _pending(bot_id, chat_id, platform)
     kept = {
         code: choice
         for code, choice in pending.items()
         if (read_press(choice) or ("", None))[0] != pressed[0]
     }
     if kept:
-        await _redis.set(_key(bot_id, chat_id), json.dumps(kept), ttl=TTL_SECONDS)
+        await _redis.set(_key(bot_id, chat_id, platform), json.dumps(kept), ttl=TTL_SECONDS)
     else:
-        await _redis.delete(_key(bot_id, chat_id))
+        await _redis.delete(_key(bot_id, chat_id, platform))
 
 
-async def answer(bot_id: str, chat_id: str, text: str) -> str | None:
+async def answer(bot_id: str, chat_id: str, text: str, *, platform: str = "sms") -> str | None:
     """The value of the choice a numeric reply names, or `None` when it names none.
 
     Not consumed by answering: a multi-select takes several replies and a Done, and the
@@ -99,4 +103,4 @@ async def answer(bot_id: str, chat_id: str, text: str) -> str | None:
     digits = text.strip()
     if len(digits) > MAX_DIGITS or not digits.isdigit() or digits.startswith("0"):
         return None
-    return (await _pending(bot_id, chat_id)).get(digits)
+    return (await _pending(bot_id, chat_id, platform)).get(digits)

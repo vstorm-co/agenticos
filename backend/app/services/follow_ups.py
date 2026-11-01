@@ -129,6 +129,7 @@ class FollowUpService:
                 RunSurface.MATTERMOST,
                 RunSurface.TEAMS,
                 RunSurface.SMS,
+                RunSurface.EMAIL,
             }
             and channel is None
         ):

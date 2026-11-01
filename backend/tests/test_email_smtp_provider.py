@@ -159,6 +159,43 @@ async def test_the_message_carries_its_optional_headers(monkeypatch):
     assert msg["Reply-To"] == "support@example.com"
 
 
+async def test_thread_headers_and_attachments_are_set_on_the_message(monkeypatch):
+    from app.services.email.providers.base import EmailAttachment
+
+    sent = _capture(monkeypatch)
+
+    await SMTPProvider(host="mail", port=587, username="", password="", use_tls=True).send(
+        EmailMessage(
+            to=["someone@example.com"],
+            from_email="agent@example.com",
+            subject="Re: Invoice",
+            html="<p>done</p>",
+            text="done",
+            headers={"In-Reply-To": "<1@x>", "References": "<0@x> <1@x>"},
+            attachments=[
+                EmailAttachment(filename="r.pdf", content=b"%PDF", mime_type="application/pdf")
+            ],
+        )
+    )
+
+    msg = sent["msg"]
+    assert msg["In-Reply-To"] == "<1@x>" and msg["References"] == "<0@x> <1@x>"
+    assert msg.get_content_type() == "multipart/mixed"
+    kinds = [part.get_content_type() for part in msg.get_payload()]
+    assert kinds == ["multipart/alternative", "application/pdf"]
+    assert msg.get_payload()[1].get_filename() == "r.pdf"
+
+
+async def test_a_message_without_attachments_stays_a_plain_alternative(monkeypatch):
+    sent = _capture(monkeypatch)
+
+    await SMTPProvider(host="mail", port=587, username="", password="", use_tls=True).send(
+        _message()
+    )
+
+    assert sent["msg"].get_content_type() == "multipart/alternative"
+
+
 async def test_a_send_failure_is_reported_not_raised(monkeypatch):
     async def fail(msg, **kwargs):
         raise aiosmtplib.SMTPConnectError("connection refused")

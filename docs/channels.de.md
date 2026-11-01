@@ -1,5 +1,5 @@
 ---
-source_sha: "b466859a5756"
+source_sha: "8aa44e606a15"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1150,6 +1150,48 @@ keine Nachricht bearbeiten und keine Schaltfläche drücken, eine Freigabe oder 
 als nummerierte Zeilen an und wird per SMS mit der Nummer beantwortet. Eine einzelne Zahl, die eine
 Auswahl einer an diese Nummer gesendeten Frage benennt, ist die Antwort. Gleichzeitig wartende Fragen teilen nie Nummern - die zweite zählt dort weiter, wo die erste endete, auf 1 und 2 folgen also 3 und 4 - und die Entscheidung über eine lässt die andere offen. Eine Frage bleibt einen Tag offen, eine Mehrfachauswahl nimmt also mehrere Zahlen an; jeder andere Text ist eine gewöhnliche Nachricht. Per SMS gesendete Medien werden
 ignoriert.
+
+## E-Mail { #email }
+
+Eine Mail an eine Adresse erreicht einen Agenten wie eine Direktnachricht auf jeder anderen Plattform:
+über denselben Router, dieselbe verknüpfte Identität, Zugriffsrichtlinie und Budgets (#2082). Neu ist
+nur der Transport.
+
+**Bot hinzufügen** unter Kanäle → E-Mail. Sein Token ist die Adresse, von der der Bot antwortet, zum
+Beispiel `agent@mail.example.com`; Antworten gehen über den eigenen E-Mail-Anbieter der Installation
+hinaus, daher muss `EMAIL_PROVIDER` einer sein, der wirklich versendet - ein Bot auf dem Anbieter `log`
+verweigert die Antwort, statt sie vorzutäuschen. Ein E-Mail-Bot arbeitet nur per Webhook und braucht ein
+Geheimnis: Erzeugen Sie eines und kopieren Sie es ins Relay.
+
+**Das Relay.** Mail wird nicht abgefragt. Was sie empfängt - ein Cloudflare Email Worker, eine
+Inbound-Route von Postmark oder Mailgun, ein Skript auf einem Mailserver - sendet pro Nachricht ein
+JSON-Dokument per POST an die nach dem Speichern beim Bot angezeigte URL:
+
+```json
+{"from": "ada@acme.com", "subject": "Invoice", "text": "Please send it",
+ "message_id": "<1@acme>", "in_reply_to": "<0@acme>", "references": ["<0@acme>"],
+ "attachments": [{"filename": "a.pdf", "content_type": "application/pdf",
+                  "content_base64": "..."}]}
+```
+
+und signiert es mit zwei Headern: `X-AgenticOS-Timestamp` (Unix-Sekunden) und `X-AgenticOS-Signature`,
+also `sha256=` plus der hexadezimale HMAC-SHA256 von `timestamp.body` unter dem Geheimnis. Eine Anfrage
+ohne gültige Signatur oder mit mehr als fünf Minuten Abweichung ist ein 403, bevor ein Wort davon
+gelesen wird, und ein Bot ohne Geheimnis weist alles ab. Der Body ist auf 25 MB begrenzt, bis zu zehn
+Anhänge werden gelesen, und eine bereits gesehene Nachrichten-ID wird ignoriert, sodass ein erneuter
+Versuch des Relays den Agenten nur einmal startet.
+
+**Wer schreibt.** Die Signatur beweist, dass das Relay die Anfrage gesendet hat, nicht wer die Mail
+geschrieben hat: Eine Adresse ist eine Behauptung. Eine Person handelt erst dann mit ihren eigenen
+Berechtigungen, wenn sie diese Adresse wie jede andere Kanalidentität mit ihrem Konto verknüpft hat.
+Ein Relay sollte Mail, die SPF oder DKIM des Absenders nicht besteht, verwerfen, bevor es sie sendet.
+
+**Was zurückkommt.** Der Webhook antwortet sofort, und der Agent antwortet per Mail auf die letzte
+Nachricht des Absenders: `Re:` und derselbe Betreff, mit gesetzten `In-Reply-To` und `References`, damit
+ein Mailprogramm sie in den Verlauf einsortiert, und mit angehängten Dateien, die der Agent erzeugt hat.
+Unter einer Antwort zitierter Verlauf wird abgeschnitten, bevor der Agent ihn liest. Eine Freigabe oder
+Frage kommt als nummerierte Zeilen und wird beantwortet, indem man nur mit der Nummer antwortet; die
+Nummern verhalten sich wie bei SMS, und eine Frage bleibt einen Tag offen.
 
 ## Slack { #slack }
 

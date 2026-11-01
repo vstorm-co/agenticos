@@ -396,14 +396,15 @@ class ChannelBotRead(BaseSchema):
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property
     def messaging_endpoint(self) -> str | None:
-        """The address a bot receives on, for the two platforms that are told it by hand.
+        """The address a bot receives on, for the platforms that are told it by hand.
 
         A Teams bot's messaging endpoint goes into its Azure Bot resource (#1985); an SMS
-        bot's is pasted into the Twilio number's incoming-message setting (#2082).
+        bot's is pasted into the Twilio number's incoming-message setting, an e-mail bot's into
+        the mail relay (#2082).
         """
         return (
             inbound_webhook_url(self.platform, self.id)
-            if self.platform in ("teams", "sms")
+            if self.platform in ("teams", "sms", "email")
             else None
         )
 
