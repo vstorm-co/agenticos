@@ -796,6 +796,7 @@ class ConversationService:
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
         hide_api: bool = False,
+        hide_channels: bool = False,
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
     ) -> tuple[list[Conversation], int]:
@@ -809,12 +810,15 @@ class ConversationService:
         participation set is vetted here - against the platform's current
         membership, through `channels.membership` - before the repository sees
         it, so the query never widens on who merely spoke (#641).
+
+        `hide_channels` leaves every thread a bot answers in out of the list, so
+        the participation set it would widen by is not asked of the platform.
         """
         participant_ids: set[UUID] = (
             await channel_membership.confirmed_participant_threads(
                 self.db, user_id=user_id, organization_id=organization_id
             )
-            if user_id is not None
+            if user_id is not None and not hide_channels
             else set()
         )
         project_ids = (
@@ -849,6 +853,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
             hide_api=hide_api,
+            hide_channels=hide_channels,
             project_id=project_id,
         )
         total = await conversation_repo.count_conversations(
@@ -862,6 +867,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
             hide_api=hide_api,
+            hide_channels=hide_channels,
             project_id=project_id,
         )
         await self._attach_agents(items)

@@ -1235,7 +1235,15 @@
         "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Bildschirm, Maus und Tastatur dieses Computers verwenden, auch wenn der Agent keine Computer-use-Fähigkeit hat. Dies gewährt keinen Dateizugriff. Die Desktop-App fragt bei Bedarf nach Bildschirm- und Bedienungshilfenberechtigungen.",
-        "computerUseLocal": "Lokaler Computer"
+        "computerUseLocal": "Lokaler Computer",
+        "skills": {
+          "title": "Meine Skills und Anweisungen",
+          "help": "Nutze in diesem Chat die Skills aus den Ordnern .agents, .claude und .codex in deinem Home-Ordner sowie deine AGENTS.md. Sie werden direkt auf diesem Computer gelesen und nie nach AgenticOS kopiert oder synchronisiert. Für jeden neuen Chat aus.",
+          "count": "{count, plural, one {# Skill} other {# Skills}}",
+          "hidden": "{count, plural, one {# Skill wird von einem gleichnamigen in einem früheren Ordner verdeckt} other {# Skills werden von gleichnamigen in früheren Ordnern verdeckt}}.",
+          "on": "Dieser Chat kann die Skills oben laden und befolgt deine AGENTS.md (die neuere aus .codex und .claude), danach die des Arbeitsordners.",
+          "off": "Aus: Dieser Chat nutzt nur, was in AgenticOS ist."
+        }
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",
@@ -1755,7 +1763,13 @@
       "listingApps": "Liste die Anwendungen auf",
       "listApps": "Anwendungen auflisten",
       "sendingChannelFile": "Sendet eine Datei an den Kanal",
-      "sendChannelFile": "Datei an Kanal senden"
+      "sendChannelFile": "Datei an Kanal senden",
+      "startMonitor": "Einen Befehl beobachten",
+      "startingMonitor": "Beobachtung eines Befehls beginnt",
+      "listMonitors": "Die Beobachtungen",
+      "listingMonitors": "Beobachtungen werden aufgelistet",
+      "stopMonitor": "Eine Beobachtung beenden",
+      "stoppingMonitor": "Beobachtung wird beendet"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -2206,7 +2220,16 @@
     "queuedRetry": "Erneut senden",
     "browserResume": "Sitzung fortsetzen",
     "browserResumePrompt": "Setze die Browsersitzung fort. Lies die aktuelle Seite erneut, bevor du fortfährst.",
-    "browserMenu": "Browseroptionen"
+    "browserMenu": "Browseroptionen",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "darf bearbeiten",
+      "readOnly": "nur lesen",
+      "needsFolder": "{agent} läuft auf diesem Computer: Wähle unter Chat-Steuerung → Arbeiten auf → Diesem Computer einen Ordner.",
+      "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf."
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -10589,6 +10612,14 @@
       "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
       "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
+    },
+    "monitor": {
+      "name": "Einen Befehl beobachten",
+      "does": "Startet einen lange laufenden Befehl - einen Test-Watcher, einen Log-Tail, eine CI-Abfrage - und meldet dem Agenten seine neue Ausgabe, sobald sie erscheint, damit er nicht abfragen muss.",
+      "example1": "Den Test-Watcher starten und jeden Fehler beheben, sobald er auftaucht",
+      "example2": "Ein Deploy-Log verfolgen und den ersten Fehler melden",
+      "needs": "Ein Arbeitsbereich mit Shell, etwa die Sandbox-Capability oder ein Ordner auf deinem Computer.",
+      "never": "Lässt nie einen Befehl über das Ende der Runde hinaus laufen: Jede Beobachtung endet mit dem Lauf."
     }
   },
   "capabilityCategories": {
@@ -11051,7 +11082,7 @@
       },
       "model": {
         "title": "Modell",
-        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent."
+        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent. Auf diesem Computer nicht verfügbar; dort nutzt der Agent seine eigene Einstellung."
       },
       "base_url": {
         "title": "Anthropic-kompatibler Endpunkt",
@@ -11060,6 +11091,10 @@
       "timeout_minutes": {
         "title": "Zeitlimit (Minuten)",
         "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
+      },
+      "runs_on": {
+        "title": "Wo es läuft",
+        "description": "In der eigenen Sandbox des Agenten, mit einem hier gespeicherten Schlüssel - oder im Ordner, den eine Person auf ihrem eigenen Computer in der Desktop-App wählt, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen."
       }
     },
     "workflows": {
@@ -11865,6 +11900,20 @@
           "label": "AgenticOS öffnen",
           "hint": "Das Hauptfenster von AgenticOS in den Vordergrund bringen."
         }
+      },
+      "agents": {
+        "title": "Coding-Agenten auf diesem Computer",
+        "description": "Hier installierte Instanzen von Claude Code und Codex. Die Anmeldung gehört jedem Agenten: AgenticOS öffnet seinen eigenen Befehl im Terminal und liest oder kopiert nie seine Zugangsdaten.",
+        "installHint": "{name} ist auf diesem Computer nicht installiert.",
+        "notInstalled": "Nicht installiert",
+        "signedIn": "Angemeldet",
+        "signedOut": "Abgemeldet",
+        "unknown": "Status unbekannt",
+        "signIn": "Anmelden",
+        "signInNamed": "Bei {name} anmelden",
+        "signOut": "Abmelden",
+        "signOutNamed": "Von {name} abmelden",
+        "terminalNote": "Die Anmeldung öffnet sich im Terminal. Komm danach hierher zurück, dann aktualisiert sich der Status."
       }
     },
     "welcome": {

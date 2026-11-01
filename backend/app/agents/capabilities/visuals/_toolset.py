@@ -223,6 +223,11 @@ class VisualsToolset:
           "three/addons/": "./lib/three-0.186.0/addons/"}}</script>`, then
           `import * as THREE from "three"` and
           `import { OrbitControls } from "three/addons/controls/OrbitControls.js"`.
+        - a world map - countries shaded by a value, pins, routes - with no tile server:
+          `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
+          `lib/agenticos-worldmap-1.js` after d3, then `AOWorldMap.draw(element,
+          {countries: {Poland: 12}, pins: [{name, lat, lng}], routes: [{from, to}]})`.
+          Prefer it to the itinerary map for anything about countries or regions;
         - a map: `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js` and
           `lib/agenticos-map-2.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
           lng, day, note}]})` - numbered pins dropped in order, pause and replay, and

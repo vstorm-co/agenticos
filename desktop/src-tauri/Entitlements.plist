@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Signed into the app by `tauri build`. The bundle runs under the hardened
+     runtime, which refuses a capability the signature does not declare: without
+     `audio-input` macOS never shows the microphone prompt, so dictation and
+     calls cannot be allowed at all; without `apple-events` the Finder selection
+     that Quick Ask reads (`osascript`) is dropped silently. Screen Recording and
+     Accessibility need no entitlement, only the user's grant. -->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+</dict>
+</plist>

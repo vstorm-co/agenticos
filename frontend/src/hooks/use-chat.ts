@@ -1446,17 +1446,22 @@ export function useChat(options: UseChatOptions = {}) {
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
       const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
-      if (local)
-        payload.local = {
-          ...local,
-          ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
-          ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
-        };
-      else if (localBrowser || localComputer)
-        payload.local = {
-          ...(localBrowser ? { browser: true } : {}),
-          ...(localComputer ? { computer: true } : {}),
-        };
+      // Chosen per chat and never inherited, so it is read here and not from the target.
+      const localSkills = useWorkOnStore.getState().skillsFor(conversationId || null);
+      const target: Record<string, unknown> | null = local
+        ? {
+            ...local,
+            ...(localComputer || local.computer !== undefined ? { computer: localComputer } : {}),
+            ...(localBrowser || local.browser !== undefined ? { browser: localBrowser } : {}),
+          }
+        : localBrowser || localComputer || localSkills.length > 0
+          ? {
+              ...(localBrowser ? { browser: true } : {}),
+              ...(localComputer ? { computer: true } : {}),
+            }
+          : null;
+      if (target)
+        payload.local = localSkills.length > 0 ? { ...target, skills: localSkills } : target;
       const test = testingRef.current;
       if (test) {
         payload.test = true;

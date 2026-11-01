@@ -4956,6 +4956,43 @@ it("sends a screen-only override without giving the agent a local folder", () =>
   }
 });
 
+it("sends no local field when a chat chose no skills", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("no skills"));
+  expect(lastFrame().local).toBeUndefined();
+});
+
+it("sends the skill sources a chat chose, alone, without a folder", () => {
+  const store = useWorkOnStore.getState();
+  store.setSkills(null, ["claude", "codex"]);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("skills only"));
+    expect(lastFrame().local).toEqual({ skills: ["claude", "codex"] });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("sends the skill sources together with the folder the chat works in", () => {
+  const store = useWorkOnStore.getState();
+  store.setSkills(null, ["agents"]);
+  store.set(null, { folder: "/Users/me/work", mode: "full_access" });
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("skills in a folder"));
+    expect(lastFrame().local).toEqual({
+      folder: "/Users/me/work",
+      mode: "full_access",
+      skills: ["agents"],
+    });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
 it("reads approval-waiver policy for the active organization", () => {
   useOrgStore.setState({ activeOrgId: "org-1" });
   const { result } = renderHook(() => useChat(), {

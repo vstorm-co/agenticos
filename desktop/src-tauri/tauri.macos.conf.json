@@ -6,7 +6,8 @@
     "macOS": {
       "files": {
         "PlugIns/AgenticOSWidgets.appex": "../.widget-build/AgenticOSWidgets.appex"
-      }
+      },
+      "entitlements": "Entitlements.plist"
     }
   }
 }

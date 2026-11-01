@@ -7,7 +7,13 @@ import { toast } from "sonner";
 
 import {
   changeServer,
+  getLocalAgents,
+  getLocalSkills,
+  SKILL_SOURCES,
   getLocalServices,
+  signInLocalAgent,
+  signOutLocalAgent,
+  type LocalAgent,
   saveLocalService,
   removeLocalService,
   type LocalService,
@@ -285,4 +291,46 @@ export function useLocalServices() {
     onError: failed,
   });
   return { state, save, remove };
+}
+
+/**
+ * The coding agents installed on this computer. Signing in happens in the
+ * agent's own Terminal command, so the list is read again whenever the window
+ * regains focus rather than polled.
+ */
+export function useLocalAgents() {
+  const shell = useShell();
+  const client = useQueryClient();
+  const state = useQuery({
+    queryKey: qk.desktop.agents(),
+    queryFn: getLocalAgents,
+    enabled: isDesktopShell(shell),
+    refetchOnWindowFocus: "always",
+  });
+  const failed = (error: Error) => reportShellFailure("changing a coding agent", error);
+  const signIn = useMutation({ mutationFn: signInLocalAgent, onError: failed });
+  const signOut = useMutation({
+    mutationFn: signOutLocalAgent,
+    onSuccess: (agent) =>
+      client.setQueryData<LocalAgent[]>(qk.desktop.agents(), (agents) =>
+        agents?.map((known) => (known.id === agent.id ? agent : known)),
+      ),
+    onError: failed,
+  });
+  return { state, signIn, signOut };
+}
+
+/**
+ * The skills on this computer in every source, so a chat can show what turning a
+ * source on would offer. Read in place by the app; refreshed when the window regains
+ * focus, since a person edits these files outside AgenticOS.
+ */
+export function useLocalSkills() {
+  const shell = useShell();
+  return useQuery({
+    queryKey: qk.desktop.skills(),
+    queryFn: () => getLocalSkills(SKILL_SOURCES),
+    enabled: isDesktopShell(shell),
+    refetchOnWindowFocus: "always",
+  });
 }

@@ -1235,7 +1235,15 @@
         "computerFailed": "Could not change computer access. Try again.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Use this computer's screen, mouse and keyboard, even when the agent has no Computer use capability. This does not grant file access. The desktop app asks for screen and accessibility permissions when needed.",
-        "computerUseLocal": "Local computer"
+        "computerUseLocal": "Local computer",
+        "skills": {
+          "title": "My skills and instructions",
+          "help": "Use the skills in the .agents, .claude and .codex folders of your home folder, and your AGENTS.md, in this chat. They are read from this computer in place and never copied or synced into AgenticOS. Off for every new chat.",
+          "count": "{count, plural, one {# skill} other {# skills}}",
+          "hidden": "{count, plural, one {# skill is hidden by one of the same name in an earlier folder} other {# skills are hidden by ones of the same name in an earlier folder}}.",
+          "on": "This chat can load the skills above and follows your AGENTS.md (the newer of the .codex and .claude ones), then the working folder's.",
+          "off": "Off: this chat uses only what is in AgenticOS."
+        }
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -1755,7 +1763,13 @@
       "listingApps": "Listing the applications",
       "listApps": "List the Applications",
       "sendingChannelFile": "Sending a file to the channel",
-      "sendChannelFile": "Send Channel File"
+      "sendChannelFile": "Send Channel File",
+      "startMonitor": "Watch a command",
+      "startingMonitor": "Starting to watch a command",
+      "listMonitors": "The watches",
+      "listingMonitors": "Listing the watches",
+      "stopMonitor": "Stop a watch",
+      "stoppingMonitor": "Stopping a watch"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2206,7 +2220,16 @@
     "queuedRetry": "Send again",
     "browserResume": "Resume session",
     "browserResumePrompt": "Resume the browser session. Read the current page again before continuing.",
-    "browserMenu": "Browser options"
+    "browserMenu": "Browser options",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "can edit",
+      "readOnly": "read only",
+      "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
+      "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -10710,6 +10733,14 @@
       "example2": "Export a report from a legacy tool with no API",
       "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac, with its token in the organization's vault. Each step is one model request with a screenshot.",
       "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
+    },
+    "monitor": {
+      "name": "Watch a command",
+      "does": "Starts a long-running command - a test watcher, a log tail, a CI poll - and tells the agent about its new output as it appears, so it does not have to poll.",
+      "example1": "Run the test watcher and fix each failure as it shows up",
+      "example2": "Tail a deploy log and report the first error",
+      "needs": "A workspace with a shell, such as the Sandbox capability or a folder on your computer.",
+      "never": "Never keeps a command running after the turn ends: every watch stops with the run."
     }
   },
   "capabilityCategories": {
@@ -11172,7 +11203,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default. Not available on this computer, where the agent uses its own setting."
       },
       "base_url": {
         "title": "Anthropic-compatible endpoint",
@@ -11181,6 +11212,10 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
+      },
+      "runs_on": {
+        "title": "Where it runs",
+        "description": "The agent's own sandbox, on a key stored here - or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key."
       }
     },
     "workflows": {
@@ -12053,6 +12088,20 @@
         "removeNamed": "Remove {name}",
         "add": "Connect service",
         "confirm": "Confirm in the app…"
+      },
+      "agents": {
+        "title": "Coding agents on this computer",
+        "description": "Claude Code and Codex installed here. Sign-in belongs to each agent: AgenticOS opens its own command in Terminal and never reads or copies its credentials.",
+        "installHint": "{name} is not installed on this computer.",
+        "notInstalled": "Not installed",
+        "signedIn": "Signed in",
+        "signedOut": "Signed out",
+        "unknown": "Status unknown",
+        "signIn": "Sign in",
+        "signInNamed": "Sign in to {name}",
+        "signOut": "Sign out",
+        "signOutNamed": "Sign out of {name}",
+        "terminalNote": "Sign-in opens in Terminal. Come back here when it finishes and the status refreshes."
       }
     },
     "quickAsk": {

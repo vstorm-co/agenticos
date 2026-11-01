@@ -1,4 +1,4 @@
-/** @typedef {{supported: boolean, screen_capture: boolean, accessibility: boolean}} PermissionStatus */
+/** @typedef {{supported: boolean, screen_capture: boolean, accessibility: boolean, microphone: boolean}} PermissionStatus */
 
 /** @param {unknown} value @returns {PermissionStatus} */
 function readStatus(value) {
@@ -10,7 +10,9 @@ function readStatus(value) {
     !("screen_capture" in value) ||
     typeof value.screen_capture !== "boolean" ||
     !("accessibility" in value) ||
-    typeof value.accessibility !== "boolean"
+    typeof value.accessibility !== "boolean" ||
+    !("microphone" in value) ||
+    typeof value.microphone !== "boolean"
   ) {
     throw new Error("The app could not read the system permission status.");
   }
@@ -35,14 +37,17 @@ export function permissionStep(root, invoke, unsupported) {
     }
     for (const row of rows) {
       const key = row.dataset.permission;
-      const granted =
-        key === "screen_capture" ? status.screen_capture : status.accessibility;
+      const granted = Boolean(status[key]);
       row.querySelector("[data-permission-status]").textContent = granted
         ? "Allowed"
         : "Not enabled";
       const button = row.querySelector("button");
       button.disabled = granted;
-      button.textContent = granted ? "Allowed" : "Open settings";
+      button.textContent = granted
+        ? "Allowed"
+        : key === "microphone"
+          ? "Allow"
+          : "Open settings";
     }
   }
   async function refresh() {

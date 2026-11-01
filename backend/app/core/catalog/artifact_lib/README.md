@@ -19,6 +19,9 @@ that is not listed there is not served.
 | `mermaid-12.1.0.min.js` | Mermaid, the bundled build (`window.mermaid`) | 12.1.0 | MIT, with bundled dependencies below | npm `mermaid@12.1.0`, `dist/mermaid.min.js` |
 | `idiomorph-0.8.0.min.js` | idiomorph, which morphs a visual's markup in place while it streams (`window.Idiomorph`) | 0.8.0 | 0BSD | npm `idiomorph@0.8.0`, `dist/idiomorph.min.js` |
 | `leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet, the map library (`window.L`), which the map kit draws on | 1.9.4 | BSD-2-Clause | npm `leaflet@1.9.4`, `dist/` |
+| `topojson-client-3.1.0.min.js` | topojson-client, the UMD build (`window.topojson`), which reads the country outlines | 3.1.0 | ISC | npm `topojson-client@3.1.0`, `dist/topojson-client.min.js` |
+| `world-atlas-2.0.2-110m.js` | The 110m country outlines as `window.AO_WORLD_110M`: the package's `countries-110m.json` behind one assignment, so a page needs no request for data | 2.0.2 | ISC; the outlines are Natural Earth, public domain | npm `world-atlas@2.0.2`, `countries-110m.json` |
+| `agenticos-worldmap-1.js` | `window.AOWorldMap`: a world map in SVG - countries shaded by a value, pins and great-circle routes - with no tile server and no network | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-1.css` | The console's design tokens for pages | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.css` | The console's look and the `ao-` components pages are built from | 2 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting, icons, tabs | 2 | Apache-2.0 (this repository) | written here |
@@ -31,7 +34,7 @@ that is not listed there is not served.
 The libraries are copied byte for byte from the registry tarballs, whose
 `sha512` integrity was checked against the npm registry when they were added
 (Chart.js, d3 and Lucide on 2026-09-30; three.js, Mermaid and idiomorph on
-2026-10-16; Leaflet on 2026-10-21). `.pre-commit-config.yaml` excludes them from the whitespace hooks so
+2026-10-16; Leaflet on 2026-10-21; topojson-client and world-atlas on 2026-11-01). `.pre-commit-config.yaml` excludes them from the whitespace hooks so
 they stay that way. Chart.js, Lucide and Leaflet end with a `sourceMappingURL` comment for a
 map that is not shipped; a browser asks for it only with developer tools open.
 
@@ -237,6 +240,41 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+### topojson-client
+
+Copyright 2012-2019 Michael Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+### world-atlas
+
+Copyright 2013-2019 Michael Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+The outlines in it are from Natural Earth (https://www.naturalearthdata.com), which is in
+the public domain; world-atlas is Mike Bostock's conversion of them to TopoJSON.
 
 ### Open Intelligent UI
 

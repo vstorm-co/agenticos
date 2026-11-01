@@ -1,5 +1,5 @@
 ---
-source_sha: "79e2e3f1d2d8"
+source_sha: "6f4073673532"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1917,6 +1917,8 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     więc pokój czyta się jak pokój, a nie jak jedna osoba mówiąca do siebie. To
     powiązanie założone potem stawia wcześniejszy wątek komuś przed oczami, bez
     uzupełniania wstecz: tura wskazuje konto czatowe, a konto zyskuje osobę.
+
+    **Lista `/chat` domyślnie pomija wątki z kanałów.** `GET /conversations` przyjmuje `hide_channels`, domyślnie prawdę, więc pasek boczny nie zapełnia się wątkami, w których odpowiada bot; nadal otwierają się z linku, a `hide_channels=false` znów je wylistuje.
 
     **Odezwanie się to roszczenie; platforma decyduje, czy nadal się trzyma.**
     Zapis tury mówi, kto się *odezwał*, i przed [#641][641] było to całe

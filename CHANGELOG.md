@@ -19,6 +19,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- The desktop app finds Claude Code and Codex on the computer, shows their version and whether they are signed in under Settings → Desktop app, and opens each agent's own sign-in in Terminal. AgenticOS never reads or copies the files an agent keeps its credentials in.
+- The `coding_agent` capability can run Claude Code or Codex on the person's own computer (**Where it runs: On this computer**), in a folder granted full access, over the Agent Client Protocol. The agent signs in with its own command, so no key is needed. Each start is confirmed in a native dialog; permission requests inside a task are answered from the binding's access, and the capability's approval stays once per task.
+- Chat controls → Work on → **My skills and instructions** lets a chat use the skills in `~/.agents`, `~/.claude` and `~/.codex` and your `AGENTS.md` (the newer of `~/.codex` and `~/.claude`, then the working folder's), read in place on the desktop and never copied. Off for every new chat and chosen per folder; a name clash goes to `.agents`, then `.claude`, then `.codex`.
+- Help → **Export Diagnostics…** in the desktop app writes one JSON file, to a place you choose, to attach to a bug report: version, operating system, permissions, coding agents installed and signed in, the server's origin and the last crashes - no credentials, tokens, conversations or home-folder paths, and nothing is sent. A panic is saved to `crash.log` as it happens.
+- A **Watch a command** capability (`monitor`): the agent starts a long-running command - a test watcher, a log tail, a CI poll - in its workspace and is told about its new output on its following steps, filtered by an optional pattern, without polling. At most four watches run at once and they all stop when the turn ends.
+- The composer shows which coding agent will work in which folder (`Claude Code · agenticos · can edit`) when the chosen agent runs one on this computer, or what is missing.
+- A world map in visuals and apps that needs no tile server or extra container: `AOWorldMap` draws countries shaded by a value, pins and routes as SVG from outlines the deployment serves itself.
+- Three bundled skills for building a slide deck as an app: `presentation-decks` (with a ready deck template), `deck-storyline` and `deck-review`.
+- A Homebrew tap, `vstorm-co/homebrew-agenticos`, published by the release workflow when `HOMEBREW_TAP_TOKEN` is set; `scripts/install_macos.sh` installs a release after checking its SHA-256.
+
+### Changed
+
+- **The first desktop window opens at 80% of the screen**, centred, until a size has been saved.
+- Releases are signed on macOS with one self-signed certificate when `MACOS_SELF_SIGNED_P12` is configured (`scripts/create_macos_signing_cert.sh` makes it), so macOS keeps Screen Recording and Microphone grants across updates. Without it they stay ad-hoc, as before; neither is notarized.
+- `GET /conversations` leaves out threads a bot answers in (Slack, Mattermost, Telegram, Teams) by default, so `/chat` no longer fills with them. Pass `hide_channels=false` to list them again; they stay reachable from Runs and the channel's page.
+
+### Fixed
+
+- The desktop app can be allowed to use the microphone: the bundle now declares the audio-input and Apple Events entitlements it needs under the hardened runtime, and the setup wizard offers the microphone next to Screen Recording and Accessibility.
+- The cask attached to a release clears the download quarantine flag from the installed app, so Gatekeeper does not refuse an unnotarized build installed through Homebrew.
+
 ## [1.34.0] - 2026-11-01
 
 ### Added

@@ -22,6 +22,11 @@ export type ApprovalMode = "default" | "required" | "never";
  * would be passed over for. An absent key means the value the capability
  * declared in code.
  */
+export interface LocalCodingAgent {
+  harness: "claude_code" | "codex";
+  access: "edit" | "read_only";
+}
+
 export interface ToolOverride {
   name?: string;
   description?: string;
@@ -527,6 +532,11 @@ export interface Agent {
   published_model?: PublishedModel | null;
   /** Enabled bindings from the frozen version; absent on older servers. */
   published_capabilities?: string[] | null;
+  /**
+   * The coding agent the published version runs on the person's own computer, or
+   * null when it runs none there; the composer names it. Listing only.
+   */
+  local_coding_agent?: LocalCodingAgent | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   created_at?: string;

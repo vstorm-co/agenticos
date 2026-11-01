@@ -1,5 +1,5 @@
 ---
-source_sha: "79e2e3f1d2d8"
+source_sha: "6f4073673532"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2055,6 +2055,8 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     verknüpfen ist das, was den früheren Thread jemandem vor Augen bringt, ohne
     Nachtrag: die Runde zeigt auf das Chat-Konto, und das Konto gewinnt eine
     Person.
+
+    **Die `/chat`-Liste lässt Kanal-Threads standardmäßig weg.** `GET /conversations` nimmt `hide_channels` an, standardmäßig wahr, damit sich die Seitenleiste nicht mit Threads füllt, in denen ein Bot antwortet; sie öffnen sich weiter über ihren Link, und `hide_channels=false` listet sie wieder auf.
 
     **Sprechen ist ein Anspruch; die Plattform entscheidet, ob er noch gilt.** Der
     Runden-Eintrag sagt, wer *gesprochen* hat, und vor [#641][641] war das die

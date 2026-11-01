@@ -728,6 +728,7 @@ def load_builtins() -> None:
         media,
         memory_files,
         memory_mem0,
+        monitor,
         planning,
         sandbox,
         skills,

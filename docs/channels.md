@@ -1855,6 +1855,8 @@ surface, so a difference between the console and Mattermost remains visible.
     somebody, with no backfill: the turn points at the chat account and the
     account gains a person.
 
+    **The `/chat` list leaves channel threads out by default.** `GET /conversations` takes `hide_channels`, true by default, so the sidebar does not fill with threads a bot answers in; they still open from their link, and `hide_channels=false` lists them again.
+
     **Speaking is a claim; the platform decides whether it still holds.** The
     turn record says who *spoke*, and before [#641][641] that was the whole
     check — somebody removed from the channel kept reading the thread,

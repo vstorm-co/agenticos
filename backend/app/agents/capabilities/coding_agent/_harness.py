@@ -386,9 +386,9 @@ def claude_report(
             harness="claude_code",
             access=access,
             outcome="failed" if failed else "completed",
-            answer=_bounded(answer or "(Claude Code sent no answer.)"),
+            answer=bounded(answer or "(Claude Code sent no answer.)"),
             session_id=_text(result.get("session_id")) or session_id,
-            steps=_last([steps[key] for key in order]),
+            steps=last_steps([steps[key] for key in order]),
             files_changed=files if access == "edit" else [],
             refused=sorted(set(refused)),
         ),
@@ -448,9 +448,9 @@ def codex_report(
             harness="codex",
             access=access,
             outcome=outcome,
-            answer=_bounded(answer),
+            answer=bounded(answer),
             session_id=session_id,
-            steps=_last(steps),
+            steps=last_steps(steps),
             files_changed=files if access == "edit" else [],
         ),
         usage,
@@ -517,7 +517,7 @@ def _claude_step(name: str, arguments: dict[str, Any]) -> CodingStep:
         or _text(arguments.get("description"))
         or name
     )
-    return CodingStep(kind=kind, title=_clip(title))
+    return CodingStep(kind=kind, title=clip(title))
 
 
 def _codex_item(item: dict[str, Any]) -> tuple[str | None, CodingStep | None, list[str]]:
@@ -530,7 +530,7 @@ def _codex_item(item: dict[str, Any]) -> tuple[str | None, CodingStep | None, li
         exit_code = item.get("exit_code")
         step = CodingStep(
             kind="command",
-            title=_clip(_unwrapped(_text(item.get("command")) or "command")),
+            title=clip(_unwrapped(_text(item.get("command")) or "command")),
             failed=failed or (isinstance(exit_code, int) and exit_code != 0),
         )
         return None, step, []
@@ -544,13 +544,13 @@ def _codex_item(item: dict[str, Any]) -> tuple[str | None, CodingStep | None, li
                 if isinstance(change, dict) and (path := _text(change.get("path")))
             )
         )
-        step = CodingStep(kind="edit", title=_clip(", ".join(paths) or "files"), failed=failed)
+        step = CodingStep(kind="edit", title=clip(", ".join(paths) or "files"), failed=failed)
         return None, step, paths
     if kind == "web_search":
-        return None, CodingStep(kind="web", title=_clip(_text(item.get("query")) or "web")), []
+        return None, CodingStep(kind="web", title=clip(_text(item.get("query")) or "web")), []
     if kind == "mcp_tool_call":
         title = _text(item.get("tool")) or "tool"
-        return None, CodingStep(kind="other", title=_clip(title), failed=failed), []
+        return None, CodingStep(kind="other", title=clip(title), failed=failed), []
     return None, None, []
 
 
@@ -583,7 +583,7 @@ def _unfinished(
         outcome="failed",
         answer=f"{LABELS[harness]} stopped before it finished.",
         session_id=session_id,
-        steps=_last(steps),
+        steps=last_steps(steps),
     )
 
 
@@ -648,16 +648,16 @@ def _count(value: object) -> int:
     return value if isinstance(value, int) and value > 0 else 0
 
 
-def _clip(text: str) -> str:
+def clip(text: str) -> str:
     line = " ".join(text.split())
     return line if len(line) <= MAX_TITLE_CHARS else f"{line[: MAX_TITLE_CHARS - 1]}…"
 
 
-def _bounded(text: str) -> str:
+def bounded(text: str) -> str:
     if len(text) <= MAX_ANSWER_CHARS:
         return text
     return f"{text[:MAX_ANSWER_CHARS]}\n\n[The answer went on for {len(text) - MAX_ANSWER_CHARS} more characters.]"
 
 
-def _last(steps: list[CodingStep]) -> list[CodingStep]:
+def last_steps(steps: list[CodingStep]) -> list[CodingStep]:
     return steps[-MAX_STEPS:]

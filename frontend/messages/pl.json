@@ -842,7 +842,13 @@
       "listingApps": "Sprawdzam zainstalowane aplikacje",
       "listApps": "Lista aplikacji",
       "sendingChannelFile": "Wysyła plik na kanał",
-      "sendChannelFile": "Wyślij plik na kanał"
+      "sendChannelFile": "Wyślij plik na kanał",
+      "startMonitor": "Obserwuj polecenie",
+      "startingMonitor": "Zaczynam obserwować polecenie",
+      "listMonitors": "Obserwacje",
+      "listingMonitors": "Wypisuję obserwacje",
+      "stopMonitor": "Zatrzymaj obserwację",
+      "stoppingMonitor": "Zatrzymuję obserwację"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -927,7 +933,15 @@
         "computerFailed": "Nie udało się zmienić dostępu do komputera. Spróbuj ponownie.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Użyj ekranu, myszy i klawiatury tego komputera, nawet jeśli agent nie ma zdolności Computer use. Nie daje to dostępu do plików. Aplikacja desktopowa poprosi o potrzebne uprawnienia do ekranu i dostępności.",
-        "computerUseLocal": "Lokalny komputer"
+        "computerUseLocal": "Lokalny komputer",
+        "skills": {
+          "title": "Moje skille i instrukcje",
+          "help": "Używaj w tym czacie skilli z folderów .agents, .claude i .codex w swoim folderze domowym oraz swojego AGENTS.md. Są czytane z tego komputera na miejscu i nigdy nie są kopiowane ani synchronizowane do AgenticOS. Wyłączone w każdym nowym czacie.",
+          "count": "{count, plural, one {# skill} few {# skille} many {# skilli} other {# skilla}}",
+          "hidden": "{count, plural, one {# skill jest ukryty przez skill o tej samej nazwie we wcześniejszym folderze} few {# skille są ukryte przez skille o tych samych nazwach we wcześniejszych folderach} many {# skilli jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach} other {# skilla jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach}}.",
+          "on": "Ten czat może ładować powyższe skille i stosuje Twój AGENTS.md (nowszy z plików w .codex i .claude), a potem ten z folderu roboczego.",
+          "off": "Wyłączone: ten czat używa tylko tego, co jest w AgenticOS."
+        }
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",
@@ -1361,7 +1375,16 @@
     "queuedRetry": "Wyślij ponownie",
     "browserResume": "Wznów sesję",
     "browserResumePrompt": "Wznów sesję przeglądarki. Odczytaj aktualną stronę przed kontynuowaniem.",
-    "browserMenu": "Opcje przeglądarki"
+    "browserMenu": "Opcje przeglądarki",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "może edytować",
+      "readOnly": "tylko odczyt",
+      "needsFolder": "{agent} działa na tym komputerze: wybierz folder w Ustawieniach czatu → Pracuj na → Ten komputer.",
+      "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na."
+    }
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -8621,7 +8644,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta."
+        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta. Niedostępne na tym komputerze, gdzie agent używa własnego ustawienia."
       },
       "base_url": {
         "title": "Endpoint zgodny z Anthropic",
@@ -8630,6 +8653,10 @@
       "timeout_minutes": {
         "title": "Limit czasu (minuty)",
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
+      },
+      "runs_on": {
+        "title": "Gdzie działa",
+        "description": "W sandboxie agenta, na kluczu zapisanym tutaj - albo w folderze, który osoba wybiera na własnym komputerze w aplikacji desktopowej, gdzie Claude Code i Codex używają logowania, które już mają, i nie potrzebują klucza."
       }
     },
     "workflows": {
@@ -11392,6 +11419,14 @@
       "example2": "Wyeksportuj raport ze starego narzędzia bez API",
       "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu, z tokenem w vaulcie organizacji. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
       "never": "Nie działa bez akceptacji, chyba że ją wyłączono, nie wykonuje poleceń widocznych na ekranie i zatrzymuje się przed hasłami lub płatnościami."
+    },
+    "monitor": {
+      "name": "Obserwuj polecenie",
+      "does": "Uruchamia długo działające polecenie - watcher testów, ogon logu, odpytywanie CI - i na bieżąco mówi agentowi o jego nowym wyjściu, więc agent nie musi odpytywać.",
+      "example1": "Uruchom watcher testów i naprawiaj każdy błąd, gdy się pojawi",
+      "example2": "Śledź log wdrożenia i zgłoś pierwszy błąd",
+      "needs": "Przestrzeń robocza z powłoką, np. capability Sandbox albo folder na twoim komputerze.",
+      "never": "Nigdy nie zostawia polecenia po końcu tury: każda obserwacja kończy się razem z przebiegiem."
     }
   },
   "capabilityCategories": {
@@ -11829,6 +11864,20 @@
         "removeNamed": "Usuń {name}",
         "add": "Połącz usługę",
         "confirm": "Potwierdź w aplikacji…"
+      },
+      "agents": {
+        "title": "Agenty kodujące na tym komputerze",
+        "description": "Claude Code i Codex zainstalowane tutaj. Logowanie należy do każdego agenta: AgenticOS otwiera jego własne polecenie w Terminalu i nigdy nie czyta ani nie kopiuje jego poświadczeń.",
+        "installHint": "{name} nie jest zainstalowany na tym komputerze.",
+        "notInstalled": "Nie zainstalowano",
+        "signedIn": "Zalogowano",
+        "signedOut": "Wylogowano",
+        "unknown": "Stan nieznany",
+        "signIn": "Zaloguj",
+        "signInNamed": "Zaloguj do {name}",
+        "signOut": "Wyloguj",
+        "signOutNamed": "Wyloguj z {name}",
+        "terminalNote": "Logowanie otwiera się w Terminalu. Wróć tutaj po jego zakończeniu, a stan się odświeży."
       }
     },
     "quickAsk": {

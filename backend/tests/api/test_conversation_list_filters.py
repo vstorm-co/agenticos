@@ -64,6 +64,20 @@ class TestNarrowing:
         assert response.status_code == 200
         assert service.list_conversations.await_args.kwargs["search"] == "quarterly"
 
+    async def test_threads_from_channels_are_left_out_unless_asked_for(self) -> None:
+        service = _service()
+
+        async with _client(service=service, organization_id=uuid4()) as client:
+            await client.get(f"{settings.API_V1_STR}/conversations")
+            await client.get(
+                f"{settings.API_V1_STR}/conversations", params={"hide_channels": "false"}
+            )
+
+        asked = [
+            call.kwargs["hide_channels"] for call in service.list_conversations.await_args_list
+        ]
+        assert asked == [True, False]
+
     async def test_an_agent_filter_reaches_the_service(self) -> None:
         service = _service()
         agent_id = uuid4()

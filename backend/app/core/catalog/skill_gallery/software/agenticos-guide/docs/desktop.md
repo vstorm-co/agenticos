@@ -35,6 +35,7 @@ In **Chat controls → Computer use**, select **Local computer** to give this co
 Download the package for your computer from the [GitHub release](https://github.com/vstorm-co/agenticos/releases/latest). You do not need Rust or development tools to install a release.
 
 - **macOS:** choose Apple silicon or Intel, open the `.dmg`, then drag AgenticOS to **Applications** along the arrow. Launch it from Applications and eject the disk image.
+- **macOS without the warning:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` downloads the release, checks its SHA-256 against the one published with it, copies the app to Applications and clears the download flag from that one app. `brew install --cask vstorm-co/agenticos/agenticos` does the same through [the project's tap](https://github.com/vstorm-co/homebrew-agenticos). Releases are not notarized by Apple, so a `.dmg` downloaded in a browser still asks for **Open Anyway**. Once the project pins the certificate its releases are signed with (`scripts/macos_signing_identity.txt`), the script also refuses an app signed by any other.
 - **Windows:** open the `setup.exe` installer. It follows your system language and installs for your user without requiring administrator rights. Open AgenticOS from the Start menu. An `.msi` package is also available for managed deployments.
 - **Linux:** open the `.deb` or `.rpm` package in your distribution's software installer. For a portable installation, mark the `.AppImage` executable in its file properties and open it.
 
@@ -48,14 +49,15 @@ Release CI builds native packages for Mac (Apple silicon and Intel), Windows and
 
 After an ad-hoc update, macOS may request microphone, Screen Recording, Accessibility or Keychain access again. If device pairing is lost, reconnect the device. Updater signatures verify the package but do not provide a stable Apple signing identity.
 
+When the release workflow has a stable self-signed certificate (`scripts/create_macos_signing_cert.sh` makes one), macOS keeps the Screen Recording and Microphone grants across updates, because they are bound to the signing identity. Create it once and never replace it: a new certificate asks every user again. Self-signing does not remove the Gatekeeper warning; only Developer ID signing and notarization do.
+
 ## Running it
 
 Before choosing a local installation or connecting to a server, the first-run wizard
-offers optional Screen Recording and Accessibility permissions on macOS. Each button
+offers optional Screen Recording, Accessibility and Microphone permissions on macOS. Each button
 opens the relevant system settings; setup never captures the screen or controls the
 computer. Continue works without either permission. Returning from System Settings
-refreshes their status; macOS may require an app restart. Microphone and folder access
-remain requested when those features are used.
+refreshes their status; macOS may require an app restart. Folder access remains requested when it is used. The Microphone prompt is a normal macOS one; the other two open System Settings. The first window opens at 80% of the screen, centred, and afterwards remembers its size and place.
 
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
@@ -430,6 +432,29 @@ and about its own public address.
 - `backend/app/services/device_hub/` - the server's half: presence in Redis, so any
   API host or worker reaches a computer, and `DeviceWorkspace`, the sandbox
   workspace carried out by the app.
+
+## Coding agents on this computer { #coding-agents-on-this-computer }
+
+If Claude Code or Codex is installed here, **Settings → Desktop app → Coding agents on this computer** shows each one's version and whether it is signed in. **Sign in** opens the agent's own sign-in in Terminal and **Sign out** runs its own sign-out. AgenticOS never reads or copies the files an agent keeps its credentials in, and the status refreshes when you return to the window.
+
+An agent whose **Coding agent** capability is set to **Where it runs: On this computer** runs that coding agent in the folder you chose for the chat, with the sign-in it already has, so no key is needed. The composer shows which agent will work where (`Claude Code · agenticos · can edit`) or what is missing.
+
+- **Full access to the folder is required.** The agent runs as you, which an operating-system sandbox would break, so the folder must be granted full access and every start asks for confirmation in a native dialog. Whole-computer access cannot start an agent.
+- **Node.js 22 or later.** The app starts the agent's ACP adapter (`@agentclientprotocol/claude-agent-acp` or `codex-acp`, each at a pinned version) through `npx`.
+- **Its requests are answered by the binding's access, not asked one by one.** Approval is the capability's, once per task. Inside a task, `edit` allows what the agent asks and `read_only` allows only reading. The agent stops when the app loses its connection to the server.
+- A task is a new session each time, and the tokens a subscription uses are not priced, so the run's cost says it is a floor.
+
+## Your own skills and instructions { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** lets a chat use the skills already on this computer, in `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`, and your `AGENTS.md`. It is off for every new chat and chosen per folder.
+
+- **Read in place.** Nothing is copied or synced into AgenticOS, and the app reads only the folders the chat names.
+- **Clashes.** A skill of the same name in two folders is taken from `.agents`, then `.claude`, then `.codex`, and the panel counts the hidden ones. Two links to one folder are one skill.
+- **Instructions.** Only `AGENTS.md` is used. The newer of `~/.codex/AGENTS.md` and `~/.claude/AGENTS.md` comes last in what the model reads, with the working folder's own `AGENTS.md` under it. They are labelled as files from your computer and cannot widen what the run may do.
+
+## Diagnostics { #diagnostics }
+
+**Help → Export Diagnostics…** writes one JSON file to a place you choose, to attach to a bug report. It holds the version, the operating system, what macOS has allowed, whether Claude Code and Codex are installed and signed in, the server's address (scheme, host and port only) and the last crashes. It holds no credentials, tokens, conversations or paths under your home folder, and nothing is sent anywhere. A crash is written to `crash.log` in the app's data folder as it happens.
 
 ## Local browser, models and MCP
 

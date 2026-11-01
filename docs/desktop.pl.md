@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "e3d63bb1b47b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -40,6 +40,7 @@ W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępn
 Pobierz paczkę dla swojego komputera z [wydania na GitHubie](https://github.com/vstorm-co/agenticos/releases/latest). Instalacja wydania nie wymaga Rusta ani narzędzi programistycznych.
 
 - **macOS:** wybierz Apple silicon lub Intel, otwórz `.dmg` i przeciągnij AgenticOS do **Applications** zgodnie ze strzałką. Uruchom aplikację z Applications i wysuń obraz dysku.
+- **macOS bez ostrzeżenia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` pobiera wydanie, sprawdza jego SHA-256 z opublikowaną sumą, kopiuje aplikację do Applications i zdejmuje z tej jednej aplikacji flagę pobrania. `brew install --cask vstorm-co/agenticos/agenticos` robi to samo przez [tap projektu](https://github.com/vstorm-co/homebrew-agenticos). Wydania nie są notaryzowane przez Apple, więc `.dmg` pobrany w przeglądarce nadal wymaga **Otwórz mimo to**. Gdy projekt przypnie certyfikat, którym podpisuje wydania (`scripts/macos_signing_identity.txt`), skrypt odmawia też instalacji aplikacji podpisanej czymkolwiek innym.
 - **Windows:** otwórz instalator `setup.exe`. Wybierze język systemu i zainstaluje aplikację dla Twojego użytkownika bez uprawnień administratora. Uruchom AgenticOS z menu Start. Pakiet `.msi` jest również dostępny dla zarządzanych wdrożeń.
 - **Linux:** otwórz `.deb` lub `.rpm` w instalatorze oprogramowania swojej dystrybucji. W wersji przenośnej nadaj plikowi `.AppImage` prawo wykonywania we właściwościach i otwórz go.
 
@@ -53,14 +54,15 @@ CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Li
 
 Po aktualizacji z podpisem ad-hoc macOS może ponownie poprosić o dostęp do mikrofonu, nagrywania ekranu, dostępności lub Pęku kluczy. Jeśli urządzenie utraci sparowanie, połącz je ponownie. Podpis aktualizacji weryfikuje paczkę, ale nie zapewnia stałej tożsamości podpisu Apple.
 
+Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/create_macos_signing_cert.sh`), macOS zachowuje zgody na nagrywanie ekranu i mikrofon po aktualizacjach, bo są związane z tożsamością podpisu. Utwórz go raz i nigdy nie wymieniaj: nowy certyfikat ponownie pyta wszystkich użytkowników. Samopodpisanie nie usuwa ostrzeżenia Gatekeepera; robi to tylko podpis Developer ID z notaryzacją.
+
 ## Uruchamianie { #running-it }
 
 Przed wyborem lokalnej instalacji lub połączeniem z serwerem kreator pierwszego
-uruchomienia oferuje opcjonalne uprawnienia Screen Recording i Accessibility na macOS.
+uruchomienia oferuje opcjonalne uprawnienia Screen Recording, Accessibility i Microphone na macOS.
 Każdy przycisk otwiera odpowiednie ustawienia systemowe; konfiguracja niczego nie
-przechwytuje ani nie steruje komputerem. Można kontynuować bez obu uprawnień. Powrót z
-ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do mikrofonu
-i folderów jest nadal żądany przy użyciu tych funkcji.
+przechwytuje ani nie steruje komputerem. Można kontynuować bez żadnego z nich. Powrót z
+ustawień odświeża ich status; macOS może wymagać restartu aplikacji. Dostęp do folderów jest nadal żądany przy użyciu. Mikrofon macOS prosi zwykłym okienkiem; pozostałe dwa otwierają Ustawienia systemowe. Pierwsze okno otwiera się na 80% ekranu, wyśrodkowane, a potem pamięta rozmiar i miejsce.
 
 Wymagane są Rust z [rustup](https://rustup.rs) i webview platformy - WebKit na
 macOS, WebView2 na Windows, WebKitGTK na Linuksie; listę dla każdej platformy ma
@@ -440,6 +442,29 @@ ktoś to zmienił - i co do własnego publicznego adresu.
 - `backend/app/services/device_hub/` - połowa serwerowa: obecność w Redisie, żeby
   każdy host API i worker sięgał komputera, oraz `DeviceWorkspace`, workspace
   sandboxa wykonywany przez aplikację.
+
+## Agenci kodujący na tym komputerze { #coding-agents-on-this-computer }
+
+Jeśli Claude Code lub Codex jest tu zainstalowany, **Settings → Desktop app → Coding agents on this computer** pokazuje wersję każdego z nich i to, czy jest zalogowany. **Sign in** otwiera własne logowanie agenta w Terminalu, a **Sign out** uruchamia jego własne wylogowanie. AgenticOS nigdy nie czyta ani nie kopiuje plików, w których agent trzyma poświadczenia, a status odświeża się po powrocie do okna.
+
+Agent, którego capability **Coding agent** ma ustawione **Where it runs: On this computer**, uruchamia danego agenta kodującego w folderze wybranym dla czatu, na logowaniu, które już ma, więc klucz nie jest potrzebny. Composer pokazuje, który agent będzie pracował gdzie (`Claude Code · agenticos · może edytować`) albo czego brakuje.
+
+- **Wymagany jest pełny dostęp do folderu.** Agent działa jako Ty, czego piaskownica systemu operacyjnego by nie zniosła, więc folder musi mieć pełny dostęp, a każdy start prosi o potwierdzenie w natywnym oknie. Dostęp do całego komputera nie pozwala uruchomić agenta.
+- **Node.js 22 lub nowszy.** Aplikacja uruchamia adapter ACP agenta (`@agentclientprotocol/claude-agent-acp` lub `codex-acp`, każdy w przypiętej wersji) przez `npx`.
+- **Jego prośby są rozstrzygane dostępem z powiązania, a nie pytane po jednej.** Zatwierdzenie należy do capability, raz na zadanie. W zadaniu `edit` zezwala na to, o co prosi agent, a `read_only` tylko na odczyt. Agent kończy pracę, gdy aplikacja traci połączenie z serwerem.
+- Zadanie to za każdym razem nowa sesja, a tokeny zużyte przez subskrypcję nie są wyceniane, więc koszt przebiegu jest dolną granicą.
+
+## Własne skille i instrukcje { #your-own-skills-and-instructions }
+
+**Ustawienia czatu → Pracuj na → Moje skille i instrukcje** pozwala czatowi używać skilli, które już są na tym komputerze, w `~/.agents/skills`, `~/.claude/skills` i `~/.codex/skills`, oraz Twojego `AGENTS.md`. Dla każdego nowego czatu jest wyłączone i wybierane per folder.
+
+- **Czytane na miejscu.** Nic nie jest kopiowane ani synchronizowane do AgenticOS, a aplikacja czyta tylko foldery wskazane przez czat.
+- **Konflikty.** Skill o tej samej nazwie w dwóch folderach jest brany z `.agents`, potem `.claude`, potem `.codex`, a panel liczy ukryte. Dwa dowiązania do jednego folderu to jeden skill.
+- **Instrukcje.** Używany jest tylko `AGENTS.md`. Nowszy z `~/.codex/AGENTS.md` i `~/.claude/AGENTS.md` trafia na koniec tego, co czyta model, a pod nim `AGENTS.md` folderu roboczego. Są oznaczone jako pliki z Twojego komputera i nie mogą poszerzyć tego, na co pozwala przebieg.
+
+## Diagnostyka { #diagnostics }
+
+**Help → Export Diagnostics…** zapisuje jeden plik JSON w wybranym miejscu, do załączenia do zgłoszenia błędu. Zawiera wersję, system operacyjny, na co zezwolił macOS, czy Claude Code i Codex są zainstalowane i zalogowane, adres serwera (tylko schemat, host i port) oraz ostatnie awarie. Nie zawiera poświadczeń, tokenów, rozmów ani ścieżek w folderze domowym, a nic nie jest nigdzie wysyłane. Awaria jest zapisywana w `crash.log` w folderze danych aplikacji w chwili, gdy się zdarzy.
 
 ## Lokalna przeglądarka, modele i MCP { #local-browser-models-and-mcp }
 

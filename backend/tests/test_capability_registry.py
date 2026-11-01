@@ -1044,6 +1044,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "background_tools",
             "coding_agent",
             "video_generation",
+            "monitor",
         },
         "never": {"channel_tools", "follow_ups"},
     }

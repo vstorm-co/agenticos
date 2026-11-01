@@ -329,10 +329,15 @@ pub fn start(app: &AppHandle) {
         let mut failures = 0;
         loop {
             let ended = tokio::select! {
-                _ = stopper.notified() => return,
+                _ = stopper.notified() => {
+                    crate::agent_session::close_all(&app).await;
+                    return;
+                }
                 ended = connection(&app, &server) => ended,
             };
             set_connected(&app, false);
+            // Nothing is left to hear what a started agent writes.
+            crate::agent_session::close_all(&app).await;
             match ended {
                 Ended::Revoked => {
                     if let Err(error) = clear_authority(&app).await {
@@ -525,6 +530,16 @@ async fn run(
         return crate::local_services::run(app, op, &args)
             .await
             .map_err(|e| (e, "denied"));
+    }
+    if op.starts_with("local.") {
+        return crate::local_skills::run(app, op, &args)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
+    }
+    if op.starts_with("agent.") {
+        return crate::agent_session::run(app, op, &args)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
     }
     if op.starts_with("screen.") {
         return crate::screen::run(app, op, &args).await;

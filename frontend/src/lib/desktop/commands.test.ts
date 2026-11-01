@@ -294,3 +294,32 @@ it("checks native pin state and sends the pin and file picker policies", async (
   invoke.mockResolvedValue("true");
   await expect(commands.quickAskPinned()).rejects.toThrow("malformed");
 });
+
+describe("local skills", () => {
+  const skill = { name: "pdf", description: "d", source: "agents", shadowed_by: null };
+  it("reads each skill with its source and what shadows it", async () => {
+    invoke.mockResolvedValue([
+      skill,
+      { ...skill, name: "x", source: "claude", shadowed_by: "codex" },
+    ]);
+
+    await expect(commands.getLocalSkills(["agents", "claude"])).resolves.toHaveLength(2);
+    expect(invoke).toHaveBeenLastCalledWith("local_skills", { sources: ["agents", "claude"] });
+  });
+
+  it("refuses an answer that is not a list or names an unknown source", async () => {
+    invoke.mockResolvedValue({});
+    await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
+    invoke.mockResolvedValue([{ ...skill, source: "elsewhere" }]);
+    await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
+    invoke.mockResolvedValue([{ ...skill, shadowed_by: "elsewhere" }]);
+    await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
+  });
+});
+
+describe("local agents", () => {
+  it("refuses an answer that is not a list of agents", () => {
+    expect(() => commands.parseLocalAgents({})).toThrow("malformed");
+    expect(() => commands.parseLocalAgents(null)).toThrow("malformed");
+  });
+});

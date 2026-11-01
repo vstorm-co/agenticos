@@ -88,6 +88,9 @@ def test_homebrew_cask_hashes_both_architectures_and_refuses_ambiguity(tmp_path:
     assert result.count("sha256") == 2
     assert 'version "1.8.3"' in result
     assert "AgenticOS_1.8.3_aarch64.dmg" in result
+    # An unnotarized app installed by Homebrew keeps its quarantine flag, which
+    # makes Gatekeeper refuse it, so the cask clears it from the installed app.
+    assert 'args: ["-dr", "com.apple.quarantine", "#{appdir}/AgenticOS.app"]' in result
     (tmp_path / "duplicate_aarch64.dmg").write_bytes(b"other")
     with pytest.raises(ValueError, match="exactly one"):
         module.cask(tmp_path, "v1.8.3")
@@ -260,7 +263,9 @@ def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures()
     assert action["env"]["TAURI_SIGNING_PRIVATE_KEY"] == "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
     assert action["with"]["includeUpdaterJson"] is True
     notice = next(
-        step for step in steps if step.get("name") == "Announce ad-hoc macOS distribution"
+        step
+        for step in steps
+        if step.get("name") == "Sign macOS with the stable self-signed certificate"
     )
     assert notice["if"] == "runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'"
     assert "Open Anyway" in notice["run"]
@@ -315,15 +320,57 @@ def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
-        if s.get("name") == "Announce ad-hoc macOS distribution"
+        if s.get("name") == "Sign macOS with the stable self-signed certificate"
     )
     output = tmp_path / "github-env"
     bash = shutil.which("bash")
     assert bash is not None
     subprocess.run(
-        [bash, "-c", step["run"]], env={"GITHUB_ENV": str(output)}, check=True, capture_output=True
+        [bash, "-c", step["run"]],
+        env={
+            "GITHUB_ENV": str(output),
+            "SIGNING_P12": "",
+            "SIGNING_P12_PASSWORD": "",
+            "SIGNING_IDENTITY": "",
+        },
+        check=True,
+        capture_output=True,
     )
     assert output.read_text() == "APPLE_SIGNING_IDENTITY=-\n"
+
+
+def test_self_signed_macos_needs_the_identity_name_before_touching_a_keychain(
+    tmp_path: Path,
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["desktop"]["steps"]
+        if s.get("name") == "Sign macOS with the stable self-signed certificate"
+    )
+    assert set(step["env"]) == {"SIGNING_P12", "SIGNING_P12_PASSWORD", "SIGNING_IDENTITY"}
+    # The identity must prove it can sign before the build depends on it.
+    assert step["run"].index("codesign --force --sign") < step["run"].index(
+        "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY"
+    )
+    output = tmp_path / "github-env"
+    bash = shutil.which("bash")
+    assert bash is not None
+    result = subprocess.run(
+        [bash, "-c", step["run"]],
+        env={
+            "GITHUB_ENV": str(output),
+            "PATH": os.environ["PATH"],
+            "SIGNING_P12": "certificate",
+            "SIGNING_P12_PASSWORD": "secret",
+            "SIGNING_IDENTITY": "",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert not output.exists()
+    assert "secret" not in result.stdout + result.stderr
 
 
 def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_path: Path) -> None:

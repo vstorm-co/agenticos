@@ -48,6 +48,10 @@ packages:
   Leaflet 1.9.4    https://leafletjs.com        BSD-2-Clause
                    Copyright (c) 2010-2023, Volodymyr Agafonkin
                    Copyright (c) 2010-2011, CloudMade
+  topojson-client 3.1.0  https://github.com/topojson/topojson-client   ISC
+                   Copyright 2012-2019 Michael Bostock
+  world-atlas 2.0.2      https://github.com/topojson/world-atlas        ISC
+                   Copyright 2013-2019 Michael Bostock; outlines from Natural Earth (public domain)
 
 Copied rather than installed because a published page has no network and loads
 them from the deployment itself. The README beside them carries every licence

@@ -88,9 +88,16 @@ async def list_conversations(
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
+    hide_channels: bool = Query(
+        True,
+        description="Leave out threads a bot answers in (Slack, Mattermost, Telegram, Teams)",
+    ),
     project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
 ) -> Any:
     """List conversations for the current user.
+
+    Threads from channels are left out by default: they belong to the channel and are
+    reached from Runs and the channel's page. `hide_channels=false` lists them again.
 
     Narrowed the same way `/admin/conversations` is, minus what only a
     deployment administrator may ask - there is no filter by owner here, and
@@ -115,6 +122,7 @@ async def list_conversations(
         sort_by=sort_by,
         sort_dir=sort_dir,
         hide_api=hide_api,
+        hide_channels=hide_channels,
         project_id=project_id,
         reader=auth,
     )

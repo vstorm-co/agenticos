@@ -92,3 +92,31 @@ cost says it is partial.
 - Forward the harness's own permission prompts.
 - Run Codex read-only.
 - Run on the `state` workspace, which has no shell.
+
+## On the person's own computer (#2576)
+
+With **Where it runs: On this computer** the same tool starts the harness on the
+computer the person works from, in the folder they chose, instead of in the sandbox.
+The chat must be working on that computer (**Work on: This computer**); otherwise the
+tool says so rather than falling back to a sandbox.
+
+This path *is* ACP (`_acp.py`), unlike the sandbox one. The desktop app only starts
+the agent's adapter (`@agentclientprotocol/claude-agent-acp`, `codex-acp`, pinned to an
+exact version, through `npx`) and passes bytes both ways with the device operations
+`agent.open`, `agent.send`, `agent.poll` and `agent.close`; the server speaks the
+protocol, so an ACP change is a server change. A task is one session: `initialize`,
+`session/new`, `session/prompt`, with `session/update` becoming the same steps the
+chat already draws and a stop reason becoming the outcome.
+
+- **No key.** The agent signs in with its own command on that computer (Settings -> Desktop
+  app lists it and opens the sign-in in Terminal). The platform never reads or stores that
+  credential, so the secret is optional for this setting.
+- **Permissions.** Starting an agent needs the folder's *full access* grant - the adapter runs as
+  the person, which an OS sandbox would break - and a native confirmation on every start. Inside
+  a task the agent's `session/request_permission` is answered from the binding's `access`, not
+  put to a person one request at a time: a parked run could not keep the session alive, so the
+  approval is the capability's, once per task, as in the sandbox.
+- **No continuation yet.** Each task is a new session; the sandbox's session file would have
+  to live in the person's repository.
+- **Usage.** A subscription session reports no tokens, so each task is booked as one unpriced
+  call and the run's cost says it is a floor.

@@ -276,6 +276,35 @@ asks to see it ("chart it", "which is cheapest over five years"), call
 the follow-up. Draw a comparison only when the person needs to weigh it
 themselves: sliders for the weights, the ranking recalculated.
 
+## Countries and regions: a world map
+
+For anything by country - customers, offices, a route between two cities - load the
+world map kit. It is plain SVG from outlines the deployment serves, so it needs no
+map server and always draws:
+
+```html
+<script src="lib/d3-7.9.0.min.js"></script>
+<script src="lib/topojson-client-3.1.0.min.js"></script>
+<script src="lib/world-atlas-2.0.2-110m.js"></script>
+<script src="lib/agenticos-worldmap-1.js"></script>
+<div id="world"></div>
+<script>
+  const result = AOWorldMap.draw(document.getElementById("world"), {
+    countries: { Poland: 42, Germany: 88, USA: 130 },
+    pins: [{ name: "Warsaw", lat: 52.23, lng: 21.01 }],
+    routes: [{ from: "Warsaw", to: { lat: 40.71, lng: -74.0 } }],
+    legend: "customers",
+  });
+</script>
+```
+
+Countries shade by value, darker for more; `highlight: ["Poland"]` marks countries
+that have no value, and `focus: [...]` zooms to the countries named. A country is
+named in English as the data has it ("United States of America", "Czechia"), by
+a common alias ("USA", "UK") or by its ISO numeric code. `draw` returns `{ unmatched }`,
+the names it could not place: if it is not empty, say which ones in your answer.
+Do not restyle it; give the element a width and let it set its own height.
+
 ## Follow a trip: a map
 
 Load Leaflet and the map kit, then hand it the stops:

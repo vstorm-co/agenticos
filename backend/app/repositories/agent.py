@@ -24,6 +24,7 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.resource_grant import Visibility
+from app.schemas.agent import LocalCodingAgent
 
 
 async def memory_erasure_capabilities(
@@ -360,6 +361,38 @@ async def published_capabilities(
         ]
         for version_id, raw in result.all()
     }
+
+
+async def published_local_coding_agents(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, LocalCodingAgent]:
+    """The coding agent each frozen version runs on the person's computer, where it does.
+
+    Read from the version's published capability bindings, never its draft. A version
+    whose coding agent runs in the sandbox, or has none, is absent.
+    """
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion.id, AgentVersion.spec["capabilities"]).where(
+            AgentVersion.id.in_(list(version_ids))
+        )
+    )
+    found: dict[UUID, LocalCodingAgent] = {}
+    for version_id, raw in result.all():
+        for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw):
+            config = binding.config or {}
+            if (
+                binding.id == "coding_agent"
+                and binding.enabled
+                and config.get("runs_on") == "this_computer"
+            ):
+                found[version_id] = LocalCodingAgent(
+                    harness=config.get("harness", "claude_code"),
+                    access=config.get("access", "edit"),
+                )
+                break
+    return found
 
 
 async def published_model_profiles(

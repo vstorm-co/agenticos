@@ -41,16 +41,20 @@ class LocalTarget(BaseModel):
     browser: bool = False
     """Override the agent browser with this computer, independently of its sandbox."""
 
+    skills: list[Literal["agents", "claude", "codex"]] = Field(default_factory=list, max_length=3)
+    """Which of this computer's skill folders (`~/.agents`, `~/.claude`, `~/.codex`) the run may
+    read, in place, together with the `AGENTS.md` files; empty uses none of them."""
+
     @model_validator(mode="after")
     def require_work_or_browser(self) -> Self:
         if self.computer_grant is not None and (self.folder is None or self.mode != "full_access"):
             raise ValueError("Whole-computer access requires its home folder and full access")
         if self.folder is None and (
-            not (self.browser or self.computer)
+            not (self.browser or self.computer or self.skills)
             or self.model_service is not None
             or self.mcp_services
         ):
             raise ValueError(
-                "Choose a folder for local work, or select only local browser or computer use"
+                "Choose a folder for local work, or select only local browser, computer use or skills"
             )
         return self

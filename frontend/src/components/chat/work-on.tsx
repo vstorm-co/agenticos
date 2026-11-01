@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { ContextHelp } from "@/components/ui/context-help";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
+import { LocalSkillsControl } from "./local-skills-control";
 
 /** The last part of a path, which is what a person recognises a folder by. */
 function folderName(path: string): string {
@@ -54,6 +55,7 @@ export function WorkOn({
         agentEnabled={agentCapabilities?.includes("computer_use") === true}
       />
       <ComputerWorkOn agentEnabled={agentCapabilities?.includes("sandbox") === true} />
+      <LocalSkillsControl />
     </>
   ) : null;
 }
