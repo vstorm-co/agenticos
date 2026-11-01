@@ -227,6 +227,7 @@ def _list_filters(
     include_archived: bool = False,
     archived_only: bool = False,
     hide_api: bool = False,
+    hide_channels: bool = False,
     project_id: UUID | None = None,
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
@@ -256,6 +257,16 @@ def _list_filters(
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
+    if hide_channels:
+        # A thread a bot answers in belongs to its channel, not to the console's
+        # list. An EXISTS on the session rather than a join, for the reason the
+        # agent filter below gives: a join would multiply the rows.
+        filters.append(
+            ~select(ChannelSession.id)
+            .where(ChannelSession.conversation_id == Conversation.id)
+            .correlate(Conversation)
+            .exists()
+        )
     if search:
         filters.append(contains_ci(Conversation.title, search))
     if agent_id is not None:
@@ -689,6 +700,7 @@ async def get_conversations_by_user(
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    hide_channels: bool = False,
     project_id: UUID | None = None,
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
@@ -726,6 +738,7 @@ async def get_conversations_by_user(
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        hide_channels=hide_channels,
         project_id=project_id,
     ):
         query = query.where(condition)
@@ -804,6 +817,7 @@ async def count_conversations(
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    hide_channels: bool = False,
     project_id: UUID | None = None,
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
@@ -826,6 +840,7 @@ async def count_conversations(
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        hide_channels=hide_channels,
         project_id=project_id,
     ):
         query = query.where(condition)
