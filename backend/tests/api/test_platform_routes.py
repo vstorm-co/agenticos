@@ -349,6 +349,26 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/workflows/summary", Perm.WORKFLOWS_VIEW, query="?from=2020-01-01&to=2020-01-07"),
     Call("GET", "/workflows", Perm.WORKFLOWS_VIEW),
     Call("POST", "/workflows", Perm.WORKFLOWS_CREATE, body={"name": "Import orders"}),
+    Call(
+        "POST",
+        "/workflows/prepare",
+        Perm.WORKFLOWS_CREATE,
+        body={
+            "name": "Prepare orders",
+            "graph": {
+                "entry_node_id": str(_SOME_ID),
+                "nodes": [
+                    {
+                        "id": str(_SOME_ID),
+                        "definition_id": "trigger.manual",
+                        "definition_version": 1,
+                        "config": {},
+                        "layout": {"x": 0, "y": 0},
+                    }
+                ],
+            },
+        },
+    ),
     Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by

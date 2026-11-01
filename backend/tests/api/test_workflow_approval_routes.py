@@ -166,7 +166,9 @@ async def test_an_edited_version_is_handed_to_the_service(service: MagicMock):
     assert service.decide.await_args.kwargs["final"] == "Dear Ann"
 
 
-@pytest.mark.parametrize("final", ["", "   ", "x" * 100_001])
+@pytest.mark.parametrize(
+    "final", ["", "   ", "x" * 100_001], ids=["empty", "whitespace", "oversized"]
+)
 async def test_an_empty_or_oversized_edit_is_refused(service: MagicMock, final: str):
     for open_client in _client_for(OrgRoleName.OWNER, service):
         async with open_client() as http:
