@@ -931,6 +931,7 @@ ArtifactPublicDataSvc = Annotated[
 ]
 
 from app.services.memory import MemoryService
+from app.services.primary_conversation import PrimaryConversationService
 from app.services.system_agent import SystemAgentService
 
 
@@ -948,6 +949,16 @@ def get_system_agent_service(db: DBSession) -> SystemAgentService:
 
 
 SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+
+
+def get_primary_conversation_service(db: DBSession) -> PrimaryConversationService:
+    """Create PrimaryConversationService instance with database session."""
+    return PrimaryConversationService(db)
+
+
+PrimaryConversationSvc = Annotated[
+    PrimaryConversationService, Depends(get_primary_conversation_service)
+]
 
 
 def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:

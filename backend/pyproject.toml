@@ -1005,8 +1005,10 @@ include = [
     "app/services/memory/_runtime.py",
     "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/primary_conversation.py",
     "app/services/system_agent.py",
     "app/api/routes/v1/memory.py",
+    "app/api/routes/v1/primary_conversations.py",
     "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
@@ -1692,8 +1694,10 @@ include = [
     "app/services/memory/_runtime.py",
     "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/primary_conversation.py",
     "app/services/system_agent.py",
     "app/api/routes/v1/memory.py",
+    "app/api/routes/v1/primary_conversations.py",
     "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
