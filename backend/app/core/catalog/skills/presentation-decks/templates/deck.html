@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Q3 supplier review - deck</title>
+  <link rel="stylesheet" href="lib/agenticos-2.css">
+  <script src="lib/chart-4.5.1.umd.min.js"></script>
+  <script src="lib/lucide-1.46.0.min.js"></script>
+  <script src="lib/agenticos-2.js"></script>
+  <style>
+    /* A slide is 1280 x 720 and is scaled as a whole to the window, so type and
+       spacing stay in proportion on a laptop, a projector and a phone. */
+    html, body { height: 100%; margin: 0; background: var(--ao-bg); overflow: hidden; }
+    .stage { position: fixed; inset: 0; display: grid; place-items: center; }
+    .deck { position: relative; width: 1280px; height: 720px; transform-origin: center; flex: none; }
+    .slide { position: absolute; inset: 0; box-sizing: border-box; padding: 72px 96px; display: none;
+      flex-direction: column; gap: 28px; background: var(--ao-bg); color: var(--ao-fg); }
+    .slide[aria-current="true"] { display: flex; }
+    .slide h1 { font-size: 64px; line-height: 1.08; margin: 0; letter-spacing: -0.02em; }
+    .slide h2 { font-size: 44px; line-height: 1.15; margin: 0; letter-spacing: -0.015em; max-width: 1000px; }
+    .slide p, .slide li { font-size: 28px; line-height: 1.4; margin: 0; }
+    .slide ul { margin: 0; padding-left: 1.2em; display: grid; gap: 12px; }
+    .slide .lead { color: var(--ao-muted-fg); font-size: 32px; max-width: 900px; }
+    .slide .grow { flex: 1; min-height: 0; display: grid; align-content: center; }
+    .slide .ao-stat-value { font-size: 72px; }
+    .slide .ao-chart { height: 380px; }
+    .slide table { font-size: 24px; }
+    .center { justify-content: center; }
+    .notes { display: none; }
+    .bar { position: fixed; left: 0; right: 0; bottom: 0; height: 3px; background: var(--ao-border); }
+    .bar span { display: block; height: 100%; width: 0; background: var(--ao-primary); transition: width .2s; }
+    .count { position: fixed; right: 16px; bottom: 12px; font-size: 13px; color: var(--ao-muted-fg); }
+    .notes-panel { position: fixed; left: 0; right: 0; bottom: 3px; max-height: 30vh; overflow: auto; padding: 14px 20px;
+      background: var(--ao-card); border-top: 1px solid var(--ao-border); font-size: 15px; line-height: 1.5; display: none; }
+    .notes-panel.on { display: block; }
+    @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+    @page { size: 1280px 720px; margin: 0; }
+    @media print {
+      html, body { height: auto; overflow: visible; }
+      .stage { position: static; display: block; }
+      .deck { transform: none !important; height: auto; width: 1280px; }
+      .slide { position: relative; display: flex !important; height: 720px; break-after: page; }
+      .bar, .count, .notes-panel { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <main class="deck" id="deck" aria-label="Q3 supplier review">
+
+      <!-- One slide, one message. The title of every slide after the first is the claim it proves. -->
+      <section class="slide center">
+        <div class="ao-eyebrow"><i data-lucide="presentation"></i>Quarterly review</div>
+        <h1>Supplier review, Q3 2026</h1>
+        <p class="lead">Two suppliers carry most of the risk, and one is late on half its orders.</p>
+        <aside class="notes">Open with the answer. Ask for the decision on the review call at the end.</aside>
+      </section>
+
+      <section class="slide">
+        <h2>Fabrikam delivered 48% of its orders late</h2>
+        <div class="grow">
+          <div class="ao-grid-3">
+            <div class="ao-card"><div class="ao-stat">
+              <div class="ao-stat-label">Orders reviewed</div>
+              <div class="ao-stat-value ao-num">1,208</div>
+              <div class="ao-stat-foot">14 suppliers</div></div></div>
+            <div class="ao-card"><div class="ao-stat">
+              <div class="ao-stat-label">On time overall</div>
+              <div class="ao-stat-value ao-num">91.4%</div>
+              <div class="ao-stat-foot"><span class="ao-delta ao-up">+2.1 pt</span> vs Q2</div></div></div>
+            <div class="ao-card"><div class="ao-stat">
+              <div class="ao-stat-label">Fabrikam on time</div>
+              <div class="ao-stat-value ao-num">52%</div>
+              <div class="ao-stat-foot"><span class="ao-delta ao-down">-9 pt</span> vs Q2</div></div></div>
+          </div>
+        </div>
+        <aside class="notes">Source: ERP purchase orders, exported 1 Oct. Late means more than two days past the agreed date.</aside>
+      </section>
+
+      <section class="slide">
+        <h2>Late deliveries are concentrated in two suppliers</h2>
+        <div class="grow"><div class="ao-chart"><canvas id="late" role="img" aria-label="Late orders by supplier"></canvas></div></div>
+        <aside class="notes">Everyone else is within lead times. The chart shows the share of orders late.</aside>
+      </section>
+
+      <section class="slide">
+        <h2>We recommend a review call before the Q4 window opens</h2>
+        <ul>
+          <li>Hold the call with Fabrikam in the week of 6 Oct.</li>
+          <li>Move 20% of its volume to the second source until delivery recovers.</li>
+          <li>Decide on the contract review at the 14 Oct planning meeting.</li>
+        </ul>
+        <aside class="notes">Ask for agreement on the first bullet in the room.</aside>
+      </section>
+    </main>
+  </div>
+  <div class="bar" aria-hidden="true"><span id="progress"></span></div>
+  <div class="count" id="count" aria-live="polite"></div>
+  <div class="notes-panel" id="notes" role="note"></div>
+
+  <script>
+    const data = { late: { labels: ["Fabrikam", "Northwind", "Contoso", "Adatum"], share: [0.48, 0.22, 0.06, 0.03] } };
+
+    // Slides are read from a distance: larger type than a page's chart.
+    Chart.defaults.font.size = 18;
+    AO.chart("#late", () => ({
+      type: "bar",
+      data: { labels: data.late.labels, datasets: [{ label: "Late orders", data: data.late.share }] },
+      options: { indexAxis: "y", plugins: { legend: { display: false } },
+        scales: { x: { ticks: { callback: (v) => AO.format.percent(v) } } } },
+    }));
+
+    const slides = [...document.querySelectorAll(".slide")];
+    const deck = document.getElementById("deck");
+    const notes = document.getElementById("notes");
+    let index = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1), 10) || 1) - 1));
+
+    function show(next) {
+      index = Math.max(0, Math.min(slides.length - 1, next));
+      slides.forEach((slide, i) => slide.setAttribute("aria-current", String(i === index)));
+      document.getElementById("progress").style.width = ((index + 1) / slides.length) * 100 + "%";
+      document.getElementById("count").textContent = (index + 1) + " / " + slides.length;
+      notes.textContent = slides[index].querySelector(".notes")?.textContent ?? "";
+      history.replaceState(null, "", "#" + (index + 1));
+    }
+    function fit() {
+      deck.style.transform = "scale(" + Math.min(innerWidth / 1280, innerHeight / 720) + ")";
+    }
+    addEventListener("resize", fit);
+    addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") show(index + 1);
+      else if (event.key === "ArrowLeft" || event.key === "PageUp") show(index - 1);
+      else if (event.key === "Home") show(0);
+      else if (event.key === "End") show(slides.length - 1);
+      else if (event.key === "n") notes.classList.toggle("on");
+    });
+    let touch = null;
+    addEventListener("touchstart", (event) => { touch = event.touches[0].clientX; }, { passive: true });
+    addEventListener("touchend", (event) => {
+      if (touch === null) return;
+      const dx = event.changedTouches[0].clientX - touch;
+      if (Math.abs(dx) > 40) show(index + (dx < 0 ? 1 : -1));
+      touch = null;
+    });
+    deck.addEventListener("click", (event) => {
+      if (!event.target.closest("a, button")) show(index + 1);
+    });
+    fit();
+    show(index);
+  </script>
+</body>
+</html>

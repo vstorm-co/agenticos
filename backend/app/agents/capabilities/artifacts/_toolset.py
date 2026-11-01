@@ -182,7 +182,7 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         no accent colour, green and red only for better and worse, icons rather than
         emoji unless the person asked for emoji. Before building a page, load the
         `artifact-pages` skill if it is available - it has the components and two
-        templates. Links to other sites work: the person is asked before one opens.
+        templates; for a slide deck, load `presentation-decks` as well. Links to other sites work: the person is asked before one opens.
         For tabular numbers you only want shown in the chat, use `create_chart` instead.
 
         Pass exactly one of `path`, `content` or `edits`.
