@@ -122,3 +122,16 @@ async def test_a_concurrent_opener_that_lost_the_race_keeps_the_winners_conversa
 
     assert result == seeded and winner != seeded
     assert await db.scalar(select(func.count()).select_from(Conversation)) == 2
+
+
+async def test_a_conversation_first_reached_from_a_channel_is_named_for_the_agent(
+    db: AsyncSession,
+) -> None:
+    org, users, agents, ctxs = await _world(db)
+
+    opened = await PrimaryConversationService(db).ensure(
+        organization_id=org.id, user_id=users[0].id, agent_id=agents[1].id
+    )
+
+    conversation = await db.get(Conversation, opened)
+    assert conversation is not None and conversation.title == "Support"

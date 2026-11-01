@@ -1726,7 +1726,6 @@ class ChannelMessageRouter:
                 organization_id=bot.organization_id,
                 user_id=identity.user_id,
                 agent_id=binding.agent_id,
-                title=title,
             )
         conv = await conversation_repo.create_conversation(
             db, title=title, user_id=identity.user_id, organization_id=bot.organization_id

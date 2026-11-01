@@ -1,5 +1,5 @@
 ---
-source_sha: "eb981363b091"
+source_sha: "c707a6dabd22"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1060,7 +1060,7 @@ tylko transport.
 **Dodaj bota** w Kanały → SMS (Twilio). Jego token to SID konta Twilio, token autoryzacji i
 numer nadawcy, połączone dwukropkami: `ACxxxxxxxx:auth_token:+15551234567`. Bot SMS działa
 wyłącznie przez webhook; po zapisaniu wklej pokazany adres webhooka w ustawieniu wiadomości
-przychodzących numeru w konsoli Twilio.
+przychodzących numeru w konsoli Twilio. Adres, który Twilio podpisuje, jest budowany z `PUBLIC_BASE_URL`, więc to ustawienie musi być adresem, pod którym Twilio faktycznie dzwoni: za proxy, które go przepisuje, każdy SMS jest odrzucany.
 
 **Kto pisze.** Żądanie jest przyjmowane tylko z poprawnym podpisem Twilio — HMAC-SHA1 adresu,
 który Twilio wywołało, i jego pól, pod tokenem autoryzacji — a wszystko inne dostaje 403, zanim

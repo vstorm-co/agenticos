@@ -1023,7 +1023,7 @@ Only the transport is new.
 auth token and the number it sends from, joined with colons:
 `ACxxxxxxxx:auth_token:+15551234567`. An SMS bot is webhook-only; after saving, paste
 the webhook URL shown for it into the number's incoming-message setting in the Twilio
-console.
+console. The address Twilio signs is built from `PUBLIC_BASE_URL`, so that setting has to be the address Twilio actually calls: behind a proxy that rewrites it, every text is refused.
 
 **Who is texting.** A request is accepted only with a valid Twilio signature - HMAC-SHA1
 of the address Twilio called and its fields, under the auth token - and anything else is

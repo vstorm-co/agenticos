@@ -41,7 +41,12 @@ class PrimaryConversationService:
         )
 
     async def ensure(
-        self, *, organization_id: UUID, user_id: UUID, agent_id: UUID, title: str | None
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        agent_id: UUID,
+        title: str | None = None,
     ) -> UUID:
         """The conversation this person has with this agent, created on first use.
 
@@ -56,6 +61,12 @@ class PrimaryConversationService:
         existing = await self.db.scalar(select(PrimaryConversation.conversation_id).where(*key))
         if existing is not None:
             return existing
+        if title is None:
+            # Named for the agent, like one opened from the console, wherever it was
+            # first reached: a person finds it in their chat list by who it is with.
+            agent = await agent_repo.get(self.db, agent_id, organization_id=organization_id)
+            assert agent is not None, "the key names an agent that exists"
+            title = agent.name
         conversation = await conversation_repo.create_conversation(
             self.db, organization_id=organization_id, user_id=user_id, title=title
         )

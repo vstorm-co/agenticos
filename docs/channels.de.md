@@ -1,5 +1,5 @@
 ---
-source_sha: "eb981363b091"
+source_sha: "c707a6dabd22"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1133,7 +1133,7 @@ Budgets (#2082). Neu ist nur der Transport.
 Auth-Token und die Absendernummer, durch Doppelpunkte verbunden:
 `ACxxxxxxxx:auth_token:+15551234567`. Ein SMS-Bot arbeitet nur per Webhook; fügen Sie nach dem
 Speichern die angezeigte Webhook-URL in die Einstellung für eingehende Nachrichten der Nummer in
-der Twilio-Konsole ein.
+der Twilio-Konsole ein. Die Adresse, die Twilio signiert, wird aus `PUBLIC_BASE_URL` gebaut; diese Einstellung muss also die Adresse sein, die Twilio tatsächlich aufruft: Hinter einem Proxy, der sie umschreibt, wird jede SMS abgelehnt.
 
 **Wer schreibt.** Eine Anfrage wird nur mit gültiger Twilio-Signatur angenommen - HMAC-SHA1 der
 Adresse, die Twilio aufgerufen hat, und ihrer Felder, unter dem Auth-Token - alles andere ist ein

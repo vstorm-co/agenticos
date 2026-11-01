@@ -47,7 +47,6 @@ async def test_a_linked_person_texting_a_bot_with_an_agent_continues_their_conve
         "organization_id": ORG,
         "user_id": USER,
         "agent_id": AGENT,
-        "title": "Sms Chat",
     }
 
 
