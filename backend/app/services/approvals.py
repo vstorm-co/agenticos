@@ -28,6 +28,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApp
 from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
+from app.services.outcome import OutcomeService
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 
@@ -207,6 +208,7 @@ class ApprovalService:
             note=note,
         )
         await self._record_decision(approval, status, actor_user_id=ctx.subject_id, note=note)
+        await self._settle_outcomes(decided)
         # The workflow wake-up (#1788): a no-op for the overwhelming majority
         # of decisions, which are not about a run a workflow node is parked
         # on. Queued for after this transaction commits, since the run it
@@ -242,6 +244,20 @@ class ApprovalService:
             note=note,
         )
         await self._record_decision(approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=note)
+        await self._settle_outcomes(approval)
+
+    async def _settle_outcomes(self, decided: ToolApproval) -> None:
+        """Once nothing on the run is still waiting, the question it raised is answered.
+
+        Wherever it was decided - the queue, the chat, a call - the Inbox row, the chat
+        card and the e-mail still queued for it are the same outcome, so they close
+        together (#2575).
+        """
+        approvals = await agent_run_repo.list_approvals_for_run(
+            self.db, run_id=decided.run_id, organization_id=decided.organization_id
+        )
+        if all(item.status != ApprovalStatus.PENDING.value for item in approvals):
+            await OutcomeService(self.db).resolve_run_approvals(decided.run_id)
 
     async def expire_stale(self) -> int:
         """Deny by timeout every parked call nobody decided in time.

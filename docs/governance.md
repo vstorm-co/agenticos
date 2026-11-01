@@ -1521,6 +1521,24 @@ only how somebody heard about it - a periodic report's own computed figures,
 which live nowhere but the notification, are the one thing an expired row takes
 with it.
 
+### One outcome, settled once { #one-outcome }
+
+An approval waiting, a failed run and a finding from a watch are things somebody has to act
+on, so each is an **outcome**: one item per person and cause, whatever number of places tell them
+(#2575). The card above the chat it came from, the row at the bell, the push and the e-mail are
+deliveries of that one outcome, not four items.
+
+An outcome is acknowledged, resolved or muted once, from the chat card or the bell, and every place
+follows. Acknowledging marks it read and cancels the push and e-mail still waiting to go out; resolving
+and muting also clear it. A delivery a worker already holds is re-checked just before sending, so one
+settled in between does not go out. `POST /outcomes/{id}/settle` takes the action, and
+`GET /outcomes` lists the caller's own, optionally for one chat.
+
+Deciding the last pending approval of a run - in the queue, the chat or a call - resolves the outcome
+that asked about it, without anybody touching the bell. A muted cause stays muted: the same cause
+arriving again is cleared on arrival and sends nothing, while a resolved or acknowledged one
+that comes back reopens. States only move forward, so a resolved or muted outcome cannot be flipped.
+
 ### Configured on the agent
 
 Who hears about an agent is part of the agent's spec, under **Limits → Alerts**.

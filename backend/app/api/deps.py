@@ -931,6 +931,7 @@ ArtifactPublicDataSvc = Annotated[
 ]
 
 from app.services.memory import MemoryService
+from app.services.outcome import OutcomeService
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.system_agent import SystemAgentService
 
@@ -949,6 +950,14 @@ def get_system_agent_service(db: DBSession) -> SystemAgentService:
 
 
 SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+
+
+def get_outcome_service(db: DBSession) -> OutcomeService:
+    """Create OutcomeService instance with database session."""
+    return OutcomeService(db)
+
+
+OutcomeSvc = Annotated[OutcomeService, Depends(get_outcome_service)]
 
 
 def get_primary_conversation_service(db: DBSession) -> PrimaryConversationService:

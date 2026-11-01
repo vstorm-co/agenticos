@@ -1,5 +1,5 @@
 ---
-source_sha: "c0eda1b8c1d5"
+source_sha: "6f559aeba040"
 ---
 
 # Governance { #governance }
@@ -1639,6 +1639,25 @@ documento y el gasto que describen son el registro, y el aviso solo es cómo se
 enteró alguien — las cifras calculadas de un informe periódico, que no viven en
 ningún sitio salvo en la notificación, son lo único que una fila caducada se
 lleva consigo.
+
+### Un resultado, cerrado una vez { #one-outcome }
+
+Una aprobación en espera, una ejecución fallida y un hallazgo de una vigilancia son cosas que alguien
+tiene que atender, así que cada una es un **resultado**: un elemento por persona y causa, sin importar
+cuántos lugares lo cuenten (#2575). La tarjeta sobre el chat de donde viene, la fila de la campana, el
+push y el correo son entregas de ese único resultado, no cuatro elementos.
+
+Un resultado se confirma, se resuelve o se silencia una vez, desde la tarjeta del chat o la campana, y
+cada lugar lo sigue. Confirmar lo marca como leído y cancela el push y el correo que aún esperan para
+salir; resolver y silenciar además lo despejan. Una entrega que un worker ya tiene se revisa de nuevo
+justo antes de enviarse, así que la cerrada entre tanto no sale. `POST /outcomes/{id}/settle` recibe
+la acción y `GET /outcomes` lista los resultados propios de quien llama, opcionalmente de un chat.
+
+Decidir la última aprobación pendiente de una ejecución - en la cola, en el chat o en una llamada -
+resuelve el resultado que preguntaba por ella, sin que nadie toque la campana. Una causa silenciada
+sigue silenciada: la misma causa que vuelve se despeja al llegar y no envía nada, mientras que una
+resuelta o confirmada que vuelve se reabre. Los estados solo avanzan, así que un resultado resuelto o
+silenciado no se puede revertir.
 
 ### Configurado en el agent { #configured-on-the-agent }
 

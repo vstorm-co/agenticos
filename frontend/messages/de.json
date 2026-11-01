@@ -12106,5 +12106,12 @@
         }
       }
     }
+  },
+  "outcomes": {
+    "label": "Braucht Ihre Aufmerksamkeit",
+    "acknowledge": "Gesehen",
+    "resolve": "Erledigt",
+    "mute": "Nicht mehr fragen",
+    "open": "Öffnen"
   }
 }

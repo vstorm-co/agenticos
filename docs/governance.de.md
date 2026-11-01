@@ -1,5 +1,5 @@
 ---
-source_sha: "c0eda1b8c1d5"
+source_sha: "6f559aeba040"
 ---
 
 # Governance { #governance }
@@ -1748,6 +1748,26 @@ sind der Datensatz, und die Benachrichtigung ist nur, wie jemand davon erfahren
 hat - die berechneten Zahlen eines periodischen Berichts, die nirgends außer in
 der Benachrichtigung leben, sind das Einzige, was eine abgelaufene Zeile
 mitnimmt.
+
+### Ein Ergebnis, einmal erledigt { #one-outcome }
+
+Eine wartende Freigabe, ein fehlgeschlagener Lauf und ein Fund einer Beobachtung sind Dinge, auf die
+jemand reagieren muss, also ist jedes ein **Ergebnis**: ein Eintrag pro Person und Ursache, egal wie
+viele Stellen davon berichten (#2575). Die Karte über dem Chat, aus dem es stammt, die Zeile an der
+Glocke, der Push und die E-Mail sind Zustellungen dieses einen Ergebnisses, nicht vier Einträge.
+
+Ein Ergebnis wird einmal bestätigt, gelöst oder stummgeschaltet, von der Chat-Karte oder der Glocke
+aus, und jede Stelle folgt. Bestätigen markiert es als gelesen und storniert Push und E-Mail, die noch
+auf den Versand warten; Lösen und Stummschalten räumen es zusätzlich weg. Eine Zustellung, die ein Worker
+schon hält, wird kurz vor dem Senden erneut geprüft, sodass ein dazwischen erledigtes nicht hinausgeht.
+`POST /outcomes/{id}/settle` nimmt die Aktion entgegen, und `GET /outcomes` listet die eigenen
+Ergebnisse des Aufrufers, optional für einen Chat.
+
+Die Entscheidung über die letzte offene Freigabe eines Laufs - in der Warteschlange, im Chat oder in
+einem Anruf - löst das Ergebnis, das danach gefragt hat, ohne dass jemand die Glocke berührt. Eine
+stummgeschaltete Ursache bleibt stumm: Dieselbe Ursache, die wiederkommt, wird bei Ankunft geräumt und
+sendet nichts, während eine gelöste oder bestätigte, die wiederkommt, neu geöffnet wird. Zustände gehen
+nur vorwärts, ein gelöstes oder stummgeschaltetes Ergebnis lässt sich also nicht umkehren.
 
 ### Auf dem Agent konfiguriert { #configured-on-the-agent }
 

@@ -12434,5 +12434,12 @@
         }
       }
     }
+  },
+  "outcomes": {
+    "label": "Needs your attention",
+    "acknowledge": "Seen",
+    "resolve": "Done",
+    "mute": "Stop asking",
+    "open": "Open"
   }
 }

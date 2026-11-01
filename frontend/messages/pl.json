@@ -12210,5 +12210,12 @@
         }
       }
     }
+  },
+  "outcomes": {
+    "label": "Wymaga Twojej uwagi",
+    "acknowledge": "Widziane",
+    "resolve": "Zrobione",
+    "mute": "Nie pytaj więcej",
+    "open": "Otwórz"
   }
 }

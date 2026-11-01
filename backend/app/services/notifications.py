@@ -122,6 +122,18 @@ def agent_face(agent: Agent) -> dict[str, str | bool | int | None]:
     }
 
 
+def _outcome_links(run: AgentRun) -> dict[str, str]:
+    """Where the outcome this notification opens came from: the run, and the chat it is in.
+
+    Kept in `render_context` with the rest, so the shared outcome can show its card in
+    that chat and close when the run's approvals are decided (#2575).
+    """
+    links = {"run_id": str(run.id)}
+    if run.conversation_id is not None:
+        links["conversation_id"] = str(run.conversation_id)
+    return links
+
+
 def _security_event_summary(entry: AppAdminAuditLog) -> str:
     return _SECURITY_EVENT_SUMMARY.get(
         entry.action, f"A privileged action was recorded: {entry.action}"
@@ -319,6 +331,7 @@ class NotificationService:
         render_context = {
             "agent_name": agent.name,
             **agent_face(agent),
+            **_outcome_links(run),
             "tools": ", ".join(tools) if tools else "a tool call",
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
@@ -600,6 +613,7 @@ class NotificationService:
             render_context={
                 "agent_name": agent.name,
                 **agent_face(agent),
+                **_outcome_links(run),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },

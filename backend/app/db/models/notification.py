@@ -141,6 +141,14 @@ class Notification(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    outcome_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("outcomes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # The shared state this delivery belongs to (#2575): settling the outcome clears this
+    # row from the inbox and cancels what is still waiting to be sent for it.
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # When the recipient cleared this row out of their own inbox - not a
     # delete, and the distinction is the reason the column exists. This row is

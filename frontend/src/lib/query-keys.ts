@@ -581,6 +581,11 @@ export const qk = {
     history: () => ["suggestions", "history"] as const,
     starters: () => ["suggestions", "starters"] as const,
   },
+  outcomes: {
+    all: () => ["outcomes"] as const,
+    // Under `all`'s prefix, so settling one anywhere refreshes every card showing it.
+    conversation: (conversationId: string) => ["outcomes", "conversation", conversationId] as const,
+  },
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,

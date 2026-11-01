@@ -34,6 +34,7 @@ import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
+import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
@@ -1310,6 +1311,11 @@ function ChatUI({
                   canShare={ownsConversation}
                   className="sticky top-2 z-20 mb-3"
                 />
+              )}
+              {/* What still needs the person from this chat: one outcome shared with the bell
+                and the mail, so answering here closes them too (#2575). */}
+              {conversationId && !compact && (
+                <OutcomeCards conversationId={conversationId} className="mb-3" />
               )}
               {isLoadingConversation ? (
                 <ConversationSkeleton />

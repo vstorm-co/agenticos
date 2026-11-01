@@ -1,5 +1,5 @@
 ---
-source_sha: "c0eda1b8c1d5"
+source_sha: "6f559aeba040"
 ---
 
 # Governance { #governance }
@@ -1632,6 +1632,26 @@ własnego wpisu audytowego: zapisem są run, dokument i wydatek, które opisują
 powiadomienie to tylko sposób, w jaki ktoś się o nich dowiedział — własne
 wyliczone liczby raportu okresowego, które nie żyją nigdzie poza powiadomieniem,
 są jedyną rzeczą, jaką wygasły wiersz zabiera ze sobą.
+
+### Jeden wynik, zamykany raz { #one-outcome }
+
+Oczekujące zatwierdzenie, nieudany przebieg i znalezisko obserwatora to rzeczy, na które ktoś musi
+zareagować, więc każda jest **wynikiem**: jedną pozycją na osobę i przyczynę, niezależnie od liczby
+miejsc, które o niej mówią (#2575). Karta nad czatem, z którego pochodzi, wiersz w dzwonku, push i
+e-mail to dostarczenia tego jednego wyniku, a nie cztery pozycje.
+
+Wynik potwierdza się, rozwiązuje lub wycisza raz, z karty w czacie albo z dzwonka, i każde miejsce za
+tym podąża. Potwierdzenie oznacza go jako przeczytany i anuluje push oraz e-mail, które jeszcze czekają
+na wysłanie; rozwiązanie i wyciszenie dodatkowo go czyszczą. Dostarczenie, które worker już trzyma, jest
+sprawdzane ponownie tuż przed wysłaniem, więc to zamknięte w międzyczasie nie wychodzi.
+`POST /outcomes/{id}/settle` przyjmuje akcję, a `GET /outcomes` zwraca własne wyniki wywołującego,
+opcjonalnie dla jednego czatu.
+
+Rozstrzygnięcie ostatniego oczekującego zatwierdzenia przebiegu - w kolejce, w czacie lub w rozmowie -
+rozwiązuje wynik, który o nie pytał, bez dotykania dzwonka. Wyciszona przyczyna zostaje wyciszona:
+ta sama przyczyna, która wraca, jest czyszczona przy przyjściu i nic nie wysyła, a rozwiązana lub
+potwierdzona, która wraca, otwiera się na nowo. Stany idą tylko do przodu, więc rozwiązanego lub
+wyciszonego wyniku nie da się odwrócić.
 
 ### Konfigurowane na agencie { #configured-on-the-agent }
 
