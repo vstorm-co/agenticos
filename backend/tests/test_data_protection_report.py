@@ -43,8 +43,10 @@ from app.commands.data_protection import (
     _walk_media,
     data_protection_report,
 )
+from app.commands.vault_rotate import SEALED_TABLES
 from app.core.config import settings
 from app.db.base import Base
+from app.db.models.organization_secret import OrganizationSecret
 
 pytestmark = pytest.mark.anyio
 
@@ -56,6 +58,10 @@ def _result(rows: list[tuple]) -> MagicMock:
     result.all.return_value = rows
     result.scalars.return_value.all.return_value = [row[0] for row in rows]
     return result
+
+
+# `_credentials` counts every sealed table except `organization_secrets`, which it lists.
+SEALED_IN_PLACE = sum(1 for table in SEALED_TABLES if table.model is not OrganizationSecret)
 
 
 def _db(*row_lists: list[tuple], counts: list[int] | None = None) -> MagicMock:
@@ -87,7 +93,7 @@ class TestWhatItReports:
         assert section.rows[1][4] == "provider default"
 
     async def test_credentials_name_the_third_party_and_never_the_value(self) -> None:
-        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * 8)
+        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * SEALED_IN_PLACE)
 
         section = await _credentials(db)
 
@@ -95,7 +101,7 @@ class TestWhatItReports:
 
     async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
         """A bot token is a sealed credential that has no organization_secrets row."""
-        db = _db([], counts=[3] + [0] * 7)
+        db = _db([], counts=[3] + [0] * (SEALED_IN_PLACE - 1))
 
         section = await _credentials(db)
 
