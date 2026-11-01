@@ -71,6 +71,7 @@ from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
 from app.services.ml import measure_audio_seconds
+from app.services.primary_conversation import PrimaryConversationService
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
@@ -1687,28 +1688,50 @@ class ChannelMessageRouter:
             db, bot_id=bot.id, platform_chat_id=incoming.platform_chat_id
         )
         if not session:
-            # The conversation belongs to the organization that owns the bot -
-            # not to the linked user's personal org. A Slack channel is the
-            # tenant's workspace, and whoever happens to speak in it does not
-            # move the conversation into their own org.
-            conv = await conversation_repo.create_conversation(
-                db,
-                title=f"{incoming.platform.capitalize()} Chat",
-                user_id=identity.user_id,
-                organization_id=bot.organization_id,
-            )
             session = await channel_session_repo.create(
                 db,
                 bot_id=bot.id,
                 identity_id=identity.id,
                 platform_chat_id=incoming.platform_chat_id,
-                conversation_id=conv.id,
+                conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
             )
         # Records that this chat had a turn, which is what "report usage every n
         # messages" counts. Here rather than after the answer, because a turn that
         # failed still happened - a counter that only advanced on success would
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
+
+    @staticmethod
+    async def _first_conversation(
+        incoming: IncomingMessage, bot: ChannelBot, identity: ChannelIdentity, db: AsyncSession
+    ) -> Any:
+        """The conversation a chat's first message lands in.
+
+        A linked person's direct message continues the one private conversation they have
+        with the bot's agent - the same one the console opens - so what they said on the web
+        is there when they text, and the reverse (#2575). Anything else - a room, an
+        unlinked sender, a bot with no agent yet - gets a conversation of its own, owned by
+        the organization that owns the bot and not by the linked user's personal org: a Slack
+        channel is the tenant's workspace, and whoever speaks in it does not move the
+        conversation into their own org. `/new` still starts a fresh one for the chat.
+        """
+        title = f"{incoming.platform.capitalize()} Chat"
+        binding = (
+            await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+            if incoming.chat_type == "private" and identity.user_id is not None
+            else None
+        )
+        if binding is not None and identity.user_id is not None:
+            return await PrimaryConversationService(db).ensure(
+                organization_id=bot.organization_id,
+                user_id=identity.user_id,
+                agent_id=binding.agent_id,
+                title=title,
+            )
+        conv = await conversation_repo.create_conversation(
+            db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
+        )
+        return conv.id
 
     async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
         """Count this message against the chat account's allowance on this bot.

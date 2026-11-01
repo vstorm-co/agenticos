@@ -33,27 +33,39 @@ class PrimaryConversationService:
             self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
         ):
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
+        return await self.ensure(
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            agent_id=agent_id,
+            title=agent.name,
+        )
+
+    async def ensure(
+        self, *, organization_id: UUID, user_id: UUID, agent_id: UUID, title: str | None
+    ) -> UUID:
+        """The conversation this person has with this agent, created on first use.
+
+        For a caller that has already decided the person may talk to the agent - a linked
+        channel identity the router admitted - and so asks no permission question here.
+        """
         key = (
-            PrimaryConversation.organization_id == ctx.organization_id,
-            PrimaryConversation.user_id == ctx.subject_id,
+            PrimaryConversation.organization_id == organization_id,
+            PrimaryConversation.user_id == user_id,
             PrimaryConversation.agent_id == agent_id,
         )
         existing = await self.db.scalar(select(PrimaryConversation.conversation_id).where(*key))
         if existing is not None:
             return existing
         conversation = await conversation_repo.create_conversation(
-            self.db,
-            organization_id=ctx.organization_id,
-            user_id=ctx.subject_id,
-            title=agent.name,
+            self.db, organization_id=organization_id, user_id=user_id, title=title
         )
         # Two tabs opening it together both reach here: the primary key picks one
         # winner, and the loser reads the winner's row and drops its own.
         await self.db.execute(
             pg_insert(PrimaryConversation)
             .values(
-                organization_id=ctx.organization_id,
-                user_id=ctx.subject_id,
+                organization_id=organization_id,
+                user_id=user_id,
                 agent_id=agent_id,
                 conversation_id=conversation.id,
             )
