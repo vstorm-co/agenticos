@@ -1,5 +1,5 @@
 ---
-source_sha: "415f949d1f5a"
+source_sha: "e3d63bb1b47b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -40,7 +40,7 @@ W **Chat controls → Computer use** wybierz **Lokalny komputer**, aby udostępn
 Pobierz paczkę dla swojego komputera z [wydania na GitHubie](https://github.com/vstorm-co/agenticos/releases/latest). Instalacja wydania nie wymaga Rusta ani narzędzi programistycznych.
 
 - **macOS:** wybierz Apple silicon lub Intel, otwórz `.dmg` i przeciągnij AgenticOS do **Applications** zgodnie ze strzałką. Uruchom aplikację z Applications i wysuń obraz dysku.
-- **macOS bez ostrzeżenia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` pobiera wydanie, sprawdza jego SHA-256 z opublikowaną sumą, kopiuje aplikację do Applications i zdejmuje z tej jednej aplikacji flagę pobrania. `brew install --cask vstorm-co/agenticos/agenticos` robi to samo przez [tap projektu](https://github.com/vstorm-co/homebrew-agenticos). Wydania nie są notaryzowane przez Apple, więc `.dmg` pobrany w przeglądarce nadal wymaga **Otwórz mimo to**.
+- **macOS bez ostrzeżenia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` pobiera wydanie, sprawdza jego SHA-256 z opublikowaną sumą, kopiuje aplikację do Applications i zdejmuje z tej jednej aplikacji flagę pobrania. `brew install --cask vstorm-co/agenticos/agenticos` robi to samo przez [tap projektu](https://github.com/vstorm-co/homebrew-agenticos). Wydania nie są notaryzowane przez Apple, więc `.dmg` pobrany w przeglądarce nadal wymaga **Otwórz mimo to**. Gdy projekt przypnie certyfikat, którym podpisuje wydania (`scripts/macos_signing_identity.txt`), skrypt odmawia też instalacji aplikacji podpisanej czymkolwiek innym.
 - **Windows:** otwórz instalator `setup.exe`. Wybierze język systemu i zainstaluje aplikację dla Twojego użytkownika bez uprawnień administratora. Uruchom AgenticOS z menu Start. Pakiet `.msi` jest również dostępny dla zarządzanych wdrożeń.
 - **Linux:** otwórz `.deb` lub `.rpm` w instalatorze oprogramowania swojej dystrybucji. W wersji przenośnej nadaj plikowi `.AppImage` prawo wykonywania we właściwościach i otwórz go.
 

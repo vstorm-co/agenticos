@@ -12,6 +12,7 @@
 set -euo pipefail
 
 repo="vstorm-co/agenticos"
+pin_url="${AGENTICOS_SIGNING_IDENTITY_URL:-https://raw.githubusercontent.com/$repo/main/scripts/macos_signing_identity.txt}"
 tag="${1:-}"
 dest="${AGENTICOS_INSTALL_DIR:-/Applications}"
 
@@ -61,6 +62,23 @@ if [ -d "$dest/AgenticOS.app" ] && pgrep -x agenticos-desktop >/dev/null; then
   echo "Quit AgenticOS first, then run this again." >&2
   exit 1
 fi
+# A checksum published beside the download proves the download is the one that was
+# published, not who published it. Where the project has pinned the certificate its
+# releases are signed with, the app must carry that signature or nothing is installed.
+pinned="$(curl -fsSL "$pin_url" 2>/dev/null | grep -E '^[0-9a-fA-F]{40}$' | head -n 1 | tr 'A-F' 'a-f' || true)"
+if [ -n "$pinned" ]; then
+  codesign --verify --deep --strict "$mount/AgenticOS.app" \
+    || { echo "The app's signature does not verify. Nothing was installed." >&2; exit 1; }
+  if ! codesign -d -r- "$mount/AgenticOS.app" 2>&1 | grep -q "certificate root = H\"$pinned\""; then
+    echo "The app was not signed by the certificate this project pins. Nothing was installed." >&2
+    exit 1
+  fi
+  echo "Signature verified against the pinned publisher certificate."
+else
+  echo "Note: no publisher certificate is pinned yet, so only the checksum published with" >&2
+  echo "the release was checked - it proves the download is that release, not who made it." >&2
+fi
+
 mkdir -p "$dest"
 rm -rf "$dest/AgenticOS.app"
 ditto "$mount/AgenticOS.app" "$dest/AgenticOS.app"

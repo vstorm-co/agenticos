@@ -146,10 +146,14 @@ class MonitorManager:
         return updates
 
     async def _read(self, workspace: Any, watch: Watch) -> Update | None:
+        # The state is read *before* the log: a process that finishes in between is then
+        # reported on the next read, with every line it wrote, instead of being declared
+        # finished while its last lines are still unread.
         poll = (
+            f"state=$(if [ -f {shlex.quote(watch.status)} ]; then cat {shlex.quote(watch.status)}; "
+            f"elif kill -0 {watch.pid} 2>/dev/null; then echo running; else echo gone; fi); "
             f"tail -c +{watch.offset + 1} {shlex.quote(watch.log)} 2>/dev/null "
-            f"| head -c {CHUNK_BYTES} | base64; echo; "
-            f"cat {shlex.quote(watch.status)} 2>/dev/null || echo running"
+            f'| head -c {CHUNK_BYTES} | base64; echo; echo "$state"'
         )
         result = await workspace.run(poll, shell=True, timeout=COMMAND_SECONDS)  # noqa: S604
         *encoded, state = result.stdout.strip().splitlines() or ["running"]
@@ -191,7 +195,10 @@ class MonitorManager:
         if watch is None:
             return None
         if watch.running:
-            kill = f"pkill -P {watch.pid} 2>/dev/null; kill {watch.pid} 2>/dev/null; true"
+            kill = (
+                'killtree() { for child in $(pgrep -P "$1" 2>/dev/null); do killtree "$child"; done; '
+                f'kill "$1" 2>/dev/null; }}; killtree {watch.pid}; true'
+            )
             try:
                 await workspace.run(kill, shell=True, timeout=STOP_SECONDS)  # noqa: S604
             except WorkspaceError as failed:

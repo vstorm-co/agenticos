@@ -51,8 +51,9 @@ class Shell:
             raise self.fail("shell failed")
         if "nohup sh -c" in command:
             return CommandResult(exit_code=self.start_code, stdout=self.started, stderr="")
-        if command.startswith("tail -c +"):
+        if "tail -c +" in command:
             offset = int(command.split("tail -c +", 1)[1].split(" ", 1)[0]) - 1
+            assert command.index("kill -0") < command.index("tail -c +")
             chunk = base64.b64encode(self.log[offset:]).decode()
             body = self.garbage if self.garbage is not None else chunk
             return CommandResult(exit_code=0, stdout=f"{body}\n\n{self.state}\n", stderr="")
@@ -130,7 +131,7 @@ async def test_an_exit_reports_the_last_partial_line_and_the_code_and_ends_the_w
 async def test_an_exit_with_nothing_new_is_still_reported_and_a_strange_code_is_unknown() -> None:
     shell, manager = Shell(), MonitorManager()
     watch = await started(shell, manager)
-    shell.state = "killed"
+    shell.state = "gone"
     [update] = await manager.collect(shell)
     assert update.lines == [] and update.finished and watch.exit_code is None
 
@@ -180,7 +181,7 @@ async def test_stopping_kills_the_watch_and_what_it_started_and_unknown_ids_are_
     first, second = await started(shell, manager), await started(shell, manager)
     assert await manager.stop(shell, "nope") is None
     assert await manager.stop(shell, first.id) is first
-    assert "pkill -P 4242" in shell.commands[-1] and "kill 4242" in shell.commands[-1]
+    assert "killtree 4242" in shell.commands[-1] and "pgrep -P" in shell.commands[-1]
     sent = len(shell.commands)
     assert await manager.stop(shell, first.id) is first
     assert len(shell.commands) == sent
@@ -278,7 +279,7 @@ async def test_the_run_ends_by_stopping_every_watch_even_when_it_failed() -> Non
     with pytest.raises(RuntimeError):
         await monitor.wrap_run(ctx(shell), handler=fails)
     assert monitor.manager.running == []
-    assert any("pkill -P 4242" in command for command in shell.commands)
+    assert any("killtree 4242" in command for command in shell.commands)
 
     async def fine() -> str:
         return "answer"
@@ -295,3 +296,13 @@ def test_the_capability_tells_the_agent_what_it_can_do_and_builds_its_tools_once
     assert monitor.get_toolset() is monitor.get_toolset()
     assert set(monitor.get_toolset().tools) == {"start_monitor", "list_monitors", "stop_monitor"}  # type: ignore[attr-defined]
     assert MONITOR_CAPABILITY_ID == "monitor"
+
+
+def test_listing_the_watches_never_waits_for_a_person_but_starting_and_stopping_do() -> None:
+    from app.agents.capabilities import get
+
+    tools = {tool.id: tool for tool in get("monitor").tools}  # type: ignore[union-attr]
+    assert tools["list_monitors"].side_effecting is False
+    assert tools["start_monitor"].side_effecting is None
+    assert tools["stop_monitor"].side_effecting is None
+    assert get("monitor").side_effecting  # type: ignore[union-attr]

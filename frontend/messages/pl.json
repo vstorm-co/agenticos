@@ -8528,7 +8528,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta."
+        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta. Niedostępne na tym komputerze, gdzie agent używa własnego ustawienia."
       },
       "base_url": {
         "title": "Endpoint zgodny z Anthropic",

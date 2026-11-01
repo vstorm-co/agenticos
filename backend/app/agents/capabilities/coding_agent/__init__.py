@@ -117,7 +117,8 @@ class CodingAgentConfig(BaseModel):
         default=None,
         description=(
             "The model the coding agent runs: a Claude model for Claude Code, an "
-            "OpenAI one for Codex. Not set takes the coding agent's own default."
+            "OpenAI one for Codex. Not set takes the coding agent's own default. "
+            "Not available on this computer, where the agent uses its own setting."
         ),
         json_schema_extra={
             "x-enum-labels": _MODEL_NAMES,
@@ -157,6 +158,20 @@ class CodingAgentConfig(BaseModel):
         # Dropped rather than refused: the field is hidden once Codex is chosen,
         # so a value left from Claude Code is one nobody can see to clear.
         if self.harness != "claude_code":
+            self.base_url = None
+        return self
+
+    @model_validator(mode="after")
+    def _the_computers_agent_picks_its_own_model(self) -> CodingAgentConfig:
+        # On this computer the agent runs on its own sign-in and its own settings; this
+        # binding cannot select its model over ACP, so a model chosen here would be a
+        # promise nothing keeps. The gateway is a sandbox-key concern and is dropped.
+        if self.runs_on == "this_computer":
+            if self.model is not None:
+                raise ValueError(
+                    "On this computer the coding agent uses the model its own app is set to: "
+                    "leave Model empty, or run it in the agent's sandbox."
+                )
             self.base_url = None
         return self
 

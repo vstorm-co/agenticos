@@ -8743,7 +8743,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default. Not available on this computer, where the agent uses its own setting."
       },
       "base_url": {
         "title": "Anthropic-compatible endpoint",

@@ -1,0 +1,4 @@
+# The SHA-1 fingerprint of the certificate every macOS release is signed with, one
+# line of 40 hex digits (scripts/create_macos_signing_cert.sh prints it). While it is
+# empty, scripts/install_macos.sh can only check a download against the checksum
+# published beside it, which a compromised release could replace along with the file.

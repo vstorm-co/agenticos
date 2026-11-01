@@ -1,5 +1,5 @@
 ---
-source_sha: "415f949d1f5a"
+source_sha: "e3d63bb1b47b"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -40,7 +40,7 @@ Unter **Chat controls → Computer use** bietet **Lokaler Computer** dieser Unte
 Lade das Paket für deinen Computer aus dem [GitHub-Release](https://github.com/vstorm-co/agenticos/releases/latest) herunter. Für die Installation eines Releases brauchst du weder Rust noch Entwicklungswerkzeuge.
 
 - **macOS:** Wähle Apple silicon oder Intel, öffne die `.dmg` und ziehe AgenticOS entlang des Pfeils nach **Applications**. Starte die App aus Applications und wirf das Disk-Image aus.
-- **macOS ohne Warnung:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` lädt das Release herunter, prüft seine SHA-256 gegen die mitveröffentlichte, kopiert die App nach Applications und entfernt von dieser einen App die Download-Markierung. `brew install --cask vstorm-co/agenticos/agenticos` macht dasselbe über [den Tap des Projekts](https://github.com/vstorm-co/homebrew-agenticos). Releases sind nicht von Apple beglaubigt, daher fragt eine im Browser geladene `.dmg` weiterhin nach **Trotzdem öffnen**.
+- **macOS ohne Warnung:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` lädt das Release herunter, prüft seine SHA-256 gegen die mitveröffentlichte, kopiert die App nach Applications und entfernt von dieser einen App die Download-Markierung. `brew install --cask vstorm-co/agenticos/agenticos` macht dasselbe über [den Tap des Projekts](https://github.com/vstorm-co/homebrew-agenticos). Releases sind nicht von Apple beglaubigt, daher fragt eine im Browser geladene `.dmg` weiterhin nach **Trotzdem öffnen**. Sobald das Projekt das Zertifikat festlegt, mit dem seine Releases signiert sind (`scripts/macos_signing_identity.txt`), lehnt das Skript auch eine App ab, die anders signiert ist.
 - **Windows:** Öffne den Installer `setup.exe`. Er verwendet die Systemsprache und installiert für deinen Benutzer ohne Administratorrechte. Starte AgenticOS aus dem Startmenü. Für verwaltete Installationen steht auch `.msi` bereit.
 - **Linux:** Öffne `.deb` oder `.rpm` im Software-Installer deiner Distribution. Für eine portable Installation erlaube das Ausführen der `.AppImage` in ihren Dateieigenschaften und öffne sie.
 

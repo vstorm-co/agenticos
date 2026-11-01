@@ -78,11 +78,19 @@ class AcpError(Exception):
 
 
 class AgentExited(AcpError):
-    """The agent's process ended, with what it printed on stderr."""
+    """The agent's process ended before it answered.
 
-    def __init__(self, code: int, stderr: str) -> None:
-        tail = stderr.strip()[-2000:]
-        super().__init__(tail or f"The agent stopped with exit code {code}.")
+    What it printed on stderr is deliberately not kept: an adapter's diagnostics routinely
+    hold home-directory paths and registry addresses, and this message reaches the model
+    and the conversation. The person gets what to check instead.
+    """
+
+    def __init__(self, code: int) -> None:
+        super().__init__(
+            f"The agent stopped with exit code {code} before it answered. Check that "
+            "Node.js 22 or later is installed and that the agent is signed in under "
+            "Settings → Desktop app."
+        )
         self.code = code
 
 
@@ -154,7 +162,7 @@ class DevicePipe:
                     self._pending.append(message)
             exit_code = answer.get("exit")
             if not self._pending and isinstance(exit_code, int):
-                raise AgentExited(exit_code, str(answer.get("stderr") or ""))
+                raise AgentExited(exit_code)
         return self._pending.popleft()
 
     async def close(self) -> None:

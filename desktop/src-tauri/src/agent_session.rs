@@ -16,6 +16,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 
@@ -119,14 +120,41 @@ struct Session {
 
 /// Every running agent, by the id the server uses.
 #[derive(Default)]
-pub struct Sessions(Mutex<HashMap<String, Session>>);
+pub struct Sessions {
+    map: Mutex<HashMap<String, Session>>,
+    /// Starts that passed the limit and are still waiting on the person's confirmation.
+    reserved: AtomicUsize,
+}
 
-/// Start `program` in `root` and begin collecting what it writes.
-fn spawn(program: &Path, args: &[String], root: &Path, path_env: Option<String>) -> Result<Session, Refusal> {
+/// A place held for a start, given back when it is dropped - started, refused or failed.
+struct Slot<'a>(&'a AtomicUsize);
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl Sessions {
+    /// Hold a place for one more agent, counting the starts still being confirmed, so
+    /// several chats asking at once cannot all pass a check made before any of them is
+    /// inserted.
+    async fn reserve(&self) -> Result<Slot<'_>, Refusal> {
+        let map = self.map.lock().await;
+        if map.len() + self.reserved.load(Ordering::SeqCst) >= MAX_SESSIONS {
+            return Err(Refusal::new("denied", "Too many agents are running. Stop one first."));
+        }
+        self.reserved.fetch_add(1, Ordering::SeqCst);
+        Ok(Slot(&self.reserved))
+    }
+}
+
+/// Start `program` in `cwd` and begin collecting what it writes.
+fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) -> Result<Session, Refusal> {
     let mut command = tokio::process::Command::new(program);
     command
         .args(args)
-        .current_dir(root)
+        .current_dir(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -250,9 +278,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
     // The adapter runs as the person, so only a folder granted full access may host it.
     let root = local_work::granted_folder(app, &root, Mode::FullAccess)?;
     let sessions = app.state::<Sessions>();
-    if sessions.0.lock().await.len() >= MAX_SESSIONS {
-        return Err(Refusal::new("denied", "Too many agents are running. Stop one first."));
-    }
+    let slot = sessions.reserve().await?;
     let npx = crate::local_agents::locate("npx").ok_or_else(|| {
         Refusal::new(
             "denied",
@@ -262,9 +288,25 @@ async fn open(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
     if !confirm(app, agent, &root).await {
         return Err(Refusal::new("denied", "You did not allow the agent to start."));
     }
-    let session = spawn(&npx, &["--yes".into(), package(agent).into()], &root, path_with(&npx))?;
+    // npx runs from a folder of the app's own: it reads the `.npmrc` of its working
+    // directory, and a repository's `.npmrc` could name a registry that answers the
+    // pinned package's name with its own code. The agent still works in `root`, which
+    // ACP's `session/new` names.
+    let runtime = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| Refusal::new("io", e.to_string()))?
+        .join("agent-runtime");
+    std::fs::create_dir_all(&runtime).map_err(|e| Refusal::new("io", e.to_string()))?;
+    let session = spawn(
+        &npx,
+        &["--yes".into(), package(agent).into()],
+        &runtime,
+        path_with(&npx),
+    )?;
     let id = uuid::Uuid::new_v4().simple().to_string();
-    sessions.0.lock().await.insert(id.clone(), session);
+    sessions.map.lock().await.insert(id.clone(), session);
+    drop(slot);
     Ok(object(serde_json::json!({ "id": id })))
 }
 
@@ -272,7 +314,7 @@ async fn send(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
     let SessionArgs { id } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
     let line = one_message(args.get("message").unwrap_or(&Value::Null))?;
     let sessions = app.state::<Sessions>();
-    let map = sessions.0.lock().await;
+    let map = sessions.map.lock().await;
     let session = map
         .get(&id)
         .ok_or_else(|| Refusal::new("not_found", "That agent is not running."))?;
@@ -326,7 +368,7 @@ async fn poll(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
         .min(MAX_WAIT_MS);
     let output = {
         let sessions = app.state::<Sessions>();
-        let map = sessions.0.lock().await;
+        let map = sessions.map.lock().await;
         Arc::clone(
             &map.get(&id)
                 .ok_or_else(|| Refusal::new("not_found", "That agent is not running."))?
@@ -338,7 +380,7 @@ async fn poll(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, 
 
 async fn close(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
     let SessionArgs { id } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
-    if let Some(mut session) = app.state::<Sessions>().0.lock().await.remove(&id) {
+    if let Some(mut session) = app.state::<Sessions>().map.lock().await.remove(&id) {
         if let Some(kill) = session.kill.take() {
             let _ = kill.send(());
         }
@@ -349,7 +391,7 @@ async fn close(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String,
 /// Stop every agent: the server is gone, so nothing is listening to them.
 pub async fn close_all(app: &AppHandle) {
     let sessions = app.state::<Sessions>();
-    let mut map = sessions.0.lock().await;
+    let mut map = sessions.map.lock().await;
     for (_, mut session) in map.drain() {
         if let Some(kill) = session.kill.take() {
             let _ = kill.send(());
@@ -475,6 +517,20 @@ mod tests {
         lines.keep_stderr(b"end");
         assert_eq!(lines.stderr.len(), STDERR_TAIL);
         assert!(lines.stderr.ends_with(b"end"));
+    }
+
+    #[tokio::test]
+    async fn starts_waiting_on_a_confirmation_count_against_the_limit() {
+        let sessions = Sessions::default();
+        let mut held = Vec::new();
+        for _ in 0..MAX_SESSIONS {
+            held.push(sessions.reserve().await.expect("a free place"));
+        }
+        assert!(sessions.reserve().await.is_err());
+        held.pop();
+        let again = sessions.reserve().await;
+        assert!(again.is_ok());
+        assert!(sessions.reserve().await.is_err());
     }
 
     #[test]

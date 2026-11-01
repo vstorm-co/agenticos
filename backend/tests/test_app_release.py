@@ -349,6 +349,10 @@ def test_self_signed_macos_needs_the_identity_name_before_touching_a_keychain(
         if s.get("name") == "Sign macOS with the stable self-signed certificate"
     )
     assert set(step["env"]) == {"SIGNING_P12", "SIGNING_P12_PASSWORD", "SIGNING_IDENTITY"}
+    # The identity must prove it can sign before the build depends on it.
+    assert step["run"].index("codesign --force --sign") < step["run"].index(
+        "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY"
+    )
     output = tmp_path / "github-env"
     bash = shutil.which("bash")
     assert bash is not None

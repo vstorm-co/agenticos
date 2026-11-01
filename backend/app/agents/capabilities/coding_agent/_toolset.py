@@ -70,6 +70,25 @@ RUN_DESCRIPTION = (
     "Hand a software task to the coding agent, which works on it in the sandbox until done."
 )
 
+LOCAL_DOC = """Hand a software task to the coding agent, which works on it on the person's computer until done.
+
+        The coding agent (Claude Code or Codex) is a separate agent with its own tools: it
+        reads the code, searches it and - when this agent may change code - edits files and
+        runs commands such as tests, then answers. The person watches it work. Hand it whole
+        tasks rather than single steps, and say what done looks like.
+
+        Args:
+            task: The task in full: the goal, the files or area it concerns, constraints, and
+                how to check the result. Every task starts a new session, so the coding agent
+                sees nothing of this conversation or of your earlier tasks but this text.
+            fresh_session: Not used on this computer: every task is a new session.
+
+        Returns:
+            JSON with `outcome` (`completed`, `failed` or `timed_out`), `answer` - what it
+            found or did, in the coding agent's words - `files_changed` and `steps`, what it
+            read and ran. Answer the person from `answer`.
+        """
+
 MISSING_COMMAND = 127
 """A shell's exit code for a program that is not installed."""
 
@@ -457,6 +476,11 @@ def build_coding_toolset(
             return report.model_copy(update={"answer": outcome.stderr.strip()[-2000:]})
         return report
 
+    if runs_on == "this_computer":
+        # The sandbox contract promises that later tasks continue one session, which a
+        # task on this computer does not (each is a new ACP session), so the model is
+        # told what is true of this one.
+        run_coding_agent.__doc__ = LOCAL_DOC
     tools: list[Callable[..., Awaitable[str]]] = [run_coding_agent]
     return FunctionToolset(tools)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "415f949d1f5a"
+source_sha: "e3d63bb1b47b"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -40,7 +40,7 @@ En **Chat controls → Computer use**, selecciona **Local computer** para dar a 
 Descarga el paquete para tu ordenador desde la [versión en GitHub](https://github.com/vstorm-co/agenticos/releases/latest). Instalar una versión no requiere Rust ni herramientas de desarrollo.
 
 - **macOS:** elige Apple silicon o Intel, abre el `.dmg` y arrastra AgenticOS a **Applications** siguiendo la flecha. Inícialo desde Applications y expulsa la imagen de disco.
-- **macOS sin la advertencia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` descarga la versión, comprueba su SHA-256 con el publicado junto a ella, copia la aplicación a Applications y quita la marca de descarga de esa sola aplicación. `brew install --cask vstorm-co/agenticos/agenticos` hace lo mismo mediante [el tap del proyecto](https://github.com/vstorm-co/homebrew-agenticos). Las versiones no están notarizadas por Apple, así que un `.dmg` descargado en el navegador sigue pidiendo **Abrir igualmente**.
+- **macOS sin la advertencia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` descarga la versión, comprueba su SHA-256 con el publicado junto a ella, copia la aplicación a Applications y quita la marca de descarga de esa sola aplicación. `brew install --cask vstorm-co/agenticos/agenticos` hace lo mismo mediante [el tap del proyecto](https://github.com/vstorm-co/homebrew-agenticos). Las versiones no están notarizadas por Apple, así que un `.dmg` descargado en el navegador sigue pidiendo **Abrir igualmente**. Cuando el proyecto fije el certificado con el que firma sus versiones (`scripts/macos_signing_identity.txt`), el script también rechazará una aplicación firmada con cualquier otro.
 - **Windows:** abre el instalador `setup.exe`. Utiliza el idioma del sistema e instala para tu usuario sin permisos de administrador. Abre AgenticOS desde el menú Inicio. También hay un paquete `.msi` para instalaciones administradas.
 - **Linux:** abre `.deb` o `.rpm` en el instalador de software de tu distribución. Para una instalación portátil, permite ejecutar el `.AppImage` en sus propiedades y ábrelo.
 

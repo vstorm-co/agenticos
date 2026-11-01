@@ -372,17 +372,17 @@ async def test_the_device_pipe_polls_from_its_cursor_and_skips_what_is_not_a_mes
     assert device.calls[-1] == ("agent.close", {"id": "proc"})
 
 
-async def test_the_device_pipe_reports_an_exit_with_what_the_agent_printed() -> None:
-    device = FakeDevice([{"lines": [], "cursor": 0, "exit": 1, "stderr": "Error: no node\n"}])
+async def test_the_device_pipe_reports_an_exit_without_what_the_agent_printed() -> None:
+    device = FakeDevice(
+        [{"lines": [], "cursor": 0, "exit": 1, "stderr": "ENOENT /Users/me/.npmrc token=abc\n"}]
+    )
     pipe = acp.DevicePipe(device, "claude_code")
     await pipe.open()
-    with pytest.raises(acp.AgentExited, match="no node") as exited:
+    with pytest.raises(acp.AgentExited) as exited:
         await pipe.receive()
     assert exited.value.code == 1
-
-
-async def test_an_exit_with_nothing_printed_still_names_the_code() -> None:
-    assert acp.AgentExited(137, "  ").message == "The agent stopped with exit code 137."
+    assert "exit code 1" in exited.value.message and "Node.js 22" in exited.value.message
+    assert "npmrc" not in exited.value.message and "token" not in exited.value.message
 
 
 async def test_the_device_pipe_delivers_what_was_written_before_the_exit() -> None:
@@ -546,7 +546,8 @@ async def test_an_agent_that_fails_to_start_says_why(monkeypatch: pytest.MonkeyP
 
     computer.call = poll_exits  # type: ignore[method-assign]
     answer, _ = await _local_task(monkeypatch, computer, _local_workspace())
-    assert "Node.js 22 is required" in answer
+    assert "exit code 1" in answer and "Node.js 22 or later" in answer
+    assert "is required" not in answer
 
 
 async def test_a_stopped_local_task_closes_its_panel_and_the_agent(
@@ -674,3 +675,28 @@ def test_a_rejection_is_recognised_by_the_option_that_was_chosen() -> None:
     params = {"options": [ALLOW, REJECT, "junk"]}
     assert acp._was_rejected(params, {"outcome": {"outcome": "selected", "optionId": "no"}})
     assert not acp._was_rejected(params, {"outcome": {"outcome": "selected", "optionId": "ok"}})
+
+
+def test_a_task_on_this_computer_does_not_promise_a_session_it_does_not_keep() -> None:
+    local = CodingAgent(runs_on="this_computer")
+    assert "Each task starts a new session" in local.get_instructions()
+    assert "continue the same session" not in local.get_instructions()
+    schema = local.get_toolset().tools["run_coding_agent"].function_schema.json_schema  # type: ignore[attr-defined]
+    parameters = {
+        name: " ".join(spec["description"].lower().split())
+        for name, spec in schema["properties"].items()
+    }
+    assert "every task starts a new session" in parameters["task"]
+    assert "every task is a new session" in parameters["fresh_session"]
+    sandbox = CodingAgent().get_toolset().tools["run_coding_agent"].function_schema.json_schema  # type: ignore[attr-defined]
+    assert "continuing" in sandbox["properties"]["fresh_session"]["description"].lower()
+
+
+def test_a_model_is_refused_where_the_agent_uses_its_own_and_a_gateway_is_dropped() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="leave Model empty"):
+        CodingAgentConfig(runs_on="this_computer", model="anthropic:claude-opus-5-5")
+    config = CodingAgentConfig(runs_on="this_computer", base_url="https://openrouter.ai/api")
+    assert config.base_url is None and config.model is None
+    assert CodingAgentConfig(model="anthropic:claude-opus-5-5").model is not None

@@ -8622,7 +8622,7 @@
       },
       "model": {
         "title": "Modell",
-        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent."
+        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent. Auf diesem Computer nicht verfügbar; dort nutzt der Agent seine eigene Einstellung."
       },
       "base_url": {
         "title": "Anthropic-kompatibler Endpunkt",

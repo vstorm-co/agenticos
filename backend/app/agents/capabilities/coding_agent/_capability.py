@@ -51,10 +51,15 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
             if self.runs_on == "this_computer"
             else "in your sandbox"
         )
+        continuation = (
+            "Each task starts a new session: it does not remember your earlier tasks, "
+            "so put everything it needs in the task."
+            if self.runs_on == "this_computer"
+            else "Its later tasks in this conversation continue the same session."
+        )
         return (
             f"You can hand software work to {label}, a coding agent that works {where}: it {reach}. Use run_coding_agent with the whole task, then tell "
-            "the person what it found or did. Its later tasks in this conversation "
-            "continue the same session."
+            "the person what it found or did. " + continuation
         )
 
     def get_toolset(self) -> AbstractToolset[Any]:

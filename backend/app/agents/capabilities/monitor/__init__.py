@@ -29,6 +29,8 @@ MONITOR_CAPABILITY_ID = "monitor"
         CapabilityToolInfo(
             id="list_monitors",
             description="List this run's watches with their state and the last lines they matched.",
+            # It only reads, so Human approval does not pause a run to ask about it.
+            side_effecting=False,
         ),
         CapabilityToolInfo(id="stop_monitor", description="Stop a watch and the command it runs."),
     ),
