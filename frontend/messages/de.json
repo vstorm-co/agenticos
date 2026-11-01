@@ -7796,7 +7796,7 @@
       "modelHint": "Gewählt, nie voreingestellt: Die Rolle gibt Geld aus, das niemand im Moment angefordert hat.",
       "budget": "Monatsbudget (USD)",
       "noBudget": "Keine eigene Obergrenze",
-      "invalid": "Geben Sie eine Zahl ab null ein.",
+      "invalid": "Geben Sie eine Zahl von 0 aufwärts ein.",
       "modelRequired": "Wählen Sie das Modell dieser Rolle, bevor Sie sie einschalten.",
       "save": "Speichern",
       "saved": "Gespeichert",

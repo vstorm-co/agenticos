@@ -34,6 +34,7 @@ import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
@@ -134,6 +135,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
   ["memory", memory],
+  ["system-agents", systemAgents],
   ["ml/calls", mlCalls],
   ["me/channel-link", channelLink],
   ["me/mcp-connections", myMcpConnections],

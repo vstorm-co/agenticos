@@ -59,6 +59,7 @@ from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.sync_source import SyncSource
+from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.table_view import TableView
 from app.db.models.user import User
 from app.db.models.user_slash_command import UserSlashCommand
@@ -107,6 +108,7 @@ from app.schemas.secret import SecretUpdate
 from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.sync_source import SyncSourceUpdate
+from app.schemas.system_agent import SystemAgentUpdate
 from app.schemas.table_view import TableViewUpdate
 from app.schemas.user import UserUpdate
 from app.schemas.user_slash_command import UserSlashCommandUpdate
@@ -153,6 +155,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,
     LocalServiceUpdate: LocalService,
+    SystemAgentUpdate: SystemAgentProfile,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
     ModelProfileUpdate: ModelProfile,
