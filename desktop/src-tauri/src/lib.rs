@@ -28,6 +28,7 @@ mod local_browser;
 mod local_fs;
 mod local_instances;
 mod local_services;
+mod local_skills;
 mod local_stack;
 mod local_work;
 mod managed;
@@ -1442,6 +1443,7 @@ pub fn run() {
             local_agents::local_agents,
             local_agents::local_agent_sign_in,
             local_agents::local_agent_sign_out,
+            local_skills::local_skills,
             local_services::local_services,
             local_services::local_save_service,
             local_services::local_remove_service

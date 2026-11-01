@@ -531,6 +531,11 @@ async fn run(
             .await
             .map_err(|e| (e, "denied"));
     }
+    if op.starts_with("local.") {
+        return crate::local_skills::run(app, op, &args)
+            .await
+            .map_err(|refusal| (refusal.message, refusal.kind));
+    }
     if op.starts_with("agent.") {
         return crate::agent_session::run(app, op, &args)
             .await
