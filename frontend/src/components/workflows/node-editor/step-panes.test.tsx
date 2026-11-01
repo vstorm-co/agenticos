@@ -454,6 +454,17 @@ describe("OutputPane", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
+  it("opens the setup problem of another step when this one has none", async () => {
+    seed(line({}, node("a", "gone.step")));
+    renderOutput();
+
+    await userEvent.click(screen.getByRole("button", { name: "Review setup before testing" }));
+
+    expect(store.getState().problemsRevealed).toBe(true);
+    expect(store.getState().editingNodeId).toBe("a");
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   it("cannot test a step inside a loop, a draft with problems or one still saving", () => {
     const looped = {
       ...line(),

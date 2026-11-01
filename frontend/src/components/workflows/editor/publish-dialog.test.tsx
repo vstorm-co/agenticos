@@ -133,6 +133,29 @@ describe("PublishDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
+  it("reveals the secret of each webhook a publish switched on, and skips one it has no secret for", async () => {
+    const hook = graph({ entry: "w", nodes: [{ ...echo("w"), definition_id: "trigger.webhook" }] });
+    seed(hook, 3);
+    const first = "https://agents.example.com/api/v1/workflow-webhooks/first";
+    const exposures = [
+      { node_instance_id: "w", webhook_url: first },
+      { node_instance_id: "quiet", webhook_url: "https://agents.example.com/quiet" },
+      { node_instance_id: "no-url", webhook_url: null },
+    ] as unknown as WorkflowPublished["exposures"];
+    const publish = vi.fn().mockResolvedValue({
+      ...publishedVersion({ trigger: "trigger.webhook" }),
+      exposures,
+      trigger_secrets: { w: "first-secret", "no-url": "orphan" },
+    });
+    render(<PublishDialog workflow={WORKFLOW} catalog={[WEBHOOK]} publish={publish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish version" }));
+
+    expect(await screen.findByDisplayValue(first)).toBeVisible();
+    expect(screen.queryByDisplayValue("https://agents.example.com/quiet")).toBeNull();
+  });
+
   it("says a draft with no trigger starts by hand, and a republished webhook shows nothing", async () => {
     seed(VALID_GRAPH, 2);
     const publish = vi.fn().mockResolvedValue(

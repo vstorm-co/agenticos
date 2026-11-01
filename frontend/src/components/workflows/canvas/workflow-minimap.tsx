@@ -51,17 +51,7 @@ export function minimapWires(
   return paths;
 }
 
-function OverviewNode({
-  id,
-  x,
-  y,
-  width,
-  height,
-  color,
-  className,
-  selected,
-  onClick,
-}: MiniMapNodeProps) {
+function OverviewNode({ id, x, y, width, height, color, className, selected }: MiniMapNodeProps) {
   const wires = useContext(Wires);
   const note = className === "note";
   const radius = className === "trigger" ? height / 2 : 10;
@@ -79,7 +69,7 @@ function OverviewNode({
           pointerEvents="none"
         />
       ))}
-      <g onClick={onClick ? (event) => onClick(event, id) : undefined}>
+      <g>
         <rect
           className="react-flow__minimap-node"
           x={x}

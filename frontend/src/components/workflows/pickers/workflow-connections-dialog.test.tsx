@@ -34,3 +34,20 @@ it("opens the requested service and refreshes workflow account choices on return
   expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.mcpConnections.all() });
   expect(close).toHaveBeenCalledWith(false);
 });
+
+it("refreshes the account choices when the dialog is dismissed with Escape", async () => {
+  const client = new QueryClient();
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  const close = vi.fn();
+  render(
+    <QueryClientProvider client={client}>
+      <WorkflowConnectionsDialog open onOpenChange={close} />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("dialog");
+
+  await userEvent.keyboard("{Escape}");
+
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.mcpConnections.all() });
+  expect(close).toHaveBeenCalledWith(false);
+});

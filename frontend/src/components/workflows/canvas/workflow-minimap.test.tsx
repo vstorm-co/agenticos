@@ -1,6 +1,13 @@
-import type { Edge, Node } from "@xyflow/react";
-import { describe, expect, it } from "vitest";
-import { minimapWires } from "./workflow-minimap";
+import { fireEvent, render } from "@testing-library/react";
+import { ReactFlow, ReactFlowProvider, type Edge, type Node } from "@xyflow/react";
+import { describe, expect, it, vi } from "vitest";
+import { WorkflowMinimap, minimapWires } from "./workflow-minimap";
+
+const flow = vi.hoisted(() => ({ setCenter: vi.fn(), zoom: 1.5 }));
+vi.mock("@xyflow/react", async (original) => ({
+  ...(await original<typeof import("@xyflow/react")>()),
+  useReactFlow: () => ({ setCenter: flow.setCenter, getZoom: () => flow.zoom }),
+}));
 
 const nodes: Node[] = [
   { id: "a", position: { x: 0, y: 10 }, data: {}, measured: { width: 240, height: 80 } },
@@ -33,5 +40,29 @@ describe("workflow overview wires", () => {
     expect(wires.get("b")).toHaveLength(1);
     expect(wires.get("a")).toHaveLength(1);
     expect(wires.has("c")).toBe(false);
+  });
+});
+
+describe("the overview map", () => {
+  it("draws every step and centres the canvas where the map is clicked, keeping the zoom", () => {
+    const shown: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: {}, width: 240, height: 80 },
+      { id: "n", type: "note", position: { x: 0, y: 200 }, data: {}, width: 240, height: 80 },
+      { id: "t", type: "trigger", position: { x: 300, y: 0 }, data: {}, width: 240, height: 80 },
+    ];
+    const { container, getByTestId } = render(
+      <ReactFlowProvider>
+        <ReactFlow nodes={shown} edges={[{ id: "at", source: "a", target: "t" }]}>
+          <WorkflowMinimap />
+        </ReactFlow>
+      </ReactFlowProvider>,
+    );
+
+    expect(container.querySelectorAll(".react-flow__minimap-node")).toHaveLength(3);
+    fireEvent.click(getByTestId("rf__minimap").querySelector("svg") as SVGElement);
+
+    expect(flow.setCenter).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), {
+      zoom: 1.5,
+    });
   });
 });

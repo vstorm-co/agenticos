@@ -186,3 +186,36 @@ it("changes note dimensions and saves expanded edits while returning focus", asy
   expect(stored()).toBe("## Updated\n\nKeep this note.");
   expect(document.activeElement).toBe(screen.getByRole("button", { name: "Note actions" }));
 });
+
+it("opens a note full-size on a read-only canvas and closes it with Done or Escape, changing nothing", async () => {
+  seed([note({ text: "Kept as written" })]);
+  render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} readOnly />);
+
+  await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Open note" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Kept as written");
+  expect(screen.getByRole("dialog").querySelector("textarea")).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Done" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+
+  await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Open note" }));
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(stored()).toBe("Kept as written");
+});
+
+it("saves an expanded edit when the dialog is dismissed with Escape", async () => {
+  seed([note()]);
+  render(<WorkflowCanvas workflow={WORKFLOW} catalog={[ACT]} />);
+
+  await userEvent.click(screen.getByRole("button", { name: "Note actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Open note" }));
+  fireEvent.change(screen.getByRole("dialog").querySelector("textarea")!, {
+    target: { value: "Dismissed, not lost" },
+  });
+  await userEvent.keyboard("{Escape}");
+
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(stored()).toBe("Dismissed, not lost");
+});

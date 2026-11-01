@@ -287,6 +287,33 @@ describe("NodePicker app groups", () => {
     expect(row.querySelector("svg.lucide-zap")).toBeNull();
   });
 
+  it("finds an unconnected catalog service by search and opens it with the search cleared", async () => {
+    apps.connections = [];
+    apps.canConnect = true;
+    apps.servers = [
+      {
+        key: "airtable",
+        name: "Airtable",
+        description: "",
+        category: "productivity",
+        auth: "oauth",
+        url: "https://mcp.airtable.com/mcp",
+        icon: null,
+        docs_url: null,
+        token_hint: null,
+      },
+    ];
+    mountApps();
+    const search = screen.getByPlaceholderText("Search steps");
+
+    await userEvent.type(search, "airt");
+    expect(screen.queryByText("No nodes match your search.")).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: /^Airtable/ }));
+
+    expect(search).toHaveValue("");
+    expect(screen.getByRole("option", { name: /Connect Airtable/ })).toBeVisible();
+  });
+
   it("refreshes an untested server inline only for connection managers", async () => {
     apps.connections = [connection({ last_tools: null })];
     apps.canConnect = true;

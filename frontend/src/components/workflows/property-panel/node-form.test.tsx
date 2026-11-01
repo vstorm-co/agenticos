@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Binding, NodeDefinition } from "@/lib/workflows/types";
 import {
@@ -201,23 +201,23 @@ vi.mock("@/components/orgs/member-picker", () => ({
 }));
 
 const permission = vi.hoisted(() => ({ canManage: true }));
+const tableColumns = vi.hoisted(() => ({
+  columns: [
+    {
+      id: "name-col",
+      label: "Full name",
+      type: "text",
+      archived: false,
+      nullable: true,
+      default: null,
+    },
+    { id: "computed", label: "Computed", type: "formula", archived: false },
+  ] as Record<string, unknown>[],
+}));
+const initialColumns = tableColumns.columns;
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: () => permission.canManage }),
-  useWorkflowTable: () => ({
-    table: {
-      columns: [
-        {
-          id: "name-col",
-          label: "Full name",
-          type: "text",
-          archived: false,
-          nullable: true,
-          default: null,
-        },
-        { id: "computed", label: "Computed", type: "formula", archived: false },
-      ],
-    },
-  }),
+  useWorkflowTable: () => ({ table: { columns: tableColumns.columns } }),
   useKnowledgeBases: () => ({ kbs: [] }),
   useMembers: () => ({ members: [] }),
   useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
@@ -1278,6 +1278,10 @@ describe("an approval step's choices", () => {
   });
 });
 
+afterEach(() => {
+  tableColumns.columns = initialColumns;
+});
+
 it("shows writable table columns as immediate record value fields", async () => {
   renderForm({
     folded: true,
@@ -1349,4 +1353,157 @@ describe("a step's primary controls", () => {
     expect(screen.getByLabelText("Format")).toBeInTheDocument();
     expect(screen.getByText(payload)).toBeInTheDocument();
   });
+});
+
+describe("record values from a table's columns", () => {
+  const column = (overrides: Record<string, unknown>) => ({
+    archived: false,
+    nullable: true,
+    default: null,
+    options: [],
+    ...overrides,
+  });
+  const recordStep = (id = "table.record.create") =>
+    makeDefinition({
+      id,
+      input_schema: {
+        type: "object",
+        properties: { values: { type: "object", title: "Values", additionalProperties: {} } },
+      },
+    });
+
+  it("types each field after its column, offers a choice's live options and marks the required ones", () => {
+    tableColumns.columns = [
+      column({ id: "title", label: "Title", type: "text", nullable: false }),
+      column({ id: "notes", label: "Notes", type: "long_text" }),
+      column({ id: "done", label: "Done", type: "boolean" }),
+      column({ id: "price", label: "Price", type: "number" }),
+      column({ id: "stars", label: "Stars", type: "rating" }),
+      column({ id: "tags", label: "Tags", type: "multi_select" }),
+      column({
+        id: "stage",
+        label: "Stage",
+        type: "single_select",
+        options: [
+          { id: "o1", label: "Open", archived: false },
+          { id: "o2", label: "Gone", archived: true },
+        ],
+      }),
+      column({ id: "old", label: "Old", type: "text", archived: true }),
+    ];
+    renderForm({
+      folded: true,
+      config: { table: { table_id: "table-id", schema_version: 1, column_ids: null } },
+      definition: recordStep(),
+    });
+
+    for (const label of ["Title", "Notes", "Done", "Price", "Stars", "Tags", "Stage"]) {
+      expect(screen.getByText(label)).toBeVisible();
+    }
+    expect(screen.queryByText("Old")).toBeNull();
+    expect(screen.getAllByText("*").length).toBeGreaterThan(0);
+  });
+
+  it("shows only the columns the step was narrowed to", () => {
+    tableColumns.columns = [
+      column({ id: "title", label: "Title", type: "text" }),
+      column({ id: "notes", label: "Notes", type: "text" }),
+    ];
+    renderForm({
+      folded: true,
+      config: { table: { table_id: "table-id", schema_version: 1, column_ids: ["notes"] } },
+      definition: recordStep("table.record.update"),
+    });
+
+    expect(screen.getByText("Notes")).toBeVisible();
+    expect(screen.queryByText("Title")).toBeNull();
+  });
+
+  it("falls back to one untyped values field once the whole object is bound", () => {
+    tableColumns.columns = [column({ id: "title", label: "Title", type: "text" })];
+    renderForm({
+      folded: true,
+      config: { table: { table_id: "table-id", schema_version: 1, column_ids: null } },
+      bindings: [
+        {
+          target_node_id: "N",
+          target_field: "values",
+          source: { kind: "literal", value: {} },
+        } as Binding,
+      ],
+      definition: recordStep(),
+    });
+
+    expect(screen.queryByText("Title")).toBeNull();
+  });
+});
+
+it("offers the notification channels a notification step sends through", () => {
+  renderForm({
+    definition: makeDefinition({
+      id: "notification.send",
+      config_schema: {
+        type: "object",
+        properties: { channels: { type: "array", items: { type: "string" }, title: "Channels" } },
+      },
+    }),
+  });
+
+  expect(screen.getByText("Channels", { selector: "legend" })).toBeVisible();
+});
+
+it("keeps a file's own fields reachable while a legacy binding to one of them stands", () => {
+  renderForm({
+    bindings: [
+      {
+        target_node_id: "N",
+        target_field: "file/file_id",
+        source: { kind: "literal", value: "f1" },
+      } as Binding,
+    ],
+    definition: makeDefinition({
+      id: "convert.json_to_csv",
+      input_schema: {
+        type: "object",
+        properties: { file: { $ref: "#/$defs/FileRef" } },
+        required: ["file"],
+        $defs: {
+          FileRef: {
+            type: "object",
+            properties: {
+              file_id: { type: "string" },
+              content_type: { type: "string" },
+              byte_size: { type: "integer" },
+            },
+            required: ["file_id", "content_type", "byte_size"],
+          },
+        },
+      },
+    }),
+  });
+
+  const summary = screen.getByText("File", { selector: "summary" });
+  fireEvent.click(summary);
+  expect(screen.getAllByText(/File ID/i).length).toBeGreaterThan(0);
+});
+
+it("writes the chosen HTTP authentication into the step's settings", async () => {
+  const { updateNodeConfig } = renderForm({
+    folded: true,
+    definition: makeDefinition({
+      id: "http.request",
+      config_schema: {
+        type: "object",
+        properties: { auth: { type: "string", title: "Authentication" } },
+      },
+    }),
+  });
+
+  await userEvent.click(screen.getByRole("combobox", { name: /Authentication|Type/ }));
+  await userEvent.click(screen.getByRole("option", { name: /Bearer/i }));
+
+  expect(updateNodeConfig).toHaveBeenLastCalledWith(
+    "N",
+    expect.objectContaining({ auth: expect.objectContaining({ kind: "bearer" }) }),
+  );
 });

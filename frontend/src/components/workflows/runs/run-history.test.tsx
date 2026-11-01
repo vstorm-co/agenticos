@@ -21,6 +21,8 @@ const url = vi.hoisted(() => ({ values: {} as Record<string, string | null>, set
 const history = vi.hoisted(() => ({
   runs: [] as WorkflowRunRead[],
   total: 0,
+  error: null as Error | null,
+  refetch: vi.fn(),
   query: vi.fn(),
 }));
 vi.mock("@/hooks", () => ({
@@ -30,7 +32,13 @@ vi.mock("@/hooks", () => ({
   ],
   useRunHistory: (query: unknown) => {
     history.query(query);
-    return { runs: history.runs, total: history.total, isLoading: false };
+    return {
+      runs: history.runs,
+      total: history.total,
+      isLoading: false,
+      error: history.error,
+      refetch: history.refetch,
+    };
   },
   useWorkflows: () => ({ workflows: [{ id: "wf", name: "Lead intake" }] }),
 }));
@@ -68,6 +76,8 @@ beforeEach(() => {
   push.mockReset();
   history.runs = [];
   history.total = 0;
+  history.error = null;
+  history.refetch.mockReset();
 });
 
 describe("RunHistory", () => {
@@ -133,6 +143,16 @@ describe("RunHistory", () => {
       expect.objectContaining({ createdAfter: undefined }),
     );
     expect(screen.getByText("No runs yet")).toBeTruthy();
+  });
+
+  it("says the history could not load, and reads it again from Retry", async () => {
+    history.error = new Error("boom");
+    render(<RunHistory />);
+
+    expect(screen.queryByText("No runs match")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(history.refetch).toHaveBeenCalledOnce();
   });
 
   it("says when a workflow has not run yet", () => {
