@@ -1,5 +1,5 @@
 ---
-source_sha: "1ea054830f9e"
+source_sha: "eb981363b091"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1092,8 +1092,10 @@ permisos solo cuando ha vinculado ese número a su cuenta como cualquier otra id
 tiene una respuesta. Una respuesta es texto plano - se quitan los marcadores de markdown y un
 enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso de que el resto
 está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
-transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación se decide en la
-consola a la que apunta el texto. Los archivos enviados por SMS se ignoran.
+transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
+llega como líneas numeradas y se responde enviando el número por SMS. Un solo dígito que encaje con
+la última pregunta enviada a ese número es la respuesta, de un solo uso y válida un día; cualquier
+otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
 
 ## Slack { #slack }
 

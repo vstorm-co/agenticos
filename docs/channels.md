@@ -1036,8 +1036,10 @@ channel identity.
 API when it has an answer. A reply is plain text - markdown markers are removed and a link
 is written out in full - and is cut at about 1,500 characters with a note that the rest is
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
-message or press a button, so an approval is decided in the console the text points at.
-Media sent by text is ignored.
+message or press a button, so an approval or a question arrives as numbered lines and is
+answered by texting the number. A lone digit that fits the last prompt sent to that number
+is the answer, used once and good for a day; any other text is an ordinary message. Media
+sent by text is ignored.
 
 ## Slack
 

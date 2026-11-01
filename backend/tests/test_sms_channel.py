@@ -290,3 +290,127 @@ class TestCreatingABot:
             ChannelBotService._check_sms(self._data(webhook_mode=False))
         with pytest.raises(BadRequestError, match="ACCOUNT_SID"):
             ChannelBotService._check_sms(self._data(token="just-a-token"))
+
+
+class _Redis:
+    """The few Redis calls the prompt store makes, in memory."""
+
+    def __init__(self) -> None:
+        self.data: dict[str, str] = {}
+        self.ttl: dict[str, int] = {}
+
+    async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        self.data[key] = value
+        if ttl is not None:
+            self.ttl[key] = ttl
+        return True
+
+    async def get(self, key: str) -> str | None:
+        return self.data.get(key)
+
+    async def getdel(self, key: str) -> str | None:
+        return self.data.pop(key, None)
+
+
+@pytest.fixture
+def prompts() -> _Redis:
+    from app.services.channels import sms_prompts
+
+    redis = _Redis()
+    sms_prompts.configure(redis)  # type: ignore[arg-type]
+    yield redis
+    sms_prompts.configure(None)
+
+
+class TestNumberedAnswers:
+    async def test_a_digit_that_fits_answers_once_and_names_the_choice(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+
+        await sms_prompts.remember("bot", "+1555", ["p:1", "p:2"])
+
+        assert await sms_prompts.answer("bot", "+1555", " 2 ") == "p:2"
+        assert await sms_prompts.answer("bot", "+1555", "2") is None, "used once"
+        assert prompts.ttl["channel:sms:prompt:bot:+1555"] == sms_prompts.TTL_SECONDS
+
+    @pytest.mark.parametrize("reply", ["3", "0", "12", "yes", "", "1 please"])
+    async def test_anything_that_does_not_fit_is_an_ordinary_message(
+        self, prompts: _Redis, reply: str
+    ) -> None:
+        from app.services.channels import sms_prompts
+
+        await sms_prompts.remember("bot", "+1555", ["p:1", "p:2"])
+
+        assert await sms_prompts.answer("bot", "+1555", reply) is None
+        assert await sms_prompts.answer("bot", "+1555", "1") == "p:1", "the prompt is still open"
+
+    async def test_nothing_pending_or_nowhere_to_keep_it_is_never_an_answer(self) -> None:
+        from app.services.channels import sms_prompts
+
+        sms_prompts.configure(None)
+        await sms_prompts.remember("bot", "+1555", ["p:1"])
+        assert await sms_prompts.answer("bot", "+1555", "1") is None
+        sms_prompts.configure(_Redis())  # type: ignore[arg-type]
+        assert await sms_prompts.answer("bot", "+1555", "1") is None
+        sms_prompts.configure(None)
+
+    async def test_a_prompt_is_sent_as_numbered_lines_and_remembered(self, prompts: _Redis) -> None:
+        from app.services.channels.base import ChannelChoice, PromptMessage
+
+        sent: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            sent.append(request)
+            return httpx.Response(201, json={})
+
+        adapter = SmsAdapter(api="https://twilio.test")
+        adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        await adapter.send_prompt(
+            TOKEN,
+            PromptMessage(
+                platform_chat_id="+15559998888",
+                text="Send the invoice?",
+                choices=[ChannelChoice("Approve", "p:0"), ChannelChoice("Deny", "p:1")],
+                bot_id="bot-1",
+            ),
+        )
+
+        body = sent[0].content.decode()
+        assert "1.+Approve" in body and "2.+Deny" in body and "Reply+with+the+number" in body
+        assert prompts.data["channel:sms:prompt:bot-1:+15559998888"] == '["p:0", "p:1"]'
+        await adapter.aclose()
+
+    async def test_a_digit_reply_to_a_prompt_is_a_press_not_a_message(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+
+        bot = MagicMock(id=uuid4(), platform="sms")
+        await sms_prompts.remember(str(bot.id), "+15559998888", ["p:0", "p:1"])
+        params = {"From": "+15559998888", "Body": "2", "MessageSid": "SM9"}
+        spawned: list[str] = []
+        pressed = MagicMock()
+        with (
+            patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
+            patch(
+                "app.api.routes.v1.sms_webhook.spawn",
+                side_effect=lambda coro, name: (spawned.append(name), coro.close()),
+            ),
+            patch("app.api.routes.v1.sms_webhook.process_channel_press", new=pressed),
+            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=MagicMock()),
+        ):
+            async with _client(bot) as client:
+                response = await client.post(
+                    f"{settings.API_V1_STR}/sms/{bot.id}/webhook",
+                    content=urlencode(params),
+                    headers=_signed(bot.id, params),
+                )
+
+        assert response.status_code == 200 and spawned == [f"sms_press:{bot.id}"]
+        press = pressed.call_args.args[0]
+        assert (press.platform, press.value, press.platform_user_id) == (
+            "sms",
+            "p:1",
+            "+15559998888",
+        )

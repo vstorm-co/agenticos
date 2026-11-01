@@ -35,7 +35,13 @@ from urllib.parse import parse_qsl
 
 import httpx
 
-from app.services.channels.base import ChannelAdapter, IncomingMessage, OutgoingMessage
+from app.services.channels import sms_prompts
+from app.services.channels.base import (
+    ChannelAdapter,
+    IncomingMessage,
+    OutgoingMessage,
+    PromptMessage,
+)
 from app.services.channels.exceptions import ChannelNotConfigured
 
 logger = logging.getLogger(__name__)
@@ -129,6 +135,24 @@ class SmsAdapter(ChannelAdapter):
             data={"To": msg.platform_chat_id, "From": from_number, "Body": body},
         )
         response.raise_for_status()
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """Send the question with its choices numbered, and remember what each number means.
+
+        There are no buttons to press, so the person replies with a digit; the router
+        reads it back through `sms_prompts.answer`.
+        """
+        lines = [f"{number}. {choice.label}" for number, choice in enumerate(prompt.choices, 1)]
+        await sms_prompts.remember(
+            prompt.bot_id, prompt.platform_chat_id, [choice.value for choice in prompt.choices]
+        )
+        await self.send_message(
+            bot_token,
+            OutgoingMessage(
+                platform_chat_id=prompt.platform_chat_id,
+                text=f"{prompt.text}\n" + "\n".join(lines) + "\nReply with the number.",
+            ),
+        )
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """SMS only ever arrives by webhook; there is nothing to poll."""

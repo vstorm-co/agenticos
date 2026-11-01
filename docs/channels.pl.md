@@ -1,5 +1,5 @@
 ---
-source_sha: "1ea054830f9e"
+source_sha: "eb981363b091"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1072,8 +1072,10 @@ dopiero po powiązaniu numeru ze swoim kontem jak każdej innej tożsamości kan
 Odpowiedź to zwykły tekst — znaczniki markdown są usuwane, a link wypisany w całości — i jest
 ucinana przy około 1500 znaków z informacją, że reszta jest w AgenticOS, więc jedno pytanie
 kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytować wiadomości ani
-przycisków, więc zatwierdzenie zapada w konsoli, do której prowadzi tekst. Multimedia wysłane
-SMS-em są ignorowane.
+przycisków, więc zatwierdzenie lub pytanie przychodzi jako ponumerowane linie, a odpowiada się
+SMS-em z numerem. Sama cyfra pasująca do ostatniego pytania wysłanego na ten numer jest
+odpowiedzią, jednorazową i ważną dobę; każdy inny tekst to zwykła wiadomość. Multimedia
+wysłane SMS-em są ignorowane.
 
 ## Slack { #slack }
 

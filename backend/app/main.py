@@ -58,6 +58,7 @@ from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import connection_state as channel_connection_state
 from app.services.channels import membership as channel_membership
+from app.services.channels import sms_prompts
 from app.services.channels import stream_lease
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 from app.services.voice import LIVE_CALLS, VoiceCallReaper
@@ -340,6 +341,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     register_adapter(_teams_adapter)
 
     # SMS arrives only by webhook and holds no connection to open (#2082).
+    sms_prompts.configure(redis_client)
     _sms_adapter = SmsAdapter()
     register_adapter(_sms_adapter)
 

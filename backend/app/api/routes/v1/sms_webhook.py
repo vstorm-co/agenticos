@@ -9,9 +9,10 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from app.api.deps import ChannelBotSvc
 from app.core.background import spawn
 from app.services.channel_bot import unseal_bot_token
-from app.services.channels import get_adapter, inbound_webhook_url
+from app.services.channels import get_adapter, inbound_webhook_url, sms_prompts
+from app.services.channels.base import IncomingPress
 from app.services.channels.sms import SIGNATURE_HEADER, SIGNED_URL_HEADER, split_credentials
-from app.worker.background.channel import process_channel_event
+from app.worker.background.channel import process_channel_event, process_channel_press
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,20 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
     if not adapter.verify_webhook_signature(headers, auth_token, body):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
     incoming = adapter.parse_incoming(dict(parse_qsl(body, keep_blank_values=True)), str(bot_id))
-    if incoming is not None:
+    if incoming is None:
+        return Response(content=_EMPTY_TWIML, media_type="text/xml")
+    # A lone digit that fits what was last asked of this number is the answer to it.
+    chosen = await sms_prompts.answer(str(bot_id), incoming.platform_chat_id, incoming.text)
+    if chosen is not None:
+        press = IncomingPress(
+            platform="sms",
+            bot_id=str(bot_id),
+            platform_user_id=incoming.platform_user_id,
+            platform_chat_id=incoming.platform_chat_id,
+            value=chosen,
+            message_id=incoming.message_id,
+        )
+        spawn(process_channel_press(press), name=f"sms_press:{bot_id}")
+    else:
         spawn(process_channel_event(incoming), name=f"sms_event:{bot_id}")
     return Response(content=_EMPTY_TWIML, media_type="text/xml")

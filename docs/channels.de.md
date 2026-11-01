@@ -1,5 +1,5 @@
 ---
-source_sha: "1ea054830f9e"
+source_sha: "eb981363b091"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1146,8 +1146,11 @@ Konto verknüpft hat.
 sobald er eine Antwort hat. Eine Antwort ist reiner Text - Markdown-Zeichen werden entfernt, ein
 Link wird ausgeschrieben - und bei etwa 1.500 Zeichen mit dem Hinweis gekürzt, dass der Rest in
 AgenticOS steht; eine Frage kostet so einige Segmente, nicht ein Dutzend. SMS kann nicht streamen,
-keine Nachricht bearbeiten und keine Schaltfläche drücken, eine Freigabe wird deshalb in der
-Konsole entschieden, auf die der Text verweist. Per SMS gesendete Medien werden ignoriert.
+keine Nachricht bearbeiten und keine Schaltfläche drücken, eine Freigabe oder Frage kommt deshalb
+als nummerierte Zeilen an und wird per SMS mit der Nummer beantwortet. Eine einzelne Ziffer, die
+zur letzten an diese Nummer gesendeten Frage passt, ist die Antwort, einmal nutzbar und einen Tag
+gültig; jeder andere Text ist eine gewöhnliche Nachricht. Per SMS gesendete Medien werden
+ignoriert.
 
 ## Slack { #slack }
 
