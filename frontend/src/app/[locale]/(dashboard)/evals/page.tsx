@@ -67,6 +67,7 @@ export default function EvalRunsPage() {
       {header}
       <ListCard
         headerTour="evals-all"
+        namedByPage
         title={t("title")}
         counted={error || isLoading ? null : tEvals("runCount", { count: total })}
       >

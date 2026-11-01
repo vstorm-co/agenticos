@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ClipboardCheck, FlaskConical, ListChecks, Scale, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -213,13 +214,18 @@ export default function DatasetPage({ params }: PageProps) {
       )}
       <Tabs value={shown} onValueChange={showTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
+          <TabsTrigger value="cases">
+            <ListChecks className="mr-1.5 size-4 shrink-0" aria-hidden />
+            {t("cases")}
+          </TabsTrigger>
           {dataset.can_edit && (
             <TabsTrigger value="generated" data-tour="datasets-generated-tab">
+              <Sparkles className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("generatedTab", { count: dataset.pending_proposals })}
             </TabsTrigger>
           )}
           <TabsTrigger value="grading" data-tour="datasets-grading-tab">
+            <Scale className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("scoring.title")}
             {gradingUnsaved && (
               <span
@@ -231,15 +237,18 @@ export default function DatasetPage({ params }: PageProps) {
           </TabsTrigger>
           {canViewRuns && (
             <TabsTrigger value="evals" data-tour="datasets-evals-tab">
+              <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("evals")}
             </TabsTrigger>
           )}
           <TabsTrigger value="review" data-tour="datasets-review-tab">
+            <ClipboardCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
             {t("scoring.scores")}
           </TabsTrigger>
         </TabsList>
         <TabsContent value="cases">
           <ListCard
+            namedByPage
             title={t("cases")}
             counted={t("caseCount", { count: cases.total })}
             controls={

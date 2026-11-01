@@ -42,6 +42,8 @@ describe("DatasetCard", () => {
     expect(screen.getByText("v3")).toBeInTheDocument();
     expect(screen.getByText("12 cases")).toBeInTheDocument();
     expect(screen.getByText("Questions about returns")).toBeInTheDocument();
+    expect(screen.getByText("Private")).toBeInTheDocument();
+    expect(screen.getByText(/^edited /)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Delete refunds" }));
     expect(onDelete).toHaveBeenCalled();
   });

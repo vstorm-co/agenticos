@@ -11626,7 +11626,13 @@
       "maxPlaceholder": "Najwyżej",
       "path": "Sprawdzenie {number}: gdzie w odpowiedzi JSON",
       "pathPlaceholder": "Gdzie w odpowiedzi JSON (opcjonalnie)"
-    }
+    },
+    "visibility": {
+      "private": "Prywatna",
+      "team": "Zespół",
+      "org": "Organizacja"
+    },
+    "editedWhen": "edytowano {when}"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

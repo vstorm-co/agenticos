@@ -11534,7 +11534,13 @@
       "maxPlaceholder": "Höchstens",
       "path": "Prüfung {number}: wo in einer JSON-Antwort",
       "pathPlaceholder": "Wo in einer JSON-Antwort (optional)"
-    }
+    },
+    "visibility": {
+      "private": "Privat",
+      "team": "Team",
+      "org": "Organisation"
+    },
+    "editedWhen": "bearbeitet {when}"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

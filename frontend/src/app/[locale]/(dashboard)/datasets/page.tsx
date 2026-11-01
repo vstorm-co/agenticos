@@ -72,6 +72,7 @@ export default function DatasetsPage() {
       {header}
       <ListCard
         data-tour="datasets-list"
+        namedByPage
         title={t("title")}
         counted={error || isLoading ? null : t("datasetCount", { count: total })}
         controls={
