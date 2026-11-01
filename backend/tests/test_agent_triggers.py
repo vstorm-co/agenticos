@@ -4394,6 +4394,7 @@ class TestARoutinesOwnBudget:
         runner.assert_not_called()
         assert trigger.is_active is True, "it starts again on the first, with nothing to resume"
 
+    @pytest.mark.security
     async def test_a_routine_with_budget_left_goes_on_to_fire(self):
         trigger = _trigger(monthly_budget_usd=Decimal("5"))
 
@@ -4446,6 +4447,7 @@ class TestARoutinesOwnBudget:
             fresh_row.id,
         ]
 
+    @pytest.mark.security
     async def test_no_budgeted_routine_means_no_spend_query(self):
         agent = _agent()
         service = _service(agent)
