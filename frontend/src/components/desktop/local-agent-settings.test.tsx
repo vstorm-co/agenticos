@@ -90,3 +90,9 @@ it("refuses an answer that names an unknown agent", async () => {
   mount();
   expect(await screen.findByRole("alert")).toBeInTheDocument();
 });
+
+it("says when it cannot tell whether an installed agent is signed in", async () => {
+  invoke.mockResolvedValueOnce([{ ...claude, signed_in: null }, codex]);
+  mount();
+  expect(await screen.findByText("Status unknown")).toBeInTheDocument();
+});
