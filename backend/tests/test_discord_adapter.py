@@ -1601,15 +1601,53 @@ class TestWhatCodexAskedFor:
 
         assert spawned == []
 
-    async def test_a_check_that_fails_does_not_stop_the_connection(
+    async def test_a_check_that_fails_keeps_the_server_unread_and_reconnects(
         self, adapter: DiscordAdapter, api: _Discord
     ):
         api.answer("GET", "/applications/@me", httpx.Response(500, json={}))
+        session = _Session(unchecked={"g2"}, session_id="s1", seq=7)
+
+        with patch.object(discord.asyncio, "sleep", AsyncMock()):
+            await adapter._check_public("g2", "tok", session)
+
+        # Unknown is not private: nothing from it is read, and the next connection
+        # identifies afresh, where the check before connecting asks again.
+        assert session.unchecked == {"g2"}
+        assert session.dropped and session.session_id is None and session.seq is None
+        assert session.refusal is None
+        assert [p for _, p, _ in api.calls].count("/applications/@me") == 4
+
+    async def test_a_check_that_fails_once_is_asked_again(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET",
+            "/applications/@me",
+            httpx.Response(500, json={}),
+            httpx.Response(200, json={"bot_public": False}),
+        )
         session = _Session(unchecked={"g2"})
 
-        await adapter._check_public("g2", "tok", session)
+        with patch.object(discord.asyncio, "sleep", AsyncMock()):
+            await adapter._check_public("g2", "tok", session)
 
-        assert session.refusal is None and session.unchecked == set()
+        assert session.unchecked == set() and not session.dropped
+
+    async def test_a_dropped_session_closes_to_be_identified_afresh(self, adapter: DiscordAdapter):
+        socket = _Socket([], close_code=None)
+        session = _Session(dropped=True)
+
+        with patch.object(discord.random, "random", return_value=0):
+            await adapter._heartbeat(socket, 45, session)
+        await adapter._on_frame(
+            json.dumps({"op": 0, "s": 5, "t": "TYPING_START", "d": {}}),
+            socket,
+            BOT,
+            "tok",
+            session,
+        )
+
+        assert socket.closed == [discord._RESUMABLE_CLOSE, discord._RESUMABLE_CLOSE]
 
     async def test_ask_from_somebody_the_bot_turns_away_posts_nothing(
         self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]

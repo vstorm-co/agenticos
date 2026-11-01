@@ -145,6 +145,8 @@ class _Session:
     """Servers added since identifying whose public-bot check has not answered.
 
     Nothing they send is read until it does."""
+    dropped: bool = False
+    """The connection is to be closed and identified afresh, because a check could not be made."""
 
 
 @dataclass
@@ -722,18 +724,23 @@ class DiscordAdapter(ChannelAdapter):
 
     async def _check_public(self, guild: str, bot_token: str, session: _Session) -> None:
         """Clear a newly added server for reading, or stop the connection when the bot is public."""
-        try:
-            public = await self._is_public(bot_token)
-        except Exception:
-            # Unknown is not public: the server stays unread until a later
-            # event of it is checked, and the connection is not torn down for a
-            # failed question.
-            logger.warning("discord_public_check_failed", exc_info=True)
+        for delay in _PUBLIC_CHECK_RETRIES:
+            try:
+                public = await self._is_public(bot_token)
+            except Exception:
+                logger.warning("discord_public_check_failed", exc_info=True)
+                await asyncio.sleep(delay)
+                continue
             session.unchecked.discard(guild)
+            if public:
+                session.refusal = PUBLIC_BOT
             return
-        session.unchecked.discard(guild)
-        if public:
-            session.refusal = PUBLIC_BOT
+        # Unknown is not private: the server stays unread, and the connection is
+        # closed and identified afresh, where the check before connecting asks
+        # again before anything is read.
+        session.session_id = None
+        session.seq = None
+        session.dropped = True
 
     async def _is_public(self, bot_token: str) -> bool:
         """Whether anyone may add this bot to their server - see :data:`PUBLIC_BOT`."""
@@ -797,6 +804,9 @@ class DiscordAdapter(ChannelAdapter):
                 # arrives: a quiet bot would otherwise stay connected.
                 await socket.close(1000, "refused")
                 return
+            if session.dropped:
+                await socket.close(_RESUMABLE_CLOSE, "public check failed")
+                return
             if not session.acked:
                 await socket.close(_RESUMABLE_CLOSE, "heartbeat not acknowledged")
                 return
@@ -835,6 +845,8 @@ class DiscordAdapter(ChannelAdapter):
                 logger.exception("discord_event_failed", extra={"event": str(payload.get("t"))})
             if session.refusal is not None:
                 await socket.close(1000, "refused")
+            elif session.dropped:
+                await socket.close(_RESUMABLE_CLOSE, "public check failed")
 
     async def _on_dispatch(
         self, event: str, data: dict[str, Any], bot_id: str, bot_token: str, session: _Session
@@ -848,6 +860,8 @@ class DiscordAdapter(ChannelAdapter):
             # Every server announces itself again after READY, and the roles are
             # read from those: a replaced token must not keep the old bot's.
             self._own_roles[bot_id] = set()
+            session.unchecked.clear()
+            session.dropped = False
             await connection_state.record_up(bot_id)
             spawn(self._register_commands(bot_id, bot_token), name=f"discord-commands:{bot_id}")
         elif event == "RESUMED":
@@ -1241,6 +1255,9 @@ class DiscordAdapter(ChannelAdapter):
         """No webhook route accepts Discord traffic, so nothing verifies as Discord's."""
         return False
 
+
+_PUBLIC_CHECK_RETRIES = (1.0, 2.0, 4.0, 8.0)
+"""Seconds to wait after each failed attempt to ask whether the bot has been made public."""
 
 _SPOKEN_MESSAGE_TYPES = frozenset({0, 19})
 """Discord's `DEFAULT` and `REPLY` message types: what a person wrote, as opposed to a notice."""
