@@ -6654,6 +6654,77 @@ class TestPerRunLocalServices:
             assert run.model_label == "Local model" and run.secret_id is None
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("with_folder", [True, False])
+    async def test_local_skills_reach_the_run_through_the_persons_own_session(
+        self, with_folder: bool
+    ):
+        """Skills and AGENTS.md come from the initiator's paired computer, in a folder or not."""
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+        from app.services.device_hub import LocalContext
+
+        ctx = _ctx()
+        session = uuid.uuid4()
+        target = LocalTarget(
+            folder="/approved" if with_folder else None, skills=["claude", "codex"]
+        )
+        assert ctx.user_id is not None
+        workspace = (
+            OpenWorkspace(
+                workspace=Workspace(device_hub.DeviceWorkspace(session, ctx.user_id, target)),
+                kind="service",
+                scope="run",
+                scope_key="local",
+                row_id=None,
+                local=True,
+            )
+            if with_folder
+            else None
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Local", model_profile_id=uuid.uuid4())
+        toolset = MagicMock()
+        context = LocalContext(toolset=toolset, briefing="### From this person's computer\nUse it.")
+        skills = AsyncMock(return_value=context)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models,
+                "resolve",
+                new=AsyncMock(return_value=MagicMock(label="Model", provider="x", secret_id=None)),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
+            patch.object(device_hub, "local_skills_context", skills),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+        ):
+            async with asyncio.timeout(5):
+                await service.prepare(ctx, agent.id, local=target)
+        skills.assert_awaited_once_with(
+            session, ["claude", "codex"], folder="/approved" if with_folder else None
+        )
+        assert toolset in build.call_args.kwargs["extra_toolsets"]
+        assert build.call_args.args[0].instructions.endswith("Use it.")
+
+    @pytest.mark.anyio
     async def test_a_resumed_local_workspace_belongs_to_the_initiator(self):
         from app.schemas.local_target import LocalTarget
 

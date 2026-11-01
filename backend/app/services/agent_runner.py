@@ -3711,6 +3711,28 @@ class AgentRunnerService:
                 # the turn's own output.
                 started_with = await workspace_snapshot(workspace.workspace)
 
+        if local is not None and local.skills:
+            # Read on the person's own computer, in place, for a chat that chose its
+            # sources; the instruction files come last in what the model reads.
+            from app.services.device_hub import (
+                DeviceWorkspace,
+                local_skills_context,
+            )
+
+            backend = workspace.workspace.backend if workspace is not None else None
+            skills_session = (
+                backend.session_id
+                if isinstance(backend, DeviceWorkspace)
+                else await self._browser_session(workspace_ctx, local)
+            )
+            skills_context = await local_skills_context(
+                skills_session, local.skills, folder=local.folder
+            )
+            spec_toolsets.append(skills_context.toolset)
+            spec = spec.model_copy(
+                update={"instructions": f"{spec.instructions}\n\n{skills_context.briefing}"}
+            )
+
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
             agent_id=agent.id,

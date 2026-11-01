@@ -21,6 +21,7 @@ from app.services.device_hub.exceptions import (
     DeviceCallTimedOut,
     DeviceUnavailable,
 )
+from app.services.device_hub.local_context import LocalContext, local_skills_context
 from app.services.device_hub.services import describe as describe_service
 from app.services.device_hub.services import mcp_toolset as local_mcp_toolset
 from app.services.device_hub.services import model_spec as local_model_spec
@@ -34,6 +35,7 @@ __all__ = [
     "DeviceCallTimedOut",
     "DeviceUnavailable",
     "DeviceWorkspace",
+    "LocalContext",
     "LocalMode",
     "LocalTarget",
     "admit",
@@ -43,6 +45,7 @@ __all__ = [
     "describe_service",
     "local_mcp_toolset",
     "local_model_spec",
+    "local_skills_context",
     "serve",
     "wait_for",
 ]
