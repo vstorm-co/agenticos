@@ -1430,7 +1430,8 @@ async def test_a_loop_inside_a_loop_follows_its_own_policy_for_its_failed_legs(
     )
     seeded = await _run(engine, graph, {"rows": [["a", "b"], ["c"]]})
 
-    run = await drive(seeded)
+    # `ok` is cancelled only if `broken` fails before `ok` has run.
+    run = await drive(seeded, first=broken.id)
 
     if inner_policy == "collect":
         assert run.status == WorkflowRunStatus.SUCCEEDED.value

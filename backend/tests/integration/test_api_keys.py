@@ -7,6 +7,7 @@ between a header, a row and a membership that a mocked session would simply agre
 with.
 """
 
+import json
 import logging
 import uuid
 from collections import Counter
@@ -907,7 +908,9 @@ class TestThePlatformServerAsAnAgentsBinding:
 
         assert "items" in listed
         assert "refused" in created
-        assert refusals and refusals[0].startswith("403")
+        refusal = json.loads(refusals[0])["error"]
+        assert refusal["status"] == 403
+        assert refusal["details"]["required"] == ["agents:edit"]
 
 
 class TestWorkAKeyAskedForEarlier:

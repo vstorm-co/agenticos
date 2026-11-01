@@ -23,7 +23,7 @@ from unittest.mock import patch
 
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.factory import BuiltAgent, build_agent
@@ -237,28 +237,37 @@ async def settle(
         await db.commit()
 
 
-async def drive(seeded: SeededRun, *, max_ticks: int = 200) -> WorkflowRun:
+async def drive(
+    seeded: SeededRun, *, max_ticks: int = 200, first: uuid.UUID | None = None
+) -> WorkflowRun:
     """Tick every node that is due until none is left, and return the run as it stands.
 
     A row held back for a retry's backoff is not due, so a run waiting to retry
     comes back `waiting_retry` rather than being ticked past its own schedule.
 
+    Sibling legs are enqueued in one transaction, so they carry the same `created_at`
+    and nothing says which is ticked first. A test whose outcome depends on that
+    order names the node that must go first as `first`.
+
     Raises:
         AssertionError: More than `max_ticks` ticks - a graph that never settles.
     """
+    priority = case((NodeRun.node_instance_id == first, 0), else_=1) if first is not None else None
     for _ in range(max_ticks):
         async with seeded.factory() as db:
-            waiting = (
-                await db.execute(
-                    select(DispatchOutbox.node_run_id)
-                    .where(
-                        DispatchOutbox.workflow_run_id == seeded.run.id,
-                        DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
-                        DispatchOutbox.available_at <= func.now(),
-                    )
-                    .order_by(DispatchOutbox.created_at)
-                    .limit(1)
+            due = (
+                select(DispatchOutbox.node_run_id)
+                .join(NodeRun, NodeRun.id == DispatchOutbox.node_run_id)
+                .where(
+                    DispatchOutbox.workflow_run_id == seeded.run.id,
+                    DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
+                    DispatchOutbox.available_at <= func.now(),
                 )
+            )
+            if priority is not None:
+                due = due.order_by(priority)
+            waiting = (
+                await db.execute(due.order_by(DispatchOutbox.created_at).limit(1))
             ).scalar_one_or_none()
         if waiting is None:
             return await run_row(seeded)
