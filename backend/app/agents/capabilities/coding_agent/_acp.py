@@ -375,22 +375,24 @@ async def run_task(
     conversation = Conversation(pipe, access=access, collector=collector, shown=shown)
     session_id: str | None = None
     try:
-        await conversation.request(
-            "initialize",
-            {
-                "protocolVersion": PROTOCOL_VERSION,
-                "clientCapabilities": {},
-                "clientInfo": {"name": "agenticos", "title": "AgenticOS"},
-            },
-        )
-        created = await conversation.request("session/new", {"cwd": root, "mcpServers": []})
-        identifier = (created or {}).get("sessionId")
-        if not isinstance(identifier, str):
-            raise AcpError("The agent did not open a session.")
-        session_id = identifier
-        prompt = f"{_READ_ONLY_NOTE}{task}" if access == "read_only" else task
         stop = "timed_out"
+        # One deadline from the first request: an adapter that never answers `initialize`
+        # or `session/new` ends the task like one that never finishes the prompt.
         with anyio.move_on_after(timeout_seconds):
+            await conversation.request(
+                "initialize",
+                {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "clientCapabilities": {},
+                    "clientInfo": {"name": "agenticos", "title": "AgenticOS"},
+                },
+            )
+            created = await conversation.request("session/new", {"cwd": root, "mcpServers": []})
+            identifier = (created or {}).get("sessionId")
+            if not isinstance(identifier, str):
+                raise AcpError("The agent did not open a session.")
+            session_id = identifier
+            prompt = f"{_READ_ONLY_NOTE}{task}" if access == "read_only" else task
             result = await conversation.request(
                 "session/prompt",
                 {"sessionId": session_id, "prompt": [{"type": "text", "text": prompt}]},
@@ -398,8 +400,9 @@ async def run_task(
             stop = str((result or {}).get("stopReason", "end_turn"))
         answer = "".join(collector.said).strip()
         if stop == "timed_out":
-            with anyio.CancelScope(shield=True):
-                await conversation.cancel(session_id)
+            if session_id is not None:
+                with anyio.CancelScope(shield=True):
+                    await conversation.cancel(session_id)
             return collector.report(
                 harness=harness,
                 access=access,

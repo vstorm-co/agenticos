@@ -1521,7 +1521,7 @@ way.
 
 `start_monitor`, `list_monitors`, `stop_monitor` — *Watch a long-running command and be told about its output as it appears.*
 
-Lets an agent start a command that runs for a long time - a test watcher, a log tail, a build, a CI or deploy poll - and hear about its output without polling for it. The command runs detached in the run's workspace, its output going to a file there. Before each model request the new lines are read, filtered by the optional `match` regular expression (a string that is not a valid expression is matched as text), and put at the tail of the request as an ephemeral note, the way a steering reminder is, so nothing is written into the conversation's history. A watch that exits is reported with its exit code.
+Lets an agent start a command that runs for a long time - a test watcher, a log tail, a build, a CI or deploy poll - and hear about its output without polling for it. The command runs detached in the run's workspace, its output going to a file there. Before each model request the new lines are read, filtered by the optional `match` words (separated by `|`, any case; plain text, not a regular expression), and put at the tail of the request as an ephemeral note, the way a steering reminder is, so nothing is written into the conversation's history. A watch that exits is reported with its exit code.
 
 | Tool | What it does |
 |---|---|

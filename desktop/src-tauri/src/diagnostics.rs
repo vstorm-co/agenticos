@@ -45,12 +45,10 @@ fn tail(text: &str, limit: usize) -> &str {
     }
 }
 
-/// One panic as a line of the crash log. The location and the message, no backtrace.
-fn crash_entry(seconds: u64, version: &str, location: &str, message: &str) -> String {
-    format!(
-        "[{seconds}] v{version} panic at {location}: {}\n",
-        message.replace('\n', " ")
-    )
+/// One panic as a line of the crash log: when, which build and where. Never the
+/// message or a backtrace, which can hold a path, a URL or something typed.
+fn crash_entry(seconds: u64, version: &str, location: &str) -> String {
+    format!("[{seconds}] v{version} panic at {location}\n")
 }
 
 fn append_crash(dir: &Path, entry: &str) -> std::io::Result<()> {
@@ -82,13 +80,8 @@ pub fn install_panic_hook(app: &AppHandle) {
             || "an unknown place".to_owned(),
             |at| format!("{}:{}", at.file(), at.line()),
         );
-        let message = info
-            .payload()
-            .downcast_ref::<&str>()
-            .map(|text| (*text).to_owned())
-            .or_else(|| info.payload().downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| "a panic with no message".to_owned());
-        let _ = append_crash(&dir, &crash_entry(seconds, &version, &location, &message));
+        // The payload is not written: it can carry a path, a URL or a value somebody typed.
+        let _ = append_crash(&dir, &crash_entry(seconds, &version, &location));
         previous(info);
     }));
 }
@@ -174,9 +167,9 @@ mod tests {
     }
 
     #[test]
-    fn a_crash_is_one_line_with_where_and_what() {
-        let entry = crash_entry(1_700_000_000, "1.34.0", "src/lib.rs:10", "boom\nsecond line");
-        assert_eq!(entry, "[1700000000] v1.34.0 panic at src/lib.rs:10: boom second line\n");
+    fn a_crash_is_one_line_with_when_and_where_and_no_message() {
+        let entry = crash_entry(1_700_000_000, "1.34.0", "src/lib.rs:10");
+        assert_eq!(entry, "[1700000000] v1.34.0 panic at src/lib.rs:10\n");
     }
 
     #[test]

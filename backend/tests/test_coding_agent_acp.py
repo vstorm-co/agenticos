@@ -294,6 +294,15 @@ async def test_a_stop_with_nothing_said_names_the_reason() -> None:
     assert "refusal" in report.answer
 
 
+async def test_an_adapter_that_never_answers_startup_is_stopped_by_the_same_deadline() -> None:
+    agent = ScriptedAgent()
+    agent.on_message = lambda message: agent.seen.append(message)  # type: ignore[method-assign]
+    report, _, pipe = await _run(agent, timeout=1)
+    assert report.outcome == "timed_out" and report.session_id is None
+    assert all(message["method"] != "session/cancel" for message in agent.seen)
+    assert pipe.closed
+
+
 async def test_a_task_past_its_time_is_cancelled_and_reported() -> None:
     agent = ScriptedAgent()
     original = agent.on_message
@@ -305,7 +314,7 @@ async def test_a_task_past_its_time_is_cancelled_and_reported() -> None:
         original(message)
 
     agent.on_message = never_finishes  # type: ignore[method-assign]
-    report, _, pipe = await _run(agent, timeout=0)
+    report, _, pipe = await _run(agent, timeout=1)
     assert report.outcome == "timed_out"
     assert "Hand it a narrower task" in report.answer
     assert agent.seen[-1]["method"] == "session/cancel"

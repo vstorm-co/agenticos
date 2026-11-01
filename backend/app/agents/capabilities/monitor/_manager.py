@@ -13,7 +13,6 @@ outlives the turn that asked for it.
 import base64
 import binascii
 import logging
-import re
 import shlex
 import uuid
 from collections import deque
@@ -38,14 +37,16 @@ COMMAND_SECONDS = 30
 STOP_SECONDS = 15
 
 
-def compile_match(match: str | None) -> re.Pattern[str] | None:
-    """A regex, or the text itself when it is not one."""
+def parse_match(match: str | None) -> tuple[str, ...]:
+    """The words a line must contain, any one of them, case ignored.
+
+    Alternatives are separated by `|`. It is deliberately not a regular expression: the
+    pattern is the model's and is evaluated on the API worker, where a backtracking
+    expression would stall every other request.
+    """
     if not match:
-        return None
-    try:
-        return re.compile(match)
-    except re.error:
-        return re.compile(re.escape(match))
+        return ()
+    return tuple(word.casefold() for word in match.split("|") if word.strip())
 
 
 @dataclass
@@ -58,11 +59,12 @@ class Watch:
     log: str
     status: str
     pid: str
-    matcher: re.Pattern[str] | None
+    words: tuple[str, ...]
     offset: int = 0
     pending: bytes = b""
     reported: int = 0
     running: bool = True
+    exited: bool = False
     exit_code: int | None = None
     recent: deque[str] = field(default_factory=lambda: deque(maxlen=RECENT_LINES))
 
@@ -127,7 +129,7 @@ class MonitorManager:
             log=log,
             status=status,
             pid=pid,
-            matcher=compile_match(match),
+            words=parse_match(match),
         )
         self._watches[watch_id] = watch
         return watch
@@ -162,7 +164,10 @@ class MonitorManager:
         except binascii.Error, ValueError:
             chunk = b""
         watch.offset += len(chunk)
-        finished = state.strip() != "running"
+        exited = state.strip() != "running"
+        # A log longer than one chunk is read to its end before the watch is finished.
+        finished = exited and len(chunk) < CHUNK_BYTES
+        watch.exited = exited
         *whole, watch.pending = (watch.pending + chunk).split(b"\n")
         if finished and watch.pending:
             whole.append(watch.pending)
@@ -171,7 +176,8 @@ class MonitorManager:
         kept = [
             line
             for line in lines
-            if line.strip() and (watch.matcher is None or watch.matcher.search(line))
+            if line.strip()
+            and (not watch.words or any(word in line.casefold() for word in watch.words))
         ]
         watch.recent.extend(kept)
         watch.reported += len(kept)
@@ -194,7 +200,7 @@ class MonitorManager:
         watch = self._watches.get(watch_id)
         if watch is None:
             return None
-        if watch.running:
+        if watch.running and not watch.exited:
             kill = (
                 'killtree() { for child in $(pgrep -P "$1" 2>/dev/null); do killtree "$child"; done; '
                 f'kill "$1" 2>/dev/null; }}; killtree {watch.pid}; true'

@@ -1,5 +1,5 @@
 ---
-source_sha: "a5fd77dd4581"
+source_sha: "7afc19fba67f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1691,7 +1691,7 @@ Harness meldet, was sie verbraucht hat - fehlgeschlagen, abgelaufen oder gestopp
 
 `start_monitor`, `list_monitors`, `stop_monitor` — *Einen lange laufenden Befehl beobachten und seine Ausgabe erfahren, sobald sie erscheint.*
 
-Lässt einen Agenten einen lange laufenden Befehl starten - einen Test-Watcher, einen Log-Tail, einen Build, eine CI- oder Deploy-Abfrage - und seine Ausgabe erfahren, ohne nachzufragen. Der Befehl läuft losgelöst im Arbeitsbereich des Laufs, seine Ausgabe geht dort in eine Datei. Vor jeder Modellanfrage werden die neuen Zeilen gelesen, mit dem optionalen regulären Ausdruck `match` gefiltert (ein Text, der kein gültiger Ausdruck ist, wird als Text verglichen) und als flüchtige Notiz ans Ende der Anfrage gesetzt, wie eine Steuerungserinnerung, sodass nichts in den Gesprächsverlauf geschrieben wird. Eine Beobachtung, die endet, wird mit ihrem Exit-Code gemeldet.
+Lässt einen Agenten einen lange laufenden Befehl starten - einen Test-Watcher, einen Log-Tail, einen Build, eine CI- oder Deploy-Abfrage - und seine Ausgabe erfahren, ohne nachzufragen. Der Befehl läuft losgelöst im Arbeitsbereich des Laufs, seine Ausgabe geht dort in eine Datei. Vor jeder Modellanfrage werden die neuen Zeilen gelesen, mit den optionalen Wörtern `match` gefiltert (getrennt durch `|`, Groß- und Kleinschreibung egal; einfacher Text, kein regulärer Ausdruck) und als flüchtige Notiz ans Ende der Anfrage gesetzt, wie eine Steuerungserinnerung, sodass nichts in den Gesprächsverlauf geschrieben wird. Eine Beobachtung, die endet, wird mit ihrem Exit-Code gemeldet.
 
 | Tool | Was es tut |
 |---|---|

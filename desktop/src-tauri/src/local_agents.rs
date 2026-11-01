@@ -114,8 +114,25 @@ fn resolve(program: &str, path_env: Option<&std::ffi::OsStr>, home: Option<&Path
         .into_iter()
         .flatten()
         .chain(home.map(fallback_dirs).into_iter().flatten())
-        .map(|dir| dir.join(program))
+        .flat_map(|dir| candidates(&dir, program))
         .find(|candidate| is_executable(candidate))
+}
+
+/// `program` in `dir`; on Windows also with each `PATHEXT` extension, because npm
+/// installs `npx` and `codex` as `.cmd` shims.
+fn candidates(dir: &Path, program: &str) -> Vec<PathBuf> {
+    let bare = dir.join(program);
+    #[cfg(windows)]
+    {
+        let extensions = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_owned());
+        let shims = extensions
+            .split(';')
+            .filter(|ext| !ext.is_empty())
+            .map(|ext| dir.join(format!("{program}{}", ext.to_lowercase())));
+        return std::iter::once(bare).chain(shims).collect();
+    }
+    #[cfg(not(windows))]
+    vec![bare]
 }
 
 fn is_executable(path: &Path) -> bool {

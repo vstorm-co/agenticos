@@ -1,5 +1,5 @@
 ---
-source_sha: "a5fd77dd4581"
+source_sha: "7afc19fba67f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1625,7 +1625,7 @@ fallida, agotado su tiempo o detenida.
 
 Permite que un agente inicie un comando que se ejecuta durante mucho tiempo - un watcher de pruebas, un tail de logs, una compilación, un sondeo de CI o de despliegue - y se entere de su salida sin consultarla. El comando se ejecuta desacoplado en el espacio de trabajo de la ejecución, con su salida en un archivo allí.
 
-Antes de cada petición al modelo se leen las líneas nuevas, se filtran con la expresión regular opcional `match` (una cadena que no es una expresión válida se compara como texto) y se ponen al final de la petición como una nota efímera, como un recordatorio de dirección, de modo que nada se escribe en el historial de la conversación. Una vigilancia que termina se notifica con su código de salida.
+Antes de cada petición al modelo se leen las líneas nuevas, se filtran con las palabras opcionales `match` (separadas por `|`, sin distinguir mayúsculas; texto simple, no una expresión regular) y se ponen al final de la petición como una nota efímera, como un recordatorio de dirección, de modo que nada se escribe en el historial de la conversación. Una vigilancia que termina se notifica con su código de salida.
 
 | Herramienta | Qué hace |
 |---|---|

@@ -24,7 +24,7 @@ from app.agents.capabilities.monitor._manager import (
     MAX_WATCHES,
     MonitorManager,
     Update,
-    compile_match,
+    parse_match,
 )
 from app.agents.capabilities.monitor._toolset import NEEDS_SHELL, build_toolset
 
@@ -54,7 +54,9 @@ class Shell:
         if "tail -c +" in command:
             offset = int(command.split("tail -c +", 1)[1].split(" ", 1)[0]) - 1
             assert command.index("kill -0") < command.index("tail -c +")
-            chunk = base64.b64encode(self.log[offset:]).decode()
+            chunk = base64.b64encode(
+                self.log[offset : offset + manager_module.CHUNK_BYTES]
+            ).decode()
             body = self.garbage if self.garbage is not None else chunk
             return CommandResult(exit_code=0, stdout=f"{body}\n\n{self.state}\n", stderr="")
         return CommandResult(exit_code=0, stdout="", stderr="")
@@ -156,11 +158,35 @@ async def test_a_read_that_is_not_base64_reads_nothing_and_a_long_line_is_cut() 
     assert len(update.lines[0]) == manager_module.MAX_LINE_CHARS
 
 
-def test_a_match_that_is_not_a_regex_is_taken_as_text() -> None:
-    assert compile_match(None) is None and compile_match("") is None
-    assert compile_match("a|b").search("b")
-    literal = compile_match("error(")
-    assert literal is not None and literal.search("an error( here")
+def test_a_match_is_words_not_a_regular_expression() -> None:
+    assert parse_match(None) == () and parse_match("") == () and parse_match("|") == ()
+    assert parse_match("Error | FAIL") == ("error ", " fail")
+    assert parse_match("(a+)+$") == ("(a+)+$",)
+
+
+async def test_a_match_is_case_blind_and_a_pathological_pattern_cannot_stall_the_worker() -> None:
+    shell, manager = Shell(), MonitorManager()
+    await started(shell, manager, match="(a+)+$")
+    shell.log = b"a" * 400 + b"!\n(a+)+$ literally\n"
+    [update] = await manager.collect(shell)
+    assert update.lines == ["(a+)+$ literally"]
+
+
+async def test_a_finished_watch_is_read_to_the_end_of_a_long_log(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(manager_module, "CHUNK_BYTES", 8)
+    shell, manager = Shell(), MonitorManager()
+    watch = await started(shell, manager)
+    shell.log, shell.state = b"aaaa\nbbbb\ncccc\n", "0"
+    [first] = await manager.collect(shell)
+    assert first.lines == ["aaaa"] and not first.finished and watch.running and watch.exited
+    [second] = await manager.collect(shell)
+    assert second.lines == ["bbbb", "cccc"] and second.finished and not watch.running
+    assert watch.exit_code == 0 and watch.reported == 3
+    assert not any("killtree" in command for command in shell.commands)
+    await manager.stop(shell, watch.id)
+    assert not any("killtree" in command for command in shell.commands)
 
 
 async def test_a_workspace_that_fails_a_read_or_a_stop_is_logged_not_raised(

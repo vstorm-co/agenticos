@@ -31,8 +31,9 @@ def build_toolset(manager: MonitorManager) -> FunctionToolset[Any]:
         Args:
             command: The shell command to run and watch, for example `npm run test:watch`.
             label: A short name for this watch; the command itself if left out.
-            match: Optional regular expression: only output lines matching it are
-                shown to you, for example `error|fail|exception`.
+            match: Optional words, separated by `|`: only output lines containing one
+                of them (any case) are shown to you, for example `error|fail|exception`.
+                It is plain text, not a regular expression.
         """
         if not ctx.workspace.attached:
             return NEEDS_SHELL

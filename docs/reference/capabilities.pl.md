@@ -1,5 +1,5 @@
 ---
-source_sha: "a5fd77dd4581"
+source_sha: "7afc19fba67f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1588,7 +1588,7 @@ nieudane, przerwane limitem czasu albo zatrzymane.
 
 `start_monitor`, `list_monitors`, `stop_monitor` — *Obserwuj długo działające polecenie i dowiaduj się o jego wyjściu, gdy się pojawia.*
 
-Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, ogon logu, build, odpytywanie CI lub wdrożenia - i dowiadywać się o jego wyjściu bez odpytywania. Polecenie działa odłączone w przestrzeni roboczej przebiegu, a jego wyjście trafia tam do pliku. Przed każdym zapytaniem do modelu nowe linie są odczytywane, filtrowane opcjonalnym wyrażeniem regularnym `match` (tekst, który nie jest poprawnym wyrażeniem, jest dopasowywany jako tekst) i dodawane na końcu zapytania jako tymczasowa notatka, tak jak przypomnienie sterujące, więc nic nie trafia do historii rozmowy. Obserwacja, która się zakończy, jest zgłaszana z kodem wyjścia.
+Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, ogon logu, build, odpytywanie CI lub wdrożenia - i dowiadywać się o jego wyjściu bez odpytywania. Polecenie działa odłączone w przestrzeni roboczej przebiegu, a jego wyjście trafia tam do pliku. Przed każdym zapytaniem do modelu nowe linie są odczytywane, filtrowane opcjonalnymi słowami `match` (rozdzielonymi `|`, bez względu na wielkość liter; zwykły tekst, nie wyrażenie regularne) i dodawane na końcu zapytania jako tymczasowa notatka, tak jak przypomnienie sterujące, więc nic nie trafia do historii rozmowy. Obserwacja, która się zakończy, jest zgłaszana z kodem wyjścia.
 
 | Narzędzie | Co robi |
 |---|---|

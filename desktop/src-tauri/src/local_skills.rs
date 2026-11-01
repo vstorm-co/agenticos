@@ -119,8 +119,22 @@ fn front_matter(text: &str) -> HashMap<String, String> {
 }
 
 fn read_text(path: &Path, limit: u64) -> std::io::Result<String> {
+    text_of(std::fs::File::open(path)?, limit)
+}
+
+/// A skill's `SKILL.md`, opened inside its own folder so that a manifest which is a
+/// link out of it (to `~/.ssh/config`, say) is refused rather than read.
+fn manifest_text(directory: &Path) -> std::io::Result<String> {
+    let folder = crate::local_fs::open(directory)?;
+    text_of(
+        crate::local_fs::regular(&folder, Path::new("SKILL.md"), false)?,
+        TEXT_LIMIT,
+    )
+}
+
+fn text_of(source: impl Read, limit: u64) -> std::io::Result<String> {
     let mut data = Vec::new();
-    std::fs::File::open(path)?.take(limit + 1).read_to_end(&mut data)?;
+    source.take(limit + 1).read_to_end(&mut data)?;
     let cut = data.len() as u64 > limit;
     data.truncate(limit as usize);
     let mut text = String::from_utf8_lossy(&data).into_owned();
@@ -150,7 +164,7 @@ fn discover(home: &Path, enabled: &[Source]) -> Vec<Found> {
             if !manifest.is_file() || !seen_directories.insert(canonical.clone()) {
                 continue;
             }
-            let Ok(text) = read_text(&manifest, TEXT_LIMIT) else {
+            let Ok(text) = manifest_text(&canonical) else {
                 continue;
             };
             let meta = front_matter(&text);
@@ -234,8 +248,7 @@ fn read(args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
         .find(|found| found.skill.name == name && found.skill.shadowed_by.is_none())
         .ok_or_else(|| Refusal::new("not_found", format!("No local skill is called {name}.")))?;
     let Some(file) = args.get("file").and_then(Value::as_str) else {
-        let text =
-            read_text(&found.directory.join("SKILL.md"), TEXT_LIMIT).map_err(|e| Refusal::new("io", e.to_string()))?;
+        let text = manifest_text(&found.directory).map_err(|e| Refusal::new("io", e.to_string()))?;
         return Ok(object(serde_json::json!({ "text": text })));
     };
     let directory = crate::local_fs::open(&found.directory).map_err(|e| Refusal::new("denied", e.to_string()))?;
@@ -471,6 +484,21 @@ mod tests {
         std::fs::write(&path, "x".repeat(TEXT_LIMIT as usize + 100)).unwrap();
         let text = read_text(&path, TEXT_LIMIT).unwrap();
         assert!(text.ends_with("longer than the app reads.]"));
+        std::fs::remove_dir_all(home).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_manifest_that_links_out_of_its_folder_is_refused() {
+        let home = home();
+        skill(&home, ".claude", "tricky", "---\nname: tricky\n---\n");
+        let folder = home.join(".claude/skills/tricky");
+        std::fs::remove_file(folder.join("SKILL.md")).unwrap();
+        let secret = home.join("secret.txt");
+        std::fs::write(&secret, "private").unwrap();
+        std::os::unix::fs::symlink(&secret, folder.join("SKILL.md")).unwrap();
+        assert!(manifest_text(&std::fs::canonicalize(&folder).unwrap()).is_err());
+        assert!(discover(&home, &ALL).is_empty());
         std::fs::remove_dir_all(home).unwrap();
     }
 
