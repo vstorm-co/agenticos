@@ -1,5 +1,5 @@
 ---
-source_sha: "dc7308008f49"
+source_sha: "0ff785349ff9"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -156,7 +156,7 @@ Eso la llamada lo pasa al modelo de texto propio del agent.
 
 | Por voz | Capabilities |
 |---|---|
-| Tal cual | reloj (la hora de las instrucciones queda fijada cuando se conecta la llamada), contexto, conocimiento, investigación web, lectura de páginas web, gráficos, artefactos, ejecución de código, búsqueda de conversaciones, archivos de memoria, memoria mem0, planificación, límites de salida de herramientas, generación de imágenes, texto a voz |
+| Tal cual | reloj (la hora de las instrucciones queda fijada cuando se conecta la llamada), contexto, conocimiento, investigación web, lectura de páginas web, gráficos, artefactos, ejecución de código, búsqueda de conversaciones, archivos de memoria, planificación, límites de salida de herramientas, generación de imágenes, texto a voz |
 | En pantalla | preguntar al usuario: en `/chat` la tarjeta de preguntas aparece en la vista de la llamada y además se lee en voz alta; quien llama toca una respuesta o la dice. Una llamada desde un widget o una página alojada no la recibe |
 | Adaptada | skills: se cargan como instrucciones bajo demanda, sin las herramientas que usa un run de texto para leerlos |
 | Eliminada | búsqueda de herramientas: las herramientas MCP que habría diferido se pasan directamente a la llamada |
@@ -203,8 +203,7 @@ nota de voz propia del agent va a continuación.
 
 Sobre WebRTC el agent se resuelve dos veces, una para responder a la oferta y
 otra para el sideband. Los servidores MCP se conectan dos veces y las
-instrucciones dinámicas se ejecutan dos veces, así que una consulta a la memoria
-mem0 se paga dos veces; ambas se miden en el run.
+instrucciones dinámicas se ejecutan dos veces, así que una consulta a la memoria se paga dos veces; ambas se miden en el run.
 
 ## Aprobaciones en una llamada { #approvals-in-a-call }
 

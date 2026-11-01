@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "1f62c132040f"
 ---
 
 # Bezpieczeństwo { #security }
@@ -132,12 +132,6 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | `embed_visitors` | Nietykane | Nie | Odwiedzający to klucz przeglądarki, nigdy konto — nie ma tu nic o osobie z loginem |
 
 !!! warning "Czego usunięcie nie dosięga — i mówią to dokumenty, a nie wdrożenie po fakcie"
-
-    **Skonfigurowany zewnętrzny magazyn pamięci.** `mem0` trzyma to, co agent
-    zapamiętał, w cudzym systemie, a to wdrożenie może poprosić o zapomnienie
-    tylko dopóki ma poświadczenie organizacji. `MemoryService.forget_person`
-    robi to dla osoby, która wciąż jest członkiem; notatki usuniętego konta
-    w zewnętrznym magazynie należą do operatora.
 
     **Kopie zapasowe.** Usunięcie kasuje wiersze z żywej bazy. Harmonogram kopii,
     który uruchamia wdrożenie, trzyma je do swojej rotacji i żadne usunięcie na

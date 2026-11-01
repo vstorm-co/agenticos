@@ -1,5 +1,5 @@
 ---
-source_sha: "49565e4aa998"
+source_sha: "39e138114dc1"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -221,7 +221,7 @@ może odbierać rozmów, dopóki nie zostanie wybrany inny.
 **Capabilities.** Capability deklaruje, że potrzebuje poświadczenia danego
 *rodzaju* — nigdy konkretnej instancji. Kod mówi „potrzebuję klucza API";
 `secret_id` w bindingu mówi, którego. Gdy binding wskazuje usługę, dla której jest
-klucz - wybranego providera albo jedyną usługę capability, na przykład mem0 -
+klucz - wybranego providera albo jedyną usługę capability, na przykład LlamaParse -
 publikacja odrzuca klucz zapisany dla innej usługi, bo przy każdym wywołaniu
 trafiałby do niewłaściwego providera. Klucz `custom`, a takim jest każdy klucz
 zapisany przed wprowadzeniem przeznaczeń, jest akceptowany. Zobacz
@@ -274,7 +274,6 @@ przynieść własny klucz:
 | Exa | `web_research` |
 | Logfire | [Obserwowalność](reference/spec.md#observability) per agent — ślady do osobnego projektu |
 | LlamaParse | Parsowanie PDF-ów, rozliczane na własny klucz organizacji |
-| mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — cała capability, która trzyma semantyczne wspomnienia agenta w usłudze mem0 (chmurowej albo self-hosted), a nie tutaj. Nic nie jest zapisywane w tym wdrożeniu, więc mem0 rozlicza własny embedding poza pasmem, a wysyłanie wspomnień do chmury mem0 jest decyzją o rezydencji danych, którą podejmuje Builder. Self-hostowany `base_url` musi być https i musi być na liście dozwolonych `MEM0_ALLOWED_HOSTS`, więc klucz z vault nigdy nie trafia do originu kontrolowanego przez agenta. Dla tych wspomnień nie ma konsoli operatora: mem0 ma własny magazyn, własne listowanie i własne usuwanie. |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — mowa głosami z konta ElevenLabs organizacji |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — modele wideo Seedance od ByteDance |
 

@@ -189,7 +189,7 @@ owes the source offers for it.
 
 ## Hosted services and provider terms
 
-A model provider's API, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0, Daytona,
+A model provider's API, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona,
 Google Drive and S3 are not software this project distributes and have no licence
 in the sense above. Each is a service agreement between the deployment and the
 provider, entered into when an administrator stores that provider's credential in

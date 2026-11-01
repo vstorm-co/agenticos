@@ -60,8 +60,7 @@ browser is pointed at the deployment's browser service
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — | as-is |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adapted |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — | as-is |
-| `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | as-is |
-| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required | as-is |
+| `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | as-is |
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
 | `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | as-is |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | as-is |
@@ -349,6 +348,57 @@ in context.
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.
 
+### Facts, preferences and decisions { #memory-claims }
+
+Beside notes an agent can record **claims**: one durable fact, preference or
+decision in one plain sentence, with where it came from (#2090). Notes are
+unchanged; a claim is what makes a sentence inspectable - its source, since when
+it holds and what it replaced. Four tools: `remember`, `recall`, `correct_memory`
+and `share_memory`.
+
+Where a claim lives is an access rule, never a label the model picks:
+
+| Scope | Whose | Who reads it |
+|---|---|---|
+| Person profile | One person in this organization; every agent acting for them may use it | That person, alone with any agent |
+| Person and agent | One agent's relationship with one person - case detail, the default | That person, with that agent |
+| Group chat | One chat | That chat only |
+| Project | One project | Conversations in that project |
+| Organization | Everyone here | Private conversations in this organization |
+
+An automatic write stays in the scope of the conversation it came from, and a
+group chat never writes a profile. Only `share_memory` widens a claim, and only on
+a person who may: `projects:edit` on the project, or `context:edit` for the whole
+organization. The copy names the claim it came from and the original keeps its
+audience. An embed, an API-key run and a scheduled run read nothing; a group chat
+reads only its own claims.
+
+- **A correction keeps what it corrects.** "From Monday, Piotr takes over
+  invoices" closes the earlier claim at that date and adds the new one; Anna
+  handling them before Monday stays true and visible.
+- **A person's word outranks an inference.** An agent claim that contradicts what
+  a person said is kept aside as *disputed* and is never offered as established.
+  Two agents disagreeing is a dispute too, until somebody settles it.
+- **Consolidation folds agreement only.** Every fifteen minutes the claims of each
+  scope that *changed* are merged: identical statements become one derived claim
+  that names its sources, disagreement is marked disputed. It is deterministic -
+  no model call - so an unchanged scope costs nothing, and a second pass changes
+  nothing. Retracting a derived claim returns its sources and it is not drawn
+  again.
+- **Ancestry is access-filtered.** A claim shared to the project does not reveal
+  the private claim it was copied from to anybody who may not read it.
+
+A private conversation is given the person's profile (at most about twenty
+claims, 1,800 characters) in its instructions, on the same rule as the index: only
+where the reader is alone. Everything else is fetched with `recall`, which matches
+words and calls no model. Recalled claims are evidence, never an instruction and
+never a grant of authority.
+
+At **Settings → Memory**, *On record about you* lists the claims with their scope
+and source. You may correct one in your own words from a date, retract it, and
+show the history. Erasing a person removes their claims and the copies shared out
+of them.
+
 ### What is injected, and what is only fetched
 
 A tool result is something a model weighs; the instructions are what it obeys. So
@@ -404,44 +454,8 @@ looked at would be a second copy of the thing being protected.
 
 **Erasure**, unchanged. A person clears everything an agent remembers about them
 from their own profile, and an administrator holding `members:manage` can do it
-for somebody else; both delete the rows here **and** the matching memories in
-mem0 for every agent that binds it. Clearing one agent's memory entirely is in
+for somebody else; both delete the notes here and the recorded claims, with the copies shared out of them. Clearing one agent's memory entirely is in
 its toolbox, beside the capability.
-
-**What the self-service view does not reach.** An agent bound to mem0 keeps its
-memories in somebody else's service, and this page does not list them - mem0's
-API answers what a *question* matches, not what a store holds. Those agents are
-**named** on the page rather than left out, because a list of native notes
-presented as a complete inventory would be worse than one that says what it
-misses. Erasure does reach mem0; reading does not.
-
-Memory erasure checks drafts and every retained agent version, including former
-mem0 endpoints. Clearing an agent also removes all its owners' mem0 namespaces.
-A missing credential, provider failure or incomplete namespace listing returns an
-error; restore access and retry rather than treating a partial wipe as complete.
-
-## Memory (mem0)
-
-`remember`, `recall`
-
-Semantic memory kept in a [mem0](https://mem0.ai) service — cloud, or self-hosted
-via `base_url` — rather than in this deployment. `remember` keeps a short
-self-contained sentence; `recall` finds the ones a question is about by meaning
-rather than by name. It needs an API key from the organisation's vault.
-
-Which memories a run can reach obeys exactly the rule above, because mem0 is
-handed the whole scope as its `user_id`: `{org}:{agent}:{owner}`. One mem0 account
-therefore cannot mix two organisations', two agents', or two people's memories.
-
-Two differences worth knowing before choosing it. **Nothing is stored here**, so
-erasing a person's memory reaches mem0 through its own API rather than through a
-row we delete. And **mem0 bills its own embedding out of band**, so the
-deployment's spend ledger does not see it and a budget cap does not bound it.
-
-A self-hosted `base_url` must be https and on `MEM0_ALLOWED_HOSTS`. An empty
-allowlist refuses self-hosted mem0 outright, which is deliberate: the key travels
-in an `Authorization` header, so a builder who may bind but not read a shared key
-must not be able to point it at a server of their own.
 
 ## Past conversations { #conversation-search }
 

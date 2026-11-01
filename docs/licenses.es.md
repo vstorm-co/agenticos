@@ -1,5 +1,5 @@
 ---
-source_sha: "445f16218979"
+source_sha: "0ffb93794b38"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -215,8 +215,7 @@ imagen.
 
 ## Servicios alojados y términos de los providers { #hosted-services-and-provider-terms }
 
-La API de un provider de modelos, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0,
-Daytona, Google Drive y S3 no son software que este proyecto distribuya y no tienen
+La API de un provider de modelos, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona, Google Drive y S3 no son software que este proyecto distribuya y no tienen
 licencia en el sentido de arriba. Cada uno es un acuerdo de servicio entre el
 despliegue y el provider, que se contrae cuando un administrador guarda la
 credencial de ese provider en el [vault](secrets.md). Los términos que importan

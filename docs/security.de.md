@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "1f62c132040f"
 ---
 
 # Sicherheit { #security }
@@ -141,13 +141,6 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | `embed_visitors` | Unberührt | Nein | Ein Besucher ist ein Browser-Schlüssel, nie ein Konto — hier steht nichts über eine Person mit Login |
 
 !!! warning "Was die Löschung nicht erreicht — und die Doku sagt es, statt dass ein Deployment es herausfindet"
-
-    **Ein konfigurierter externer Gedächtnisspeicher.** `mem0` hält das, was ein
-    Agent sich gemerkt hat, im System eines Dritten, und dieses Deployment kann
-    nur um Vergessen bitten, solange es das Credential der Organisation hat.
-    `MemoryService.forget_person` tut das für eine Person, die noch Mitglied ist;
-    die Notizen eines gelöschten Kontos in einem externen Speicher gehören dem
-    Betreiber.
 
     **Backups.** Eine Löschung entfernt Zeilen aus der laufenden Datenbank. Der
     Backup-Zeitplan eines Deployments behält sie bis zu seiner Rotation, und

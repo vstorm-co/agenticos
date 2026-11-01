@@ -23,9 +23,9 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 102 | 252 |
-| Apache-2.0 | 71 | 24 |
-| BSD-3-Clause | 23 | 4 |
+| MIT | 99 | 252 |
+| Apache-2.0 | 69 | 24 |
+| BSD-3-Clause | 22 | 4 |
 | ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
 | MPL-2.0 | 5 | 0 |
@@ -49,7 +49,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-228 distributions.
+222 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -70,7 +70,6 @@ names no author is in the evidence column below.
 | asyncpg | 0.32.0 | Apache-2.0 | https://github.com/MagicStack/asyncpg | License-Expression |
 | attrs | 26.1.0 | MIT | https://github.com/python-attrs/attrs | License-Expression |
 | authlib | 1.9.1 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
-| backoff | 2.2.1 | MIT | https://github.com/litl/backoff | License field |
 | bcrypt | 5.0.0 | Apache-2.0 | https://github.com/pyca/bcrypt/ | License field |
 | beartype | 0.23.1 | MIT | https://github.com/beartype/beartype | License-Expression |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
@@ -164,7 +163,6 @@ names no author is in the evidence column below.
 | mcp | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mcp-types | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
-| mem0ai | 2.2.1 | Apache-2.0 | https://pypi.org/project/mem0ai/2.2.1/ | License-Expression |
 | mistralai | 3.5.0 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | multidict | 7.2.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License-Expression |
 | numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | https://github.com/numpy/numpy | License-Expression |
@@ -195,8 +193,6 @@ names no author is in the evidence column below.
 | phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 13.0.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
 | platformdirs | 4.13.5 | MIT | https://github.com/tox-dev/platformdirs | License-Expression |
-| portalocker | 4.4.1 | BSD-3-Clause | https://github.com/wolph/portalocker/ | License-Expression |
-| posthog | 7.75.11 | MIT | https://github.com/posthog/posthog-python | License-Expression |
 | primp | 2.0.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
 | propcache | 0.5.4 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
 | protobuf | 6.33.6 | BSD-3-Clause | https://developers.google.com/protocol-buffers/ | License field |
@@ -232,10 +228,8 @@ names no author is in the evidence column below.
 | python-multipart | 0.0.32 | Apache-2.0 | https://github.com/Kludex/python-multipart | License-Expression |
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
-| pytz | 2026.5 | MIT | https://github.com/stub42/pytz.git | License field |
 | pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
-| qdrant-client | 1.20.0 | Apache-2.0 | https://github.com/qdrant/qdrant-client | License field |
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |
 | redis | 8.1.0 | MIT | https://github.com/redis/redis-py | License-Expression |
 | referencing | 0.37.0 | MIT | https://github.com/python-jsonschema/referencing | License-Expression |

@@ -1,5 +1,5 @@
 ---
-source_sha: "f96ca8950f4c"
+source_sha: "c31afabd7c36"
 ---
 
 # Conceptos { #concepts }
@@ -184,8 +184,7 @@ presta su **identidad**. Nadie escucha un run desatendido, así que no responde 
 ninguna persona identificada, igual que un visitante de un widget embebido. Estos
 almacenes que se guardan por persona le están cerrados:
 
-- [Memoria](reference/capabilities.md#memory-files) y
-  [mem0](reference/capabilities.md#memory-mem0): cada herramienta responde que la
+- [Memoria](reference/capabilities.md#memory-files): cada herramienta responde que la
   conversación no tiene memoria.
 - [Conversaciones anteriores](reference/capabilities.md#conversation-search):
   ambas herramientas se niegan.

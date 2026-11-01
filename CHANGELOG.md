@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Memory records what an agent was told, with where it came from.** An agent can `remember` a fact, preference or decision, `recall` what is relevant without reading everything, `correct_memory` on a person's word and `share_memory` into a project or the organization when an authorized person asks. A claim lives in a person profile (shared by every agent acting for them), a person-agent relationship, a group chat, a project or the organization; automatic writes stay in the conversation's own scope and only an explicit share widens one. A correction supersedes and keeps what it corrects, a person's word outranks an inference, and a scheduled pass folds agreement and flags disagreement without a model call, only where a scope changed. Settings → Memory shows what is on record about you with its source and lets you correct or retract it. Erasing a person removes their claims and the copies shared out of them (#2090).
+
 - Workflow creation starts with a name, audience, trigger and optional description and tags, matching agent creation. A separate category gallery opens templates for review before creating their resources.
 
 - Workflow forms have configurable appearance, an authenticated draft preview and direct test and public links. Test draft opens the form or chat surface for those triggers.
@@ -966,6 +968,10 @@ Two things are versioned separately from this file and worth knowing about:
   leaves after spend and what other steps in flight and called workflows hold, never
   more than its own cap; a step whose siblings hold the rest waits and asks again
   with a growing delay. (#1800)
+
+### Removed
+
+- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`.
 
 ### Changed
 

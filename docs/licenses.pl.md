@@ -1,5 +1,5 @@
 ---
-source_sha: "445f16218979"
+source_sha: "0ffb93794b38"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -203,7 +203,7 @@ zbudowany obraz jednak opublikuje, jest winne oferty źródeł do niego.
 
 ## Usługi hostowane i warunki providerów { #hosted-services-and-provider-terms }
 
-API providera modeli, Logfire, Tavily, Brave, Exa, LlamaParse, Mem0, Daytona,
+API providera modeli, Logfire, Tavily, Brave, Exa, LlamaParse, Daytona,
 Google Drive i S3 nie są oprogramowaniem, które ten projekt dystrybuuje, i nie mają
 licencji w powyższym sensie. Każde z nich to umowa o świadczenie usług między
 wdrożeniem a providerem, zawierana wtedy, gdy administrator zapisze poświadczenie

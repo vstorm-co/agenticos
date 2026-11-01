@@ -1,4 +1,4 @@
-<!-- source_sha: f04030a1e1ca -->
+<!-- source_sha: 2ad7567bc911 -->
 
 <div align="center">
 
@@ -321,7 +321,7 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 <details>
 <summary>Alle 31 integrierten Capabilities als Text</summary>
 
-- **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory, Memory über mem0, frühere Unterhaltungen.
+- **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory, frühere Unterhaltungen.
 - **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Webseiten lesen und ein Webbrowser, den der Agent steuert und den du übernehmen kannst.
 - **Dateien, Code und Ausgabe:** Berechnungen in Python, eine Sandbox mit Dateien und Shell, ein Coding Agent, der Arbeit an Claude Code oder Codex übergibt, Diagramme, Zeichnungen (Diagramme, Rechner, 3D-Szenen), Bilderzeugung (OpenAI oder Google), Sprache (OpenAI, ElevenLabs oder Google), Videoclips (Google, BytePlus, xAI oder Alibaba), Apps.
 - **Arbeitsweise:** Subagents, Planung, Denken, Arbeiten während Werkzeuge laufen, Werkzeugsuche, Datum und Uhrzeit, Erinnerungen an Anweisungen, Rückfragen an den Nutzer.
