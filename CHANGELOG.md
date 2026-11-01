@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.34.1] - 2026-11-01
+
+### Changed
+
+- Update the GitHub Actions the workflows use: `tauri-apps/tauri-action` to 1.0.0, `actions/download-artifact` to 8.0.2 and `actions/upload-artifact` to 7.0.2, among others. CI and release behaviour are unchanged.
+
 ## [1.34.0] - 2026-11-01
 
 ### Added
