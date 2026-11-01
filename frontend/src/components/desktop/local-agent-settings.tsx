@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { SectionCard } from "@/components/settings/settings-section";
+import { BrandIcon } from "@/components/icons/brand-icon";
 import { Badge, Button } from "@/components/ui";
 import { useLocalAgents } from "@/hooks/use-desktop";
 import type { LocalAgent } from "@/lib/desktop/commands";
@@ -19,12 +20,17 @@ export function LocalAgentSettings() {
       <ul className="space-y-3">
         {(state.data ?? []).map((agent) => (
           <li key={agent.id} className="flex items-center justify-between gap-3 text-sm">
-            <span className="min-w-0">
-              <span className="block truncate font-medium">{agent.name}</span>
-              <span className="text-muted-foreground block truncate text-xs">
-                {agent.installed
-                  ? (agent.version ?? agent.path)
-                  : t("installHint", { name: agent.name })}
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
+                <BrandIcon name={agent.id} className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{agent.name}</span>
+                <span className="text-muted-foreground block truncate text-xs">
+                  {agent.installed
+                    ? (agent.version ?? agent.path)
+                    : t("installHint", { name: agent.name })}
+                </span>
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-2">
