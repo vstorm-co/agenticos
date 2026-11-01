@@ -95,8 +95,9 @@ pattern. The difference is that you write the tool once and everybody composes
 with it afterwards.
 
 **It is not a hosted service.** Your prompts, conversations and documents
-stay in your own database. The only outbound requests are the ones your agents
-make, plus [deployment diagnostics](../configuration.md#diagnostics), which are
+stay in your own deployment, in its database and storage. The only outbound
+requests are the ones your agents make and the ones a collection's parser or
+embedding provider needs, plus [deployment diagnostics](../configuration.md#diagnostics), which are
 on by default and can be switched off. Model prices come from a snapshot bundled
 with the release. An operating system installs on your own machine; nobody rents
 a kernel per seat.

@@ -1,5 +1,5 @@
 ---
-source_sha: "26245097b031"
+source_sha: "77658c876710"
 ---
 
 # O AgenticOS { #about-agenticos }
@@ -100,11 +100,12 @@ ten sam wzorzec. Różnica polega na tym, że narzędzie piszesz raz, a potem
 komponuje z nim każdy.
 
 **To nie jest usługa hostowana.** Twoje prompty, rozmowy i dokumenty zostają
-w Twojej bazie danych. Jedyne żądania wychodzące to te, które robią Twoi agenci,
-oraz [diagnostyka wdrożenia](../configuration.md#diagnostics), domyślnie włączona
-i możliwa do wyłączenia. Ceny modeli pochodzą ze snapshotu dołączonego do
-wydania. System operacyjny instaluje się na własnej maszynie; nikt nie
-wynajmuje jądra za stanowisko.
+w Twoim wdrożeniu, w jego bazie danych i magazynie. Jedyne żądania wychodzące to
+te, które robią Twoi agenci, te, których potrzebuje parser albo dostawca
+embeddingów kolekcji, oraz [diagnostyka wdrożenia](../configuration.md#diagnostics),
+domyślnie włączona i możliwa do wyłączenia. Ceny modeli pochodzą ze snapshotu
+dołączonego do wydania. System operacyjny instaluje się na własnej maszynie; nikt
+nie wynajmuje jądra za stanowisko.
 
 **To nie jest miejsce na pisanie integracji.** Integracja z produktem SaaS to
 [połączenie MCP](../mcp.md), a nie moduł Pythona, który ktoś w tym repozytorium

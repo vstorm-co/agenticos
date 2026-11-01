@@ -33,7 +33,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 
 n8n's Sustainable Use License allows use "only for your own internal business purposes or for non-commercial or personal use". Features in `.ee` files need a paid licence key. n8n's pricing page says a self-hosted licence key pings its licence server daily.
 
-AgenticOS is Apache-2.0. You may run it for clients, change it and build a product on it; check the [bundled component licences](../licenses.md#the-agpl-component) for the image you ship. A fresh install [sends nothing anywhere](../data-protection.md#nothing-leaves-by-default).
+AgenticOS is Apache-2.0. You may run it for clients, change it and build a product on it; check the [bundled component licences](../licenses.md#the-agpl-component) for the image you ship. A fresh install [sends no prompts or documents anywhere](../data-protection.md#nothing-leaves-by-default); [deployment diagnostics](../configuration.md#diagnostics) are on by default and can be switched off.
 
 ### Enterprise controls without a plan upgrade
 

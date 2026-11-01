@@ -1,5 +1,5 @@
 ---
-source_sha: "26245097b031"
+source_sha: "77658c876710"
 ---
 
 # Acerca de AgenticOS { #about-agenticos }
@@ -100,11 +100,13 @@ repositorio, y un connector, un canal o una estrategia de ingesta siguen el mism
 patrón. La diferencia es que escribes la tool una vez y después todo el mundo
 compone con ella.
 
-**No es un servicio alojado.** Tus prompts, conversaciones y documentos se
-quedan en tu propia base de datos. Las únicas peticiones salientes son las que
-hacen tus agents, más el [diagnóstico del deployment](../configuration.md#diagnostics),
-que está activado por defecto y se puede desactivar. Los precios de los modelos
-vienen de una instantánea incluida con la release. Un sistema operativo se instala en tu
+**No es un servicio alojado.** Tus prompts, conversaciones y documentos
+se quedan en tu propio deployment, en su base de datos y su almacenamiento. Las
+únicas peticiones salientes son las que hacen tus agents y las que necesita el
+parser o el provider de embeddings de una colección, más el
+[diagnóstico del deployment](../configuration.md#diagnostics), que está activado
+por defecto y se puede desactivar. Los precios de los modelos vienen de una
+instantánea incluida con la release. Un sistema operativo se instala en tu
 propia máquina; nadie alquila un kernel por puesto.
 
 **No es un sitio donde escribir integraciones.** Una integración con un producto

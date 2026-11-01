@@ -17,15 +17,18 @@ deployment has actually decided.
 
 ## What leaves by default { #nothing-leaves-by-default }
 
-A fresh deployment holds everything in its own PostgreSQL and on its own disk.
-It sends no prompts, conversations or documents anywhere. Every external hop is a
-row or a setting somebody adds afterwards: a model profile naming a provider, a
-collection choosing a parser, a search method on a spec, a Logfire token, a mem0
+A fresh deployment holds everything in its own PostgreSQL and on its own disk or
+the object storage it is configured with. It sends no prompts, conversations or
+documents anywhere. Every external hop is a row or a setting somebody adds
+afterwards: a model profile naming a provider, a collection choosing a parser or a
+remote embedding provider (which then receives the document chunks), a search
+method on a spec, a Logfire token, a mem0
 host, an MCP server, a channel bot. Remove the row and the hop is gone.
 
 One report is on by default and carries no content: [deployment
-diagnostics](#deployment-diagnostics) send installation health, coarse usage counts
-and a pseudonymous activity signal to a collector. A deployment that wants **no
+diagnostics](#deployment-diagnostics) send installation health, coarse usage
+counts, counts of failed runs, jobs and ingestions by closed category, and a
+pseudonymous activity signal to a collector. A deployment that wants **no
 outbound contact at all** sets `DIAGNOSTICS_ENABLED=false`.
 
 So a deployment that wants **no third party in the chain** configures itself
@@ -53,7 +56,7 @@ hardware creates every collection there.
 | Party | Role | What that means here |
 |---|---|---|
 | The organization deploying it (a city, a company) | **Controller** | Decides purposes, retention, which providers an agent may reach, and signs the agreements with them |
-| Vstorm, as the software's author | **Neither**, for a self-hosted deployment | The code runs on your infrastructure. Vstorm never sees your prompts, conversations or documents; unless you turn them off, it receives [deployment diagnostics](#deployment-diagnostics) |
+| Vstorm, as the software's author | **Neither**, for a self-hosted deployment | The code runs on your infrastructure. Vstorm never sees your prompts, conversations or documents. While the default collector is in use, which Vstorm operates, it receives [deployment diagnostics](#deployment-diagnostics); with `DIAGNOSTICS_ENABLED=false` or your own collector it receives none |
 | Vstorm, if it operates the deployment for you | **Processor** | A data processing agreement is a contract between us, not a setting. It has to exist before the first agent is published |
 | A model, embedding, parsing, search or observability provider | **Sub-processor**, chosen by configuration | The platform records *which* provider and *which* endpoint each agent uses. Their location, retention and training terms are theirs, and are verified per deployment |
 
@@ -172,7 +175,7 @@ complete list of destinations, with the configuration that decides each.
 
 | Destination | What is sent | Decided by | Location and terms |
 |---|---|---|---|
-| The diagnostics collector | Installation health, coarse usage counts and a pseudonymous activity signal; no prompts, conversations, file names, account names, email addresses or provider keys | `DIAGNOSTICS_ENABLED` (default `true`) and `DIAGNOSTICS_COLLECTOR_URL` | `https://analytics-agenticos.testapp.ovh` by default; [what is sent](configuration.md#diagnostics) |
+| The diagnostics collector | Installation health, coarse usage counts, counts of failed runs, jobs and ingestions by closed category, and a pseudonymous activity signal sent by each browser or app; no prompts, conversations, file names, account names, email addresses or provider keys | `DIAGNOSTICS_ENABLED` (default `true`) and `DIAGNOSTICS_COLLECTOR_URL` | `https://analytics-agenticos.testapp.ovh` by default; [what is sent](configuration.md#diagnostics) |
 | The chat model | The conversation so far, attachments pasted or described, retrieved chunks, tool results; once a night, for the [proactive work](governance.md#proactive-work), a person's recent requests, their profile and what their agent noted about them | A [model profile](models.md#a-model-profile): `provider`, `model`, `base_url` and a sealed key. Twenty-seven providers; `ollama` and `litellm` are keyless and reached at an endpoint you host, and `openai`, `anthropic`, `google`, `huggingface` and others accept a `base_url`, so an EU endpoint or a gateway is a field, not a fork. An `openai` or `azure` profile on the Responses API sends `store: false`, so the provider keeps no stored, retrievable response unless the profile sets `openai_store`; OpenAI's abuse-monitoring retention still applies unless the account has zero data retention | The provider's. Verify per profile |
 | The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at the local service the collection names (`embedding_endpoint_id`), a host you run | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse`; it must name a vault key (`llamaparse_secret_id`), there is no deployment key. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
@@ -470,8 +473,10 @@ what this page can give it. The rest is the deployment's.
 
 ## Deployment diagnostics { #deployment-diagnostics }
 
-The collector receives installation health, coarse usage buckets and pseudonymous
-foreground presence. Reporting is enabled by default, including upgrades with
+The collector receives installation health, coarse usage buckets, grouped failure
+counts (a component, a closed error code and a count, never exception text) and
+pseudonymous foreground presence, which each signed-in browser or app sends to it
+directly. Reporting is enabled by default, including upgrades with
 older `.env` files, and the default collector is a remote address,
 `https://analytics-agenticos.testapp.ovh`. See [diagnostic configuration](configuration.md#diagnostics)
 for the exact fields, retention, how to point it at your own collector, and how to
