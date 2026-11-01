@@ -117,6 +117,10 @@ class DeviceWorkspace:
         except DeviceCallFailed as exc:
             raise _as_os_error(exc) from exc
 
+    async def agent_call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+        """An `agent.*` operation: a coding agent started on this computer, in this folder."""
+        return await self._call(op, args, timeout=timeout)
+
     async def run(
         self,
         command: WorkspaceCommand,

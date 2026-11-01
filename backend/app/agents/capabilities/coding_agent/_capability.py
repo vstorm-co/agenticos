@@ -8,7 +8,7 @@ from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.coding_agent._harness import LABELS, Access, Harness
-from app.agents.capabilities.coding_agent._toolset import SignIn, build_coding_toolset
+from app.agents.capabilities.coding_agent._toolset import RunsOn, SignIn, build_coding_toolset
 
 
 @dataclass
@@ -34,6 +34,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
     # Whether other people's runs work in the same container - a project's, an
     # agent's, a channel's - where a sign-in's tokens could be read by them.
     shared_sandbox: bool = False
+    runs_on: RunsOn = "sandbox"
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -45,9 +46,13 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
             if self.access == "edit"
             else "reads and searches the code and answers, changing nothing"
         )
+        where = (
+            "on the person's own computer, in the folder they chose"
+            if self.runs_on == "this_computer"
+            else "in your sandbox"
+        )
         return (
-            f"You can hand software work to {label}, a coding agent that works in your "
-            f"sandbox: it {reach}. Use run_coding_agent with the whole task, then tell "
+            f"You can hand software work to {label}, a coding agent that works {where}: it {reach}. Use run_coding_agent with the whole task, then tell "
             "the person what it found or did. Its later tasks in this conversation "
             "continue the same session."
         )
@@ -62,6 +67,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
                 api_key=self.api_key,
                 sign_in=self.sign_in,
                 shared_sandbox=self.shared_sandbox,
+                runs_on=self.runs_on,
                 timeout_seconds=self.timeout_seconds,
             )
         return self._toolset

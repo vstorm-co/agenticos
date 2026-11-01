@@ -27,6 +27,7 @@ from app.core.secret_kinds import (
     ApiKeySecret,
     OpenAICodexSecret,
     PurposesByValue,
+    SecretCondition,
     SecretKind,
     SecretRequirement,
 )
@@ -76,6 +77,21 @@ class CodingAgentConfig(BaseModel):
             "Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
         ),
         json_schema_extra={"x-enum-labels": {"claude_code": "Claude Code", "codex": "Codex"}},
+    )
+    runs_on: Literal["sandbox", "this_computer"] = Field(
+        title="Where it runs",
+        default="sandbox",
+        description=(
+            "The agent's own sandbox, on a key stored here - or the folder a person "
+            "chooses on their own computer in the desktop app, where Claude Code and "
+            "Codex use the sign-in they already have and need no key."
+        ),
+        json_schema_extra={
+            "x-enum-labels": {
+                "sandbox": "In the agent's sandbox",
+                "this_computer": "On this computer",
+            },
+        },
     )
     access: Literal["edit", "read_only"] = Field(
         title="What it may do",
@@ -191,6 +207,8 @@ class CodingAgentConfig(BaseModel):
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         also_accepts=(SecretKind.OPENAI_CODEX,),
+        # On the person's computer the agent signs in with its own command.
+        optional_when=SecretCondition(field="runs_on", equals=("this_computer",)),
         # The harness decides the provider, so the picker and publish narrow to
         # its keys. Behind `base_url` the key is the gateway's - OpenRouter,
         # LiteLLM, z.ai - which the platform cannot tell apart, so any key fits.
@@ -231,4 +249,5 @@ def _build(ctx: CapabilityBuildContext) -> CodingAgent:
         api_key=api_key,
         sign_in=sign_in,
         shared_sandbox=ctx.resources.get(WORKSPACE_SHARED_RESOURCE) is True,
+        runs_on=config.runs_on,
     )
