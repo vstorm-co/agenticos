@@ -14,6 +14,7 @@
 //! shell's; `console.rs` is what those pages may ask of the shell, and from where.
 
 mod activity;
+mod agent_session;
 mod appearance;
 mod blobby;
 mod computer_access;
@@ -1351,6 +1352,7 @@ pub fn run() {
             }
         }))
         .manage(local_browser::Browsers::default())
+        .manage(agent_session::Sessions::default())
         .manage(native_browser::NativeBrowsers::default())
         .plugin({
             let builder = tauri_plugin_updater::Builder::new();

@@ -55,6 +55,11 @@ fn spec(id: AgentId) -> &'static Spec {
     SPECS.iter().find(|spec| spec.id == id).expect("every agent has a spec")
 }
 
+/// The name shown to the person.
+pub(crate) fn name(id: AgentId) -> &'static str {
+    spec(id).name
+}
+
 /// How long an agent's own command may take to answer a status question.
 const PROBE_SECONDS: u64 = 8;
 
@@ -113,7 +118,7 @@ fn is_executable(path: &Path) -> bool {
     }
 }
 
-fn locate(program: &str) -> Option<PathBuf> {
+pub(crate) fn locate(program: &str) -> Option<PathBuf> {
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from);

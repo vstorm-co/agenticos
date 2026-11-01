@@ -53,7 +53,7 @@ pub struct Refusal {
 }
 
 impl Refusal {
-    fn new(kind: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: &'static str, message: impl Into<String>) -> Self {
         Self {
             kind,
             message: message.into(),
@@ -280,6 +280,15 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
             _ => files_unrestricted(op, &root, asked, args).await,
         };
     }
+    let root = granted_folder(app, &root, asked)?;
+    match op {
+        "shell.run" => shell(app, &root, asked, args, false).await,
+        _ => files(op, &root, asked, args).await,
+    }
+}
+
+/// A folder the person allowed agents to work in, if the grant reaches `asked`.
+pub(crate) fn granted_folder(app: &AppHandle, root: &str, asked: Mode) -> Result<PathBuf, Refusal> {
     let grant = settings::current(app)
         .local_grants
         .into_iter()
@@ -291,13 +300,12 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
             )
         })?;
     if asked > grant.mode {
-        return Err(Refusal::new("denied", format!("You allowed less than that in {root}.")));
+        return Err(Refusal::new(
+            "denied",
+            format!("You allowed less than that in {root}. Running an agent needs full access."),
+        ));
     }
-    let root = PathBuf::from(&grant.path);
-    match op {
-        "shell.run" => shell(app, &root, asked, args, false).await,
-        _ => files(op, &root, asked, args).await,
-    }
+    Ok(PathBuf::from(grant.path))
 }
 
 fn text(args: &Map<String, Value>, key: &str) -> Result<String, Refusal> {
@@ -550,7 +558,7 @@ async fn shell(
 }
 
 /// Always stop descendants, including when the future is dropped by a lost socket.
-struct CommandTree(Box<dyn process_wrap::tokio::ChildWrapper>);
+pub(crate) struct CommandTree(pub(crate) Box<dyn process_wrap::tokio::ChildWrapper>);
 
 impl Drop for CommandTree {
     fn drop(&mut self) {
@@ -558,7 +566,7 @@ impl Drop for CommandTree {
     }
 }
 
-fn spawn_tree(command: tokio::process::Command) -> Result<CommandTree, Refusal> {
+pub(crate) fn spawn_tree(command: tokio::process::Command) -> Result<CommandTree, Refusal> {
     use process_wrap::tokio::{CommandWrap, KillOnDrop};
     let mut wrapped = CommandWrap::from(command);
     wrapped.wrap(KillOnDrop);
