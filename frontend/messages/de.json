@@ -5909,7 +5909,9 @@
       "surfaceFollowUps": "Nächste Schritte",
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
-      "standaloneResponse": "Modellantwort"
+      "standaloneResponse": "Modellantwort",
+      "systemRoleBriefing": "Tägliches Briefing (System)",
+      "systemRoleMaintenance": "Gedächtnispflege (System)"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

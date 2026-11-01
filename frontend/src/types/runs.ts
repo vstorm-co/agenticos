@@ -28,6 +28,8 @@ export interface AgentRun {
   agent_version_id: string | null;
   user_id: string | null;
   surface: string;
+  /** The platform role that did this run when no agent's instructions ran (#2575). */
+  system_role?: string | null;
   status: RunStatus;
   model_label: string | null;
   /**

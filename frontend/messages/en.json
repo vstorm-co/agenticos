@@ -6608,7 +6608,9 @@
       "surfaceFollowUps": "Follow-ups",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "systemRoleBriefing": "Daily briefing (system)",
+      "systemRoleMaintenance": "Memory maintenance (system)"
     },
     "sandboxes": {
       "addConnection": "Add connection",

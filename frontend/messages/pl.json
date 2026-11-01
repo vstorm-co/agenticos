@@ -2999,7 +2999,9 @@
       "surfaceFollowUps": "Następne kroki",
       "surfaceProactive": "Proaktywność",
       "standaloneRequest": "Żądanie do modelu",
-      "standaloneResponse": "Odpowiedź modelu"
+      "standaloneResponse": "Odpowiedź modelu",
+      "systemRoleBriefing": "Codzienny briefing (system)",
+      "systemRoleMaintenance": "Utrzymanie pamięci (system)"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
