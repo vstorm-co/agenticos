@@ -1,5 +1,5 @@
 ---
-source_sha: "1b69b2b86c1a"
+source_sha: "a5fd77dd4581"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -82,6 +82,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria | tal cual |
 | `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria | delegada |
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
+| `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | delegada |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
@@ -1528,6 +1529,7 @@ especialista.
 | `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
 | `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault. Se descarta al elegir Codex |
 | `timeout_minutes` | 15 | 1–60, por tarea |
+| `runs_on` | `sandbox` | `sandbox` ejecuta la tarea en el sandbox del agente con una clave; `this_computer` la ejecuta en la carpeta que una persona eligió en su propio ordenador en la aplicación de escritorio, con la sesión que el agente ya tiene, sin clave |
 
 **Una herramienta, y el binding decide lo que puede hacer.** Con `edit` el harness
 edita cualquier archivo y ejecuta cualquier comando en la sandbox, con sus propias
@@ -1543,6 +1545,8 @@ rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 **Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
 compuerta, está desactivada hasta que alguien la pone. No hay pestaña de
 herramientas: la única herramienta es la capability.
+
+**En este ordenador.** Con `runs_on` en `this_computer`, la misma herramienta inicia el harness en el ordenador desde el que trabaja la persona, mediante el [Agent Client Protocol](https://agentclientprotocol.com), en lugar de en el sandbox: la aplicación de escritorio inicia el adaptador del agente (`@agentclientprotocol/claude-agent-acp` o `codex-acp`, en una versión fijada) mediante `npx` y pasa bytes en ambos sentidos, y el servidor habla el protocolo. El chat debe trabajar en ese ordenador (**Work on: This computer**), en una carpeta con acceso total, porque el agente se ejecuta como la persona; cada inicio se confirma en un cuadro nativo y el agente inicia sesión con su propio comando, así que la clave es opcional. Dentro de una tarea, las peticiones de permiso del agente se responden según `access`, sin plantearlas una a una a una persona, porque una ejecución aparcada para una aprobación no podría mantener viva la sesión: la aprobación es de la capacidad, una vez por tarea. Cada tarea es una sesión nueva y una suscripción no informa de tokens que valorar, por lo que el coste de la ejecución es un mínimo. Consulta [la aplicación de escritorio](../desktop.md#coding-agents-on-this-computer).
 
 **La persona lo ve trabajar.** El harness se arranca en segundo plano en la sandbox
 (`claude -p --output-format stream-json` o `codex exec --json`), y su archivo de
@@ -1614,6 +1618,22 @@ comprueba antes de cada tarea. Codex no nombra ningún modelo en sus eventos, as
 sin `model` su uso se anota sin precio y el coste del run se marca como parcial.
 Igual se anota una tarea que termina antes de que su harness diga cuánto gastó:
 fallida, agotado su tiempo o detenida.
+
+## Watch a command { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Vigila un comando de larga duración y entérate de su salida a medida que aparece.*
+
+Permite que un agente inicie un comando que se ejecuta durante mucho tiempo - un watcher de pruebas, un tail de logs, una compilación, un sondeo de CI o de despliegue - y se entere de su salida sin consultarla. El comando se ejecuta desacoplado en el espacio de trabajo de la ejecución, con su salida en un archivo allí.
+
+Antes de cada petición al modelo se leen las líneas nuevas, se filtran con la expresión regular opcional `match` (una cadena que no es una expresión válida se compara como texto) y se ponen al final de la petición como una nota efímera, como un recordatorio de dirección, de modo que nada se escribe en el historial de la conversación. Una vigilancia que termina se notifica con su código de salida.
+
+| Herramienta | Qué hace |
+|---|---|
+| `start_monitor` | Inicia `command` con `label` y `match` opcionales; como máximo cuatro a la vez |
+| `list_monitors` | Lista las vigilancias con su estado, código de salida, cuántas líneas coincidieron y las últimas diez |
+| `stop_monitor` | Detiene una vigilancia y los procesos que inició |
+
+**Una vigilancia vive lo que la ejecución.** Cada vigilancia se detiene al terminar el turno, así que un comando nunca sobrevive al turno que lo pidió. Necesita un espacio de trabajo con shell, el sandbox o una carpeta en el ordenador de la persona; sin él, las herramientas lo dicen. Lo que imprime un comando vigilado son datos, no instrucciones, y se le dice al agente. Añade **Human approval** para preguntar antes de que arranque un comando.
 
 ## Visuals { #visuals }
 

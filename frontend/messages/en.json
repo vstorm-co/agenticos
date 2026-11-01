@@ -1715,7 +1715,13 @@
       "requestingCapability": "Asking for a capability",
       "capabilityRequest": "Capability request",
       "proposingSetup": "Proposing what to set up",
-      "setupProposals": "Things to set up"
+      "setupProposals": "Things to set up",
+      "startMonitor": "Watch a command",
+      "startingMonitor": "Starting to watch a command",
+      "listMonitors": "The watches",
+      "listingMonitors": "Listing the watches",
+      "stopMonitor": "Stop a watch",
+      "stoppingMonitor": "Stopping a watch"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -8195,6 +8201,14 @@
       "example2": "Do this every Monday at 9:00",
       "needs": "Nothing extra. The buttons show in the web chat, the widget and the hosted page.",
       "never": "Never sends anything on its own - a step goes out only when someone clicks it."
+    },
+    "monitor": {
+      "name": "Watch a command",
+      "does": "Starts a long-running command - a test watcher, a log tail, a CI poll - and tells the agent about its new output as it appears, so it does not have to poll.",
+      "example1": "Run the test watcher and fix each failure as it shows up",
+      "example2": "Tail a deploy log and report the first error",
+      "needs": "A workspace with a shell, such as the Sandbox capability or a folder on your computer.",
+      "never": "Never keeps a command running after the turn ends: every watch stops with the run."
     }
   },
   "capabilityCategories": {

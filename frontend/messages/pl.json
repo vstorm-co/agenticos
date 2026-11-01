@@ -1715,7 +1715,13 @@
       "requestingCapability": "Prosi o capability",
       "capabilityRequest": "Prośba o capability",
       "proposingSetup": "Proponuję, co ustawić",
-      "setupProposals": "Do ustawienia"
+      "setupProposals": "Do ustawienia",
+      "startMonitor": "Obserwuj polecenie",
+      "startingMonitor": "Zaczynam obserwować polecenie",
+      "listMonitors": "Obserwacje",
+      "listingMonitors": "Wypisuję obserwacje",
+      "stopMonitor": "Zatrzymaj obserwację",
+      "stoppingMonitor": "Zatrzymuję obserwację"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -7970,6 +7976,14 @@
       "example2": "Rób to w każdy poniedziałek o 9:00",
       "needs": "Nic dodatkowego. Przyciski widać w czacie, widżecie i na stronie hostowanej.",
       "never": "Nigdy nie wysyła niczego sam - krok idzie dopiero po kliknięciu."
+    },
+    "monitor": {
+      "name": "Obserwuj polecenie",
+      "does": "Uruchamia długo działające polecenie - watcher testów, ogon logu, odpytywanie CI - i na bieżąco mówi agentowi o jego nowym wyjściu, więc agent nie musi odpytywać.",
+      "example1": "Uruchom watcher testów i naprawiaj każdy błąd, gdy się pojawi",
+      "example2": "Śledź log wdrożenia i zgłoś pierwszy błąd",
+      "needs": "Przestrzeń robocza z powłoką, np. capability Sandbox albo folder na twoim komputerze.",
+      "never": "Nigdy nie zostawia polecenia po końcu tury: każda obserwacja kończy się razem z przebiegiem."
     }
   },
   "capabilityCategories": {

@@ -1715,7 +1715,13 @@
       "requestingCapability": "Bittet um eine Capability",
       "capabilityRequest": "Bitte um eine Capability",
       "proposingSetup": "Schlage vor, was sich einrichten lässt",
-      "setupProposals": "Zum Einrichten"
+      "setupProposals": "Zum Einrichten",
+      "startMonitor": "Einen Befehl beobachten",
+      "startingMonitor": "Beobachtung eines Befehls beginnt",
+      "listMonitors": "Die Beobachtungen",
+      "listingMonitors": "Beobachtungen werden aufgelistet",
+      "stopMonitor": "Eine Beobachtung beenden",
+      "stoppingMonitor": "Beobachtung wird beendet"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -8074,6 +8080,14 @@
       "example2": "Mach das jeden Montag um 9:00",
       "needs": "Nichts weiter. Die Buttons erscheinen im Web-Chat, im Widget und auf der gehosteten Seite.",
       "never": "Sendet nie etwas von selbst - ein Schritt geht erst nach einem Klick raus."
+    },
+    "monitor": {
+      "name": "Einen Befehl beobachten",
+      "does": "Startet einen lange laufenden Befehl - einen Test-Watcher, einen Log-Tail, eine CI-Abfrage - und meldet dem Agenten seine neue Ausgabe, sobald sie erscheint, damit er nicht abfragen muss.",
+      "example1": "Den Test-Watcher starten und jeden Fehler beheben, sobald er auftaucht",
+      "example2": "Ein Deploy-Log verfolgen und den ersten Fehler melden",
+      "needs": "Ein Arbeitsbereich mit Shell, etwa die Sandbox-Capability oder ein Ordner auf deinem Computer.",
+      "never": "Lässt nie einen Befehl über das Ende der Runde hinaus laufen: Jede Beobachtung endet mit dem Lauf."
     }
   },
   "capabilityCategories": {

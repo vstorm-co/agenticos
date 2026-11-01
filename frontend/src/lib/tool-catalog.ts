@@ -424,6 +424,27 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
 
+  // monitor - a long-running command watched while the agent works. Starting one is a
+  // shell step; what it matched so far and its state read as plain text.
+  start_monitor: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "startingMonitor",
+    displayNameKey: "startMonitor",
+  },
+  list_monitors: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingMonitors",
+    displayNameKey: "listMonitors",
+  },
+  stop_monitor: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "stoppingMonitor",
+    displayNameKey: "stopMonitor",
+  },
+
   // code_execution
   run_python: {
     kind: "code",

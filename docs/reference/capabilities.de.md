@@ -1,5 +1,5 @@
 ---
-source_sha: "1b69b2b86c1a"
+source_sha: "a5fd77dd4581"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -83,6 +83,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `text_to_speech` | Sprachausgabe | analysis | `generate_speech` | — | erforderlich | unverändert |
 | `video_generation` | Videoerzeugung | analysis | `generate_video` | — | erforderlich | übergeben |
 | `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich | übergeben |
+| `monitor` | Einen Befehl beobachten | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | übergeben |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | übergeben |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | unverändert |
 | `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — | abgebildet |
@@ -1590,6 +1591,7 @@ jeden Spezialisten.
 | `model` | Standard des Harness | Claude Opus, Sonnet oder Haiku 5.5 für Claude Code; GPT-5.6 Sol, Terra, Luna oder GPT-5.3 Codex für Codex |
 | `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt. Entfällt, sobald Codex gewählt ist |
 | `timeout_minutes` | 15 | 1–60, pro Aufgabe |
+| `runs_on` | `sandbox` | `sandbox` führt die Aufgabe in der Sandbox des Agenten mit einem Schlüssel aus; `this_computer` führt sie im Ordner aus, den eine Person auf ihrem eigenen Computer in der Desktop-App gewählt hat, mit der Anmeldung, die der Agent schon hat, ohne Schlüssel |
 
 **Ein Tool, und das Binding entscheidet, was es darf.** Bei `edit` bearbeitet das
 Harness jede Datei und führt jeden Befehl im Sandbox aus, mit abgeschalteten eigenen
@@ -1606,6 +1608,8 @@ und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufga
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
 gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
 Tools-Tab: Das eine Tool ist die Capability.
+
+**Auf diesem Computer.** Steht `runs_on` auf `this_computer`, startet dasselbe Tool den Harness auf dem Computer, an dem die Person arbeitet, über das [Agent Client Protocol](https://agentclientprotocol.com), statt in der Sandbox: Die Desktop-App startet den Adapter des Agenten (`@agentclientprotocol/claude-agent-acp` oder `codex-acp`, in fester Version) über `npx` und reicht Bytes in beide Richtungen weiter, und der Server spricht das Protokoll. Der Chat muss auf diesem Computer arbeiten (**Work on: This computer**), in einem Ordner mit Vollzugriff, weil der Agent als die Person läuft; jeder Start wird in einem nativen Dialog bestätigt, und der Agent meldet sich mit seinem eigenen Befehl an, sodass der Schlüssel optional ist. Innerhalb einer Aufgabe werden die Berechtigungsanfragen des Agenten aus `access` beantwortet und nicht einzeln einer Person vorgelegt, weil ein auf eine Freigabe geparkter Lauf die Sitzung nicht am Leben halten könnte: Die Freigabe gehört der Capability, einmal pro Aufgabe. Jede Aufgabe ist eine neue Sitzung, und ein Abonnement meldet keine Tokens zum Bepreisen, daher sind die Kosten des Laufs eine Untergrenze. Siehe [die Desktop-App](../desktop.md#coding-agents-on-this-computer).
 
 **Man sieht ihm bei der Arbeit zu.** Das Harness wird im Sandbox im Hintergrund
 gestartet (`claude -p --output-format stream-json` oder `codex exec --json`), und
@@ -1682,6 +1686,20 @@ jeder Aufgabe geprüft. Codex nennt in seinen Ereignissen kein Modell, daher wir
 seine Nutzung ohne gesetztes `model` ohne Preis gebucht und die Kosten des Runs als
 unvollständig markiert. Ebenso gebucht wird eine Aufgabe, die endet, bevor ihr
 Harness meldet, was sie verbraucht hat - fehlgeschlagen, abgelaufen oder gestoppt.
+
+## Einen Befehl beobachten { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Einen lange laufenden Befehl beobachten und seine Ausgabe erfahren, sobald sie erscheint.*
+
+Lässt einen Agenten einen lange laufenden Befehl starten - einen Test-Watcher, einen Log-Tail, einen Build, eine CI- oder Deploy-Abfrage - und seine Ausgabe erfahren, ohne nachzufragen. Der Befehl läuft losgelöst im Arbeitsbereich des Laufs, seine Ausgabe geht dort in eine Datei. Vor jeder Modellanfrage werden die neuen Zeilen gelesen, mit dem optionalen regulären Ausdruck `match` gefiltert (ein Text, der kein gültiger Ausdruck ist, wird als Text verglichen) und als flüchtige Notiz ans Ende der Anfrage gesetzt, wie eine Steuerungserinnerung, sodass nichts in den Gesprächsverlauf geschrieben wird. Eine Beobachtung, die endet, wird mit ihrem Exit-Code gemeldet.
+
+| Tool | Was es tut |
+|---|---|
+| `start_monitor` | Startet `command` mit optionalem `label` und `match`; höchstens vier laufen gleichzeitig |
+| `list_monitors` | Listet die Beobachtungen mit Zustand, Exit-Code, Anzahl passender Zeilen und den letzten zehn |
+| `stop_monitor` | Beendet eine Beobachtung und die Prozesse, die sie gestartet hat |
+
+**Eine Beobachtung lebt so lange wie der Lauf.** Jede Beobachtung wird am Ende der Runde beendet, sodass ein Befehl nie die Runde überlebt, die ihn verlangt hat. Nötig ist ein Arbeitsbereich mit Shell, die Sandbox oder ein Ordner auf dem Computer der Person; ohne ihn sagen die Tools das. Was ein beobachteter Befehl ausgibt, sind Daten, keine Anweisungen, und der Agent wird darauf hingewiesen. Füge **Human approval** hinzu, um vor dem Start eines Befehls zu fragen.
 
 ## Visuals { #visuals }
 

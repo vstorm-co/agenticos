@@ -1,5 +1,5 @@
 ---
-source_sha: "1b69b2b86c1a"
+source_sha: "a5fd77dd4581"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -82,6 +82,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
 | `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `monitor` | Obserwuj polecenie | analiza | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | przekazana |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
@@ -1496,6 +1497,7 @@ a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
 | `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
 | `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
 | `timeout_minutes` | 15 | 1–60, na jedno zadanie |
+| `runs_on` | `sandbox` | `sandbox` uruchamia zadanie w sandboxie agenta na kluczu; `this_computer` uruchamia je w folderze wybranym przez osobę na jej komputerze w aplikacji desktopowej, na logowaniu, które agent już ma, bez klucza |
 
 **Jedno narzędzie, a binding decyduje, co wolno.** Przy `edit` harness edytuje
 dowolny plik i uruchamia dowolne polecenie w sandboxie z wyłączonymi własnymi
@@ -1511,6 +1513,8 @@ odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadanie
 **Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
+
+**Na tym komputerze.** Gdy `runs_on` ma wartość `this_computer`, to samo narzędzie uruchamia harness na komputerze, z którego osoba pracuje, przez [Agent Client Protocol](https://agentclientprotocol.com), zamiast w sandboxie: aplikacja desktopowa uruchamia adapter agenta (`@agentclientprotocol/claude-agent-acp` lub `codex-acp`, w przypiętej wersji) przez `npx` i przekazuje bajty w obie strony, a protokół prowadzi serwer. Czat musi pracować na tym komputerze (**Work on: This computer**), w folderze z pełnym dostępem, bo agent działa jako osoba; każdy start jest potwierdzany w natywnym oknie, a agent loguje się własnym poleceniem, więc klucz jest opcjonalny. W zadaniu prośby agenta o pozwolenie są rozstrzygane z `access`, a nie pytane po jednej, bo przebieg zaparkowany na zatwierdzenie nie utrzymałby sesji: zatwierdzenie należy do capability, raz na zadanie. Zadanie to za każdym razem nowa sesja, a subskrypcja nie zgłasza tokenów do wyceny, więc koszt przebiegu jest dolną granicą. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
 
 **Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
 (`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego
@@ -1579,6 +1583,20 @@ zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `m
 jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy. Tak
 samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
 nieudane, przerwane limitem czasu albo zatrzymane.
+
+## Obserwuj polecenie { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Obserwuj długo działające polecenie i dowiaduj się o jego wyjściu, gdy się pojawia.*
+
+Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, ogon logu, build, odpytywanie CI lub wdrożenia - i dowiadywać się o jego wyjściu bez odpytywania. Polecenie działa odłączone w przestrzeni roboczej przebiegu, a jego wyjście trafia tam do pliku. Przed każdym zapytaniem do modelu nowe linie są odczytywane, filtrowane opcjonalnym wyrażeniem regularnym `match` (tekst, który nie jest poprawnym wyrażeniem, jest dopasowywany jako tekst) i dodawane na końcu zapytania jako tymczasowa notatka, tak jak przypomnienie sterujące, więc nic nie trafia do historii rozmowy. Obserwacja, która się zakończy, jest zgłaszana z kodem wyjścia.
+
+| Narzędzie | Co robi |
+|---|---|
+| `start_monitor` | Uruchamia `command` z opcjonalnymi `label` i `match`; naraz działają co najwyżej cztery |
+| `list_monitors` | Wypisuje obserwacje ze stanem, kodem wyjścia, liczbą dopasowanych linii i ostatnimi dziesięcioma |
+| `stop_monitor` | Zatrzymuje jedną obserwację i uruchomione przez nią procesy |
+
+**Obserwacja żyje tyle, co przebieg.** Każda obserwacja jest zatrzymywana na końcu tury, więc polecenie nigdy nie przeżywa tury, która o nie poprosiła. Wymaga przestrzeni roboczej z powłoką, czyli sandboxa albo folderu na komputerze osoby; bez niej narzędzia o tym mówią. To, co drukuje obserwowane polecenie, to dane, a nie instrukcje, i agent o tym wie. Dodaj **Human approval**, żeby pytać przed startem polecenia.
 
 ## Wizualizacje { #visuals }
 
