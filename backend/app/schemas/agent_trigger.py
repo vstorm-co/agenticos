@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -448,6 +449,15 @@ class TriggerCreate(BaseSchema):
             "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
         ),
     )
+    monthly_budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "What this routine's runs may cost in a calendar month. Once spent its fires are "
+            "skipped - it shows as paused for its budget - and it starts again on the first. "
+            "Narrows the agent's and the organization's limits; never lifts them (#2575)"
+        ),
+    )
     answer_to: Literal["run_log", "primary", "conversation"] = Field(
         default="primary",
         description=(
@@ -675,6 +685,11 @@ class TriggerUpdate(BaseSchema):
             "of GET /channels/teams-conversations. Null posts nowhere (#1985)"
         ),
     )
+    monthly_budget_usd: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="This routine's own monthly limit; null removes it",
+    )
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
     )
@@ -755,6 +770,11 @@ class TriggerRead(BaseSchema, TimestampSchema):
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     delivery_conversation_id: UUID | None = None
     ends_at: datetime | None = None
+    monthly_budget_usd: Decimal | None = None
+    spent_this_month: Decimal | None = None
+    """What this routine's runs cost this month; set only where `monthly_budget_usd` is."""
+    paused_for_budget: bool = False
+    """Its month's budget is spent, so fires are skipped until the first."""
     runs_as_creator: bool = False
     local_target: LocalTarget | None = None
     trigger_type: Literal["schedule", "event"]

@@ -1,5 +1,5 @@
 ---
-source_sha: "046c3c0825f5"
+source_sha: "2df43efb8afc"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -85,6 +85,12 @@ die Verbindungen des Erstellers geliefert haben.
 `ends_at` stoppt eine Routine von selbst, für „behalte das bis Freitag im Auge". Der erste danach fällige
 Lauf pausiert den Trigger, statt ihn auszuführen, und hält `ended` im Audit-Trail fest; ein bereits
 vergangenes Ende wird abgelehnt. Zum Fortsetzen braucht es ein späteres `ends_at` oder keines.
+
+`monthly_budget_usd` gibt einer Routine ein eigenes Limit: was die von ihr gestarteten Läufe in einem
+Kalendermonat kosten dürfen. Ist es aufgebraucht, werden ihre Läufe übersprungen, bevor ein Run geöffnet
+wird, die Routine wird als wegen ihres Budgets pausiert angezeigt und startet am Ersten neu, ohne dass man
+etwas fortsetzen muss. Es verengt nur die Limits des Agenten und der Organisation. Ein Lauf, der beim
+Überschreiten schon läuft, wird beendet, denn das Limit gilt dem Ausgegebenen, nicht einer Prognose.
 
 ## Wo sie im Produkt liegen, und wie man sie nennt { #where-they-live-in-the-product-and-what-to-call-them }
 

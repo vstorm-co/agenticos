@@ -13,6 +13,8 @@ import asyncio
 import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
@@ -133,6 +135,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "answer_to": "run_log",
         "delivery_conversation_id": None,
         "ends_at": None,
+        "monthly_budget_usd": None,
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -4360,6 +4363,124 @@ class TestChoosingWhereTheAnswerGoes:
     def test_the_schema_refuses_a_null_answer_destination_on_edit(self):
         with pytest.raises(PydanticValidationError):
             TriggerUpdate.model_validate({"answer_to": None})
+
+
+class TestARoutinesOwnBudget:
+    """A routine can carry a monthly limit of its own, and skips its fires once it is spent (#2575)."""
+
+    @staticmethod
+    async def _fire(trigger: MagicMock, spent: dict | None):
+        service = _service()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=None)
+            runs.spend_by_trigger_since = AsyncMock(return_value=spent or {})
+            await service.fire(trigger.id)
+        return runs.spend_by_trigger_since, members.get_active, runner_cls
+
+    async def test_a_spent_routine_skips_its_fire_and_stays_on(self):
+        trigger = _trigger(monthly_budget_usd=Decimal("5"))
+
+        spend, members, runner = await self._fire(trigger, {trigger.id: Decimal("5.0")})
+
+        spend.assert_awaited_once()
+        members.assert_not_awaited()
+        runner.assert_not_called()
+        assert trigger.is_active is True, "it starts again on the first, with nothing to resume"
+
+    async def test_a_routine_with_budget_left_goes_on_to_fire(self):
+        trigger = _trigger(monthly_budget_usd=Decimal("5"))
+
+        _, members, _ = await self._fire(trigger, {trigger.id: Decimal("4.99")})
+
+        members.assert_awaited_once()
+
+    async def test_a_routine_that_has_not_spent_anything_is_not_spent(self):
+        trigger = _trigger(monthly_budget_usd=Decimal("5"))
+
+        _, members, _ = await self._fire(trigger, {})
+
+        members.assert_awaited_once()
+
+    async def test_a_routine_with_no_limit_of_its_own_asks_nothing(self):
+        trigger = _trigger()
+
+        spend, members, _ = await self._fire(trigger, None)
+
+        spend.assert_not_awaited()
+        members.assert_awaited_once()
+
+    async def test_the_listings_say_what_was_spent_and_whether_it_is_all_of_it(self):
+        agent = _agent()
+        service = _service(agent)
+        spent_row = _trigger(monthly_budget_usd=Decimal("2"), agent_id=agent.id)
+        fresh_row = _trigger(monthly_budget_usd=Decimal("2"), agent_id=agent.id)
+        plain_row = _trigger(agent_id=agent.id)
+        rows = [spent_row, fresh_row, plain_row]
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=True)),
+            patch("app.services.agent_trigger.TriggerRead.model_validate") as validate,
+        ):
+            repo.list_for_agent = AsyncMock(return_value=rows)
+            runs.spend_by_trigger_since = AsyncMock(return_value={spent_row.id: Decimal("2.5")})
+            validate.side_effect = lambda row: SimpleNamespace(
+                spent_this_month=None, paused_for_budget=False, can_manage=False
+            )
+            reads = await service.list_for_agent(_ctx(), agent.id)
+
+        assert [(r.spent_this_month, r.paused_for_budget) for r in reads] == [
+            (Decimal("2.5"), True),
+            (Decimal(0), False),
+            (None, False),
+        ]
+        assert runs.spend_by_trigger_since.await_args.kwargs["trigger_ids"] == [
+            spent_row.id,
+            fresh_row.id,
+        ]
+
+    async def test_no_budgeted_routine_means_no_spend_query(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.agent_run_repo") as runs,
+            patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=True)),
+        ):
+            repo.list_for_agent = AsyncMock(return_value=[])
+            runs.spend_by_trigger_since = AsyncMock()
+            await service.list_for_agent(_ctx(), agent.id)
+
+        runs.spend_by_trigger_since.assert_not_awaited()
+
+    async def test_the_limit_is_stored_when_the_routine_is_made_and_must_be_positive(self):
+        agent = _agent()
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+        ):
+            repo.create = AsyncMock(return_value=_trigger())
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            await service.create(
+                _ctx(),
+                agent.id,
+                TriggerCreate(prompt="x", interval_seconds=600, monthly_budget_usd=Decimal("3")),
+            )
+
+        assert repo.create.call_args.kwargs["monthly_budget_usd"] == Decimal("3")
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(prompt="x", interval_seconds=600, monthly_budget_usd=Decimal("0"))
+        with pytest.raises(PydanticValidationError):
+            TriggerUpdate(monthly_budget_usd=Decimal("-1"))
 
 
 class TestASharedMailbox:

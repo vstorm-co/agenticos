@@ -132,6 +132,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       </button>
       {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
       {!trigger.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
+      {trigger.is_active && trigger.paused_for_budget && (
+        <Badge variant="secondary">{t("pausedBudget")}</Badge>
+      )}
       {trigger.can_manage && (
         <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
           <Button

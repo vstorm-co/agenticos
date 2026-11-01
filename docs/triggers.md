@@ -75,6 +75,12 @@ change, since it decides who reads what the creator's connections returned.
 it pauses the trigger instead of running it and records `ended` in the audit trail; an end that is already
 past is refused. Resuming it needs a later `ends_at` or none.
 
+`monthly_budget_usd` gives a routine a limit of its own: what the runs it started may cost in a calendar
+month. Once that is spent its fires are skipped before a run is opened, the routine shows as paused for
+its budget, and it starts again on the first with nothing to resume by hand. It only narrows the agent's
+and the organization's limits. A fire already running when the limit is crossed finishes, because the
+limit is on what has been spent, not on a forecast.
+
 ## Where they live in the product, and what to call them
 
 **Routines** is the umbrella - the nav, the page, the agent's own panel, the chat

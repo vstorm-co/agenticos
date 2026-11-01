@@ -1,5 +1,5 @@
 ---
-source_sha: "046c3c0825f5"
+source_sha: "2df43efb8afc"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -81,6 +81,12 @@ triggera w imieniu twórcy, bo decyduje o tym, kto czyta to, co zwróciły poł�
 `ends_at` zatrzymuje rutynę samoczynnie, na „miej to na oku do piątku”. Pierwsze uruchomienie
 przypadające po nim wstrzymuje trigger zamiast go wykonać i zapisuje `ended` w ścieżce audytu; koniec
 już przeszły jest odrzucany. Wznowienie wymaga późniejszego `ends_at` albo żadnego.
+
+`monthly_budget_usd` daje rutynie własny limit: ile mogą kosztować uruchomienia, które rozpoczęła, w
+miesiącu kalendarzowym. Gdy zostanie wykorzystany, jej uruchomienia są pomijane, zanim otworzy się run,
+rutyna jest pokazana jako wstrzymana z powodu budżetu i rusza od pierwszego bez ręcznego wznawiania.
+Tylko zawęża limity agenta i organizacji. Uruchomienie, które trwa w chwili przekroczenia limitu, kończy
+się, bo limit dotyczy tego, co wydano, a nie prognozy.
 
 ## Gdzie żyją w produkcie i jak je nazywać { #where-they-live-in-the-product-and-what-to-call-them }
 

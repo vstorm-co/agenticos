@@ -8305,7 +8305,11 @@
       "primary": "Jedes Ergebnis wird auch in Ihrer eigenen Unterhaltung mit diesem Agenten gepostet, sodass alles an einem Ort steht.",
       "run_log": "Ergebnisse bleiben im Ausführungsprotokoll; in Ihren Chats wird nichts gepostet.",
       "conversation": "Jedes Ergebnis wird in dem Chat gepostet, für den diese Routine erstellt wurde."
-    }
+    },
+    "budgetLabel": "Monatsbudget (USD, optional)",
+    "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
+    "budgetPlaceholder": "Kein eigenes Limit",
+    "pausedBudget": "Pausiert - Budget"
   },
   "portals": {
     "mailboxInterval": {

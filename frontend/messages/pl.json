@@ -7274,7 +7274,11 @@
       "primary": "Każdy wynik trafia też do Twojej własnej rozmowy z tym agentem, więc wszystko, co Ci mówi, jest w jednym miejscu.",
       "run_log": "Wyniki zostają w dzienniku uruchomień; nic nie trafia do Twoich czatów.",
       "conversation": "Każdy wynik trafia na czat, dla którego utworzono tę rutynę."
-    }
+    },
+    "budgetLabel": "Miesięczny budżet (USD, opcjonalnie)",
+    "budgetHint": "Ile ta rutyna może wydać w miesiącu. Po wykorzystaniu wstrzymuje się i rusza od pierwszego. Zawęża limity agenta i organizacji, nigdy ich nie podnosi.",
+    "budgetPlaceholder": "Bez własnego limitu",
+    "pausedBudget": "Wstrzymana - budżet"
   },
   "portals": {
     "mailboxInterval": {

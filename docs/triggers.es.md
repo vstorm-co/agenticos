@@ -1,5 +1,5 @@
 ---
-source_sha: "046c3c0825f5"
+source_sha: "2df43efb8afc"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -84,6 +84,12 @@ deja de actuar como su creador, porque eso decide quién lee lo que devolvieron 
 `ends_at` detiene una rutina por sí sola, para "vigila esto hasta el viernes". La primera ejecución
 debida después pausa el trigger en lugar de ejecutarlo y registra `ended` en la pista de auditoría; un fin
 que ya pasó se rechaza. Reanudarlo requiere un `ends_at` posterior o ninguno.
+
+`monthly_budget_usd` da a una rutina un límite propio: lo que pueden costar en un mes natural las
+ejecuciones que inició. Cuando se agota, sus disparos se omiten antes de abrir una ejecución, la rutina
+aparece pausada por su presupuesto y vuelve a empezar el día uno sin nada que reanudar a mano. Solo
+estrecha los límites del agente y de la organización. Un disparo que ya está en curso cuando se cruza el
+límite termina, porque el límite es sobre lo gastado, no sobre una previsión.
 
 ## Dónde viven en el producto, y cómo llamarlos { #where-they-live-in-the-product-and-what-to-call-them }
 

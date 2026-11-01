@@ -37,6 +37,7 @@ import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -104,6 +105,7 @@ from app.services.notifications import NotificationService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
+from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 logger = logging.getLogger(__name__)
@@ -468,6 +470,7 @@ class AgentTriggerService:
             read = TriggerRead.model_validate(trigger)
             read.can_manage = can_run and (can_edit or trigger.created_by_user_id == ctx.subject_id)
             reads.append(read)
+        await self._mark_spend(list(zip(reads, rows, strict=True)))
         return reads
 
     async def list_for_organization(
@@ -529,6 +532,7 @@ class AgentTriggerService:
                 can_edit[agent.id] or trigger.created_by_user_id == ctx.subject_id
             )
             triggers.append(read)
+        await self._mark_spend(list(zip(triggers, [row for row, _ in rows], strict=True)))
         return triggers, total
 
     async def list_portals(self, ctx: AuthContext) -> list[PortalRead]:
@@ -852,6 +856,7 @@ class AgentTriggerService:
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
+            monthly_budget_usd=data.monthly_budget_usd,
         )
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -2084,6 +2089,9 @@ class AgentTriggerService:
             # the routine, the way a creator who left does, with the reason on record.
             await self._disable(trigger, reason="ended")
             return
+        if await self._spent_its_month(trigger):
+            logger.info("trigger_fire_skipped_budget", extra={"trigger_id": str(trigger.id)})
+            return
         ctx = await self._creator_context(trigger)
         if ctx is None:
             # No *active* membership to take a role from - the creator left the
@@ -2395,6 +2403,34 @@ class AgentTriggerService:
                 message="Conversation not found",
                 details={"delivery_conversation_id": str(conversation_id)},
             )
+
+    async def _spent_its_month(self, trigger: AgentTrigger) -> bool:
+        """Whether this routine's own monthly budget is used up (#2575).
+
+        Checked before a run is opened, so a spent routine costs nothing and is not
+        retried: the skip is the whole answer until the calendar month turns. One fire
+        in flight when the limit is crossed finishes - the limit is on what has
+        already been spent, not on a forecast.
+        """
+        if trigger.monthly_budget_usd is None:
+            return False
+        spent = await agent_run_repo.spend_by_trigger_since(
+            self.db, trigger_ids=[trigger.id], since=month_start()
+        )
+        return spent.get(trigger.id, Decimal(0)) >= trigger.monthly_budget_usd
+
+    async def _mark_spend(self, reads: list[tuple[TriggerRead, AgentTrigger]]) -> None:
+        """Say, on each read that has a budget, what it has spent and whether that is all of it."""
+        budgeted = [(read, row) for read, row in reads if row.monthly_budget_usd is not None]
+        if not budgeted:
+            return
+        spent = await agent_run_repo.spend_by_trigger_since(
+            self.db, trigger_ids=[row.id for _, row in budgeted], since=month_start()
+        )
+        for read, row in budgeted:
+            used = spent.get(row.id, Decimal(0))
+            read.spent_this_month = used
+            read.paused_for_budget = used >= (row.monthly_budget_usd or Decimal(0))
 
     async def _deliver(
         self, trigger: AgentTrigger, *, agent: Agent, run: AgentRun, answer: str

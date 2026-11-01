@@ -8426,7 +8426,11 @@
       "primary": "Each result is also posted to your own conversation with this agent, so everything it tells you is in one place.",
       "run_log": "Results stay in the run log; nothing is posted to your chats.",
       "conversation": "Each result is posted to the chat this routine was made for."
-    }
+    },
+    "budgetLabel": "Monthly budget (USD, optional)",
+    "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
+    "budgetPlaceholder": "No limit of its own",
+    "pausedBudget": "Paused - budget"
   },
   "portals": {
     "mailboxInterval": {
