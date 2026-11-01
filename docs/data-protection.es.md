@@ -1,5 +1,5 @@
 ---
-source_sha: "4c1509774714"
+source_sha: "5ce8f83008f5"
 ---
 
 # Protección de datos { #data-protection }
@@ -20,14 +20,23 @@ que el software puede hacer y lo que un deployment ha decidido de verdad.
     condiciones aparece abajo como algo que hay que obtener y verificar, nunca
     como algo que se da por supuesto.
 
-## Por defecto no sale nada { #nothing-leaves-by-default }
+## Qué sale por defecto { #nothing-leaves-by-default }
 
 Un deployment recién instalado lo guarda todo en su propio PostgreSQL y en su
-propio disco, y no envía nada a ninguna parte. Cada salto al exterior es una
-fila o un ajuste que alguien añade después: un perfil de modelo que nombra un
-provider, una colección que elige un parser, un método de búsqueda en un spec,
-un token de Logfire, un host de mem0, un servidor MCP, un bot de canal. Quita la
-fila y el salto desaparece.
+propio disco, o en el almacenamiento de objetos con el que esté configurado. No
+envía ningún prompt, conversación ni documento a ninguna parte. Cada salto al
+exterior es una fila o un ajuste que alguien añade después: un perfil de modelo
+que nombra un provider, una colección que elige un parser o un provider de
+embeddings remoto (que entonces recibe los chunks de los documentos), un método
+de búsqueda en un spec, un token de Logfire, un host de mem0, un servidor MCP, un
+bot de canal. Quita la fila y el salto desaparece.
+
+Un informe está activado por defecto y no lleva contenido: el
+[diagnóstico del deployment](#deployment-diagnostics) envía a un colector el
+estado de la instalación, recuentos de uso aproximados, recuentos de runs, jobs
+e ingestas fallidos por categoría cerrada y una señal de actividad seudónima. Un
+deployment que quiere **ningún contacto saliente** establece
+`DIAGNOSTICS_ENABLED=false`.
 
 Así que un deployment que no quiere **ninguna tercera parte en la cadena** se
 configura así y el software coopera:
@@ -55,7 +64,7 @@ colecciones.
 | Parte | Rol | Qué significa aquí |
 |---|---|---|
 | La organización que lo despliega (una ciudad, una empresa) | **Responsable del tratamiento** | Decide finalidades, retención, a qué providers puede llegar un agent, y firma los acuerdos con ellos |
-| Vstorm, como autor del software | **Ninguno de los dos**, en un deployment autoalojado | El código se ejecuta en tu infraestructura y nada llama a casa. Vstorm nunca ve tus datos |
+| Vstorm, como autor del software | **Ninguno de los dos**, en un deployment autoalojado | El código se ejecuta en tu infraestructura. Vstorm nunca ve tus prompts, conversaciones ni documentos. Mientras se use el colector por defecto, que opera Vstorm, este recibe el [diagnóstico del deployment](#deployment-diagnostics); con `DIAGNOSTICS_ENABLED=false` o con tu propio colector no recibe ninguno |
 | Vstorm, si opera el deployment por ti | **Encargado del tratamiento** | Un contrato de encargo de tratamiento es un contrato entre nosotros, no un ajuste. Tiene que existir antes de publicar el primer agent |
 | Un provider de modelos, embeddings, parseo, búsqueda u observabilidad | **Subencargado**, elegido por configuración | La plataforma registra *qué* provider y *qué* endpoint usa cada agent. Su ubicación, su retención y sus condiciones de entrenamiento son suyas, y se verifican en cada deployment |
 
@@ -171,11 +180,14 @@ archivos sin fila.
 
 ## Qué sale del deployment { #what-leaves-the-deployment }
 
-No sale nada mientras una fila o un ajuste no nombre un destino. Esta es la
-lista completa de destinos, con la configuración que decide cada uno.
+No sale nada mientras una fila o un ajuste no nombre un destino, con una
+excepción: el [diagnóstico del deployment](#deployment-diagnostics) está activado
+por defecto. Esta es la lista completa de destinos, con la configuración que
+decide cada uno.
 
 | Destino | Qué se envía | Lo decide | Ubicación y condiciones |
 |---|---|---|---|
+| El colector de diagnóstico | Estado de la instalación, recuentos de uso aproximados, recuentos de runs, jobs e ingestas fallidos por categoría cerrada, y una señal de actividad seudónima que envía cada navegador o app; ningún prompt, conversación, nombre de archivo, nombre de cuenta, correo electrónico ni clave de provider | `DIAGNOSTICS_ENABLED` (por defecto `true`) y `DIAGNOSTICS_COLLECTOR_URL` | `https://analytics-agenticos.testapp.ovh` por defecto; [qué se envía](configuration.md#diagnostics) |
 | El modelo de chat | La conversación hasta ese punto, los adjuntos pegados o descritos, los chunks recuperados, los resultados de herramientas; una vez por noche, para el [trabajo por iniciativa propia](governance.md#proactive-work), las peticiones recientes de una persona, su perfil y lo que su agent anotó sobre ella | Un [perfil de modelo](models.md#a-model-profile): `provider`, `model`, `base_url` y una clave sellada. Veintisiete providers; `ollama` y `litellm` no llevan clave y se alcanzan en un endpoint que alojas tú, y `openai`, `anthropic`, `google`, `huggingface` y otros aceptan una `base_url`, así que un endpoint en la UE o una pasarela es un campo, no una bifurcación. Un perfil `openai` o `azure` en la Responses API envía `store: false`, así que el provider no guarda una respuesta almacenada y recuperable salvo que el perfil fije `openai_store`; la retención de OpenAI para vigilar abusos sigue aplicándose salvo que la cuenta tenga zero data retention | La del provider. Verifícalo por perfil |
 | El modelo de embeddings | Cada chunk de cada documento de una colección, y cada consulta de recuperación | Por colección, y solo ahí: `embedding_provider` (`openrouter`, `openai` u `ollama`, del catálogo) y, para los dos primeros, la clave del vault `embedding_secret_id` que paga. No hay clave de embeddings a nivel de deployment; una colección con clave que no nombre ninguna rechaza indexar y buscar. `ollama` no lleva clave y se alcanza en el servicio local que nombra la colección (`embedding_endpoint_id`), un host que operas tú | La del provider, o tu propio host. [Una elección permanente](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | El documento entero | Una colección cuyo `pdf_parser` sea `llamaparse`; tiene que nombrar una clave del vault (`llamaparse_secret_id`), no hay clave de deployment. El `pymupdf` por defecto parsea en el worker | La de LlamaCloud, si se usa |
@@ -494,7 +506,12 @@ tiene lo que esta página puede darle. El resto es del deployment.
 
 ## Diagnóstico del despliegue { #deployment-diagnostics }
 
-El colector opcional recibe estado de instalación, rangos de uso y presencia
-seudónima en primer plano. Los informes están activados por defecto, incluso con
-un `.env` antiguo. La [configuración de diagnóstico](configuration.md#diagnostics)
-detalla campos, retención, origen local provisional y desactivación.
+El colector recibe estado de instalación, rangos de uso, recuentos agrupados de
+fallos (un componente, un código de error cerrado y un recuento, nunca el texto
+de una excepción) y presencia seudónima en primer plano, que cada navegador o app
+con sesión iniciada le envía directamente. Los informes están activados por
+defecto, incluso con un `.env` antiguo, y el colector por defecto es una
+dirección remota, `https://analytics-agenticos.testapp.ovh`. La
+[configuración de diagnóstico](configuration.md#diagnostics) detalla campos,
+retención, cómo apuntarlo a tu propio colector y cómo desactivarlo con
+`DIAGNOSTICS_ENABLED=false`.

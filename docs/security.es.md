@@ -1,5 +1,5 @@
 ---
-source_sha: "738a7d3bb6fa"
+source_sha: "28251d1c4760"
 ---
 
 # Seguridad { #security }
@@ -47,7 +47,8 @@ ascender al miembro.
 
 ## Qué sale del deployment { #what-leaves-the-deployment }
 
-Nada llama a casa. Cada llamada saliente es una que el deployment configuró, y
+Aparte del [diagnóstico del deployment](configuration.md#diagnostics), que está
+activado por defecto, cada llamada saliente es una que el deployment configuró, y
 cada una es una frontera por la que preguntará la revisión de un cliente.
 
 | Hacia | Qué | Cuándo |
@@ -61,6 +62,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 | El servidor de teselas que nombra `VISUAL_MAP_TILES` | Desde este despliegue, nunca desde una página: las coordenadas de cada tesela que muestra un mapa y que aún no está en caché | Solo cuando el ajuste está activo y alguien abre un mapa. Una página envía al despliegue tres números, cada uno comprobado contra su zoom; la dirección y la clave del servidor se quedan en el servidor ([Apps](artifacts.md#how-the-page-is-isolated)) |
 | Un proveedor de voz realtime (OpenAI, Azure OpenAI, Google, xAI) | Durante una [llamada de voz](voice.md): el audio de quien llama, las instrucciones del agent, las definiciones y los resultados de las herramientas, y los turnos anteriores de la conversación como texto cuando una llamada empieza o se reconecta | Solo para un agent cuya sección Voice nombra ese proveedor, mientras haya una llamada abierta. Aquí no se guarda audio; lo que conserva el proveedor lo rige tu acuerdo con él |
 | Un proveedor de speech-to-text | Una grabación: una nota de voz de un canal, un dictado en `/chat`, o la de un visitante en una página alojada o un widget en `server` | Cada vez que se transcribe una. El dictado de un visitante es anónimo y queda fuera de todo budget de modelo, así que lo que lo limita es el rate limit del enlace por el dictado más largo. Por defecto un dictado es PCM en crudo cuyas muestras se cuentan y que se rechaza por encima del límite antes de enviarlo, así que ese límite es exacto; un despliegue que [acepta audio comprimido](deployment.md#what-a-dictation-may-be-uploaded-as) lee la duración de la cabecera del archivo, que un archivo hecho a mano puede declarar por debajo - [canales](channels.md#dictation-on-a-widget-or-a-hosted-page) calcula el peor caso en ambos casos. Con `browser`, el navegador del visitante envía el audio a su propio fabricante en su lugar, y nada pasa por aquí |
+| El colector de diagnóstico | La versión, el estado de la base de datos y del worker, recuentos de uso aproximados, recuentos de runs, jobs e ingestas fallidos por categoría cerrada y una señal de actividad seudónima; nunca prompts, conversaciones, nombres de archivo, nombres de cuenta, correos electrónicos, claves de provider ni mensajes de excepción | Cada hora desde el worker y, desde cada navegador o app, mientras alguien está activo; se desactiva con `DIAGNOSTICS_ENABLED=false`, o se envía a un colector que ejecutes tú con `DIAGNOSTICS_COLLECTOR_URL` ([configuración](configuration.md#diagnostics)) |
 
 ## Qué se cifra y dónde { #what-is-encrypted-where }
 

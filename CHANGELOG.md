@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Documentation and `llms.txt` no longer say that nothing phones home or that a fresh install sends nothing anywhere. Deployment diagnostics are on by default, so the docs now state that prompts, conversations and documents stay in the deployment's own database, that diagnostics send the version, health, coarse usage counts and a pseudonymous activity signal, that the default collector is remote (`https://analytics-agenticos.testapp.ovh`), and how to turn them off with `DIAGNOSTICS_ENABLED=false`. The diagnostics collector is added to the lists of what leaves a deployment in the data protection and security pages, and the Polish, German and Spanish translations are updated to match.
+
 ## [1.34.1] - 2026-11-01
 
 ### Changed

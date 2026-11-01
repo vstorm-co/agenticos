@@ -1,5 +1,5 @@
 ---
-source_sha: "5a104286b211"
+source_sha: "5c47f2a07ac8"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -57,7 +57,7 @@ Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el
 
 | Producto | Dónde se ejecuta | Qué modelos puedes usar | Qué te permite la licencia | Inicio de sesión, auditoría y control del gasto |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Tu infraestructura; una instalación nueva no envía nada a ninguna parte | Cualquiera de los 28 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros; el parser de PDF por defecto es AGPL-3.0, así que una imagen modificada que sirvas a otros les debe su código fuente ([detalles](../licenses.md#the-agpl-component)) | Inicio de sesión: SSO OIDC, LDAP y Kerberos · Auditoría: registro con detección de manipulaciones · Gasto: budgets por agent y por organización · todo en cada despliegue |
+| **AgenticOS** | Tu infraestructura; una instalación nueva no envía prompts ni documentos a ninguna parte, y el diagnóstico está activado por defecto y se puede desactivar | Cualquiera de los 28 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros; el parser de PDF por defecto es AGPL-3.0, así que una imagen modificada que sirvas a otros les debe su código fuente ([detalles](../licenses.md#the-agpl-component)) | Inicio de sesión: SSO OIDC, LDAP y Kerberos · Auditoría: registro con detección de manipulaciones · Gasto: budgets por agent y por organización · todo en cada despliegue |
 | Claude Team / Enterprise | La nube de Anthropic | Solo Claude | Propietaria | Inicio de sesión: SSO en Team y Enterprise · Auditoría: Enterprise, 180 días de eventos · Gasto: límites por organización y por usuario |
 | ChatGPT Business / Enterprise | La nube de OpenAI; en Enterprise, residencia del almacenamiento en diez regiones | Solo OpenAI | Propietaria | Inicio de sesión: SSO SAML en Business; SCIM y control de acceso basado en roles en Enterprise · Auditoría: Compliance API en Enterprise y Edu · Gasto: bolsas de créditos y límites de exceso |
 | Copilot Studio | La nube de Microsoft, en entornos de Power Platform | Modelos GPT por defecto, modelos Claude, modelos de Azure Foundry facturados aparte | Propietaria | Inicio de sesión: Entra ID · Auditoría: Purview · Gasto: límites mensuales por agent |
@@ -82,7 +82,7 @@ Operar AgenticOS tú mismo no hace locales todos los modelos, parsers y herramie
 
 Estos puntos recorren todas las guías, así que se exponen una sola vez aquí.
 
-- **El despliegue es tuyo.** Se ejecuta en tu hardware con tu propio Postgres y tu propio almacenamiento, y una instalación nueva no envía nada a ninguna parte. Es posible una configuración totalmente local, con modelos de chat locales, embeddings locales y procesamiento local de documentos. Consulta [nada sale por defecto](../data-protection.md#nothing-leaves-by-default).
+- **El despliegue es tuyo.** Se ejecuta en tu hardware con tu propio Postgres y tu propio almacenamiento, y una instalación nueva no envía prompts ni documentos a ninguna parte; el diagnóstico del deployment está activado por defecto y se puede desactivar. Es posible una configuración totalmente local, con modelos de chat locales, embeddings locales y procesamiento local de documentos. Consulta [qué sale por defecto](../data-protection.md#nothing-leaves-by-default).
 - **Cualquier modelo, cambiado en un solo lugar.** [28 providers](../models.md#providers) se sitúan detrás de un [perfil de modelo](../models.md#a-model-profile) con [fallbacks](../models.md#fallbacks). Cambia el perfil y todos los agents que lo usan se mueven, sin volver a publicar.
 - **Un agent es un documento versionado.** Publicar congela una [versión](../concepts.md#version), los [entornos](../environments.md#what-an-environment-is) apuntan a versiones, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) a tu propio repositorio git.
 - **La gobernanza está en el producto de código abierto.** Los [budgets](../governance.md#enforcement-is-before-the-request) se comprueban antes de cada petición al modelo. Las [aprobaciones](../governance.md#approvals) detienen un run hasta que alguien decide. El [registro de auditoría](../governance.md#audit) detecta manipulaciones. Nada de esto espera a un plan empresarial.

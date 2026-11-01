@@ -34,7 +34,7 @@ OpenAI describes custom rules as guidance a dot follows, with a model reviewing 
 
 ### Your servers, your region
 
-dots run in OpenAI's cloud, and at launch the Pro plan was not offered in the EEA, Switzerland or the UK. AgenticOS runs [where you deploy it](../deploy.md), stores conversations and documents in [your own Postgres](../data-protection.md#where-personal-data-lives), and can run with a [local model](../models.md#providers) so nothing leaves your network.
+dots run in OpenAI's cloud, and at launch the Pro plan was not offered in the EEA, Switzerland or the UK. AgenticOS runs [where you deploy it](../deploy.md), stores conversations and documents in [your own Postgres](../data-protection.md#where-personal-data-lives), and can run with a [local model](../models.md#providers) so your prompts and documents do not leave your network.
 
 ### Any model, not one vendor's
 

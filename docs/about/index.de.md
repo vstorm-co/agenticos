@@ -1,5 +1,5 @@
 ---
-source_sha: "fa5a6c8ba066"
+source_sha: "77658c876710"
 ---
 
 # Über AgenticOS { #about-agenticos }
@@ -103,9 +103,13 @@ getesteter Code in diesem Repository, und ein Connector, ein Channel oder eine
 Ingestion-Strategie ist dasselbe Muster. Der Unterschied ist, dass Sie das Tool
 einmal schreiben und danach alle damit zusammensetzen.
 
-**Es ist kein gehosteter Dienst.** Nichts telefoniert nach Hause. Modellpreise
-stammen aus einem Snapshot, der dem Release beiliegt, und die einzigen ausgehenden
-Anfragen sind die, die Ihre Agents stellen. Ein Betriebssystem installiert man auf
+**Es ist kein gehosteter Dienst.** Ihre Prompts, Konversationen und Dokumente
+bleiben in Ihrem eigenen Deployment, in dessen Datenbank und Speicher. Die einzigen
+ausgehenden Anfragen sind die, die Ihre Agents stellen, und die, die der Parser oder
+der Embedding-Provider einer Collection braucht, dazu die
+[Deployment-Diagnose](../configuration.md#diagnostics), die standardmäßig aktiv ist
+und sich abschalten lässt. Modellpreise stammen aus einem Snapshot, der dem Release
+beiliegt. Ein Betriebssystem installiert man auf
 der eigenen Maschine; niemand mietet einen Kernel pro Arbeitsplatz.
 
 **Es ist kein Ort, um Integrationen zu schreiben.** Eine Integration mit einem
