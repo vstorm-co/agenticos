@@ -77,6 +77,25 @@ class MemoryFilesConfig(BaseModel):
             description="Forget a note you saved, removing it entirely.",
             side_effecting=True,
         ),
+        CapabilityToolInfo(
+            id="remember",
+            description="Record one durable fact, preference or decision, with where it came from.",
+            side_effecting=True,
+        ),
+        CapabilityToolInfo(
+            id="recall",
+            description="Find recorded facts, preferences and decisions relevant to a question.",
+        ),
+        CapabilityToolInfo(
+            id="correct_memory",
+            description="Record the person's correction of a claim, keeping the history it corrects.",
+            side_effecting=True,
+        ),
+        CapabilityToolInfo(
+            id="share_memory",
+            description="Share one claim with the project or the whole organization - only when asked.",
+            side_effecting=True,
+        ),
     ),
     config_schema=MemoryFilesConfig,
 )

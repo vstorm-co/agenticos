@@ -425,6 +425,7 @@ SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
+CONSOLIDATE_MEMORY = _sweep("consolidate-memory", timeout=timedelta(minutes=10))
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minutes=2))
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
@@ -482,6 +483,7 @@ TASKS: dict[str, TaskKind] = {
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
+        CONSOLIDATE_MEMORY,
         REAP_VOICE_CALLS,
         WORKFLOW_DISPATCH_POLL,
         WORKFLOW_RECONCILE,

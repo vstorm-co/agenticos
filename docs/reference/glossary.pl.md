@@ -1,5 +1,5 @@
 ---
-source_sha: "5aa1c09d5f47"
+source_sha: "5141fd725ab4"
 ---
 
 # Słownik { #glossary }
@@ -81,7 +81,6 @@ w [Capabilities](capabilities.md).
 | Wyszukiwanie wiedzy | `knowledge` |
 | Odciążenie z obrazów | `media` |
 | Pamięć | `memory_files` |
-| Pamięć (mem0) | `memory_mem0` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
 | Sandbox | `sandbox` |

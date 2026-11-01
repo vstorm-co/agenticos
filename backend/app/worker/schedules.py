@@ -102,6 +102,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
+    # Memory that changed since it was last folded (#2090): deterministic, no model,
+    # and a scope nobody wrote to costs nothing - only changed scopes are listed.
+    Schedule("consolidate-memory", jobs.CONSOLIDATE_MEMORY, timedelta(minutes=15)),
     # Hourly, against thresholds measured in hours or days: an approval or an
     # invitation expiring forty minutes late has cost nobody anything.
     # The platform's look at each person's week (#2301): hourly, because who is

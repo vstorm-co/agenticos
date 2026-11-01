@@ -55,6 +55,7 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableMedia,
@@ -229,6 +230,8 @@ __all__ = [
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",
+    "MemoryClaim",
+    "MemoryScopeState",
     "VirtualTable",
     "VirtualTableMedia",
     "VirtualTableOutbox",

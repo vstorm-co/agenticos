@@ -32,11 +32,43 @@ from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
-from app.repositories import agent_repo, memory_repo, organization_repo
-from app.schemas.memory import MemoryErasureResult, MemoryNoteList, MemoryNoteRead
+from app.db.models.memory_claim import MemoryClaim
+from app.repositories import agent_repo, memory_claim, memory_repo, organization_repo
+from app.schemas.memory import (
+    MemoryClaimCorrect,
+    MemoryClaimDetail,
+    MemoryClaimList,
+    MemoryClaimRead,
+    MemoryErasureResult,
+    MemoryNoteList,
+    MemoryNoteRead,
+)
 from app.services.access import AGENT, resolve_access
+from app.services.memory import _claims
 
 logger = logging.getLogger(__name__)
+
+_LIVE_STATUSES = ("current", "disputed")
+_ALL_STATUSES = ("current", "disputed", "superseded", "merged", "retracted")
+
+
+def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
+    return MemoryClaimRead(
+        id=row.id,
+        agent_id=row.agent_id,
+        agent_name=names.get(row.agent_id) if row.agent_id else None,
+        scope="profile" if row.agent_id is None else "agent",
+        subject=row.subject,
+        statement=row.statement,
+        kind=row.kind,
+        origin=row.origin,  # ty: ignore[invalid-argument-type]
+        status=row.status,  # ty: ignore[invalid-argument-type]
+        observed_at=row.observed_at,
+        effective_from=row.effective_from,
+        effective_to=row.effective_to,
+        supersedes_id=row.supersedes_id,
+        derived_from_count=len(row.derived_from or []),
+    )
 
 
 class MemoryService:
@@ -54,6 +86,97 @@ class MemoryService:
         return await self._notes_for(
             ctx.organization_id, person_owner_key(ctx.subject_id), skip=skip, limit=limit
         )
+
+    async def my_claims(
+        self, ctx: AuthContext, *, skip: int, limit: int, history: bool
+    ) -> MemoryClaimList:
+        """The claims recorded about the caller, under every agent, current ones by default.
+
+        `history` adds what was superseded, merged or retracted: the record of how
+        each current claim came to say what it says.
+        """
+        statuses = _ALL_STATUSES if history else _LIVE_STATUSES
+        rows, total = await memory_claim.list_for_owner(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=person_owner_key(ctx.subject_id),
+            statuses=statuses,
+            skip=skip,
+            limit=limit,
+        )
+        names = await self._agent_names({row.agent_id for row in rows if row.agent_id})
+        return MemoryClaimList(items=[_claim_read(row, names) for row in rows], total=total)
+
+    async def claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
+        """One of the caller's claims with its ancestry, filtered to what they may read.
+
+        The caller reads their own scope; a source that lives anywhere else - a copy
+        another person shared into, say - is counted as withheld rather than shown.
+        """
+        row = await self._own_claim(ctx, claim_id)
+        scope_key = person_owner_key(ctx.subject_id)
+        found = await _claims.provenance(self.db, claim=row, readable_keys=[scope_key])
+        related = [row, *found.sources, *([found.superseded] if found.superseded else [])]
+        names = await self._agent_names({item.agent_id for item in related if item.agent_id})
+        return MemoryClaimDetail(
+            **_claim_read(row, names).model_dump(),
+            sources=[_claim_read(item, names) for item in found.sources],
+            withheld=found.withheld,
+            superseded=_claim_read(found.superseded, names) if found.superseded else None,
+        )
+
+    async def correct_claim(
+        self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
+    ) -> MemoryClaimRead:
+        """Replace one of the caller's claims with their own words, keeping its history."""
+        row = await self._own_claim(ctx, claim_id)
+        fixed = await _claims.correct(
+            self.db,
+            claim=row,
+            statement=data.statement,
+            author_user_id=ctx.subject_id,
+            effective_from=data.effective_from,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.claim.corrected",
+            target_type="memory_claim",
+            target_id=str(claim_id),
+            # Never the statements: an entry holding what it corrected keeps it.
+            details={"replacement": str(fixed.id)},
+        )
+        names = await self._agent_names({fixed.agent_id} if fixed.agent_id else set())
+        return _claim_read(fixed, names)
+
+    async def retract_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimRead:
+        """Take one of the caller's claims out of use; sources and history stay."""
+        row = await self._own_claim(ctx, claim_id)
+        await _claims.retract(self.db, claim=row)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.claim.retracted",
+            target_type="memory_claim",
+            target_id=str(claim_id),
+            details={},
+        )
+        names = await self._agent_names({row.agent_id} if row.agent_id else set())
+        return _claim_read(row, names)
+
+    async def _own_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaim:
+        """One claim, only if it is in the caller's own scope - a miss is a 404, never a 403."""
+        row = await memory_claim.get_owned(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=person_owner_key(ctx.subject_id),
+            claim_id=claim_id,
+        )
+        if row is None:
+            raise NotFoundError(message="Memory claim not found", details={"claim_id": claim_id})
+        return row
 
     async def for_person(
         self,
@@ -249,6 +372,9 @@ class MemoryService:
         notes = await memory_repo.delete_for_person(
             self.db, organization_id=ctx.organization_id, owner_key=owner_key
         )
+        claims = await memory_claim.delete_for_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=owner_key
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -256,9 +382,9 @@ class MemoryService:
             action="memory.person.forgotten",
             target_type="user",
             target_id=str(user_id),
-            details={"notes": notes},
+            details={"notes": notes, "claims": claims},
         )
-        return MemoryErasureResult(notes_deleted=notes)
+        return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)
 
     async def clear_agent(self, ctx: AuthContext, agent_id: UUID) -> MemoryErasureResult:
         """Delete every note one agent holds, in every store.
@@ -277,6 +403,9 @@ class MemoryService:
         notes = await memory_repo.delete_all_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
+        claims = await memory_claim.delete_for_agent(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -284,6 +413,6 @@ class MemoryService:
             action="memory.agent.cleared",
             target_type="agent",
             target_id=str(agent_id),
-            details={"notes": notes},
+            details={"notes": notes, "claims": claims},
         )
-        return MemoryErasureResult(notes_deleted=notes)
+        return MemoryErasureResult(notes_deleted=notes, claims_deleted=claims)

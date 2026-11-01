@@ -20,6 +20,7 @@ from app.services.memory import MemoryService
 pytestmark = pytest.mark.anyio
 
 FACADE = "app.services.memory.facade"
+CLAIMS = "app.repositories.memory_claim"
 REPO = "app.repositories.memory"
 ORG = uuid.uuid4()
 PERSON = uuid.uuid4()
@@ -45,6 +46,7 @@ class TestForgettingAPerson:
         service = _service()
         with (
             patch(f"{REPO}.delete_for_person", new=AsyncMock(return_value=3)),
+            patch(f"{CLAIMS}.delete_for_scope", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
             result = await service.forget_person(_ctx(PERSON), PERSON)
@@ -58,6 +60,7 @@ class TestForgettingAPerson:
         service = _service()
         with (
             patch(f"{REPO}.delete_for_person", new=AsyncMock()) as deleted,
+            patch(f"{CLAIMS}.delete_for_scope", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
             pytest.raises(AuthorizationError),
         ):
@@ -72,6 +75,7 @@ class TestForgettingAPerson:
 
         with (
             patch(f"{REPO}.delete_for_person", new=AsyncMock(return_value=1)) as deleted,
+            patch(f"{CLAIMS}.delete_for_scope", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
             await service.forget_person(ctx, PERSON)
@@ -85,6 +89,7 @@ class TestForgettingAPerson:
         service = _service()
         with (
             patch(f"{REPO}.delete_for_person", new=AsyncMock(return_value=0)) as deleted,
+            patch(f"{CLAIMS}.delete_for_scope", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
             await service.forget_person(_ctx(PERSON), PERSON)
@@ -97,6 +102,7 @@ class TestForgettingAPerson:
         service = _service()
         with (
             patch(f"{REPO}.delete_for_person", new=AsyncMock(return_value=2)),
+            patch(f"{CLAIMS}.delete_for_scope", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()) as audit,
         ):
             await service.forget_person(_ctx(PERSON), PERSON)
@@ -114,6 +120,7 @@ class TestClearingOneAgent:
             patch(f"{FACADE}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(f"{FACADE}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{REPO}.delete_all_for_agent", new=AsyncMock(return_value=7)) as deleted,
+            patch(f"{CLAIMS}.delete_for_agent", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()) as audit,
         ):
             result = await service.clear_agent(_ctx(PERSON), agent.id)
@@ -127,6 +134,7 @@ class TestClearingOneAgent:
         with (
             patch(f"{FACADE}.agent_repo.get", new=AsyncMock(return_value=None)),
             patch(f"{REPO}.delete_all_for_agent", new=AsyncMock()) as deleted,
+            patch(f"{CLAIMS}.delete_for_agent", new=AsyncMock(return_value=0)),
             pytest.raises(NotFoundError),
         ):
             await service.clear_agent(_ctx(PERSON), uuid.uuid4())
@@ -141,6 +149,7 @@ class TestClearingOneAgent:
             patch(f"{FACADE}.agent_repo.get", new=AsyncMock(return_value=_agent())),
             patch(f"{FACADE}.resolve_access", new=AsyncMock(return_value=False)),
             patch(f"{REPO}.delete_all_for_agent", new=AsyncMock()) as deleted,
+            patch(f"{CLAIMS}.delete_for_agent", new=AsyncMock(return_value=0)),
             pytest.raises(NotFoundError),
         ):
             await service.clear_agent(_ctx(PERSON), uuid.uuid4())
@@ -156,6 +165,7 @@ class TestClearingOneAgent:
             patch(f"{FACADE}.agent_repo.get", new=AsyncMock(return_value=agent)),
             patch(f"{FACADE}.resolve_access", new=AsyncMock(return_value=True)) as access,
             patch(f"{REPO}.delete_all_for_agent", new=AsyncMock(return_value=0)),
+            patch(f"{CLAIMS}.delete_for_agent", new=AsyncMock(return_value=0)),
             patch(f"{FACADE}.record_audit", new=AsyncMock()),
         ):
             await service.clear_agent(_ctx(PERSON, role=OrgRoleName.VIEWER), agent.id)

@@ -37,6 +37,7 @@ from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.watch import Watch
+from app.repositories import memory_claim as memory_claim_repo
 
 
 async def conversations_of(db: AsyncSession, user_id: UUID) -> list[Conversation]:
@@ -324,7 +325,10 @@ async def purge_memory_about(db: AsyncSession, owner_key: str) -> int:
         sa_delete(AgentMemoryFile).where(AgentMemoryFile.owner_key == owner_key)
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    # The ledger is the same personal data in another table, and so are the copies
+    # somebody shared out of it (`derived_from`), which do not outlive their source.
+    claims = await memory_claim_repo.delete_everywhere_about(db, scope_key=owner_key)
+    return (result.rowcount or 0) + claims  # ty: ignore[unresolved-attribute]
 
 
 async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:

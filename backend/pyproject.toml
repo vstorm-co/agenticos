@@ -998,9 +998,13 @@ include = [
     "app/services/resource_usage.py",
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
+    "app/repositories/memory_claim.py",
     "app/services/memory/_native.py",
+    "app/services/memory/_claims.py",
+    "app/services/memory/_runtime.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
@@ -1677,9 +1681,13 @@ include = [
     "app/services/resource_usage.py",
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
+    "app/repositories/memory_claim.py",
     "app/services/memory/_native.py",
+    "app/services/memory/_claims.py",
+    "app/services/memory/_runtime.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code

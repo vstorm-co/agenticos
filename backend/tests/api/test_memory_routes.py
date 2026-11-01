@@ -18,7 +18,14 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
-from app.schemas.memory import MemoryErasureResult, MemoryNoteList, MemoryNoteRead
+from app.schemas.memory import (
+    MemoryClaimDetail,
+    MemoryClaimList,
+    MemoryClaimRead,
+    MemoryErasureResult,
+    MemoryNoteList,
+    MemoryNoteRead,
+)
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -127,7 +134,7 @@ async def test_forgetting_a_person_answers_what_was_removed() -> None:
             response = await client.delete(f"{ROOT}/person/{PERSON}")
 
     assert response.status_code == 200
-    assert response.json() == {"notes_deleted": 3}
+    assert response.json() == {"notes_deleted": 3, "claims_deleted": 0}
 
 
 async def test_clearing_one_agents_store_names_the_agent_in_the_query() -> None:
@@ -140,3 +147,59 @@ async def test_clearing_one_agents_store_names_the_agent_in_the_query() -> None:
 
     assert response.status_code == 200
     assert clear.await_args.args[1] == agent_id
+
+
+_CLAIM_ID = uuid4()
+_CLAIM = {
+    "id": _CLAIM_ID,
+    "statement": "Prefers short answers",
+    "kind": "preference",
+    "origin": "agent",
+    "status": "current",
+    "observed_at": "2026-11-01T10:00:00Z",
+}
+
+
+async def test_a_person_lists_their_claims_and_may_ask_for_the_history() -> None:
+    listed = AsyncMock(return_value=MemoryClaimList(items=[MemoryClaimRead(**_CLAIM)], total=1))
+    with patch("app.services.memory.MemoryService.my_claims", new=listed):
+        async with _client() as client:
+            response = await client.get(f"{ROOT}/claims/mine?history=true&limit=10")
+
+    assert response.status_code == 200
+    assert response.json()["items"][0]["statement"] == "Prefers short answers"
+    assert listed.await_args.kwargs == {"skip": 0, "limit": 10, "history": True}
+
+
+async def test_a_claim_is_read_with_its_ancestry() -> None:
+    detail = MemoryClaimDetail(**_CLAIM, withheld=2)
+    with patch(
+        "app.services.memory.MemoryService.claim_detail", new=AsyncMock(return_value=detail)
+    ):
+        async with _client() as client:
+            response = await client.get(f"{ROOT}/claims/mine/{_CLAIM_ID}")
+
+    assert response.status_code == 200 and response.json()["withheld"] == 2
+
+
+async def test_a_correction_and_a_retraction_reach_the_service_as_the_caller() -> None:
+    corrected = AsyncMock(return_value=MemoryClaimRead(**_CLAIM))
+    retracted = AsyncMock(return_value=MemoryClaimRead(**_CLAIM))
+    with (
+        patch("app.services.memory.MemoryService.correct_claim", new=corrected),
+        patch("app.services.memory.MemoryService.retract_claim", new=retracted),
+    ):
+        async with _client() as client:
+            fixed = await client.post(
+                f"{ROOT}/claims/mine/{_CLAIM_ID}/correct",
+                json={"statement": "Prefers long answers"},
+            )
+            gone = await client.post(f"{ROOT}/claims/mine/{_CLAIM_ID}/retract")
+            empty = await client.post(
+                f"{ROOT}/claims/mine/{_CLAIM_ID}/correct", json={"statement": ""}
+            )
+
+    assert fixed.status_code == 200 and gone.status_code == 200 and empty.status_code == 422
+    assert corrected.await_args.args[1] == _CLAIM_ID
+    assert corrected.await_args.args[2].statement == "Prefers long answers"
+    assert retracted.await_args.args[1] == _CLAIM_ID

@@ -11,9 +11,10 @@ else; what a person may do is suppress one, restore it, or delete it.
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema
 
@@ -22,6 +23,7 @@ class MemoryErasureResult(BaseSchema):
     """What a "forget everything about me" actually removed."""
 
     notes_deleted: int
+    claims_deleted: int = 0
 
 
 class MemoryNoteRead(BaseSchema):
@@ -66,3 +68,48 @@ class MemoryNoteUpdate(BaseSchema):
     """
 
     active: bool
+
+
+class MemoryClaimRead(BaseSchema):
+    """One recorded claim as its subject sees it: what it says, whose it is, where it came from."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    agent_id: UUID | None = None
+    agent_name: str | None = None
+    scope: Literal["profile", "agent"] = "agent"
+    """`profile` serves every agent acting for the person; `agent` is one agent's relationship."""
+
+    subject: str | None = None
+    statement: str
+    kind: str
+    origin: Literal["agent", "person", "consolidation"]
+    status: Literal["current", "disputed", "superseded", "merged", "retracted"]
+    observed_at: datetime
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    supersedes_id: UUID | None = None
+    derived_from_count: int = 0
+
+
+class MemoryClaimList(BaseSchema):
+    items: list[MemoryClaimRead]
+    total: int
+
+
+class MemoryClaimDetail(MemoryClaimRead):
+    """A claim with the claims it was drawn from and the one it replaced."""
+
+    sources: list[MemoryClaimRead] = Field(default_factory=list)
+    withheld: int = 0
+    """Sources the reader may not see; counted so the ancestry is never silently shorter."""
+
+    superseded: MemoryClaimRead | None = None
+
+
+class MemoryClaimCorrect(BaseSchema):
+    """A person's correction: the new statement, and when it began to hold."""
+
+    statement: str = Field(min_length=1, max_length=600)
+    effective_from: datetime | None = None

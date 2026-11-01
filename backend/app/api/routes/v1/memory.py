@@ -27,6 +27,10 @@ from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, MemorySvc
 from app.schemas.memory import (
+    MemoryClaimCorrect,
+    MemoryClaimDetail,
+    MemoryClaimList,
+    MemoryClaimRead,
     MemoryErasureResult,
     MemoryNoteList,
     MemoryNoteRead,
@@ -73,6 +77,42 @@ async def set_my_note_active(
 async def delete_my_note(file_id: UUID, service: MemorySvc, ctx: Auth) -> None:
     """Delete one of the caller's own notes outright."""
     await service.delete_note(ctx, file_id)
+
+
+@router.get("/claims/mine", response_model=MemoryClaimList)
+async def my_claims(
+    service: MemorySvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0, description="Claims to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max claims to return"),
+    history: bool = Query(False, description="Include superseded, merged and retracted claims"),
+) -> Any:
+    """The facts, preferences and decisions recorded about the caller, with their source.
+
+    Current claims by default; `history` adds what they replaced. Always the caller's
+    own: no permission to ask for, and nobody else's through this route.
+    """
+    return await service.my_claims(ctx, skip=skip, limit=limit, history=history)
+
+
+@router.get("/claims/mine/{claim_id}", response_model=MemoryClaimDetail)
+async def my_claim(claim_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
+    """One of the caller's claims with the claims it was drawn from and the one it replaced."""
+    return await service.claim_detail(ctx, claim_id)
+
+
+@router.post("/claims/mine/{claim_id}/correct", response_model=MemoryClaimRead)
+async def correct_my_claim(
+    claim_id: UUID, data: MemoryClaimCorrect, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Correct a claim in the caller's own words; the corrected claim stays in its history."""
+    return await service.correct_claim(ctx, claim_id, data)
+
+
+@router.post("/claims/mine/{claim_id}/retract", response_model=MemoryClaimRead)
+async def retract_my_claim(claim_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
+    """Take a claim out of use. It and everything it came from stay in the history."""
+    return await service.retract_claim(ctx, claim_id)
 
 
 @router.get("/person/{user_id}", response_model=MemoryNoteList)

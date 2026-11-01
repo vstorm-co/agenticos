@@ -14,6 +14,8 @@ person writes belongs in `context` (#1470).
 External callers import from here, not from the submodules.
 """
 
+from app.services.memory import _claims as claims
+from app.services.memory import _runtime as runtime
 from app.services.memory._native import (
     MemoryFileIndexEntry,
     delete_file,
@@ -27,9 +29,11 @@ from app.services.memory.facade import MemoryService
 __all__ = [
     "MemoryFileIndexEntry",
     "MemoryService",
+    "claims",
     "delete_file",
     "edit_file",
     "list_files",
     "read_file",
+    "runtime",
     "write_file",
 ]
