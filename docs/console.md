@@ -13,12 +13,35 @@ Resource lists, including Inbox and Routines, fill the remaining page height eve
 
 Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
+Page introductions and settings explanations are available from the information icon beside their heading. Live summaries and destructive-action warnings remain visible.
+
+In Agents, Skills, Context and run history, **Filters** reveals secondary controls on every screen size and shows how many filters are active.
+
+Agent cards show status, access and the edit date directly. Skills and Context cards keep the document preview, summary, **Used by** with agent portraits and **Add to an agent** visible. Category and audience metadata sit in a compact row beside the action. There is no Details expansion. To delete a skill or context file, open its editor and use the three-dot menu beside **Share**; deletion still asks for confirmation and is available only to an editor.
+
+Names, navigation and form values use strong foreground text; metadata stays
+secondary. Primary actions use a contrasting neutral fill. Glass keeps the native
+material while giving content, cards and menus more opaque surfaces for reading.
+
+Organization, agent builder and project tabs carry matching icons. Budget headroom rows include agent portraits.
+
+Generated portraits use a constrained set of Blobatar 2.7 silhouettes and brighter tones; idle faces animate on hover, while working agents keep their thinking animation. Uploaded pictures are preserved. New starter-agent pictures use the same portrait family; existing stored uploads are not automatically replaced.
+
+Chat settings show Browser and Work on before Permissions. Conversation notifications
+and account connections remain below the permissions controls.
+
+Chat settings use a fixed heading and close button above a scrolling body. Information icons explain the model, Browser, Work on and permission modes on demand; the selected permission mode keeps its explanation visible. Under **Knowledge bases → Integrations**, integrations and local services use compact panels that fit their content, with explanatory text behind information icons.
+
+Conversation agents are ordered by their latest message or top-level run, newest first. The collapsed chat rail keeps full-size avatars, overlaps up to three, and hides older participants; the full participant list remains available in the tooltip.
+
+When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Forty-five cards exist. You will not see all of them: **a card is gated on the
+Forty-nine cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -27,22 +50,34 @@ than sitting there empty.
 A switch at the top says whose dashboard it is, and offers only the views you
 may open. Everybody opens on **Me**:
 
-| View | Answers |
-|---|---|
-| **Me** | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you |
-| **Organization** | The arrangeable page below |
-| **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
-| **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
+| View             | Answers                                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you                                                               |
+| **Organization** | The arrangeable page below                                                                                                                                                                                                                                                   |
+| **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
+| **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                            |
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,
 members, sandboxes - wait in the catalog, one click away under **Customize**:
 
-| Band | Answers |
-|---|---|
-| *(untitled, at the top)* | The summary, runs over time and how they ended |
-| **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
-| **Usage & cost** | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
+| Band                     | Answers                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(untitled, at the top)_ | The summary, runs over time and how they ended                                                                                                                |
+| **Needs attention**      | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell)                          |
+| **Usage & cost**         | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
+
+**Approval outcomes** waits in the catalog, for whoever may view workflows. It shows how
+people decided the [approval steps](workflows.md#running-a-workflow) the period's
+workflows asked them. It shows the share approved as proposed, the edits and their
+median change, the time to decide and the five workflows with the most requests. It is
+empty when no request falls in the dashboard's period.
+
+**Workflow logs** waits in the catalog too, for whoever may view workflows. It shows the
+newest lines the [Quick Logs](workflows.md#the-logs-page) of the workflows you may view wrote, real
+runs only, and how many lines the last 24 hours added, errors among them. A line links to
+its run and its workflow's name to that workflow's Logs page. It is empty until a step
+with a Quick Log has run, and it ignores the dashboard's period.
 
 The dashboard opens with **Get started** until each of its steps is done: tell
 agents about yourself, start a conversation, connect a service with your own
@@ -88,7 +123,7 @@ reads your personal connected accounts and sends findings to your private Inbox.
 Each tab has its own creation controls. `/routines?tab=watches` opens watches.
 
 On the dashboard, Discover starts with illustrated capabilities. Hover over a
-*Your period* sparkline to read its bucket and value; spend is formatted as money.
+_Your period_ sparkline to read its bucket and value; spend is formatted as money.
 Projects show descriptions, and agent rows use the same avatars as chat.
 
 Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
@@ -111,9 +146,16 @@ the hour your organization's proactivity keeps, one notification and one direct
 message from each of its Slack, Teams and Mattermost bots that knows you list
 what is new. Each finding is in one briefing only.
 
+Search stays above the sidebar's destinations, with its keyboard shortcut visible
+on a computer. Notifications and the account menu stay below the scrolling list.
+On touch devices, shared buttons, fields, tabs and menu choices have larger hit
+areas. Dialogs use the visible height above the on-screen keyboard; side panels
+keep keyboard focus inside and return it to the opener when dismissed. In a list's
+search field, Escape clears the query first and closes its dialog on the next press.
+
 ## The bell
 
-Next to search, in the sidebar: a running count of what you have not read yet,
+At the foot of the sidebar: a running count of what you have not read yet,
 and a click opens the list itself. Unlike the widget above, opening it fetches
 the page you are looking at, not a five-card preview - **Load more** keeps
 paging back through the organization you are currently in, plus anything
@@ -139,7 +181,7 @@ is still unread and a further click finishes it, rather than the badge claiming
 an inbox it only partly worked through.
 
 Each click always gets further, even where the whole batch was rows the reader
-can no longer see. It never marks those: the check is against *current*
+can no longer see. It never marks those: the check is against _current_
 permissions, so somebody demoted for a week and restored would find that week's
 security notices already read. Instead a truncated sweep says where it stopped,
 and the next click resumes from there.
@@ -157,11 +199,11 @@ also marks it read, because a row nothing on screen can reach must not go on
 counting towards the badge. Like "Mark all read", one clear is bounded - a
 thousand rows - and a longer backlog takes a second click.
 
-What a cleared row does *not* do is come back. The notification is kept and
+What a cleared row does _not_ do is come back. The notification is kept and
 stops being listed rather than being deleted, which is what makes that true:
 the inbox recognises a repeat by the fact it describes, so a deleted row is one
 the next budget check or the next retry would write again. Dismissing an alert
-you have dealt with is therefore final, for that occurrence - a *new* one, about
+you have dealt with is therefore final, for that occurrence - a _new_ one, about
 a new fact, still arrives. Rows also age out on their own: ninety days after
 being written if they were read, a year regardless.
 
@@ -392,32 +434,33 @@ error, the agent has already been told; **Fix it** asks again. On a phone a tap 
 it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
 you, each opening the conversation it was drawn in.
 
-**Watching a browse.** When an agent with the
-[web browser](reference/capabilities.md#browser-automation) starts on a page, its
-browser draws under the agent's message, live: a window with the address and the page
-as the agent sees it, what it is doing now in one line over the page, and its cursor
-moving to whatever it clicks or types into. The window keeps a fixed shape and grows
-and shrinks with the conversation; several browses at once sit side by side, two to a
-row where there is room. The maximise button opens one full screen, and restoring puts
-it back under the message. The full list of steps, each with what it was for, is behind
-the steps button.
+**Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
+opens automatically in a full-height side panel while the transcript scrolls.
+On narrow screens it opens full screen. Closing the panel leaves a compact link
+in the conversation to reopen it. Visited-page cards show the site icon, domain
+and page title, including when the conversation is reopened. Each answer keeps
+one card per browser tab; clicks, rereads and going back update that card.
+The panel's tab strip switches between pages. After the run, the last image remains. **Resume session** asks the
+agent to restore the private conversation checkpoint, available for up to one hour.
+Remote pages close after each run; resuming reloads URLs, cookies and local storage,
+not unsaved forms or JavaScript memory. The agent reads fresh element numbers.
 
 **Taking a browse over.** While a browse runs, **Take over** in the browser's toolbar
 pauses the agent after its current step and hands you the page, in the same window:
 click, type, scroll, paste. **Hand it back** and the agent carries on from where you
 left it. When the agent cannot get past a page alone - a sign-in, a captcha - the browser
-says *The agent needs you* and what for. Someone who may view runs but
+says _The agent needs you_ and what for. Someone who may view runs but
 not edit the agent can watch, not drive. The same window opens on a page of its own
 from a channel's link. See [Web browser](reference/capabilities.md#browser-automation).
 
 **Pointing at the page.** The speech-bubble button in the browser's toolbar lets you
-click a spot on the page and write a note about it - *this button, not that one*.
+click a spot on the page and write a note about it - _this button, not that one_.
 **Add to message** puts the page into your message as a picture with the spot ringed,
 with your note and the page's address, for you to send or keep writing. It works on a
 finished browse too, from its last picture.
 
 **Staying signed in.** When the browse acts for you - your own chat, your direct
-message, your own schedule - **Hand it back** offers *Keep me signed in to* the site
+message, your own schedule - **Hand it back** offers _Keep me signed in to_ the site
 you are on. Tick it after signing in, and later browses acting for you start signed
 in there: the site's cookies and storage are sealed in the vault for you alone, never
 shown, and never used for a widget visitor, a shared room, an API key or an event
@@ -480,6 +523,11 @@ it, and **Full** keeps it whatever the operating system says. While motion is
 reduced there is no glow at all, the strip appears without sliding, and the level
 is a five-step indicator.
 
+**Workflow steps** in the same card chooses how the workflow canvas draws a step:
+**In colour** (the default) draws each step in its family, **Simple** keeps the tiles
+neutral and the minimap grey. It is remembered per browser; the canvas toolbar has
+the same switch. See [How a step is drawn](workflows.md#how-a-step-is-drawn).
+
 ### The Voice card
 
 On the organization's **Members** page, for somebody holding `org:settings`. It
@@ -520,10 +568,11 @@ tabs: **Voice calls** and **Dictation**.
 sends the recording to a provider: **This agent's own** (the default) picks a
 pair from the catalog and the key to send it with - an API key for that provider
 that you can view, since publishing lends it to everybody who can run the agent
+
 - and, until you choose one, the organization's default is used and named.
-**Organization's** keeps the organization's provider, model and key. Off, or
-with no key to send it with, the browser transcribes instead, which costs
-nothing.
+  **Organization's** keeps the organization's provider, model and key. Off, or
+  with no key to send it with, the browser transcribes instead, which costs
+  nothing.
 
 The language is chosen on its own: inherit the organization's, or fix one - so a
 Polish agent can keep the organization's provider and key. The card is part of
@@ -621,6 +670,8 @@ page inside it, and stays the way you left it.
 | **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
 | **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Tables** | Typed records and their columns, seen as a table, a kanban board or a list | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Multi-step automations your agents run, built on a canvas | [Workflows](workflows.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
 | **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -681,7 +732,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **forty-five widgets** you arrange yourself, saved per
+- The dashboard is **forty-nine widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs
@@ -698,3 +749,16 @@ quiet one.
   resource.
 
 The sidebar footer shows the console build version beside search and notifications, including in the collapsed rail and mobile menu. It comes from the frontend package version embedded in that build, so checking it needs no network request. The tooltip identifies it as the console version; an API process upgraded separately can run another version.
+
+
+A newer stable AgenticOS release highlights that version with a green dot. Click it to see the running and available versions and open the official release. A background check runs when the console opens, every 30 minutes while active, and when stale data is revisited after focus or connectivity returns. The server shares public release checks for five minutes and sends no account, organization or deployment data to GitHub. Network failures leave the running version visible without claiming it is current. The notice never reloads the page or installs an update automatically.
+
+After sign-in, **What’s new** shows the installed version’s public GitHub release notes once per account on this device. It waits for onboarding dialogs to close. Dismissing it marks that version as read; missing notes or a failed request do not interrupt the session. Features in a newer, uninstalled release appear only behind the update notice.
+
+Chat controls remember the model, permission mode and desktop tool preferences for this account and organization across chats. Project file settings take precedence. Whole-computer consent remains specific to one conversation. Approval waivers still require the current permission and organization policy. Agent setting (or Cloud for files) is disabled when the published agent lacks that capability; no local alternative is enabled automatically. Local tools can be switched off by clicking their selected option.
+
+Muting notifications has a bell icon; the composer no longer repeats the local folder/access badge. Multi-agent portraits overlap at full size and spread slightly on hover in the expanded chat list.
+
+List footers stay at the bottom of their panel, with a solid background and consistent spacing. Paged administration tables scroll their rows independently while keeping column headers and pagination visible. Empty and failed reads stay inside the same scroll area.
+
+The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.

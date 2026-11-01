@@ -1,10 +1,14 @@
 "use client";
 
+import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  SlidersHorizontal,
+  Wrench,
+  ShieldCheck,
   Archive,
   ArchiveRestore,
   Copy,
@@ -18,11 +22,13 @@ import {
   Plug,
   Trash2,
   Upload,
+  Workflow,
   Radio,
   UserPlus,
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   AgentMap,
@@ -76,6 +82,7 @@ import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
@@ -116,6 +123,8 @@ import {
   MarkdownModeToggle,
   type MarkdownMode,
   Textarea,
+  Alert,
+  AlertDescription,
 } from "@/components/ui";
 import {
   useAgent,
@@ -213,6 +222,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   const router = useRouter();
   const {
@@ -361,8 +371,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(agent.draft_spec);
   }
 
-  const canEdit = can(Perm.agentsEdit);
-  const canPublish = can(Perm.agentsPublish);
+  // A workflow step's own agent is changed in that step, so nothing here edits it.
+  const ownedByWorkflow = agent?.workflow_id ?? null;
+  const canEdit = can(Perm.agentsEdit) && ownedByWorkflow === null;
+  const canPublish = can(Perm.agentsPublish) && ownedByWorkflow === null;
+  const resourceCreation = useResourceCreation({
+    mayCreateSkill: canEdit && can(Perm.skillsEdit),
+    mayCreateContext: canEdit && can(Perm.contextEdit),
+    setSpec,
+  });
   useTestShortcut(canEdit, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
@@ -968,6 +985,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -1294,6 +1322,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
         {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+        {ownedByWorkflow !== null && (
+          <Alert>
+            <Workflow className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">{t("ownedByWorkflow")}</span>
+              <Button asChild size="sm" variant="outline">
+                <Link href={ROUTES.WORKFLOW_DETAIL(ownedByWorkflow)}>{t("openWorkflow")}</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Above the tabs, whatever tab is open: a reference to something deleted
           is refused at publish, and the panel that would have listed it belongs
           to a capability the agent may not even have switched on. */}
@@ -1333,21 +1373,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
+              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+              <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("mcpServers")}
             </TabsTrigger>
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
+              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             <TabsTrigger value="availability" data-tour="agent-tab-availability">
+              <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("availability")}
             </TabsTrigger>
             <TabsTrigger value="history" data-tour="agent-tab-history">
+              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
@@ -1445,6 +1491,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
                   onToggle={() => toggleCapability(THINKING_ID)}
                   onChange={updateCapability}
+                  disabled={!canEdit}
+                />
+              </CardContent>
+            </Card>
+
+            <Card data-tour="agent-answer-format">
+              <CardHeader>
+                <CardTitle>{tAnswer("title")}</CardTitle>
+                <CardDescription>{tAnswer("description")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AnswerFormatForm
+                  value={spec.output_schema ?? null}
+                  onChange={(output_schema) => update({ output_schema })}
                   disabled={!canEdit}
                 />
               </CardContent>
@@ -1551,7 +1611,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // on with the first pick, because bound without it the resources
                   // are resolved and then discarded.
                   resources={{
-                    contextFiles,
+                    contextFiles: mergeResourceChoices(contextFiles, resourceCreation.context),
+                    onCreateContext: resourceCreation.createContext,
                     contextTotal: contextCount,
                     contextIds: spec.context_ids,
                     onContextToggle: (fileId: string) =>
@@ -1560,7 +1621,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     collectionIds: spec.collection_ids,
                     onCollectionToggle: (collectionId: string) =>
                       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills,
+                    skills: mergeResourceChoices(skills, resourceCreation.skills),
+                    onCreateSkill: resourceCreation.createSkill,
                     skillTotal: skillCount,
                     skillIds: spec.skill_ids,
                     onSkillToggle: (skillId: string) =>
@@ -1847,6 +1909,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
+      {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel
           agentId={id}

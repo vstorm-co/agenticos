@@ -13,6 +13,10 @@ from app.services.rag.models import Document
 # be non-empty and obviously not a secret.
 _KEYLESS_PLACEHOLDER = "keyless"
 
+# Inputs per `/embeddings` request. Ollama drops the connection somewhere
+# between 320 and 384; OpenAI caps a request at 2048 inputs.
+EMBED_BATCH_SIZE = 64
+
 
 def _chunk_texts(document: Document) -> list[str]:
     return [
@@ -123,6 +127,19 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         return self._client
 
     def embed_queries(self, texts: list[str]) -> list[list[float]]:
+        """Embed `texts` in requests of at most `EMBED_BATCH_SIZE` inputs.
+
+        A document's chunks used to go out in one request. Ollama drops the
+        connection somewhere past 320 inputs and hosted APIs cap inputs per
+        request, so a long document failed to index on every attempt.
+        """
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), EMBED_BATCH_SIZE):
+            vectors.extend(self._embed_batch(texts[start : start + EMBED_BATCH_SIZE]))
+        return vectors
+
+    def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Embed one request's worth of `texts` and book its usage."""
         try:
             response = self.client.embeddings.create(model=self.model, input=texts)
         except NotFoundError as error:

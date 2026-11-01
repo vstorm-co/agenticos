@@ -1,17 +1,27 @@
 "use client";
 
+import { Activity, ShieldCheck, Wallet } from "lucide-react";
+
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
+import { WorkflowApprovalsCard } from "@/components/runs/workflow-approvals-card";
 import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
+import {
+  useApprovals,
+  usePermissions,
+  useRuns,
+  useSpend,
+  useUrlState,
+  useWorkflowApprovals,
+} from "@/hooks";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
@@ -132,7 +142,10 @@ export default function RunsPage() {
   // read one query key, so this is the same request rather than a second one.
   // `total` rather than the page's length: the endpoint answers fifty rows at a
   // time, and a badge that stops at fifty is a badge that stops being a count.
-  const { total: waiting } = useApprovals({ enabled: canDecide });
+  const { total: toolsWaiting } = useApprovals({ enabled: canDecide });
+  // Workflow steps waiting on a person are the same queue to the reader.
+  const { total: stepsWaiting } = useWorkflowApprovals({ enabled: canDecide });
+  const waiting = toolsWaiting + stepsWaiting;
   // The two figures that were three cards above the strip. On the tab they name
   // instead: a card of one number is a lot of the page's height for something a
   // badge says, and the height mattered - the three of them cost about 380px, so
@@ -200,16 +213,19 @@ export default function RunsPage() {
                   keeps its count badge, so what is waiting is visible from the
                   strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
+                <Activity className="size-4 shrink-0" aria-hidden />
                 {t("runs2")}
                 {runCount > 0 && <TabCount>{runCount.toLocaleString()}</TabCount>}
               </TabsTrigger>
               {canDecide && (
                 <TabsTrigger value="approvals" data-tour="activity-tab-approvals">
+                  <ShieldCheck className="size-4 shrink-0" aria-hidden />
                   {t("approvals")}
                   {waiting > 0 && <TabCount>{waiting}</TabCount>}
                 </TabsTrigger>
               )}
               <TabsTrigger value="spend" data-tour="activity-tab-spend">
+                <Wallet className="size-4 shrink-0" aria-hidden />
                 {t("spend")}
                 {spent > 0 && <TabCount>{`$${spent.toFixed(2)}`}</TabCount>}
               </TabsTrigger>
@@ -261,11 +277,14 @@ export default function RunsPage() {
                     data-tour="activity-approvals"
                     className="mt-0 min-h-0 flex-1 flex-col data-[state=active]:flex"
                   >
-                    <ApprovalsTab
-                      period={period}
-                      onFocusRun={focusRun}
-                      periodControl={periodControl}
-                    />
+                    <div className="space-y-4">
+                      <WorkflowApprovalsCard />
+                      <ApprovalsTab
+                        period={period}
+                        onFocusRun={focusRun}
+                        periodControl={periodControl}
+                      />
+                    </div>
                   </TabsContent>
                 )}
 

@@ -128,6 +128,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   onCiteClick,
   bareCode,
   inertImages,
+  documentMedia,
   streaming,
 }: MarkdownContentProps) {
   const t = useTranslations("chat");
@@ -221,6 +222,25 @@ export const MarkdownContent = memo(function MarkdownContent({
         );
       },
       a({ href, children, ...props }) {
+        if (
+          documentMedia &&
+          href &&
+          /^https?:\/\/[^\s]+\.(?:mp4|webm|ogg)(?:[?#].*)?$/i.test(href)
+        ) {
+          return (
+            <span className="my-4 block">
+              <video
+                src={href}
+                controls
+                preload="none"
+                className="max-h-[32rem] w-full rounded-xl"
+                aria-label={textOf(children) || href}
+              >
+                <a href={href}>{children}</a>
+              </video>
+            </span>
+          );
+        }
         if (href?.startsWith("#cite-") && citable) {
           const n = parseInt(href.slice(6), 10);
           if (!Number.isNaN(n)) {
@@ -396,7 +416,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         return <hr className="border-foreground/10 my-4" {...props} />;
       },
     }),
-    [t, bareCode, inertImages, citable],
+    [t, bareCode, inertImages, documentMedia, citable],
   );
 
   return (

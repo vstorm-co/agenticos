@@ -32,6 +32,7 @@ export function ListCard({
   children,
   ...rest
 }: {
+  ref?: import("react").Ref<HTMLDivElement>;
   title: string;
   /**
    * The count line, already formatted through the caller's ICU plural
@@ -82,7 +83,7 @@ export function ListCard({
         <CardHeader
           data-tour={headerTour}
           className={cn(
-            "flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
             layout === "grid" && "border-0 px-0 pt-0 pb-4 sm:px-0",
             empty && "sr-only",
           )}
@@ -118,7 +119,7 @@ export function ListCard({
           says what the card is. */}
       <CardHeader
         data-tour={headerTour}
-        className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+        className="shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       >
         <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
@@ -178,7 +179,7 @@ export function ListCardControlsRow({
       className={cn(
         // Wrapped on every screen: swiped sideways on a phone, the last
         // filter sat past the edge cut mid-word, and nobody found it.
-        "border-border flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-5",
+        "border-border flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-5",
         className,
       )}
       {...props}
@@ -199,7 +200,16 @@ export function ListCardFootRow({
   className?: string;
   children: ReactNode;
 }) {
-  return <div className={cn("border-border border-t px-5 py-3", className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        "border-border bg-card sticky bottom-0 z-20 mt-auto shrink-0 rounded-b-xl border-t px-4 py-3 sm:px-5",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**

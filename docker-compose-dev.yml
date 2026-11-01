@@ -79,6 +79,8 @@ services:
         # template resolve without the operator having to rename anything.
         aliases:
           - backend
+      # Where `artifact-render` is, when its profile is up. Empty otherwise.
+      render: {}
       browser: {}
     depends_on:
       migrate:
@@ -161,6 +163,7 @@ services:
       - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
     networks:
       - backend
+      - render
       - browser
     depends_on:
       migrate:
@@ -268,12 +271,12 @@ services:
       # than to whoever runs the host. Changing the list is a restart, and
       # `prewarm` rebuilds what it names as the service starts rather than inside
       # somebody's first request - which is minutes on a cold cache, and the
-      # reason this deployment ships one runtime rather than eight.
-      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python, Node and LibreOffice - documents, data, charts and code","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python, Node and LibreOffice - documents, data, charts and code","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$$(dpkg --print-architecture)\"; case \"$$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $$arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-$${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx @anthropic-ai/claude-code@2.1.288 @openai/codex@0.160.0 && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
+      # reason this deployment ships two runtimes rather than eight.
+      SANDBOXD_RUNTIMES: '{"workbench":{"description":"Python, Node and LibreOffice - documents, data, charts and code","runtime":{"name":"workbench","base_image":"python:3.12-slim","description":"Python, Node and LibreOffice - documents, data, charts and code","setup_commands":["apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates ripgrep fd-find jq less procps xz-utils poppler-utils libreoffice-writer libreoffice-calc libreoffice-impress unzip zip tzdata fonts-dejavu-core && ln -s /usr/bin/fdfind /usr/local/bin/fd && rm -rf /var/lib/apt/lists/*","arch=\"$$(dpkg --print-architecture)\"; case \"$$arch\" in amd64) node_arch=x64 ;; arm64) node_arch=arm64 ;; *) echo \"no Node build for $$arch\" >&2; exit 1 ;; esac; curl -fsSL \"https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-$${node_arch}.tar.xz\" | tar -xJ -C /usr/local --strip-components=1 --exclude CHANGELOG.md --exclude README.md --exclude LICENSE && npm install -g tsx @anthropic-ai/claude-code@2.1.288 @openai/codex@0.160.0 && npm cache clean --force","curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh"],"packages":["liteparse","pypdf","python-docx","openpyxl","python-pptx","pillow","pandas","duckdb","matplotlib","httpx","requests","beautifulsoup4","lxml","markdownify","pyyaml","tabulate","reportlab"],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONDONTWRITEBYTECODE":"1","PYTHONUTF8":"1","MPLBACKEND":"Agg","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"},"desktop":{"description":"A Linux desktop (XFCE and Firefox) for computer use, with Python and a shell","runtime":{"name":"desktop","base_image":"python:3.12-slim","description":"A Linux desktop (XFCE and Firefox) for computer use, with Python and a shell","setup_commands":["apt-get update && apt-get install -y --no-install-recommends xvfb x11-utils xfce4 xfce4-terminal dbus-x11 xdotool scrot firefox-esr fonts-dejavu-core fonts-noto-color-emoji git curl ca-certificates jq procps unzip && rm -rf /var/lib/apt/lists/*"],"packages":[],"env_vars":{"PYTHONUNBUFFERED":"1","PYTHONUTF8":"1","PIP_DISABLE_PIP_VERSION_CHECK":"1"}},"mem_limit":"2g","network_mode":"bridge"}}'
       # An escape starts from whoever the container runs as, and the default is
       # root. The image is built around this uid - a home directory and a
       # virtualenv it owns, without which an agent's `pip install` fails - so it
-      # only applies to a runtime this deployment builds, which `workbench` is.
+      # only applies to a runtime this deployment builds, which both of ours are.
       # It also makes every file an agent writes owned by this uid on the host,
       # rather than by root.
       #
@@ -327,6 +330,36 @@ services:
   #   OIDC_REDIRECT_URI=http://localhost:8000/api/v1/oauth/oidc/callback
   # and the frontend with OAUTH_PROVIDERS=google,oidc. Then `E2E_OIDC=1 make
   # test-e2e`; without that variable the SSO spec skips itself.
+  artifact-render:
+    # The browser `preview_artifact` draws a page in. Opt-in, and the same service
+    # as in docker-compose.yml, which says why each line is there: set
+    # ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222 (never on
+    # BROWSER_CDP_ALLOWED_HOSTS) and pull an image built with the `browser`
+    # extra. `render` has no route off the host.
+    image: chromedp/headless-shell:155.0.8059.40
+    profiles: [artifact-render]
+    command:
+      - --disable-dev-shm-usage
+      - --no-first-run
+      - --disable-background-networking
+      - --disable-component-update
+      - --disable-default-apps
+      - --disable-sync
+      - --mute-audio
+      - --hide-scrollbars
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    networks:
+      - render
+    restart: unless-stopped
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     profiles: [sso]
@@ -355,6 +388,9 @@ networks:
     # stacks share a host - both files read it, so they still meet.
     name: ${AGENTICOS_NETWORK:-agenticos_backend}
     driver: bridge
+  render:
+    # The page renderer's network: the API, the runner and the browser, no way out.
+    internal: true
   browser:
     # The browser's own network, which only the API and the worker share with it
     # to reach `browser:9222`. A page it is sent to - or redirected to - cannot

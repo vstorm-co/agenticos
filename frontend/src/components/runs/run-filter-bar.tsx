@@ -36,6 +36,7 @@ export const SURFACES = [
   "teams",
   "discord",
   "schedule",
+  "workflow",
   "follow_ups",
   "proactive",
 ] as const;

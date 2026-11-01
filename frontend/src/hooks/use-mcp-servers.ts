@@ -76,10 +76,17 @@ export const MCP_PAGE_SIZE = 50;
  * `registryTotal` is what the mirror holds, which the count line needs to say
  * what the list reaches - zero until `agenticos cmd mcp-registry-sync` has run.
  */
-export function useMcpCatalogPage(query: string, category: string, auth: string, page: number) {
+export function useMcpCatalogPage(
+  query: string,
+  category: string,
+  auth: string,
+  page: number,
+  enabled = true,
+) {
   const needle = query.trim();
   const { data, isLoading, isFetching } = useQuery({
     queryKey: qk.mcpServers.listPage(needle, category, auth, page),
+    enabled,
     queryFn: () =>
       apiClient.get<McpCatalog>(
         `/agents/mcp-servers?q=${encodeURIComponent(needle)}` +

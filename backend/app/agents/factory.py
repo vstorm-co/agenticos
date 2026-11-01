@@ -11,6 +11,7 @@ chat, a Slack mention or the public API - which is what makes "the Builder is
 just another client" true rather than aspirational.
 """
 
+import json
 import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -18,13 +19,16 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from jsonschema import validators
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai import ModelRetry, StructuredDict
 from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
     ReinjectSystemPrompt,
     ToolSearch,
 )
+from pydantic_ai.output import OutputSpec
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
@@ -35,13 +39,16 @@ from app.agents.audience import RunAudience
 from app.agents.cache_watch import CacheWatch
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities import get as capability_def
+from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities.approval import (
     ApprovalGate,
+    approval_describers,
     approval_required_tools,
+    approval_tool_ids,
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
-from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID
+from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID, WebBrowser
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -117,6 +124,31 @@ _AUDIENCE_AWARE = frozenset(
 DEFAULT_MAX_STEPS = 100
 
 
+type AgentAnswer = str | dict[str, Any]
+"""What a finished run answers: prose, or an object of the spec's `output_schema`."""
+
+type AgentOutput = AgentAnswer | DeferredToolRequests
+"""What a run ends with: an answer, or the calls parked on a human."""
+
+
+def answer_text(answer: AgentAnswer) -> str:
+    """An answer as text for a surface that shows text.
+
+    Prose is itself. An object is shown as a fenced JSON block, which every
+    surface that renders an answer - the chat, the widget, Slack, Telegram -
+    draws as code; a caller that wants the object reads it where it is handed
+    over as one (`structured`) rather than parsing this back.
+    """
+    if isinstance(answer, str):
+        return answer
+    return "```json\n" + json.dumps(answer, ensure_ascii=False, indent=2) + "\n```"
+
+
+# How often the model may be sent back to fix an answer that does not fit the
+# spec's `output_schema` before the run fails on it.
+OUTPUT_RETRIES = 2
+
+
 @dataclass
 class BuiltAgent:
     """A runnable agent plus what the caller needs to observe and account for it.
@@ -130,7 +162,7 @@ class BuiltAgent:
     # gated tool is parked, Pydantic AI ends the run with the calls waiting on a
     # human instead. The caller must handle both, which is the point of making
     # it visible in the type.
-    agent: PydanticAgent[AgentDeps, str | DeferredToolRequests]
+    agent: PydanticAgent[AgentDeps, AgentOutput]
     deps: AgentDeps
     ledger: SpendLedger
     # Exposed rather than buried in the agent's capability list: the caller
@@ -183,6 +215,8 @@ def build_agent(
     user_id: str | None = None,
     user_name: str | None = None,
     audience: RunAudience | None = None,
+    run_person: UUID | None = None,
+    impersonated: bool = False,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -192,6 +226,7 @@ def build_agent(
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
+    run_limit_usd: Decimal | None = None,
     group_limits: Sequence[SpendLimit] = (),
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
@@ -206,6 +241,12 @@ def build_agent(
     Args:
         spec: The published (or draft, when previewing) agent definition.
         model_spec: Already-resolved model and credentials.
+        run_person: The member who answers for this run, or `None` when nobody
+            does - derived by the runner, which alone knows the request. Handed
+            to `AgentDeps` unchanged and never dropped, unlike `audience`: a
+            tool that needs a person refuses on `None`.
+        impersonated: The run was started while an administrator impersonated its
+            person. Handed to `AgentDeps` unchanged.
         granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
         gate_every_tool: Ask about every tool the agent can reach, not only the
@@ -277,6 +318,11 @@ def build_agent(
             enforce because the model provider executes the tool.
     """
     refuse_ungateable_approvals(spec)
+    # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
+    # module level, which loops back through the factory to this module.
+    from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
+    from app.agents.capabilities.workflows import WORKFLOW_IDS_RESOURCE, workflow_ids_of
+
     bindings = spec.bindings()
     if voice is not None:
         # Only what runs on the realtime model. The runner strips what a call can
@@ -321,6 +367,8 @@ def build_agent(
             # delete the bytes is the conversation, not a setting.
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
+            TABLE_GRANTS_RESOURCE: table_grants_of(spec),
+            WORKFLOW_IDS_RESOURCE: frozenset(workflow_ids_of(spec)),
             # Where the agent's web readers may go: a drawing fetches an image by
             # address only from a host one of them would itself reach.
             WEB_REACH_RESOURCE: web_reach(bindings),
@@ -330,7 +378,16 @@ def build_agent(
     # Before hooks run in list order, and a compaction strategy rebuilds the
     # request from the run's history in its own: reminders appended before it
     # would be dropped (see `SystemReminders.before_model_request`).
-    configured.sort(key=lambda capability: isinstance(capability, SystemReminders))
+    # Browser tables must also be pruned after compaction rebuilds the request.
+    configured.sort(
+        key=lambda capability: (
+            isinstance(capability, SystemReminders),
+            isinstance(
+                capability.wrapped if isinstance(capability, ToolOverrides) else capability,
+                WebBrowser,
+            ),
+        )
+    )
     if voice is not None:
         configured = voice_configured(configured)
 
@@ -359,6 +416,8 @@ def build_agent(
         user_id=user_id,
         user_name=user_name,
         audience=bound_audience,
+        run_person=run_person,
+        impersonated=impersonated,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
@@ -381,6 +440,7 @@ def build_agent(
                 agent_period_spend=agent_period_spend,
                 org_period_spend=org_period_spend,
                 org_monthly_budget_usd=org_monthly_budget_usd,
+                run_limit_usd=run_limit_usd,
                 group_limits=group_limits,
             ),
         )
@@ -421,6 +481,8 @@ def build_agent(
         ApprovalGate(
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
+            describers=approval_describers(spec),
+            tool_ids=approval_tool_ids(spec),
             asking_tool_names=asking,
         ),
         *configured,
@@ -495,17 +557,18 @@ def build_agent(
         }
     )
 
-    agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
+    agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
         # A realtime session reads only `instructions=` (#54), so a call carries
         # the spec's instructions there and no system prompt at all.
         system_prompt="" if voice is not None else spec.instructions or "",
         instructions=None if voice is None else voice_instructions(spec.instructions, voice),
-        # `str` first so the model answers in text; `DeferredToolRequests`
-        # is not a shape the model can choose, it is what the run ends with when
-        # the approval gate parks a call.
-        output_type=[str, DeferredToolRequests],
+        # The answer first - text, or the spec's object - then
+        # `DeferredToolRequests`, which is not a shape the model can choose: it
+        # is what the run ends with when the approval gate parks a call.
+        output_type=_output_type(spec.output_schema),
+        retries={"output": OUTPUT_RETRIES},
         capabilities=capabilities,
         # Undeferred in a call: tools are fixed at connect, and a deferred one is rejected.
         toolsets=(
@@ -515,6 +578,8 @@ def build_agent(
         ),
     )
 
+    if spec.output_schema is not None:
+        agent.output_validator(_fits_schema(spec.output_schema))
     _instrument(agent, spec, secrets or {}, agent_id=agent_id)
 
     return BuiltAgent(
@@ -628,6 +693,7 @@ def _spend_limits(
     agent_period_spend: PeriodSpendLookup | None,
     org_period_spend: PeriodSpendLookup | None,
     org_monthly_budget_usd: Decimal | None,
+    run_limit_usd: Decimal | None = None,
     group_limits: Sequence[SpendLimit] = (),
 ) -> list[SpendLimit]:
     """Every ceiling this run is under, narrowest first.
@@ -657,6 +723,10 @@ def _spend_limits(
     raise one either, but it binds fewer people than the organization's.
     """
     limits: list[SpendLimit] = []
+    # This run's own ceiling, the narrowest of all: no lookup, so it meters
+    # only what this run has spent.
+    if run_limit_usd is not None:
+        limits.append(SpendLimit(scope=BudgetScope.RUN, limit_usd=run_limit_usd))
     if spec.budget is not None and spec.budget.monthly_usd is not None:
         limits.append(
             SpendLimit(
@@ -677,8 +747,42 @@ def _spend_limits(
     return limits
 
 
+def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
+    """Text, or an object of `schema` handed back as one tool call's arguments."""
+    if schema is None:
+        return [str, DeferredToolRequests]
+    return [
+        StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+        DeferredToolRequests,
+    ]
+
+
+def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]:
+    """An output validator sending the model back when its answer breaks `schema`.
+
+    Pydantic AI hands a structured answer on as a dict and checks only that it
+    is one; the schema's own rules - required fields, types, enums - are checked
+    here, so a surface that promises the shape never receives anything else.
+    The first problem is named, with where it is, because that is what the
+    model can fix on its next try.
+    """
+    checker = validators.validator_for(schema)(schema)
+
+    def fits(output: AgentOutput) -> AgentOutput:
+        if isinstance(output, dict):
+            problem = next(iter(sorted(checker.iter_errors(output), key=str)), None)
+            if problem is not None:
+                where = "/".join(str(part) for part in problem.absolute_path) or "the answer"
+                raise ModelRetry(
+                    f"The answer does not fit its schema at {where}: {problem.message}"
+                )
+        return output
+
+    return fits
+
+
 def _instrument(
-    agent: PydanticAgent[AgentDeps, str | DeferredToolRequests],
+    agent: PydanticAgent[AgentDeps, AgentOutput],
     spec: AgentSpec,
     secrets: Mapping[UUID, StorableSecret],
     *,

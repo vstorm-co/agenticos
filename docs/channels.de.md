@@ -1,5 +1,5 @@
 ---
-source_sha: "6c3d5f80e3c5"
+source_sha: "2da70849bc40"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2195,16 +2195,14 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
   [Ausgabe-Guardrail](reference/capabilities.md#guardrails) wird die Antwort
   stattdessen Schritt für Schritt umgeschrieben, und jeder Schritt wird erst gepostet, nachdem
   er geprüft wurde.
-- **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die den
-  Instruktionen des Agents allein auf dieser Oberfläche hinzugefügt werden. Eine
-  neue öffnet sich mit dem, was dieser Client tatsächlich rendert: Slack zeichnet
-  kein Markdown und schreibt einen Link als `<url|text>`, Mattermost rendert
-  Überschriften und Tabellen, Telegram weist eine Nachricht zurück, deren `*`
-  nicht geschlossen ist — dazu, wie man dort einen Link angibt, angeführt von
-  einem Emoji, wenn es eine Aktion oder ein Ziel ist. Von da an ist es der Text
-  der Bindung: ändern Sie ihn, ergänzen Sie ihn, oder leeren Sie ihn. Er formt,
-  wie eine Antwort geliefert wird, und kann nie ersetzen, wofür der Agent da ist —
-  das gehört zur veröffentlichten Version.
+- **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die nur auf
+  dieser Oberfläche hinzugefügt werden. Aktuelle Formatierungsvorgaben kommen
+  aus dem Deployment: Slack schreibt Links als `<url|text>`, Mattermost rendert
+  Überschriften und Tabellen, und Telegram weist ungeschlossene Formatierung
+  zurück. Eine neue Bindung speichert keine Kopie dieser Vorgaben. Eigene
+  Anweisungen lassen sich ergänzen, bearbeiten oder leeren, ohne Plattformregeln
+  auf dem Stand des Installationstags einzufrieren. Sie gestalten die Ausgabe;
+  der Zweck des Agents gehört zu seiner veröffentlichten Version.
 - **Ein Bot antwortet, sobald er registriert ist.** Ein Polling-Bot -
   Telegram-Long-Polling, Slack Socket Mode, ein Mattermost-Event-Stream - wird
   über eine Verbindung erreicht, die der API-Prozess hält, und diese Verbindung
@@ -2240,7 +2238,18 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft. Discord zählt `@everyone` und `@here` nur, wenn der Absender sie verwenden darf, also wenn Discord den Raum tatsächlich benachrichtigt.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
-- **Alle MCP-Aufrufe benötigen in Chat-Apps eine Genehmigung, auch Lesezugriffe und Organisations- oder Plattformverbindungen.** Die Kontoverknüpfung bestimmt die verwendete Verbindung; sie erlaubt keine automatische Veröffentlichung persönlicher Ergebnisse. Die Regel gilt auch für Delegierte und fortgesetzte Aufrufe.
+- **MCP-Lesezugriffe verknüpfter Absender folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
+
+Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
+
+Editierbare Kanalnamen, Themen, Beschreibungen und Autorenbezeichnungen durchlaufen vor dem Modell die konfigurierten Eingabeprüfungen. Bereinigte Werte ersetzen die Originale; blockierte Referenzwerte werden zurückgehalten, während eine erlaubte Frage fortgesetzt werden kann. Feste Metadatensyntax, Plattformkennungen und Chat-Typen werden nicht als Fragetext geprüft.
+
+Autorenreferenzen werden getrennt von der aktuellen Nachricht übergeben, damit Eingabe-Guardrails die eigentliche Frage prüfen. Nicht verknüpfte Kanalteilnehmer benötigen weiterhin eine Genehmigung für jeden MCP-Aufruf, auch für Organisationslesezugriffe.
+
+Sowohl ausdrückliche `@slug`-Aufrufe als auch Standardantworten erhalten den gespeicherten Gesprächsverlauf zusammen mit dem anfänglichen Kontext des Kanal-Threads.
+
+Veröffentlichte Apps lassen sich aus einer anderen Unterhaltung ohne die ursprüngliche Sandbox ändern. `read_artifact` liest den gespeicherten Quelltext; `publish_artifact` mit demselben Namen und Änderungen oder neuem Inhalt aktualisiert die App. Link und Versionshistorie bleiben erhalten. Lesezugriff erteilt keine Bearbeitungsrechte; die bestehenden Berechtigungsprüfungen gelten weiterhin.
+
 - **Der Agent kennt den Ort und das verfügbare Konto.** Laufzeitinstruktionen nennen Plattform und Deployment-Konsole, erklären den verwalteten Workspace und unterscheiden organisatorische MCP-Verbindungen von persönlichen Diensten. Persönliche Dienste benötigen eine verknüpfte Absenderidentität und deren autorisierte Dienstverbindung. Die Verknüpfung beginnt mit `link` ohne Schrägstrich in einer Direktnachricht; der private Verbindungslink gehört nicht in einen Channel. Der Agent nennt tatsächliche Tool-Ergebnisse und einen konkreten nächsten Schritt bei fehlender Anmeldung oder Funktion.
 - **Eine erneut zugestellte Nachricht wird einmal beantwortet.** Jede Plattform
   liefert mindestens einmal: die Webhook-Routen antworten mit 200, bevor
@@ -2897,6 +2906,16 @@ Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
 
 Der automatische Channel-Kontext enthält Name, Zweck und eine begrenzte sichtbare Mitgliederliste, als Daten statt Instruktionen markiert. Die pro Bindung gewährten Tools erlauben weitere Abfragen und explizite Dateizustellung; das Entziehen eines Tools entfernt nicht den automatischen Kontext.
 
+## Ein Bot, dessen Nachrichten einen Workflow starten { #a-bot-whose-messages-start-a-workflow }
+
+Ein Workflow mit einem Trigger **Channel message** übernimmt die Nachrichten eines
+Bots an Stelle seines Agenten. Ihn erreichen nur die Nachrichten, die der Agent
+beantwortet hätte, und davon nur die, die zum Filter des Triggers passen: Eine
+Nachricht, die einen anderen Agenten per `@handle` nennt, geht weiterhin dorthin,
+und eine, die der Filter auslässt, beantwortet der Agent des Bots wie bisher. Der
+Workflow antwortet mit seinem eigenen Schritt **Send a message** im Thread der
+Nachricht. Siehe [Über eine Kanalnachricht](workflows.md#from-a-channel-message).
+
 ## Auswählen { #choosing }
 
 ```mermaid
@@ -2942,3 +2961,9 @@ flowchart TD
   existiert.
 
 Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nach dem Entfernen der Erwähnung ignoriert, bevor die Zustellung beansprucht oder ein Lauf gestartet wird. So erhält die Modell-API keine leere Nutzernachricht, deren Weglassen die vorherige Assistentenantwort als unzulässiges Prefill erscheinen lässt. Nachrichten mit ausschließlich Anhängen durchlaufen weiterhin die Anhangverarbeitung.
+
+## Aktuelle Kanalvorgaben {#current-channel-defaults}
+
+Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Der Bindungs-Prompt speichert nur eigene Ergänzungen. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
+
+Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wieder her und erhält eigene Ergänzungen, auch bei nach dem Upgrade angelegten Bindungen. Andere Oberflächen bleiben unverändert.

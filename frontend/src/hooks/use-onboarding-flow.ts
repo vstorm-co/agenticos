@@ -17,6 +17,7 @@ import { useGroups } from "@/hooks/use-groups";
 import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
+import { useTables } from "@/hooks/use-tables";
 import { stripLocale } from "@/lib/active-route";
 import { usableForAgents } from "@/lib/model-profiles";
 import {
@@ -122,6 +123,7 @@ function useOrgSnapshot(): {
   const models = useModelProviders();
   const skills = useSkills();
   const kb = useKnowledgeBases();
+  const tables = useTables();
   const mcp = useOrgMcpConnections();
   const personalMcp = useMcpConnections();
   const orgs = useOrganizationList();
@@ -142,6 +144,7 @@ function useOrgSnapshot(): {
     !models.isLoading &&
     !kb.isLoading &&
     !skills.isLoading &&
+    !tables.isLoading &&
     !mcp.isLoading &&
     !personalMcp.isLoading &&
     !anyRunnable.isLoading &&
@@ -158,6 +161,7 @@ function useOrgSnapshot(): {
       ),
       skill: settled(skills.isLoading, skills.isFetching, skills.total),
       kb: settled(kb.isLoading, kb.isFetching, kb.kbs.length),
+      table: settled(tables.isLoading, tables.isFetching, tables.total),
       // Either scope: the connect step ends when the reader connects one, org or
       // personal. `hasOrgMcp` below stays org-only — that is the fork for an agent
       // binding a server, and an agent binds the organization's.

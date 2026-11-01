@@ -1,5 +1,5 @@
 ---
-source_sha: "5afb693c7c13"
+source_sha: "f96ca8950f4c"
 ---
 
 # Begriffe { #concepts }
@@ -47,6 +47,15 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
     Neue Felder bekommen Vorgabewerte, sodass ein heute veröffentlichter Agent
     auch nach einem Upgrade noch lädt. Ein Feld zu entfernen oder umzubenennen
     ist eine Migration, keine Bearbeitung.
+
+!!! info "Eine Antwort kann Daten sein"
+
+    Standardmäßig antwortet ein Agent in Text. Stellen Sie **Answer format** auf
+    strukturierte Daten oder `output_schema` im Spec, und er antwortet stattdessen
+    mit einem Objekt benannter Felder: Das Modell wird um diese Form gebeten, und
+    eine Antwort, die sie verletzt, geht zum Korrigieren zurück, bevor der Run
+    endet. Die API gibt das Objekt als `structured` zurück, Chat und Kanäle zeigen
+    es als JSON-Block, und ein `agent.run`-Schritt gibt es weiter.
 
 !!! info "Ein Template ist ein Spec, den jemand schon geschrieben hat"
 
@@ -228,6 +237,12 @@ nicht kann — zu diesen Bedingungen:
 - **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
   jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
   Mitglied, als das es gehandelt hat.
+- **Er darf auf dem eigenen Computer des Erstellers arbeiten.** Mit Run as me kann
+  der Ersteller den Trigger unter **Arbeiten auf (Work on)** auf einen Ordner
+  seines Computers richten; jedes Auslösen arbeitet dann dort über die
+  [Desktop-App](desktop.md#work-on-this-computer). Run as me abzuschalten löscht
+  das, und ein Auslösen, das nicht als sein Ersteller handelt, bekommt den
+  Computer nicht.
 
 Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
 läuft:
@@ -297,7 +312,7 @@ Jeder Trigger lässt sich außerdem **jetzt ausführen**: ein zusätzliches Ausl
 auf Zuruf, das seine Taktung unberührt lässt.
 
 Es wird *angenommen* statt abgewartet. Die Anfrage antwortet, sobald das Auslösen
-als eigener Flow-Run an den Worker übergeben ist — dieselbe dauerhafte Tür, durch
+als Job für den Worker eingereiht ist — dieselbe dauerhafte Tür, durch
 die ein geplantes oder zugestelltes Auslösen geht —, und der Run erscheint in der
 Run-Log-Unterhaltung des Triggers, während er läuft.
 

@@ -12,11 +12,13 @@ not trusted by default, and that a Redis nobody can reach degrades to no limit
 rather than to no service.
 """
 
+from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.core.config import settings
+from app.core.exceptions import RateLimitError
 from app.services import rate_limit
 from app.services.rate_limit import Limit
 
@@ -149,6 +151,90 @@ class TestDegradingRatherThanRefusing:
             await rate_limit.consume(surface="agent_run", caller="user:a", limit=Limit(1))
 
         assert "unmetered" in caplog.text
+
+    @pytest.mark.security
+    async def test_the_degraded_line_names_the_surface_but_not_the_caller(self, caplog):
+        """A caller can be a public link's key or a form's token, so the line that
+        says it went unmetered must not be where that credential is written down."""
+        caller = "key:pk_live_secret_public_link_key"
+        with caplog.at_level("WARNING"):
+            await rate_limit.consume(surface="public_artifact", caller=caller, limit=Limit(1))
+
+        (record,) = [r for r in caplog.records if "unmetered" in r.getMessage()]
+        assert "public_artifact" in record.getMessage()
+        assert caller not in record.getMessage()
+        assert "pk_live_secret_public_link_key" not in repr(record.args)
+
+
+class TestALocalFloorWhenTheSharedLimiterCannotCount:
+    """`consume_with_local_floor` is for a surface whose limit is a production
+    control - a Virtual Tables write bounds how fast a tenant grows the shared
+    database - where the shared limiter's fail-open default would remove the limit
+    entirely for the length of a Redis outage (#1823)."""
+
+    async def test_a_counted_decision_is_passed_straight_through(self):
+        """When Redis answers, the shared count is the whole answer and the local
+        window is not consulted at all."""
+        rate_limit.configure(_redis([4]))
+
+        decision = await rate_limit.consume_with_local_floor(
+            surface="table_write", caller="c", limit=Limit(attempts=3)
+        )
+
+        assert decision.allowed is False
+        assert decision.metered is True
+
+    async def test_an_unmetered_decision_is_bounded_on_this_worker(self, monkeypatch):
+        """A Redis that cannot be reached would leave the surface unmetered; the
+        per-process window holds the same allowance instead of none."""
+        client = MagicMock()
+        client.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+        monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+
+        decisions = [
+            await rate_limit.consume_with_local_floor(
+                surface="table_write", caller="org:o:user:u", limit=Limit(attempts=2)
+            )
+            for _ in range(3)
+        ]
+
+        assert [d.allowed for d in decisions] == [True, True, False]
+        assert all(d.metered is False for d in decisions)
+        assert decisions[-1].retry_after_seconds == 60
+
+    async def test_the_floor_is_kept_per_surface_and_per_caller(self, monkeypatch):
+        """The caller is namespaced by surface, so a table write and a channel
+        turn do not spend each other's floor while Redis is down."""
+        monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+
+        first = await rate_limit.consume_with_local_floor(
+            surface="table_write", caller="c", limit=Limit(attempts=1)
+        )
+        again = await rate_limit.consume_with_local_floor(
+            surface="table_write", caller="c", limit=Limit(attempts=1)
+        )
+        elsewhere = await rate_limit.consume_with_local_floor(
+            surface="ml_call", caller="c", limit=Limit(attempts=1)
+        )
+
+        assert first.allowed is True
+        assert again.allowed is False
+        assert elsewhere.allowed is True
+
+
+class TestTheLocalWindowItself:
+    def test_it_forgets_windows_that_have_expired(self):
+        """Bounded the way the shared window is bounded by its TTL: an entry lives
+        one window, so the map holds the callers of the last window, not all of them."""
+        clock = iter([0.0, 1.0, 61.0, 62.0])
+        windows = rate_limit.LocalWindows(clock=lambda: next(clock))
+
+        assert windows.consume("a", attempts=1, window_seconds=60) is True
+        assert windows.consume("a", attempts=1, window_seconds=60) is False
+        assert windows.consume("b", attempts=1, window_seconds=60) is True
+        assert windows.consume("a", attempts=1, window_seconds=60) is True, "a new window"
+        assert len(windows) == 2
 
 
 class TestReadingWithoutCounting:
@@ -504,6 +590,171 @@ class TestStoringAFileIsCountedTwice:
         )
 
         assert decision.allowed is False
+
+
+class TestAFormIsCountedPerForm:
+    """A workflow's public form is read and submitted through the console's server,
+    so every visitor arrives as the same caller: the bucket is the form."""
+
+    async def test_reading_and_submitting_are_two_buckets_of_one_form(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE", 3)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.form_page_allowed("tok")).allowed is True
+        assert (await rate_limit.form_submission_allowed("tok")).allowed is True
+
+        keys = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert keys == [
+            "ratelimit:workflow_form_page:form:tok",
+            "ratelimit:workflow_form_submission:form:tok",
+        ]
+
+    async def test_a_form_over_its_submissions_is_refused(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE", 3)
+        rate_limit.configure(_redis([4]))
+
+        assert (await rate_limit.form_submission_allowed("tok")).allowed is False
+
+
+class TestAWebhookIsCountedPerExposureAndPerAddress:
+    async def test_a_run_spends_its_exposures_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE", 2)
+        client = _redis([1, 3])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.workflow_webhook_allowed("wh")).allowed is True
+        assert (await rate_limit.workflow_webhook_allowed("wh")).allowed is False
+        assert client.count_in_window.await_args.args[0] == (
+            "ratelimit:workflow_webhook:exposure:wh"
+        )
+
+    async def test_a_request_spends_its_addresss_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE", 2)
+        client = _redis([1, 3])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.workflow_webhook_ip_allowed(_connection())).allowed is True
+        assert (await rate_limit.workflow_webhook_ip_allowed(_connection())).allowed is False
+        assert client.count_in_window.await_args.args[0].startswith(
+            "ratelimit:workflow_webhook_ip:ip:"
+        )
+
+
+def _claims() -> tuple[MagicMock, dict[str, str]]:
+    """A client whose `SET NX` and compare-and-delete act on a dict, as Redis would."""
+    store: dict[str, str] = {}
+
+    async def claim(key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        if nx and key in store:
+            return False
+        store[key] = value
+        return True
+
+    async def delete_if_equals(key: str, value: str) -> bool:
+        if store.get(key) != value:
+            return False
+        del store[key]
+        return True
+
+    client = MagicMock()
+    client.set = AsyncMock(side_effect=claim)
+    client.delete_if_equals = AsyncMock(side_effect=delete_if_equals)
+    return client, store
+
+
+def _in_flight(caller: str = "org:o:user:u") -> AbstractAsyncContextManager[None]:
+    return rate_limit.one_in_flight("artifact_data", caller, ttl_seconds=10, message="Busy.")
+
+
+class TestOneLoadInFlight:
+    """At most one data load per viewer at a time, refused at once rather than queued."""
+
+    async def test_artifact_data_limit_reads_the_setting(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE", 7)
+
+        assert rate_limit.artifact_data_limit() == Limit(attempts=7)
+
+    @pytest.mark.security
+    async def test_a_held_claim_refuses_the_same_caller_and_no_other(self):
+        client, store = _claims()
+        rate_limit.configure(client)
+
+        async with _in_flight():
+            assert list(store) == ["inflight:artifact_data:org:o:user:u"]
+            client.set.assert_awaited_once()
+            assert client.set.await_args.kwargs == {"ttl": 10, "nx": True}
+            with pytest.raises(RateLimitError) as refused:
+                async with _in_flight():
+                    pass
+            async with _in_flight("org:o:user:other"):
+                pass
+
+        assert refused.value.message == "Busy."
+        assert store == {}
+
+    @pytest.mark.security
+    async def test_one_in_flight_falls_back_to_the_process_when_redis_is_down(self):
+        client = MagicMock()
+        client.set = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+
+        async with _in_flight():
+            with pytest.raises(RateLimitError):
+                async with _in_flight():
+                    pass
+            async with _in_flight("org:o:user:other"):
+                pass
+        async with _in_flight():
+            pass
+
+    @pytest.mark.security
+    async def test_one_in_flight_holds_per_process_when_unconfigured(self):
+        async with _in_flight():
+            with pytest.raises(RateLimitError):
+                async with _in_flight():
+                    pass
+
+    async def test_one_in_flight_releases_on_error(self):
+        client, store = _claims()
+        rate_limit.configure(client)
+
+        with pytest.raises(ValueError, match="boom"):
+            async with _in_flight():
+                raise ValueError("boom")
+        assert store == {}
+        rate_limit.configure(None)
+        with pytest.raises(ValueError, match="boom"):
+            async with _in_flight():
+                raise ValueError("boom")
+        async with _in_flight():
+            pass
+
+    @pytest.mark.security
+    async def test_one_in_flight_never_releases_a_key_it_no_longer_holds(self):
+        """A load that outlived its claim's TTL must not free the next load's claim."""
+        client, store = _claims()
+        rate_limit.configure(client)
+        key = "inflight:artifact_data:org:o:user:u"
+
+        async with AsyncExitStack() as later:
+            async with _in_flight():
+                first = store.pop(key)
+                await later.enter_async_context(_in_flight())
+                second = store[key]
+            assert first != second
+            assert store == {key: second}
+        assert store == {}
+
+    async def test_a_release_redis_refuses_is_left_to_the_ttl(self):
+        client, store = _claims()
+        client.delete_if_equals = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+
+        async with _in_flight():
+            pass
+
+        assert list(store) == ["inflight:artifact_data:org:o:user:u"]
 
 
 class TestAVisitorsCall:

@@ -54,8 +54,9 @@ template-inherited subsystems have different coverage gates, described below.
   `VoiceCallStarter.start` commits a call's row and its run before the call
   connects and `VoiceCallSession` commits again in its teardown (per-turn
   messages, heartbeats and approval writes use their own `get_db_context()`
-  sessions); and `SessionService.detect_refresh_reuse` commits the security
-  response its caller is about to raise past. See
+  sessions); `SessionService.detect_refresh_reuse` commits the security
+  response its caller is about to raise past; and `WorkflowExposureService._answer`
+  commits a webhook's admission before waiting for its Respond to webhook step. See
   `docs/architecture.md#the-requests-transaction`.
 - Queue background work that must happen as a job with
   `app.services.background_jobs.enqueue`, in the request's own transaction, so it
@@ -223,6 +224,7 @@ retranslated is how a stale translation stops being visible.
 | Budgets, approvals, alerts, audit | `docs/governance.md` |
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
+| Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
@@ -235,12 +237,15 @@ retranslated is how a stale translation stops being visible.
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
+| Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
+| Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
-| The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
+| The desktop app: the console, blobby, quick ask, local work and the screen | `docs/desktop.md` |
+| The phone app: live activities, widgets, push, offline | `docs/mobile.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
 | Every module, screenshotted in both themes | `docs/screens.md` |
@@ -262,7 +267,7 @@ retranslated is how a stale translation stops being visible.
 | The deployment's identity, sign-up policy, notices | `docs/deployment.md` |
 | Settings and the production checklist | `docs/configuration.md` |
 | What the platform does, on one page | `docs/features.md` |
-| Choosing a first task, and the 29 use-case tutorials it indexes | `docs/use-cases.md` (tutorials live in `docs/howto/`) |
+| Choosing a first task, and the 30 use-case tutorials it indexes | `docs/use-cases.md` (tutorials live in `docs/howto/`) |
 | The Learn track's own landing | `docs/learn/index.md` |
 | Help, contributing, extending the platform | `docs/resources/index.md` |
 | Why it exists, and what it is not | `docs/about/index.md` |

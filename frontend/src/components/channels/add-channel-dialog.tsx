@@ -471,7 +471,7 @@ export function AddChannelDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button onClick={submit} disabled={!complete || isPending}>
+          <Button onClick={submit} loading={isPending} disabled={!complete}>
             {t("register")}
           </Button>
         </DialogFooter>

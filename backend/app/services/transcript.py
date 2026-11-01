@@ -38,6 +38,7 @@ from pydantic_ai.messages import (
 )
 
 from app.agents.ask_user import parked_status
+from app.agents.ephemeral_media import describe_binary
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 
@@ -121,7 +122,7 @@ def tool_result_text(content: Any) -> str:
     if isinstance(content, str):
         return content
     try:
-        return json.dumps(content, ensure_ascii=False, default=str)
+        return json.dumps(content, ensure_ascii=False, default=describe_binary)
     except TypeError, ValueError:
         # `default=` is consulted for a *value* json cannot write and never for a
         # key, so a mapping keyed by a tuple raises `TypeError` and escaped this

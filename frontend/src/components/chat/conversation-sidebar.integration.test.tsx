@@ -810,3 +810,12 @@ describe("who a row is with", () => {
     expect(faces.map((face) => face.textContent)).toEqual(["Analyst"]);
   });
 });
+
+it("lets the chat header drag the desktop window while keeping its actions accessible", async () => {
+  mount();
+  await screen.findAllByText("Quarterly numbers");
+  const header = within(list()).getByRole("heading", { name: "Chats" }).parentElement;
+  expect(header).toHaveAttribute("data-tauri-drag-region", "deep");
+  await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
+  expect(await screen.findByRole("dialog", { name: "Search conversations" })).toBeVisible();
+});

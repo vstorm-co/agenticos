@@ -48,6 +48,7 @@ class TestEveryMemberIsAssignedBySomething:
             "teams",
             "discord",
             "schedule",
+            "workflow",
             "proactive",
             "follow_ups",
         }

@@ -1,0 +1,225 @@
+import { type InputField, inputFieldsOf } from "@/lib/workflows/input-fields";
+import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
+
+/**
+ * The trigger nodes a workflow starts from - `app/workflows/triggers.py`.
+ *
+ * A workflow has independent trigger roots, with one default entry: by hand or the API, a chat
+ * message, a signed webhook, a GitHub repository's events, a schedule, a table
+ * record, a public form, a message to a bot or an email. Publishing a
+ * version is what switches its trigger on.
+ */
+
+export const TRIGGER_CATEGORY = "triggers";
+
+export const MANUAL_TRIGGER = "trigger.manual";
+/** Started by an HTTP request or a WebSocket - the id every graph before the split used. */
+export const API_TRIGGER = "core.input";
+export const CHAT_TRIGGER = "trigger.chat";
+export const WEBHOOK_TRIGGER = "trigger.webhook";
+export const SCHEDULE_TRIGGER = "trigger.schedule";
+export const TABLE_RECORD_TRIGGER = "trigger.table_record";
+/** An error workflow's trigger: a run of a workflow that names this one fails. */
+export const WORKFLOW_FAILED_TRIGGER = "trigger.workflow_failed";
+/** A workflow another one's Run a workflow step calls, with the fields it declares. */
+export const WORKFLOW_CALL_TRIGGER = "trigger.workflow_call";
+/** A public page anyone with its link fills in, with the fields it declares. */
+export const FORM_TRIGGER = "trigger.form";
+/** A message to one of the organization's Slack, Mattermost or Telegram bots. */
+export const CHANNEL_MESSAGE_TRIGGER = "trigger.channel_message";
+/** Something happening in a GitHub repository, delivered to its own signed address. */
+export const GITHUB_TRIGGER = "trigger.github";
+/** A message arriving in the organization's connected Gmail mailbox. */
+export const GMAIL_TRIGGER = "trigger.gmail";
+/** A message arriving in a folder of the organization's connected Microsoft 365 mailbox. */
+export const OUTLOOK_TRIGGER = "trigger.outlook";
+
+/** The triggers a person or a caller starts. */
+export const BY_HAND_TRIGGERS: ReadonlySet<string> = new Set([MANUAL_TRIGGER, API_TRIGGER]);
+
+/** The triggers that declare typed input fields: those, a called workflow's and a form's. */
+export const FIELD_TRIGGERS: ReadonlySet<string> = new Set([
+  ...BY_HAND_TRIGGERS,
+  WORKFLOW_CALL_TRIGGER,
+  FORM_TRIGGER,
+]);
+
+export const TRIGGER_IDS: ReadonlySet<string> = new Set([
+  MANUAL_TRIGGER,
+  API_TRIGGER,
+  CHAT_TRIGGER,
+  WEBHOOK_TRIGGER,
+  SCHEDULE_TRIGGER,
+  TABLE_RECORD_TRIGGER,
+  WORKFLOW_FAILED_TRIGGER,
+  WORKFLOW_CALL_TRIGGER,
+  FORM_TRIGGER,
+  CHANNEL_MESSAGE_TRIGGER,
+  GITHUB_TRIGGER,
+  GMAIL_TRIGGER,
+  OUTLOOK_TRIGGER,
+]);
+export const UNATTENDED_TRIGGERS: ReadonlySet<string> = new Set([
+  WEBHOOK_TRIGGER,
+  SCHEDULE_TRIGGER,
+  TABLE_RECORD_TRIGGER,
+  FORM_TRIGGER,
+  CHANNEL_MESSAGE_TRIGGER,
+  GITHUB_TRIGGER,
+  GMAIL_TRIGGER,
+  OUTLOOK_TRIGGER,
+]);
+
+/** Independent starts, with the default first. */
+export function entryNodes(graph: WorkflowGraph): NodeInstance[] {
+  const primary = graph.nodes.find((node) => node.id === graph.entry_node_id);
+  return [
+    ...(primary ? [primary] : []),
+    ...graph.nodes.filter(
+      (node) => node.id !== graph.entry_node_id && TRIGGER_IDS.has(node.definition_id),
+    ),
+  ];
+}
+
+/** The steps that can run from a chosen start. */
+export function entryGraph(graph: WorkflowGraph, entryId: string): WorkflowGraph {
+  const active = new Set<string>();
+  const queue = [entryId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === undefined || active.has(id)) continue;
+    active.add(id);
+    queue.push(
+      ...graph.edges
+        .filter((edge) => edge.source_node_id === id)
+        .map((edge) => edge.target_node_id),
+    );
+  }
+  return {
+    ...graph,
+    entry_node_id: entryId,
+    nodes: graph.nodes.filter((node) => active.has(node.id)),
+    edges: graph.edges.filter(
+      (edge) => active.has(edge.source_node_id) && active.has(edge.target_node_id),
+    ),
+    bindings: graph.bindings.filter((binding) => active.has(binding.target_node_id)),
+    scopes: [],
+  };
+}
+
+/** Whether a catalog entry is a trigger - a way a run of the workflow begins. */
+export function isTrigger(definition: Pick<NodeDefinition, "category"> | null): boolean {
+  return definition?.category === TRIGGER_CATEGORY;
+}
+
+/** The graph's trigger node, when it has one, by the catalog it resolves against. */
+export function triggerNodeOf(
+  graph: WorkflowGraph,
+  definitions: ReadonlyMap<string, NodeDefinition | null>,
+): NodeInstance | null {
+  return graph.nodes.find((node) => isTrigger(definitions.get(node.id) ?? null)) ?? null;
+}
+
+/**
+ * Whether a live version starting from `liveTrigger` is started by a member
+ * pressing Run or calling the API: Manual, API, or a graph whose entry is no
+ * trigger. Every other trigger has its own surface.
+ */
+export function startsByHand(liveTrigger: string | null): boolean {
+  return liveTrigger === null || BY_HAND_TRIGGERS.has(liveTrigger);
+}
+
+/** A stand-in id for a sample's conversation or record: a test run has none to name. */
+const SAMPLE_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * What a test run of `graph` starts with by default: the input its trigger
+ * would hand on, in that trigger's shape, so trying a webhook workflow does not
+ * begin with an input its first step refuses. Empty for a graph that starts by
+ * hand, whose input is whatever the caller sends.
+ */
+export function sampleRunInput(graph: WorkflowGraph | null): Record<string, unknown> {
+  const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
+  switch (entry?.definition_id) {
+    case CHAT_TRIGGER:
+      return { prompt: "Hello", conversation_id: SAMPLE_ID, user_id: null };
+    case WEBHOOK_TRIGGER:
+      return { body: {}, delivery_id: "test" };
+    case OUTLOOK_TRIGGER:
+      return {
+        message_id: "sample",
+        sender: "Ada Lovelace <ada@example.com>", // i18n-exempt: sample run data, not console copy
+        to: "",
+        subject: "Hello", // i18n-exempt: sample run data, not console copy
+        text: "",
+        snippet: "",
+        labels: [],
+      };
+    case GMAIL_TRIGGER:
+      return {
+        message_id: "sample",
+        sender: "Ada Lovelace <ada@example.com>", // i18n-exempt: sample run data, not console copy
+        to: "",
+        subject: "Hello", // i18n-exempt: sample run data, not console copy
+        text: "",
+        snippet: "",
+        labels: ["INBOX"],
+      };
+    case GITHUB_TRIGGER: {
+      const repository = entry.config["repository"];
+      return {
+        event: "issues",
+        action: "opened",
+        repository: typeof repository === "string" ? repository : "owner/repository",
+        sender: null,
+        delivery_id: "test",
+        payload: {},
+      };
+    }
+    case CHANNEL_MESSAGE_TRIGGER: {
+      const bot = entry.config["bot_id"];
+      return {
+        platform: "slack",
+        bot_id: typeof bot === "string" ? bot : SAMPLE_ID,
+        channel_id: "C0SAMPLE",
+        thread_id: "",
+        chat_type: "private",
+        message_id: null,
+        text: "Hello", // i18n-exempt: sample run data, not console copy
+        sender: { platform_user_id: "U0SAMPLE", username: null, display_name: null, user_id: null },
+      };
+    }
+    case SCHEDULE_TRIGGER:
+      return { fired_at: new Date().toISOString(), input: entry.config["input"] ?? {} };
+    case TABLE_RECORD_TRIGGER: {
+      const table = entry.config["table"];
+      const tableId =
+        table !== null && typeof table === "object" && "table_id" in table
+          ? table.table_id
+          : SAMPLE_ID;
+      return { table_id: tableId, record_id: SAMPLE_ID, values: {}, fields: {}, author_id: null };
+    }
+    case WORKFLOW_FAILED_TRIGGER:
+      return {
+        run_id: SAMPLE_ID,
+        workflow_id: SAMPLE_ID,
+        workflow_name: "sample", // i18n-exempt: sample run data, not console copy
+        step_id: SAMPLE_ID,
+        step_name: "sample", // i18n-exempt: sample run data, not console copy
+        error: { code: "SAMPLE_FAILURE", message: "sample" },
+      };
+    default:
+      return {};
+  }
+}
+
+/**
+ * The typed fields a run of `graph` starts with: those its Manual, API, Form or
+ * Called by a workflow entry declares, or none - for any other entry, or a graph not loaded yet.
+ */
+export function declaredFields(graph: WorkflowGraph | null | undefined): InputField[] {
+  const entry = graph?.nodes.find((node) => node.id === graph.entry_node_id);
+  return entry !== undefined && FIELD_TRIGGERS.has(entry.definition_id)
+    ? inputFieldsOf(entry.config)
+    : [];
+}

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Database, FileText, Search } from "lucide-react";
+import { Database, Search } from "lucide-react";
 
 import {
   Badge,
@@ -236,7 +236,10 @@ export function SearchTab({ kbs, onCreate }: SearchTabProps) {
                     </button>
                   ) : (
                     <span className="text-foreground inline-flex items-center gap-1.5 text-xs font-medium">
-                      <FileText className="text-muted-foreground h-3.5 w-3.5" />
+                      <FileIcon
+                        name={String(result.metadata?.filename ?? "?")}
+                        className="text-muted-foreground size-4"
+                      />
                       {String(result.metadata?.filename ?? "?")}
                     </span>
                   )}

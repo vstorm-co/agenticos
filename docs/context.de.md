@@ -1,5 +1,5 @@
 ---
-source_sha: "caab99f82fc1"
+source_sha: "2f33faf1a39b"
 ---
 
 # Context-Dateien { #context-files }
@@ -19,6 +19,8 @@ bearbeitbar, die die Antwort tatsächlich kennt.
 Sie ist die Antwort auf ein Problem, das jedes Unternehmen bei seinem dritten
 Agent trifft — dieselben drei Absätze, in drei Sätze von Instruktionen kopiert
 und dann in einem davon bearbeitet.
+
+Im Agent Builder erstellt **Context → New context file** eine Datei direkt im Fähigkeitspanel, ordnet sie dem aktuellen Entwurf zu und aktiviert Context. Anschließend lässt sich festlegen, wie dieser Agent die Datei nutzt. Das Veröffentlichen bleibt ein eigener Schritt. Zum Erstellen sind Bearbeitungsrechte für den Agenten und Kontextdateien erforderlich.
 
 ## Wo sie zwischen Skills und Wissen sitzt { #where-it-sits-between-skills-and-knowledge }
 

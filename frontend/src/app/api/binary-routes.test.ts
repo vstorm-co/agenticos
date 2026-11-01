@@ -10,6 +10,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST as uploadFile } from "./files/upload/route";
+import { GET as readTableImage } from "./tables/[tableId]/media/[mediaId]/route";
 import { GET as readFile } from "./files/[id]/route";
 import { GET as readGeneratedImage } from "./generated/[filename]/route";
 import { GET as callback } from "./me/mcp-connections/oauth/callback/route";
@@ -987,4 +988,19 @@ describe("coming back from an MCP OAuth consent to where it started", () => {
       "/mcp-servers",
     );
   });
+});
+
+it("serves pasted table images with the explicit tenant and session cookie", async () => {
+  serve(new Uint8Array([137, 80, 78, 71]), {
+    headers: { "content-type": "image/png", "cache-control": "private, no-store" },
+  });
+  const response = await readTableImage(
+    request("http://localhost:3000/api/tables/table/media/image?organization_id=org"),
+  );
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  const [, options] = fetchMock.mock.calls[0]!;
+  expect(options.headers["X-Organization-Id"]).toBe("org");
+  expect(options.headers.Authorization).toBe("Bearer at");
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([137, 80, 78, 71]));
 });

@@ -26,6 +26,7 @@ from app.core.secret_kinds import (
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
+    MicrosoftOAuthAppSecret,
     NoSecret,
     SecretKind,
     SecretRequirement,
@@ -125,6 +126,17 @@ class TestSecretKinds:
             client_id="Iv1.0123456789wxyz", client_secret="ghs-never-shown"
         )
         assert value.hint == "wxyz"
+
+    def test_a_microsoft_oauth_app_is_hinted_by_its_public_client_id(self):
+        """The Outlook portal's app registration (#1984): the client id names it in
+        the Entra admin center, and the secret is never part of the hint."""
+        value = MicrosoftOAuthAppSecret(
+            tenant_id="contoso.onmicrosoft.com",
+            client_id="11111111-2222-3333-4444-55555555abcd",
+            client_secret="never-shown-secret",
+        )
+        assert value.hint == "abcd"
+        assert "never-shown-secret" not in str(value.model_dump())
 
     def test_an_unknown_field_is_refused_rather_than_ignored(self):
         with pytest.raises(ValidationError):

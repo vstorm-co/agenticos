@@ -699,7 +699,7 @@ class TestPortalGrants:
     async def test_poll_candidates_are_bounded_without_credential_locks(self):
         session = _RecordingSession(_Result(rows=[]))
         await mcp_connection_repo.portal_poll_candidates(
-            session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
+            session, portal_keys=["google"], now=datetime.now(UTC), limit=5
         )
         sql = _sql(session)
         assert "FOR UPDATE" not in sql
@@ -718,7 +718,7 @@ class TestPortalGrants:
             session,
             connection_id=grant.id,
             portal_keys=["google"],
-            not_polled_since=datetime.now(UTC),
+            now=datetime.now(UTC),
         )
         assert claimed is grant
         assert grant.polled_at is None
@@ -736,7 +736,7 @@ class TestPortalGrants:
                 session,
                 connection_id=uuid.uuid4(),
                 portal_keys=["google"],
-                not_polled_since=datetime.now(UTC),
+                now=datetime.now(UTC),
             )
             is None
         )
@@ -750,7 +750,7 @@ class TestPortalGrants:
         session = _RecordingSession()
 
         claimed = await mcp_connection_repo.portal_poll_candidates(
-            session, portal_keys=[], not_polled_since=datetime.now(UTC), limit=5
+            session, portal_keys=[], now=datetime.now(UTC), limit=5
         )
 
         assert claimed == []
@@ -764,7 +764,7 @@ class TestPortalGrants:
         session = _RecordingSession(_Result(rows=[]))
 
         await mcp_connection_repo.portal_poll_candidates(
-            session, portal_keys=["google"], not_polled_since=datetime.now(UTC), limit=5
+            session, portal_keys=["google"], now=datetime.now(UTC), limit=5
         )
 
         sql = _sql(session)

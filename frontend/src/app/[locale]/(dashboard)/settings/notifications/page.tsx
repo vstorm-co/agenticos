@@ -20,6 +20,9 @@ import {
   Share2,
   Sparkles,
   UserPlus,
+  GitPullRequest,
+  UserRoundCog,
+  Workflow,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -28,6 +31,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { Switch } from "@/components/ui";
 import { ErrorState } from "@/components/states";
+import { PushSettings } from "@/components/settings/push-settings";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth, useNotificationPreferences } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -93,59 +97,70 @@ interface PreferenceEvent {
   words: string;
   icon: LucideIcon;
   /** Which channels `GET /notifications/preferences` offers for this event -
-   * a subset of `["in_app", "email"]`, per Decision 4's togglable-pairs rule. */
+   * a subset of `["in_app", "email", "push"]`, per Decision 4's togglable-pairs rule. */
   channels: readonly NotificationChannel[];
 }
+
+const CHANNEL_LABEL: Record<NotificationChannel, string> = {
+  in_app: "inAppChannel",
+  email: "emailChannel",
+  push: "pushChannel",
+};
 
 const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
   {
     eventType: "run_completed",
     words: "prefRunCompleted",
     icon: Bell,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
-  { eventType: "run_failed", words: "prefRunFailed", icon: XCircle, channels: ["in_app", "email"] },
+  {
+    eventType: "run_failed",
+    words: "prefRunFailed",
+    icon: XCircle,
+    channels: ["in_app", "email", "push"],
+  },
   {
     eventType: "artifact_version_published",
     words: "prefArtifactVersionPublished",
     icon: FileText,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "resource_shared",
     words: "prefResourceShared",
     icon: Share2,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "budget_warning",
     words: "prefBudgetWarning",
     icon: CircleDollarSign,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "mcp_server_down",
     words: "prefMcpServerDown",
     icon: ServerCrash,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "mcp_server_recovered",
     words: "prefMcpServerRecovered",
     icon: ServerCog,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "ingestion_completed",
     words: "prefIngestionCompleted",
     icon: FileCheck2,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "ingestion_failed",
     words: "prefIngestionFailed",
     icon: FileX2,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   // These three reuse `OPTIONAL_EMAILS`' own catalog keys: same event, same
   // name and trigger sentence, just this event's *in-app* channel rather
@@ -155,39 +170,73 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "budget_exceeded",
     words: "optionalBudget",
     icon: CircleDollarSign,
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
   },
-  { eventType: "approval_requested", words: "optionalApprovals", icon: Hand, channels: ["in_app"] },
-  { eventType: "usage_report", words: "optionalUsage", icon: PieChart, channels: ["in_app"] },
+  {
+    eventType: "approval_requested",
+    words: "optionalApprovals",
+    icon: Hand,
+    channels: ["in_app", "push"],
+  },
+  {
+    eventType: "usage_report",
+    words: "optionalUsage",
+    icon: PieChart,
+    channels: ["in_app", "push"],
+  },
   {
     eventType: "agent_usage_report",
     words: "prefAgentUsageReport",
     icon: PieChart,
-    channels: ["in_app"],
+    channels: ["in_app", "push"],
   },
   {
     eventType: "suggestion",
     words: "prefSuggestion",
     icon: Lightbulb,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "finding",
     words: "prefFinding",
     icon: Radar,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "capability_requested",
     words: "prefCapabilityRequested",
     icon: Sparkles,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
   },
   {
     eventType: "announcement",
     words: "prefAnnouncement",
     icon: Megaphone,
-    channels: ["in_app", "email"],
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "workflow_notification",
+    words: "prefWorkflowNotification",
+    icon: Workflow,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "workflow_log_alert",
+    words: "prefWorkflowLogAlert",
+    icon: Bell,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "artifact_owner_changed",
+    words: "prefArtifactOwnerChanged",
+    icon: UserRoundCog,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "artifact_share_requested",
+    words: "prefArtifactShareRequested",
+    icon: GitPullRequest,
+    channels: ["in_app", "email", "push"],
   },
 ];
 
@@ -282,6 +331,8 @@ export default function NotificationsSettingsPage() {
         </ul>
       </SectionCard>
 
+      <PushSettings />
+
       <SectionCard
         title={t("notificationPreferences")}
         description={t("notificationPreferencesDescription")}
@@ -310,13 +361,11 @@ export default function NotificationsSettingsPage() {
                 <div className="col-start-2 flex shrink-0 items-center gap-6 sm:gap-4">
                   {event.channels.map((channel) => {
                     const pendingKey = `${event.eventType}:${channel}`;
-                    const label = `${t(event.words)} - ${t(
-                      channel === "in_app" ? "inAppChannel" : "emailChannel",
-                    )}`;
+                    const label = `${t(event.words)} - ${t(CHANNEL_LABEL[channel])}`;
                     return (
                       <div key={channel} className="flex flex-col items-center gap-1">
                         <span className="text-muted-foreground text-xs tracking-wide uppercase">
-                          {t(channel === "in_app" ? "inAppChannel" : "emailChannel")}
+                          {t(CHANNEL_LABEL[channel])}
                         </span>
                         <Switch
                           aria-label={label}

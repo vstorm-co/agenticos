@@ -1,5 +1,5 @@
 ---
-source_sha: "4583c2b65bee"
+source_sha: "759491a1f3dc"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -372,6 +372,20 @@ Deployment benennt. Die Einstellungen stehen in der
 
 `agenticos cmd doctor` gibt aus, welches Backend ein laufendes Deployment nutzt
 und ob die Verschlüsselung an ist.
+
+### Mail-Anhänge in einem Workflow { #mail-attachments-in-a-workflow }
+
+Ein [Workflow](workflows.md#from-an-email), den eine Gmail- oder Outlook-Nachricht
+gestartet hat, speichert deren Anhänge als Dateien dieses Runs, innerhalb des Runs
+und nie im Poll, der das Postfach gelesen hat. Für sie gelten die Liste erlaubter
+Dateitypen und das Größenlimit für Chat-Uploads: Von den Anhängen, die ein Postfach
+liefert, werden nur die ersten 10 pro Nachricht berücksichtigt, und 25 MiB pro
+Nachricht. Ein ausgelassener Anhang wird mit dem Grund aufgeführt, und ein Testlauf
+holt nichts ab.
+
+Eine HTML-Datei in einem Workflow, etwa eine gespeicherte Seite oder ein Anhang,
+wird von [`html.parse`](reference/workflow-nodes.md#html-parse) gelesen, nicht von
+`text.extract`, das Dokumente liest und das Markup als Text zurückgeben würde.
 
 ### Das Modell ChatFile { #chatfile-model }
 

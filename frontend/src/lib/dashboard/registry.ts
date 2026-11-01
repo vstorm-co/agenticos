@@ -65,6 +65,10 @@ export type WidgetId =
   | "voice-minutes"
   | "projects"
   | "recent-visuals"
+  | "tables"
+  | "workflows"
+  | "approval-outcomes"
+  | "workflow-logs"
   | "suggestions";
 
 /** The closed set of card widths the grid supports (12 columns). */
@@ -267,6 +271,46 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
     seeAll: ROUTES.RAG,
+  },
+  tables: {
+    id: "tables",
+    gate: holds(Perm.tablesView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+    seeAll: ROUTES.TABLES,
+  },
+  // The period sets what the figures count; the runs waiting on a person are
+  // counted whatever the window, because they are waiting now.
+  // Four rows: the waiting-runs line, the figures and five workflows under them.
+  workflows: {
+    id: "workflows",
+    gate: holds(Perm.workflowsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "attention",
+    seeAll: ROUTES.WORKFLOWS,
+  },
+  // Catalog only: most organizations have no approval step, and the Workflows
+  // card already counts the runs waiting on a person. Three rows: the figures
+  // and the busiest workflows under them.
+  "approval-outcomes": {
+    id: "approval-outcomes",
+    gate: holds(Perm.workflowsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.WORKFLOWS,
+  },
+  // Catalog only: a log is only as busy as the Quick Logs its workflows set. Four
+  // rows: the two figures and the newest six lines, two lines each.
+  "workflow-logs": {
+    id: "workflow-logs",
+    gate: holds(Perm.workflowsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "attention",
+    seeAll: ROUTES.WORKFLOWS,
   },
   notifications: {
     id: "notifications",

@@ -473,6 +473,31 @@ async def test_a_rescued_death_counts_in_its_organizations_scope(repos: MagicMoc
     assert repos.record_death.await_args.args[1:] == ("ingest-document", organization)
 
 
+async def test_workers_death_under_workflow_nodes_never_pauses_the_kind(repos: MagicMock) -> None:
+    """One crash rescues every node the worker held; the retry ceiling stops a looping node."""
+    from app.repositories.background_job import RescuedJob
+    from app.worker import jobs
+
+    organization = uuid4()
+    repos.rescue_expired.return_value = [
+        RescuedJob(
+            id=uuid4(),
+            kind=jobs.WORKFLOW_DISPATCH_NODE.kind,
+            status="dead",
+            organization_id=organization,
+        )
+        for _ in range(6)
+    ]
+    sessions, _opened = _sessions()
+    worker = _worker(sessions)
+    worker.tasks = {jobs.WORKFLOW_DISPATCH_NODE.kind: jobs.WORKFLOW_DISPATCH_NODE}
+
+    await worker._rescue()
+
+    repos.record_death.assert_not_awaited()
+    repos.pause.assert_not_awaited()
+
+
 async def test_executor_whose_start_fails_is_still_closed(repos: MagicMock) -> None:
     sessions, _ = _sessions()
     executor = MagicMock(
@@ -489,3 +514,11 @@ async def test_executor_whose_start_fails_is_still_closed(repos: MagicMock) -> N
     with pytest.raises(RuntimeError, match="partial startup"):
         await worker.run(asyncio.Event())
     executor.close.assert_awaited_once()
+
+
+async def test_draining_worker_does_not_open_a_claim_transaction(monkeypatch):
+    sessions, opened = _sessions()
+    worker = _worker(sessions)
+    monkeypatch.setattr(runtime, "draining", lambda: True)
+    assert await worker._claim(Pool.SYSTEM) is None
+    assert opened == []

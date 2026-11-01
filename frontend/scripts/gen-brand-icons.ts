@@ -145,6 +145,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   gmail: thesvg("gmail"),
   google: logos("google-icon"),
   googleads: logos("google-ads"),
+  googlecalendar: simple("googlecalendar"),
   googleanalytics: logos("google-analytics"),
   grafana: simple("grafana"),
   hubspot: thesvg("hubspot"),
@@ -200,6 +201,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   wordpress: thesvg("wordpress"),
   xero: logos("xero"),
   zapier: logos("zapier-icon"),
+  zendesk: simple("zendesk"),
   zoom: logos("zoom-icon"),
 };
 

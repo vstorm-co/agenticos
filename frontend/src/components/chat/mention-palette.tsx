@@ -19,7 +19,11 @@ export function MentionPalette({
   isLoading,
   failed,
   full,
+  placement = "above",
+  id,
 }: {
+  placement?: "above" | "inline";
+  id?: string;
   items: Mentionable[];
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
@@ -40,9 +44,13 @@ export function MentionPalette({
 
   return (
     <div
+      id={id}
       role="listbox"
       aria-label={t("menu")}
-      className="border-foreground/10 bg-popover absolute bottom-full left-0 z-20 mb-2 w-full max-w-md overflow-hidden rounded-xl border shadow-lg"
+      className={cn(
+        "border-foreground/10 bg-popover z-20 w-full overflow-hidden rounded-xl border shadow-lg",
+        placement === "inline" ? "relative shrink-0" : "absolute bottom-full left-0 mb-2 max-w-md",
+      )}
     >
       {full !== undefined ? (
         <p className="text-muted-foreground p-3 text-xs">{t("full", { count: full })}</p>
@@ -62,6 +70,7 @@ export function MentionPalette({
                   </p>
                 )}
                 <div
+                  id={id ? `${id}-${index}` : undefined}
                   role="option"
                   aria-selected={index === selectedIndex}
                   data-index={index}

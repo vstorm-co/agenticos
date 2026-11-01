@@ -418,6 +418,134 @@ class TestBotTranscriptionSwitch:
         assert down.returncode == 0, down.stderr
 
 
+@pytest.mark.parametrize("table", ["notifications", "notification_preferences"])
+def test_workflow_migrations_preserve_main_notification_types(table: str) -> None:
+    """Workflow CHECK rebuilds must retain the event types already deployed on main."""
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as connection:
+            definition = connection.execute(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = to_regclass(:table) AND contype = 'c' "
+                    "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+                ),
+                {"table": table},
+            ).scalar_one()
+        for event in (
+            "capability_requested",
+            "suggestion",
+            "finding",
+            "workflow_notification",
+            "artifact_owner_changed",
+            "artifact_share_requested",
+            "workflow_log_alert",
+        ):
+            assert f"'{event}'" in definition
+    finally:
+        engine.dispose()
+
+
+def test_workflow_child_cost_migration_rolls_up_each_charge_once() -> None:
+    """Backfill explicit nested calls, preserving own spend and excluding trigger chains."""
+    import uuid
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    from sqlalchemy.orm import Session
+
+    from app.db.models.organization import Organization
+    from app.db.models.user import User
+    from app.db.models.workflow import Workflow
+    from app.db.models.workflow_run import NodeRun, WorkflowRun
+
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with Session(engine) as db:
+            owner = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", is_active=True)
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Costs", slug=f"costs-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+            )
+            db.add(org)
+            db.flush()
+            workflow = Workflow(
+                organization_id=org.id,
+                owner_user_id=owner.id,
+                name="Calls",
+                slug=f"calls-{uuid.uuid4().hex[:8]}",
+                draft_graph={},
+            )
+            db.add(workflow)
+            db.flush()
+            runs: list[WorkflowRun] = []
+            steps: list[NodeRun] = []
+            for amount in range(1, 5):
+                run_id = uuid.uuid4()
+                run = WorkflowRun(
+                    id=run_id,
+                    organization_id=org.id,
+                    workflow_id=workflow.id,
+                    mode="test",
+                    draft_graph_snapshot={},
+                    status="succeeded",
+                    triggered_by="api",
+                    execution_principal_user_id=owner.id,
+                    root_run_id=run_id,
+                    node_count=1,
+                    spent_cost=Decimal(amount),
+                    cost_is_partial=amount == 3,
+                    started_at=datetime.now(UTC),
+                )
+                db.add(run)
+                db.flush()
+                step = NodeRun(
+                    organization_id=org.id,
+                    workflow_run_id=run.id,
+                    node_instance_id=uuid.uuid4(),
+                    scope_path=[],
+                    status="succeeded",
+                )
+                db.add(step)
+                db.flush()
+                runs.append(run)
+                steps.append(step)
+            runs[1].parent_node_run_id = steps[0].id
+            runs[2].parent_node_run_id = steps[1].id
+            # A trigger can share the root without being a called workflow.
+            runs[3].root_run_id = runs[0].id
+            ids = [run.id for run in runs]
+            db.commit()
+        down = _alembic("downgrade", "0225_workflow_api_key_authority")
+        assert down.returncode == 0, down.stderr
+        again = _alembic("upgrade", "head")
+        assert again.returncode == 0, again.stderr
+        with engine.connect() as connection:
+            rows = [
+                connection.execute(
+                    text(
+                        "SELECT spent_cost, child_cost, cost_is_partial FROM workflow_runs WHERE id = :id"
+                    ),
+                    {"id": run_id},
+                ).one()
+                for run_id in ids
+            ]
+        assert [(row.spent_cost, row.child_cost) for row in rows] == [
+            (Decimal(1), Decimal(5)),
+            (Decimal(2), Decimal(3)),
+            (Decimal(3), Decimal(0)),
+            (Decimal(4), Decimal(0)),
+        ]
+        assert [row.cost_is_partial for row in rows] == [True, True, True, False]
+    finally:
+        engine.dispose()
+
+
 class TestLegacyCookieSessionRevocation:
     @pytest.mark.anyio
     @pytest.mark.security
@@ -437,40 +565,72 @@ class TestLegacyCookieSessionRevocation:
                 db.add_all([user, admin])
                 await db.flush()
                 now = datetime.now(UTC)
-                old = Session(
-                    user_id=user.id,
-                    refresh_token_hash=hash_token("legacy-current"),
-                    previous_refresh_token_hash=hash_token("legacy-spent"),
-                    rotated_at=now,
-                    expires_at=now + timedelta(days=1),
-                    is_active=True,
+                old_id, impersonation_id, ended_id, user_id = uuid4(), uuid4(), uuid4(), user.id
+                # Seed the historical schema without today's app/push columns.
+                await db.execute(
+                    text(
+                        "INSERT INTO sessions (id, user_id, impersonator_user_id, refresh_token_hash, previous_refresh_token_hash, rotated_at, expires_at, is_active, created_at, last_used_at) VALUES (:id, :user, :impersonator, :current, :previous, :rotated, :expires, :active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    ),
+                    [
+                        {
+                            "id": old_id,
+                            "user": user.id,
+                            "impersonator": None,
+                            "current": hash_token("legacy-current"),
+                            "previous": hash_token("legacy-spent"),
+                            "rotated": now,
+                            "expires": now + timedelta(days=1),
+                            "active": True,
+                        },
+                        {
+                            "id": impersonation_id,
+                            "user": user.id,
+                            "impersonator": admin.id,
+                            "current": hash_token("legacy-impersonation"),
+                            "previous": None,
+                            "rotated": None,
+                            "expires": now + timedelta(minutes=5),
+                            "active": True,
+                        },
+                        {
+                            "id": ended_id,
+                            "user": user.id,
+                            "impersonator": None,
+                            "current": hash_token("legacy-ended"),
+                            "previous": None,
+                            "rotated": None,
+                            "expires": now + timedelta(days=1),
+                            "active": False,
+                        },
+                    ],
                 )
-                impersonation = Session(
-                    user_id=user.id,
-                    impersonator_user_id=admin.id,
-                    refresh_token_hash=hash_token("legacy-impersonation"),
-                    expires_at=now + timedelta(minutes=5),
-                    is_active=True,
-                )
-                ended = Session(
-                    user_id=user.id,
-                    refresh_token_hash=hash_token("legacy-ended"),
-                    expires_at=now + timedelta(days=1),
-                    is_active=False,
-                )
-                db.add_all([old, impersonation, ended])
                 await db.commit()
-                old_id, impersonation_id, ended_id, user_id = (
-                    old.id,
-                    impersonation.id,
-                    ended.id,
-                    user.id,
+                assert (
+                    await db.scalar(
+                        text("SELECT is_active FROM sessions WHERE id=:id"), {"id": old_id}
+                    )
+                    is True
                 )
-                before = await SessionService(db).validate_refresh_token("legacy-current")
-                assert before is old
                 await db.commit()
 
             up = _alembic("upgrade", "0173_revoke_cookie_sessions")
+            assert up.returncode == 0, up.stderr
+            async with factory() as db:
+                active = (
+                    (
+                        await db.execute(
+                            text(
+                                "SELECT is_active FROM sessions WHERE id IN (:old, :impersonation, :ended)"
+                            ),
+                            {"old": old_id, "impersonation": impersonation_id, "ended": ended_id},
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                assert len(active) == 3 and not any(active)
+            # Current services are exercised only once their full schema exists.
+            up = _alembic("upgrade", "head")
             assert up.returncode == 0, up.stderr
             async with factory() as db:
                 service = SessionService(db)
@@ -508,11 +668,14 @@ class TestLegacyCookieSessionRevocation:
             down = _alembic("downgrade", "0172_mcp_health_queue_clock")
             assert down.returncode == 0, down.stderr
             async with factory() as db:
-                service = SessionService(db)
-                revoked = await service.validate_refresh_token("legacy-current")
-                retained = await service.validate_refresh_token("fresh-current")
-                assert revoked is None
-                assert retained is not None
+                revoked = await db.scalar(
+                    text("SELECT is_active FROM sessions WHERE id=:id"), {"id": old_id}
+                )
+                retained = await db.scalar(
+                    text("SELECT is_active FROM sessions WHERE id=:id"), {"id": fresh_id}
+                )
+                assert revoked is False
+                assert retained is True
         finally:
             await engine.dispose()
 
@@ -624,5 +787,60 @@ class TestChannelRatingAuthors:
             assert restored.returncode == 0, restored.stderr
             check = _alembic("check")
             assert check.returncode == 0, check.stderr + check.stdout
+        finally:
+            engine.dispose()
+
+
+class TestSkillBindingAvailability:
+    def test_removing_the_switch_preserves_skills_and_rolls_back_on_populated_tables(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0179_session_push_preferences")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        skill_ids = [uuid4(), uuid4()]
+        selected = {"a": skill_ids[0], "b": skill_ids[1]}
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for index, skill_id in enumerate(skill_ids):
+                    connection.execute(
+                        text(
+                            "INSERT INTO skills (id, organization_id, name, description, content, "
+                            "enabled, version, visibility) VALUES "
+                            "(:id, :org, :name, 'A procedure', 'Check the order', :enabled, 1, 'org')"
+                        ),
+                        {
+                            "id": skill_id,
+                            "org": uuid4(),
+                            "name": f"procedure-{index}",
+                            "enabled": bool(index),
+                        },
+                    )
+            upgraded = _alembic("upgrade", "0180_remove_skill_enabled")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text("SELECT count(*) FROM skills WHERE id IN (:a, :b)"), selected
+                    ).scalar_one()
+                    == 2
+                )
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'skills' AND column_name = 'enabled'"
+                        )
+                    ).scalar_one()
+                    == 0
+                )
+            downgraded = _alembic("downgrade", "0179_session_push_preferences")
+            assert downgraded.returncode == 0, downgraded.stderr
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text("SELECT enabled FROM skills WHERE id IN (:a, :b)"), selected
+                ).scalars().all() == [True, True]
+            upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
+            assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
             engine.dispose()

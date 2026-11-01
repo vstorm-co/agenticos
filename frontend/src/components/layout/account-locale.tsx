@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useLocale } from "next-intl";
 
 import { usePathname, useRouter } from "@/lib/locale-navigation";
+import { ACCOUNT_LOCALE_STORAGE_KEY, sharedAccountLocale } from "@/lib/account-locale";
 import { useAuthStore } from "@/stores";
 
 /**
@@ -19,6 +20,19 @@ export function AccountLocale() {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== ACCOUNT_LOCALE_STORAGE_KEY || event.storageArea !== window.localStorage)
+        return;
+      const { user } = useAuthStore.getState();
+      if (!user) return;
+      const next = sharedAccountLocale(event.newValue, user.id);
+      if (next && next !== user.locale) useAuthStore.setState({ user: { ...user, locale: next } });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   useEffect(() => {
     // With the query string, read here rather than through `useSearchParams` -

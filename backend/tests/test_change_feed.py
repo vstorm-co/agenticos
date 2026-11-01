@@ -68,6 +68,42 @@ class TestWhatIsAChange:
         assert changed is not None
         assert (changed.resource, changed.id) == ("artifact", artifact_id)
 
+    def test_a_table_and_a_workflow_changed_are_announced_by_their_row(self) -> None:
+        table, workflow, record = uuid.uuid4(), uuid.uuid4(), str(uuid.uuid4())
+
+        edited = _change(
+            "PATCH",
+            f"/tables/{table}/records/{record}",
+            {"table_id": str(table), "record_id": record},
+        )
+        published = _change(
+            "POST", f"/workflows/{workflow}/publish", {"workflow_id": str(workflow)}
+        )
+        created = _change("POST", "/tables", {}, f'{{"id": "{table}"}}'.encode())
+
+        assert edited is not None and published is not None and created is not None
+        assert (edited.resource, edited.id, edited.action) == ("table", table, "updated")
+        assert (published.resource, published.id) == ("workflow", workflow)
+        assert (created.resource, created.id, created.action) == ("table", table, "created")
+
+    def test_reading_records_or_testing_a_workflow_changes_nothing(self) -> None:
+        table, workflow = str(uuid.uuid4()), str(uuid.uuid4())
+
+        for path in ("query", "count", "export"):
+            assert _change("POST", f"/tables/{table}/records/{path}", {"table_id": table}) is None
+        assert (
+            _change("POST", f"/workflows/{workflow}/webhook-test", {"workflow_id": workflow})
+            is None
+        )
+        assert (
+            _change(
+                "POST",
+                f"/workflows/{workflow}/steps/n1/eval-runs",
+                {"workflow_id": workflow, "node_id": "n1"},
+            )
+            is None
+        )
+
     def test_a_route_outside_the_feed_changes_nothing(self) -> None:
         assert _change("POST", "/ml/privacy/pii", {}) is None
 
@@ -145,6 +181,8 @@ class TestConsoleOnlyRoutes:
             ("/kb", "knowledge_base"),
             ("/apps", "artifact"),
             ("/artifacts", "artifact"),
+            ("/tables", "table"),
+            ("/workflows", "workflow"),
             ("/secrets", "secret"),
             ("/mcp-connections", "mcp_connection"),
         ],

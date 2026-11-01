@@ -6,7 +6,9 @@ and the service that builds a thread's history - and `agent.py` reaches for
 `app.api.deps`, which reaches back for `ConversationService`.
 """
 
+from datetime import timedelta
 from typing import NotRequired, TypedDict
+from uuid import UUID
 
 from pydantic_ai.messages import (
     ModelRequest,
@@ -16,6 +18,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.usage import RequestUsage
+
+CHANNEL_AUTHOR_ID = "agenticos_channel_author_identity"
 
 
 class HistoryMessage(TypedDict):
@@ -29,10 +33,11 @@ class HistoryMessage(TypedDict):
     role: str
     content: str
     context_used_tokens: NotRequired[int | None]
+    channel_identity_id: NotRequired[UUID | None]
 
 
 def build_message_history(history: list[HistoryMessage]) -> list[ModelRequest | ModelResponse]:
-    """Convert conversation history to PydanticAI message format.
+    """Convert conversation history to Pydantic AI message format.
 
     **An answer is replayed with the size of the request it came out of**, and the
     reason is not accounting. The compaction estimator anchors on the most recent
@@ -50,6 +55,7 @@ def build_message_history(history: list[HistoryMessage]) -> list[ModelRequest | 
     """
     model_history: list[ModelRequest | ModelResponse] = []
 
+    last_user_timestamp = None
     for msg in history:
         content = msg["content"]
         # An empty text part is not history, it is a 400: Anthropic rejects one,
@@ -60,7 +66,20 @@ def build_message_history(history: list[HistoryMessage]) -> list[ModelRequest | 
         if not content.strip():
             continue
         if msg["role"] == "user":
-            model_history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+            part = UserPromptPart(content=content)
+            # Normalization may merge requests. Unique user-part timestamps keep
+            # server-authored identity references stable across merges/resumes.
+            if last_user_timestamp is not None and part.timestamp <= last_user_timestamp:
+                part.timestamp = last_user_timestamp + timedelta(microseconds=1)
+            last_user_timestamp = part.timestamp
+            model_history.append(
+                ModelRequest(
+                    parts=[part],
+                    metadata={CHANNEL_AUTHOR_ID: str(identity_id)}
+                    if (identity_id := msg.get("channel_identity_id")) is not None
+                    else None,
+                )
+            )
         elif msg["role"] == "assistant":
             model_history.append(
                 ModelResponse(parts=[TextPart(content=content)], usage=_recorded_usage(msg))

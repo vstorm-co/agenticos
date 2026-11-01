@@ -1,9 +1,14 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
 
-import { adoptAccountLocale, localeChosenBy } from "./account-locale";
+import {
+  ACCOUNT_LOCALE_STORAGE_KEY,
+  adoptAccountLocale,
+  localeChosenBy,
+  sharedAccountLocale,
+} from "./account-locale";
 
 const ADA: User = {
   id: "u-1",
@@ -13,7 +18,32 @@ const ADA: User = {
   locale: "pl",
 };
 
-beforeEach(() => useAuthStore.setState({ user: ADA }));
+beforeEach(() => {
+  window.localStorage.removeItem(ACCOUNT_LOCALE_STORAGE_KEY);
+  useAuthStore.setState({ user: ADA });
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("sharedAccountLocale", () => {
+  it("accepts a supported language for this account only", () => {
+    expect(sharedAccountLocale('{"userId":"u-1","locale":"en"}', "u-1")).toBe("en");
+    expect(sharedAccountLocale('{"userId":"u-2","locale":"de"}', "u-1")).toBeNull();
+  });
+
+  it.each([
+    null,
+    "broken",
+    '{"userId":"u-1"}',
+    "[]",
+    "null",
+    '"en"',
+    '{"locale":"en"}',
+    '{"userId":"u-1","locale":"es"}',
+  ])("ignores an absent or malformed choice: %s", (raw) =>
+    expect(sharedAccountLocale(raw, "u-1")).toBeNull(),
+  );
+});
 
 describe("localeChosenBy", () => {
   it("reads the language the platform's own tool set", () => {
@@ -41,6 +71,10 @@ describe("adoptAccountLocale", () => {
     adoptAccountLocale("en");
 
     expect(useAuthStore.getState().user?.locale).toBe("en");
+    expect(JSON.parse(window.localStorage.getItem(ACCOUNT_LOCALE_STORAGE_KEY) ?? "null")).toEqual({
+      userId: "u-1",
+      locale: "en",
+    });
   });
 
   it("leaves the account as it is when nothing changes", () => {
@@ -49,6 +83,7 @@ describe("adoptAccountLocale", () => {
     adoptAccountLocale("pl");
 
     expect(useAuthStore.getState().user).toBe(before);
+    expect(window.localStorage.getItem(ACCOUNT_LOCALE_STORAGE_KEY)).toBeNull();
   });
 
   it("does nothing with nobody signed in", () => {
@@ -57,5 +92,37 @@ describe("adoptAccountLocale", () => {
     adoptAccountLocale("en");
 
     expect(useAuthStore.getState().user).toBeNull();
+    expect(window.localStorage.getItem(ACCOUNT_LOCALE_STORAGE_KEY)).toBeNull();
   });
+
+  it("keeps the account's choice and reports a refused cross-window write", () => {
+    const write = window.localStorage.setItem.bind(window.localStorage);
+    vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
+      if (key === ACCOUNT_LOCALE_STORAGE_KEY) throw new DOMException("Storage is unavailable");
+      write(key, value);
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    adoptAccountLocale("de");
+    expect(useAuthStore.getState().user?.locale).toBe("de");
+    expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+it("propagates programming failures in language sharing instead of treating them as storage denial", () => {
+  const write = window.localStorage.setItem.bind(window.localStorage);
+  vi.spyOn(window.localStorage, "setItem").mockImplementation((key, value) => {
+    if (key === ACCOUNT_LOCALE_STORAGE_KEY) throw new Error("Unexpected adapter failure");
+    write(key, value);
+  });
+  expect(() => adoptAccountLocale("en")).toThrow("Unexpected adapter failure");
+});
+
+it("updates the account without browser storage during server-side use", () => {
+  vi.stubGlobal("window", undefined);
+  try {
+    adoptAccountLocale("en");
+    expect(useAuthStore.getState().user?.locale).toBe("en");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

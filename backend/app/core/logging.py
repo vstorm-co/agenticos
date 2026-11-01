@@ -26,12 +26,113 @@ _STANDARD_RECORD_KEYS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None
     "asctime",
 }
 
+#: What a secret path segment is written as, wherever an address is recorded.
+SECRET_PATH_MARKER = "[REDACTED]"
+
+#: The addresses whose next segment is itself the credential.
+#:
+#: Each opens something to whoever reads the line, with no account or with only
+#: the account the address was sent to:
+#:
+#: - an artifact's signed view token (`/artifact-content/<token>`) opens the page
+#:   for its lifetime, and a public link's key (`/public/artifacts/<key>`,
+#:   `/artifact-embed/<key>`) until the link is rotated. `lib/` is the static
+#:   library set under the content route and carries nothing secret;
+#: - a conversation's share token (`/conversations/shared/<token>`) opens the
+#:   conversation;
+#: - a workflow form's token (`/public/workflow-forms/<token>`) reads and submits
+#:   the form, starting a run as its publisher;
+#: - a webhook test token (`/workflow-webhook-tests/<token>`, and the editor's
+#:   `/workflows/<id>/webhook-test/<token>`, where the id before it is kept) takes
+#:   the one call the test URL is open for;
+#: - a channel link token (`/me/channel-link/<token>`) attaches a chat account to
+#:   whoever confirms it. A UUID there is the id of an identity being unlinked,
+#:   which no token can be (`secrets.token_urlsafe(32)`), so it is kept;
+#: - an invitation token (`/invitations/<token>`, and `/invitations/<token>/accept`)
+#:   joins the organization it is for, or revokes the invitation. The token is
+#:   `secrets.token_urlsafe(32)`, 43 characters, so it can be neither a UUID - the
+#:   invitation id an administrator revokes by, `/orgs/<id>/invitations/<id>` - nor
+#:   one of the literal segments `stage`, `staged` (`/staged/accept`) and `link`,
+#:   all of which are kept;
+#: - a run's resume token (`/workflow-resume/<run_id>/<token>`, where the run id is
+#:   kept) is the HMAC that wakes the run's Wait steps with whatever body is sent.
+#:
+#: Not here, on purpose: `/workflow-webhooks/<id>` and `/workflow-github/<id>` name
+#: an exposure whose calls are signed, and `/embed/<key>/ws` carries an agent
+#: widget's key, which is public by design - its query does not, and is
+#: `_SECRET_QUERY`'s. A route template's `{placeholder}` is kept. Matched without
+#: the `/api/v1` prefix so a full URL, a proxied path and a span attribute are all
+#: caught.
+_SEGMENT = r"[^/?#\s\"']+"
+_UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+_SECRET_PATH = re.compile(
+    r"("
+    r"/(?:artifact-content|artifact-embed|public/artifacts)/(?!lib/)"
+    r"|/conversations/shared/"
+    r"|/public/workflow-forms/"
+    r"|/workflow-webhook-tests/"
+    rf"|/workflows/{_SEGMENT}/webhook-test/"
+    rf"|/me/channel-link/(?!{_UUID}(?!{_SEGMENT}))"
+    rf"|/invitations/(?!(?:{_UUID}|stage|staged|link)(?!{_SEGMENT}))"
+    rf"|/workflow-resume/{_SEGMENT}/"
+    rf")(?!\{{){_SEGMENT}"
+)
+
+#: The query parameters whose value is itself a credential, on whatever address.
+#:
+#: A query string is in the same request line and the same span attributes as the
+#: path, so it leaks the same way:
+#:
+#: - `visitor` and `token` on the agent widget's socket (`/embed/<key>/ws`): a
+#:   hosted page's continuity key, which resumes the conversation it names, and
+#:   the customer's signed visitor token, which a browser cannot send as a header
+#:   on a WebSocket handshake;
+#: - `code` and `state` on a sign-in provider's return (`/oauth/<provider>/callback`):
+#:   the authorization code the callback trades for the provider's tokens, and the
+#:   value the session's CSRF check is keyed on. The console's own `/auth/callback`
+#:   gets the single-use code that is traded for this deployment's tokens, and the
+#:   MCP OAuth return its provider's `code` and `state`, under the same names;
+#: - `invitation_handle` on `/oauth/<provider>/login` and `/auth/kerberos/login`:
+#:   the one-time handle that stands in for an invitation token and redeems it;
+#: - `token` on the console's `/reset-password`, `/auth/magic-link` and
+#:   `/auth/email-change`, the links an email carries - the API never sees those
+#:   addresses, but a proxy's log does, and `token` is already on the list.
+#:
+#: Not here, on purpose: a desktop sign-in's `desktop_nonce`, which lets the shell
+#: refuse a deep link it did not ask for and admits nothing, `organization_id` on a
+#: socket, which membership is checked against, and every ordinary parameter -
+#: `q`, `skip`, `limit`, ids, `version_id`. Matched after `?` or `&`, or at the
+#: very start, which is how a span's `url.query` begins. The value stops at the
+#: next `&` or `#`; a `%s` placeholder in a log message's format string is left
+#: for its argument to fill, so the line still formats. `%d` counts as a
+#: placeholder only when no hex digit follows it - `%d3` is a percent-encoded byte
+#: of a value, and a value that starts with one is still a credential.
+SECRET_QUERY_PARAMS = frozenset({"code", "invitation_handle", "state", "token", "visitor"})
+_SECRET_QUERY = re.compile(
+    rf"((?:^|[?&])(?:{'|'.join(sorted(SECRET_QUERY_PARAMS))})=)"
+    r"(?!%(?:[sr(]|d(?![0-9a-fA-F])))[^&#\s\"']+"
+)
+
+
+def redact_secret_paths(value: str) -> str:
+    """Replace every credential in an address in `value` with the marker.
+
+    That is the credential segment of a secret-bearing path (`_SECRET_PATH`) and
+    the value of a credential query parameter (`_SECRET_QUERY`). One helper for
+    every place an address is recorded - the log filter below and the Logfire
+    request spans (`app/core/logfire_setup.py`) - so the two cannot disagree about
+    which part is the secret.
+    """
+    value = _SECRET_PATH.sub(rf"\1{SECRET_PATH_MARKER}", value)
+    return _SECRET_QUERY.sub(rf"\1{SECRET_PATH_MARKER}", value)
+
 
 class PiiRedactionFilter(logging.Filter):
     """Logging filter that redacts PII and neutralises forged log lines.
 
     Automatically scrubs email addresses, JWT tokens, API keys, bearer tokens,
-    and password-like values from log messages to prevent PII leaks to
+    password-like values and the credential segment of a secret-bearing address
+    (`redact_secret_paths`) from log messages to prevent PII leaks to
     log aggregators (Datadog, CloudWatch, Logfire, etc.).
 
     It also escapes the control characters that let a value **end the line it is
@@ -51,6 +152,9 @@ class PiiRedactionFilter(logging.Filter):
     """
 
     PATTERNS: ClassVar[list[tuple[re.Pattern[str], str]]] = [
+        # First, so a secret-bearing address reads the same whatever its token looks like.
+        (_SECRET_PATH, rf"\1{SECRET_PATH_MARKER}"),
+        (_SECRET_QUERY, rf"\1{SECRET_PATH_MARKER}"),
         (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "[EMAIL_REDACTED]"),
         # JWT tokens (header.payload.signature)
         (
@@ -92,13 +196,9 @@ class PiiRedactionFilter(logging.Filter):
             record.msg = self._redact(record.msg)
         if record.args:
             if isinstance(record.args, dict):
-                record.args = {
-                    k: self._redact(v) if isinstance(v, str) else v for k, v in record.args.items()
-                }
+                record.args = {k: self._redact_arg(v) for k, v in record.args.items()}
             elif isinstance(record.args, tuple):
-                record.args = tuple(
-                    self._redact(a) if isinstance(a, str) else a for a in record.args
-                )
+                record.args = tuple(self._redact_arg(a) for a in record.args)
         # The traceback is the leak this filter exists for: `logger.exception` on a
         # provider SDK error carries the failing request - URL, bearer token and
         # all - and the formatter appends it from `exc_info` *after* the filter has
@@ -122,6 +222,23 @@ class PiiRedactionFilter(logging.Filter):
         for pattern, replacement in self.PATTERNS:
             value = pattern.sub(replacement, value)
         return _escape_line_breakers(value)
+
+    def _redact_arg(self, value: object) -> object:
+        """A format argument, redacted the way it will be rendered.
+
+        A string is redacted directly. Anything else that isn't a plain number or
+        flag - an `httpx.URL`, a Starlette `URL`, an exception - is rendered by `%s`
+        through `str()`, so that text is what is checked; the object is replaced by
+        its redacted text only when redacting changed it, so a `%d` or `%r` of an
+        ordinary argument still formats as it did.
+        """
+        if isinstance(value, str):
+            return self._redact(value)
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        rendered = str(value)
+        redacted = self._redact(rendered)
+        return value if redacted == rendered else redacted
 
 
 @overload
@@ -184,6 +301,12 @@ def setup_logging() -> None:
     """
     root = logging.getLogger()
     handlers: list[logging.Handler] = list(root.handlers)
+    # A snapshot: `getLogger` in another thread adds to this dict, and iterating it
+    # live would raise. `list()` copies it in one call; the lock that guards it is
+    # private to `logging`.
+    for logger in list(logging.Logger.manager.loggerDict.values()):
+        if isinstance(logger, logging.Logger):
+            handlers.extend(logger.handlers)
     if logging.lastResort is not None:
         handlers.append(logging.lastResort)
     for name in _SERVER_LOGGERS:

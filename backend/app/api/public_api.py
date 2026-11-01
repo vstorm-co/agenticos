@@ -157,17 +157,14 @@ def public_openapi(full: dict[str, Any], public: set[tuple[str, str]]) -> dict[s
             # the run route's failed-run answers (#2121). Read and removed: the
             # extension is an instruction to this function, not a part of the API.
             extra: dict[str, str] = operation.pop("x-error-responses", {})
+            envelope = {
+                "application/json": {"schema": {"$ref": "#/components/schemas/ErrorEnvelope"}}
+            }
             for code, description in {**_ERRORS, **extra}.items():
-                responses.setdefault(
-                    code,
-                    {
-                        "description": description,
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/ErrorEnvelope"}
-                            }
-                        },
-                    },
+                # A route that describes its own refusal (a page's start limit)
+                # keeps its words but answers the same envelope as the rest.
+                responses.setdefault(code, {"description": description}).setdefault(
+                    "content", envelope
                 )
             operation["responses"] = responses
             operation["security"] = [{"ApiKey": []}]

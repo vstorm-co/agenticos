@@ -117,7 +117,8 @@ async def test_settlement_failure_preserves_the_request_cancellation(monkeypatch
     )
     entered, release = asyncio.Event(), asyncio.Event()
 
-    async def transaction(connection):
+    async def transaction(connection, *, rejected: str | None = None):
+        assert rejected is None
         entered.set()
         await release.wait()
         raise failure

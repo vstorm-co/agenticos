@@ -1,11 +1,11 @@
 ---
 title: "Choose a first task"
-description: "29 tutorials: documents, support, research, automation, productivity and content, each with a check you can run."
+description: "30 tutorials: documents, support, research, automation, productivity and content, each with a check you can run."
 ---
 
 # Choose a first task
 
-Start with work whose result someone on the team can judge. Each of the 29 tutorials below gives you a synthetic input, the configuration, the exact prompt, reference checks, the usual failures and what to record. They are starting points with reference runs, not customer case studies or success-rate claims.
+Start with work whose result someone on the team can judge. Each of the 30 tutorials below gives you a synthetic input, the configuration, the exact prompt, reference checks, the usual failures and what to record. They are starting points with reference runs, not customer case studies or success-rate claims.
 
 The last column says when the maintainers last ran a tutorial on the product. A recorded run covers exactly what the page's example block describes: one configuration, one date and one model. It is not evidence that your configuration passes the same checks. A tutorial that needs a third-party account the maintainers did not connect says *Not yet recorded*.
 
@@ -28,6 +28,7 @@ The last column says when the maintainers last ran a tutorial on the product. A 
 | [Answer a handbook question in Slack](howto/slack-handbook-assistant.md) | The document agent answering in a Slack thread | Not yet recorded |
 | [Triage incoming support requests from your own app](howto/support-ticket-triage.md) | Tickets from your app classified through a signed webhook | v0.0.504, 25 September 2026 |
 | [Triage your inbox and draft replies](howto/email-triage.md) | New mail read by a Gmail trigger and drafted into replies | Not yet recorded |
+| [Answer mail with an approved draft](howto/answer-mail-with-approved-draft.md) | A workflow that drafts a reply, asks a person to approve it and writes it into the thread | Not yet recorded |
 | [Answer new-hire questions with context files and skills](howto/onboarding-helpdesk.md) | Standing context and procedure skills for new hires | v0.0.504, 25 September 2026 |
 
 ## Research and analysis

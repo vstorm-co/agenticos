@@ -118,6 +118,10 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 # is exactly the one somebody reaching for this page needs described.
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+    # Granted no table, it builds only to create one; that is the widest list.
+    "virtual_tables": {"allow_create": True},
+    # Granted no workflow, it builds nothing; one id the prober never starts.
+    "workflows": {"workflow_ids": [str(UUID(int=0))]},
 }
 
 

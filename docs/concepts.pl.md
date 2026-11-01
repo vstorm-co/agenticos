@@ -1,5 +1,5 @@
 ---
-source_sha: "5afb693c7c13"
+source_sha: "f96ca8950f4c"
 ---
 
 # Koncepcje { #concepts }
@@ -45,6 +45,14 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
     Nowe pola dostają wartości domyślne, więc agent opublikowany dziś nadal
     wczytuje się po aktualizacji. Usunięcie albo zmiana nazwy pola to migracja,
     a nie edycja.
+
+!!! info "Odpowiedź może być danymi"
+
+    Domyślnie agent odpowiada tekstem. Ustaw **Answer format** na dane
+    strukturalne albo `output_schema` w specu, a odpowie obiektem z nazwanymi
+    polami: model dostaje prośbę o ten kształt, a odpowiedź, która go łamie, wraca
+    do poprawki, zanim run się skończy. API zwraca obiekt jako `structured`, czat i
+    kanały pokazują go jako blok JSON, a krok `agent.run` przekazuje go dalej.
 
 !!! info "Szablon to spec, który ktoś już napisał"
 
@@ -210,6 +218,11 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
 - **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
   audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
   działało.
+- **Może pracować na własnym komputerze twórcy.** Z włączonym Run as me twórca
+  może wskazać triggerowi folder na swoim komputerze, w polu **Pracuj na (Work
+  on)**; każde odpalenie pracuje wtedy tam przez
+  [aplikację desktopową](desktop.md#work-on-this-computer). Wyłączenie Run as me to
+  czyści, a odpalenie, które nie działa jako twórca, nie dostaje komputera.
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
@@ -277,7 +290,7 @@ Każdy trigger można też **uruchomić teraz**: jedno dodatkowe odpalenie na
 żądanie, które nie rusza jego kadencji.
 
 Jest ono *przyjmowane*, a nie oczekiwane. Żądanie odpowiada, gdy tylko odpalenie
-zostanie przekazane workerowi jako jego własny flow run — te same trwałe drzwi,
+zostanie zakolejkowane dla workera jako job — te same trwałe drzwi,
 przez które przechodzi odpalenie z harmonogramu albo z dostarczenia — a run
 pojawia się w rozmowie-dzienniku runów triggera na bieżąco.
 

@@ -184,7 +184,7 @@ describe("rendering an answer", () => {
     markdown("Here are your routines: [Routines](/routines?highlight=routines-create)");
 
     const link = screen.getByRole("link", { name: "Routines" });
-    expect(link.querySelector(".lucide-workflow")).not.toBeNull();
+    expect(link.querySelector(".lucide-timer-reset")).not.toBeNull();
     expect(link).not.toHaveAttribute("target");
   });
 
@@ -422,4 +422,18 @@ describe("images, and who is reading them", () => {
 
     expect(screen.getByRole("link", { name: /not loaded/i })).toBeInTheDocument();
   });
+});
+
+it("renders direct video links in documents without autoplay and leaves chat links alone", () => {
+  const content = "[Demo](https://cdn.example.com/demo.mp4)";
+  const { container, rerender } = render(<MarkdownContent content={content} documentMedia />);
+  expect(container.querySelector("video")).toHaveAttribute("controls");
+  expect(container.querySelector("video")).not.toHaveAttribute("autoplay");
+  expect(container.querySelector("video")).toHaveAttribute("preload", "none");
+  rerender(<MarkdownContent content={content} />);
+  expect(container.querySelector("video")).toBeNull();
+  expect(screen.getByRole("link", { name: "Demo" })).toHaveAttribute(
+    "href",
+    "https://cdn.example.com/demo.mp4",
+  );
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "512a23d1b175"
+source_sha: "5f4471e1f0e0"
 ---
 
 # Governance { #governance }
@@ -1285,6 +1285,19 @@ Vier Eigenschaften, die man kennen sollte:
   Agent, der so gelaufen ist, hört auf, mit einer Nachricht, die sagt, was zu
   ändern ist. Was aufhört, ist ein Agent, dessen Betreiber um eine Freigabe bat,
   um die nie jemand gebeten wurde.
+- **Ein geparkter Aufruf kann nennen, wofür seine IDs stehen.** Ein Tool kann
+  seinen eigenen Aufruf beschreiben: die Schreibvorgänge in Tabellen nennen den Namen der Tabelle.
+  Ein Datensatz wird nie genannt, denn das Label eines Datensatzes ist der Text
+  einer seiner Zellen, und die Freigabe bewahrt es auf. Die Namen werden als die
+  Person des Runs aufgelöst, wenn der Aufruf parkt, sodass nichts genannt wird,
+  was diese Person nicht sehen darf, und an der Freigabe als `context`
+  gespeichert. Die Karte im Chat und die Seite Approvals beginnen mit einem daraus
+  gebauten Satz, etwa „Share the view Closed tickets of Support with everyone who
+  may read the table“, über den Argumenten, die weiterhin das sind, was ausgeführt
+  wird. Der Satz wird über die stabile ID des Tools gefunden, sodass ein Tool, das
+  ein Binding umbenannt hat, ihn behält. Eine fehlgeschlagene oder langsame
+  Beschreibung parkt den Aufruf ohne sie, und ein Aufruf, den ein fortgesetzter
+  Run bereits entschieden hat, wird nicht erneut beschrieben.
 - **Ein Modellschritt kann mehrere Aufrufe parken.** Ein Modell, das mit zwei
   nebenwirkungsbehafteten Aufrufen zugleich antwortet — „mail den Kunden und den
   Kundenbetreuer an" — parkt beide, jeder mit einer eigenen Freigabe-Zeile, die
@@ -1530,6 +1543,77 @@ ausgegeben, was sie ausgegeben hat.
     Zugang. Beim Modellanbieter ausgeführte Tools durchlaufen das lokale
     Freigabe-Gate nicht.
 
+### Ein Workflow-Schritt, der eine Person fragt { #workflow-step-approvals }
+
+Ein Workflow fragt mit einem [`human.approval`](reference/workflow-nodes.md#human-approval)-Schritt
+statt mit einem abgesicherten Tool: Der Schritt schreibt seine eigene Anfrage -
+einen Titel, die ihm übergebenen Details, wer entscheiden darf und bis wann -, und
+sein Run wartet darauf. Der Tab **Approvals** listet sie über den Tool-Aufrufen,
+und eine Entscheidung weckt den Run, der nach der Antwort weitergeht. Eine
+Entscheidung ist endgültig und wird mit dem Gefragten im Audit-Trail festgehalten und bleibt unter **Decided** neben dem
+Protokoll der Tool-Aufrufe aufgelistet.
+Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
+Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
+bricht seine Anfragen ab.
+
+Ein Schritt mit `editable` zeigt der freigebenden Person auch einen Vorschlag,
+etwa eine vorbereitete Antwort, den sie vor der Freigabe ändern darf. Der
+Audit-Eintrag hält fest, ob der Schritt editierbar war, ob die Person ihn geändert
+hat (`edited`) und wie lang der Vorschlag und der freigegebene Text sind
+(`proposal_length`, `final_length`), nie den Text selbst. Der Text liegt im
+Klartext bei der Anfrage, bis die Historie des Runs gelöscht wird.
+
+Die Anfragen werden auch gezählt. Die Stats-Karte eines Workflows und seine
+Statistik-API melden je Schritt und je Tag, wie viele wie vorgeschlagen freigegeben,
+bearbeitet, abgelehnt wurden oder abgelaufen sind, wie lange die Entscheidung dauerte
+und wie stark die Änderungen den Text verändert haben, jede als Verhältnis von `0` bis
+`1` (`edit_ratio`, auch im Audit-Eintrag); siehe
+[Running a workflow](workflows.md#running-a-workflow). Die organisationsweite
+Übersicht, `GET /api/v1/workflow-approvals/stats`, braucht `workflows:view` und
+umfasst nur Workflows, die das Mitglied ansehen darf. Sie enthält weder Vorschlag noch
+freigegebenen Text noch eine Zahl zu einzelnen Freigebenden: Sie zählt Anfragen, nicht
+Personen.
+
+### Artefakt-Einträge { #artifact-entries }
+
+Eine Seite, die Tabellendaten liest, wird mit der Einwilligung ihres Besitzers
+geteilt, und jeder Schritt davon hinterlässt einen Eintrag mit der Person, die ihn
+getan hat. Keiner trägt einen Datensatz, einen Filterwert oder eine Zeile: Sie
+halten Versionen, Fingerabdrücke, Anfrage-IDs und die Worte, die eine Person
+bestätigt hat.
+
+| Aktion | Aufgezeichnet, wenn |
+|---|---|
+| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert |
+| `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
+| `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
+| `artifact.auto_consent_changed` | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
+| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat |
+| `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
+| `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
+| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |
+| `organization.public_live_data_changed` | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert |
+| `artifact.public_data_consented` | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
+| `artifact.public_data_withdrawn` | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt |
+| `artifact.public_data_voided` | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived` |
+| `artifact.action_started` | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen |
+
+**Public pages with live data** ist eine Einstellung der Organisation, standardmäßig
+aus, in den Einstellungen der Organisation neben dem Verzicht auf Freigaben. Sie
+entscheidet, ob die Daten einer Seite Personen ohne Konto über einen öffentlichen Link
+oder ein Embed erreichen dürfen. Anders als der Verzicht braucht sie `org:settings` -
+Owner oder Admin - und muss angemeldet als man selbst geändert werden: Eine
+imitierende Session wird abgelehnt. Die Seite braucht weiterhin die
+[Einwilligung ihres Besitzers für öffentliche Daten](artifacts.md#live-data-on-a-public-link).
+Das Ausschalten ist ein Kill-Switch: Öffentliche Seiten verlieren ihre Daten beim
+nächsten Laden und behalten ihre Einwilligung, die wieder gilt, sobald der Schalter
+wieder an ist.
+
+Die Sichtbarkeit oder die Grants einer Seite zu erweitern, wird wie bei jeder
+anderen Ressource als Einträge `resource.share`, `resource.unshare` und
+`resource.visibility_changed` aufgezeichnet. Das Tool `share_view` gibt es nicht
+mehr, und damit auch nicht die Freigabe, die es abgesichert hat.
+
 ## Alerts { #alerts }
 
 Jeder Alert hier handelt von einem Run, auf den niemand schaut. Ein Chat-Run, der
@@ -1551,6 +1635,8 @@ ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt.
+
+Anfragen zum Teilen einer Seite und Besitzerwechsel nennen die Seite und die Person, nie ihre Daten.
 
 Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
@@ -1642,6 +1728,13 @@ ersten leiser zu stellen, war, für den zweiten taub zu werden.
 | **Budget** | dieser Agent sein eigenes monatliches Cap erreicht hat | die Admins und der Besitzer des Agents |
 | **Freigaben** | ein Tool-Aufruf geparkt hat | wer den Run gestartet hat, plus die Admins |
 | **Nutzung** | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus |
+
+Das Log eines Workflows hat eigene Alerts, die auf der Logs-Seite des Workflows gesetzt
+werden statt in einer Spec; siehe [Alerts](workflows.md#log-alerts). Sie lösen aus, wenn
+die passenden Zeilen einer Regel ihren Schwellenwert in ihrem Fenster erreichen, und
+gehen an den Eigentümer des Workflows, sofern die Regel nichts anderes sagt. Es gelten
+dieselben Glocken- und E-Mail-Einstellungen wie im Rest dieses Abschnitts, unter
+**Workflow log alerts**.
 
 Ein Publikum ist eine Liste von Rollen, nicht von Adressen:
 
@@ -1906,6 +1999,12 @@ Klasse**, und beide Pflichten bekommen eine Einstellung.
 Zu setzen unter **Organisationen → ein Workspace → Mitglieder → Aufbewahrung**,
 abgesichert über `org:settings`. Ein Sweep läuft einmal täglich und löscht
 **hart**: eine Richtlinie, die die Zeilen behielte, wäre keine.
+
+Daten der [Virtual Tables](virtual-tables.md#limits-and-retention) gehören zum selben Sweep,
+mit Fristen für das ganze Deployment, die keine Organisation setzt: Idempotenz-Receipts nach
+24 Stunden, zugestellte Outbox-Zeilen nach 3 Tagen und die History eines Datensatzes nach
+365 Tagen, wodurch auch die History eines gelöschten Datensatzes entfernt wird. Der Eintrag,
+den er schreibt, nennt `table_receipts`, `table_outbox` oder `table_history` und eine Zahl.
 
 Die drei eigenen Zahlen des Deployments - `retention_defaults`,
 `retention_max_days` und `audit_retention_floor_days` - sind Felder der

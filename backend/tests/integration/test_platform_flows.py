@@ -3005,6 +3005,54 @@ class TestDecidingAnApproval:
 
         assert (await db.get(ToolApproval, approval.id)).status == ApprovalStatus.REJECTED.value
 
+    async def test_the_names_a_call_was_asked_with_are_kept_on_its_row(self, db) -> None:
+        """The queue reads what the describer resolved at park time, beside the arguments."""
+        tenant = await _tenant(db, name="Named")
+        agent = await _agent_row(
+            db,
+            organization_id=tenant.organization.id,
+            owner_user_id=tenant.user.id,
+            slug="support",
+        )
+        run = await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=Decimal("0"),
+            started_at=datetime.now(UTC),
+        )
+        approvals = ApprovalService(db)
+        table_id = str(uuid.uuid4())
+        named = await approvals.request(
+            approval_id=uuid.uuid4(),
+            organization_id=tenant.organization.id,
+            run_id=run.id,
+            agent_id=agent.id,
+            tool_id="change_ticket",
+            tool_args={"table_id": table_id},
+            capability_tool_id="update_record",
+            context={"table": "Support"},
+        )
+        await approvals.request(
+            approval_id=uuid.uuid4(),
+            organization_id=tenant.organization.id,
+            run_id=run.id,
+            agent_id=agent.id,
+            tool_id="send_email",
+            tool_args={},
+        )
+
+        queue, _total = await approvals.list_approvals(tenant.ctx)
+
+        assert {row.tool_id: (row.capability_tool_id, row.context) for row in queue} == {
+            # Renamed by its binding, so the queue words it by the stable id.
+            "change_ticket": ("update_record", {"table": "Support"}),
+            "send_email": (None, None),
+        }
+        stored = await db.get(ToolApproval, named.id)
+        assert stored.tool_args == {"table_id": table_id}
+        assert stored.capability_tool_id == "update_record"
+
 
 # -- money --------------------------------------------------------------------
 

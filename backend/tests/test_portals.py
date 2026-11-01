@@ -92,6 +92,17 @@ class TestTheBaseIsManualByDefault:
     async def test_listing_targets_is_empty(self) -> None:
         assert await PortalAdapter().list_preset_targets(access_token="t") == []
 
+    async def test_a_portal_that_reads_no_mail_cannot_read_an_attachment(self) -> None:
+        with pytest.raises(PortalUnreachable) as caught:
+            await PortalAdapter().attachment(
+                access_token="t", message_id="m", attachment_id="a", mailbox=None, max_bytes=10
+            )
+
+        assert caught.value.details == {"portal_key": ""}
+
+    async def test_the_account_is_unknown(self) -> None:
+        assert await PortalAdapter().account_login(access_token="t") is None
+
 
 class TestTheRegistry:
     def test_github_resolves_and_the_unknown_does_not(self) -> None:
@@ -100,6 +111,26 @@ class TestTheRegistry:
 
 
 class TestTheGithubAdapter:
+    async def test_the_account_is_the_login_the_token_speaks_as(self) -> None:
+        """What a trigger ignores as an author, so an agent answering through the
+        same connection cannot set its own trigger off."""
+        calls: list[tuple[str, str]] = []
+        with _patch_client(_Resp(200, {"login": "octo-agent"}), calls):
+            assert await GitHubPortalAdapter().account_login(access_token="t") == "octo-agent"
+        assert calls == [("GET", "/user")]
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            _Resp(401, {"message": "Bad credentials"}),
+            _Resp(200, {"login": ""}),
+            httpx.ConnectError("down"),
+        ],
+    )
+    async def test_an_account_github_will_not_name_is_unknown(self, answer) -> None:
+        with _patch_client(answer, []):
+            assert await GitHubPortalAdapter().account_login(access_token="t") is None
+
     async def test_only_repos_the_account_can_admin_are_offered(self) -> None:
         calls: list[tuple[str, str]] = []
         payload = [
@@ -174,6 +205,30 @@ class TestTheGithubAdapter:
             )
         assert result == RegisteredWebhook(provider_webhook_id="987654")
         assert calls == [("POST", "/repos/acme/api/hooks")]
+
+    async def test_a_hook_is_registered_for_the_events_asked_or_the_presets_issues(self) -> None:
+        """An agent trigger's presets act on issues alone; a workflow's GitHub trigger
+        names its own events, and the hook has to carry them or GitHub never sends one."""
+        sent: list[dict[str, Any]] = []
+
+        class _Recording(_FakeClient):
+            async def post(self, url: str, **kwargs: Any) -> _Resp:
+                sent.append(kwargs["json"])
+                return await super().post(url, **kwargs)
+
+        with patch("httpx.AsyncClient", lambda **_kw: _Recording([_Resp(201, {"id": 1})], [])):
+            await GitHubPortalAdapter().register_webhook(
+                access_token="t", target="acme/api", webhook_url="u", secret="s"
+            )
+            await GitHubPortalAdapter().register_webhook(
+                access_token="t",
+                target="acme/api",
+                webhook_url="u",
+                secret="s",
+                events=("push", "release"),
+            )
+
+        assert [body["events"] for body in sent] == [["issues"], ["push", "release"]]
 
     async def test_registering_without_a_repository_is_forbidden(self) -> None:
         with pytest.raises(WebhookRegistrationForbidden):

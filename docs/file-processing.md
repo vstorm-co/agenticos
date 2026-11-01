@@ -326,6 +326,19 @@ SSE-S3 by default, SSE-KMS with a key the deployment names. See
 `agenticos cmd doctor` prints which backend a running deployment uses and whether
 encryption is on.
 
+### Mail attachments in a workflow { #mail-attachments-in-a-workflow }
+
+A [workflow](workflows.md#from-an-email) started by a Gmail or Outlook message
+stores the message's attachments as files of that run, inside the run and never in
+the poll that read the mailbox. They follow the chat-upload file type allowlist and
+size limit: of the attachments a mailbox lists, only the first 10 per message are
+considered, and 25 MiB per message. One left out is listed with the reason, and a
+test run fetches nothing.
+
+An HTML file in a workflow, such as a stored page or an attachment, is read by
+[`html.parse`](reference/workflow-nodes.md#html-parse), not by `text.extract`, which
+reads documents and would return the markup as text.
+
 ### ChatFile model
 
 The `ChatFile` database model tracks uploaded files:

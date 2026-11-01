@@ -14,6 +14,7 @@ import {
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -152,44 +153,49 @@ export default function AgentsPage() {
   // Both controls narrow the gallery, so they live in its card header - the
   // container's own controls slot, like every list card's.
   const galleryControls = (
-    <div data-tour="agents-filters" className="flex flex-wrap items-center gap-2">
-      <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
-      {/* Wrapped under the search on a phone: a row swiped sideways hid its
-          last filter past the screen's edge. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-          <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FILTERS.map((entry) => (
-              <SelectItem key={entry.value} value={entry.value}>
-                {entry.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <LabelFilter
-          options={categoryOptions}
-          selected={categories}
-          onChange={setCategories}
-          ariaLabel={t("filterByCategory")}
-          allLabel={t("allCategories")}
-          countLabel={(count) => t("categoryCount", { count })}
-          clearLabel={t("clearFilter")}
-          max={MAX_AGENT_CATEGORIES}
-        />
-        <LabelFilter
-          options={tagOptions}
-          selected={tags}
-          onChange={setTags}
-          ariaLabel={t("filterByTag")}
-          allLabel={t("allTags")}
-          countLabel={(count) => t("tagCount", { count })}
-          clearLabel={t("clearFilter")}
-          max={MAX_AGENT_TAGS}
-        />
-      </div>
+    <div data-tour="agents-filters" className="flex min-w-0 flex-wrap items-center gap-2">
+      <SearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder={t("searchAgents2")}
+        className="min-w-0 flex-1 sm:flex-none"
+      />
+      <ListFilters compact active={Number(filter !== "all") + categories.length + tags.length}>
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+          <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+            <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FILTERS.map((entry) => (
+                <SelectItem key={entry.value} value={entry.value}>
+                  {entry.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <LabelFilter
+            options={categoryOptions}
+            selected={categories}
+            onChange={setCategories}
+            ariaLabel={t("filterByCategory")}
+            allLabel={t("allCategories")}
+            countLabel={(count) => t("categoryCount", { count })}
+            clearLabel={t("clearFilter")}
+            max={MAX_AGENT_CATEGORIES}
+          />
+          <LabelFilter
+            options={tagOptions}
+            selected={tags}
+            onChange={setTags}
+            ariaLabel={t("filterByTag")}
+            allLabel={t("allTags")}
+            countLabel={(count) => t("tagCount", { count })}
+            clearLabel={t("clearFilter")}
+            max={MAX_AGENT_TAGS}
+          />
+        </div>
+      </ListFilters>
     </div>
   );
 
@@ -200,7 +206,7 @@ export default function AgentsPage() {
         description={t("agentConfigurationNotCode")}
         actions={
           canEdit ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 data-tour="agents-templates"

@@ -521,3 +521,22 @@ describe("mcpToolCount", () => {
     expect(mcpToolCount(refs, [organization()], [])).toBe(0);
   });
 });
+
+describe("connectionLabel and offeredTools", () => {
+  it("reads a connection by its label, else its name", async () => {
+    const { connectionLabel } = await import("./mcp-servers");
+    expect(connectionLabel({ name: "gmail-dev", label: null })).toBe("gmail-dev");
+    expect(connectionLabel({ name: "gmail-dev", label: "Support" })).toBe("Support");
+  });
+
+  it("offers the recorded tools its allow list lets through, and null before any test", async () => {
+    const { offeredTools } = await import("./mcp-servers");
+    const last_tools = [
+      { name: "a", description: "" },
+      { name: "b", description: "" },
+    ];
+    expect(offeredTools({ last_tools, allowed_tools: null })).toEqual(last_tools);
+    expect(offeredTools({ last_tools, allowed_tools: ["b"] })).toEqual([last_tools[1]]);
+    expect(offeredTools({ last_tools: null, allowed_tools: null })).toBeNull();
+  });
+});

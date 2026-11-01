@@ -1,5 +1,5 @@
 ---
-source_sha: "5afb693c7c13"
+source_sha: "f96ca8950f4c"
 ---
 
 # Conceptos { #concepts }
@@ -45,6 +45,15 @@ El spec cumple dos reglas, y son las que lo hacen útil.
     Los campos nuevos llevan valores por defecto, así que un agent publicado hoy
     sigue cargando después de una actualización. Quitar o renombrar un campo es
     una migración, no una edición.
+
+!!! info "Una respuesta puede ser datos"
+
+    Por defecto, un agent responde en texto. Pon **Answer format** en datos
+    estructurados, o `output_schema` en el spec, y responderá con un objeto de
+    campos con nombre: al modelo se le pide esa forma, y una respuesta que la
+    incumple vuelve para corregirse antes de que termine el run. La API devuelve el
+    objeto como `structured`, el chat y los canales lo muestran como un bloque
+    JSON, y un paso `agent.run` lo pasa adelante.
 
 !!! info "Una plantilla es un spec que ya escribió alguien"
 
@@ -213,6 +222,11 @@ condiciones:
 - **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
   de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
   que actuó.
+- **Puede trabajar en el ordenador del propio creador.** Con Run as me activado,
+  el creador puede dirigir el trigger a una carpeta de su ordenador, en
+  **Trabajar en (Work on)**; cada disparo trabaja entonces allí a través de la
+  [app de escritorio](desktop.md#work-on-this-computer). Desactivar Run as me lo
+  borra, y a un disparo que no actúa como su creador se le niega el ordenador.
 
 La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 
@@ -281,7 +295,7 @@ Cualquier trigger puede además **ejecutarse ahora**: un disparo extra bajo
 demanda que deja su cadencia intacta.
 
 Se *acepta* en lugar de esperarse. La petición responde en cuanto el disparo se
-le entrega al worker como su propio flow run — la misma puerta durable por la que
+encola como job para el worker — la misma puerta durable por la que
 pasa un disparo programado o entregado — y el run aparece en la conversación de
 registro del trigger según ocurre.
 

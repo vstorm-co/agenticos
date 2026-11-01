@@ -43,9 +43,11 @@ describe("the console's content security policy", () => {
     expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE)).toContain("frame-src 'self' blob:");
   });
 
-  it("frames the origin artifact pages are served from, and only that one", () => {
+  it("frames the route artifact pages are served from, and only that one", () => {
     // An artifact is agent-authored script, so it is framed from its own origin
     // under a `sandbox` policy the backend sets - never minted into a blob here.
+    // The address the backend signs is `{ARTIFACT_ORIGIN}/api/v1/artifact-content/`
+    // plus the token, prefix and all.
     const moved: PublicConfig = {
       ...SPLIT_ORIGIN,
       artifactUrl: "https://content.acme-pages.example/path",
@@ -53,8 +55,19 @@ describe("the console's content security policy", () => {
     expect(cspDirectives(moved, NONCE)["frame-src"]).toEqual([
       "'self'",
       "blob:",
-      "https://content.acme-pages.example",
+      "https://content.acme-pages.example/path/api/v1/artifact-content/",
     ]);
+  });
+
+  it("does not frame the rest of the API when artifacts share its origin", () => {
+    // `ARTIFACT_ORIGIN` unset puts the pages on the API's own origin, and allowing
+    // that origin allowed every API route in a frame.
+    expect(directives["frame-src"]).toEqual([
+      "'self'",
+      "blob:",
+      `${DEFAULT_PUBLIC_CONFIG.apiUrl}/api/v1/artifact-content/`,
+    ]);
+    expect(directives["frame-src"]).not.toContain(DEFAULT_PUBLIC_CONFIG.apiUrl);
   });
 
   it("does not frame a data URL", () => {
@@ -83,6 +96,7 @@ describe("the console's content security policy", () => {
       "'self'",
       "https://api.acme.example",
       "wss://ws.acme.example",
+      "https://analytics-agenticos.testapp.ovh",
     ]);
   });
 
@@ -96,6 +110,7 @@ describe("the console's content security policy", () => {
       "'self'",
       "https://acme.example",
       "wss://acme.example",
+      "https://analytics-agenticos.testapp.ovh",
     ]);
   });
 
@@ -106,6 +121,10 @@ describe("the console's content security policy", () => {
       expect(sources).not.toContain("*");
       for (const source of sources) expect(source).not.toMatch(/^wss?:$/);
     }
+  });
+
+  it("runs only this origin's own service worker", () => {
+    expect(cspDirectives(DEFAULT_PUBLIC_CONFIG, NONCE)["worker-src"]).toEqual(["'self'"]);
   });
 
   it("forbids plugin content outright", () => {
@@ -120,4 +139,9 @@ describe("the console's content security policy", () => {
     expect(policy).not.toContain("\n");
     expect(policy.startsWith("default-src 'self';")).toBe(true);
   });
+});
+
+it("does not allow collector connections when diagnostics is disabled", () => {
+  const directives = cspDirectives({ ...SPLIT_ORIGIN, diagnosticsUrl: undefined }, NONCE);
+  expect(directives["connect-src"]).not.toContain("https://analytics-agenticos.testapp.ovh");
 });

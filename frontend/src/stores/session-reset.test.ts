@@ -1,8 +1,10 @@
+import { useWorkOnStore } from "./work-on-store";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { resetSessionState, resetTenantState } from "./session-reset";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
+import { useTableViewStore } from "./table-view-store";
 import { addVisualImages, useVisualImagesStore } from "./visual-stream-store";
 
 describe("resetTenantState", () => {
@@ -32,6 +34,19 @@ describe("resetTenantState", () => {
     expect(useOnboardingStore.getState().isOpen).toBe(false);
     expect(useOnboardingStore.getState().offer).toBeNull();
   });
+
+  it("drops a conflict banner naming a record from the previous organization", () => {
+    useTableViewStore.getState().setConflict({
+      recordId: "rec-1",
+      pendingValues: { "col-1": "x" },
+      fieldId: "col-1",
+    });
+    expect(useTableViewStore.getState().conflicts["rec-1"]).toBeDefined();
+
+    resetTenantState();
+
+    expect(useTableViewStore.getState().conflicts).toEqual({});
+  });
 });
 
 describe("resetTenantState and visuals", () => {
@@ -53,4 +68,15 @@ describe("resetSessionState", () => {
     expect(useOrgStore.getState().activeOrgId).toBeNull();
     expect(useOrgStore.getState().refusedOrgIds).toEqual([]);
   });
+});
+
+it("drops a project's unsent local choice when switching account or organization", () => {
+  const work = useWorkOnStore.getState();
+  work.applyProject("alice:org:project", { folder: "/alice/private", mode: "read_only" });
+  resetTenantState();
+  expect(work.targetFor(null)).toBeNull();
+  expect(useWorkOnStore.getState().draftProjectKey).toBeNull();
+  work.applyProject("alice:org:project", { folder: "/alice/private", mode: "read_only" });
+  resetSessionState();
+  expect(work.targetFor(null)).toBeNull();
 });

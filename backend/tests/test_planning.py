@@ -378,3 +378,92 @@ class TestAnInterruptedRunPutsItsPlanDown:
         ]
 
         assert put_down(items) == items
+
+
+async def test_write_plan_result_exposes_real_ids_for_the_next_granular_edit():
+    from pydantic_ai import RunContext
+    from pydantic_ai.messages import ToolCallPart
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import ToolDefinition
+    from pydantic_ai.usage import RunUsage
+
+    store = InMemoryPlanStore()
+    item = PlanItem(content="Create draft", status=TaskStatus.in_progress)
+    await store.set_items([item])
+    capability = build_planning(enable_subtasks=False, cache_ttl="5m", store=store)
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+    result = await capability.after_tool_execute(
+        ctx,
+        call=ToolCallPart("write_plan", {}),
+        tool_def=ToolDefinition(name="write_plan"),
+        args={},
+        result="Plan updated: 1 step(s).",
+    )
+    assert isinstance(result, str)
+    assert f"[{item.id}] Create draft" in result
+    unchanged = await capability.after_tool_execute(
+        ctx,
+        call=ToolCallPart("write_plan", {}),
+        tool_def=ToolDefinition(name="write_plan"),
+        args={},
+        result="Plan not updated: invalid",
+    )
+    assert unchanged == "Plan not updated: invalid"
+
+
+async def test_real_agent_can_edit_the_plan_using_ids_from_write_plan():
+    import re
+
+    from pydantic_ai import Agent
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelResponse,
+        TextPart,
+        ToolCallPart,
+        ToolReturnPart,
+    )
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+    store = InMemoryPlanStore()
+    observed: list[str] = []
+
+    def answer(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        returns = [
+            part
+            for message in messages
+            for part in message.parts
+            if isinstance(part, ToolReturnPart)
+        ]
+        if not returns:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        "write_plan",
+                        {"items": [{"content": "Prepare workflow", "status": "in_progress"}]},
+                    )
+                ]
+            )
+        if returns[-1].tool_name == "write_plan":
+            text = returns[-1].content
+            assert isinstance(text, str)
+            match = re.search(r"\[([0-9a-f]{8})\] Prepare workflow", text)
+            assert match is not None
+            observed.append(match.group(1))
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        "update_task_status", {"task_id": observed[-1], "status": "completed"}
+                    )
+                ]
+            )
+        return ModelResponse(parts=[TextPart("Done")])
+
+    agent = Agent(
+        FunctionModel(answer),
+        capabilities=[build_planning(enable_subtasks=False, cache_ttl="5m", store=store)],
+    )
+    result = await agent.run("Prepare a workflow")
+    assert result.output == "Done"
+    items = await store.get_items()
+    assert items[0].id == observed[0]
+    assert items[0].status is TaskStatus.completed

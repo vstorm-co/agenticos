@@ -441,6 +441,7 @@ class TestAddressingAModel:
 class TestWhatTheClientIsShown:
     def test_an_answer_is_shown_as_the_model_wrote_it(self):
         assert display_output("42 days") == "42 days"
+        assert display_output({"days": 42}) == '```json\n{\n  "days": 42\n}\n```'
 
     def test_a_parked_run_produces_no_text_of_its_own(self):
         """This value is stored as the assistant message's `content`, so a notice
@@ -1274,3 +1275,31 @@ class TestSayingTheSandboxIsStillOpening:
             await _run(_db(), on_sandbox_wait=AsyncMock())
 
         assert prepared.workspace is None
+
+
+@pytest.mark.parametrize(
+    "raw", [{"folder": ""}, "not-a-target", {"folder": "/work", "mode": "invalid"}]
+)
+def test_invalid_local_workspace_selection_is_refused(raw: object) -> None:
+    from app.services.agent_chat import requested_local
+
+    with pytest.raises(BadRequestError, match="not a folder"):
+        requested_local({"local": raw})
+
+
+def test_a_chat_frame_preserves_every_native_grant() -> None:
+    from app.services.agent_chat import requested_local
+
+    result = requested_local(
+        {
+            "local": {
+                "folder": "/work",
+                "model_service": "model",
+                "mcp_services": ["files"],
+                "browser": True,
+            }
+        }
+    )
+    assert result is not None
+    assert result.folder == "/work" and result.model_service == "model"
+    assert result.mcp_services == ["files"] and result.browser

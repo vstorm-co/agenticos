@@ -1,5 +1,5 @@
 ---
-source_sha: "2521b4441b6c"
+source_sha: "d7e885bf14a4"
 ---
 
 # Konfiguration { #configuration }
@@ -59,10 +59,12 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
+| `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein Agent mit [Computer-Bedienung](reference/capabilities.md#computer-use) einen `computerd`-Desktop steuern darf. `daemon_url` steht im Spec des Agents, und ein Run sendet das Token des Daemons an die dort genannte Adresse, daher ist das dieselbe Allowlist wie `BROWSER_CDP_ALLOWED_HOSTS`: exakt und ohne Beachtung der Groß- und Kleinschreibung, ohne Globs. Geprüft beim Veröffentlichen und erneut, wann immer ein Run den Daemon öffnet, sodass das Entfernen eines Hosts auch bereits veröffentlichte Agents stoppt. Das Token ist keine Einstellung: Es gehört der Organisation und liegt in ihrem Vault, sodass jede Organisation einen erlaubten Host nennen kann und nur die hineinkommt, die das Token dieses Desktops hat. Leer verweigert das Daemon-Backend; ein Desktop in der Sandbox des Agents braucht keinen Eintrag |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
 | `VISUAL_RENDER_CDP_URL` | `""` (leer) | Der Browser, mit dem ein [Visual](reference/capabilities.md#visuals) zu einem Bild gezeichnet wird, wo kein Rahmen es ausführen kann - eine Antwort in Slack, Telegram oder Mattermost und das Dashboard-Vorschaubild einer Seite. Der compose-Dienst `browser` ist `http://browser:9222`; sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Zeichnung erreicht von dort nichts: Jede ihrer Anfragen beantwortet das Deployment oder lehnt sie ab. Leer schickt einer Chat-App die Antwort ohne Bild |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose setzt `http://browser-egress:3128` | Der Proxy, über den der Browser der Installation jede Website erreicht. Der compose-Dienst `browser-egress` ist `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): Er löst jeden Host selbst auf, lehnt private, Loopback-, Link-Local- und Metadaten-Adressen ab und verbindet sich mit der geprüften Adresse, sodass weder eine Weiterleitung noch DNS-Rebinding eine Seite ins Netz bringt. Genutzt von jedem Durchlauf ohne Proxy der Organisation und nicht auf einem gehosteten Browser. Ein internes Werkzeug, das ein Agent besuchen soll, braucht eine Ausnahme in `docker/browser-egress/squid.conf`. Leer schickt den Browser direkt hinaus: Setze `BROWSER_EGRESS_PROXY=` in der Root-`.env` nur für einen Browser außerhalb von compose, der den Proxy nicht erreicht. Ohne Proxy wird jede Website bei ihrer ersten Anfrage in einem Tab geprüft, danach löst der Browser ihren Namen selbst auf; ein Name, der später im selben Tab auf eine private Adresse zeigt, wird also nicht erkannt |
-| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts, die die URL einer MCP-Connection nennen darf, obwohl sie auf eine private oder Loopback-Adresse auflösen, zum Beispiel ein Compose-Dienst: `["postgres-mcp"]`. Der Vergleich ist exakt und ignoriert Groß- und Kleinschreibung. Ein gelisteter Host überspringt nur die Adressprüfung: Die URL braucht weiterhin `http` oder `https`. Bei einem gelisteten Server kann man sich per OAuth anmelden: Seine Discovery, Registrierung und Token-Anfragen dürfen die gelisteten Hosts erreichen, gepinnt, und die Anmeldung bei einem öffentlichen Server erreicht keinen davon. Jedes Konto des Deployments erreicht jeden Port eines gelisteten Hosts, listen Sie also nur einen Server, der ein Token prüft. Ein Eintrag für einen Cloud-Metadatendienst, eine Link-Local- oder eine Loopback-Adresse wie `169.254.169.254` oder `localhost` wird beim Start abgelehnt. Leer lehnt jede interne Adresse ab. Siehe [eine Connection](mcp.md#a-connection) |
+| `OUTBOUND_PRIVATE_ALLOWLIST` | `[]` (empty) | Hosts und Netze im eigenen Netzwerk, die eine Anfrage erreichen darf, obwohl sie auf eine private Adresse auflösen, etwa ein Wiki, ein Git-Server oder ein MCP-Server: `["wiki", ".corp.example", "10.1.2.0/24"]`. Ein Eintrag ist ein exakter Host (`wiki`, Groß- und Kleinschreibung egal), ein Suffix mit führendem Punkt (`.corp.example` trifft `mcp.corp.example` und `a.b.corp.example`, nicht `corp.example` selbst), eine IP-Adresse (`10.0.0.5`, `fd00::1`) oder ein CIDR-Bereich (`10.1.2.0/24`). Ein abschließender Punkt wird entfernt, `wiki.` ist also `wiki`. Gelesen wird sie von den Workflow-Schritten `http.request`, `http.download` und `http.upload`, den Konnektoren `git`, `web` und `s3`, dem A2A-Client und MCP-Connections. Eine Anfragekette bekommt die Liste nur, wenn ihre erste URL, die ein Mensch eingegeben oder gebunden hat, sie braucht: Eine Kette, die bei einem öffentlichen Host beginnt, bekommt sie nie, sodass die Weiterleitung, die OAuth-Metadaten, die A2A-Karte oder der Crawl einer öffentlichen Seite keinen gelisteten Host erreichen. Jedes Konto jeder Organisation erreicht jeden Port eines zugelassenen Hosts, listen Sie also nur Dienste, die ihre eigenen Zugangsdaten prüfen: Eine URL, die aus einem öffentlichen Trigger (Webhook, Formular, E-Mail) oder aus den Tool-Argumenten eines Agenten gebunden wird, kann jeden gelisteten Host nennen. Loopback-, Link-Local-, Multicast- und Cloud-Metadaten-Adressen werden unabhängig von der Liste abgelehnt: Ein gelisteter Name, der auf eine solche Adresse antwortet, wird überall abgelehnt, wo der Name aufgelöst wird (Workflow-HTTP-Schritte, git, web, S3, A2A, der MCP-OAuth-Ablauf und die eigene URL einer MCP-Connection; ein gelisteter Name, der noch nicht aufgelöst wird, kann trotzdem gespeichert werden), ebenso ein Name mit einer ungelisteten privaten Antwort, wobei die Adresse genannt wird. Der Start lehnt einen Eintrag ab, der fehlerhaft ist, diese Adressen erreicht (`localhost`, `.internal`, `169.254.169.254`, `127.0.0.0/8`, oder dieselben Adressen über das bekannte NAT64-Präfix oder 6to4 geschrieben, etwa `64:ff9b::/96` und `2002::/16`; das eigene NAT64-Präfix eines anderen Netzes lässt sich nicht erkennen, trage es also nicht ein, wenn es auf diese Adressen übersetzt) oder den Datenbank-Host, den Redis-Host oder den Host der API selbst per Namen oder Adresse benennt (ein Suffix, das den Namen der API abdeckt, ist erlaubt; einen Bereich, der die aufgelöste Adresse eines Speichers abdeckt, findet `doctor`). `agenticos cmd doctor` meldet sie als `private network`: eine Warnung bei einem Bereich, der größer ist als /16 (IPv4) oder /48 (IPv6), einen Fehler, wenn ein Bereich die Datenbank oder Redis abdeckt. Das [HIPAA-Blatt](security.md#the-sheet) führt sie als `private-network`. Leer lehnt jede private Adresse ab. Siehe [Dienste im eigenen Netzwerk](deploy.md#services-on-your-own-network) und [eine Connection](mcp.md#a-connection) |
+| `MCP_ALLOWED_HOSTS` | `[]` (empty) | Hosts, die allein die URL einer MCP-Connection nennen darf, obwohl sie auf eine private Adresse auflösen, zum Beispiel ein Compose-Dienst: `["postgres-mcp"]`. Die Einstellung stammt aus der Zeit vor `OUTBOUND_PRIVATE_ALLOWLIST`, das auch MCP abdeckt, und ist kein Alias dafür: Ein Host, der nur hier steht, ist für Workflow-HTTP-Schritte, Konnektoren und A2A nicht erreichbar. Nutzen Sie sie, wenn nur MCP den Host erreichen soll. Sie wird vom selben Parser gelesen und nimmt daher dieselben Formen an (ein Suffix wie `.corp.example`, eine IP-Adresse, einen CIDR-Bereich), ein abschließender Punkt wird entfernt (`name.` ist `name`), und ein gelisteter Name, der auf eine Loopback-, Link-Local- oder Cloud-Metadaten-Adresse antwortet, wird überall abgelehnt, wo er aufgelöst wird, auch bei der eigenen URL einer MCP-Connection; ein gelisteter Name, der noch nicht aufgelöst wird, kann trotzdem gespeichert werden. Ein gelisteter Host darf auf eine private Adresse auflösen, eine Loopback-, Link-Local- oder Metadaten-Antwort wird aber weiterhin abgelehnt: Die URL braucht weiterhin `http` oder `https`. Bei einem gelisteten Server kann man sich per OAuth anmelden: Seine Discovery, Registrierung und Token-Anfragen dürfen die gelisteten Hosts erreichen, gepinnt, und die Anmeldung bei einem öffentlichen Server erreicht keinen davon. Jedes Konto des Deployments erreicht jeden Port eines gelisteten Hosts, listen Sie also nur einen Server, der ein Token prüft. Ein Eintrag, der Cloud-Metadaten, Link-Local- oder Loopback-Adressen wie `169.254.169.254` oder `localhost`, die Datenbank, Redis oder die API selbst per Namen oder Adresse benennt, wird beim Start abgelehnt. Leer lehnt jede interne Adresse ab. Siehe [eine Connection](mcp.md#a-connection) |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Wie lange eine einzelne DOC-zu-Text-Konvertierung durch LibreOffice laufen darf, bevor sie gekillt wird. Weit unter den 600s der Wissensdatenbank, weil dies ein interaktiver Upload ist |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Wie viele LibreOffice-Konvertierungen gleichzeitig laufen dürfen. Der Subprozess umgeht `FILE_IO_MAX_WORKERS`, daher wird er hier getrennt begrenzt |
@@ -459,8 +461,9 @@ Einstellung unten gilt pro Worker-Prozess.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host |
+| `WORKER_POOLS` | `agent,ingest,system,workflow` | Die Pools, die dieser Prozess bedient. Ein zweiter Worker mit `ingest` legt das Parsen auf einen eigenen Host. Eine Liste, die gesetzt wurde, bevor es den Pool `workflow` gab, braucht ihn zusätzlich, sonst führt kein Worker Workflow-Knoten aus |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runs von Agents und ausgelöste Trigger gleichzeitig |
+| `WORKER_WORKFLOW_CONCURRENCY` | `5` | Workflow-Knoten gleichzeitig. Bemessen Sie den Speicher des Workers für so viele Knoten, die je die größte Datei halten, die ein Knoten halten darf |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Aufräumläufe, Bereinigungen und Berichte gleichzeitig |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` in den mitgelieferten Compose-Dateien) | Kindprozesse für Parsen und Embeddings, jeder mit einem Job zur Zeit |
 | `WORKER_INGEST_MEMORY_MB` | `1536` | Wie viel ein Kindprozess samt allem, was er gestartet hat, halten darf, bevor der Watchdog ihn stoppt |
@@ -545,6 +548,75 @@ Schreibvorgang zurückgestellt —, setzen Sie sie also deutlich über Ihren lä
 legitimen Run und nicht knapper. Siehe
 [Governance](governance.md#a-run-whose-process-died).
 
+### Workflow-Runs { #workflow-runs }
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Die größte Nutzlast, mit der ein Run gestartet werden kann, als kompaktes JSON. Sie wird für den `core.input`-Knoten am Run gespeichert, daher wird eine größere mit `413` abgelehnt, bevor der Run angenommen wird |
+| `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | Die meisten Dateibytes, die ein Run speichern darf, alle seine Dateischritte zusammen. Ein Schritt, dessen Datei es überschreiten würde, scheitert mit `FILE_QUOTA_EXCEEDED` und speichert nichts |
+| `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | Dasselbe für eine Organisation, über alle Runs, die ihre Dateien noch halten |
+| `WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` | `30` | Wie lange eine Webhook-Zustellung, deren Graph einen Schritt Respond to webhook hat, auf ihre Antwort wartet, bevor sie mit `202` beantwortet wird und der Run weiterläuft. Ein vorgeschalteter Proxy mit kürzerem Lese-Timeout bricht das Warten zuerst ab |
+| `WORKFLOW_DISPATCH_LEASE_SECONDS` | `120` | Wie lange der Claim eines Workers auf einen Workflow-Knoten hält, bevor er als aufgegeben gilt. Der Worker erneuert ihn jedes Drittel dieser Zeit, solange der Knoten läuft; der Wert begrenzt also, wie lange ein toter Worker unbemerkt bleibt, nicht wie lange ein Knoten dauern darf |
+| `WORKFLOW_RETRY_CEILING` | `3` | Die Höchstzahl an fehlgeschlagenen oder unterbrochenen Versuchen, die ein Knoten bekommt: Versuche, die fehlgeschlagen sind, und Versuche, die der Tod eines Workers abgebrochen hat. Ein Versuch, der wartet - auf eine Freigabe oder auf einen Backoff, den der Knoten verlangt hat -, zählt nicht; wie oft ein Knoten wartet, begrenzen also nur Deadline, Budget oder ein Abbruch des Runs |
+| `WORKFLOW_RETRY_BACKOFF_BASE_SECONDS` | `5` | Die Wartezeit vor dem ersten erneuten Versuch eines Knotens; die Wartezeit vor jedem weiteren verdoppelt sich |
+| `WORKFLOW_RETRY_BACKOFF_MAX_SECONDS` | `300` | Die längste Dauer, auf die eine einzelne Wartezeit anwachsen darf. Diese drei gelten für einen Knoten, dessen `policy.retry` keine eigenen setzt |
+| `WORKFLOW_NODE_MAX_OUTPUT_BYTES` | `10485760` | Kompaktes UTF-8-JSON von Versuchsergebnis, Run-Ausgabe und Webhook-Antwort zusammen. Größere Ergebnisse scheitern mit `NODE_OUTPUT_TOO_LARGE` ohne automatische Wiederholung; Kosten bleiben erhalten. Split out prüft höchstens 10.000 expandierte Elemente und konservativ geschätzte Bytes vor dem Kopieren |
+| `WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES` | `67108864` | Kompakte Reservierungen für Eingaben, Entwurfssnapshots, Wait-Payloads und Ergebnisse je Ausführung; kleine Abschlussdatensätze sind ausgenommen |
+| `WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES` | `1073741824` | Inline-Payload-Reservierungen aufbewahrter Ausführungen einer Organisation; Bereinigung gibt sie über Zähler frei |
+| `WORKFLOW_FOREACH_MAX_ITEMS` | `1000` | Die längste Liste, über die ein `control.foreach` iteriert. Eine längere lässt die Schleife mit `FOREACH_TOO_MANY_ITEMS` fehlschlagen, statt gekürzt zu werden |
+| `WORKFLOW_FOREACH_MAX_MANIFEST_BYTES` | `1048576` | Die größte Liste, die eine Schleife einfriert, als JSON. Eine größere lässt die Schleife mit `FOREACH_LIST_TOO_LARGE` fehlschlagen |
+| `WORKFLOW_FOREACH_MAX_OUTPUT_BYTES` | `10485760` | Neueste Yield-Ergebnisse und unbehandelte Fehler einschließlich Sammlungsaufwand, vor dem Laden des JSON gemessen. Größere Sammlungen scheitern mit `FOREACH_OUTPUT_TOO_LARGE`; kleinere Werte oder Dateiverweise ausgeben |
+| `WORKFLOW_FOREACH_MAX_DEPTH` | `3` | Wie tief Schleifen verschachtelt sein dürfen. Ein Graph mit tieferen Schleifen kann nicht veröffentlicht werden |
+| `WORKFLOW_RUN_MAX_NODE_RUNS` | `10000` | Die meisten Knotenläufe, die ein Run anlegen darf, Schleifeniterationen eingeschlossen. Eine Iteration, die darüber hinausginge, lässt den Run mit `NODE_RUN_LIMIT` fehlschlagen |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG` | `5000` | Wie viel wartende oder laufende Knotenarbeit eine Organisation gleichzeitig halten darf. Ein Start reserviert die Knotenzahl seines Graphen dagegen, und ein Start darüber wird mit `429` abgewiesen, bis laufende Arbeit abfließt. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
+| `WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL` | `2000` | Dieselbe Obergrenze für eine einzelne aufrufende Seite, gezählt über alle Organisationen, in denen sie Runs startet, damit eine Person, die Organisationen anlegen kann, ihr Kontingent nicht durch Verteilen der Runs auf mehrere Organisationen vervielfacht. Muss mindestens `WORKFLOW_GRAPH_MAX_NODES` betragen |
+
+Das Run-Limit pro aufrufender Seite (`RATE_LIMIT_RUN_PER_MINUTE`) verrechnet ein
+Token pro Start und kann einen Graphen mit einem Knoten nicht von einem mit
+fünfhundert unterscheiden. Diese beiden Obergrenzen können es: Sie begrenzen die
+wartende und laufende Knotenarbeit hinter dem gemeinsam genutzten Runner, damit
+nicht eine aufrufende Seite viele breite Graphen unterhalb des Rate-Limits
+startet und einen Rückstau aufbaut, der andere Tenants aushungert.
+
+Ein Workflow-Run ist eine Kette von Jobs. Jeder Versuch eines Knotens ist ein
+`workflow-dispatch-node`-Job im Workflow-Pool, der in derselben Transaktion
+eingereiht wird wie die Dispatch-Zeile des Knotens: Ein Run startet nie ohne
+seinen Job, und ein zurückgerollter Start hinterlässt keinen. Ein Timer oder die
+Wartezeit eines Wiederholungsversuchs ist derselbe Job mit `run_after` auf den
+Zeitpunkt, zu dem er fällig ist. Die Position des Runs hält die Zeile in der
+Datenbank, nicht der Job: Der Job läuft einmal, und ein Worker, der mitten im
+Knoten stirbt, wird von den Sweeps unten aufgefangen, nicht durch eine
+Wiederholung des Jobs.
+
+Im System-Pool laufen fünf Sweeps: `workflow-dispatch-poll`
+(jede Minute) reiht einen Job für einen fälligen Knoten ein, dessen eigener Job
+nie lief, `workflow-reconcile` (alle 30 Sekunden) holt Claims und Versuche
+zurück, die ein toter Worker hinterlassen hat, `workflow-schedules-check` (jede
+Minute) löst Workflow-Zeitpläne aus, `workflow-table-triggers` (alle 10
+Sekunden) verarbeitet die Trigger auf Tabellendatensätzen, und
+`workflow-run-retention` (täglich) entfernt Runs nach der Aufbewahrungsfrist
+ihres Workflows.
+
+Knoten-Jobs haben einen eigenen Pool, sodass ein Fan-out nicht die Plätze belegt,
+auf die Agent-Runs warten, und ein Agent, der einen Workflow aufruft und auf ihn
+wartet, nicht auf einen Platz seines eigenen Pools wartet.
+`WORKER_WORKFLOW_CONCURRENCY` begrenzt die gleichzeitig laufenden Knoten je
+Worker. Ein Run, auf dessen Ergebnis jemand wartet (eine Webhook-Antwort, ein
+Chat, die API), kommt vor einem, der sich selbst gestartet hat, und ein von einem
+anderen aufgerufener Workflow übernimmt die Priorität des aufrufenden Runs.
+
+Ein Knoten
+läuft in der Event-Loop und im Speicher des Workers selbst: Bemessen Sie den
+Speicher des Workers nach `WORKER_WORKFLOW_CONCURRENCY` Knoten, die je die größte
+Datei halten, die ein Knoten halten darf (`WORKFLOW_RUN_MAX_FILE_BYTES`), denn ein
+vom Kernel beendeter Worker verliert jeden Job, den er gerade ausführte. Solche
+Tode zählen nicht für `WORKER_BREAKER_DEATHS`: Ein Absturz beendet jeden Knoten,
+den der Worker hielt, und einen Knoten, der seinen Worker immer wieder tötet, hält
+das eigene Wiederholungslimit des Workflows auf. Die Seite Background jobs zeigt einen Job
+je Knotenversuch, und die Sweeps fügen etwa 14.400 Zeilen am Tag hinzu, die
+`BACKGROUND_JOB_RETENTION_DAYS` lang aufbewahrt werden. Einen eingereihten
+Knoten-Job kann man dort nicht abbrechen: Brechen Sie stattdessen den Run ab.
+
 ### Ein verlassener Chat-Turn { #a-chat-turn-left-running }
 
 | Variable | Standard | Beschreibung |
@@ -556,6 +628,13 @@ Wert begrenzt also die Ausgaben für eine Antwort, die vielleicht nie gelesen wi
 statt etwas abzuschalten. Er muss Ihren längsten Recherche- oder Browser-Turn
 abdecken; ein Run bleibt ohnehin an das Budget seines Agenten gebunden. Siehe
 [Konsole](console.md#chat).
+
+Datei- und Tabellenquoten pro Organisation begrenzen nicht den Speicher der
+gesamten Installation. Ohne `max_organizations_per_user` kann ein Konto beliebig
+viele Organisationen besitzen und deren Kontingente vervielfachen. Ein endliches
+Eigentumslimit einstellen, gemeinsamen Speicher dimensionieren und überwachen
+sowie Laufhistorien berücksichtigen. Ein installationsweites Speicherbudget wird
+derzeit nicht erzwungen.
 
 ## KI-Modelle — in der App konfiguriert, nicht hier { #ai-models-configured-in-the-app-not-here }
 
@@ -805,7 +884,9 @@ sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
+| `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Die meisten Bytes an Datensätzen, die ein API-Prozess 30 Sekunden lang für [öffentliche Links und Embeds von Seiten](artifacts.md#the-cache-and-the-cap) hält. Nur im Prozessspeicher, nie in Redis. Die am längsten nicht genutzten Lesevorgänge gehen zuerst, und ein Lesevorgang über dem Budget wird nicht gehalten. Mindestens 1024 |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
+| `ARTIFACT_RENDER_CDP_URL` | (empty) | Der Chromium-DevTools-Endpunkt, in dem [`preview_artifact`](artifacts.md#seeing-the-page-preview) Seiten zeichnet, etwa `http://artifact-render:9222`. Allein Deployment-Konfiguration: Er wird nicht gegen `BROWSER_CDP_ALLOWED_HOSTS` geprüft, das aufführt, was Autoren von Agents steuern dürfen, und einem browsenden Agent wird sein Host verweigert, selbst wenn diese Liste ihn nennt. Das Backend braucht das Extra `browser`. Leer liefert eine Vorschau ihren Bericht ohne Bild |
 | `VISUAL_MAP_TILES` | (empty) | Der eine Kachelserver, auf dem ein [Visual](artifacts.md#visuals) oder eine App eine Karte zeichnen darf: `openstreetmap`, `usgs-topo` oder eine `https://`-URL-Vorlage mit `{z}`, `{x}` und `{y}` je einmal. Das Deployment holt jede Kachel und liefert sie den Seiten über seinen eigenen Kachelpfad aus; keine Seite spricht mit dem Server. Leer zeichnet eine Karte als Umriss ihrer Stopps. Ein Wert, der sich nicht ausliefern lässt, wird beim Start abgewiesen |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (empty) | Die Quellenangabe unter einer Karte auf einem eigenen Kachelserver, z. B. `© OpenStreetMap contributors`. Pflicht bei einer URL-Vorlage; ein Preset bringt seine eigene mit |
 
@@ -820,11 +901,32 @@ genutztes Deployment sollte einen eigenen Server betreiben oder einen Anbieter
 bezahlen. *Admin → System* zeigt, ob der Server antwortet.
 
 **`ARTIFACT_ORIGIN` wird zweimal gelesen, und beide Stellen müssen ihn sehen.**
-Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt ihn zum
-`frame-src` der Konsole hinzu. Setzen Sie ihn in der Umgebung des Backends und in
+Das Backend signiert Inhaltsadressen darauf, und das Frontend fügt seine
+Content-Route, `/api/v1/artifact-content/`, zum `frame-src` der Konsole hinzu. Setzen Sie ihn in der Umgebung des Backends und in
 der des Frontends; die Compose-Dateien reichen ihn an beide weiter. Ein Wert in
 nur einer von beiden zeigt einen leeren Frame, weil der Browser sich weigert, die
 Seite von einem Origin zu laden, den die Konsole nicht erlaubt hat.
+
+**Ist `ARTIFACT_ORIGIN` leer, muss `PUBLIC_API_URL` des Frontends exakt mit
+`PUBLIC_BASE_URL` des Backends übereinstimmen, einschließlich des Pfads.** Das
+Backend signiert Inhaltsadressen dann auf `PUBLIC_BASE_URL`, und der `frame-src`
+der Konsole nennt die Content-Route unter `PUBLIC_API_URL`; `https://example.com/agenticos`
+auf der einen und `https://example.com` auf der anderen Seite ergibt also
+denselben leeren Frame.
+
+**Der Renderer ist ein eigener Browser, ohne Netzwerk.** Compose liefert ihn als
+optionales Profil `artifact-render` aus: ein fest versioniertes Headless-Chromium
+in einem internen Netz, dem nur die API und der Worker beitreten. Jede
+Anfrage eines Renderings beantwortet die API - mit der Seite, ihren
+Bibliotheksdateien und einem Host-Dokument - oder lehnt sie ab, der Browser
+braucht also keinen Weg nach draußen. Und weil er die Datensätze von Personen
+rendert, darf er nicht der Browser sein, den ein
+[browsender Agent](reference/capabilities.md#browser-automation) steuert.
+Starten Sie ihn mit `docker compose --profile artifact-render up -d` und setzen
+Sie dann `ARTIFACT_RENDER_CDP_URL=http://artifact-render:9222`. Nehmen Sie
+`artifact-render` nicht in `BROWSER_CDP_ALLOWED_HOSTS` auf: Diese Liste ist für
+browsende Agents, und der Renderer braucht dort keinen Eintrag. Ein Prozess
+zeichnet zwei Seiten gleichzeitig, jede innerhalb von 15 Sekunden.
 
 ## Agent-Workspaces { #agent-workspaces }
 
@@ -917,10 +1019,11 @@ unauthentifizierten internen APIs sollte das im Netz sagen und nicht hier.
 
 ### Welche Umgebungen ein Agent anfordern darf { #which-environments-an-agent-may-ask-for }
 
-Eine Runtime wird ausgeliefert — `workbench` (1,93 GB): Python 3.12, Node 24,
+Zwei Runtimes werden ausgeliefert. `workbench` (1,93 GB) hat Python 3.12, Node 24,
 LibreOffice und die Bibliotheken, die ein Agent braucht, um die Dateien zu lesen,
 zu schreiben, zu konvertieren und zu plotten, um die es in einer Unterhaltung
-geht, liteparse mit OCR eingeschlossen. Sie ist in
+geht, liteparse mit OCR eingeschlossen. `desktop` ist ein Linux-Desktop, XFCE und
+Firefox, für die Computer-Bedienung. Beide sind in
 `backend/app/core/catalog/sandbox_runtimes.json` definiert. Eine hinzuzufügen ist
 eine Änderung dort plus `make sandbox-runtimes`, was `SANDBOXD_RUNTIMES` in alle
 drei Compose-Dateien schreibt; diese Variable ist der einzige Kanal, über den der
@@ -1274,15 +1377,23 @@ Wird auf die Oberflächen angewandt, die eine fremde Person erreichen kann, und
 nur auf diese: die öffentliche Run-API, das Skript des Widgets, dessen Config, den
 Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page sowie den
 Upload, das Diktat und den Sprachanruf einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
-Session und werden nicht gemessen — ob die ganze API eine Obergrenze tragen
-sollte, ist eine eigene Entscheidung und nicht diese.
+Session und werden nicht gemessen, mit einer Ausnahme: Schreibzugriffe auf
+[Virtual Tables](virtual-tables.md), die je Änderung einen Schnappschuss speichern. Ob
+die ganze API eine Obergrenze tragen sollte, ist eine eigene Entscheidung und nicht
+diese.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, je aufrufender Seite |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Jede Route in `auth.py` — Login, Registrierung, Refresh, die Anfrage- und Verifikationsrouten für Reset und Magic Link. Gezählt **je IP und, wo der Body eine trägt, je übermittelter Adresse**. Siehe unten |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Je Adresse, und **zwei getrennte Zähler dieser Größe**: einer für `widget.js`, einer für die Zulassung — das `/config` des Widgets plus den Socket-Handshake beider Oberflächen. Siehe unten |
-| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
+| `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Das [Formular](workflows.md#from-a-form) eines Workflows wird auf einem Zähler dieser Größe je Formular gelesen. Siehe unten |
+| `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Zustellungen, die ein [Webhook](workflows.md) eines Workflows oder ein GitHub-Trigger annimmt, **je Webhook**, gezählt, sobald die Signatur stimmt und die Zustellung einen Lauf starten würde, sodass Fremde und übersprungene Zustellungen nichts davon verbrauchen: jede ist ein Lauf |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen, die eine Adresse in einer Minute an die Webhook- und GitHub-Trigger-Adressen von Workflows senden darf, egal was sie enthalten, gezählt, bevor irgendetwas gelesen wird. Weit gefasst, weil Absender wie GitHub für viele Hooks von wenigen Adressen aus zustellen |
+| `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Eindeutige Workflow-Mail-Empfänger je Aussteller, über Schlüssel und Organisationen; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Eindeutige Workflow-Mail-Empfänger je Organisation; [email.send](reference/workflow-nodes.md#email-send) |
+| `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Eindeutige Workflow-Mail-Empfänger im gesamten Deployment; [email.send](reference/workflow-nodes.md#email-send) |
 | `RATE_LIMIT_MAP_TILES_PER_MINUTE` | `600` | Kartenkacheln, die eine Adresse über den [Kachelpfad](artifacts.md#visuals) des Deployments holen darf, **je Adresse**. Eine Karte sind einige Dutzend Kacheln, Verschieben bringt mehr; die Grenze verhindert, dass das Deployment jedermanns kostenloser Proxy zum Kachelserver wird |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
@@ -1292,6 +1403,9 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation. Erst verbraucht, wenn ein Besucher zugelassen ist |
 | `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Die Adresse wird gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |
 | `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen, erst verbraucht, wenn ein Besucher zugelassen ist. Zusammen mit `VOICE_MAX_CALLS_PER_EMBED` oben die Obergrenze dessen, was ein geleakter Link kostet |
+| `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` | `60` | Wie oft die Daten einer Seite für Besucher ihres öffentlichen Links oder ihrer Embeds aus ihren Tabellen gelesen werden dürfen, **je Seite über alle Besucher**. Ein Laden, das aus den Tabellen lesen muss, zählt einmal, eines aus dem 30-Sekunden-[Cache](artifacts.md#the-cache-and-the-cap) nicht; darüber hinaus lädt die Seite ohne diese Daten |
+| `RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE` | `10` | Runs, die ein Mitglied pro Minute aus den [Aktionen](artifacts.md#actions) einer Seite starten darf, **je Mitglied, Organisation und Seite**. Jeden Run bestätigt das Mitglied zuvor; das begrenzt eine Seite, die in einer Schleife fragt. Darüber hinaus wird der Aufruf der Seite als `rate_limited` abgewiesen |
+| `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` | `300` | Schreibzugriffe auf [Virtual Tables](virtual-tables.md), **je Mitglied und Organisation**: Create, Update, Upsert oder Delete eines Datensatzes, Create, Umbenennen, Archivieren oder Schemaänderung einer Tabelle sowie Speichern, Ändern oder Löschen einer gespeicherten Ansicht. Gilt für die Konsole ebenso wie für ein Skript. Lesezugriffe werden nicht gezählt |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag
@@ -1418,6 +1532,41 @@ Grenze sicher, aber geteilt.
     Mit zwei Proxys davor falten Sie den Header an Ihrer Kante auf einen Hop
     zusammen — nur der letzte Hop ist vertrauenswürdig.
 
+## Limits und Aufbewahrung der Virtual Tables { #virtual-tables-limits-and-retention }
+
+Was eine Organisation in [Virtual Tables](virtual-tables.md#limits-and-retention)
+speichern darf und wie lange die Kopien aufbewahrt werden, die ein Schreibzugriff
+hinterlässt. Ein Schreibzugriff über einem Limit wird mit `QUOTA_EXCEEDED` (402) und
+einem Audit-Eintrag abgelehnt, der das Limit nennt, nie den Inhalt.
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabellen je Organisation. Archivierte zählen mit, weil nichts eine Tabelle löscht |
+| `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Datensätze in einer Tabelle |
+| `TABLES_MAX_RECORD_BYTES` | `1000000` | Serialisierte Größe der Werte eines Datensatzes in Bytes. Minimum `1`. Begrenzt auch, was die History-Zeile eines Create und eines Delete und ein Receipt enthalten; ein bereits über dem Limit liegender Datensatz wird trotzdem gelöscht und behält nur eine Größenmarkierung statt der Werte |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | `1073741824` | Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat |
+| `TABLES_RECEIPT_TTL_HOURS` | `24` | Wie lange ein Idempotenz-Receipt eine Wiederholung beantwortet. Danach ist derselbe Schlüssel ein neuer Schreibzugriff |
+| `TABLES_OUTBOX_RETENTION_DAYS` | `3` | Wie lange eine zugestellte Outbox-Zeile aufbewahrt wird |
+| `TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS` | `30` | Wie lange eine nicht zugestellte Outbox-Zeile aufbewahrt wird. Der Heartbeat der [Tabellen-Trigger](virtual-tables.md#triggers) markiert jede Zeile, die er prüft, also heißt eine so alte Zeile, dass der Worker so lange ausgefallen war. Dies ist eine Dead-Letter-Frist, keine Behauptung, das Ereignis sei zugestellt worden - danach ist die Zeile weg und für diesen Datensatz startet kein Trigger |
+| `TABLES_HISTORY_RETENTION_DAYS` | `365` | Wie lange die History eines Datensatzes aufbewahrt wird, ab der Änderung gezählt, auch für einen gelöschten Datensatz |
+| `TABLES_MAX_CONCURRENT_QUOTA_AUDITS` | `4` | Wie viele Quota-Ablehnungs-Audit-Einträge dieser Prozess gleichzeitig schreibt, damit ein Schub an Ablehnungen keine unbegrenzte Zahl an Datenbankverbindungen öffnet. Der Rest eines Schubs wartet stattdessen auf diese Grenze |
+
+Die drei Fristen wendet der tägliche [Aufbewahrungs-Sweep](governance.md#retention) für
+jede Organisation an; es sind keine Einstellungen je Organisation.
+
+Das Budget eines Durchlaufs für diese drei Klassen skaliert mit
+`RATE_LIMIT_TABLE_WRITES_PER_MINUTE` statt mit einer festen Anzahl Batches - aber dieses Limit
+gilt je *Mitglied* (`limit_table_write` zählt die Schreibzugriffe jedes Mitglieds auf sein
+eigenes Kontingent), sodass das Budget auch mit der Anzahl der aktiven Mitglieder der
+Organisation skaliert: bis zu `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` Zeilen je aktivem
+Mitglied und Tag, in Batches von 500.
+
+Dieser Wert wird für Spielraum verdoppelt, sodass ein bestehender Rückstand schrumpft statt
+nur gehalten zu werden, und bei 50 Mitgliedern gedeckelt, damit eine ungewöhnlich große
+Organisation ihren eigenen Durchlauf nicht unbegrenzt wachsen lässt - er wird trotzdem
+abgearbeitet, nur über mehr Durchläufe, genau wie bei jeder anderen Aufbewahrungsklasse, wenn
+ein Rückstand ihr Budget übersteigt.
+
 ## Ein Worker, dessen Event Loop sich nicht mehr dreht { #a-worker-whose-event-loop-has-stopped-turning }
 
 | Variable | Standard | Beschreibung |
@@ -1514,3 +1663,67 @@ Aber Einladungen, Passwort-Zurücksetzungen und Benachrichtigungen bleiben still
 ungesendet, bis `SMTP_HOST` und der Rest von [E-Mail (SMTP)](#email-smtp) auf
 einen echten Server zeigen — ein Deployment, das darauf verzichtet, sollte das
 also wissentlich tun.
+
+## Bereitstellungsdiagnose { #diagnostics }
+
+`DIAGNOSTICS_ENABLED` ist standardmäßig `true`, auch nach einem Upgrade mit einer
+älteren `.env` ohne diesen Schlüssel. Zum Deaktivieren in Backend und Frontend
+`DIAGNOSTICS_ENABLED=false` setzen und die Dienste neu starten. Die
+Bereitstellungseinstellungen zeigen den Status und den letzten erfolgreichen
+Bericht, aber keinen Schalter.
+
+`DIAGNOSTICS_COLLECTOR_URL` ist die Kollektor-Adresse für den Server;
+`DIAGNOSTICS_PUBLIC_URL` ist die browserseitige Adresse, die auch das Frontend für
+seine Content Security Policy liest. Beide verwenden standardmäßig `https://analytics-agenticos.testapp.ovh`. Für einen Kollektor auf
+dem Docker-Desktop-Host serverseitig `http://host.docker.internal:8010` und öffentlich
+`http://localhost:8010` verwenden. Entfernte Adressen benötigen HTTPS. Keine Pfade,
+Zugangsdaten oder Abfrageparameter angeben.
+
+Der bestehende dauerhafte Worker berichtet stündlich. Sein Ed25519-Seed wird durch
+den Vault verschlüsselt, vor dem ersten Netzaufruf gespeichert, von Replikaten
+geteilt und durch `vault-rotate` neu verpackt. Ein nicht erreichbarer Kollektor
+blockiert weder Anmeldung noch Chat oder Worker-Start. Berichte enthalten Version,
+Datenbank-/Worker-Zustand, ausdrücklich unbekannten Redis-Zustand sowie Bereiche
+der Laufzahlen und neu angelegten Projekte, Skills und Dokumente der letzten 30
+Tage. Nur feste Funktionsnamen verlassen die Installation. Fehler umfassen
+fehlgeschlagene Läufe, endgültig gescheiterte Jobs und Importfehler der vorigen
+vollen UTC-Stunde, höchstens 1000 pro Kategorie. Freie API-Ausnahmen werden nicht
+exportiert.
+
+Web-, Desktop- und Mobilaktivität verwendet signierte, 60 Sekunden gültige Claims
+für das angemeldete Konto. Ein installationsspezifisches Pseudonym ersetzt die
+Konto-ID. Sichtbare, fokussierte Fenster berichten nach Eingaben höchstens alle
+fünf Minuten; inaktive Hintergrund-Tabs halten Benutzer nicht online. Der Browser
+sendet direkt ohne Cookies oder Referrer, damit der Kollektor ungefähre
+Länder/Regionen gruppieren kann. Keine Prompts, Gespräche, Dateinamen, Kontonamen,
+E-Mail-Adressen, Anbieterschlüssel oder Ausnahmetexte werden gesendet.
+
+Der separate [Analytics-Kollektor](https://github.com/vstorm-co/agenticos-analytics)
+speichert Rohereignisse sieben Tage und tägliche pseudonyme Aktivität und Aggregate
+90 Tage. Online bedeutet Aktivität innerhalb zehn Minuten, eine aktive Installation
+Kontakt innerhalb 24 Stunden. Fehlender Kontakt ist unbekannt, kein bestätigter
+Ausfall. Der Kollektor speichert keine IP-Adressen oder GPS-Positionen; Proxy-Logs
+verantwortet der Betreiber. Die Kartenvorschau hat einen separaten Demo-Modus;
+AgenticOS erzeugt keine fiktiven Produktionsereignisse.
+
+## Updates im Administrationsbereich { #updates-from-the-administration-panel }
+
+Die Bereitstellungsseite zeigt den Changelog sowie Vorbereitung, Zeitplanung und
+Wiederherstellung. Updates sind optional: Installieren Sie den Host-Helfer auf
+einem einzelnen Linux/systemd-Host mit Compose und verbinden Sie API und Worker
+über das Updater-Overlay. Siehe [Einrichtung und Wiederherstellung](https://github.com/vstorm-co/agenticos/tree/main/deploy/updater).
+
+Die Vorbereitung prüft Konfiguration und Speicherplatz, lädt veröffentlichte
+Images, fixiert deren Digests und erstellt ein vorläufiges Backup ohne Neustart.
+Starten Sie sofort oder planen Sie innerhalb von sieben Tagen. Der Helfer sperrt
+neue Arbeit, wartet auf aktive Ausführungen, Jobs und Anrufe, stoppt schreibende
+Prozesse, sichert PostgreSQL, Medien und Konfiguration und führt Migrationen aus.
+Erst nach erfolgreicher Bereitschaftsprüfung wird der Zugriff geöffnet. Der
+Fortschritt bleibt auf dem Host; die Oberfläche verbindet sich nach API-Rückkehr erneut.
+
+Fehler nach Migrationsbeginn belassen den Wartungsmodus für die Wiederherstellung
+durch den Betreiber; es gibt kein automatisches Datenbank-Downgrade. Backups
+bleiben bis zur manuellen Entfernung auf dem Host und ersetzen keine externen
+Sicherungen. Testen Sie die Wiederherstellung zunächst auf einer Wegwerf-Installation.
+Mehrere Hosts, eigene Compose-Overlays und externer Dateispeicher benötigen Ihre
+Pipeline: `UPDATE_PIPELINE_URL` zeigt nur deren HTTPS-Link und startet kein Deployment.

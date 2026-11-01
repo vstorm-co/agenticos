@@ -51,22 +51,34 @@ class NotificationEventType(enum.StrEnum):
     MCP_SERVER_DOWN = "mcp_server_down"
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
     BACKGROUND_TASK_PAUSED = "background_task_paused"
+    # Written by a workflow's `notification.send` step. Its audience is the step's
+    # own recipient list, already checked against the workflow's reach, rather
+    # than a setting on an agent (#1789).
+    WORKFLOW_NOTIFICATION = "workflow_notification"
+    # A page changed hands: told to its old and its new owner (#1974).
+    ARTIFACT_OWNER_CHANGED = "artifact_owner_changed"
+    # Somebody asked a page's owner to share it, or to confirm a version (#1974).
+    ARTIFACT_SHARE_REQUESTED = "artifact_share_requested"
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
+    # A workflow's log crossed an alert rule's threshold in its window.
+    WORKFLOW_LOG_ALERT = "workflow_log_alert"
 
 
 class NotificationChannel(enum.StrEnum):
     """A channel a notification reaches a recipient through.
 
-    `notification_preferences.channel` (Decision 4) holds both values, since a
+    `notification_preferences.channel` (Decision 4) holds every value, since a
     person can turn each off independently. `notification_deliveries.channel`
-    (Decision 3) only ever holds `EMAIL` - in-app has no delivery row, because
-    the :class:`Notification` row itself is the in-app delivery.
+    (Decision 3) holds `EMAIL` and `PUSH` - in-app has no delivery row, because
+    the :class:`Notification` row itself is the in-app delivery. `PUSH` is Web
+    Push to every browser the person subscribed (#2097).
     """
 
     IN_APP = "in_app"
     EMAIL = "email"
+    PUSH = "push"
 
 
 class Notification(Base, TimestampMixin):
@@ -147,7 +159,9 @@ class Notification(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused', 'capability_requested', 'suggestion', 'finding')",
+            "'background_task_paused', 'workflow_notification', "
+            "'artifact_owner_changed', 'artifact_share_requested', "
+            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

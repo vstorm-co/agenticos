@@ -51,7 +51,7 @@ def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthCon
     )
 
 
-def _skill(name="refunds", enabled=True, resources=None, *, ctx=None, owner_user_id=None):
+def _skill(name="refunds", resources=None, *, ctx=None, owner_user_id=None):
     """A skill row; given a `ctx` it is one the caller owns, so role scope reaches it."""
     skill = MagicMock()
     skill.id = uuid.uuid4()
@@ -61,7 +61,6 @@ def _skill(name="refunds", enabled=True, resources=None, *, ctx=None, owner_user
     skill.name = name
     skill.description = "How refunds are handled."
     skill.content = "# Refunds\n\nCheck the order first."
-    skill.enabled = enabled
     skill.version = 1
     skill.resources = resources or []
     return skill
@@ -82,7 +81,6 @@ def _row(name: str) -> Skill:
         description="How refunds are handled.",
         content="---\nname: x\n---\n\n# Refunds\n\nCheck the order first.",
         category=None,
-        enabled=True,
         visibility="org",
         resources=[],
     )
@@ -192,17 +190,6 @@ class TestAgentBinding:
             resolved = await SkillService(_db()).resolve_for_agent(ctx, [present.id, missing_id])
 
         assert resolved == [present]
-
-    @pytest.mark.anyio
-    async def test_disabled_skills_are_skipped(self):
-        ctx = _ctx()
-        disabled = _skill(enabled=False)
-
-        with patch(
-            "app.services.skills.skill_repo.get_many",
-            new=AsyncMock(return_value={disabled.id: disabled}),
-        ):
-            assert await SkillService(_db()).resolve_for_agent(ctx, [disabled.id]) == []
 
     @pytest.mark.anyio
     async def test_a_run_reads_a_skill_the_runner_could_not_reach_themselves(self):
@@ -1554,7 +1541,7 @@ class TestTheGalleryOnDisk:
         names += [entry.name for entry in skill_library.library()]
         # 75 - the AgenticOS guide among them - the seven the AI Architect ships
         # with (#2069), and the bundled visual-design (#2171).
-        assert len(names) == 83
+        assert len(names) == 85
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")

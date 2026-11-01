@@ -11,9 +11,15 @@ export default async function ArtifactPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ version?: string }>;
+  searchParams: Promise<{ version?: string; requests?: string }>;
 }) {
   const { id } = await params;
-  const { version } = await searchParams;
-  return <ArtifactViewer artifactId={id} initialVersionId={version ?? null} />;
+  const { version, requests } = await searchParams;
+  return (
+    <ArtifactViewer
+      artifactId={id}
+      initialVersionId={version ?? null}
+      openRequests={requests === "open"}
+    />
+  );
 }

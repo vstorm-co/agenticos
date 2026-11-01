@@ -1,0 +1,530 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import { useTableDisplay } from "./table-display-context";
+
+import { useState, type HTMLAttributes } from "react";
+import { createPortal } from "react-dom";
+import { LayoutGroup, MotionConfig, motion, useReducedMotion } from "motion/react";
+import { useLocale, useTranslations } from "next-intl";
+import { AlertTriangle, MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Skeleton,
+} from "@/components/ui";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
+import { queryRecords } from "@/lib/tables-api";
+import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
+import { getErrorMessage } from "@/lib/api-error";
+import { recordCellText } from "@/lib/format-cell-value";
+import { useTableViewStore } from "@/stores";
+import type { RecordConflict } from "@/stores/table-view-store";
+import { selectChips } from "./option-chip";
+import { useKanbanDrag } from "./use-kanban-drag";
+import type { ColumnDef, OptionDef, RecordFilter, RecordRead, RecordSort } from "@/types/tables";
+
+const LANE_PAGE_SIZE = 25;
+type PendingMove = { record: RecordRead; target: string | null };
+
+interface Lane {
+  /** `null` for the "no value" lane; a live option's id for a normal lane. */
+  optionId: string | null;
+  label: string;
+  /** The read-only catch-all lane a record holding an archived option lands in. */
+  archived?: boolean;
+}
+
+function laneFilter(groupBy: string, lane: Lane, archivedOptionIds: string[]): RecordFilter | null {
+  if (lane.archived) {
+    return archivedOptionIds.length > 0
+      ? { column_id: groupBy, op: "in", value: archivedOptionIds }
+      : null; // No archived options exist - the lane below skips fetching entirely.
+  }
+  return lane.optionId === null
+    ? { column_id: groupBy, op: "is_null", value: true }
+    : { column_id: groupBy, op: "eq", value: lane.optionId };
+}
+
+/** The most fields a card shows under its title: enough to tell cards apart. */
+const CARD_FIELDS = 4;
+
+function KanbanCard({
+  record,
+  titleColumn,
+  properties,
+  boolLabel,
+  dragProps,
+  onOpen,
+  conflict,
+  onReload,
+  onDiscard,
+  moveTargets,
+  onMoveTo,
+  canEdit,
+}: {
+  record: RecordRead;
+  // Always defined: `TableKanbanView` never renders a lane (and so never a
+  // card) until `columns` has yielded a `groupByColumn`, which guarantees
+  // `columns[0]` exists too.
+  titleColumn: ColumnDef;
+  /** The columns a card shows under its title, each with its value - empty ones left out. */
+  properties: ColumnDef[];
+  boolLabel: (value: boolean) => string;
+  dragProps: HTMLAttributes<HTMLDivElement>;
+  onOpen: () => void;
+  conflict: boolean;
+  onReload: () => void;
+  onDiscard: () => void;
+  moveTargets: { id: string | null; label: string }[];
+  onMoveTo: (optionId: string | null) => void;
+  /** No "Move to" menu for a caller who cannot write - absent, not disabled. */
+  canEdit: boolean;
+}) {
+  const t = useTranslations("tables.kanban");
+  const locale = useLocale();
+  const display = useTableDisplay();
+  const title = recordCellText(titleColumn, record, boolLabel, locale, display);
+  const shown = properties
+    .map((column) => ({ column, value: record.values[column.id] ?? null }))
+    .filter(
+      ({ value }) => value !== null && value !== "" && !(Array.isArray(value) && !value.length),
+    )
+    .slice(0, CARD_FIELDS);
+
+  return (
+    <motion.div
+      layout="position"
+      layoutId={record.id}
+      transition={{ duration: 0.18 }}
+      className="min-w-0"
+    >
+      <div
+        {...dragProps}
+        className="border-border/70 bg-background hover:border-border has-[[data-kanban-actions][data-state=open]]:border-border space-y-3 rounded-xl border p-3.5 text-sm shadow-sm transition-shadow hover:shadow-md"
+        style={{ touchAction: canEdit ? "pan-y" : undefined }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="min-w-0 flex-1 text-left leading-5 font-medium break-words"
+          >
+            {title || record.id}
+          </button>
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  data-kanban-actions
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  aria-label={t("moveTo")}
+                >
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-48">
+                {moveTargets.map((target) => (
+                  <DropdownMenuItem
+                    key={target.id ?? "__none__"}
+                    onSelect={() => onMoveTo(target.id)}
+                  >
+                    {target.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {shown.length > 0 && (
+          <dl className="space-y-1 text-xs">
+            {shown.map(({ column, value }) => (
+              <div key={column.id} className="flex min-w-0 items-center gap-2">
+                <dt className="text-muted-foreground w-20 shrink-0 truncate">{column.label}</dt>
+                <dd
+                  className={cn(
+                    "min-w-0 flex-1",
+                    display.wrap_text ? "break-words whitespace-pre-wrap" : "truncate",
+                  )}
+                >
+                  {selectChips(column, value) ??
+                    recordCellText(column, record, boolLabel, locale, display)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {conflict && (
+          <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{t("conflict")}</span>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className="underline" onClick={onReload}>
+                {t("reloadAndReapply")}
+              </button>
+              <button type="button" className="underline" onClick={onDiscard}>
+                {t("discard")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function KanbanLane({
+  tableId,
+  lane,
+  baseFilters,
+  search,
+  groupBy,
+  sort,
+  archivedOptionIds,
+  titleColumn,
+  properties,
+  boolLabel,
+  cardProps,
+  laneDropProps,
+  pendingMoves,
+  onOpenRecord,
+  moveTargets,
+  onMoveTo,
+  onReload,
+  onDiscard,
+  canEdit,
+}: {
+  tableId: string;
+  lane: Lane;
+  baseFilters: RecordFilter[];
+  search: string | null;
+  groupBy: string;
+  sort: RecordSort;
+  archivedOptionIds: string[];
+  titleColumn: ColumnDef;
+  properties: ColumnDef[];
+  boolLabel: (value: boolean) => string;
+  cardProps: (record: RecordRead) => HTMLAttributes<HTMLDivElement>;
+  laneDropProps: HTMLAttributes<HTMLDivElement>;
+  pendingMoves: ReadonlyMap<string, PendingMove>;
+  onOpenRecord: (record: RecordRead) => void;
+  moveTargets: { id: string | null; label: string }[];
+  onMoveTo: (record: RecordRead, targetOptionId: string | null) => void;
+  onReload: (recordId: string) => void;
+  onDiscard: (recordId: string) => void;
+  canEdit: boolean;
+}) {
+  const filter = laneFilter(groupBy, lane, archivedOptionIds);
+  const skipLane = lane.archived === true && filter === null;
+  const filters = filter ? [...baseFilters, filter] : baseFilters;
+  const query = { filters, search, sort, limit: LANE_PAGE_SIZE };
+  const { data, isLoading, error, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: qk.tables.recordsInfinite(tableId, query),
+      queryFn: ({ pageParam }) => queryRecords(tableId, { ...query, skip: pageParam }),
+      enabled: !skipLane,
+      initialPageParam: 0,
+      getNextPageParam: (last) =>
+        last.has_more && last.skip + LANE_PAGE_SIZE <= 10_000
+          ? last.skip + LANE_PAGE_SIZE
+          : undefined,
+    });
+  const deleting = useTableViewStore((state) => state.deleting);
+  const records = (data?.pages ?? [])
+    .flatMap((page) => page.items)
+    .filter((record) => !deleting[record.id] && !pendingMoves.has(record.id));
+  for (const { record, target } of pendingMoves.values()) {
+    if (!lane.archived && target === lane.optionId && !deleting[record.id]) records.push(record);
+  }
+  const truncated = data?.pages.at(-1)?.has_more && !hasNextPage;
+  const tc = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("tables.kanban");
+  // The store keys conflicts by record and field, shared with the record
+  // detail sheet. Only a conflict on *this* grouping column is the board's to
+  // show or reload; one on any other field belongs to the sheet.
+  const conflicts = useTableViewStore((state) => state.conflicts);
+  const isGroupingConflict = (recordId: string) => conflicts[recordId]?.[groupBy] !== undefined;
+
+  const noDrag = { draggable: false };
+
+  return (
+    <div
+      className="bg-muted/30 data-[drag-over=true]:bg-accent/70 data-[drag-over=true]:ring-ring/40 flex w-72 shrink-0 flex-col gap-3 rounded-xl p-3 transition-colors data-[drag-over=true]:ring-2 data-[drag-over=true]:ring-inset"
+      {...laneDropProps}
+    >
+      <div className="flex items-center justify-between px-1">
+        <span className="text-sm font-medium">{lane.label}</span>
+        <Badge variant="secondary">{records.length}</Badge>
+      </div>
+      <div className="min-h-16 space-y-2">
+        {isLoading && records.length === 0 && <Skeleton className="h-16 w-full" />}
+        {!isLoading && !error && records.length === 0 && (
+          <p className="text-muted-foreground px-1 text-xs">{t("empty")}</p>
+        )}
+        {records.map((record) => (
+          <KanbanCard
+            key={record.id}
+            record={record}
+            titleColumn={titleColumn}
+            properties={properties}
+            boolLabel={boolLabel}
+            dragProps={canEdit && !lane.archived ? cardProps(record) : noDrag}
+            onOpen={() => onOpenRecord(record)}
+            conflict={isGroupingConflict(record.id)}
+            onReload={() => onReload(record.id)}
+            onDiscard={() => onDiscard(record.id)}
+            moveTargets={moveTargets.filter(
+              (target) => target.id !== lane.optionId || lane.archived,
+            )}
+            onMoveTo={(target) => onMoveTo(record, target)}
+            canEdit={canEdit}
+          />
+        ))}
+      </div>
+      {error && (
+        <p role="alert" className="text-destructive px-1 text-xs">
+          {getErrorMessage(error, tErrors)}
+        </p>
+      )}
+      {error && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void (data ? fetchNextPage() : refetch());
+          }}
+        >
+          {tc("retry")}
+        </Button>
+      )}
+      {!error && hasNextPage && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={isFetchingNextPage}
+          onClick={() => {
+            void fetchNextPage();
+          }}
+        >
+          {isFetchingNextPage ? tc("loading") : t("loadMore")}
+        </Button>
+      )}
+      {truncated && <p className="text-muted-foreground px-1 text-xs">{t("moreAvailable")}</p>}
+    </div>
+  );
+}
+
+/**
+ * The kanban view: one lane per live `single_select` option of `groupBy`, a
+ * "no value" lane, and a read-only "Archived" catch-all a record holding an
+ * archived option still shows up in - unreachable by drag (dropping there is
+ * refused client-side, mirroring the server's own "archived column write
+ * refused" rule) but visible, so an archived-option record never simply
+ * vanishes from the board.
+ */
+export function TableKanbanView({
+  tableId,
+  columns,
+  shownColumns,
+  groupByColumnId,
+  baseFilters,
+  search = null,
+  sort,
+  onOpenRecord,
+  canEdit,
+}: {
+  tableId: string;
+  columns: ColumnDef[];
+  /**
+   * The columns the screen shows - its hidden ones left out - whose values a
+   * card lists under its title. Every live column when absent.
+   */
+  shownColumns?: ColumnDef[];
+  groupByColumnId: string;
+  baseFilters: RecordFilter[];
+  /** The search box's text, narrowing every lane alike. */
+  search?: string | null;
+  sort: RecordSort;
+  onOpenRecord: (record: RecordRead) => void;
+  /** No drag, no "Move to" menu, for a caller who cannot write to this table. */
+  canEdit: boolean;
+}) {
+  const t = useTranslations("tables.kanban");
+  const locale = useLocale();
+  const display = useTableDisplay();
+  const tCells = useTranslations("tables.cells");
+  const tErrors = useTranslations("errors");
+  const boolLabel = (value: boolean) => (value ? tCells("true") : tCells("false"));
+  const groupByColumn = columns.find((column) => column.id === groupByColumnId);
+  const { commit, fetchRecord, invalidate } = useRecordMutation(tableId);
+  const setConflict = useTableViewStore((state) => state.setConflict);
+  const clearConflict = useTableViewStore((state) => state.clearConflict);
+  const conflicts = useTableViewStore((state) => state.conflicts);
+
+  const [pendingMoves, setPendingMoves] = useState<ReadonlyMap<string, PendingMove>>(new Map());
+  const reducedMotion = useReducedMotion();
+  const { cardProps, laneProps, draggingItem, position } = useKanbanDrag<RecordRead>(
+    (record, targetOptionId) => moveRecord(record, targetOptionId),
+  );
+
+  const laneOf = (record: RecordRead) => record.values[groupByColumnId] ?? null;
+
+  function moveRecord(record: RecordRead, targetOptionId: string | null) {
+    // A card dropped back on its own lane is not a move. Writing it anyway
+    // could only fail - against a revision someone else has since advanced -
+    // with a conflict banner for a move the user never made.
+    if (laneOf(record) === targetOptionId) return;
+    const pending = { record, target: targetOptionId };
+    setPendingMoves((current) => new Map(current).set(record.id, pending));
+    const clearPending = () =>
+      setPendingMoves((current) => {
+        if (current.get(record.id) !== pending) return current;
+        const next = new Map(current);
+        next.delete(record.id);
+        return next;
+      });
+    commit(record, { [groupByColumnId]: targetOptionId }).then(
+      () => {
+        clearPending();
+        clearConflict(record.id, groupByColumnId);
+      },
+      (error: unknown) => {
+        clearPending();
+        // Anything but a conflict was already toasted by `useRecordMutation`.
+        if (isRevisionConflict(error)) {
+          setConflict({
+            recordId: record.id,
+            pendingValues: { [groupByColumnId]: targetOptionId },
+            fieldId: groupByColumnId,
+          });
+        }
+      },
+    );
+  }
+
+  /**
+   * Refetches the record and retries the same lane move against its fresh
+   * revision. Only ever wired to a card's "reload and reapply" button, which
+   * renders only while the conflict on that record is about this grouping
+   * column - so `pending.pendingValues[groupByColumnId]` is always present,
+   * set by nothing but `moveRecord`'s own conflict handler above.
+   *
+   * The conflict is cleared only once the retry move has actually landed, so
+   * a failed refetch or retry keeps the pending move. A failed refetch says
+   * why; a record that is gone drops the move, since there is nothing left to
+   * move. A record someone else already moved to the pending lane needs no
+   * retry at all.
+   */
+  async function reloadAndReapply(recordId: string) {
+    // Only ever invoked while `isGroupingConflict(recordId)` is true, which is
+    // exactly `conflicts[recordId]?.[groupByColumnId] !== undefined`.
+    const pending = conflicts[recordId]?.[groupByColumnId] as RecordConflict;
+    const target = pending.pendingValues[groupByColumnId] as string | null;
+    let fresh: RecordRead;
+    try {
+      fresh = await fetchRecord(recordId);
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+      if (isRecordGone(error)) discardConflict(recordId);
+      return;
+    }
+    if (laneOf(fresh) === target) discardConflict(recordId);
+    else moveRecord(fresh, target);
+  }
+
+  /**
+   * Drops the pending move and lets the record land wherever its current
+   * server value actually places it. No optimistic move was ever applied
+   * client-side, so the record already sits in the lane its last-known state
+   * put it in; refetching every lane's records is what brings that back in
+   * line with the row the conflict itself proved had changed server-side.
+   */
+  function discardConflict(recordId: string) {
+    clearConflict(recordId, groupByColumnId);
+    void invalidate();
+  }
+
+  if (!groupByColumn || groupByColumn.type !== "single_select") {
+    return <p className="text-muted-foreground text-sm">{t("needsGroupingColumn")}</p>;
+  }
+  // `groupByColumn` was found in `columns`, so `columns` has at least one
+  // element and this index is never out of range.
+  const titleColumn = columns[0] as ColumnDef;
+  const properties = (shownColumns ?? columns.filter((column) => !column.archived)).filter(
+    (column) => column.id !== titleColumn.id && column.id !== groupByColumnId,
+  );
+
+  const liveOptions: OptionDef[] = groupByColumn.options.filter((option) => !option.archived);
+  const archivedOptionIds = groupByColumn.options
+    .filter((option) => option.archived)
+    .map((option) => option.id);
+
+  const lanes: Lane[] = [
+    ...liveOptions.map((option): Lane => ({ optionId: option.id, label: option.label })),
+    { optionId: null, label: t("noValue") },
+    { optionId: null, label: t("archivedLane"), archived: true },
+  ];
+  const moveTargets = [
+    ...liveOptions.map((option) => ({ id: option.id as string | null, label: option.label })),
+    { id: null, label: t("noValue") },
+  ];
+
+  return (
+    <MotionConfig reducedMotion="user">
+      <LayoutGroup>
+        <div data-kanban-board className="flex min-h-0 flex-1 gap-3 overflow-auto p-3">
+          {lanes.map((lane) => (
+            <KanbanLane
+              key={lane.archived ? "__archived__" : (lane.optionId ?? "__none__")}
+              tableId={tableId}
+              lane={lane}
+              baseFilters={baseFilters}
+              search={search}
+              groupBy={groupByColumnId}
+              sort={sort}
+              archivedOptionIds={archivedOptionIds}
+              titleColumn={titleColumn}
+              properties={properties}
+              boolLabel={boolLabel}
+              cardProps={cardProps}
+              laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}
+              pendingMoves={pendingMoves}
+              onOpenRecord={onOpenRecord}
+              moveTargets={moveTargets}
+              onMoveTo={moveRecord}
+              onReload={(recordId) => void reloadAndReapply(recordId)}
+              onDiscard={discardConflict}
+              canEdit={canEdit}
+            />
+          ))}
+        </div>
+        {draggingItem !== null &&
+          position !== null &&
+          createPortal(
+            <div
+              className="bg-card pointer-events-none fixed z-[100] w-64 rounded-xl border p-4 text-sm font-medium shadow-xl"
+              style={{
+                left: position.x + 12,
+                top: position.y + 12,
+                transform: reducedMotion ? undefined : "rotate(2deg)",
+              }}
+            >
+              {recordCellText(titleColumn, draggingItem, boolLabel, locale, display)}
+            </div>,
+            document.body,
+          )}
+      </LayoutGroup>
+    </MotionConfig>
+  );
+}

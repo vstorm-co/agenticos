@@ -32,8 +32,9 @@ a surface that cannot narrate one still runs; it is simply not narrated.
 
 from collections.abc import Awaitable, Callable
 from typing import Literal, Protocol
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 BrowseOutcome = Literal["done", "blocked", "exhausted", "failed"]
 """How a browse ended, and all four are ordinary.
@@ -65,6 +66,7 @@ class BrowserEvent(BaseModel):
         "browser_released",
         "browser_needs_person",
         "browser_pointer",
+        "browser_control_error",
     ]
 
     call_id: str = Field(
@@ -89,6 +91,18 @@ class BrowserEvent(BaseModel):
         description="Where the browser is. Present on the opening frame and on every step.",
     )
     title: str | None = Field(default=None, description="The page's title, when it has one.")
+
+    tab_id: str | None = None
+    """Stable tab identity across selected views and resumed turns."""
+
+    native_id: str | None = None
+    """An opaque tab handle usable only by its owning paired desktop app."""
+
+    resumable: bool = False
+    """A private conversation checkpoint can restore this page after the run."""
+
+    navigable: bool = False
+    """Whether this view is a browser tab rather than a computer screen."""
 
     max_steps: int | None = Field(
         default=None,
@@ -235,7 +249,20 @@ class BrowserCommand(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    type: Literal["take_over", "give_back", "click", "type", "key", "scroll", "resize"]
+    type: Literal[
+        "take_over",
+        "give_back",
+        "click",
+        "type",
+        "key",
+        "scroll",
+        "resize",
+        "navigate",
+        "back",
+        "forward",
+        "reload",
+    ]
+    url: str | None = Field(default=None, max_length=8192)
     x: float | None = Field(default=None, ge=0, le=4000)
     y: float | None = Field(default=None, ge=0, le=4000)
     text: str | None = Field(default=None, max_length=2000)
@@ -266,6 +293,24 @@ class BrowserCommand(BaseModel):
             "the run acts for, and this is how the browse tells."
         ),
     )
+
+    @field_validator("url")
+    @classmethod
+    def _web_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            raise ValueError("Use an HTTP or HTTPS address without embedded credentials.")
+        # Reading the port also rejects malformed and out-of-range port numbers.
+        if parsed.port is not None and not 1 <= parsed.port <= 65535:
+            raise ValueError("Use a valid port number.")
+        return value
 
 
 class BrowserControl(Protocol):

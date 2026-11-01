@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { modelInUse, runsAgents } from "@/lib/model-profiles";
@@ -88,6 +88,23 @@ export function useProviderCatalog() {
     // Fixed until the platform is redeployed.
     staleTime: Infinity,
   });
+}
+
+/**
+ * The organization's model profiles alone, for a surface that only names a model
+ * - a workflow card - and has no use for the catalog or the mutations beside
+ * them. `enabled` is the caller's permission to list them: the read is refused
+ * to anyone who cannot see agents, and a refusal is not worth a retry.
+ */
+export function useModelProfiles({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: qk.providers.modelProfiles(),
+    queryFn: () => apiClient.get<ModelProfileList>("/providers/model-profiles"),
+    enabled,
+    retry: (failureCount, cause) =>
+      !(cause instanceof ApiError && cause.status === 403) && failureCount < 1,
+  });
+  return { profiles: query.data?.items ?? [] };
 }
 
 export function useModelProviders() {

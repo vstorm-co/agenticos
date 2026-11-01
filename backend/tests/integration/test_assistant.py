@@ -151,8 +151,8 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
         binding.id for binding in spec.capabilities
     }
     # Its skills for building agents, installed with it (#2069), and the guide
-    # to AgenticOS itself that its questions about the product are answered from.
-    assert len(spec.skill_ids) == 8
+    # to AgenticOS itself, plus workflow-builder and virtual-tables.
+    assert len(spec.skill_ids) == 10
     # What the chat offers somebody opening it there with nothing said yet (#2301).
     assert spec.starters[0] == "Build me an agent that answers questions from our documents"
 
@@ -607,3 +607,114 @@ async def test_a_deployment_with_a_sandbox_gives_it_files_and_code(
     config = SandboxConfig.model_validate(sandbox[0].config)
     assert config.backend == "service"
     assert config.include_execute
+
+
+async def test_refresh_publishes_new_instructions_and_guide_without_changing_configuration(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from app.repositories import skill_repo
+    from app.services import agent_templates, skill_library
+    from app.services.assistant import GUIDE_KEY, TEMPLATE_KEY
+    from app.services.skills import LibraryRefresh
+
+    organization, owner = await _organization(db)
+    await _model(db, organization)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    state = await service.state(ctx)
+    assert state.agent_id is not None
+    agent = await service.registry.get(ctx, state.agent_id)
+    before = AgentSpec.model_validate(agent.draft_spec)
+    first_id = agent.current_version_id
+    assert first_id is not None
+    template = agent_templates.get(TEMPLATE_KEY)
+    guide = skill_library.gallery_get(GUIDE_KEY)
+    assert template is not None and guide is not None
+    refreshed = replace(template, instructions=template.instructions + "\nNew shipped instruction.")
+    refreshed_guide = replace(guide, content=guide.content + "\nNew shipped guide.")
+    monkeypatch.setattr("app.services.assistant._template", lambda: refreshed)
+    original_get = skill_library.gallery_get
+    monkeypatch.setattr(
+        skill_library,
+        "gallery_get",
+        lambda key: refreshed_guide if key == GUIDE_KEY else original_get(key),
+    )
+    row = await organization_assistant_repo.get(db, organization.id)
+    assert row is not None and row.instructions_fingerprint is not None
+    row.enabled = False
+    row.greeting = "Our greeting"
+    await db.flush()
+    dry = await service.refresh(ctx, dry_run=True)
+    assert dry.instructions is LibraryRefresh.UPDATE and dry.guide is LibraryRefresh.UPDATE
+    assert agent.current_version_id == first_id
+    result = await service.refresh(ctx)
+    assert result.published_version == 2
+    after = AgentSpec.model_validate(agent.draft_spec)
+    assert after.instructions == refreshed.instructions
+    assert after.model_dump(exclude={"instructions"}) == before.model_dump(exclude={"instructions"})
+    old = await agent_repo.get_version(db, first_id, organization_id=organization.id)
+    assert old is not None and old.spec["instructions"] == before.instructions
+    copy = await skill_repo.get_by_name(db, guide.name, organization_id=organization.id)
+    assert copy is not None and copy.content == refreshed_guide.content and copy.version == 2
+    assert row.enabled is False and row.greeting == "Our greeting"
+    again = await service.refresh(ctx)
+    assert again.instructions is LibraryRefresh.CURRENT and again.guide is LibraryRefresh.CURRENT
+    assert again.published_version is None and copy.version == 2
+
+
+@pytest.mark.security
+async def test_refresh_protects_organization_edits_and_pending_configuration(
+    db: AsyncSession,
+) -> None:
+    from app.repositories import skill_repo
+    from app.schemas.skill import SkillUpdate
+    from app.services import skill_library
+    from app.services.assistant import GUIDE_KEY
+    from app.services.skills import LibraryRefresh, SkillService
+
+    organization, owner = await _organization(db)
+    await _model(db, organization)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    state = await service.state(ctx)
+    assert state.agent_id is not None
+    agent = await service.registry.get(ctx, state.agent_id)
+    spec = AgentSpec.model_validate(agent.draft_spec)
+    custom = spec.model_copy(update={"instructions": "Our instructions"})
+    await service.registry.save_draft(ctx, agent.id, custom)
+    await service.registry.publish(ctx, agent.id)
+    guide = skill_library.gallery_get(GUIDE_KEY)
+    assert guide is not None
+    copy = await skill_repo.get_by_name(db, guide.name, organization_id=organization.id)
+    assert copy is not None
+    await SkillService(db).update(ctx, copy.id, SkillUpdate(content="Our guide"))
+    result = await service.refresh(ctx)
+    assert result.instructions is LibraryRefresh.EDITED and result.guide is LibraryRefresh.EDITED
+    assert agent.draft_spec["instructions"] == "Our instructions" and copy.content == "Our guide"
+    await service.registry.save_draft(
+        ctx, agent.id, custom.model_copy(update={"description": "Pending description"})
+    )
+    blocked = await service.refresh(ctx, replace_edited=True)
+    assert "pending draft changes" in blocked.detail
+    assert agent.draft_spec["description"] == "Pending description" and copy.content == "Our guide"
+    await service.registry.save_draft(ctx, agent.id, custom)
+    forced = await service.refresh(ctx, replace_edited=True)
+    assert forced.published_version == 3
+    assert agent.draft_spec["instructions"] == spec.instructions and copy.content == guide.content
+
+
+@pytest.mark.security
+async def test_refresh_refuses_members_and_does_not_install_missing_assistants(
+    db: AsyncSession,
+) -> None:
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+    service = AssistantService(db)
+    missing = await service.refresh(ctx)
+    assert missing.instructions is None and "not installed" in missing.detail
+    assert await organization_assistant_repo.get(db, organization.id) is None
+    viewer = await _member(db, organization, OrgRoleName.VIEWER)
+    with pytest.raises(AuthorizationError):
+        await service.refresh(viewer, replace_edited=True)

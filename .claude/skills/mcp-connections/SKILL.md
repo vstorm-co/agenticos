@@ -107,25 +107,38 @@ The **connection's own URL** is checked at save and resolved again at run time â
 point-in-time check (#840), bearable only because an operator typed it. A URL a *model*
 chose belongs in neither; it needs `safe_download`.
 
-`MCP_ALLOWED_HOSTS` exempts a listed host from the address half of the check on
-a connection's own URL: `_checked_url` (save, update, the sign-in probe and the
-OAuth start) always passes `honour_allowlist=True`. The OAuth requests after it
-get `mcp.trusted_hosts_for(server_url)`, which is every listed host when the
-connection's own host is listed and none otherwise. `resolve_pinned_url` still
-resolves and pins a trusted host and refuses loopback, link-local and metadata
-answers for it. The catalog audit stays strict. Never compute the trusted set
-from a URL a remote server named: that is how a public server would aim its
-token endpoint at a listed host.
+The MCP allowlist (`sanitize.mcp_allowlist()`: `MCP_ALLOWED_HOSTS` plus
+`OUTBOUND_PRIVATE_ALLOWLIST`) exempts a listed host's private answer from the address half of the
+check on a connection's own URL: `_checked_url` (save, update, the sign-in probe
+and the OAuth start) always passes `honour_allowlist=True` to `validate_mcp_url`.
+Every host is resolved and every answer checked: a private answer passes only for a
+host the list admits, loopback and metadata never, and a host admitted by name
+that does not resolve yet is accepted (#840). The OAuth requests after it get
+`sanitize.allowlist_for(server_url, mcp_allowlist())` (the origin rule): the whole
+list when the connection's own host needs it, nothing otherwise.
+`resolve_pinned_url` still resolves and pins a listed host and refuses loopback,
+link-local and metadata answers for it. The catalog audit stays strict. Never
+compute the allowlist from a URL a remote server named: that is how a public
+server would aim its token endpoint at a listed host.
 
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.
 
-## MCP tools are not gated
+## MCP approvals
 
-`approval_required_tools` iterates `spec.capabilities` only. MCP tools are discovered
-at run time, so nothing declared them and nothing approves them. Say so plainly when
-reviewing a change that adds a connection to a published agent â€” do not imply a gate
-exists.
+`approval_required_tools` covers capability tools; MCP tools are marked separately
+by `ApprovalMarked` and enforced by the same `ApprovalGate`. A binding's `writes`
+policy trusts only `readOnlyHint: true`; missing or false hints require approval.
+`all` also gates reads, and `none` waives the binding's gate. The platform server
+always enforces at least `writes`, with deliberate exceptions in `HELD` and
+`UNGATED` in `services/platform_mcp/_tools.py`.
+
+Channel runs, including delegates and resumptions, enforce at least `writes` on
+all MCP bindings. Read-only calls no longer acquire an extra approval merely by
+running in a chat app for a linked member. Unlinked room participants still
+require approval for every MCP call, including organization reads. Personal
+connections resolve for each message's linked sender, never the publisher or a
+different participant.
 
 Cost is the same story: what a server does on its own side is outside this platform's
 budget. Only model tokens are counted.

@@ -87,7 +87,7 @@ def _validate_model_id(provider: str, model: str) -> None:
 async def validate_endpoint_url(url: str) -> str:
     """Check a provider `base_url` before the platform will store it.
 
-    Everywhere else - webhooks, an MCP server not on `MCP_ALLOWED_HOSTS` - an
+    Everywhere else - webhooks, an MCP server the MCP allowlist does not admit - an
     internal address is an SSRF attempt and is refused. Here it is frequently
     the entire point: Ollama on `localhost:11434`, a vLLM server on the
     deployment's own network, a LiteLLM proxy beside the API. Local models are a first-class provider, so
@@ -712,6 +712,35 @@ class ModelProfileService:
         usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], None)]
         return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
 
+    async def profile_for_organization(
+        self, organization_id: UUID, *, profile_id: UUID | None
+    ) -> ModelProfile:
+        """Read the tenant's model identity without opening its credentials.
+
+        A paired-device model uses this identity for attribution while replacing
+        inference; it must not require a usable cloud credential first.
+        """
+        profile = None
+        if profile_id is not None:
+            profile = await credential_repo.get_profile(
+                self.db, profile_id, organization_id=organization_id
+            )
+            if profile is None:
+                raise NotFoundError(
+                    message="Model profile not found", details={"profile_id": str(profile_id)}
+                )
+        else:
+            # No fallback to "the organization's default". A model an agent did
+            # not choose is a model somebody else's change can swap underneath
+            # it - the same spec answering on a different model, at a different
+            # price, because a flag moved on another page. An agent names its
+            # model, and publish validation refuses a spec that does not.
+            raise NotFoundError(
+                message="This agent has no model selected",
+            )
+
+        return profile
+
     async def _resolve_in(
         self,
         organization_id: UUID,
@@ -736,24 +765,7 @@ class ModelProfileService:
             NotFoundError: If the named profile is missing or none was selected.
             BadRequestError: If the profile names a known non-chat model.
         """
-        profile = None
-        if profile_id is not None:
-            profile = await credential_repo.get_profile(
-                self.db, profile_id, organization_id=organization_id
-            )
-            if profile is None:
-                raise NotFoundError(
-                    message="Model profile not found", details={"profile_id": str(profile_id)}
-                )
-        else:
-            # No fallback to "the organization's default". A model an agent did
-            # not choose is a model somebody else's change can swap underneath
-            # it - the same spec answering on a different model, at a different
-            # price, because a flag moved on another page. An agent names its
-            # model, and publish validation refuses a spec that does not.
-            raise NotFoundError(
-                message="This agent has no model selected",
-            )
+        profile = await self.profile_for_organization(organization_id, profile_id=profile_id)
 
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:

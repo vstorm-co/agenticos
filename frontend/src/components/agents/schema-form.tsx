@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Eye, EyeOff } from "lucide-react";
+import Image from "next/image";
+import { ChevronRight, Cloud, Container, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
 
 import {
+  Checkbox,
   Input,
   Label,
   MarkdownEditor,
@@ -234,8 +236,11 @@ function SchemaField({
 }: SchemaFieldProps) {
   const t = useTranslations("agents");
   const label = copy?.title ?? property.title ?? humanise(name);
-  const description = copy?.description ?? property.description;
-  const choices = enumChoices(property);
+
+  const computerEnvironment = property["x-widget"] === "computer-environment";
+  const tiled = computerEnvironment || property["x-widget"] === "browser-connection";
+  const choices =
+    enumChoices(property)?.filter((choice) => !computerEnvironment || choice !== "auto") ?? null;
   const kind = resolveKind(property);
   const masked = isSecret(property);
   // What the field shows while nobody has touched it. Shown as the *value*
@@ -246,6 +251,20 @@ function SchemaField({
   // to its default mean the same thing to the server, and writing the default
   // in would freeze it against a later change in code.
   const fallback = defaultOf(property);
+  const selected =
+    typeof value === "string" ? value : typeof fallback === "string" ? fallback : UNSET;
+  const optionDescriptions =
+    property["x-enum-descriptions"] ??
+    property.anyOf?.find((entry) => entry["x-enum-descriptions"])?.["x-enum-descriptions"];
+  const description =
+    computerEnvironment && selected === "auto"
+      ? (copy?.description ?? property.description)
+      : ((kind === "enum"
+          ? (copy?.options?.[selected]?.description ?? optionDescriptions?.[selected])
+          : undefined) ??
+        copy?.description ??
+        property.description);
+
   const multiline = property["x-multiline"] === true;
   // A connector's plain-text config box (`textarea`), distinct from the prompt
   // editor `multiline` gets: the two never coincide on one field.
@@ -271,9 +290,12 @@ function SchemaField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <Label htmlFor={id}>
+        <Label htmlFor={id} title={property["x-hint"]}>
           {label}
           {required && <span className="text-muted-foreground"> *</span>}
+          {property["x-hint"] !== undefined && (
+            <span className="sr-only">{`. ${property["x-hint"]}`}</span>
+          )}
         </Label>
         {kind === "boolean" && (
           <Switch
@@ -285,6 +307,34 @@ function SchemaField({
           />
         )}
       </div>
+
+      {kind === "suggested" && (
+        <>
+          <Input
+            id={id}
+            list={`${id}-suggestions`}
+            placeholder={placeholder}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : event.target.value)
+            }
+            {...invalid}
+          />
+          {/* A native datalist rather than a combobox component: this is an
+              ordinary text field that offers the usual answers, and anything
+              richer would be a widget standing between somebody and a string
+              they already know how to type. i18n-exempt: option values are
+              identifiers the backend validates, not copy. */}
+          <datalist id={`${id}-suggestions`}>
+            {(suggestions(property) ?? []).map((choice) => (
+              <option key={choice} value={choice}>
+                {enumLabel(property, choice, copy)}
+              </option>
+            ))}
+          </datalist>
+        </>
+      )}
 
       {kind === "number" && (
         <Input
@@ -305,7 +355,47 @@ function SchemaField({
         />
       )}
 
-      {kind === "enum" && choices !== null && (
+      {kind === "enum" && choices !== null && tiled && (
+        <div
+          id={id}
+          role="radiogroup"
+          aria-label={label}
+          aria-describedby={description ? `${id}-description` : undefined}
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+          {...invalid}
+        >
+          {choices.map((choice) => {
+            return (
+              <button
+                key={choice}
+                type="button"
+                role="radio"
+                aria-checked={selected === choice}
+                aria-label={enumLabel(property, choice, copy)}
+                disabled={disabled}
+                onClick={() => onChange(choice)}
+                className={cn(
+                  "flex min-h-14 flex-col items-start gap-1.5 rounded-xl border px-3 py-3 text-left text-sm transition-colors disabled:opacity-50",
+                  selected === choice
+                    ? "border-foreground/40 bg-foreground/5"
+                    : "border-border hover:bg-muted",
+                )}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  {choiceMark(choice, computerEnvironment ? "desktop" : "browser-connection")}
+                  {enumLabel(property, choice, copy)}
+                </span>
+                {copy?.options?.[choice]?.summary && (
+                  <span className="text-muted-foreground text-xs leading-relaxed">
+                    {copy?.options?.[choice]?.summary}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {kind === "enum" && choices !== null && !tiled && (
         <Select
           value={
             typeof value === "string" ? value : typeof fallback === "string" ? fallback : UNSET
@@ -313,7 +403,7 @@ function SchemaField({
           disabled={disabled}
           onValueChange={(choice) => onChange(choice === UNSET ? undefined : choice)}
         >
-          <SelectTrigger id={id}>
+          <SelectTrigger id={id} aria-describedby={description ? `${id}-description` : undefined}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -331,17 +421,39 @@ function SchemaField({
             {choices.map((choice) => (
               <SelectItem key={choice} value={choice}>
                 <span className="flex items-center gap-2">
-                  {/* The service's own mark, where the value names one. A list of
-                      search providers or model vendors is read by their logos
-                      before it is read at all, and the choice is the one thing
-                      on these forms that is a product rather than a setting. */}
-                  {choiceMark(choice)}
-                  {enumLabel(property, choice)}
+                  {/* Environment symbols and provider marks also appear in the selected value. */}
+                  {choiceMark(choice, name)}
+                  {enumLabel(property, choice, copy)}
                 </span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {kind === "choiceList" && (
+        <div id={id} role="group" aria-label={label} className="flex flex-wrap gap-x-4 gap-y-2">
+          {(listChoices(property) ?? []).map((choice) => {
+            const picked = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : [];
+            const on = picked.includes(choice);
+            return (
+              <label key={choice} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={on}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => {
+                    const next =
+                      checked === true
+                        ? [...picked, choice]
+                        : picked.filter((item) => item !== choice);
+                    onChange(next.length === 0 ? undefined : next);
+                  }}
+                />
+                {enumLabel(property, choice, copy)}
+              </label>
+            );
+          })}
+        </div>
       )}
 
       {kind === "stringList" && (
@@ -478,7 +590,11 @@ function SchemaField({
         </div>
       )}
 
-      {description && <p className="text-muted-foreground text-xs">{description}</p>}
+      {description && (
+        <p id={`${id}-description`} className="text-muted-foreground text-xs">
+          {description}
+        </p>
+      )}
 
       {error !== undefined && (
         <p id={errorId} className="text-destructive text-xs">
@@ -515,7 +631,29 @@ function SchemaModelProfile({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList" | "modelProfile";
+type FieldKind =
+  | "string"
+  | "number"
+  | "boolean"
+  | "enum"
+  | "suggested"
+  | "stringList"
+  | "choiceList"
+  | "modelProfile";
+
+/**
+ * The values a field suggests without restricting itself to them.
+ *
+ * `x-suggestions` is the open counterpart of `enum`: the backend validates a
+ * plain string and the catalog is what most people want, so the form offers the
+ * catalog and still accepts anything. A decision step's `model` is the case it
+ * serves - the catalog holds the moving aliases, and a step whose confidence
+ * floor was tuned against a pinned build has to be able to name that build.
+ */
+function suggestions(property: JsonSchemaProperty): string[] | null {
+  const values = property["x-suggestions"];
+  return Array.isArray(values) && values.every((v) => typeof v === "string") ? values : null;
+}
 
 /**
  * What kind of input a property needs.
@@ -526,9 +664,14 @@ type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList" | "mode
  */
 function resolveKind(property: JsonSchemaProperty): FieldKind {
   if (property["x-widget"] === "model-profile") return "modelProfile";
+  // Before the enum check: a field carrying suggestions is an *open* string
+  // that happens to know the usual answers, and rendering it as a closed
+  // select would forbid the unusual one it exists to allow.
+  if (suggestions(property) !== null) return "suggested";
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";
+  if (listChoices(property) !== null) return "choiceList";
   if (isStringList(property)) return "stringList";
 
   const candidates = property.anyOf
@@ -552,6 +695,19 @@ function resolveKind(property: JsonSchemaProperty): FieldKind {
  */
 function enumChoices(property: JsonSchemaProperty): string[] | null {
   const values = property.enum ?? property.anyOf?.find((entry) => entry.enum)?.enum;
+  if (values === undefined) return null;
+  return values.filter((value): value is string => typeof value === "string");
+}
+
+/**
+ * The values a list of choices may hold - a `tuple[Literal[...], ...]` - or null.
+ *
+ * Its labels are on the list itself (`x-enum-labels`), since the list is the
+ * field a person reads; each value is ticked on or off.
+ */
+function listChoices(property: JsonSchemaProperty): string[] | null {
+  const branch = property.anyOf?.find((entry) => entry.type === "array") ?? property;
+  const values = branch.type === "array" ? branch.items?.enum : undefined;
   if (values === undefined) return null;
   return values.filter((value): value is string => typeof value === "string");
 }
@@ -596,7 +752,7 @@ function numberText(value: unknown, fallback: unknown): string {
 }
 
 /**
- * The mark for one enum value, where the value names something with a logo.
+ * Environment symbols are scoped to the desktop field; other enums keep provider marks.
  *
  * Two shapes reach here. A value that *is* a service - `brave`, `tavily` - wears
  * that service's mark. A value that names a provider and a model - the image
@@ -605,7 +761,43 @@ function numberText(value: unknown, fallback: unknown): string {
  * `openai-responses` and `google-vertex` are OpenAI and Google to a reader, and
  * the provider table is keyed the way the model catalog is.
  */
-function choiceMark(choice: string) {
+function choiceMark(choice: string, field: string) {
+  if (field === "desktop") {
+    const className = "h-3.5 w-3.5 shrink-0";
+    switch (choice) {
+      case "e2b":
+        // Official E2B app mark, from https://e2b.dev/icon2.png.
+        return (
+          <Image
+            src="/icons/e2b.png"
+            width={20}
+            height={20}
+            alt=""
+            className="size-5 shrink-0"
+            unoptimized
+          />
+        );
+      case "sandbox":
+        return <Container className={className} aria-hidden />;
+      case "local":
+        return <Laptop className={className} aria-hidden />;
+      case "daemon":
+        return <Network className={className} aria-hidden />;
+    }
+  }
+  if (field === "browser-connection") {
+    const className = "h-4 w-4 shrink-0";
+    switch (choice) {
+      case "local":
+        return <Laptop className={className} aria-hidden />;
+      case "hosted":
+        return <Cloud className={className} aria-hidden />;
+      case "proxy":
+        return <Network className={className} aria-hidden />;
+      default:
+        return <Globe className={className} aria-hidden />;
+    }
+  }
   if (choice in BRAND_GLYPHS) {
     return <BrandIcon name={choice as BrandName} className="h-3.5 w-3.5 shrink-0" />;
   }
@@ -634,11 +826,11 @@ function choiceMark(choice: string) {
  * turning `get_channel_info` into `Get channel info` in a picker whose choice is
  * stored as the former is a rename this form is not entitled to make.
  */
-function enumLabel(property: JsonSchemaProperty, choice: string): string {
+function enumLabel(property: JsonSchemaProperty, choice: string, copy: FieldCopy | null): string {
   const labels =
     property["x-enum-labels"] ??
     property.anyOf?.find((entry) => entry["x-enum-labels"])?.["x-enum-labels"];
-  return labels?.[choice] ?? choice;
+  return copy?.options?.[choice]?.label ?? labels?.[choice] ?? choice;
 }
 
 /**

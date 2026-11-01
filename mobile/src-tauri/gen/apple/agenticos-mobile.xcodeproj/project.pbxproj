@@ -1,0 +1,796 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		12978E01B3762251F2F19CA5 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 21A5872A28B8D11BC1E3D8BE /* InfoPlist.xcstrings */; };
+		13B804E1A7B3905A6D2E894F /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 683111D761F8E523C5CDB205 /* ActivityKit.framework */; };
+		1A8679D8BD31C49745437BEE /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = EBF8B6868BC7B9A796773730 /* main.mm */; };
+		1C09717C17BEC554CD970A7B /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A61884A057B82A3E71FCB1B /* SwiftUI.framework */; };
+		21CAC51F519C6C508ACF8E9A /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B4A8496297A665C2CC26646 /* MetalKit.framework */; };
+		3EDF3AC2BD2BF50CF62B313A /* AgentLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BAD640CE5DC4E3ABE31340 /* AgentLiveActivity.swift */; };
+		418BD92ACE8EE180848EF553 /* AgenticOSShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D167F85815F8B0DF65CFE69D /* AgenticOSShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4AE3DF441836FE0552FEEFFB /* PinnedAgentsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2DC0CD5A07B58380162622 /* PinnedAgentsWidget.swift */; };
+		5264463D2FD5F020CE2B9486 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B4E897E97F75D09FCA1C1B /* Shared.swift */; };
+		5F386E1EBDC2F99D3C9B1058 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 891259CD11C86DF6FF54D094 /* Localizable.xcstrings */; };
+		60FF6A8CA48D615BBBDB91E5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9E6EA018F5FAF413A0FF4A25 /* WidgetKit.framework */; };
+		6C9A37512972C4E92EF345BB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6D48B53F91EA67B7AB4E192A /* Assets.xcassets */; };
+		7211F39DCA063DDD7AEC66CC /* Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF80166828A25B2ED5A4990 /* Controls.swift */; };
+		73132B1CBCACF612CD34B376 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B4E897E97F75D09FCA1C1B /* Shared.swift */; };
+		809D89DD444DEDB0887BEAA7 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6CB948D678B47BB557818F14 /* WebKit.framework */; };
+		845370A2A22D3B1F2B51D171 /* GlanceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB926DC799F54DE25D3C1A3 /* GlanceWidget.swift */; };
+		8E34FF63E2A38F06E96E67B2 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8CDE1654D9CCBAA8E93A7108 /* QuartzCore.framework */; };
+		8ECBD08557270B2AF53BE921 /* AgenticOSWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30E68FD214CE84D972367B9C /* AgenticOSWidgets.swift */; };
+		974CE5128655DE58D7145F32 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0D9D73A63733DF57DD784CE8 /* libapp.a */; };
+		9A1983B5739B9CB482D96BAE /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A272CCA6E4820F48C020B2EC /* UIKit.framework */; };
+		9EA262CA9AA230D7A575763D /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA6B3E9BE1F686F2E4EE4A2C /* Intents.swift */; };
+		A8B9369DCF8571AC5A94CE3A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5CAD87E92EC2ECB8A52D87EC /* LaunchScreen.storyboard */; };
+		A90EB3B2DE369D753C8C0404 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 68EB8E6CCE0CC00E30EA1397 /* Security.framework */; };
+		AF39FECB8C93030EA86F5F82 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 9204D0DEB5256E74E3E784E3 /* Localizable.xcstrings */; };
+		B2616DE0BAD8F1ABA2338008 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1937BD91986900E09B0C4552 /* CoreGraphics.framework */; };
+		BF5F610B5178773B416873A7 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C20E08DB188CBB07F32F0F /* ShareViewController.swift */; };
+		BF796F74E85B6383A8741804 /* Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B4E897E97F75D09FCA1C1B /* Shared.swift */; };
+		E60A0DBA457E105214814070 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50EEB4E91D908BCBE832B031 /* Metal.framework */; };
+		E94D7CBBFB40D29CC0154BD1 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = C24CD8D208F513BC495C5BD7 /* assets */; };
+		ED362105C4FBC2E38FAF2F2D /* AgenticOSWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7161D93DEFD11D4F01D11C47 /* AgenticOSWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FC5EF416E8967A96AF2A1E51 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = F7BC11ED98A87D8F5FA0C54C /* Localizable.xcstrings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0BB88B1952D4B35648B7139B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB4176D98E111AFB8D9EF1E4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A7E1BE065ECE70E4BEF9AE51;
+			remoteInfo = AgenticOSShare;
+		};
+		A0C460045D2113FAB09A803B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB4176D98E111AFB8D9EF1E4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DC2AFA1BEB8159D2F1689C54;
+			remoteInfo = AgenticOSWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		919747883283D0627C70265E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				ED362105C4FBC2E38FAF2F2D /* AgenticOSWidgets.appex in Embed Foundation Extensions */,
+				418BD92ACE8EE180848EF553 /* AgenticOSShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0AE34AAEACFCE01DF08E03B9 /* live.rs */ = {isa = PBXFileReference; path = live.rs; sourceTree = "<group>"; };
+		0CEFA2670CB532E3AFF5B5C3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		0D9D73A63733DF57DD784CE8 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		1937BD91986900E09B0C4552 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		1FCE1554FA2102057C5448AE /* managed.rs */ = {isa = PBXFileReference; path = managed.rs; sourceTree = "<group>"; };
+		21465739F3EDC19CDD9188CF /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		21A5872A28B8D11BC1E3D8BE /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		2E0836D65CBE07C4F78563D2 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		30E68FD214CE84D972367B9C /* AgenticOSWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgenticOSWidgets.swift; sourceTree = "<group>"; };
+		4BF80166828A25B2ED5A4990 /* Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controls.swift; sourceTree = "<group>"; };
+		50EEB4E91D908BCBE832B031 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		5297C5E11846A2D10BAA06B8 /* push.rs */ = {isa = PBXFileReference; path = push.rs; sourceTree = "<group>"; };
+		533420AB44241AB4051E2546 /* Share.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Share.entitlements; sourceTree = "<group>"; };
+		53B4E897E97F75D09FCA1C1B /* Shared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared.swift; sourceTree = "<group>"; };
+		5CAD87E92EC2ECB8A52D87EC /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		5D671319AAE096B3618F537A /* agenticos-mobile_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "agenticos-mobile_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D84A102DB3E501C299CE451 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5DF1B6045084F23126C57645 /* share.rs */ = {isa = PBXFileReference; path = share.rs; sourceTree = "<group>"; };
+		611858FCCF6603AA974C596F /* pin.rs */ = {isa = PBXFileReference; path = pin.rs; sourceTree = "<group>"; };
+		683111D761F8E523C5CDB205 /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
+		68EB8E6CCE0CC00E30EA1397 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		6CB948D678B47BB557818F14 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		6D48B53F91EA67B7AB4E192A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7161D93DEFD11D4F01D11C47 /* AgenticOSWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AgenticOSWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		80BAD640CE5DC4E3ABE31340 /* AgentLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentLiveActivity.swift; sourceTree = "<group>"; };
+		891259CD11C86DF6FF54D094 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		8A61884A057B82A3E71FCB1B /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		8B4A8496297A665C2CC26646 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		8CDE1654D9CCBAA8E93A7108 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		9204D0DEB5256E74E3E784E3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		960976098CEB03807319048F /* widget.rs */ = {isa = PBXFileReference; path = widget.rs; sourceTree = "<group>"; };
+		9E6EA018F5FAF413A0FF4A25 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		A272CCA6E4820F48C020B2EC /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		BD322D64DCD24F84F766FB5C /* agenticos-mobile_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "agenticos-mobile_iOS.entitlements"; sourceTree = "<group>"; };
+		C24CD8D208F513BC495C5BD7 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		CA031F722BDB48B7E6EF4E45 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		CA6B3E9BE1F686F2E4EE4A2C /* Intents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
+		D167F85815F8B0DF65CFE69D /* AgenticOSShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AgenticOSShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D37D2A2ADB6A5A55565E5099 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DA2DC0CD5A07B58380162622 /* PinnedAgentsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedAgentsWidget.swift; sourceTree = "<group>"; };
+		EBF8B6868BC7B9A796773730 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		F4172019C358A561CE9E871D /* Widgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widgets.entitlements; sourceTree = "<group>"; };
+		F6C20E08DB188CBB07F32F0F /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		F7BC11ED98A87D8F5FA0C54C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		FBB926DC799F54DE25D3C1A3 /* GlanceWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlanceWidget.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C3DA38375F10A4594651B1E8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				974CE5128655DE58D7145F32 /* libapp.a in Frameworks */,
+				B2616DE0BAD8F1ABA2338008 /* CoreGraphics.framework in Frameworks */,
+				E60A0DBA457E105214814070 /* Metal.framework in Frameworks */,
+				21CAC51F519C6C508ACF8E9A /* MetalKit.framework in Frameworks */,
+				8E34FF63E2A38F06E96E67B2 /* QuartzCore.framework in Frameworks */,
+				A90EB3B2DE369D753C8C0404 /* Security.framework in Frameworks */,
+				9A1983B5739B9CB482D96BAE /* UIKit.framework in Frameworks */,
+				809D89DD444DEDB0887BEAA7 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FDAF42E9C86FD2DCC7FCCBF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				60FF6A8CA48D615BBBDB91E5 /* WidgetKit.framework in Frameworks */,
+				1C09717C17BEC554CD970A7B /* SwiftUI.framework in Frameworks */,
+				13B804E1A7B3905A6D2E894F /* ActivityKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2A28C654DE16E9262FE70487 = {
+			isa = PBXGroup;
+			children = (
+				C24CD8D208F513BC495C5BD7 /* assets */,
+				6D48B53F91EA67B7AB4E192A /* Assets.xcassets */,
+				5CAD87E92EC2ECB8A52D87EC /* LaunchScreen.storyboard */,
+				8406E5A6837FEF7FF6F450E2 /* agenticos-mobile_iOS */,
+				3606355F986A0FBEF593F615 /* Externals */,
+				3F7704063D284329ABA3EC48 /* Share */,
+				FFFE2E66B563BABE08F63D85 /* Shared */,
+				E716398475CD859F61B4F3C4 /* Sources */,
+				75DB120DE772DD922ADA79A4 /* src */,
+				529D582DBF490E9542C6275A /* Widgets */,
+				E4A7CCAC3CD731220148308A /* Frameworks */,
+				97CCB4FD4AD56B39778A94A5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3606355F986A0FBEF593F615 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		3F7704063D284329ABA3EC48 /* Share */ = {
+			isa = PBXGroup;
+			children = (
+				5D84A102DB3E501C299CE451 /* Info.plist */,
+				F7BC11ED98A87D8F5FA0C54C /* Localizable.xcstrings */,
+				533420AB44241AB4051E2546 /* Share.entitlements */,
+				F6C20E08DB188CBB07F32F0F /* ShareViewController.swift */,
+			);
+			path = Share;
+			sourceTree = "<group>";
+		};
+		529D582DBF490E9542C6275A /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				30E68FD214CE84D972367B9C /* AgenticOSWidgets.swift */,
+				80BAD640CE5DC4E3ABE31340 /* AgentLiveActivity.swift */,
+				4BF80166828A25B2ED5A4990 /* Controls.swift */,
+				FBB926DC799F54DE25D3C1A3 /* GlanceWidget.swift */,
+				D37D2A2ADB6A5A55565E5099 /* Info.plist */,
+				9204D0DEB5256E74E3E784E3 /* Localizable.xcstrings */,
+				DA2DC0CD5A07B58380162622 /* PinnedAgentsWidget.swift */,
+				F4172019C358A561CE9E871D /* Widgets.entitlements */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		6C691489A1DBFA318F6F2D0B /* agenticos-mobile */ = {
+			isa = PBXGroup;
+			children = (
+				CA6B3E9BE1F686F2E4EE4A2C /* Intents.swift */,
+				891259CD11C86DF6FF54D094 /* Localizable.xcstrings */,
+				EBF8B6868BC7B9A796773730 /* main.mm */,
+				C3ADD143C867413F6885078D /* bindings */,
+			);
+			path = "agenticos-mobile";
+			sourceTree = "<group>";
+		};
+		75DB120DE772DD922ADA79A4 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				21465739F3EDC19CDD9188CF /* lib.rs */,
+				0AE34AAEACFCE01DF08E03B9 /* live.rs */,
+				2E0836D65CBE07C4F78563D2 /* main.rs */,
+				1FCE1554FA2102057C5448AE /* managed.rs */,
+				611858FCCF6603AA974C596F /* pin.rs */,
+				5297C5E11846A2D10BAA06B8 /* push.rs */,
+				5DF1B6045084F23126C57645 /* share.rs */,
+				960976098CEB03807319048F /* widget.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		8406E5A6837FEF7FF6F450E2 /* agenticos-mobile_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				BD322D64DCD24F84F766FB5C /* agenticos-mobile_iOS.entitlements */,
+				0CEFA2670CB532E3AFF5B5C3 /* Info.plist */,
+				21A5872A28B8D11BC1E3D8BE /* InfoPlist.xcstrings */,
+			);
+			path = "agenticos-mobile_iOS";
+			sourceTree = "<group>";
+		};
+		97CCB4FD4AD56B39778A94A5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5D671319AAE096B3618F537A /* agenticos-mobile_iOS.app */,
+				D167F85815F8B0DF65CFE69D /* AgenticOSShare.appex */,
+				7161D93DEFD11D4F01D11C47 /* AgenticOSWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C3ADD143C867413F6885078D /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				CA031F722BDB48B7E6EF4E45 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		E4A7CCAC3CD731220148308A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				683111D761F8E523C5CDB205 /* ActivityKit.framework */,
+				1937BD91986900E09B0C4552 /* CoreGraphics.framework */,
+				0D9D73A63733DF57DD784CE8 /* libapp.a */,
+				50EEB4E91D908BCBE832B031 /* Metal.framework */,
+				8B4A8496297A665C2CC26646 /* MetalKit.framework */,
+				8CDE1654D9CCBAA8E93A7108 /* QuartzCore.framework */,
+				68EB8E6CCE0CC00E30EA1397 /* Security.framework */,
+				8A61884A057B82A3E71FCB1B /* SwiftUI.framework */,
+				A272CCA6E4820F48C020B2EC /* UIKit.framework */,
+				6CB948D678B47BB557818F14 /* WebKit.framework */,
+				9E6EA018F5FAF413A0FF4A25 /* WidgetKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		E716398475CD859F61B4F3C4 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				6C691489A1DBFA318F6F2D0B /* agenticos-mobile */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		FFFE2E66B563BABE08F63D85 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				53B4E897E97F75D09FCA1C1B /* Shared.swift */,
+			);
+			name = Shared;
+			path = ../../ios/Sources/AgenticOSNative/Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4EE12DBB5C2BA2F2AD22B3E7 /* agenticos-mobile_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F538897B9DBC3EA78B346227 /* Build configuration list for PBXNativeTarget "agenticos-mobile_iOS" */;
+			buildPhases = (
+				174109743FDC03AB79BD9FE9 /* Build Rust Code */,
+				B7E1707900DC581BD9F78B6D /* Sources */,
+				80EF1134F282CC0D314D738D /* Resources */,
+				C3DA38375F10A4594651B1E8 /* Frameworks */,
+				919747883283D0627C70265E /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7FFF4D2E6148D9DF20B987E5 /* PBXTargetDependency */,
+				F2219A8A25993E83E1896FEC /* PBXTargetDependency */,
+			);
+			name = "agenticos-mobile_iOS";
+			packageProductDependencies = (
+			);
+			productName = "agenticos-mobile_iOS";
+			productReference = 5D671319AAE096B3618F537A /* agenticos-mobile_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A7E1BE065ECE70E4BEF9AE51 /* AgenticOSShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FC7A6093A208FC25512736E4 /* Build configuration list for PBXNativeTarget "AgenticOSShare" */;
+			buildPhases = (
+				C16DB77A4EBCBCBA0FDE389E /* Sources */,
+				ECCEFFDA4D7089552F8519BD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgenticOSShare;
+			packageProductDependencies = (
+			);
+			productName = AgenticOSShare;
+			productReference = D167F85815F8B0DF65CFE69D /* AgenticOSShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		DC2AFA1BEB8159D2F1689C54 /* AgenticOSWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7E26CB6835AE485582096422 /* Build configuration list for PBXNativeTarget "AgenticOSWidgets" */;
+			buildPhases = (
+				4A5D12D8969685C53D06527B /* Sources */,
+				AB71FEB27B044183BCDCB9BF /* Resources */,
+				FDAF42E9C86FD2DCC7FCCBF4 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgenticOSWidgets;
+			packageProductDependencies = (
+			);
+			productName = AgenticOSWidgets;
+			productReference = 7161D93DEFD11D4F01D11C47 /* AgenticOSWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AB4176D98E111AFB8D9EF1E4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 2A37FA2AAEE494DE5D1D8044 /* Build configuration list for PBXProject "agenticos-mobile" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				de,
+				en,
+				es,
+				pl,
+			);
+			mainGroup = 2A28C654DE16E9262FE70487;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 97CCB4FD4AD56B39778A94A5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4EE12DBB5C2BA2F2AD22B3E7 /* agenticos-mobile_iOS */,
+				DC2AFA1BEB8159D2F1689C54 /* AgenticOSWidgets */,
+				A7E1BE065ECE70E4BEF9AE51 /* AgenticOSShare */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		80EF1134F282CC0D314D738D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6C9A37512972C4E92EF345BB /* Assets.xcassets in Resources */,
+				12978E01B3762251F2F19CA5 /* InfoPlist.xcstrings in Resources */,
+				A8B9369DCF8571AC5A94CE3A /* LaunchScreen.storyboard in Resources */,
+				5F386E1EBDC2F99D3C9B1058 /* Localizable.xcstrings in Resources */,
+				E94D7CBBFB40D29CC0154BD1 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AB71FEB27B044183BCDCB9BF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AF39FECB8C93030EA86F5F82 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ECCEFFDA4D7089552F8519BD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC5EF416E8967A96AF2A1E51 /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		174109743FDC03AB79BD9FE9 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bun tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${FORCE_COLOR} ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A5D12D8969685C53D06527B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3EDF3AC2BD2BF50CF62B313A /* AgentLiveActivity.swift in Sources */,
+				8ECBD08557270B2AF53BE921 /* AgenticOSWidgets.swift in Sources */,
+				7211F39DCA063DDD7AEC66CC /* Controls.swift in Sources */,
+				845370A2A22D3B1F2B51D171 /* GlanceWidget.swift in Sources */,
+				4AE3DF441836FE0552FEEFFB /* PinnedAgentsWidget.swift in Sources */,
+				BF796F74E85B6383A8741804 /* Shared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B7E1707900DC581BD9F78B6D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9EA262CA9AA230D7A575763D /* Intents.swift in Sources */,
+				5264463D2FD5F020CE2B9486 /* Shared.swift in Sources */,
+				1A8679D8BD31C49745437BEE /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C16DB77A4EBCBCBA0FDE389E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF5F610B5178773B416873A7 /* ShareViewController.swift in Sources */,
+				73132B1CBCACF612CD34B376 /* Shared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7FFF4D2E6148D9DF20B987E5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DC2AFA1BEB8159D2F1689C54 /* AgenticOSWidgets */;
+			targetProxy = A0C460045D2113FAB09A803B /* PBXContainerItemProxy */;
+		};
+		F2219A8A25993E83E1896FEC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A7E1BE065ECE70E4BEF9AE51 /* AgenticOSShare */;
+			targetProxy = 0BB88B1952D4B35648B7139B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1085DEE31ACFF2A080EDBA2C /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Widgets/Widgets.entitlements;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = co.vstorm.agenticos.widgets;
+				PRODUCT_NAME = AgenticOSWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
+		31E6DD0EAA9E513CD30B5771 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Widgets/Widgets.entitlements;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = co.vstorm.agenticos.widgets;
+				PRODUCT_NAME = AgenticOSWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
+		};
+		3A3B1A068560F5B4B508E58E /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 0.1.0;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		40F3ADBCD011D6F5FC75E811 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "agenticos-mobile_iOS/agenticos-mobile_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "agenticos-mobile_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = co.vstorm.agenticos;
+				PRODUCT_NAME = "AgenticOS";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		451E647B6AD9462D6DFD5B40 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Share/Share.entitlements;
+				INFOPLIST_FILE = Share/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = co.vstorm.agenticos.share;
+				PRODUCT_NAME = AgenticOSShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
+		AC3BDEB05423FB23A2C13E21 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 0.1.0;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		DBF6AFB8E940261861BFC288 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Share/Share.entitlements;
+				INFOPLIST_FILE = Share/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = co.vstorm.agenticos.share;
+				PRODUCT_NAME = AgenticOSShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
+		};
+		F8CA5AA6D9A65BD864BD71F1 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "agenticos-mobile_iOS/agenticos-mobile_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "agenticos-mobile_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = co.vstorm.agenticos;
+				PRODUCT_NAME = "AgenticOS";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2A37FA2AAEE494DE5D1D8044 /* Build configuration list for PBXProject "agenticos-mobile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A3B1A068560F5B4B508E58E /* debug */,
+				AC3BDEB05423FB23A2C13E21 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		7E26CB6835AE485582096422 /* Build configuration list for PBXNativeTarget "AgenticOSWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1085DEE31ACFF2A080EDBA2C /* debug */,
+				31E6DD0EAA9E513CD30B5771 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		F538897B9DBC3EA78B346227 /* Build configuration list for PBXNativeTarget "agenticos-mobile_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F8CA5AA6D9A65BD864BD71F1 /* debug */,
+				40F3ADBCD011D6F5FC75E811 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		FC7A6093A208FC25512736E4 /* Build configuration list for PBXNativeTarget "AgenticOSShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				451E647B6AD9462D6DFD5B40 /* debug */,
+				DBF6AFB8E940261861BFC288 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AB4176D98E111AFB8D9EF1E4 /* Project object */;
+}

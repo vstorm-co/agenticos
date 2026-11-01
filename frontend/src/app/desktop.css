@@ -1,0 +1,452 @@
+/* =========================================================================
+   Glass, and the console inside the desktop app.
+
+   Two sets of rules keyed off attributes the root layout's pre-paint script
+   sets (`lib/appearance.ts`):
+
+   - `data-look="glass"` paints what the translucent tokens of `looks.css` sit
+     on. In the desktop app with a material (`data-vibrancy`) that is the
+     window's own - the page is transparent and macOS blurs the desktop behind
+     it. In a browser, or on Linux, it is a soft backdrop of the console's own
+     with the blur done here.
+   - `data-shell` is the console behaving like an application rather than a
+     page: an inset title bar, a window dragged by its headers, no rubber band,
+     no I-beam over chrome.
+   ========================================================================= */
+
+/* --- Glass over the window's material ----------------------------------- */
+:root[data-look="glass"][data-vibrancy],
+:root[data-look="glass"][data-vibrancy] body {
+  background: transparent;
+}
+
+/* The content pane sits over the sidebar's material a step more opaque, the
+   way Finder's and Mail's do: the column is the material, the page is paper. */
+:root[data-look="glass"][data-vibrancy] #main {
+  background: var(--color-background);
+}
+
+/* --- Glass in a browser: a backdrop, and the blur the window would do -----
+   Neutral light falling across a grey desk, not a colour of its own: the glass
+   is the layers, and a tinted backdrop made the console read as a poster. */
+:root[data-look="glass"]:not([data-vibrancy]) body {
+  background:
+    radial-gradient(70rem 45rem at 0% 0%, oklch(100% 0 0 / 0.9), transparent 65%),
+    radial-gradient(60rem 40rem at 100% 100%, oklch(86% 0.006 265 / 0.9), transparent 70%),
+    oklch(93% 0.004 265);
+  background-attachment: fixed;
+}
+
+:root.dark[data-look="glass"]:not([data-vibrancy]) body {
+  background:
+    radial-gradient(70rem 45rem at 0% 0%, oklch(34% 0.006 265 / 0.9), transparent 65%),
+    radial-gradient(60rem 40rem at 100% 100%, oklch(12% 0.004 265 / 0.9), transparent 70%),
+    oklch(19% 0.004 265);
+  background-attachment: fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light)[data-look="glass"]:not([data-vibrancy]) body {
+    background:
+      radial-gradient(70rem 45rem at 0% 0%, oklch(34% 0.006 265 / 0.9), transparent 65%),
+      oklch(19% 0.004 265);
+    background-attachment: fixed;
+  }
+}
+
+/* The blur, on the surfaces that float. Not on every card of a long list -
+   each is a compositor layer - only on the column and what opens over the page. The content pane uses
+   a more opaque surface so text is not painted through another blur layer. */
+:root[data-look="glass"]:not([data-vibrancy])
+  :is(aside, [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > *) {
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+}
+
+/* Over a material the page itself is not blurred, but what opens over the page
+   still is: a menu over a card over the material reads as three panes. */
+:root[data-look="glass"][data-vibrancy]
+  :is([role="dialog"], [role="menu"], [data-radix-popper-content-wrapper] > *) {
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+}
+
+/* --- The console as an application --------------------------------------- */
+
+/* No rubber band: an application window does not bounce its whole contents
+   past their edge. Scrolling regions still bounce inside themselves. */
+:root[data-shell],
+:root[data-shell] body {
+  overscroll-behavior: none;
+}
+
+/* Chrome is not text. A sidebar row, a tab or a button that can be
+   selected like a paragraph is the tell of a page pretending to be an app. */
+:root[data-shell] :is(aside, nav, [role="tablist"], button, [data-titlebar]) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The arrow over navigation, as on every native sidebar; links in content keep
+   the hand, because they are links. */
+:root[data-shell] :is(aside, nav) a {
+  cursor: default;
+}
+
+/* Keep the native controls above the brand and navigation, with a draggable
+   surface of their own. The shell places the lights at (18, 22). */
+.macos-window-controls {
+  display: none;
+}
+
+:root[data-shell="macos"][data-shell-window="main"] .macos-window-controls {
+  display: block;
+  flex-shrink: 0;
+  block-size: 2rem;
+}
+
+/* Sign-in has no sidebar to reserve the traffic lights' space. Keep its brand
+   on the same title row, beyond the native controls, including before sign-in. */
+:root[data-shell="macos"][data-shell-window="main"] [data-auth-titlebar] {
+  padding-inline-start: 6.5rem;
+}
+
+/* The three native controls must still fit when navigation becomes a rail. */
+:root[data-shell="macos"][data-shell-window="main"] aside[data-collapsed] {
+  width: 5.25rem;
+}
+
+/* A reserved title-bar row outside the content scrollport. It must never
+   overlay controls: sticky positioning inside a padded scroller puts the drag
+   region over page actions and over the close button of a run detail panel. */
+.window-drag-strip {
+  display: none;
+}
+
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"]
+  .window-drag-strip {
+  background: var(--color-background);
+  display: block;
+  flex-shrink: 0;
+  block-size: 1.75rem;
+}
+
+/* Chat keeps its header flush with the frame. An eight-pixel hit area above
+   its controls provides native dragging across the entire content pane. */
+.chat-window-drag-region {
+  display: none;
+}
+
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"]
+  .chat-window-drag-region {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  block-size: 0.5rem;
+  z-index: 40;
+}
+
+/* The reserved drag strip already provides 28px above the page. Adding the
+   browser's 32px page inset left a second title-bar-sized gap. A 16px inset
+   keeps the heading aligned with the sidebar brand below the native controls. */
+:root:is(
+    [data-shell="macos"],
+    [data-shell="windows"],
+    [data-shell="linux"]
+  )[data-shell-window="main"]
+  #main {
+  --page-inset-top: 1rem;
+  --window-drag-height: 1.75rem;
+}
+
+/* --- Blobby and quick ask: pages that are a window's whole content -------- */
+:root[data-shell-window="blobby"],
+:root[data-shell-window="blobby"] body {
+  background: transparent;
+  overflow: hidden;
+}
+
+:root[data-shell-window="quick-ask"],
+:root[data-shell-window="quick-ask"] body {
+  background: transparent;
+  overflow: hidden;
+}
+
+/* Blobby's bubble and button, drawn like the system's own popovers: a hairline
+   edge, a soft shadow, the system's type - they float over anybody's wallpaper
+   and have to read as part of the desktop, not of a web page. */
+.blobby-bubble,
+.blobby-new-chat {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.blobby-bubble {
+  background: color-mix(in oklab, var(--color-popover) 94%, transparent);
+  color: var(--color-popover-foreground);
+  border: 0.5px solid color-mix(in oklab, var(--color-foreground) 14%, transparent);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow:
+    0 0.5px 1px oklch(0% 0 0 / 0.12),
+    0 6px 18px oklch(0% 0 0 / 0.16);
+  animation: blobby-say 260ms var(--ease-spring);
+}
+
+.blobby-new-chat {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px oklch(0% 0 0 / 0.2);
+}
+
+@keyframes blobby-say {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+
+/* The bubble's tail, pointing at the creature below it. */
+.blobby-bubble::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -5px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  border: 5px solid transparent;
+  border-block-start-color: color-mix(in oklab, var(--color-popover) 94%, transparent);
+  border-block-end: 0;
+}
+
+/* A creature with weight: a shadow that follows its shape, and a lift under
+   the cursor, the way a Dock icon answers the pointer. */
+.blobby-body svg {
+  filter: drop-shadow(0 7px 9px oklch(0% 0 0 / 0.24)) drop-shadow(0 1px 2px oklch(0% 0 0 / 0.18));
+  transition: transform 220ms var(--ease-spring);
+}
+
+.blobby-body:hover svg {
+  transform: scale(1.04);
+}
+
+.blobby-body:active svg {
+  transform: scale(0.97);
+}
+
+/* The body's reactions; the face's expressions are blobatar's own. */
+.blobby-body {
+  transform-origin: 50% 100%;
+  cursor: default;
+}
+
+.blobby-body[data-state="hop"] {
+  animation: blobby-hop 0.75s var(--ease-spring);
+}
+
+.blobby-body[data-state="wave"] {
+  animation: blobby-wave 0.8s ease-in-out 2;
+}
+
+.blobby-body[data-state="happy"] {
+  animation: blobby-squish 0.5s ease-in-out 4;
+}
+
+.blobby-body[data-state="stroll"] {
+  animation: blobby-waddle 0.45s ease-in-out infinite alternate;
+}
+
+[data-motion="reduce"] .blobby-body {
+  animation: none;
+}
+
+@keyframes blobby-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  20% {
+    transform: translateY(0) scale(1.08, 0.9);
+  }
+  50% {
+    transform: translateY(-22px) scale(0.94, 1.06);
+  }
+  80% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+}
+
+@keyframes blobby-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes blobby-squish {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.07, 0.93);
+  }
+}
+
+@keyframes blobby-waddle {
+  from {
+    transform: rotate(-4deg) translateY(0);
+  }
+  to {
+    transform: rotate(4deg) translateY(-3px);
+  }
+}
+
+/* Quick ask's panel: over the window's material a thin veil of the console's
+   own surface, so text keeps its contrast over any wallpaper; without a
+   material, the console's popover, rounded like the window it pretends to be. */
+.quick-ask-panel {
+  background: var(--color-popover);
+  color: var(--color-popover-foreground);
+  border-radius: 16px;
+}
+
+:root[data-vibrancy] .quick-ask-panel {
+  background: color-mix(in oklab, var(--color-popover) 45%, transparent);
+}
+
+/* --- The console inside the phone app (#2097) -----------------------------
+   The webview runs edge to edge, under the status bar. iOS reports its height
+   as the safe area; Android's webview reports nothing for it, so the app keeps
+   room of its own. Taps answer without the grey flash a browser draws. */
+:root[data-shell="ios"] {
+  --shell-inset-top: env(safe-area-inset-top);
+}
+
+:root[data-shell="android"] {
+  --shell-inset-top: 28px;
+}
+
+:root:is([data-shell="ios"], [data-shell="android"]) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root:is([data-shell="ios"], [data-shell="android"]) body {
+  padding-top: var(--shell-inset-top);
+}
+
+/* The bottom edge's room: the system's safe area where it reports one, or what
+   the Android app measured for its gesture bar where it does not. */
+:root {
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--shell-inset-bottom, 0px));
+}
+
+/* Pages slide the way the platform's own do (#2097, item 21): a page pushed
+   comes in from the trailing edge, one popped from the leading edge. The fade
+   the browser console uses stays everywhere else, and reduced motion turns both
+   off (`globals.css`). */
+:root:is([data-shell="ios"], [data-shell="android"]) .page-enter {
+  animation: page-push 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:root:is([data-shell="ios"], [data-shell="android"]) .page-enter[data-direction="back"] {
+  animation-name: page-pop;
+}
+
+@keyframes page-push {
+  from {
+    opacity: 0.6;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-pop {
+  from {
+    opacity: 0.6;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The dashboard scrolls this viewport, not html. Keep native trackpad momentum
+   and smooth keyboard/anchor navigation, respecting the person's motion choice. */
+:root[data-shell-window="main"] #main {
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+:root[data-shell-window="main"][data-motion="reduce"] #main {
+  scroll-behavior: auto;
+}
+
+/* Connection setup stays on the native material, including while its rows load.
+   A saved opaque console look is restored when the route leaves setup. */
+:root[data-desktop-setup][data-vibrancy],
+:root[data-desktop-setup][data-vibrancy] body {
+  background: transparent;
+}
+.desktop-setup-screen {
+  display: flex;
+  min-block-size: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  padding: 3.5rem 1.25rem 2.5rem;
+}
+.desktop-setup-card {
+  inline-size: min(100%, 38rem);
+  margin-block: auto;
+  padding: 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1.5rem;
+  background: color-mix(in oklab, var(--color-popover) 70%, transparent);
+  box-shadow: 0 12px 40px oklch(0% 0 0 / 0.06);
+  animation: desktop-setup-arrive 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: opacity 160ms ease;
+}
+.desktop-setup-card[data-busy] {
+  opacity: 0.8;
+}
+@keyframes desktop-setup-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+:root[data-motion="reduce"] .desktop-setup-card {
+  animation: none;
+  transition: none;
+}
+@media (max-width: 480px) {
+  .desktop-setup-card {
+    padding: 1.25rem;
+  }
+}

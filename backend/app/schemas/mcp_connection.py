@@ -1,7 +1,7 @@
 """Schemas for user-configured MCP server connections."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -22,6 +22,9 @@ MAX_ALLOWED_TOOLS = 100
 class McpToolRead(BaseSchema):
     name: str
     description: str
+    # The JSON Schema of the tool's arguments, when the server's was small
+    # enough to keep. Absent from a list recorded before it was kept.
+    input_schema: dict[str, Any] | None = None
     read_only: bool = Field(
         default=False,
         description="The server marks it readOnlyHint; anything else is treated as a write",
@@ -183,6 +186,48 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
 
 class McpConnectionList(BaseSchema):
     items: list[McpConnectionRead]
+    total: int
+
+
+class McpConnectionUsable(BaseSchema):
+    """An organization connection as a workflow editor picks it (`mcp.call`).
+
+    A narrow projection, not `McpConnectionRead`: choosing a server and a tool
+    needs the name, what it offers and whether it is on - never where it points,
+    how it authenticates, what it consented to or why it last failed. Those stay
+    behind `mcp:manage`.
+    """
+
+    id: UUID
+    name: str
+    label: str | None = None
+    catalog_key: str | None = None
+    is_enabled: bool
+    allowed_tools: list[str] | None = None
+    # Null means nothing has tested the server yet, which is not "offers none".
+    last_tools: list[McpToolRead] | None = None
+    last_checked_at: datetime | None = None
+
+    @classmethod
+    def from_model(cls, connection: McpConnection) -> McpConnectionUsable:
+        return cls(
+            id=connection.id,
+            name=connection.name,
+            label=connection.label,
+            catalog_key=connection.catalog_key,
+            is_enabled=connection.is_enabled,
+            allowed_tools=connection.allowed_tools,
+            last_tools=(
+                None
+                if connection.last_tools is None
+                else [McpToolRead(**tool) for tool in connection.last_tools]
+            ),
+            last_checked_at=connection.last_checked_at,
+        )
+
+
+class McpConnectionUsableList(BaseSchema):
+    items: list[McpConnectionUsable]
     total: int
 
 
@@ -365,6 +410,23 @@ class GithubOAuthStart(BaseSchema):
     """
 
     portal_key: str = Field(..., min_length=1, max_length=64)
+
+
+class PortalPollIntervalUpdate(BaseSchema):
+    """How often a connected mailbox is checked, for every trigger on it.
+
+    The values are the ones `ck_mcp_connection_poll_interval` allows; a literal so
+    the refusal of anything else names the field like every other 422.
+    """
+
+    poll_interval_minutes: Literal[1, 5, 15, 30, 60]
+
+
+class PortalPollIntervalRead(BaseSchema):
+    """The mailbox grant and how often it is now checked, in minutes."""
+
+    connection_id: UUID
+    poll_interval_minutes: int
 
 
 class McpOAuthStartResult(BaseSchema):

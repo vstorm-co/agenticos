@@ -23,6 +23,21 @@ agent pipeline as the web chat.
 Bots live in the DB (`channel_bots`), with per-user identity (`channel_identity`) and
 per-thread session (`channel_session`).
 
+## Surface prompts
+
+`formatting.house_style` supplies current defaults at run time. Binding prompts
+store custom additions only; do not seed a snapshot of defaults into a new row.
+Migration `0183_channel_prompt_defaults.py` removes exact historical defaults.
+Channel messages persist raw text and `channel_identity_id`; history author labels
+are resolved just before dispatch by `ChannelReference`, so erasure removes the
+labels as well. `build_message_history` carries opaque identity references;
+`PreparedRun.channel_authors` preserves per-user-part attribution across provider
+normalization and approval resumption. `ChannelReferencePart` marks reference-only
+parts omitted from run manifests. Screen editable reference values with the input
+policy, keeping fixed transport metadata out of question checks. Keep JSON envelopes out of `Message.content`.
+Channel metadata remains request-only reference data, outside system instructions
+and the guarded input. Never infer identity or authorization from display labels.
+
 ## Tokens go through the vault
 
 Bot tokens are sealed with `app/core/vault.py`, bound to the organization.

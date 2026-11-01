@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgenticOS is using this screen</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font: 500 13px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif;
+      }
+      .frame {
+        position: fixed;
+        inset: 0;
+        border: 4px solid #8b5cf6;
+        border-radius: 10px;
+        box-sizing: border-box;
+        pointer-events: none;
+      }
+      .label {
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #8b5cf6;
+        color: #fff;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame"></div>
+    <div class="label" id="label">Your agent is using this screen</div>
+    <script>
+      const mac = navigator.platform.toUpperCase().includes("MAC");
+      document.getElementById("label").textContent +=
+        " - " + (mac ? "⌘⌥⎋" : "Ctrl+Alt+Esc") + " to stop";
+    </script>
+  </body>
+</html>

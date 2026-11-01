@@ -64,9 +64,17 @@ from app.services import generated_media, visual_render
 from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.attachments import MAX_OUTBOUND_BYTES
-from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
+from app.services.channels.base import (
+    ROOM_HANDLES,
+    IncomingMessage,
+    OutgoingAttachment,
+    channel_key,
+)
 from app.services.channels.chart_png import render_chart_png
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
+from app.services.channels.formatting import (
+    LINK_ACCOUNT_INSTRUCTION,
+    authored_prompt,
+)
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
@@ -376,6 +384,7 @@ class ChannelAgentRouter:
         text: str,
         *,
         platform: str,
+        incoming: IncomingMessage | None = None,
         organization_id: UUID,
         bot_id: UUID,
         user_id: UUID | None,
@@ -395,6 +404,8 @@ class ChannelAgentRouter:
         Args:
             text: The raw incoming message, handle included.
             platform: Which channel it arrived on, for the run's surface.
+            incoming: Normalized platform event for request-only author labels;
+                authorization still uses the separately resolved channel identity.
             organization_id: The bot's organization; the slug is resolved here
                 and nowhere else, so one workspace cannot reach another's agents.
             bot_id: The bot the message arrived on. An agent answers through it
@@ -486,6 +497,7 @@ class ChannelAgentRouter:
             ctx,
             agent.id,
             mention.prompt,
+            said=mention.prompt,
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
@@ -510,6 +522,7 @@ class ChannelAgentRouter:
             # Without it a named agent answered an existing thread as though it
             # were empty, because only the default path prepended the backfill.
             message_history=message_history,
+            channel_author_context="" if incoming is None else authored_prompt("", incoming),
             # The same rule as the default path: a mention from a member speaks
             # through that person's own MCP accounts, and the room reads the
             # answer exactly as it reads the question. `sender`, not `user_id`,
@@ -550,6 +563,7 @@ class ChannelAgentRouter:
         text: str,
         *,
         platform: str,
+        incoming: IncomingMessage | None = None,
         organization_id: UUID,
         bot_id: UUID,
         user_id: UUID | None,
@@ -573,10 +587,10 @@ class ChannelAgentRouter:
 
         Args:
             text: The whole incoming message; there is no handle to strip.
+            incoming: Normalized platform event for this turn's author labels.
             message_history: The channel thread so far, in Pydantic AI's format.
-                A direct-message bot is a conversation, not a sequence of
-                one-shot prompts, and the mention path's statelessness is about
-                shared channels, not about this one.
+                Both routes receive saved turns and the initial thread backfill
+                so follow-ups retain earlier authors and tool results.
 
         Raises:
             BadRequestError: If the bot exposes no agent. The message says what
@@ -614,6 +628,7 @@ class ChannelAgentRouter:
             ctx,
             agent.id,
             text,
+            said=text,
             attachments=attachments,
             outbound=produced,
             outbound_refused=refused,
@@ -642,6 +657,7 @@ class ChannelAgentRouter:
             # room's to use.
             acts_for_sender=sender is not None,
             message_history=message_history,
+            channel_author_context="" if incoming is None else authored_prompt("", incoming),
             exposure=exposure,
         )
         return AnsweredTurn(

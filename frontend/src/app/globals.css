@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* The looks beyond the standard one, and the console inside the desktop app. */
+@import "./looks.css";
+@import "./desktop.css";
 
 /* A device with no pointer that can hover - a phone, a tablet.
  *
@@ -193,11 +196,11 @@
      depth changed with whatever it happened to be over. */
   --color-sidebar: oklch(96.3% 0.002 265);
   --color-background: oklch(97.8% 0.002 265);
-  --color-foreground: oklch(17.5% 0.004 265);
+  --color-foreground: oklch(16% 0.004 265);
   --color-card: oklch(100% 0 0);
-  --color-card-foreground: oklch(17.5% 0.004 265);
+  --color-card-foreground: oklch(16% 0.004 265);
   --color-popover: oklch(100% 0 0);
-  --color-popover-foreground: oklch(17.5% 0.004 265);
+  --color-popover-foreground: oklch(16% 0.004 265);
   /* The document peek: a card's content drawn as a sheet of paper resting in a
      well, with the rest of it stacked behind. The paper is always the lightest
      of the three, in both themes, which is why these are their own tokens
@@ -206,19 +209,19 @@
   --color-peek-well: oklch(95.5% 0.002 265);
   --color-peek-sheet: oklch(88.5% 0.004 265);
   --color-peek-paper: oklch(100% 0 0);
-  /* Actions sit on a neutral raised surface; colour is reserved for meaning. */
+  /* The main action carries full ink contrast; secondary actions stay quiet. */
   --color-primary: oklch(21% 0.01 250);
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-action: oklch(95% 0 0);
-  --color-action-foreground: oklch(22% 0 0);
-  --color-action-hover: oklch(92% 0 0);
-  --color-action-active: oklch(89% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-secondary: oklch(95.5% 0.002 265);
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: oklch(95.5% 0.002 265);
-  --color-muted-foreground: oklch(44% 0.006 265);
+  --color-muted-foreground: oklch(40% 0.006 265);
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
@@ -297,11 +300,11 @@
   :root:not(.light) {
     --color-sidebar: oklch(20.5% 0.0025 265);
     --color-background: oklch(23.5% 0.0025 265);
-    --color-foreground: oklch(94.5% 0.003 265);
+    --color-foreground: oklch(96.5% 0.003 265);
     --color-card: oklch(26.2% 0.0025 265);
-    --color-card-foreground: oklch(94.5% 0.003 265);
+    --color-card-foreground: oklch(96.5% 0.003 265);
     --color-popover: oklch(28.5% 0.0025 265);
-    --color-popover-foreground: oklch(94.5% 0.003 265);
+    --color-popover-foreground: oklch(96.5% 0.003 265);
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
     --color-peek-paper: oklch(29.5% 0.003 265);
@@ -313,10 +316,10 @@
     --color-primary-foreground: oklch(16% 0.01 250);
     --color-primary-hover: oklch(88% 0.004 250);
     --color-primary-active: oklch(81% 0.005 250);
-    --color-action: oklch(34% 0 0);
-    --color-action-foreground: oklch(96% 0 0);
-    --color-action-hover: oklch(38% 0 0);
-    --color-action-active: oklch(41% 0 0);
+    --color-action: var(--color-primary);
+    --color-action-foreground: var(--color-primary-foreground);
+    --color-action-hover: var(--color-primary-hover);
+    --color-action-active: var(--color-primary-active);
     --color-brand: var(--brand-400);
     --color-brand-hover: var(--brand-300);
     --color-brand-active: var(--brand-200);
@@ -327,7 +330,7 @@
     --color-secondary: oklch(30% 0.0025 265);
     --color-secondary-foreground: oklch(95% 0 0);
     --color-muted: oklch(30% 0.0025 265);
-    --color-muted-foreground: oklch(73.5% 0.006 265);
+    --color-muted-foreground: oklch(78% 0.006 265);
     --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(34% 0 0);
@@ -348,11 +351,11 @@
 :root.dark {
   --color-sidebar: oklch(20.5% 0.0025 265);
   --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(94.5% 0.003 265);
+  --color-foreground: oklch(96.5% 0.003 265);
   --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-card-foreground: oklch(96.5% 0.003 265);
   --color-popover: oklch(28.5% 0.0025 265);
-  --color-popover-foreground: oklch(94.5% 0.003 265);
+  --color-popover-foreground: oklch(96.5% 0.003 265);
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
   --color-peek-paper: oklch(29.5% 0.003 265);
@@ -362,10 +365,10 @@
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
-  --color-action: oklch(34% 0 0);
-  --color-action-foreground: oklch(96% 0 0);
-  --color-action-hover: oklch(38% 0 0);
-  --color-action-active: oklch(41% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -376,7 +379,7 @@
   --color-secondary: oklch(30% 0.0025 265);
   --color-secondary-foreground: oklch(95% 0 0);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(73.5% 0.006 265);
+  --color-muted-foreground: oklch(78% 0.006 265);
   --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(34% 0 0);
@@ -412,10 +415,10 @@
   --color-primary-foreground: oklch(98.5% 0 0);
   --color-primary-hover: oklch(30% 0.01 250);
   --color-primary-active: oklch(37% 0.012 250);
-  --color-action: oklch(95% 0 0);
-  --color-action-foreground: oklch(22% 0 0);
-  --color-action-hover: oklch(92% 0 0);
-  --color-action-active: oklch(89% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-700);
   --color-brand-hover: var(--brand-800);
   --color-brand-active: var(--brand-900);
@@ -438,20 +441,20 @@
 .theme-dark {
   --color-sidebar: oklch(20.5% 0.0025 265);
   --color-background: oklch(23.5% 0.0025 265);
-  --color-foreground: oklch(94.5% 0.003 265);
+  --color-foreground: oklch(96.5% 0.003 265);
   --color-card: oklch(26.2% 0.0025 265);
-  --color-card-foreground: oklch(94.5% 0.003 265);
+  --color-card-foreground: oklch(96.5% 0.003 265);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(73.5% 0.006 265);
+  --color-muted-foreground: oklch(78% 0.006 265);
   --color-border: oklch(34% 0 0);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
   --color-primary-active: oklch(81% 0.005 250);
-  --color-action: oklch(34% 0 0);
-  --color-action-foreground: oklch(96% 0 0);
-  --color-action-hover: oklch(38% 0 0);
-  --color-action-active: oklch(41% 0 0);
+  --color-action: var(--color-primary);
+  --color-action-foreground: var(--color-primary-foreground);
+  --color-action-hover: var(--color-primary-hover);
+  --color-action-active: var(--color-primary-active);
   --color-brand: var(--brand-400);
   --color-brand-hover: var(--brand-300);
   --color-brand-active: var(--brand-200);
@@ -484,22 +487,10 @@
   html[data-motion="reduce"] {
     scroll-behavior: auto;
   }
-  :root.dark body {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not(.light) body {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
-    /* Grayscale smoothing only on dark: on macOS it turns off stem darkening,
-       which keeps light text on a dark ground from blooming - and leaves dark
-       text on a light ground thin and grey, worst on a 1x monitor. */
+    /* Keep the platform's font rendering and stem weight in both themes. */
     font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
     /* Disable iOS tap highlight - focus rings + active states do the job. */
@@ -1073,6 +1064,112 @@
 @keyframes map-flow {
   to {
     stroke-dashoffset: -8;
+  }
+}
+
+/* Watched runs trace a pulse along the active path, sweep the active card's
+   border, and acknowledge completed steps once. Reduced motion keeps the real
+   state and its colour while removing movement. */
+.run-packet {
+  animation: run-packet 1.25s linear infinite;
+  filter: drop-shadow(0 0 3px color-mix(in oklch, var(--color-success) 55%, transparent));
+}
+@keyframes run-packet {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.run-packet-finished {
+  animation:
+    run-packet 650ms ease-out both,
+    run-packet-fade 650ms ease-out both;
+}
+@keyframes run-packet-fade {
+  0%,
+  65% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.run-finished {
+  animation: run-finished 650ms ease-out both;
+}
+@keyframes run-finished {
+  from {
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--color-success) 20%, transparent);
+  }
+  to {
+    box-shadow: none;
+  }
+}
+.run-node-halo {
+  padding: 2px;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    var(--color-success) 46%,
+    var(--color-foreground) 50%,
+    var(--color-success) 54%,
+    transparent 75%
+  );
+  background-size: 250% 100%;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: run-halo 2.2s linear infinite;
+}
+@keyframes run-halo {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .run-packet,
+  .run-packet-finished {
+    display: none;
+  }
+  .run-node-halo {
+    animation: none;
+    background: var(--color-success);
+  }
+}
+.run-breathe {
+  animation: run-breathe 1.6s ease-in-out infinite;
+}
+@keyframes run-breathe {
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in oklch, var(--color-success) 12%, transparent);
+  }
+}
+.run-crash {
+  animation: run-crash 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) 1;
+}
+@keyframes run-crash {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(3px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-5px);
+  }
+  40%,
+  60% {
+    transform: translateX(5px);
   }
 }
 @keyframes pop-in {
@@ -2028,10 +2125,13 @@ body .tour-spotlight {
 /* =========================================================================
    Section hues. The sidebar's five groups - Use (blue),
    Build (violet), Knowledge (teal), Workspace (blue), Admin (rose) - each
-   carry a hue, and it appears in three places only:
-   the module tile beside a section page's title and an empty state's glyph -
-   small, and nowhere a colour would compete with the content. So colour says where you are, consistently, and
-   never decorates for its own sake. Buttons stay ink and links stay brand.
+   carry a hue, and it appears in four places only:
+   the module tile beside a section page's title and an empty state's glyph,
+   and - through the `--family-*` aliases below - a workflow step's tile, label
+   and picker swatch, where the hue says which family a step belongs to. Small,
+   and nowhere a colour would compete with the content. So colour says where
+   you are or what sort of thing this is, consistently, and never decorates
+   for its own sake. Buttons stay ink and links stay brand.
 
    Each hue is three steps: `ink` for a glyph (3:1 against its own subtle
    fill and the card in both themes), `subtle` for a fill, `line` for an
@@ -2119,6 +2219,69 @@ body .tour-spotlight {
 }
 
 /* =========================================================================
+   Workflow step families. The canvas, the step picker and the step dialogs
+   draw a step by the picker section it belongs to; each family is a tile
+   that differs in lightness and shape as well as hue, so it survives colour
+   blindness and a canvas zoomed out past reading. The families borrow the
+   section hues above. Start is ink, Flow is the neutral tile and Error the
+   destructive one - those come from the base tokens. A card's border and
+   ring belong to its run state, never to a family.
+   ========================================================================= */
+
+:root {
+  --family-ai: var(--domain-build);
+  --family-ai-foreground: oklch(100% 0 0);
+  --family-ai-ink: var(--domain-build);
+  --family-data-tint: oklch(91.5% 0.05 178);
+  --family-data-ink: var(--domain-knowledge);
+  --family-apps-line: var(--domain-workspace-line);
+  --family-apps-ink: var(--domain-workspace);
+  /* The minimap's marks: one lightness for the three hues, so none outweighs another. */
+  --family-map-start: var(--color-primary);
+  --family-map-ai: oklch(72% 0.11 300);
+  --family-map-flow: color-mix(in oklch, var(--color-muted-foreground) 40%, transparent);
+  --family-map-data: oklch(72% 0.11 178);
+  --family-map-apps: oklch(72% 0.11 235);
+  --family-map-error: var(--color-destructive);
+  /* The Error label is 10.5px text and needs 4.5:1: the shared destructive token is
+     3.05:1 on the dark card, so the dark blocks below lift it - for this label only. */
+  --family-error-ink: var(--color-destructive);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --family-ai: oklch(62% 0.14 300);
+    --family-ai-foreground: oklch(16% 0.04 300);
+    --family-data-tint: oklch(35% 0.06 178);
+    --family-error-ink: oklch(72% 0.15 25);
+  }
+}
+:root.dark {
+  --family-ai: oklch(62% 0.14 300);
+  --family-ai-foreground: oklch(16% 0.04 300);
+  --family-data-tint: oklch(35% 0.06 178);
+  --family-error-ink: oklch(72% 0.15 25);
+}
+
+.node-tile-start {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.node-tile-ai {
+  background: var(--family-ai);
+  color: var(--family-ai-foreground);
+}
+.node-tile-data {
+  background: var(--family-data-tint);
+  color: var(--family-data-ink);
+}
+/* White, so a brand's mark sits on it unchanged; the outline is the family. */
+.node-tile-apps {
+  background: var(--color-card);
+  border: 1.5px solid var(--family-apps-line);
+  color: var(--family-apps-ink);
+}
+
+/* =========================================================================
    Document peek - the content of a skill, a context file, an artifact or a
    file, as a sheet of paper in a well. `DocPeek` draws the markup and the
    colours (as `bg-peek-*` utilities, so Tailwind keeps the tokens); the
@@ -2133,7 +2296,6 @@ body .tour-spotlight {
   transition:
     transform var(--duration-slow) var(--ease-out),
     box-shadow var(--duration-slow) var(--ease-out);
-  will-change: transform;
 }
 
 /* The pages behind. Offset up and inward, so each shows a sliver of edge
@@ -2260,34 +2422,34 @@ body .tour-spotlight {
   }
 }
 .rise-in > * {
-  animation: rise-in 420ms var(--ease-out) both;
+  animation: rise-in 240ms var(--ease-out) both;
 }
 .rise-in > :nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: 24ms;
 }
 .rise-in > :nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: 48ms;
 }
 .rise-in > :nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: 72ms;
 }
 .rise-in > :nth-child(5) {
-  animation-delay: 160ms;
+  animation-delay: 96ms;
 }
 .rise-in > :nth-child(6) {
-  animation-delay: 200ms;
+  animation-delay: 120ms;
 }
 .rise-in > :nth-child(7) {
-  animation-delay: 240ms;
+  animation-delay: 144ms;
 }
 .rise-in > :nth-child(8) {
-  animation-delay: 280ms;
+  animation-delay: 168ms;
 }
 .rise-in > :nth-child(n + 9) {
-  animation-delay: 320ms;
+  animation-delay: 192ms;
 }
 /* The global reduced-motion rule shortens durations but keeps these delays, and
-   with `both` fill a later card would sit invisible for up to 320ms and then
+   with `both` fill a later card would sit invisible for up to 192ms and then
    appear at once (#1930). Without motion the grid is simply there. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in > * {
@@ -2303,7 +2465,6 @@ body .tour-spotlight {
   from {
     opacity: 0;
     transform: translateY(3px);
-    filter: blur(1.5px);
   }
   to {
     opacity: 1;
@@ -2312,24 +2473,22 @@ body .tour-spotlight {
   }
 }
 .stream-in > :not(.stream-cursor) {
-  animation: stream-block-in 420ms var(--ease-out) both;
+  animation: stream-block-in 220ms var(--ease-out) both;
 }
 
-/* Each word of a streaming answer surfacing out of a soft blur, spans from
+/* Each word of a streaming answer arriving with an opacity transition, spans from
    `rehypeStreamWords`. `backwards`, not `both`: once a word has arrived it
-   keeps no filter, so a long answer is not hundreds of compositing layers. */
+   keeps no animation state, so long answers do not retain compositing layers. */
 @keyframes stream-word-in {
   from {
     opacity: 0;
-    filter: blur(4px);
   }
   to {
     opacity: 1;
-    filter: blur(0);
   }
 }
 .stream-word {
-  animation: stream-word-in 700ms var(--ease-out) backwards;
+  animation: stream-word-in 220ms var(--ease-out) backwards;
 }
 :root[data-motion="reduce"] .stream-word {
   animation: none;
@@ -2415,6 +2574,15 @@ body .tour-spotlight {
 }
 @utility slide-in-from-right {
   --tw-enter-translate-x: 100%;
+}
+@utility slide-out-to-left {
+  --tw-exit-translate-x: -100%;
+}
+@utility slide-out-to-right {
+  --tw-exit-translate-x: 100%;
+}
+@utility slide-out-to-bottom {
+  --tw-exit-translate-y: 100%;
 }
 
 /* The composer's voice glow (components/ui/voice-glow.tsx): a blurred bloom
@@ -2667,4 +2835,26 @@ body .tour-spotlight {
     opacity: 0.9;
     transform: translateY(-2px);
   }
+}
+
+/* Dialogs share the shell's visible height, including when a touch keyboard is
+   open. The same budget sizes the modal and every dialog shape token. */
+:root {
+  --dialog-available-height: calc(
+    var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 2rem
+  );
+  --dialog-center: calc(
+    (var(--app-height, 100dvh) + var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)) / 2
+  );
+}
+
+/* Sonner's default palette follows its own theme; these roles also follow a
+   person's explicit console appearance, including changes while a toast is open. */
+.console-toasts[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--color-popover);
+  --normal-text: var(--color-popover-foreground);
+  --normal-border: var(--color-border);
+}
+.console-toasts [data-sonner-toast][data-styled="true"] [data-description] {
+  color: var(--color-muted-foreground);
 }

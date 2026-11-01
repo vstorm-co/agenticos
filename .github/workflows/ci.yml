@@ -76,7 +76,10 @@ permissions:
 # since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
 # the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
 # `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
-# every step green. It has 45.
+# every step green. The native-client branch's 18,711-test suite reached only
+# 72% at 45 minutes on two workers. Its two passes now get a bounded 90-minute
+# budget and explicitly use the existing four-worker cap on hosted runners.
+# `test-frontend` took 20m07s with its build on 30 October; it gets 45 minutes.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -170,7 +173,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
           # Caches `~/.cache/uv`, keyed on `**/uv.lock`. Without it every job
@@ -233,7 +236,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -266,6 +269,7 @@ jobs:
     # On the job rather than repeated under each step, which is how the `e2e` job
     # below already does it. Four identical copies is four places to forget one.
     env:
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -280,7 +284,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
           enable-cache: true
@@ -299,8 +303,7 @@ jobs:
         # goes to base and back rather than only forwards.
         #
         # `make check` does not run this, and that omission is deliberate rather
-        # than drift: `downgrade base` here empties a throwaway `test_db`, while
-        # on a laptop it points at whatever `backend/.env` says.
+        # than drift: it is slow and rarely needed, so `check` leaves it to a hand run.
         run: make test-migrations
 
       - name: Verify the models and the migrations still agree
@@ -327,6 +330,17 @@ jobs:
         #
         # `COV_REPORT=xml` is the only difference from what `make test` does on a
         # laptop, and it is for Codecov below rather than for the gate.
+        #
+        # `PYTEST_ADDOPTS` turns the Makefile's `-v` into one line of dots per
+        # worker. With a line per test (about 25,000 of them, a few of them 50 KB
+        # long) the run stopped three times in a row on this suite: both workers
+        # and the step's own output went silent in the same second, no stack
+        # was dumped, and the job ran into its 90-minute limit. The same suite
+        # finished in 14 to 20 minutes with quiet output, and with its output
+        # sent to a file. Failures still print in full with a short summary, and
+        # `faulthandler_timeout` still names a test that hangs.
+        env:
+          PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
 
       - name: Report coverage of template-inherited code
@@ -356,7 +370,7 @@ jobs:
         # that the refusals are held - the repository cuts releases by hand, so
         # the attachment is a release-time step rather than an automated one.
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-tests
           path: backend/security-tests.txt
@@ -366,7 +380,8 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The 11,339-test coverage pass took 19m39s before the production build.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -484,7 +499,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
           enable-cache: true
@@ -623,7 +638,7 @@ jobs:
 
       - name: Upload the Playwright report when a journey fails
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
           path: frontend/playwright-report/
@@ -637,7 +652,7 @@ jobs:
       # which is the case #162 was diagnosed without.
       - name: Upload the raw Playwright output when a journey fails
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-results
           path: frontend/test-results/
@@ -659,7 +674,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
           enable-cache: true
@@ -724,7 +739,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
           enable-cache: true

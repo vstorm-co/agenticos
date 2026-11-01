@@ -9,6 +9,7 @@ from collections.abc import Collection, Sequence
 from typing import Any, Literal
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy import Float, and_, bindparam, cast, false, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.agents.spec import CapabilityBindingSpec
 from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -104,6 +106,25 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_for_workflow_node(
+    db: AsyncSession, *, workflow_id: UUID, node_id: UUID, organization_id: UUID, lock: bool = False
+) -> Agent | None:
+    """The agent one workflow step configures in place, if it has run before.
+
+    `lock` holds the row for a caller about to publish a version of it, so two
+    runs of the same step that both find the spec changed publish it once.
+    """
+    query = select(Agent).where(
+        Agent.organization_id == organization_id,
+        Agent.workflow_id == workflow_id,
+        Agent.workflow_node_id == node_id,
+    )
+    if lock:
+        query = query.with_for_update()
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
 async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
     """A published agent its organization chose to serve over A2A, whatever the tenant.
 
@@ -158,7 +179,11 @@ def _visible_clauses(
     Shared by `list_visible` and `list_visible_labels` so the filter's choices
     can never be drawn from a wider set than the listing they filter.
     """
-    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    # A workflow step's own agent is configured in its workflow, not the catalog.
+    where: list[ColumnElement[bool]] = [
+        Agent.organization_id == organization_id,
+        Agent.workflow_id.is_(None),
+    ]
     if not include_archived:
         where.append(Agent.status != AgentStatus.ARCHIVED.value)
     if shared_with_me:
@@ -311,6 +336,30 @@ async def published_starters(
         )
     )
     return {row[0]: [str(item) for item in row[1]] for row in result.all()}
+
+
+_CAPABILITY_BINDINGS = TypeAdapter(list[CapabilityBindingSpec])
+
+
+async def published_capabilities(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, list[str]]:
+    """Enabled capability ids from the frozen version, never its editable draft."""
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion.id, AgentVersion.spec["capabilities"]).where(
+            AgentVersion.id.in_(list(version_ids))
+        )
+    )
+    return {
+        version_id: [
+            binding.id
+            for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
+            if binding.enabled
+        ]
+        for version_id, raw in result.all()
+    }
 
 
 async def published_model_profiles(
@@ -568,6 +617,8 @@ async def create(
     visibility: str,
     categories: list[str],
     tags: list[str],
+    workflow_id: UUID | None = None,
+    workflow_node_id: UUID | None = None,
 ) -> Agent:
     await hold_subject_shared(db, LockScope.MODEL_PROFILE_REFERENCES, organization_id)
     agent = Agent(
@@ -581,6 +632,8 @@ async def create(
         visibility=visibility,
         categories=categories,
         tags=tags,
+        workflow_id=workflow_id,
+        workflow_node_id=workflow_node_id,
     )
     db.add(agent)
     await db.flush()
@@ -719,6 +772,8 @@ async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> 
         select(func.count(Agent.id)).where(
             Agent.organization_id == organization_id,
             Agent.status != AgentStatus.ARCHIVED.value,
+            # A workflow step's own agent is part of its workflow, not a seat.
+            Agent.workflow_id.is_(None),
         )
     )
     return int(result.scalar_one())

@@ -58,6 +58,9 @@ export const KNOWLEDGE_ID = "knowledge";
  * served by the API, so the panel asks rather than lists.
  */
 export const IMAGE_GENERATION_ID = "image_generation";
+/** Reads and writes Virtual Tables - its grants are drawn by a panel of their own. */
+export const VIRTUAL_TABLES_ID = "virtual_tables";
+export const WORKFLOWS_ID = "workflows";
 export const TEXT_TO_SPEECH_ID = "text_to_speech";
 export const VIDEO_GENERATION_ID = "video_generation";
 export const CODING_AGENT_ID = "coding_agent";
@@ -75,7 +78,7 @@ export const CODING_AGENT_ID = "coding_agent";
 export function unboundBinding(capabilityId: string): CapabilityBindingSpec {
   return {
     id: capabilityId,
-    config: {},
+    config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
     approval: "default",
     tool_approval: {},
     tool_overrides: {},
@@ -162,7 +165,7 @@ export function withCapability(
     ...bindings,
     {
       id: capabilityId,
-      config: {},
+      config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
       approval: "default",
       tool_approval: {},
       tool_overrides: {},

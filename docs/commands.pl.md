@@ -1,5 +1,5 @@
 ---
-source_sha: "5e1c57ae866b"
+source_sha: "5ceebb576717"
 ---
 
 # Polecenia { #commands }
@@ -668,3 +668,21 @@ uv run agenticos cmd my-command --name test
 ```
 
 Więcej szczegółów znajdziesz w `docs/adding_features.md`.
+
+## Odświeżanie Architecta {#refreshing-the-architect}
+
+Po aktualizacji sprawdź instrukcje zainstalowanego Architecta i jego przewodnik po AgenticOS, a następnie odśwież kopie bez własnych zmian:
+
+```bash
+uv run agenticos cmd refresh-assistant --dry-run
+uv run agenticos cmd refresh-assistant --org <org-id>
+uv run agenticos cmd refresh-assistant --org <org-id> --replace-edited
+```
+
+Bez `--org` komenda obejmuje wszystkie organizacje. Raport rozróżnia `current` (aktualne), `update` (do odświeżenia), `edited` (zmienione) i `untracked` (nieznane pochodzenie); `--dry-run` niczego nie zapisuje. Kopie `edited` i `untracked` są pomijane, dopóki operator nie poda `--replace-edited`, świadomie zastępując zmiany organizacji.
+
+Zmiana instrukcji tworzy i publikuje nową wersję agenta, zachowując historię publikacji, model, budżet, możliwości, skille i ustawienia asystenta. Jeśli inne pola draftu różnią się od opublikowanej wersji, całe odświeżenie jest blokowane do ich opublikowania lub odrzucenia; flaga zastępowania nie omija tej kontroli. Nigdy nieopublikowany asystent otrzymuje nowe instrukcje w draftcie i nadal wymaga modelu oraz publikacji w Builderze. Brakujący i zarchiwizowani asystenci są pomijani. Brakujący lub odłączony przewodnik jest zgłaszany bez zmiany powiązań skilli.
+
+Przewodnik jest zwykłym współdzielonym skillem: aktualizacja treści i zasobów zwiększa jego wersję i obejmuje wszystkich agentów używających tej kopii. Własne zmiany przewodnika mają taką samą ochronę jak instrukcje. Kopie o nieznanym pochodzeniu pozostają `untracked`; migracja rozpoznaje wyłącznie dokładne instrukcje wcześniej dostarczone przez AgenticOS. Aktualizacja wdrożenia nie nadpisuje automatycznie zainstalowanego Architecta: uruchom tę komendę, aby przyjąć nowy szablon.
+
+Przebieg zbiorczy zgłasza organizacje bez właściciela jako pominięte i kontynuuje pracę dla pozostałych. Uruchomienie z `--org` kończy się jawnym błędem, jeśli wskazana organizacja nie ma właściciela.

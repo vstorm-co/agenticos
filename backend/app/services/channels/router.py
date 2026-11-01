@@ -81,6 +81,13 @@ from app.services.transcription import (
     recording_type,
 )
 from app.services.transcription_usage import TranscriptionCall
+from app.services.workflow_execution.exceptions import (
+    WorkflowAdmissionQuotaError,
+    WorkflowBudgetReachedError,
+    WorkflowInlineStorageLimitError,
+    WorkflowRunInputTooLargeError,
+)
+from app.services.workflow_exposure import WorkflowExposureService
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -403,8 +410,10 @@ class ChannelMessageRouter:
             5. Resolve or create ChannelSession (+ Conversation).
             6. Rate-limit check.
             7. Hand an `@handle` message to that agent and stop.
-            8. Otherwise run the bot's only exposed agent.
-            9. Send reply via adapter.
+            8. Otherwise start the workflow listening to this bot, if it takes
+               the message, and stop.
+            9. Otherwise run the bot's only exposed agent.
+            10. Send reply via adapter.
         """
         bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
         if not bot or not bot.is_active:
@@ -543,6 +552,12 @@ class ChannelMessageRouter:
         files += earlier
         file_refusals += earlier_refusals
 
+        # Loaded before the run, so the turn being run is the prompt and
+        # everything before it is the history. The turn itself is written by the
+        # runner, which is also what records the tool calls, the model and the
+        # version this bot's own write dropped.
+        history = thread_history + await self._load_history(db, session.conversation_id)
+
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
         # silent - a "…" posted up front would be left hanging under two people's
@@ -559,8 +574,11 @@ class ChannelMessageRouter:
             admit_unlinked,
             files=files,
             file_refusals=file_refusals,
-            thread_history=thread_history,
+            message_history=history,
         ):
+            return
+
+        if await self._start_workflow(bot, incoming, identity, db, files=files):
             return
 
         await self._acknowledge(bot, incoming)
@@ -572,17 +590,13 @@ class ChannelMessageRouter:
         else:
             live, handle = await self._open_reply(bot, incoming)
 
-        # Loaded before the run, so the turn being run is the prompt and
-        # everything before it is the history. The turn itself is written by the
-        # runner, which is also what records the tool calls, the model and the
-        # version this bot's own write dropped.
-        history = thread_history + await self._load_history(db, session.conversation_id)
         await self._run_turn(
             bot,
             incoming,
             db,
             run=ChannelAgentRouter(db).answer_default(
                 incoming.text,
+                incoming=incoming,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
@@ -689,7 +703,7 @@ class ChannelMessageRouter:
         *,
         files: list[Any],
         file_refusals: list[str],
-        thread_history: list[ModelMessage] | None = None,
+        message_history: list[ModelMessage] | None = None,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -719,6 +733,7 @@ class ChannelMessageRouter:
             db,
             run=ChannelAgentRouter(db).answer(
                 incoming.text,
+                incoming=incoming,
                 platform=incoming.platform,
                 organization_id=bot.organization_id,
                 bot_id=bot.id,
@@ -734,12 +749,46 @@ class ChannelMessageRouter:
                 turn=session.turn_count,
                 attachments=files,
                 stream=channel_stream(live),
-                message_history=thread_history or None,
+                message_history=message_history or None,
             ),
             handle=handle_of,
             files=files,
             file_refusals=file_refusals,
         )
+
+    async def _start_workflow(
+        self,
+        bot: ChannelBot,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+        *,
+        files: list[Any],
+    ) -> bool:
+        """Hand the message to the workflow listening to this bot, if it takes it.
+
+        After the mention path, so a message naming an agent still reaches it, and
+        before the bot's own agent, which answers whatever the workflow leaves.
+        The workflow answers with a step of its own, so nothing is posted here
+        unless the run cannot be admitted; the files stored for the turn are given
+        back, since a run is handed the message's text and not its attachments.
+        """
+        try:
+            taken = await WorkflowExposureService(db).receive_channel_message(
+                bot, incoming, sender_user_id=identity.user_id
+            )
+        except (
+            WorkflowAdmissionQuotaError,
+            WorkflowInlineStorageLimitError,
+            WorkflowBudgetReachedError,
+            WorkflowRunInputTooLargeError,
+        ) as exc:
+            await self._discard_files(db, files)
+            await self._send_reply(bot, incoming, exc.message)
+            return True
+        if taken:
+            await self._discard_files(db, files)
+        return taken
 
     async def _run_turn(
         self,

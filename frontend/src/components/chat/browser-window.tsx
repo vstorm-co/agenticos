@@ -10,6 +10,7 @@ import {
   Maximize2,
   MessageSquarePlus,
   Minimize2,
+  MoreHorizontal,
   Undo2,
   X,
 } from "lucide-react";
@@ -18,9 +19,18 @@ import { useTranslations } from "next-intl";
 import type { BrowserCommand } from "@/hooks/use-live-browse";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores";
+import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
-import { OperationIcon, OUTCOME_TONE, StepTimeline } from "./browser-view";
+import type { BrowseOutcome } from "@/types/chat";
+import { OUTCOME_TONE, StepTimeline } from "./browser-view";
 import { LiveViewport } from "./live-viewport";
 
 /** What a person may do with the browser, as the window offers it. */
@@ -157,46 +167,18 @@ export function AgentCursor({ pointer }: { pointer: { x: number; y: number; step
   );
 }
 
-/**
- * What the browser is doing this moment, floating over the bottom of the page.
- *
- * The one line of the trace worth a glance while it runs - the whole list is a
- * button away - and how it ended once it has.
- */
-function StatusPill({ browse }: { browse: Browse }) {
+/** A completed session's outcome, kept in the chrome rather than over the page. */
+function OutcomeBadge({ outcome }: { outcome: BrowseOutcome }) {
   const t = useTranslations("chat");
-  const latest = browse.steps.at(-1);
-  if (browse.outcome) {
-    return (
-      <span
-        className={cn(
-          "bg-background ring-foreground/10 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg ring-1",
-          OUTCOME_TONE[browse.outcome],
-        )}
-        data-testid="browse-outcome"
-      >
-        {t(`browserOutcome.${browse.outcome}`)}
-      </span>
-    );
-  }
   return (
-    <span className="bg-foreground text-background flex max-w-full min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs shadow-lg">
-      <span className="relative flex size-1.5 shrink-0" aria-hidden>
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-        <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
-      </span>
-      {latest ? (
-        <>
-          <OperationIcon operation={latest.operation} className="size-3.5 shrink-0" />
-          <span className="shrink-0 font-medium">
-            {t("browserAction", { operation: latest.operation })}
-          </span>
-          {/* Page-derived text, rendered as text. */}
-          {latest.target && <span className="truncate opacity-75">{latest.target}</span>}
-        </>
-      ) : (
-        <span className="font-medium">{t("browserStarting")}</span>
+    <span
+      className={cn(
+        "bg-foreground/[0.04] mr-1 rounded-md px-2 py-1 text-[11px] font-medium",
+        OUTCOME_TONE[outcome],
       )}
+      data-testid="browse-outcome"
+    >
+      {t(`browserOutcome.${outcome}`)}
     </span>
   );
 }
@@ -224,8 +206,10 @@ function useFitPage(control: BrowseControl | null) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let last = "";
     const fit = () => {
-      const width = Math.max(320, Math.round(element.clientWidth));
-      const height = Math.max(320, Math.round(element.clientHeight));
+      // BrowserCommand rejects larger sizes; waiting for a rejected fit would
+      // hide the first frame until the viewer timeout on large monitors.
+      const width = Math.min(1600, Math.max(320, Math.round(element.clientWidth)));
+      const height = Math.min(2000, Math.max(320, Math.round(element.clientHeight)));
       const scale: 1 | 2 = window.devicePixelRatio >= 1.5 ? 2 : 1;
       const size = `${width}x${height}@${scale}`;
       if (size === last) return;
@@ -287,9 +271,8 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
  * full screen when somebody maximises it), and the link a channel posts opens it
  * on a page of its own - so what somebody watches,
  * and where they take over, is the same window wherever they arrived from. The
- * page has the room; what the agent is doing is one line over it, and the full
- * list of steps is folded behind a button, because people watching a browse look
- * at the page, not at a log.
+ * page has the room; activity stays in the conversation and the full list of
+ * steps is available from the browser menu.
  *
  * `control` is null where nobody can drive this browse from here: a finished
  * one, or one whose run is not known yet.
@@ -300,6 +283,7 @@ export function BrowserWindow({
   onClose,
   maximized,
   onMaximize,
+  maximizeLabel,
   newTabHref,
   waitForFit = false,
   onComment,
@@ -309,6 +293,7 @@ export function BrowserWindow({
   onClose?: () => void;
   maximized?: boolean;
   onMaximize?: () => void;
+  maximizeLabel?: string;
   /** Where the same browse opens on a page of its own, where that is somewhere else. */
   newTabHref?: string;
   /** Hold the picture back until a frame of this window's size arrives - see `useFitted`. */
@@ -335,110 +320,139 @@ export function BrowserWindow({
   return (
     <section
       aria-label={t("browserHeading")}
-      className="bg-background flex h-full min-h-0 flex-col"
+      className="bg-background @container/browser-window flex h-full min-h-0 min-w-0 flex-col"
     >
-      {/* One toolbar, the way a browser draws its chrome: the address with the
-          page's lock and whether it is live, then what a person can do. A tab
-          strip above it held one tab that could not be switched, and read as a
-          second address bar. */}
-      <div className="bg-background border-border flex h-12 shrink-0 items-center gap-1 border-b px-2">
+      <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
         <div
-          className="bg-muted/80 flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 text-sm"
-          title={browse.url ?? undefined}
-        >
-          {secure ? (
-            <Lock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-          ) : (
-            <Globe className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+          className={cn(
+            "flex min-w-0 flex-1 items-center",
+            browse.navigable && canDrive && "basis-full @min-[420px]/browser-window:basis-auto",
           )}
-          <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
-          <span className="min-w-0 flex-1 truncate">
-            {host ? (
-              <>
-                <span className="text-foreground font-medium">{host}</span>
-                <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
-              </>
-            ) : (
-              <span className="text-muted-foreground">{t("browserStarting")}</span>
-            )}
-          </span>
-          {running && (
-            <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
-              {t("browserLive")}
-            </span>
+        >
+          {browse.navigable && canDrive ? (
+            <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
+          ) : (
+            <div
+              className="bg-muted/80 flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 text-xs"
+              title={browse.url ?? undefined}
+            >
+              {secure ? (
+                <Lock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              ) : (
+                <Globe className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              )}
+              <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+              <span className="min-w-0 flex-1 truncate">
+                {host ? (
+                  <>
+                    <span className="text-foreground font-medium">{host}</span>
+                    <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">{t("browserStarting")}</span>
+                )}
+              </span>
+              {running && (
+                <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                  <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+                  {t("browserLive")}
+                </span>
+              )}
+            </div>
           )}
         </div>
-        {canDrive &&
-          (hold.holding ? (
-            <button
-              type="button"
-              onClick={() => {
-                hold.giveBack(remember);
-                // Consent to keep a sign-in is for this hand-back only; the next
-                // take-over asks again rather than inheriting a tick.
-                setRemember(false);
-              }}
-              className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium"
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          {browse.outcome && <OutcomeBadge outcome={browse.outcome} />}
+          {canDrive &&
+            (hold.holding ? (
+              <button
+                type="button"
+                aria-label={tb("giveBack")}
+                title={tb("giveBack")}
+                onClick={() => {
+                  hold.giveBack(remember);
+                  // Consent to keep a sign-in is for this hand-back only; the next
+                  // take-over asks again rather than inheriting a tick.
+                  setRemember(false);
+                }}
+                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium"
+              >
+                <Undo2 className="size-4" aria-hidden />
+              </button>
+            ) : hold.someoneElse ? null : (
+              <button
+                type="button"
+                aria-label={hold.waiting ? tb("takingOver") : tb("takeOver")}
+                onClick={hold.takeOver}
+                disabled={hold.waiting}
+                title={tb("takeOverHint")}
+                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium disabled:opacity-60"
+              >
+                <Hand className="size-4" aria-hidden />
+              </button>
+            ))}
+          {canComment && (
+            <ChromeButton
+              label={t("browserComment")}
+              onClick={() => setCommenting((on) => !on)}
+              pressed={commenting}
             >
-              <Undo2 className="size-4" aria-hidden />
-              {tb("giveBack")}
-            </button>
-          ) : hold.someoneElse ? null : (
-            <button
-              type="button"
-              onClick={hold.takeOver}
-              disabled={hold.waiting}
-              title={tb("takeOverHint")}
-              className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium disabled:opacity-60"
-            >
-              <Hand className="size-4" aria-hidden />
-              {hold.waiting ? tb("takingOver") : tb("takeOver")}
-            </button>
-          ))}
-        {canComment && (
-          <ChromeButton
-            label={t("browserComment")}
-            onClick={() => setCommenting((on) => !on)}
-            pressed={commenting}
-          >
-            <MessageSquarePlus className="size-4" />
-          </ChromeButton>
-        )}
-        <ChromeButton
-          label={t("browserShowSteps", { count: browse.steps.length })}
-          onClick={() => setShowSteps((shown) => !shown)}
-          pressed={showSteps}
-        >
-          <ListChecks className="size-4" />
-        </ChromeButton>
-        {newTabHref && (
-          <a
-            href={newTabHref}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t("browserOpenNewTab")}
-            title={t("browserOpenNewTab")}
-            className="text-foreground/70 hover:text-foreground hover:bg-foreground/[0.08] flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
-          >
-            <ExternalLink className="size-4" aria-hidden />
-          </a>
-        )}
-        {onMaximize && (
-          <ChromeButton
-            label={maximized ? t("browserRestore") : t("browserMaximize")}
-            onClick={onMaximize}
-          >
-            {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </ChromeButton>
-        )}
-        {onClose && (
-          <ChromeButton label={t("browserClose")} onClick={onClose}>
-            <X className="size-4" />
-          </ChromeButton>
-        )}
+              <MessageSquarePlus className="size-4" />
+            </ChromeButton>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("browserMenu")}
+                title={t("browserMenu")}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuCheckboxItem checked={showSteps} onCheckedChange={setShowSteps}>
+                <ListChecks className="mr-2 size-4" aria-hidden />
+                {t("browserShowSteps", { count: browse.steps.length })}
+              </DropdownMenuCheckboxItem>
+              {newTabHref && (
+                <DropdownMenuItem asChild>
+                  <a href={newTabHref} target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-4" aria-hidden />
+                    {t("browserOpenNewTab")}
+                  </a>
+                </DropdownMenuItem>
+              )}
+              {onMaximize && (
+                <DropdownMenuItem onSelect={onMaximize}>
+                  {maximized ? (
+                    <Minimize2 className="size-4" aria-hidden />
+                  ) : (
+                    <Maximize2 className="size-4" aria-hidden />
+                  )}
+                  {maximizeLabel ?? (maximized ? t("browserRestore") : t("browserMaximize"))}
+                </DropdownMenuItem>
+              )}
+              {onClose && (
+                <DropdownMenuItem onSelect={onClose}>
+                  <X className="size-4" aria-hidden />
+                  {t("browserClose")}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
+      {browse.navigable && canDrive && (
+        <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+      )}
+      {browse.controlError && (
+        <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">
+          {browse.controlError}
+        </p>
+      )}
       {/* While holding: keep the sign-in made here for later browses, offered
           only to the person the run acts for - the server says who that is. */}
       {hold.holding && control?.canRemember && host && (
@@ -473,7 +487,7 @@ export function BrowserWindow({
       {/* The page, edge to edge, the way a browser draws one: the window has
           asked for the page to be laid out at its own size (see `useFitPage`),
           so the picture fills it 1:1 rather than being a laptop screen shrunk
-          into a column. What the browser is doing floats over the bottom. */}
+          into a column. Activity does not cover the page. */}
       <div ref={pageRef} className="bg-background relative min-h-0 flex-1 overflow-hidden">
         <div className="h-full scrollbar-thin overflow-y-auto">
           {browse.image && fitted ? (
@@ -502,18 +516,17 @@ export function BrowserWindow({
               )}
             </div>
           ) : (
-            <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-              {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
+            <div
+              role="status"
+              className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 p-5 text-center text-xs"
+            >
+              <span className="bg-muted/50 border-border/60 flex size-10 items-center justify-center rounded-xl border">
+                <Globe className="size-5 opacity-50" aria-hidden />
+              </span>
+              <span className="max-w-64 leading-relaxed">
+                {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
+              </span>
             </div>
-          )}
-        </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
-          {hold.holding ? (
-            <span className="rounded-full bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
-              {t("browserHolding")}
-            </span>
-          ) : (
-            <StatusPill browse={browse} />
           )}
         </div>
       </div>

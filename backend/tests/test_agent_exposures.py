@@ -635,24 +635,16 @@ class TestWhatANewBindingStartsWith:
 
         return exposures.create.call_args.kwargs
 
-    async def test_a_mattermost_binding_opens_with_mattermost_s_own_style(self):
-        assert "~channel-name" in (await self._created("mattermost"))["prompt"]
+    @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+    async def test_new_bindings_store_only_custom_additions(self, surface):
+        assert (await self._created(surface))["prompt"] is None
 
-    async def test_a_slack_binding_is_told_slack_writes_links_differently(self):
-        assert "<https://example.com|what it is>" in (await self._created("slack"))["prompt"]
-
-    async def test_it_is_the_row_s_own_text_from_then_on(self):
-        """Editable and deletable, unlike something applied at run time - which
-        is the whole reason it is a column rather than a rule."""
-        created = await self._created("telegram")
-
-        assert created["prompt"]
-        assert (
-            await _with_exposure_prompt(
-                AgentSpec(name="S", instructions="x"),
-                SimpleNamespace(surface="telegram", prompt=None),
-            )
-        ).instructions == "x"
+    async def test_clearing_custom_additions_keeps_current_surface_defaults(self):
+        result = await _with_exposure_prompt(
+            AgentSpec(name="S", instructions="x"),
+            SimpleNamespace(surface="telegram", prompt=None),
+        )
+        assert result.instructions.startswith("x\n\nYou are answering in Telegram")
 
 
 class TestDescriptionForALookup:

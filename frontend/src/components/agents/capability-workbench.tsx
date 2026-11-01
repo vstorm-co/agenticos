@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
+import { TablesSection } from "@/components/agents/tables-section";
+import { WorkflowsSection } from "@/components/agents/workflows-section";
 import { TextToSpeechSection } from "@/components/agents/text-to-speech-section";
 import { VideoGenerationSection } from "@/components/agents/video-generation-section";
 import {
@@ -19,6 +21,8 @@ import { CapabilityGallery } from "@/components/agents/capability-art/capability
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
+  VIRTUAL_TABLES_ID,
+  WORKFLOWS_ID,
   MEMORY_FILES_ID,
   MEMORY_MEM0_ID,
   SANDBOX_ID,
@@ -61,8 +65,10 @@ interface CapabilityWorkbenchProps {
    * Only one panel needs it - memory, whose notes are cleared from inside the
    * capability that keeps them, because there is no browsing surface for them
    * anywhere else (#1470). Everything else here edits a spec and needs no id.
+   * Null for a spec no agent row holds yet - a workflow step's, before its first
+   * run - which has no notes to clear.
    */
-  agentId: string;
+  agentId: string | null;
   catalog: CapabilityCatalogEntry[];
   selected: CapabilityBindingSpec[];
   onToggle: (capabilityId: string) => void;
@@ -156,14 +162,20 @@ export function CapabilityWorkbench({
   const [query, setQuery] = useState("");
   const categories = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    // Stored bindings remain editable; new tools use the platform MCP server.
+    const offered = catalog.filter(
+      (entry) =>
+        !["workflows", "virtual_tables"].includes(entry.id) ||
+        selected.some((binding) => binding.id === entry.id),
+    );
     const matching = needle
-      ? catalog.filter(
+      ? offered.filter(
           (entry) =>
             entry.name.toLowerCase().includes(needle) ||
             entry.description.toLowerCase().includes(needle) ||
             entry.tools.some((tool) => tool.name.toLowerCase().includes(needle)),
         )
-      : catalog;
+      : offered;
     const groupOf = (entry: CapabilityCatalogEntry) =>
       ADVANCED_CAPABILITIES.has(entry.id) ? ADVANCED : entry.category;
     const names = [...new Set(matching.map(groupOf))].filter((name) => name !== ADVANCED).sort();
@@ -172,7 +184,7 @@ export function CapabilityWorkbench({
       name,
       entries: matching.filter((entry) => groupOf(entry) === name),
     }));
-  }, [catalog, query]);
+  }, [catalog, query, selected]);
 
   const focused = catalog.find((entry) => entry.id === openedId);
   const bound = selected.find((entry) => entry.id === focused?.id);
@@ -212,6 +224,26 @@ export function CapabilityWorkbench({
                and the server says which. */
           focused.id === IMAGE_GENERATION_ID ? (
             <ImageGenerationSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : focused.id === VIRTUAL_TABLES_ID ? (
+            <TablesSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : focused.id === WORKFLOWS_ID ? (
+            <WorkflowsSection
               definition={focused}
               binding={bound ?? unboundBinding(focused.id)}
               onToggleEnabled={() => onToggle(focused.id)}
@@ -289,7 +321,7 @@ export function CapabilityWorkbench({
               // them, because nothing anywhere else in the console reads or
               // writes them.
               settingsFooter={
-                focused.id === MEMORY_FILES_ID && isOn ? (
+                focused.id === MEMORY_FILES_ID && isOn && agentId !== null ? (
                   <ClearAgentMemory
                     agentId={agentId}
                     usesMem0={selected.some(
@@ -317,6 +349,7 @@ export function CapabilityWorkbench({
   // panel beside the page rather than below a list.
   return (
     <div className="space-y-4">
+      <p className="text-muted-foreground text-sm">{t("workflowTablesViaMcp")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput
           value={query}

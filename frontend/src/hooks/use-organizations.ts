@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
+import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type {
@@ -32,7 +33,9 @@ import type {
 export function useOrganizationList() {
   return useQuery({
     queryKey: qk.organizations.list(),
-    queryFn: async () => (await apiClient.get<OrganizationList>("/orgs")).items,
+    queryFn: async () =>
+      (await readThrough("organizations", () => apiClient.get<OrganizationList>("/orgs"))).items,
+    networkMode: "offlineFirst",
   });
 }
 
@@ -236,6 +239,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setPublicLiveData = useCallback(
+    async (id: string, allowed: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        public_live_data: allowed,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   // Five fields in one request, because the server validates them together: a
   // provider without its model, or `server` without either, is refused whole.
   const setVoiceSettings = useCallback(
@@ -285,6 +299,7 @@ export function useOrganizations() {
     setProactivity,
     setWelcomeDm,
     setChatApprovalWaiver,
+    setPublicLiveData,
     setVoiceSettings,
     deleteOrg,
     switchOrg,

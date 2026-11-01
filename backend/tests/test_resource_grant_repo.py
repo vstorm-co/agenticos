@@ -158,9 +158,9 @@ class TestListSharedIds:
     @pytest.mark.parametrize(
         ("minimum_level", "accepted"),
         [
-            (GrantLevel.READ, {"read", "use", "edit"}),
-            (GrantLevel.USE, {"use", "edit"}),
-            (GrantLevel.EDIT, {"edit"}),
+            (GrantLevel.READ, {"read", "use", "edit", "edit_data"}),
+            (GrantLevel.USE, {"use", "edit", "edit_data"}),
+            (GrantLevel.EDIT, {"edit", "edit_data"}),
         ],
     )
     async def test_a_minimum_level_accepts_every_level_above_it(self, minimum_level, accepted):
@@ -192,7 +192,7 @@ class TestListSharedIds:
             resource_type="agent",
         )
 
-        assert set(_filters(session)["level_1"]) == {"read", "use", "edit"}
+        assert set(_filters(session)["level_1"]) == {"read", "use", "edit", "edit_data"}
 
     async def test_only_the_ids_of_one_resource_type_are_returned(self):
         """These widen a listing query; an id of the wrong kind would widen it wrongly."""

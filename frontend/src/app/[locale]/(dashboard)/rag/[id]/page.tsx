@@ -1,5 +1,7 @@
 "use client";
 
+import { Files, ListChecks, RefreshCw } from "lucide-react";
+
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -310,12 +312,15 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
       >
         <TabsList data-tour="kb-tabs">
           <TabsTrigger value="documents" data-tour="kb-tab-documents">
+            <Files className="size-4 shrink-0" aria-hidden />
             {t("documents")}
           </TabsTrigger>
           <TabsTrigger value="ingestion" data-tour="kb-tab-ingestion">
+            <ListChecks className="size-4 shrink-0" aria-hidden />
             {t("howDocumentsAreRead")}
           </TabsTrigger>
           <TabsTrigger value="sync" data-tour="kb-tab-sync">
+            <RefreshCw className="size-4 shrink-0" aria-hidden />
             {t("syncSources")}
           </TabsTrigger>
         </TabsList>

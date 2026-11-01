@@ -108,6 +108,8 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /** Whether a page's data may reach anonymous visitors of its public link or embeds. */
+  public_live_data: boolean;
   /**
    * A provider from the speech-to-text catalog: the default agents and channel
    * bots inherit when they transcribe with a provider.

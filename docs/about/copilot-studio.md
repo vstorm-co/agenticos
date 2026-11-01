@@ -46,7 +46,7 @@ Copilot Studio's governance is strong inside Microsoft's stack. AgenticOS lets y
 
 ### Microsoft identity without Microsoft hosting
 
-AgenticOS signs people in with Entra ID over [OIDC](../configuration.md#single-sign-on-generic-oidc), maps [directory groups](../directory.md#the-groups-claim-over-oidc) to roles, and reads files from [SharePoint and OneDrive](../howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Agents can also work in Microsoft 365 through Microsoft's own Work IQ MCP servers for Outlook, Teams and Word, which are in the [MCP catalog](../mcp.md#communication-support-knowledge). You keep Microsoft as the identity and document source, and run the agents yourself.
+AgenticOS signs people in with Entra ID over [OIDC](../configuration.md#single-sign-on-generic-oidc), maps [directory groups](../directory.md#the-groups-claim-over-oidc) to roles, and reads files from [SharePoint and OneDrive](../howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Agents can also work in Microsoft 365 through the [MCP catalog](../mcp.md#communication-support-knowledge): a self-hosted Microsoft 365 server for Outlook mail and calendar, and Microsoft's hosted Work IQ server. You keep Microsoft as the identity and document source, and run the agents yourself.
 
 ## When Copilot Studio is the better fit
 

@@ -77,7 +77,7 @@ export function ChoiceGroup<T extends string>({
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60",
+              "focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex touch-manipulation items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60",
               checked
                 ? "bg-accent text-foreground font-medium"
                 : "text-muted-foreground hover:text-foreground",
