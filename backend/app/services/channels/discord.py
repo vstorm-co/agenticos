@@ -447,8 +447,10 @@ class DiscordAdapter(ChannelAdapter):
         channel_id, reference = await self._destination(bot_token, prompt.platform_chat_id)
         pieces = chunks(prompt.text)
         for piece in pieces[:-1]:
+            # Every chunk, as an answer's: where no thread could be opened, a typed
+            # reply to the last one - the one with the buttons - must find the
+            # question it answers.
             await self._post(bot_token, channel_id, piece, reference=reference)
-            reference = None
         await self._post(
             bot_token,
             channel_id,

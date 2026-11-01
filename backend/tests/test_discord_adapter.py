@@ -553,6 +553,21 @@ class TestPrompts:
         assert body["content"] == "Run it?\n**Approved**"
         assert body["components"] == []
 
+    async def test_where_no_thread_opens_every_chunk_of_a_prompt_replies_to_the_question(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        adapter._unthreaded.put(f"{CHANNEL}:{MESSAGE}", True)
+
+        await adapter.send_prompt(
+            "tok",
+            PromptMessage(
+                f"{CHANNEL}:{MESSAGE}", "x" * 2100, [ChannelChoice("Approve", "aos:p:0", "primary")]
+            ),
+        )
+
+        sent = api.posted(f"/channels/{CHANNEL}/messages")
+        assert [body["message_reference"]["message_id"] for body in sent] == [MESSAGE, MESSAGE]
+
     async def test_a_press_on_a_message_it_cannot_name_is_left_alone(
         self, adapter: DiscordAdapter, api: _Discord
     ):

@@ -1392,7 +1392,12 @@ class ChannelMessageRouter:
                 )
         elif mode == "group_only":
             allowed: list[str] = [str(x) for x in policy.get("allowed_groups", [])]
-            if str(incoming.platform_chat_id) not in allowed:
+            # The room as well as the conversation: a key that folds a thread in
+            # (`channel:thread`) is not the id a group is listed under.
+            if (
+                str(incoming.platform_chat_id) not in allowed
+                and channel_key(incoming.platform_chat_id) not in allowed
+            ):
                 raise AuthorizationError(
                     message=policy.get(
                         "denied_message", "This bot is only available in specific groups."

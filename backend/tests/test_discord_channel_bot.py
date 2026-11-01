@@ -182,3 +182,29 @@ class TestPublishingAQuestionAsTheBot:
             ),
         ):
             assert await channel_worker.refusal_before_publishing(self._incoming()) == "no"
+
+
+class TestAGroupOnlyBotAndTheRoomsOfThreads:
+    """A conversation key folds a thread in; a group is listed under its channel."""
+
+    def _check(self, key: str) -> None:
+        incoming = IncomingMessage(
+            platform="discord",
+            bot_id="b",
+            platform_user_id="u",
+            platform_chat_id=key,
+            chat_type="group",
+            text="hi",
+        )
+        bot = MagicMock(access_policy={"mode": "group_only", "allowed_groups": ["100"]})
+        ChannelMessageRouter()._check_access(incoming, bot)
+
+    def test_a_channel_listed_by_its_id_admits_its_threads(self):
+        self._check("100")
+        self._check("100:555")
+
+    def test_another_channel_is_refused_thread_or_not(self):
+        with pytest.raises(AuthorizationError):
+            self._check("200")
+        with pytest.raises(AuthorizationError):
+            self._check("200:100")
