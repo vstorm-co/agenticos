@@ -783,10 +783,10 @@ class TestWhatDeletionRemoves:
         await user_repo.delete(db, user_id)
         await db.flush()
 
-        written = await _native._person_still_exists(db, person_owner_key(user_id))
+        written = await _native.person_still_exists(db, person_owner_key(user_id))
 
         assert written is False
-        assert await _native._person_still_exists(db, "room:slack:C123") is True
+        assert await _native.person_still_exists(db, "room:slack:C123") is True
 
     async def test_nobody_else_s_notes_or_identities_are_touched(self, db):
         """The purge is keyed on the person, and a key built from a uuid is not a

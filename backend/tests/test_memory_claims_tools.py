@@ -224,8 +224,9 @@ class TestRecall:
 
         assert ledger["recall"].await_args.kwargs["scopes"] == [ClaimScope(ROOM, AGENT)]
 
-    async def test_an_anonymous_run_is_refused(self, ledger):
+    async def test_an_anonymous_run_and_a_run_without_an_agent_are_refused(self, ledger):
         assert await _tools().recall(_ctx(_deps(person=None)), "x") == _NO_STORE
+        assert await _tools().recall(_ctx(AgentDeps()), "x") == _NO_STORE
 
 
 class TestCorrect:

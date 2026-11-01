@@ -43,10 +43,6 @@ somebody. Not worth listing as an ability, nor suggesting as a missing one.
 An exclusion rather than a list of what to show, so a capability added to the
 registry is offered from the day it ships."""
 
-ALTERNATIVES: tuple[frozenset[str], ...] = ()
-"""Capabilities that are two ways of doing one thing: an agent with either is
-not told it lacks the other."""
-
 REQUEST_CAPABILITY = "request_capability"
 """The tool's name, which the console draws a card for."""
 
@@ -65,9 +61,6 @@ def _inventory(spec: AgentSpec) -> tuple[list[CapabilityDef], list[CapabilityDef
     """What the agent has, and what it could be given, in the Toolbox's order."""
     bound = {binding.id for binding in spec.capabilities if binding.enabled}
     covered = set(bound | PLUMBING)
-    for group in ALTERNATIVES:
-        if group & bound:
-            covered |= group
     has: list[CapabilityDef] = []
     missing: list[CapabilityDef] = []
     for definition in all_capabilities():
