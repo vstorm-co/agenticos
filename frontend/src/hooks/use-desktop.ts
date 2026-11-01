@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import {
   changeServer,
   getLocalAgents,
+  getLocalSkills,
+  SKILL_SOURCES,
   getLocalServices,
   signInLocalAgent,
   signOutLocalAgent,
@@ -316,4 +318,19 @@ export function useLocalAgents() {
     onError: failed,
   });
   return { state, signIn, signOut };
+}
+
+/**
+ * The skills on this computer in every source, so a chat can show what turning a
+ * source on would offer. Read in place by the app; refreshed when the window regains
+ * focus, since a person edits these files outside AgenticOS.
+ */
+export function useLocalSkills() {
+  const shell = useShell();
+  return useQuery({
+    queryKey: qk.desktop.skills(),
+    queryFn: () => getLocalSkills(SKILL_SOURCES),
+    enabled: isDesktopShell(shell),
+    refetchOnWindowFocus: "always",
+  });
 }

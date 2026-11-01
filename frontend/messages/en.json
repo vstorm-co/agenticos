@@ -1213,7 +1213,15 @@
         "computerFailed": "Could not change computer access. Try again.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Use this computer's screen, mouse and keyboard, even when the agent has no Computer use capability. This does not grant file access. The desktop app asks for screen and accessibility permissions when needed.",
-        "computerUseLocal": "Local computer"
+        "computerUseLocal": "Local computer",
+        "skills": {
+          "title": "My skills and instructions",
+          "help": "Use the skills in the .agents, .claude and .codex folders of your home folder, and your AGENTS.md, in this chat. They are read from this computer in place and never copied or synced into AgenticOS. Off for every new chat.",
+          "count": "{count, plural, one {# skill} other {# skills}}",
+          "hidden": "{count, plural, one {# skill is hidden by one of the same name in an earlier folder} other {# skills are hidden by ones of the same name in an earlier folder}}.",
+          "on": "This chat can load the skills above and follows your AGENTS.md (the newer of the .codex and .claude ones), then the working folder's.",
+          "off": "Off: this chat uses only what is in AgenticOS."
+        }
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",

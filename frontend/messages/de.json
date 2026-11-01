@@ -1213,7 +1213,15 @@
         "computerFailed": "Der Computerzugriff konnte nicht geändert werden. Versuchen Sie es erneut.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Bildschirm, Maus und Tastatur dieses Computers verwenden, auch wenn der Agent keine Computer-use-Fähigkeit hat. Dies gewährt keinen Dateizugriff. Die Desktop-App fragt bei Bedarf nach Bildschirm- und Bedienungshilfenberechtigungen.",
-        "computerUseLocal": "Lokaler Computer"
+        "computerUseLocal": "Lokaler Computer",
+        "skills": {
+          "title": "Meine Skills und Anweisungen",
+          "help": "Nutze in diesem Chat die Skills aus den Ordnern .agents, .claude und .codex in deinem Home-Ordner sowie deine AGENTS.md. Sie werden direkt auf diesem Computer gelesen und nie nach AgenticOS kopiert oder synchronisiert. Für jeden neuen Chat aus.",
+          "count": "{count, plural, one {# Skill} other {# Skills}}",
+          "hidden": "{count, plural, one {# Skill wird von einem gleichnamigen in einem früheren Ordner verdeckt} other {# Skills werden von gleichnamigen in früheren Ordnern verdeckt}}.",
+          "on": "Dieser Chat kann die Skills oben laden und befolgt deine AGENTS.md (die neuere aus .codex und .claude), danach die des Arbeitsordners.",
+          "off": "Aus: Dieser Chat nutzt nur, was in AgenticOS ist."
+        }
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",

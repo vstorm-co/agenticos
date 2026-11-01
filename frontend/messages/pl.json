@@ -1213,7 +1213,15 @@
         "computerFailed": "Nie udało się zmienić dostępu do komputera. Spróbuj ponownie.",
         "computerUseTitle": "Computer use",
         "computerUseIndependent": "Użyj ekranu, myszy i klawiatury tego komputera, nawet jeśli agent nie ma zdolności Computer use. Nie daje to dostępu do plików. Aplikacja desktopowa poprosi o potrzebne uprawnienia do ekranu i dostępności.",
-        "computerUseLocal": "Lokalny komputer"
+        "computerUseLocal": "Lokalny komputer",
+        "skills": {
+          "title": "Moje skille i instrukcje",
+          "help": "Używaj w tym czacie skilli z folderów .agents, .claude i .codex w swoim folderze domowym oraz swojego AGENTS.md. Są czytane z tego komputera na miejscu i nigdy nie są kopiowane ani synchronizowane do AgenticOS. Wyłączone w każdym nowym czacie.",
+          "count": "{count, plural, one {# skill} few {# skille} many {# skilli} other {# skilla}}",
+          "hidden": "{count, plural, one {# skill jest ukryty przez skill o tej samej nazwie we wcześniejszym folderze} few {# skille są ukryte przez skille o tych samych nazwach we wcześniejszych folderach} many {# skilli jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach} other {# skilla jest ukrytych przez skille o tych samych nazwach we wcześniejszych folderach}}.",
+          "on": "Ten czat może ładować powyższe skille i stosuje Twój AGENTS.md (nowszy z plików w .codex i .claude), a potem ten z folderu roboczego.",
+          "off": "Wyłączone: ten czat używa tylko tego, co jest w AgenticOS."
+        }
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",

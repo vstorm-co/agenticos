@@ -667,6 +667,7 @@ export const qk = {
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     agents: () => ["desktop", "agents"] as const,
+    skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,
     /** The inbox's newest page as the desktop bridge reads it, once per unread count. */

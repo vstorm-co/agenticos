@@ -22,6 +22,9 @@ const pick = vi.hoisted(() =>
   vi.fn<(mode: LocalMode, options: { onSuccess: (grant: LocalGrant | null) => void }) => void>(),
 );
 const computer = vi.hoisted(() => ({ allow: vi.fn(), revoke: vi.fn() }));
+vi.mock("./local-skills-control", () => ({
+  LocalSkillsControl: () => <div data-testid="skills" />,
+}));
 vi.mock("@/lib/desktop/commands", async (original) => ({
   ...(await original<typeof import("@/lib/desktop/commands")>()),
   allowWholeComputer: computer.allow,
