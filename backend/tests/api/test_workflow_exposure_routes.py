@@ -93,6 +93,27 @@ class TestExposureRoutes:
         read = await client.get(f"{settings.API_V1_STR}/workflows/{uuid.uuid4()}/exposure")
         assert (read.status_code, read.json()) == (200, None)
 
+    async def test_the_list_answers_every_registered_trigger_and_an_empty_one_as_a_list(
+        self, wired
+    ):
+        client, service = wired
+        workflow_id = uuid.uuid4()
+        service.list_for_workflow = AsyncMock(
+            return_value=[
+                WorkflowExposureRead(**_read(adapter="webhook")),
+                WorkflowExposureRead(**_read(adapter="schedule")),
+            ]
+        )
+        url = f"{settings.API_V1_STR}/workflows/{workflow_id}/exposures"
+
+        listed = await client.get(url)
+        assert listed.status_code == 200
+        assert [item["adapter"] for item in listed.json()] == ["webhook", "schedule"]
+        service.list_for_workflow.assert_awaited_once_with(_CTX, workflow_id)
+
+        service.list_for_workflow = AsyncMock(return_value=[])
+        assert (await client.get(url)).json() == []
+
     async def test_a_pause_without_its_flag_never_reaches_the_service(self, wired):
         client, service = wired
         service.set_active = AsyncMock()
