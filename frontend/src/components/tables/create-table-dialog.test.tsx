@@ -496,3 +496,67 @@ it("names organization identity column types in the creation picker", async () =
     expect(screen.getByRole("option", { name })).toBeVisible();
   }
 });
+
+it("creates colored options with a typed default without changing other columns", async () => {
+  const create = vi.fn();
+  render(
+    <CreateTableDialog
+      open
+      onOpenChange={vi.fn()}
+      onCreate={create}
+      isCreating={false}
+      error={null}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText("Name"), "Projects");
+  await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+  fireEvent.change(screen.getAllByLabelText("Column label")[1]!, { target: { value: "Status" } });
+  await userEvent.click(screen.getAllByRole("combobox", { name: "Column type" })[1]!);
+  await userEvent.click(screen.getByRole("option", { name: "Single select" }));
+  fireEvent.change(screen.getByLabelText("Options, one per line"), {
+    target: { value: "Open\nDone\nOpen" },
+  });
+  await userEvent.click(screen.getByRole("combobox", { name: "Color for Open" }));
+  await userEvent.click(screen.getByRole("option", { name: "Green" }));
+  await userEvent.click(screen.getAllByRole("button", { name: "Default value" })[1]!);
+  await userEvent.click(screen.getByRole("combobox", { name: "Default value" }));
+  await userEvent.click(screen.getByRole("option", { name: "Open" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+  expect(create.mock.calls[0]?.[0].columns).toEqual([
+    { label: "Name", type: "text" },
+    expect.objectContaining({
+      label: "Status",
+      type: "single_select",
+      default: "Open",
+      options: [
+        { label: "Open", color: "green" },
+        { label: "Done", color: null },
+      ],
+    }),
+  ]);
+});
+it("edits a new document column template while preserving other columns", async () => {
+  const create = vi.fn();
+  render(
+    <CreateTableDialog
+      open
+      onOpenChange={vi.fn()}
+      onCreate={create}
+      isCreating={false}
+      error={null}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText("Name"), "Notebook");
+  await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+  fireEvent.change(screen.getAllByLabelText("Column label")[1]!, { target: { value: "Notes" } });
+  await userEvent.click(screen.getAllByRole("combobox", { name: "Column type" })[1]!);
+  await userEvent.click(screen.getByRole("option", { name: "Rich text (Markdown)" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Default document template" }), {
+    target: { value: "# Team template" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+  expect(create.mock.calls[0]?.[0].columns).toEqual([
+    { label: "Name", type: "text" },
+    expect.objectContaining({ label: "Notes", type: "rich_text", default: "# Team template" }),
+  ]);
+});

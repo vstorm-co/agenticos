@@ -30,3 +30,25 @@ it("expands without remounting edits, dismisses with Escape and restores the she
   expect(outside.inert).toBe(false);
   expect(input.parentElement).toHaveAttribute("data-expanded", "false");
 });
+
+it("lets an open menu consume Escape before leaving the workspace", async () => {
+  function Example() {
+    const { ref, expanded, toggle } = useWorkspaceFullscreen();
+    return (
+      <div ref={ref} data-expanded={expanded}>
+        <button onClick={toggle}>Expand</button>
+        <div role="menu" data-state="open">
+          Menu
+        </div>
+      </div>
+    );
+  }
+  render(<Example />);
+  await userEvent.click(screen.getByRole("button", { name: "Expand" }));
+  const workspace = screen.getByRole("button", { name: "Expand" }).parentElement;
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(workspace).toHaveAttribute("data-expanded", "true");
+  screen.getByRole("menu").remove();
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(workspace).toHaveAttribute("data-expanded", "false");
+});

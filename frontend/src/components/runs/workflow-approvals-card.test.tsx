@@ -199,6 +199,17 @@ describe("WorkflowApprovalsCard editing", () => {
     expect(screen.queryByText("Sorry for the wait")).toBeNull();
   });
 
+  it("folds a long unchanged stretch into one row when showing changes", async () => {
+    const lines = Array.from({ length: 12 }, (_, index) => `Line ${index + 1}`);
+    queue({ ...EDITABLE, proposal: lines.join("\n") });
+    render(<WorkflowApprovalsCard />, { wrapper });
+
+    await replaceDraft([...lines.slice(0, 11), "Line 12 edited"].join("\n"));
+    await userEvent.click(screen.getByRole("button", { name: "Show changes" }));
+
+    expect(screen.getByText("8 unchanged lines")).toBeTruthy();
+  });
+
   it("rejects without sending the edit", async () => {
     queue(EDITABLE);
     render(<WorkflowApprovalsCard />, { wrapper });

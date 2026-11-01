@@ -18,6 +18,7 @@ import {
   getWorkflowsSummary,
   getWorkflowVersion,
   listWorkflowVersions,
+  listWorkflowMcpConnections,
   listWorkflows,
   publishWorkflow,
   restoreWorkflowVersion,
@@ -192,4 +193,11 @@ it("requests an older workflow-version metadata page by cursor", async () => {
   expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf-1/versions", {
     params: { before: "7" },
   });
+});
+
+it("lists only the connections the workflow editor may use", async () => {
+  const items = [{ id: "notion", name: "Notion" }];
+  vi.mocked(apiClient.get).mockResolvedValueOnce({ items });
+  expect(await listWorkflowMcpConnections("wf")).toEqual(items);
+  expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/mcp-connections");
 });

@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api-client";
 
 import {
   getWebhookTest,
+  listWorkflowExposures,
   getWorkflowExposure,
   listenForWebhookTest,
   renewWorkflowFormLink,
@@ -42,4 +43,11 @@ describe("exposures-api", () => {
     await getWebhookTest("wf", "tok");
     expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/webhook-test/tok");
   });
+});
+
+it("lists all independently registered starts", async () => {
+  const items = [{ id: "one" }, { id: "two" }];
+  vi.mocked(apiClient.get).mockResolvedValueOnce(items);
+  expect(await listWorkflowExposures("wf")).toEqual(items);
+  expect(apiClient.get).toHaveBeenCalledWith("/workflows/wf/exposures");
 });

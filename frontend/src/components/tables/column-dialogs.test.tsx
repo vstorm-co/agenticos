@@ -419,3 +419,18 @@ it("retries a failed link-table catalog without losing the column form", async (
     hooks.refetch.mockClear();
   }
 });
+
+it("assigns a color to a new choice before creating its column", async () => {
+  const add = vi.fn();
+  render(<AddColumnDialog open columns={[]} onOpenChange={vi.fn()} onAdd={add} isSaving={false} />);
+  await userEvent.type(screen.getByLabelText("Name"), "Status");
+  await userEvent.click(screen.getByRole("combobox", { name: "Type" }));
+  await userEvent.click(screen.getByRole("option", { name: "Single select" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Options" }), { target: { value: "Open" } });
+  await userEvent.click(screen.getByRole("combobox", { name: "Color for Open" }));
+  await userEvent.click(screen.getByRole("option", { name: "Purple" }));
+  await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+  expect(add).toHaveBeenCalledWith(
+    expect.objectContaining({ options: [{ label: "Open", color: "purple" }] }),
+  );
+});

@@ -4,6 +4,7 @@ import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   declaredFields,
+  entryGraph,
   isTrigger,
   sampleRunInput,
   startsByHand,
@@ -103,5 +104,56 @@ describe("triggers", () => {
       error: { code: "SAMPLE_FAILURE" },
     });
     vi.useRealTimers();
+  });
+});
+
+it("isolates the reachable branch of an independent start and terminates a cycle", () => {
+  const base = graph("trigger.manual");
+  const start = base.nodes[0]!;
+  const g: WorkflowGraph = {
+    ...base,
+    nodes: [
+      start,
+      { ...start, id: "out", definition_id: "core.output" },
+      { ...start, id: "other" },
+    ],
+    edges: [
+      {
+        id: "edge",
+        source_node_id: "n1",
+        source_port: "out",
+        target_node_id: "out",
+        target_port: "in",
+      },
+      {
+        id: "cycle",
+        source_node_id: "out",
+        source_port: "out",
+        target_node_id: "n1",
+        target_port: "in",
+      },
+      {
+        id: "other",
+        source_node_id: "other",
+        source_port: "out",
+        target_node_id: "other",
+        target_port: "in",
+      },
+    ],
+    bindings: [
+      { target_node_id: "out", target_field: "text", source: { kind: "literal", value: "Done" } },
+      {
+        target_node_id: "other",
+        target_field: "text",
+        source: { kind: "literal", value: "Hidden" },
+      },
+    ],
+  };
+  expect(entryGraph(g, "n1")).toEqual({
+    ...g,
+    nodes: g.nodes.slice(0, 2),
+    edges: g.edges.slice(0, 2),
+    bindings: g.bindings.slice(0, 1),
+    scopes: [],
   });
 });

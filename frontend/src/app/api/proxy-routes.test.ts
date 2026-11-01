@@ -86,6 +86,7 @@ import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
 import * as workflowApprovals from "./workflow-approvals/[[...path]]/route";
+import * as workflowLogs from "./workflow-logs/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
@@ -199,6 +200,17 @@ describe("the proxied route mounts", () => {
     for (const verb of VERBS) {
       expect(typeof module[verb], verb).toBe("function");
     }
+  });
+
+  it("mounts the workflow logs as a read-only forwarder that refuses an unauthenticated request", async () => {
+    const { NextRequest } = await import("next/server");
+
+    expect(Object.keys(workflowLogs)).toEqual(["GET"]);
+    const response = await workflowLogs.GET(
+      new NextRequest("http://localhost:3000/api/workflow-logs"),
+    );
+
+    expect(response.status).toBe(401);
   });
 
   it("mounts one forwarder per file rather than sharing an instance", () => {
