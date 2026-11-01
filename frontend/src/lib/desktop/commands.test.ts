@@ -316,3 +316,10 @@ describe("local skills", () => {
     await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
   });
 });
+
+describe("local agents", () => {
+  it("refuses an answer that is not a list of agents", () => {
+    expect(() => commands.parseLocalAgents({})).toThrow("malformed");
+    expect(() => commands.parseLocalAgents(null)).toThrow("malformed");
+  });
+});
