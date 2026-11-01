@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
+import { useAuthStore, useOrgStore } from "@/stores";
 import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { AssistantState } from "@/types/assistant";
 
@@ -305,6 +306,25 @@ describe("the Architect widget", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
     expect(state.startNewChat).toHaveBeenCalledTimes(2);
+  });
+
+  it("goes back to the conversation last open after a page load, until a new one is started", () => {
+    const user = useAuthStore.getState().user;
+    const organization = useOrgStore.getState().activeOrgId;
+    useAuthStore.setState({ user: { ...user!, id: "u1" } });
+    useOrgStore.setState({ activeOrgId: "o1" });
+    localStorage.setItem("architect-conversation:u1:o1", "c9");
+    const view = render(<AssistantWidget />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
+    expect(state.selectConversation).toHaveBeenCalledWith("c9");
+    state.currentConversationId = "c1";
+    view.rerender(<AssistantWidget />);
+    expect(localStorage.getItem("architect-conversation:u1:o1")).toBe("c1");
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(state.startNewChat).toHaveBeenCalledOnce();
+    expect(localStorage.getItem("architect-conversation:u1:o1")).toBeNull();
+    useAuthStore.setState({ user });
+    useOrgStore.setState({ activeOrgId: organization });
   });
 
   it("opens an earlier conversation from the list, and closes the list", () => {

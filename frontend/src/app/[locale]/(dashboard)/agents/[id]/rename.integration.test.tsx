@@ -40,6 +40,8 @@ const state = {
   permissionsLoaded: true,
   versions: [] as { version: number }[],
   nextPublished: 1,
+  // This caller's access to this agent, which the page reads rather than the role.
+  access: { can_edit: true, can_publish: false },
 };
 
 vi.mock("@/hooks", async () => {
@@ -55,6 +57,7 @@ vi.mock("@/hooks", async () => {
         name: "Support (copy)",
         status: "draft",
         has_avatar: false,
+        ...state.access,
         draft_spec: {
           name: "Support (copy)",
           description: null,
@@ -71,7 +74,7 @@ vi.mock("@/hooks", async () => {
       },
       isLoading: false,
       saveDraft: { mutateAsync: saveDraft, isPending: false },
-      validate: async () => ({ problems: [], fields: [] }),
+      validate: async () => ({ problems: [], fields: [], fixes: [] }),
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: state.nextPublished }),
         isPending: false,
@@ -92,6 +95,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: state.versions }),
     useAllAgentVersions: () => ({ versions: [] }),
+    useDraftBase: () => ({ base: undefined }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
@@ -122,6 +126,16 @@ vi.mock("@/hooks", async () => {
   };
 });
 
+// The page's eval parts read their own queries; this test is not about them.
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useDraftEvalRuns: () => ({ runs: [] }),
+  useEvalArmSpec: () => ({ spec: undefined }),
+  useRunsADataset: () => false,
+}));
+vi.mock("@/components/evals/draft-eval-note", () => ({ DraftEvalNote: () => null }));
+vi.mock("@/components/evals/evals-panel", () => ({ EvalsPanel: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
+vi.mock("@/components/evals/start-eval-dialog", () => ({ StartEvalDialog: () => null }));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
@@ -184,6 +198,7 @@ async function settleAutosave() {
 beforeEach(() => {
   vi.clearAllMocks();
   state.permissions = [Perm.agentsEdit];
+  state.access = { can_edit: true, can_publish: false };
   state.versions = [];
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
@@ -249,6 +264,7 @@ describe("renaming an agent in the Builder", () => {
 
   it("holds Publish back while the name is blank", async () => {
     state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
+    state.access = { can_edit: true, can_publish: true };
     await mount();
     const card = await identity();
     const name = card.getByRole("textbox", { name: "Name" });
@@ -262,6 +278,7 @@ describe("renaming an agent in the Builder", () => {
 
   it("shows the name read-only to a caller who may not edit", async () => {
     state.permissions = [Perm.agentsView];
+    state.access = { can_edit: false, can_publish: false };
     await mount();
     const card = await identity();
 

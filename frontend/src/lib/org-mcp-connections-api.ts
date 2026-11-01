@@ -89,6 +89,7 @@ export interface OrgMcpConnectionPatch {
   include_instructions?: boolean;
   /** `""` clears it, back to showing the slug. */
   label?: string;
+  trust_read_only_hints?: boolean;
 }
 
 const ROOT = "/mcp-connections";

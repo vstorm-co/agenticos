@@ -1,0 +1,161 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { Button, Input, Label } from "@/components/ui";
+import { limitText, limitValue, usd } from "@/components/evals/format";
+import { useImprovement } from "@/hooks/use-improvements";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { currentAttempt, stopOf } from "@/lib/improvement-steps";
+import type { ContinuationEstimate, Improvement } from "@/types/improvement";
+import { useReadOnly } from "./read-only";
+
+/**
+ * The footer of a stop: what the next step does and costs, and the button that
+ * starts it. Pricing spends nothing, so the price is on screen before anyone asks;
+ * pressing the button is the consent to that price. When the price moved before
+ * the press reached the server, the new price is shown and the person presses again.
+ * Only someone who may start an improvement on the agent is offered it.
+ */
+export function NextStep({
+  session,
+  hint,
+  blocked,
+  onStarted,
+}: {
+  session: Improvement;
+  /** What to do before pressing, when the stop's own hint does not fit. */
+  hint?: string;
+  /** Why the step cannot start yet, said beside the button. */
+  blocked?: string;
+  onStarted: () => void;
+}) {
+  const t = useTranslations("improvement.nextUp");
+  const tLimit = useTranslations("improvement");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
+  const readOnly = useReadOnly();
+  const actions = useImprovement(session.agent_id, session.id);
+  const stop = stopOf(session);
+  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
+  const [asked, setAsked] = useState(session.budget_usd);
+  const [quote, setQuote] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
+  const [moved, setMoved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Choosing or rewording a change changes what the check measures, and so its price.
+  const candidate = currentAttempt(session)?.candidate_spec_hash;
+  const key = JSON.stringify([asked, session.status, session.stage, session.iteration, candidate]);
+  const priced = quote?.key === key ? quote.value : null;
+  const estimate = actions.estimateContinuation.mutateAsync;
+  // Too few questions kept aside is final for this session: it keeps the questions it began with.
+  const refusal = useCallback(
+    (failure: unknown) => {
+      const missing = failure instanceof ApiError ? failure.details?.missing_holdout : undefined;
+      return typeof missing === "number"
+        ? t("unmeasurable", { count: missing })
+        : getErrorMessage(failure, tErrors);
+    },
+    [t, tErrors],
+  );
+  const blockedBy = session.next_step_blocked;
+  useEffect(() => {
+    if (!stop || readOnly || session.can_restart === false || blockedBy) return;
+    let current = true;
+    estimate(asked).then(
+      (value) => {
+        if (current) setQuote({ key, value });
+      },
+      (failure: unknown) => {
+        if (current) setError(refusal(failure));
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [stop, readOnly, session.can_restart, blockedBy, asked, key, estimate, refusal]);
+  if (!stop || readOnly || session.can_restart === false) return null;
+  const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
+  async function start(value: ContinuationEstimate) {
+    setError(null);
+    try {
+      await actions.continueSession.mutateAsync(value);
+      setMoved(false);
+      onStarted();
+    } catch (failure) {
+      if (!(failure instanceof ApiError && failure.status === 409)) {
+        setError(getErrorMessage(failure, tErrors));
+        return;
+      }
+      try {
+        setQuote({ key, value: await estimate(asked) });
+        setMoved(true);
+      } catch (again) {
+        setError(refusal(again));
+      }
+    }
+  }
+  return (
+    <section
+      aria-label={t("label")}
+      className="border-primary/30 bg-primary/5 space-y-3 rounded-xl border p-4"
+      data-tour="improvement-next-step"
+    >
+      <p className="text-sm">{hint ?? t(`hint.${stop}`)}</p>
+      {!priced && !refused && (
+        <p role="status" className="text-muted-foreground text-sm">
+          {t("pricing")}
+        </p>
+      )}
+      {moved && priced && (
+        <p role="alert" className="text-warning text-sm">
+          {t("priceMoved", { cost: usd(priced.total_usd, locale) })}
+        </p>
+      )}
+      {priced && !priced.affordable && (
+        <div className="max-w-sm space-y-2">
+          <p className="text-sm">{t("overLimit")}</p>
+          <Label htmlFor="next-step-budget">{tLimit("budget")}</Label>
+          <div className="flex gap-2">
+            <Input
+              id="next-step-budget"
+              inputMode="decimal"
+              value={budget}
+              onChange={(event) => setBudget(event.target.value)}
+            />
+            <Button
+              variant="outline"
+              disabled={
+                !(Number(limitValue(budget)) > 0) || Number(limitValue(budget)) === Number(asked)
+              }
+              onClick={() => setAsked(limitValue(budget))}
+            >
+              {t("raise")}
+            </Button>
+          </div>
+        </div>
+      )}
+      {blocked && <p className="text-muted-foreground text-sm">{blocked}</p>}
+      <Button
+        className="h-auto min-h-9 whitespace-normal"
+        disabled={!priced || !priced.affordable || !!blocked || actions.continueSession.isPending}
+        onClick={() => priced && void start(priced)}
+      >
+        {priced
+          ? t(`go.${stop}`, { cost: usd(priced.total_usd, locale) })
+          : t(`goUnpriced.${stop}`)}
+        <ArrowRight className="h-4 w-4" aria-hidden />
+      </Button>
+      {priced?.expected_usd && Number(priced.expected_usd) < Number(priced.total_usd) && (
+        <p className="text-muted-foreground text-xs">
+          {t("likely", { cost: usd(priced.expected_usd, locale) })}
+        </p>
+      )}
+      {refused && (
+        <p role="alert" className="text-destructive text-sm">
+          {refused}
+        </p>
+      )}
+    </section>
+  );
+}

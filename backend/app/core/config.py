@@ -191,6 +191,11 @@ class Settings(BaseSettings):
     # window in which access revoked a moment ago still reaches a page that was
     # already open.
     ARTIFACT_VIEW_TTL_SECONDS: int = Field(default=300, gt=0, le=3600)
+    # The case revisions one organization's datasets may store together: every case
+    # added and every edit is one, kept for the versions that hold it. A version
+    # stores only what it changed, and removing a case stores nothing, so only an
+    # add or an edit past the limit is refused. The name predates that.
+    DATASET_MAX_VERSION_ROWS_PER_ORG: int = Field(default=5_000_000, gt=0)
     # Where artifact content is served from. Unset, it is the API's own public
     # address, and isolation rests on the `sandbox` policy every content
     # response carries, which gives the page an opaque origin. Set to a host on
@@ -412,6 +417,33 @@ class Settings(BaseSettings):
     # Zero or below switches the sweep off.
     RUN_HEARTBEAT_SECONDS: float = Field(default=15.0, gt=0)
     STALE_RUN_REAPED_AFTER_SECONDS: float = 120.0
+    # An eval case is an ordinary run on live traffic's caps and providers, so how
+    # many run at once is bounded per run and per organization across its runs.
+    EVAL_RUN_CONCURRENCY: int = 3
+    EVAL_ORG_CONCURRENCY: int = 6
+    # Reruns of a case that flipped against its baseline; zero confirms nothing.
+    EVAL_RERUNS: int = 2
+    # How old a matching baseline arm may be and still be reused - providers drift,
+    # so an old one would compare against a different provider.
+    EVAL_BASELINE_CACHE_HOURS: float = 24.0
+    # A p-value of the test on confirmed flips at or above this is noise, not a verdict.
+    EVAL_SIGNIFICANCE: float = 0.05
+    # A relative change in cost, tokens or latency within this is "unchanged".
+    EVAL_EFFICIENCY_TOLERANCE: float = 0.05
+    # With no history on a model, a case is priced as this many tokens at the
+    # model's own price; one with no known price falls back to a flat guess.
+    EVAL_FALLBACK_INPUT_TOKENS: int = 2000
+    EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
+    EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
+    EVAL_ESTIMATE_SAMPLE: int = 50
+    # A running eval run whose worker has not said it is alive, nor started or
+    # finished a case, for this long lost its worker. The worker says so every
+    # `EVAL_HEARTBEAT_SECONDS` while it works.
+    EVAL_ABANDONED_AFTER_MINUTES: float = 10.0
+    EVAL_HEARTBEAT_SECONDS: float = 60.0
+    # A suite set to run when a skill, context file or knowledge base changes waits this long
+    # after the first change, so a burst of them is one run on the end state.
+    EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS: int = 600
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
@@ -831,12 +863,17 @@ class Settings(BaseSettings):
 
     # The background workers (`python -m app.worker`, #2219). Each process serves
     # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
-    # container runs two workers, one with `agent,system` and one with `ingest`.
-    WORKER_POOLS: str = "agent,ingest,system,workflow"
+    # container runs two workers, one with `agent,eval,system,workflow` and one
+    # with `ingest`.
+    WORKER_POOLS: str = "agent,eval,ingest,system,workflow"
     # Agent runs at once per worker process. They wait on models rather than
     # compute, so this is bounded by the database pool and the providers' rate
     # limits more than by CPU.
     WORKER_AGENT_CONCURRENCY: int = Field(default=10, ge=1)
+    # Eval runs at once per worker process. Each holds its slot for the whole run,
+    # hours over a large dataset, while its cases are bounded separately by
+    # `EVAL_RUN_CONCURRENCY` and `EVAL_ORG_CONCURRENCY`.
+    WORKER_EVAL_CONCURRENCY: int = Field(default=4, ge=1)
     # Workflow nodes at once per worker process. Most wait on a network call, a
     # sandbox or a timer, but one holding a file takes up to `WORKFLOW_RUN_MAX_FILE_BYTES`
     # of memory, so size the worker for this many of them.
@@ -1061,6 +1098,12 @@ class Settings(BaseSettings):
     S3_RAG_SECRET_KEY: str = ""
     S3_RAG_BUCKET: str = "agenticos-rag"
     S3_RAG_REGION: str = "us-east-1"
+    # Cosine similarity, so what counts as close depends on the embedding model.
+    # Searches keep their similarity, so a change reclassifies the ones already made.
+    KNOWLEDGE_GAP_MIN_SIMILARITY: float = Field(default=0.30, ge=0.0, le=1.0)
+    # Cosine to a topic's centroid. Questions on one subject score about 0.5-0.7 on
+    # OpenAI's text-embedding-3 models, so a bar near 0.8 asks for the same sentence.
+    KNOWLEDGE_GAP_TOPIC_SIMILARITY: float = Field(default=0.55, gt=0.0, le=1.0)
 
     EMAIL_PROVIDER: str = "smtp"
     EMAIL_FROM: str = "noreply@agenticos.com"

@@ -2,6 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import type { Translate } from "@/lib/agent-step-captions";
+import { appHistoryState, HELD_ENTRY } from "@/lib/history-entries";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -29,7 +30,16 @@ export function setUrlParam(key: string, value: string | null): void {
   } else {
     url.searchParams.set(key, value);
   }
-  window.history.replaceState({}, "", url.toString());
+  // A guard's duplicate entry stops being one once its address changes.
+  const { [HELD_ENTRY]: _held, ...kept } = appHistoryState();
+  window.history.replaceState(kept, "", url.toString());
+}
+
+/** `setUrlParam` as a new history entry, carrying `state` - a step Back undoes. */
+export function pushUrlParam(key: string, value: string, state: Record<string, unknown>): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set(key, value);
+  window.history.pushState(state, "", url.toString());
 }
 
 /** Rewrite every occurrence of a repeated query parameter; none removes it. */
@@ -147,9 +157,13 @@ export function formatDateTimeSeconds(date: Date | string, locale: string): stri
  * both rest on that distinction, so an unfinished run reads as unknown here and
  * never as zero.
  */
-export function formatRunDuration(startedAt: string | null, endedAt: string | null): string {
+export function formatRunDuration(
+  startedAt: string | null,
+  endedAt: string | null,
+  locale: string,
+): string {
   if (!startedAt || !endedAt) return "-";
-  return formatElapsed(new Date(endedAt).getTime() - new Date(startedAt).getTime());
+  return formatElapsed(new Date(endedAt).getTime() - new Date(startedAt).getTime(), locale);
 }
 
 /**
@@ -172,11 +186,10 @@ export function formatRunCostUsd(amount: number, partial: boolean): string {
 }
 
 /** A span of milliseconds, human-readable, or "-" for one that is not a span. */
-export function formatElapsed(ms: number): string {
+export function formatElapsed(ms: number, locale?: string): string {
   if (Number.isNaN(ms) || ms < 0) return "-";
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60_000)
-    return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  if (ms < 60_000) return `${(ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s`;
   // A run parked on an approval can last a day; "80,081.7 s" reads as nothing.
   const minutes = Math.floor(ms / 60_000);
   if (minutes < 60) return `${minutes} min ${Math.floor((ms % 60_000) / 1000)} s`;

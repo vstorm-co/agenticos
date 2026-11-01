@@ -105,6 +105,23 @@ class LockScope(IntEnum):
     #: takes this *shared*, so they never wait for each other; the delete takes it
     #: exclusive, so it waits for those in flight and they wait for it.
     MODEL_PROFILE_REFERENCES = 14
+    #: One case's place in its dataset's review queue: a send reads which score
+    #: waits, then queues or replaces it, and two at once must not both read none.
+    REVIEW_PER_CASE = 23
+    #: How many eval cases one organization runs at once: two workers counting
+    #: together would otherwise both start one past the limit.
+    EVAL_CASES_PER_ORGANIZATION = 24
+    #: One knowledge base's grouping pass: it reads the misses no topic holds
+    #: and then places them, so two passes at once would put a question in two
+    #: topics.
+    KNOWLEDGE_GAPS_PER_KNOWLEDGE_BASE = 25
+    #: One knowledge base's check of its answers: two at once would pay twice for
+    #: the same answers. Session-scoped, since a check spans many runs.
+    KNOWLEDGE_GAP_CHECKS_PER_KNOWLEDGE_BASE = 26
+    #: How many case revisions one organization's datasets store. Each edit
+    #: locks its own dataset only, so two edits of two datasets would both read
+    #: the count under the ceiling and together go past it.
+    DATASET_REVISIONS_PER_ORGANIZATION = 27
 
 
 def _key(subject: UUID) -> int:
@@ -136,16 +153,19 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
 
 
 async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> bool:
-    """Take a transaction lock without waiting; maintenance can skip a busy tenant."""
-    return bool(
-        await db.scalar(
-            select(
-                func.pg_try_advisory_xact_lock(
-                    cast(scope.value, Integer), cast(_key(subject), Integer)
-                )
-            )
+    """Take the lock for one subject if it is free, until this transaction ends.
+
+    :func:`hold_subject` for a caller already holding row locks the other side
+    waits on after taking this lock: waiting here could close that cycle. True
+    means this transaction holds it; False means another one does right now.
+    Maintenance uses it to skip a tenant that is busy.
+    """
+    result = await db.execute(
+        select(
+            func.pg_try_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer))
         )
     )
+    return bool(result.scalar_one())
 
 
 async def hold_subject_shared(db: AsyncSession, scope: LockScope, subject: UUID) -> None:

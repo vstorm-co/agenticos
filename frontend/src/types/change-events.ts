@@ -17,7 +17,12 @@ export type ChangeResource =
   | "notification"
   | "secret"
   | "mcp_connection"
-  | "run";
+  | "run"
+  | "eval_suite"
+  | "eval_run"
+  | "dataset"
+  | "knowledge_gap"
+  | "improvement";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -42,13 +47,26 @@ export interface MadeChange extends ChangeEventBase {
   actor_name: string;
 }
 
-/** A run moving through its states - started, parked, finished - which nobody wrote. */
+/**
+ * A change a run made rather than a request: a run moving through its states -
+ * started, parked, finished - an eval suite's result settling, or a dataset the
+ * case generator finished drafting into.
+ */
 export interface RunChange extends ChangeEventBase {
-  resource: "run";
+  resource: "run" | "eval_suite" | "eval_run" | "dataset";
   surface: "run";
   /** The member the run acts as, when it acts as one. */
   actor_user_id: string | null;
   actor_name: null;
 }
 
-export type ChangeEvent = MadeChange | RunChange;
+/** Work the platform does on its own schedule, such as a grouping pass placing questions
+ *  or an improvement session moving to its next stage. */
+export interface SystemChange extends ChangeEventBase {
+  resource: "knowledge_gap" | "improvement";
+  surface: "system";
+  actor_user_id: null;
+  actor_name: null;
+}
+
+export type ChangeEvent = MadeChange | RunChange | SystemChange;

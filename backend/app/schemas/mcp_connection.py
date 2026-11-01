@@ -143,6 +143,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # Whether an agent speaking as this member uses this account. Only ever true
     # for one of their connections per service.
     is_default: bool = False
+    trust_read_only_hints: bool = False
     # The agents binding an organization connection that the reader may see
     # (#2072). Null where the listing did not ask, which is not "none".
     used_by: list[AgentUsage] | None = None
@@ -176,9 +177,10 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             last_tools=(
                 None
                 if connection.last_tools is None
-                else [McpToolRead(**tool) for tool in connection.last_tools]
+                else [McpToolRead.model_validate(tool) for tool in connection.last_tools]
             ),
             is_default=connection.is_default,
+            trust_read_only_hints=connection.trust_read_only_hints,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
         )
@@ -272,6 +274,14 @@ class OrgMcpConnectionUpdate(BaseSchema):
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    trust_read_only_hints: bool | None = Field(
+        default=None,
+        description=(
+            "Let an isolated run (an eval) call a tool this server marks "
+            "`readOnlyHint` live. The hint is the server's own claim; off, every "
+            "tool of this connection without a test connection is held instead."
+        ),
+    )
     include_instructions: bool | None = Field(
         default=None,
         description=(

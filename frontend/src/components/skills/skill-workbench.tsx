@@ -15,6 +15,7 @@ import { useSkill } from "@/hooks";
 import type { SkillEdit } from "@/hooks/use-skills";
 import type { Skill } from "@/types/providers";
 import { useTranslations } from "next-intl";
+import { ImproveSkillButton } from "@/components/authoring/improve-skill-button";
 
 /** The body's place in the tree. A skill is a folder, and this is its manifest. */
 const BODY = "SKILL.md";
@@ -219,6 +220,7 @@ export function SkillWorkbench({
             name={skill.name}
             canManage={canEdit}
           />
+          {canEdit && <ImproveSkillButton skillId={skill.id} />}
           {canEdit && onDelete && (
             <ResourceActions
               name={skill.name}

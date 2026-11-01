@@ -24,6 +24,7 @@ import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
+import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 
@@ -41,6 +42,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <DiagnosticsPresence />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* Asks before leaving drops a change somebody has not saved. */}
+      <UnsavedChangesGuard />
       {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}
       <DesktopBridge />
       {/* Inside the phone app: live activities on the lock screen, and their buttons. */}

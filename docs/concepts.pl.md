@@ -1,5 +1,5 @@
 ---
-source_sha: "f96ca8950f4c"
+source_sha: "ee6d4d1266f8"
 ---
 
 # Koncepcje { #concepts }
@@ -27,7 +27,7 @@ Instrukcje, profil modelu, powiązania capability, odwołania do kolekcji i
 skilli, budżet oraz to, kogo zawiadomić, gdy coś się stanie. Jest zdefiniowany w
 [`app/agents/spec.py`](reference/spec.md) i walidowany przez Pydantic.
 
-Agent ma dokładnie jednego speca *roboczego* (draft), którego Builder edytuje i
+Agent ma dokładnie jednego speca _roboczego_ (draft), którego Builder edytuje i
 zapisuje na bieżąco.
 
 Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
@@ -82,7 +82,7 @@ Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
 Publikacja kopiuje draft do wersji. Środowiska decydują, która wersja obsługuje
 daną powierzchnię, a runy zapisują, która została wykonana.
 
-Dlatego *co ten agent zrobił w zeszły wtorek* pozostaje pytaniem, na które da się
+Dlatego _co ten agent zrobił w zeszły wtorek_ pozostaje pytaniem, na które da się
 odpowiedzieć po kilkunastu edycjach. Dlatego też rollback publikuje **nową**
 wersję skopiowaną ze starej, zamiast kasować historię — oś czasu pokazuje, że
 rollback się wydarzył, zamiast udawać, że zła wersja nigdy nie istniała.
@@ -117,7 +117,7 @@ Dwie konsekwencje warte powiedzenia:
    bo agent bez środowiska nie ma się w ogóle gdzie uruchomić, i to środowisko
    podąża za publikacjami, dopóki ktoś go nie przypnie. Środowisko dodane później
    czeka na promocję, chyba że ustawi się inaczej.
-2. **Rollback ląduje tak samo** jak publikacja — *jest* publikacją starszego
+2. **Rollback ląduje tak samo** jak publikacja — _jest_ publikacją starszego
    speca. Postawienie starej wersji z powrotem przed ludźmi to jedno kliknięcie
    w jej wierszu historii (promote), a nie efekt uboczny przywrócenia draftu.
 
@@ -200,8 +200,8 @@ odpalenie nie ma tam własnego workspace'u.
 
 **Uruchamiaj jako ja**, ustawienie triggera, to jedyny wyjątek, i włączyć je może
 tylko twórca, dla siebie. Odpalenie sięga wtedy do jego pamięci i jego własnych
-połączeń MCP tak jak jego własny czat — poranne *powiedz mi, co ważnego w mojej
-skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
+połączeń MCP tak jak jego własny czat — poranne _powiedz mi, co ważnego w mojej
+skrzynce_, którego domyślne ustawienie nie potrafi — na tych warunkach:
 
 - **Harmonogram czyta i zapisuje pamięć; zdarzenie tylko ją czyta.** Prompt
   zdarzenia niesie maila albo treść webhooka, której nikt nie sprawdził, a
@@ -226,11 +226,11 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
 
 Ta reguła decyduje o tym, jak projektujesz agenta uruchamianego przez trigger:
 
-| Run bez nadzoru potrzebuje | Użyj |
-|---|---|
-| Stałych faktów albo preferencji | Własnego promptu triggera, [pliku kontekstowego](context.md) podpiętego do agenta albo pamięci twórcy z **Uruchamiaj jako ja** |
+| Run bez nadzoru potrzebuje                           | Użyj                                                                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Stałych faktów albo preferencji                      | Własnego promptu triggera, [pliku kontekstowego](context.md) podpiętego do agenta albo pamięci twórcy z **Uruchamiaj jako ja**             |
 | Stanu zachowanego od jednego odpalenia do następnego | [Sandboksa](sandbox.md) z `session_scope: conversation`: każde odpalenie jednego triggera dopisuje się do tej samej rozmowy z logiem runów |
-| Skrzynki pocztowej albo innej zewnętrznej usługi | Połączenia powiązanego kontem organizacji albo własnego połączenia twórcy z **Uruchamiaj jako ja** |
+| Skrzynki pocztowej albo innej zewnętrznej usługi     | Połączenia powiązanego kontem organizacji albo własnego połączenia twórcy z **Uruchamiaj jako ja**                                         |
 
 [Obserwowanie stron pod kątem zmian](howto/competitor-monitoring.md) i
 [osobisty asystent](howto/personal-assistant.md) trafiają na tę regułę i
@@ -241,9 +241,9 @@ pokazują obejście.
 Bo idzie przez ten sam runner: budżet jest egzekwowany tak samo, zatwierdzenie
 parkuje go tak samo, ślad audytowy nazywa go tak samo.
 
-Jest stemplowany powierzchnią `schedule`, więc pytanie *jak ten agent jest
-używany* potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalenie to
-osobny run w Activity, a jego odpowiedzi zbierają się w jednej rozmowie będącej
+Jest stemplowany powierzchnią `schedule`, więc pytanie _jak ten agent jest
+używany_ potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalenie to
+osobny run w **Aktywności** (Activity), a jego odpowiedzi zbierają się w jednej rozmowie będącej
 dziennikiem runów, którą trigger otwiera raz — zawczasu, w momencie utworzenia
 triggera, więc jest klikalną pozycją, zanim jeszcze kiedykolwiek się odpali.
 Trigger może też publikować każdą odpowiedź na kanale albo w czacie grupowym Teams,
@@ -289,7 +289,7 @@ w którym jest bot jego organizacji ([Microsoft Teams](channels.md#microsoft-tea
 Każdy trigger można też **uruchomić teraz**: jedno dodatkowe odpalenie na
 żądanie, które nie rusza jego kadencji.
 
-Jest ono *przyjmowane*, a nie oczekiwane. Żądanie odpowiada, gdy tylko odpalenie
+Jest ono _przyjmowane_, a nie oczekiwane. Żądanie odpowiada, gdy tylko odpalenie
 zostanie zakolejkowane dla workera jako job — te same trwałe drzwi,
 przez które przechodzi odpalenie z harmonogramu albo z dostarczenia — a run
 pojawia się w rozmowie-dzienniku runów triggera na bieżąco.
@@ -323,20 +323,20 @@ i koszt.
 
 **Run, który się nie powiedzie, i tak zapisuje, ile wydał.**
 
-To, jak się *skończył*, jest osobnym statusem, a nie `failed`, bo operator
+To, jak się _skończył_, jest osobnym statusem, a nie `failed`, bo operator
 filtrujący pod kątem problemów nie powinien przedzierać się przez poprawnie
 działającą platformę:
 
-| Status | Run |
-|---|---|
-| `failed` | zepsuł się |
-| `budget_exceeded` | dobił do limitu — limit wydatków robiący swoje |
-| `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails) |
-| `loop_stopped` | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits) |
-| `cancelled` | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
-| `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy |
+| Status              | Run                                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `failed`            | zepsuł się                                                                                                                                                    |
+| `budget_exceeded`   | dobił do limitu — limit wydatków robiący swoje                                                                                                                |
+| `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails)                                                                                      |
+| `loop_stopped`      | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits)                                                          |
+| `cancelled`         | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
+| `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy                    |
 
-Run, który parkuje *wewnątrz delegacji*, zapisuje po jednym poziomie na agenta,
+Run, który parkuje _wewnątrz delegacji_, zapisuje po jednym poziomie na agenta,
 każdy z własną rozmową, więc zatwierdzenie kontynuuje delegata, który się
 zatrzymał, zamiast zaczynać jego pracę od nowa.
 
@@ -351,7 +351,7 @@ zatrzymał, zamiast zaczynać jego pracę od nowa.
 
 ### Run i jego transkrypt { #a-run-and-its-transcript }
 
-Run mówi, ile kosztował. `messages.run_id` mówi, co *zrobił*.
+Run mówi, ile kosztował. `messages.run_id` mówi, co _zrobił_.
 
 Każda tura, którą run wyprodukował, niesie id runa, więc „kroki tego runa” to
 jedno zapytanie, a nie zgadywanie — i właśnie to czyta zejście z historii runów
@@ -372,8 +372,8 @@ na potrzeby widoku szczegółów pokazującego run w kontekście i przewijające
 niego. To wygoda, a nie sięgnięcie dalej: każda tura, którą run zapisuje, niesie
 swój `run_id` — łącznie z pytaniem użytkownika — więc posiadacz `runs:view` mógł
 już złożyć ten wątek, iterując po transkryptach jego runów. Odczyt szczegółów
-niesie też `prev_run_id` / `next_run_id`, czyli runy po obu stronach *w tej samej
-rozmowie*, więc przechodzenie po wątku to dwie strzałki, a nie wycieczki z
+niesie też `prev_run_id` / `next_run_id`, czyli runy po obu stronach _w tej samej
+rozmowie_, więc przechodzenie po wątku to dwie strzałki, a nie wycieczki z
 powrotem do listy.
 
 !!! warning "To powiązanie jest kolumną, a nie oknem czasowym — i tak ma być"
@@ -385,7 +385,7 @@ powrotem do listy.
 
     Oba są błędne w sposób, którego czytelnik nie widzi.
 
-Prompt jest zapisywany *zanim* powstanie wiersz runa, bo złożenie agenta, które
+Prompt jest zapisywany _zanim_ powstanie wiersz runa, bo złożenie agenta, które
 kończy się odmową — skasowany sekret, profil modelu usunięty przy wdrożeniu —
 nie może zgubić tego, co ktoś napisał. Zostaje powiązany, gdy tylko jest run, z
 którym da się go powiązać.
@@ -401,7 +401,7 @@ wyjątki są w [Powierzchniach](channels.md#what-each-surface-records).
 
 Historia runów filtruje dokładnie po tym. `GET /runs` przyjmuje listę statusów
 rozdzieloną przecinkami (`?status=failed,budget_exceeded`), bo pytanie operatora
-dotyczy *zbioru* wyników, a nie jednego statusu naraz. Nieznany status jest
+dotyczy _zbioru_ wyników, a nie jednego statusu naraz. Nieznany status jest
 odrzucany, zamiast po cichu nie pasować do niczego — pusta strona musi znaczyć
 „nie ma takich runów”.
 
@@ -478,7 +478,7 @@ Zatwierdzenie rozstrzyga się od najbardziej szczegółowego:
 2. tryb capability, potem
 3. brak zatwierdzania, gdy żadne z nich nic nie mówi.
 
-Builder podaje *wynik* słowami, zamiast opisywać regułę, bo reguła, którą
+Builder podaje _wynik_ słowami, zamiast opisywać regułę, bo reguła, którą
 czytelnik musi przeliczyć w głowie, to ustawienie, którego nikt nie śmie
 dotknąć.
 
@@ -493,11 +493,11 @@ zestawie, i [Dodaj capability](howto/add-capability.md), żeby dodać nową.
 ### Kolekcja a skill { #collection-vs-skill }
 
 **Kolekcja** to dokumenty pocięte na fragmenty i zembedowane, i się ją
-*przeszukuje*. Model wybiera, czego szukać; nigdy nie może poszerzyć tego, gdzie
+_przeszukuje_. Model wybiera, czego szukać; nigdy nie może poszerzyć tego, gdzie
 szuka.
 
 **Skill** to folder Markdownu — `SKILL.md` i jakiekolwiek pliki idące z nim w
-parze — i się go *czyta*. Jego opis jest jedyną częścią, którą model widzi przed
+parze — i się go _czyta_. Jego opis jest jedyną częścią, którą model widzi przed
 decyzją, czy go otworzyć, i dlatego opis skilla powinien mówić, **kiedy ma
 zastosowanie**, a nie co jest w środku.
 
@@ -514,7 +514,7 @@ kim jest ten drugi agent, wyglądają podobnie we własnym słowniku Buildera, a
 prawie wszystko, co w delegacji się liczy, wynika z tego, który wybrałeś.
 
 **Delegat** to inny opublikowany agent w organizacji, wskazany przez `agent_id`
-*oraz* `agent_version_id` — przypięty. Adresuje się go slugiem, tym samym
+_oraz_ `agent_version_id` — przypięty. Adresuje się go slugiem, tym samym
 uchwytem, który rozwiązuje wzmianka na kanale.
 
 **Specjalista inline** jest zdefiniowany wewnątrz speca rodzica: nazwa, opis,
@@ -525,12 +525,12 @@ własne kolekcje i skille oraz własny limit kroków.
 To czyni specjalistę agentem pod każdym względem prócz jednego. Cztery rzeczy
 czynią tu coś agentem:
 
-| | Opublikowany delegat | Specjalista inline |
-|---|---|---|
-| **Wersjonowany** | tak — przypięty, a przypięcie rusza się tylko wtedy, gdy ktoś nim ruszy | **nie** |
-| **Sprawdzany pod kątem uprawnień przy publikacji** | tak — `agents:run` na tym wierszu | tak — te same sprawdzenia zakresów, sekretów, kolekcji i skilli, które dostają własne powiązania rodzica |
-| **Własne capability** | tak — te z jego opublikowanego speca | tak — własne plus to, czym dzieli się rodzic |
-| **Mierzony i limitowany** | tak | tak — limitami runa, co [obowiązuje wewnątrz każdej delegacji](governance.md#delegation-spends-the-parents-budget) |
+|                                                    | Opublikowany delegat                                                    | Specjalista inline                                                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Wersjonowany**                                   | tak — przypięty, a przypięcie rusza się tylko wtedy, gdy ktoś nim ruszy | **nie**                                                                                                            |
+| **Sprawdzany pod kątem uprawnień przy publikacji** | tak — `agents:run` na tym wierszu                                       | tak — te same sprawdzenia zakresów, sekretów, kolekcji i skilli, które dostają własne powiązania rodzica           |
+| **Własne capability**                              | tak — te z jego opublikowanego speca                                    | tak — własne plus to, czym dzieli się rodzic                                                                       |
+| **Mierzony i limitowany**                          | tak                                                                     | tak — limitami runa, co [obowiązuje wewnątrz każdej delegacji](governance.md#delegation-spends-the-parents-budget) |
 
 **Brakującą rzeczą jest wersja** i wynika z niej wszystko, czego specjalista nie
 może: nic innego nie może się do niego odwołać, edycja rodzica go zmienia, nie
@@ -610,6 +610,142 @@ dowiedzieć się, kto komu może delegować.
 
 ---
 
+## Agenci systemowi { #system-agents }
+
+Niektórych agentów uruchamia platforma, a nie człowiek: **sędziów**, którzy
+oceniają odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge),
+**Knowledge gap drafter**, który pisze szkic fragmentu, którego brakuje przy
+[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz
+**Knowledge gap classifier**, który czyta odpowiedzi w poszukiwaniu
+[pytań, na które baza wiedzy nie umiała odpowiedzieć](knowledge-gaps.md#answers-and-comments).
+To są **agenci systemowi**. Rodzaj agenta mówi, którym jest - `agent` dla tych,
+których używają ludzie, `judge`, `drafter` i `classifier` dla tych. Każda
+organizacja dostaje domyślnego **Eval judge**, draftera i klasyfikator przy
+utworzeniu, organizacja utworzona
+wcześniej dostaje każdego z nich wtedy, gdy coś po raz pierwszy go potrzebuje,
+a dataset może dostać własnego sędziego.
+
+Agent systemowy należy do platformy, która go uruchamia, a nie jest agentem,
+którego używają ludzie. Agents pokazuje ich osobno, w zwiniętym pasie **Agenci
+systemowi** pod **Agenci**, pogrupowanych według rodzaju: najpierw **Sędziowie**
+
+- każda karta mówi, które datasety ocenia dany sędzia - potem **Autor szkiców
+  luk**, a na końcu **Klasyfikator luk**. Agent każdego rodzaju utworzony przez
+  platformę jest oznaczony jako domyślny dla tego rodzaju - **Domyślny sędzia**,
+  **Domyślny generator przypadków** i tak dalej.
+  Wybory agenta ich pomijają.
+
+Zmiana takiego agenta to ustawienie organizacji. Edycja jego instrukcji,
+modelu albo budżetu, publikacja, przywrócenie wersji, archiwizacja i usunięcie
+wymagają `org:settings` - uprawnienia, które włącza
+[AI assistance](governance.md#ai-assistance) - niezależnie od tego, czyj jest
+wiersz; pozostali, którzy widzą agentów, mogą go tylko czytać, a jego strona
+mówi, dlaczego kontrolki są zablokowane. Otwiera się go z pasa albo, w przypadku
+draftera, przez **Edytuj instrukcje draftera** przy szkicu, a jego nagłówek
+mówi **Agent systemowy** i podaje rodzaj.
+
+Jego strona ma zakładki zwykłego agenta, tylko mniej: **Budowa** z
+instrukcjami i modelem, **Narzędzia** z tym, co może wiązać - Knowledge search,
+Context i Skills - **Limity** z budżetem i **Historia**. Strona sędziego ma też
+zakładkę **Datasety** z datasetami, które go wybrały, z włączonym ocenianiem
+albo bez - każdy rozwija się na jego ostatnie oceny i runy ewaluacji, z których
+pochodzą - wraz z tym, jak często ludzie zgodzili się z nim w wynikach, które
+ocenił, a oni rozstrzygnęli. Zakładka Narzędzia klasyfikatora nie ma Skills,
+chyba że jego szkic wciąż jakieś ma - wtedy można je tylko zdjąć.
+
+**Nowy agent** → **Agent systemowy** tworzy dowolny z pięciu rodzajów: sędziego,
+generator przypadków, autora szkiców luk, klasyfikator luk lub asystenta
+poprawiania (`POST /agents/system`). Zaczyna od instrukcji, temperatury i budżetu
+danego rodzaju, na pierwszym modelu organizacji; publikacja wymaga odpowiednich
+uprawnień, a każda późniejsza zmiana - `org:settings`. Sędziego wybierasz w ocenianiu datasetu, generator przy generowaniu
+przypadków, pomocników wiedzy na zakładce luk bazy wiedzy, a asystenta przy
+poprawianiu. Domyślnie działa agent organizacji, nazwany w wyborze razem ze
+swoim opublikowanym modelem; gdy organizacja nie ma innego agenta tego rodzaju,
+nie ma z czego wybierać i wybór tylko go nazywa, z linkiem do jego strony.
+Wybrany pomocnik musi mieć
+odpowiedni rodzaj, być opublikowany i dostępny do uruchomienia przez użytkownika.
+Usunięty wybór nigdy nie jest automatycznie zastępowany domyślnym.
+
+Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
+wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym
+miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
+swojego budżetu na ewaluację, szkice albo sprawdzanie odpowiedzi.
+
+Agentem systemowym jest też **generator przypadków**, rodzaju `generator`:
+przygotowuje [przypadki do datasetów](datasets.md#generating-cases) i jest
+tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po drafterze, i
+otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
+do niego każdego, kto może go edytować.
+
+Uruchamia go tylko platforma. Czat, API, A2A, embed albo publiczna strona,
+kanał, harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
+uruchomiłaby run, a nie tylko w konsoli. Ani eval, ani sesja ulepszania go nie
+testuje ani nie poprawia: odpowiada temu, kto go wywołuje, w JSON, nigdy na
+pytanie człowieka, więc pytania datasetu nic o nim nie mówią.
+
+Każdy run agenta systemowego jest [izolowany](environments.md#in-an-eval) tak
+jak run evala. Agent systemowy czyta tekst, którego nikt nie sprawdził -
+odpowiedź do oceny, dokument, rozmowę - a jego odpowiedź trafia do ludzi, którzy
+mogą nie widzieć tego, co przeczytał, więc jedynym narzędziem, jakie może mieć,
+jest wyszukiwanie w bazach wiedzy, których dotyczy jego run, a niczyja pamięć
+do niego nie trafia.
+
+### Co może zawierać jego spec { #system-agent-spec }
+
+Agent systemowy nie sięga dalej niż to, czego dotyczy jego run. Jego spec może
+wiązać **Thinking**, **Context**, **Skills** i **Knowledge search** - sposób
+rozumowania, stały tekst, który czyta, i wyszukiwanie - i nic więcej. Zapis
+draftu albo import YAML, który dodaje inną capability, przypiętą bazę wiedzy,
+serwer MCP, delegata, głos albo dyktowanie, startery, code mode albo
+recenzenta, jest odrzucany pole po polu, podobnie jak approval na czterech
+dozwolonych: nikt nie udzieli go w trakcie runu.
+
+**Knowledge search** nie przypina żadnej bazy wiedzy. Platforma wybiera te,
+których dotyczy dany run - bazy ocenianego agenta dla sędziego, bazę luki dla
+autora szkiców i klasyfikatora, bazy, z których generowanie pisze przypadki,
+dla generatora, bazy ulepszanego agenta dla asystenta - a run przeszukuje tylko
+te, które jego osoba może czytać. Wyszukiwanie kończy się w `max_steps`: 3,
+jeśli nie ustawiono, najwyżej 5, a każdy krok to płatne żądanie, które liczą
+wyceny. Pliki kontekstu i skille, które czyta, muszą być udostępnione całej
+organizacji, a niczyja pamięć nie trafia do jego runa, cokolwiek zawiera jego
+wersja.
+
+Publikacja wymaga też instrukcji i miejsca na odpowiedź. Odpowiedź to jeden
+obiekt JSON, więc `max_tokens` poniżej progu danego rodzaju ucinałby każdą
+odpowiedź, a nie jedną; brak ustawienia zostawia limit samego modelu.
+
+| Rodzaj               | Próg   | Miejsce na                                                                                                      |
+| -------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| Sędzia               | 4 096  | Ocenę każdego kryterium - do 20 kryteriów rubryki, wzorzec i kontrprzykład - z uzasadnieniem, regułą i cytatami |
+| Generator przypadków | 20 000 | Do 50 przypadków, po 400 tokenów, które wycena generowania przyjmuje na każdy                                   |
+| Autor szkiców luk    | 6 144  | Jeden fragment o limicie 20 000 znaków, z tytułem i odwołaniami                                                 |
+| Klasyfikator luk     | 2 048  | Paczkę 20 odpowiedzi, każda z etykietą i uzasadnieniem do 300 znaków                                            |
+| Asystent poprawiania | 8 192  | Nowy skill o limicie 20 000 znaków obok zmian instrukcji z tej samej propozycji                                 |
+
+### Jego środowisko i wycofanie { #retiring-a-system-agent }
+
+Agent systemowy działa w swoim domyślnym środowisku, które idzie za każdą
+publikacją. Dodanie środowiska, przypięcie go, guard albo promocja wersji są
+odrzucane - zamiast tego przywróć wersję - a publikacja przesuwa domyślne
+środowisko przypięte, zanim zaczęto to odrzucać.
+
+Domyślnego agenta danego rodzaju w organizacji nie da się zarchiwizować ani
+usunąć: działa na nim wszystko, co nie wybrało innego. Agenta utworzonego przez
+organizację można zarchiwizować albo usunąć, gdy żaden dataset nie ocenia nim
+odpowiedzi, żadna baza wiedzy nie szkicuje ani nie klasyfikuje nim luk, a żadne
+żądanie asystenta, generowanie przypadków, sesja ulepszania ani eval nie jest z
+nim w toku; odmowa mówi, co go jeszcze używa.
+
+Gdy organizacja ma już profil modelu, agent systemowy jest publikowany na
+najstarszym z nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu
+jest tworzony jako draft. Seedowani Eval judge, drafter i klasyfikator są publikowani na
+pierwszym modelu organizacji, gdy tylko zostanie on dodany; własny sędzia
+datasetu czeka, aż człowiek wybierze mu model i go opublikuje, a do tego czasu
+mówią o tym funkcje, które z niego korzystają.
+
+[Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
+agenci systemowi w ogóle działają.
+
 ## Profile modeli { #model-profiles }
 
 **Profil modelu** to nazwany model wsparty przechowywanym kluczem:
@@ -651,7 +787,7 @@ zapisała, więc wiersza skopiowanego między tenantami nie da się odszyfrować
 ## Podsumowanie { #recap }
 
 - **Spec** to agent jako dane, trzymający odwołania i nigdy wartości.
-- **Publikacja** zamraża go w **wersję**, a *środowisko* to osobna decyzja o tym,
+- **Publikacja** zamraża go w **wersję**, a _środowisko_ to osobna decyzja o tym,
   którą wersję spotykają ludzie.
 - **Ekspozycja** to miejsce, w którym jest osiągalny; **trigger** to moment, w
   którym uruchamia się, gdy nikt nie patrzy. Oba są stanem operacyjnym obok
@@ -667,19 +803,19 @@ zapisała, więc wiersza skopiowanego między tenantami nie da się odszyfrować
 
 - :material-account-key:{ .lg .middle } **[Uprawnienia](permissions.md)**
 
-    Role, zakresy i granty.
+  Role, zakresy i granty.
 
 - :material-shield-check:{ .lg .middle } **[Governance](governance.md)**
 
-    Budżety, zatwierdzenia, alerty, audyt.
+  Budżety, zatwierdzenia, alerty, audyt.
 
 - :material-toolbox:{ .lg .middle } **[Capability](reference/capabilities.md)**
 
-    Co można dać agentowi.
+  Co można dać agentowi.
 
 - :material-connection:{ .lg .middle } **[MCP](mcp.md)**
 
-    Narzędzia, których nikt tutaj nie musi pisać.
+  Narzędzia, których nikt tutaj nie musi pisać.
 
 </div>
 

@@ -379,6 +379,24 @@ export function useKBDetail(id: string | null) {
    * fields, so the dialog decides which input a rejected chunk size belongs
    * under. Nothing already indexed is re-parsed, which the dialog says out loud.
    */
+  const updateGapHelpers = useCallback(
+    async (helpers: {
+      gap_drafter_agent_id: string | null;
+      gap_classifier_agent_id: string | null;
+    }): Promise<KnowledgeBase> => {
+      // i18n-exempt: invariant of the detail hook, not user-facing copy.
+      if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
+      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, helpers);
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData(qk.kb.detail(id), updated);
+        void queryClient.invalidateQueries({ queryKey: qk.kb.list() });
+      }
+      return updated;
+    },
+    [id, activeOrgId, stillSameTenant, queryClient],
+  );
+
   const updateIngestion = useCallback(
     async (config: IngestionConfig): Promise<KnowledgeBase> => {
       // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
@@ -718,6 +736,7 @@ export function useKBDetail(id: string | null) {
     refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
+    updateGapHelpers,
     updateEmbeddings,
     uploadDocument,
     deleteDocument,

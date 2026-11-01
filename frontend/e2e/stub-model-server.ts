@@ -118,7 +118,7 @@ interface ChatMessage {
 
 /** As much of a tool declaration as deciding whether to call one needs. */
 interface ChatTool {
-  function?: { name?: string };
+  function?: { name?: string; parameters?: { properties?: Record<string, unknown> } };
 }
 
 interface ChatRequest {
@@ -144,6 +144,70 @@ function allText(body: ChatRequest): string {
   };
   walk(body.messages ?? []);
   return parts.join(" ");
+}
+
+/** How `system_agent_runner.output_contract` closes a system agent's prompt; the schema follows. */
+const OUTPUT_CONTRACT = "It must validate against this JSON schema:\n";
+
+/** The top-level properties of the answer a system agent was asked for, or `null`. */
+function contractProperties(body: ChatRequest): Record<string, object> | null {
+  const prompt = allText(body);
+  const at = prompt.lastIndexOf(OUTPUT_CONTRACT);
+  if (at < 0) return null;
+  // The contract closes the prompt, so the schema is what follows it up to its last brace.
+  const tail = prompt.slice(at + OUTPUT_CONTRACT.length);
+  try {
+    const schema: { properties?: Record<string, object> } = JSON.parse(
+      tail.slice(0, tail.lastIndexOf("}") + 1),
+    );
+    return schema.properties ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The marker `improvement.mobile.spec.ts` writes in its note to the helper; it is answered differently. */
+const TRY_AGAIN_NOTE = "E2E-NOTE";
+
+/** Fixed JSON answers only for the improvement journey's explicit fixture marker.
+ * The real API, worker, evidence builder and eval scorer still do all their work.
+ */
+function improvementReply(body: ChatRequest): string | null {
+  if (!allText(body).includes("E2E-IMPROVEMENT")) return null;
+  const properties = contractProperties(body);
+  if (properties === null) return null;
+  if ("summary" in properties && "expected_effect" in properties && "instructions" in properties) {
+    // Two changes, so one can be left out of a test; a person's note to the helper
+    // words the second apart, so the attempt it asks for is no repeat of the last.
+    const noted = allText(body).includes(TRY_AGAIN_NOTE);
+    return JSON.stringify({
+      summary: "The fixture answers with the old return policy.",
+      expected_effect: "Use the reviewed policy token for the test questions.",
+      instructions: [
+        {
+          old_text: "PONG-IMPROVEMENT-BEFORE",
+          new_text: "PONG-IMPROVEMENT-AFTER",
+          after: "",
+          rationale: "The deterministic checks expect the reviewed policy.",
+          evidence: [],
+        },
+        {
+          old_text: "and nothing else.",
+          new_text: noted
+            ? "and nothing else, as the note asks."
+            : "and nothing else, in one line.",
+          after: "",
+          rationale: "An answer of the token alone is what the checks compare.",
+          evidence: [],
+        },
+      ],
+      tools: [],
+      fields: [],
+      new_skills: [],
+    });
+  }
+  if ("findings" in properties) return JSON.stringify({ findings: [] });
+  return null;
 }
 
 function replyFor(body: ChatRequest): string {
@@ -403,7 +467,7 @@ const server = createServer((request, response) => {
     // Empty on a tool-calling turn, which is what a provider sends beside a tool
     // call: the agent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
-    const answer = call === null ? replyFor(body) : "";
+    const answer = call === null ? (improvementReply(body) ?? replyFor(body)) : "";
     const usage = usageFor(allText(body), answer);
 
     if (body.stream === true) {

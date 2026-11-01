@@ -56,9 +56,9 @@ interface MarkdownEditorProps {
    */
   mode?: MarkdownMode;
   /**
-   * Draw an image in the preview as a link rather than loading it - for text the
-   * person did not write, where an image URL is a request the author chose to
-   * make from this browser.
+   * Draw images in the preview as links instead of fetching them, for text a
+   * caller did not write - a model's, or another person's - where an image is a
+   * request to a host of the writer's choosing.
    */
   inertImages?: boolean;
 }

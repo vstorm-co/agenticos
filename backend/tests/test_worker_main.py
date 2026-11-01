@@ -42,6 +42,19 @@ def test_ingestion_runs_in_child_processes_and_the_rest_on_the_loop() -> None:
     assert ingest.handlers == "app.worker.handlers:ingest"
 
 
+def test_by_default_eval_runs_have_a_pool_and_a_capacity_of_their_own() -> None:
+    """An eval holds its slot for hours; sharing the agent pool's left API runs waiting."""
+    from app.core.config import settings
+    from app.worker import jobs
+
+    executors = worker_main.executors_for(worker_main.pools_from(settings.WORKER_POOLS))
+
+    assert jobs.RUN_EVAL.pool is Pool.EVAL
+    assert {jobs.RUN_AGENT.pool, jobs.FIRE_TRIGGER.pool} == {Pool.AGENT}
+    assert isinstance(executors[Pool.EVAL], InProcessExecutor)
+    assert executors[Pool.EVAL] is not executors[Pool.AGENT]
+
+
 def test_workflow_nodes_get_a_pool_of_their_own_with_its_own_concurrency() -> None:
     assert worker_main.pools_from("workflow") == [Pool.WORKFLOW]
     with patch.object(worker_main.settings, "WORKER_WORKFLOW_CONCURRENCY", 3):

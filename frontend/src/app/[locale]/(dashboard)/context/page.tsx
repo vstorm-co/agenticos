@@ -10,6 +10,7 @@ import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
+import { ProposedContextChanges } from "@/components/context/proposed-context-changes";
 import { CreateContextDialog } from "@/components/context/create-context-dialog";
 import {
   draftFromFilename,
@@ -271,6 +272,8 @@ export default function ContextPage() {
   return (
     <div className="space-y-6">
       {header}
+
+      <ProposedContextChanges canEdit={canCreate} />
 
       <ListCard
         layout="grid"

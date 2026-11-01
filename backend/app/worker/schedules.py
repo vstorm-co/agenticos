@@ -81,6 +81,11 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A call a dead worker left is billed by the minute, and its heartbeat goes
     # stale 45 s after the worker died (#54).
     Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
+    # Schedule, start and settle the eval suites.
+    Schedule("check-eval-suites", jobs.CHECK_EVAL_SUITES, _MINUTE),
+    Schedule("sweep-improvements", jobs.SWEEP_IMPROVEMENTS, _MINUTE),
+    # Fail the eval runs whose worker went silent, freeing the eval slots they hold.
+    Schedule("reap-abandoned-evals", jobs.REAP_ABANDONED_EVALS, _MINUTE),
     # The workflow engine's sweeps. Postgres holds a run's position and every
     # outbox row has its own job, so the poll is only the backstop for a job that
     # died or was lost; the reconcile outlasts the 120 s dispatch lease
@@ -102,6 +107,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
+    # A gap is read by a person deciding what to write, so a quarter-hour's delay
+    # costs nothing. A knowledge base with no new misses embeds nothing.
+    Schedule("group-knowledge-gaps", jobs.GROUP_KNOWLEDGE_GAPS, timedelta(minutes=15)),
     # Hourly, against thresholds measured in hours or days: an approval or an
     # invitation expiring forty minutes late has cost nobody anything.
     # The platform's look at each person's week (#2301): hourly, because who is

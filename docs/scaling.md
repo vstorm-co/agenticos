@@ -12,15 +12,15 @@ an undersized pool rather than a missing replica. The
 
 ## What holds state, and what does not { #what-holds-state-and-what-does-not }
 
-| Part | What it keeps | How it grows |
-|---|---|---|
-| API (`app`) | Nothing of its own. Sessions, presence, running chat turns and the live-update feed are in Postgres and Redis | More uvicorn workers, then more hosts behind a load balancer |
-| Worker | Nothing. Jobs, leases and schedules are rows in Postgres | More processes, on any host, with the pools split between them |
-| Console (`frontend`) | The branding it caches for five minutes | More instances |
-| Postgres | Everything durable: organizations, agents, conversations, vectors, the job queue | A bigger instance, or a managed one |
-| Redis (Valkey) | A cache and its pub/sub channels, rebuilt after a restart | One instance that every host shares |
-| Uploaded files | A volume on the host, or a bucket | A bucket once more than one host reads or writes them |
-| Sandbox service | The sandboxes agents run commands in | Its own host, see [Agent workspaces](configuration.md#running-the-service-on-another-host) |
+| Part                 | What it keeps                                                                                                 | How it grows                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| API (`app`)          | Nothing of its own. Sessions, presence, running chat turns and the live-update feed are in Postgres and Redis | More uvicorn workers, then more hosts behind a load balancer                               |
+| Worker               | Nothing. Jobs, leases and schedules are rows in Postgres                                                      | More processes, on any host, with the pools split between them                             |
+| Console (`frontend`) | The branding it caches for five minutes                                                                       | More instances                                                                             |
+| Postgres             | Everything durable: organizations, agents, conversations, vectors, the job queue                              | A bigger instance, or a managed one                                                        |
+| Redis (Valkey)       | A cache and its pub/sub channels, rebuilt after a restart                                                     | One instance that every host shares                                                        |
+| Uploaded files       | A volume on the host, or a bucket                                                                             | A bucket once more than one host reads or writes them                                      |
+| Sandbox service      | The sandboxes agents run commands in                                                                          | Its own host, see [Agent workspaces](configuration.md#running-the-service-on-another-host) |
 
 ## One database per deployment { #one-database-per-deployment }
 
@@ -133,7 +133,7 @@ schedule. A worker that dies gives its jobs back within `WORKER_LEASE_SECONDS`.
 Why the queue is rows in Postgres, measured against nine other engines, is on
 [the background-job benchmark](task-queue-benchmark.md).
 
-Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,system,workflow`
+Split the pools when parsing competes with agent runs. `WORKER_POOLS=agent,eval,system,workflow`
 on one set of processes and `WORKER_POOLS=ingest` on hosts with memory to spare
 keep a large upload from delaying a routine. The health probe and
 `agenticos cmd doctor` report a pool that no live worker serves. The

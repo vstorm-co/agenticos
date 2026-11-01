@@ -265,7 +265,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {
             icon: Clock,
             label: t("runDuration"),
-            value: formatRunDuration(run.started_at, run.ended_at),
+            value: formatRunDuration(run.started_at, run.ended_at, locale),
           },
           {
             icon: CircleDollarSign,
@@ -376,7 +376,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
                         {nameOf(node.node_instance_id)}
                       </span>
                       <span className="text-muted-foreground mt-1 block text-xs tabular-nums">
-                        {formatRunDuration(node.started_at, node.ended_at)}
+                        {formatRunDuration(node.started_at, node.ended_at, locale)}
                       </span>
                     </span>
                     <NodeRunStatusLabel status={node.status} />

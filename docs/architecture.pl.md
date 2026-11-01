@@ -1,5 +1,5 @@
 ---
-source_sha: "f5d1507c01d1"
+source_sha: "32fb44829f2c"
 ---
 
 # Architektura { #architecture }
@@ -41,54 +41,55 @@ importowany jako typ, a nie jako dostęp do danych.
 
 ## Struktura katalogów (`backend/app/`) { #directory-structure-backendapp }
 
-| Katalog / plik | Do czego służy |
-|-----------|---------|
-| `api/routes/v1/` | Endpointy HTTP, walidacja żądań, uwierzytelnianie |
-| `api/deps.py` | Wstrzykiwanie zależności (sesja bazy, bieżący użytkownik) |
-| **`services/`** | **Logika biznesowa, orkiestracja** |
-| ↳ `user.py` | CRUD użytkownika, aktualizacje profilu |
-| ↳ `conversation.py` | Zarządzanie rozmowami i wiadomościami |
-| ↳ `message_rating.py` | CRUD ocen wiadomości, statystyki, eksport |
-| ↳ `file_upload.py` | Obsługa wgrywania plików w czacie |
-| ↳ `file_storage.py` | Abstrakcja przechowywania plików (lokalnie / S3) |
-| ↳ `rag_document.py` | Cykl życia dokumentu RAG |
-| ↳ `rag_sync.py` | Orkiestracja synchronizacji ze zdalnym źródłem |
-| ↳ `sync_source.py` | CRUD źródeł synchronizacji i historia przebiegów jednego źródła |
-| ↳ `audit.py` | Odczyt śladu audytowego własnej organizacji wywołującego |
-| **`repositories/`** | **Warstwa dostępu do danych, zapytania do bazy** |
-| ↳ `user.py` | Zapytania o użytkowników |
-| ↳ `conversation.py` | Zapytania o rozmowy |
-| ↳ `chat_file.py` | Zapytania o pliki czatu |
-| ↳ `message_rating.py` | Zapytania o oceny wiadomości |
-| ↳ `rag_document.py` | Zapytania o dokumenty RAG |
-| ↳ `sync_log.py` | Zapytania o logi synchronizacji |
-| ↳ `sync_source.py` | Zapytania o źródła synchronizacji |
-| **`schemas/`** | **Modele żądań/odpowiedzi Pydantic** |
-| ↳ `user.py` | Schematy użytkownika |
-| ↳ `conversation.py` | Schematy rozmów i wiadomości |
-| ↳ `file.py` | Schematy wgrywania plików |
-| ↳ `message_rating.py` | Schematy ocen wiadomości |
-| ↳ `rag.py` | Schematy zapytań/odpowiedzi RAG |
-| ↳ `sync_source.py` | Schematy źródeł synchronizacji |
-| **`db/models/`** | **Modele SQLAlchemy 2.1** |
-| ↳ `user.py` | Model użytkownika |
-| ↳ `conversation.py` | Modele rozmów i wiadomości |
-| ↳ `chat_file.py` | Model pliku czatu |
-| ↳ `message_rating.py` | Model oceny wiadomości |
-| ↳ `webhook.py` | Model webhooka |
-| ↳ `rag_document.py` | Model dokumentu RAG |
-| ↳ `sync_log.py` | Model logu synchronizacji |
-| ↳ `sync_source.py` | Model źródła synchronizacji |
-| `core/config.py` | Ustawienia przez pydantic-settings |
-| `core/security.py` | Narzędzia do JWT / kluczy API |
-| `agents/` | Agenci AI i narzędzia |
-| `rag/` | Moduł RAG (embeddingi, magazyn wektorów, retrieval) |
-| `rag/connectors/` | Konektory synchronizacji (Google Drive, S3, strony internetowe) |
-| `commands/` | Komendy CLI w stylu Django |
+| Katalog / plik        | Do czego służy                                                  |
+| --------------------- | --------------------------------------------------------------- |
+| `api/routes/v1/`      | Endpointy HTTP, walidacja żądań, uwierzytelnianie               |
+| `api/deps.py`         | Wstrzykiwanie zależności (sesja bazy, bieżący użytkownik)       |
+| **`services/`**       | **Logika biznesowa, orkiestracja**                              |
+| ↳ `user.py`           | CRUD użytkownika, aktualizacje profilu                          |
+| ↳ `conversation.py`   | Zarządzanie rozmowami i wiadomościami                           |
+| ↳ `message_rating.py` | CRUD ocen wiadomości, statystyki, eksport                       |
+| ↳ `file_upload.py`    | Obsługa wgrywania plików w czacie                               |
+| ↳ `file_storage.py`   | Abstrakcja przechowywania plików (lokalnie / S3)                |
+| ↳ `rag_document.py`   | Cykl życia dokumentu RAG                                        |
+| ↳ `rag_sync.py`       | Orkiestracja synchronizacji ze zdalnym źródłem                  |
+| ↳ `sync_source.py`    | CRUD źródeł synchronizacji i historia przebiegów jednego źródła |
+| ↳ `audit.py`          | Odczyt śladu audytowego własnej organizacji wywołującego        |
+| **`repositories/`**   | **Warstwa dostępu do danych, zapytania do bazy**                |
+| ↳ `user.py`           | Zapytania o użytkowników                                        |
+| ↳ `conversation.py`   | Zapytania o rozmowy                                             |
+| ↳ `chat_file.py`      | Zapytania o pliki czatu                                         |
+| ↳ `message_rating.py` | Zapytania o oceny wiadomości                                    |
+| ↳ `rag_document.py`   | Zapytania o dokumenty RAG                                       |
+| ↳ `sync_log.py`       | Zapytania o logi synchronizacji                                 |
+| ↳ `sync_source.py`    | Zapytania o źródła synchronizacji                               |
+| **`schemas/`**        | **Modele żądań/odpowiedzi Pydantic**                            |
+| ↳ `user.py`           | Schematy użytkownika                                            |
+| ↳ `conversation.py`   | Schematy rozmów i wiadomości                                    |
+| ↳ `file.py`           | Schematy wgrywania plików                                       |
+| ↳ `message_rating.py` | Schematy ocen wiadomości                                        |
+| ↳ `rag.py`            | Schematy zapytań/odpowiedzi RAG                                 |
+| ↳ `sync_source.py`    | Schematy źródeł synchronizacji                                  |
+| **`db/models/`**      | **Modele SQLAlchemy 2.1**                                       |
+| ↳ `user.py`           | Model użytkownika                                               |
+| ↳ `conversation.py`   | Modele rozmów i wiadomości                                      |
+| ↳ `chat_file.py`      | Model pliku czatu                                               |
+| ↳ `message_rating.py` | Model oceny wiadomości                                          |
+| ↳ `webhook.py`        | Model webhooka                                                  |
+| ↳ `rag_document.py`   | Model dokumentu RAG                                             |
+| ↳ `sync_log.py`       | Model logu synchronizacji                                       |
+| ↳ `sync_source.py`    | Model źródła synchronizacji                                     |
+| `core/config.py`      | Ustawienia przez pydantic-settings                              |
+| `core/security.py`    | Narzędzia do JWT / kluczy API                                   |
+| `agents/`             | Agenci AI i narzędzia                                           |
+| `rag/`                | Moduł RAG (embeddingi, magazyn wektorów, retrieval)             |
+| `rag/connectors/`     | Konektory synchronizacji (Google Drive, S3, strony internetowe) |
+| `commands/`           | Komendy CLI w stylu Django                                      |
 
 ## Odpowiedzialności warstw { #layer-responsibilities }
 
 ### Route'y API (`api/routes/v1/`) { #api-routes-apiroutesv1 }
+
 - Obsługa żądania i odpowiedzi HTTP
 - Walidacja wejścia przez schematy Pydantic
 - Sprawdzenia uwierzytelnienia i autoryzacji
@@ -103,12 +104,14 @@ importowany jako typ, a nie jako dostęp do danych.
   co ten przysłał.
 
 ### Serwisy (`services/`) { #services-services }
+
 - Logika biznesowa i walidacja
 - Orkiestrują jedno lub więcej wywołań repozytorium
 - Podnoszą wyjątki domenowe (`NotFoundError`, `AlreadyExistsError` itd.)
 - Zarządzają granicami transakcji
 
 ### Repozytoria (`repositories/`) { #repositories-repositories }
+
 - Wyłącznie operacje na bazie danych
 - Żadnej logiki biznesowej
 - Używają `db.flush()`, a nie `commit()` — transakcja należy do sesji żądania,
@@ -116,14 +119,17 @@ importowany jako typ, a nie jako dostęp do danych.
 - Zwracają modele domenowe
 
 ### Schematy (`schemas/`) { #schemas-schemas }
+
 - Osobne modele `Create`, `Update` i `Response` na encję
 - Schematy `Response` używają `model_config = ConfigDict(from_attributes=True)` do konwersji z ORM
 
 ### Modele (`db/models/`) { #models-dbmodels }
+
 - Definicje modeli SQLAlchemy 2.1
 - Tu mieszkają relacje, indeksy i domyślne wartości kolumn
 
 ### Konektory RAG (`rag/connectors/`) { #rag-connectors-ragconnectors }
+
 - Wymienne adaptery synchronizacji implementujące `BaseSyncConnector`
 - Każdy konektor dostarcza `list_files()` i `download_file()`
 - Rejestrowane w `CONNECTOR_REGISTRY`, żeby dało się je znaleźć w czasie działania
@@ -214,7 +220,7 @@ swoją odroczoną pracę — co nie ma nic wspólnego z odpowiedzią.
 Jedna ścieżka celowo commituje wcześniej niż „po drodze na zewnątrz”:
 **run agenta.**
 
-Runner commituje raz *przed wywołaniem modelu* i jeszcze raz w końcowym
+Runner commituje raz _przed wywołaniem modelu_ i jeszcze raz w końcowym
 `finally` — `AgentRunnerService._run` oraz `ChatAgentRunner.run` dla
 strumieniowanego czatu.
 
@@ -245,7 +251,7 @@ Rozmowa trzyma swój socket do pięćdziesięciu minut, więc commituje tam, gdz
   zostanie wywołany. Wiersze zatwierdzeń, heartbeat i sprzątanie rozmów
   głosowych potrzebują tych wierszy czytelnych z innych sesji; odmowa przed tym
   punktem wycofuje wszystko, więc odrzucona rozmowa nie zostawia niczego
-  w Activity.
+  w **Aktywności** (Activity).
 - Każda zapisana tura, każdy 15-sekundowy heartbeat i każdy zapis zatwierdzenia
   otwiera własną sesję `get_db_context()` i tam commituje, nigdy na wspólnej
   sesji runu — tura jest trwała w chwili, gdy zostanie wypowiedziana, a awaria
@@ -267,7 +273,7 @@ dlatego, że transakcja byłaby trzymana zbyt długo, ale dlatego, że zaraz zos
 wyrzucona. Refresh token, który nie pasował do żadnej żywej sesji, może być
 odtworzeniem tego, który sesja właśnie zrotowała — odpowiedzią jest zakończenie
 tego łańcucha i zapisanie tego, a potem odmowa wywołującemu, która podnosi
-`AuthenticationError` przez gałąź *wyjątku* kontekstu sesji i wycofuje żądanie.
+`AuthenticationError` przez gałąź _wyjątku_ kontekstu sesji i wycofuje żądanie.
 
 Bez commitu jest to 401, wciąż żywy skompromitowany łańcuch i żaden ślad, że
 cokolwiek się wydarzyło. `test_the_response_survives_the_refusal_that_follows_it`
@@ -281,13 +287,14 @@ Respond to webhook, odpowiada nadawcy tym, co ten krok zapisze, więc żądanie 
 czekać na run, który jeszcze nie wystartował - a nie wystartuje, dopóki przyjęcie
 nie będzie widoczne dla workera. Serwis zatwierdza run i rekord dostarczenia - pierwszy job dispatchu runu jest
 zatwierdzany razem z nimi, a `NOTIFY` budzący workera odpala się przy tym commicie
+
 - a potem odpytuje odpowiedź runa. Po commicie nic nie jest zapisywane, więc
-zamykający commit nie ma już nic do zrobienia. `TestAnsweringTheSender` prowadzi
-run przez prawdziwy claim joba.
+  zamykający commit nie ma już nic do zrobienia. `TestAnsweringTheSender` prowadzi
+  run przez prawdziwy claim joba.
 
 Widoczność tnie w obie strony. Cokolwiek rozumowało wcześniej „wiersza
 wykonującego się runa nie da się zobaczyć”, rozumuje teraz o wierszu, który
-*jest* widziany, a scheduler triggerów agenta to jedyne miejsce, które tak
+_jest_ widziany, a scheduler triggerów agenta to jedyne miejsce, które tak
 rozumowało.
 
 Jego strażnik braku nakładania blokuje na każdym nieterminalnym runie w rozmowie
@@ -329,7 +336,7 @@ dostarczenia albo „run now” - asynchroniczny run przez API i sprzątanie teg
 leży poza bazą, po usunięciu, są przekazywane właśnie tak.
 
 Ręczne odpalenie triggera jest tu z drugiego powodu, który warto nazwać: `POST
-/agents/{id}/triggers/{id}/run` kiedyś *czekał* na run, który uruchomił, więc
+/agents/{id}/triggers/{id}/run` kiedyś _czekał_ na run, który uruchomił, więc
 agent wolniejszy niż limit czasu odczytu proxy odpowiadał 504, podczas gdy run
 trwał dalej i się zatwierdzał - błąd zgłoszony dla czegoś, co działało, i
 zaproszenie, żeby nacisnąć przycisk jeszcze raz ([#658][658]). Trasa odpowiada
@@ -407,16 +414,16 @@ Powyższy podział na warstwy ma wewnątrz runu agenta jeszcze jedną zasadę i 
 przez nią runner jest tak duży, jak jest. **Capability nie dotyka bazy danych.**
 Wszystko, czego z niej potrzebuje — nazwy kolekcji, które wiąże jej spec, skille,
 które może wczytać, workspace, do którego pisze, delegaci, których może wywołać —
-jest rozwiązywane przez serwis *przed* startem runu i przekazywane jako
+jest rozwiązywane przez serwis _przed_ startem runu i przekazywane jako
 `resources`, słownik, który capability może czytać i do którego nie może nic
-dodać. Model pyta o to, *czego* szukać; nigdy nie dowiaduje się, *gdzie*.
+dodać. Model pyta o to, _czego_ szukać; nigdy nie dowiaduje się, _gdzie_.
 
 Dwa wpisy w tym słowniku są szwami do innych podsystemów, a nie zwykłymi danymi:
 
-| Zasób | Zostawiony przez runner | Czytany przez |
-|---|---|---|
-| `WORKSPACE_RESOURCE` | otwarty workspace, który run dostaje też jako `ctx.workspace` | `tool_output_limits` oraz delegat, który współdzieli `sandbox` |
-| `SUBAGENT_RUNTIME_RESOURCE` | rozwiązane drzewo delegacji | capability `subagents` |
+| Zasób                       | Zostawiony przez runner                                       | Czytany przez                                                  |
+| --------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------- |
+| `WORKSPACE_RESOURCE`        | otwarty workspace, który run dostaje też jako `ctx.workspace` | `tool_output_limits` oraz delegat, który współdzieli `sandbox` |
+| `SUBAGENT_RUNTIME_RESOURCE` | rozwiązane drzewo delegacji                                   | capability `subagents`                                         |
 
 Delegacja jest najostrzejszym przypadkiem tej zasady. Delegat jest wierszem; tak
 samo jego przypięta wersja, jego kolekcje, jego skille i jego sekrety, a każde
@@ -448,7 +455,7 @@ oddelegował ten, i to on pilnuje uczciwości miesięcznej sumy organizacji — 
 
 Jest `ON DELETE SET NULL` z tej samej arytmetyki: usunięcie rodzica kasuje
 wiersz, który zawierał ten koszt, więc wiersz delegacji, który staje się wierszem
-najwyższego poziomu, *powinien* zacząć się liczyć. Kaskada skasowałaby zapis
+najwyższego poziomu, _powinien_ zacząć się liczyć. Kaskada skasowałaby zapis
 wydanych pieniędzy.
 
 **`subagent_task_id`** to własne id zadania z biblioteki delegacji, które łączy
@@ -525,8 +532,7 @@ wgrał.**
 `GET /files/{id}` jest ograniczone do `ChatFile.user_id`, co jest właściwym
 zasięgiem dla okna pisania wiadomości i niewłaściwym dla przeglądu runu. Odczyt
 runu jest prawem organizacji, a nie tego, kto go uruchomił, więc karty
-załączników w transkrypcie kolegi renderowały się, a każdy podgląd odpowiadał
-404.
+załączników w transkrypcie kolegi renderowały się, a każdy podgląd odpowiadał 404.
 
 `GET /runs/{run_id}/files/{file_id}` autoryzuje tak jak transkrypt —
 organizacja, potem `runs:view` — a następnie dopuszcza plik tylko tam, gdzie jego
@@ -534,9 +540,9 @@ organizacja, potem `runs:view` — a następnie dopuszcza plik tylko tam, gdzie 
 zasięgu, ile daje już transkrypt, i ani trochę więcej.
 
 Oba route'y podają bajty przez `_chat_file_bytes.py`, więc to, co przeglądarka
-może *wyświetlić*, nie zależy od tego, który z nich autoryzował odczyt.
+może _wyświetlić_, nie zależy od tego, który z nich autoryzował odczyt.
 
-**Zapis jest osłonięty *i* zagnieżdżony.** Dochodzi się do niego z bloku
+**Zapis jest osłonięty _i_ zagnieżdżony.** Dochodzi się do niego z bloku
 `finally`, więc wyjątek podniesiony podczas zapisywania nieudanego runu
 zastąpiłby tę awarię sobą. Samo połknięcie go nie wystarczy: nieudany flush
 zostawia sesję nie do użytku, więc własny końcowy zapis runu przepadłby na rzecz
@@ -547,11 +553,20 @@ zapis może się nieszkodliwie nie powieść” jest prawdą, a nie pobożnym ż
 ## Odmowa, która nazywa pole { #a-refusal-that-names-a-field }
 
 Każda odmowa wychodzi w jednej kopercie,
-`{"error": {"code", "message", "details"}}`, a odmowa dotycząca *pola* nazywa je
+`{"error": {"code", "message", "details"}}`, a odmowa dotycząca _pola_ nazywa je
 w jednym kształcie:
 
 ```json
-{"details": {"fields": [{"field": "spec.name", "message": "String should have at most 128 characters"}]}}
+{
+  "details": {
+    "fields": [
+      {
+        "field": "spec.name",
+        "message": "String should have at most 128 characters"
+      }
+    ]
+  }
+}
 ```
 
 `fieldProblems` w `frontend/src/lib/api-error.ts` czyta właśnie to i nic więcej,
@@ -561,11 +576,11 @@ którego czytelnik musi szukać, przeglądając stronę od nowa.
 punkty wejścia. Dwa z nich czytają Pydantica, a **to, którym wywołującym jesteś,
 decyduje, co znaczy pierwszy element `loc`**:
 
-| | Dla | `loc` zaczyna się od |
-|---|---|---|
-| `request_field_problems` | `validation_exception_handler`, każdy `RequestValidationError` | miejsca, z którego przyszła wartość (`body`, `query`, …) — i to jest odrzucane |
-| `field_problems(…, root=…)` | serwis walidujący dokument, którego nie potrafi schemat route'a — nadpisanie ustawień ingestii dla jednego wgrania, ręcznie edytowany YAML speca, blob konfiguracji capability | pola tego dokumentu, raportowanego pod `root` |
-| `refused_field(field, message, **context)` | zasada, którą serwis wyraża prozą, a nie modelem — endpoint niosący hasło, bot Mattermosta tracący swój serwer, dokument YAML, który nigdy się nie sparsował | — zwraca `BadRequestError`, który wywołujący ma podnieść |
+|                                            | Dla                                                                                                                                                                            | `loc` zaczyna się od                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `request_field_problems`                   | `validation_exception_handler`, każdy `RequestValidationError`                                                                                                                 | miejsca, z którego przyszła wartość (`body`, `query`, …) — i to jest odrzucane |
+| `field_problems(…, root=…)`                | serwis walidujący dokument, którego nie potrafi schemat route'a — nadpisanie ustawień ingestii dla jednego wgrania, ręcznie edytowany YAML speca, blob konfiguracji capability | pola tego dokumentu, raportowanego pod `root`                                  |
+| `refused_field(field, message, **context)` | zasada, którą serwis wyraża prozą, a nie modelem — endpoint niosący hasło, bot Mattermosta tracący swój serwer, dokument YAML, który nigdy się nie sparsował                   | — zwraca `BadRequestError`, który wywołujący ma podnieść                       |
 
 `refused_field` nazywa zdanie raz, bo `message` koperty i zdanie pola to jedno
 i to samo zdanie; podnoszący, który potrzebuje innego statusu, buduje te same
@@ -603,6 +618,13 @@ niosącym `input`, `ctx` i `url`, którego nic na frontendzie nie czytało.
 zepsute odwołania, przy których nie ma czego oznaczyć. Odpowiada więc
 `details.problems` — po wierszu na każdy, które Builder wypisuje — oraz
 `details.fields` dla tego podzbioru, który pole nazywa.
+
+Gdy część z nich da się usunąć jednym kliknięciem, odpowiada też `details.fixes`,
+listą kodów: `use_state_workspace` przenosi workspace na przechowywany backend
+`state`, który nie potrzebuje połączenia z sandboxem, a `stop_sharing_unbound`
+usuwa z `share_with_delegates` to, czego agent nie może udostępnić. Builder
+pokazuje przycisk dla każdego znanego kodu i pomija resztę. Poprawka zapisuje
+wersję roboczą i waliduje ją ponownie; nigdy nie publikuje.
 
 Konfiguracja capability to jedyna część speca renderowana jako generowany
 formularz, więc jej odmowy nazywają pole:
@@ -670,13 +692,13 @@ rozjazd zdarzył się naprawdę dwa razy: na osi ról, gdzie lądowanie rozwidla
 według roli, i na osi providerów, gdzie podróż w obie strony przez OAuth gubiła
 `?returnTo=`.
 
-Między drzwiami różni się tylko to, jak ścieżka *podróżuje*:
+Między drzwiami różni się tylko to, jak ścieżka _podróżuje_:
 
-| Drzwi | Jak ścieżka dociera do lądowania |
-|---|---|
-| Formularz z hasłem | nigdy nie opuściła karty — czytana wprost z `?returnTo=` |
-| Callback OAuth | `sessionStorage`, co jest dozwolone, bo podróż w obie strony zaczyna się i kończy w tej samej karcie w tym samym origin |
-| Magic link | podpisane oświadczenie w tokenie, bo w link klika się z maila — w innej karcie, często w innej aplikacji, gdzie `sessionStorage` jest pusty z definicji |
+| Drzwi              | Jak ścieżka dociera do lądowania                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Formularz z hasłem | nigdy nie opuściła karty — czytana wprost z `?returnTo=`                                                                                                |
+| Callback OAuth     | `sessionStorage`, co jest dozwolone, bo podróż w obie strony zaczyna się i kończy w tej samej karcie w tym samym origin                                 |
+| Magic link         | podpisane oświadczenie w tokenie, bo w link klika się z maila — w innej karcie, często w innej aplikacji, gdzie `sessionStorage` jest pusty z definicji |
 
 Ścieżka magic linku zostaje odrzucona już przy **żądaniu**, a nie odfiltrowana
 przy lądowaniu: `MagicLinkRequest.return_to` przyjmuje ścieżkę na tym
@@ -702,9 +724,9 @@ per wiersz — zobacz [Uprawnienia](permissions.md), żeby poznać cały model.
 
 Dwie zależności, i tylko dwie:
 
-| Alias | Znaczy |
-|---|---|
-| `CurrentUser` | każdy uwierzytelniony użytkownik |
+| Alias             | Znaczy                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `CurrentUser`     | każdy uwierzytelniony użytkownik                                                           |
 | `CurrentAppAdmin` | superadmin deploymentu (`users.is_app_admin`), dla `/admin/*` i zbiorczych route'ów `/rag` |
 
 Wszystko inne idzie przez jedno z:
@@ -783,12 +805,12 @@ zawęża go dalej.**
 - **Udostępnienie niesie zapis dopiero na poziomie `edit`.** Odczyt i zapis to dwa
   pytania — `_may_read` i `_may_write` — a udostępnienie odpowiadało kiedyś na
   oba, niezależnie od poziomu, który niosło, więc dwa poziomy oferowane w oknie
-  udostępniania znaczyły to samo: rozmowę udostępnioną do *podglądu* można było
+  udostępniania znaczyły to samo: rozmowę udostępnioną do _podglądu_ można było
   przemianować, zarchiwizować, usunąć albo dopisać do niej turę
   `role: "assistant"`, którą wszyscy czytają w `/chat`, a model dostaje z powrotem
   jako własne słowa. Poziom jest komunikowany temu, kto go nadaje, więc
   egzekwowany jest właśnie ten poziom (#931).
-- W `transcript` ten jeden argument robi dwie rzeczy — autoryzuje *i* wzbogaca
+- W `transcript` ten jeden argument robi dwie rzeczy — autoryzuje _i_ wzbogaca
   każdą wiadomość o własną ocenę wywołującego. To przeciążenie jest powodem, dla
   którego jego autoryzująca połowa tak długo była nieobecna: route go
   przekazywał, argument był w przeglądzie kodu wyraźnie widoczny, a robił tę
@@ -814,7 +836,7 @@ decydować o tym, gdzie wątek siedzi u wszystkich, którzy go widzą.
 
 Cztery konsekwencje, które warto znać:
 
-- **`POST`/`DELETE /conversations/{id}/favourite` są autoryzowane jak *odczyt*.**
+- **`POST`/`DELETE /conversations/{id}/favourite` są autoryzowane jak _odczyt_.**
   Gwiazdka mówi, gdzie wątek siedzi we własnym panelu bocznym osoby, która ją
   postawiła, i nie zmienia w wątku nic, więc ktoś, komu rozmowę udostępniono, może
   ją oznaczyć dokładnie tak jak jej właściciel. `for_write` odmówiłoby tu właśnie
@@ -830,13 +852,13 @@ Cztery konsekwencje, które warto znać:
   PATCH mówił komuś, kto oznaczył wątek gwiazdką, że tego nie zrobił (#1254).
   Odczyt bez czytelnika — listowanie dla admina, ścieżka runu rozwiązująca wątek —
   nie pyta o niczyje gwiazdki i nie płaci za to zapytaniem, a odczyt, który
-  wyłącznie *autoryzuje*, wyłącza to jawnie przez `include_favourite=False`. To są
+  wyłącznie _autoryzuje_, wyłącza to jawnie przez `include_favourite=False`. To są
   te odczyty, których wynik zostaje odrzucony albo nie jest rozmową:
   `GET /conversations/{id}/messages`, który rozwiązuje wątek raz, przez
   `transcript`, dla strony i jej kosztu; trzy route'y workspace'u; każda tura
   istniejącego czatu, przez `agent._resolve_in_org`; oraz zapisy — `add_message`,
   `delete_conversation` i `set_favourite`, który sam nadpisuje tę flagę. Domyślne
-  włączenie jest tym, co powstrzymuje route, który *faktycznie* serializuje
+  włączenie jest tym, co powstrzymuje route, który _faktycznie_ serializuje
   rozmowę, przed zapomnieniem; wyłączenie jest świadomym aktem w miejscu
   wywołania.
 - **Oznaczanie gwiazdką jest idempotentne przy rywalizacji**, bo wstawienie jest
@@ -856,7 +878,7 @@ Cztery konsekwencje, które warto znać:
 **Nie ma już sposobu, by przeczytać rozmowę w poprzek tenantów.** Wartownik, który
 kiedyś to zapisywał (`UNSCOPED`), miał dokładnie jednego wywołującego,
 `/admin/conversations/{id}`, i oba odeszły razem z przeglądarką rozmów
-obejmującą cały deployment — Activity odpowiada na „co się stało” kosztem,
+obejmującą cały deployment — Aktywność odpowiada na „co się stało” kosztem,
 modelem, trace'em i tym, co obok podano modelowi, a to jest pytanie, do którego
 tamten ekran był używany. To, co z niego zostało, to
 `GET /admin/conversations?user_id=`: wątki jednego wskazanego konta, wypisywane
@@ -897,14 +919,15 @@ Upload (POST /files/upload)
 
 ### Wspierane typy plików { #supported-file-types }
 
-| Kategoria | Rozszerzenia | Przetwarzanie |
-|----------|-----------|------------|
-| Obrazy | JPEG, PNG, WebP, GIF | Zapisywane bez zmian, wysyłane do LLM jako dane binarne do analizy obrazu |
-| PDF | .pdf | Tekst wyciągany skonfigurowanym parserem |
-| Dokumenty | .docx | Tekst wyciągany przez python-docx |
-| Tekst | .txt, .md | Dekodowane wprost jako UTF-8 |
+| Kategoria | Rozszerzenia         | Przetwarzanie                                                             |
+| --------- | -------------------- | ------------------------------------------------------------------------- |
+| Obrazy    | JPEG, PNG, WebP, GIF | Zapisywane bez zmian, wysyłane do LLM jako dane binarne do analizy obrazu |
+| PDF       | .pdf                 | Tekst wyciągany skonfigurowanym parserem                                  |
+| Dokumenty | .docx                | Tekst wyciągany przez python-docx                                         |
+| Tekst     | .txt, .md            | Dekodowane wprost jako UTF-8                                              |
 
 ### Wybór parsera { #parser-selection }
+
 Załączniki czatu są czytane przez PyMuPDF i nie da się tego skonfigurować:
 załącznik nie należy do żadnej kolekcji, więc nie ma zapisanej konfiguracji,
 z której można by odczytać wybór parsera. Wybór parsera dotyczy kolekcji wiedzy,
@@ -952,14 +975,14 @@ dokumentów per użytkownik. Oznacza to, że:
 
 ### Komponenty { #components }
 
-| Komponent | Plik | Do czego służy |
-|-----------|------|---------|
-| `DocumentProcessor` | `rag/documents.py` | Parsuje pliki do tekstu (PDF, DOCX, TXT, obrazy) |
-| `IngestionService` | `rag/ingestion.py` | Orkiestruje parse -> chunk -> embed -> store |
-| `RetrievalService` | `rag/retrieval.py` | Obsługuje zapytania wyszukiwania z filtrowaniem i punktacją |
-| `EmbeddingService` | `rag/embeddings.py` | Generuje embeddingi przez skonfigurowanego providera |
-| `BaseVectorStore` | `rag/vectorstore.py` | Abstrakcyjny interfejs operacji na bazie wektorowej |
-| `PgVectorStore` | `rag/vectorstore.py` | Implementacja na pgvector (PostgreSQL) |
+| Komponent           | Plik                 | Do czego służy                                              |
+| ------------------- | -------------------- | ----------------------------------------------------------- |
+| `DocumentProcessor` | `rag/documents.py`   | Parsuje pliki do tekstu (PDF, DOCX, TXT, obrazy)            |
+| `IngestionService`  | `rag/ingestion.py`   | Orkiestruje parse -> chunk -> embed -> store                |
+| `RetrievalService`  | `rag/retrieval.py`   | Obsługuje zapytania wyszukiwania z filtrowaniem i punktacją |
+| `EmbeddingService`  | `rag/embeddings.py`  | Generuje embeddingi przez skonfigurowanego providera        |
+| `BaseVectorStore`   | `rag/vectorstore.py` | Abstrakcyjny interfejs operacji na bazie wektorowej         |
+| `PgVectorStore`     | `rag/vectorstore.py` | Implementacja na pgvector (PostgreSQL)                      |
 
 ### Pipeline ingestii { #ingestion-pipeline }
 
@@ -972,6 +995,7 @@ Dokumenty można wciągnąć przez:
    usuwają to, czego ich źródło już nie zawiera.
 
 Każdy wciągnięty dokument:
+
 - Jest parsowany do tekstu (parser wybierany per kolekcja, do nadpisania per wgranie)
 - Jest dzielony na fragmenty (`chunk_size` / `chunk_overlap`, też per kolekcja)
 - Jest embedowany przez skonfigurowanego providera embeddingów
@@ -980,11 +1004,11 @@ Każdy wciągnięty dokument:
 
 ### Tryby synchronizacji { #sync-modes }
 
-| Tryb | Zachowanie |
-|------|----------|
-| `full` | Zastępuje wszystkie dokumenty (wciąga wszystko od nowa) |
-| `new_only` | Dodaje nowe pliki, wciąga od nowa pliki, których hasz treści się zmienił, pomija niezmienione |
-| `update_only` | Wciąga od nowa wyłącznie zmienione pliki, nowe pomija całkowicie |
+| Tryb          | Zachowanie                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| `full`        | Zastępuje wszystkie dokumenty (wciąga wszystko od nowa)                                       |
+| `new_only`    | Dodaje nowe pliki, wciąga od nowa pliki, których hasz treści się zmienił, pomija niezmienione |
+| `update_only` | Wciąga od nowa wyłącznie zmienione pliki, nowe pomija całkowicie                              |
 
 ### Konektory synchronizacji { #sync-connectors }
 
@@ -1005,7 +1029,7 @@ opracowany przykład.
   Sesja żądania commituje raz, zanim odpowiedź zostanie zapisana.
 - Ścieżka runu agenta to główny usankcjonowany wyjątek: commituje przed
   wywołaniem modelu i jeszcze raz w końcowym `finally`. `MLService._record_failure`
-  to ten drugi, z lustrzanego powodu — wiersz zużycia opisujący *odmowę* musi
+  to ten drugi, z lustrzanego powodu — wiersz zużycia opisujący _odmowę_ musi
   przetrwać wycofanie, które ta odmowa powoduje.
 - Dwa usankcjonowane wyjątki. Ścieżka runu agenta commituje przed wywołaniem
   modelu i jeszcze raz w końcowym `finally`;

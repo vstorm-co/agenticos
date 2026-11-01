@@ -44,6 +44,10 @@ vi.mock("@/components/runs/run-manifest", () => ({
   RunManifest: () => <div data-testid="manifest" />,
 }));
 vi.mock("@/stores", () => ({ useAuthStore: () => null }));
+const datasets = vi.hoisted(() => ({ runnable: false }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useRunsADataset: () => datasets.runnable,
+}));
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
@@ -95,6 +99,7 @@ function renderRun(runId = "run-2", onFocusRun = vi.fn()) {
 beforeEach(() => {
   useRunMock.mockReset();
   prefetched.mockReset();
+  datasets.runnable = false;
 });
 
 describe("stepping to a neighbour", () => {
@@ -266,6 +271,61 @@ describe("the row being held while the next one loads", () => {
   });
 });
 
+describe("an eval run", () => {
+  it("names the case it answered and opens the eval run, not an empty transcript", () => {
+    serve({
+      run: run({
+        surface: "eval",
+        eval_case: {
+          eval_run_id: "eval-1",
+          agent_id: "agent-9",
+          case_id: "case-1",
+          dataset_name: "refunds",
+          case_input: "Can I return it?",
+          graded: false,
+        },
+      }),
+    });
+    renderRun();
+    expect(
+      screen.getByRole("link", { name: "Eval case: refunds · Can I return it?" }),
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1?case=case-1");
+    expect(screen.getByText("A case from an eval run")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the eval run" })).toHaveAttribute(
+      "href",
+      "/agents/agent-9/evals/eval-1?case=case-1",
+    );
+    expect(screen.queryByTestId("timeline")).toBeNull();
+  });
+
+  it("says a judge's run graded an eval case, and opens the eval run", () => {
+    serve({
+      run: run({
+        surface: "eval",
+        eval_case: {
+          eval_run_id: "eval-1",
+          agent_id: "agent-9",
+          case_id: "case-1",
+          dataset_name: "refunds",
+          case_input: "Can I return it?",
+          graded: true,
+        },
+      }),
+    });
+    renderRun();
+    expect(
+      screen.getByRole("link", { name: "Grading an eval case: refunds · Can I return it?" }),
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1?case=case-1");
+    expect(screen.getByText("The judge grading a case of an eval run")).toBeInTheDocument();
+  });
+
+  it("links no eval run it cannot name - a judge has no evals of its own to point at", () => {
+    serve({ run: run({ surface: "eval" }) });
+    renderRun();
+    expect(screen.queryByRole("link", { name: /eval/i })).toBeNull();
+  });
+});
+
 describe("a voice call in focus", () => {
   it("says it was a call beside its surface", () => {
     serve({ run: run({ modality: "voice" }) });
@@ -304,5 +364,29 @@ describe("the header a run opens on", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     expect(screen.getByTitle(/no price/i)).toHaveTextContent("+");
     expect(screen.queryByText(/ago$/)).toBeNull();
+  });
+});
+
+describe("scoring a run against a case", () => {
+  it("is offered to who may run a dataset, whatever the role says", () => {
+    datasets.runnable = true;
+    serve({ run: run() });
+    renderRun();
+
+    expect(screen.getByRole("button", { name: "More actions for this run" })).toBeInTheDocument();
+  });
+
+  it("is not offered to who may run no dataset", () => {
+    datasets.runnable = false;
+    serve({ run: run() });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
+  });
+
+  it("is not offered for a run with no transcript to score", () => {
+    datasets.runnable = true;
+    serve({ run: run({ conversation_id: null }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
   });
 });

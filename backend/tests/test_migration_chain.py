@@ -56,6 +56,57 @@ def test_no_unmerged_migrations_claim_the_same_parent() -> None:
         for parent in (down,) if isinstance(down, str) else down:
             parents.setdefault(parent, []).append(revision.revision)
 
+    forked = {parent: sorted(children) for parent, children in parents.items() if len(children) > 1}
+    # The integration preserves already-issued revisions from both reviewed
+    # branches. These exact forks are joined by explicit merge revisions; a new
+    # sibling still fails here, even if a later accidental head masks it.
+    assert forked == {
+        "0159_default_organization": ["0160_datasets", "0160_user_profile"],
+        "0175_profile_runs_without_key": [
+            "0176_channel_rating_authors",
+            "0189_console_milestones_merge",
+        ],
+        "0178_eval_run_proposal_check": [
+            "0174_case_score_agent_key",
+            "0175_knowledge_gap_covered",
+            "0176_eval_case_fault",
+            "0177_dataset_case_anonymised_at",
+            "0179_case_generation_drop_counts",
+            "0182_eval_suite_pin",
+            "0183_proposal_revision",
+            "0187_job_api_key",
+        ],
+        "0178_project_workspace_moves": [
+            "0179_channel_history_version",
+            "0215_main_128_merge",
+        ],
+        "0180_remove_skill_enabled": [
+            "0175_outlook_event_source",
+            "0182_assistant_template_stamp",
+        ],
+        "0183_channel_prompt_defaults": [
+            "0184_diagnostics_identity",
+            "0243_merge_channel_workflows",
+        ],
+    }, f"unexpected revisions sharing a parent: {forked}"
+    chain = _chain()
+    improvement_merge = chain.get_revision("0188_self_improvement_merge")
+    console_merge = chain.get_revision("0189_console_milestones_merge")
+    assert improvement_merge is not None and len(improvement_merge.down_revision) == 8
+    assert console_merge is not None and console_merge.down_revision == (
+        "0188_self_improvement_merge",
+        "0175_profile_runs_without_key",
+    )
+    main_merge = chain.get_revision("0215_main_128_merge")
+    assert main_merge is not None and main_merge.down_revision == (
+        "0214_profile_key_column_again",
+        "0178_project_workspace_moves",
+    )
+    final_merge = chain.get_revision("0248_merge_self_improvement")
+    assert final_merge is not None and final_merge.down_revision == (
+        "0215_main_128_merge",
+        "0247_merge_deployment_workflows",
+    )
     # Released histories must not be rewritten: an explicit merge may join them.
     chain = _chain()
     merged_ancestors = [

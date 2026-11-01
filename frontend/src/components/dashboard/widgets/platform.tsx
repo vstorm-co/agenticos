@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 
@@ -12,6 +12,7 @@ import type { DashboardWidgetProps } from "./types";
 /** Deployment-wide counts. The one strip an org admin never sees. */
 export function PlatformWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.platform");
+  const locale = useLocale();
   const { stats, isLoading, error, refetch } = useAdminStats();
 
   return (
@@ -44,7 +45,7 @@ export function PlatformWidget({ title, hint, seeAll, options }: DashboardWidget
             <Figure
               key={key}
               label={t(key)}
-              value={(value ?? 0).toLocaleString()}
+              value={(value ?? 0).toLocaleString(locale)}
               caption={sub ?? undefined}
             />
           ))}

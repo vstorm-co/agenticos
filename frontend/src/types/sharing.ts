@@ -34,6 +34,7 @@ export type SharingResourceType =
   | "secret"
   | "table"
   | "artifact"
+  | "dataset"
   | "mcp_connection"
   | "project";
 

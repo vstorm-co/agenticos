@@ -127,6 +127,7 @@ class WebFetchConfig(BaseModel):
 
 @register(
     id="web_fetch",
+    read_only=True,
     name="Read web pages",
     category="research",
     description="Read the page behind a URL, so an agent can follow a link it found.",

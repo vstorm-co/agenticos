@@ -1,5 +1,5 @@
 ---
-source_sha: "66957b7e7527"
+source_sha: "141d29d9cb14"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -205,6 +205,94 @@ Wybór, którego nikt inny nie wystawia: **PyMuPDF**, **LiteParse** albo **Llama
 ![Parsowanie, per wgranie](assets/screens/light/kb-parse-options.webp#only-light)
 ![Parsowanie, per wgranie](assets/screens/dark/kb-parse-options.webp#only-dark)
 
+## Testowanie i poprawianie agenta { #testing-and-improving-an-agent }
+
+Te ekrany pochodzą z drugiej organizacji demo, Demo, i jej agenta Refund desk: pytania sklepu Acme o zwroty i dostawy, oceniane checkami i sędzią. Pytania są wymyślone; odpowiedzi, oceny i sesje poprawiania to prawdziwe runy.
+
+### Datasety { #datasets }
+
+Pytania testowe, na których sprawdzane są twoje agenty. Każda zmiana przypadków datasetu tworzy nową wersję, więc dwa runy ewaluacji porównuje się na tych samych pytaniach albo wcale.
+
+![Datasety](assets/screens/light/datasets.webp#only-light)
+![Datasety](assets/screens/dark/datasets.webp#only-dark)
+
+### Przypadki datasetu { #a-datasets-cases }
+
+Każde pytanie ze źródłem, liczbą checków i informacją, czy poprawianie użyje go do pisania zmian, czy odłoży je do sprawdzenia wyniku.
+
+![Przypadki datasetu](assets/screens/light/dataset-cases.webp#only-light)
+![Przypadki datasetu](assets/screens/dark/dataset-cases.webp#only-dark)
+
+### Ocenianie { #grading }
+
+Co sprawia, że odpowiedź przechodzi: checki, które dostaje każdy przypadek, sędzia, który ją ocenia, jego kryteria i próg. Checki nic nie kosztują; każda ocena sędziego to run na modelu.
+
+![Ocenianie](assets/screens/light/dataset-grading.webp#only-light)
+![Ocenianie](assets/screens/dark/dataset-grading.webp#only-dark)
+
+### Ewaluacje datasetu { #a-datasets-evals }
+
+Każdy run na tym datasecie jako linia odsetka zaliczeń dla każdego agenta; kolor punktu mówi, czy run naprawił, czy zepsuł przypadki, a pod spodem jest lista runów.
+
+![Ewaluacje datasetu](assets/screens/light/dataset-evals.webp#only-light)
+![Ewaluacje datasetu](assets/screens/dark/dataset-evals.webp#only-dark)
+
+### Jeden run ewaluacji { #one-eval-run }
+
+Najpierw werdykt w jednym zdaniu, potem odsetek zaliczeń przed i po, koszt wobec szacunku i przypadki, które się zmieniły. Odpowiedź, która przy ponownym pytaniu wyszła inaczej, nie liczy się jako zmiana.
+
+![Jeden run ewaluacji](assets/screens/light/eval-run.webp#only-light)
+![Jeden run ewaluacji](assets/screens/dark/eval-run.webp#only-dark)
+
+### Ewaluacje agenta { #an-agents-evals }
+
+Ten sam trend od strony agenta: każdy dataset, na którym go sprawdzano, jedna linia na dataset, a obok przycisk uruchomienia ewaluacji.
+
+![Ewaluacje agenta](assets/screens/light/agent-evals.webp#only-light)
+![Ewaluacje agenta](assets/screens/dark/agent-evals.webp#only-dark)
+
+### Popraw { #improve }
+
+Początek poprawiania: odpowiedzi ocenione negatywnie, nieudane odpowiedzi testowe, podział pytań testowych na te, które pomagają pisać zmiany, i te odłożone do sprawdzenia, oraz koszt pierwszego kroku. Każdy kolejny krok jest wyceniany, zanim go naciśniesz.
+
+![Popraw](assets/screens/light/improve-start.webp#only-light)
+![Popraw](assets/screens/dark/improve-start.webp#only-dark)
+
+### Popraw · Zrozumienie { #improve-understand }
+
+Co poszło nie tak, posortowane na to, co agent może poprawić, i to, czego brakuje w bazie wiedzy: jedna karta na pytanie, z ocenami opisanymi słowami. Sesja zatrzymuje się tu, żebyś mógł to obejrzeć.
+
+![Popraw · Zrozumienie](assets/screens/light/improve-understand.webp#only-light)
+![Popraw · Zrozumienie](assets/screens/dark/improve-understand.webp#only-dark)
+
+### Popraw · Zmiany { #improve-changes }
+
+Zmiany napisane przez pomocnika jako diff własnego tekstu agenta, z uzasadnieniem i tym, na czym się opierają. Możesz przeredagować zmianę, zanim zostanie sprawdzona; sprawdzenie mierzy twoje sformułowanie.
+
+![Popraw · Zmiany](assets/screens/light/improve-changes.webp#only-light)
+![Popraw · Zmiany](assets/screens/dark/improve-changes.webp#only-dark)
+
+### Popraw · Wynik { #improve-result }
+
+Do czego doszła sesja: każda próba z liczbą pytań naprawionych i zepsutych wśród odłożonych, jej koszt i wybór próby do zachowania. Nic nie trafia na produkcję, dopóki człowiek tego nie zaakceptuje.
+
+![Popraw · Wynik](assets/screens/light/improve-result.webp#only-light)
+![Popraw · Wynik](assets/screens/dark/improve-result.webp#only-dark)
+
+### Luki w wiedzy { #knowledge-gaps }
+
+Pytania, dla których agent przeszukał bazy wiedzy i nie znalazł nic trafnego, pogrupowane w tematy. Nic nie trafia do bazy wiedzy samo; dokument pisze i dodaje człowiek.
+
+![Luki w wiedzy](assets/screens/light/knowledge-gaps.webp#only-light)
+![Luki w wiedzy](assets/screens/dark/knowledge-gaps.webp#only-dark)
+
+### Wsparcie AI { #ai-assistance }
+
+Przełącznik organizacji dla wszystkiego, co samo wywołuje model: sędziego ewaluacji, generatora przypadków, pomocnika piszącego zmiany i szkiców dla luk w wiedzy. Wyłączony, dopóki ktoś go nie włączy; każde użycie to opomiarowany run.
+
+![Wsparcie AI](assets/screens/light/ai-assistance.webp#only-light)
+![Wsparcie AI](assets/screens/dark/ai-assistance.webp#only-dark)
+
 ## Co się wydarzyło i co czeka { #what-happened-and-what-is-waiting }
 
 ### Runs { #runs }
@@ -230,7 +318,7 @@ Wszystko, co czeka na człowieka, razem z tym, co agent zamierza zrobić. Approv
 
 ### Spend { #spend }
 
-Ile faktycznie wydano, w podziale na okresy. Budżet jest sprawdzany *przed* żądaniem do modelu, a nie sumowany po fakcie, więc run, który go przekroczy, zatrzymuje się w środku odpowiedzi i mimo to zapisuje swój koszt.
+Ile faktycznie wydano, w podziale na okresy. Budżet jest sprawdzany _przed_ żądaniem do modelu, a nie sumowany po fakcie, więc run, który go przekroczy, zatrzymuje się w środku odpowiedzi i mimo to zapisuje swój koszt.
 
 ![Spend](assets/screens/light/spend.webp#only-light)
 ![Spend](assets/screens/dark/spend.webp#only-dark)

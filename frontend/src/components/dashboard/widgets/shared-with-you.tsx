@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useSharedWithMeCounts } from "@/hooks";
 import { WidgetFrame } from "../widget-frame";
@@ -16,6 +16,7 @@ import type { DashboardWidgetProps } from "./types";
  */
 export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.shared-with-you");
+  const locale = useLocale();
   const { counts, isLoading, error, refetch } = useSharedWithMeCounts();
   const empty = counts !== null && counts.agents + counts.collections + counts.skills === 0;
 
@@ -49,7 +50,7 @@ export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardW
               </span>
               <span className="text-foreground min-w-0 flex-1 text-sm font-medium">{t(key)}</span>
               <span className="text-muted-foreground text-sm tabular-nums">
-                {value.toLocaleString()}
+                {value.toLocaleString(locale)}
               </span>
             </li>
           ))}

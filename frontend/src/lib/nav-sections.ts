@@ -10,6 +10,7 @@ import {
   Waypoints,
   BotMessageSquare,
   Building2,
+  FlaskConical,
   LibraryBig,
   KeyRound,
   LayoutDashboard,
@@ -135,6 +136,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.ROUTINES,
         icon: TimerReset,
         permission: Perm.agentsView,
+      },
+      {
+        labelKey: "datasets",
+        href: ROUTES.DATASETS,
+        icon: FlaskConical,
+        permission: Perm.datasetsView,
       },
       {
         labelKey: "artifacts",

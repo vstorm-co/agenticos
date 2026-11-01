@@ -279,6 +279,27 @@ class TestRunNotifications:
             notifications.return_value.run_failed.assert_not_called()
 
     @pytest.mark.anyio
+    async def test_an_eval_run_notifies_nobody_when_it_completes_or_fails(self):
+        """A judge grading or an agent answering a case is one of the many runs an
+        eval starts; a notification per run would bury the eval's own report."""
+        run = MagicMock(surface=RunSurface.EVAL.value)
+        for status in (RunStatus.COMPLETED, RunStatus.FAILED):
+            with patch(
+                "app.services.agent_runner.NotificationService", new=_notifier()
+            ) as notifications:
+                await AgentRunnerService(MagicMock())._notify(
+                    run,
+                    agent=MagicMock(),
+                    spec=AgentSpec(name="Eval judge"),
+                    status=status,
+                    error=None,
+                    budget_scope=None,
+                )
+
+            notifications.return_value.run_completed.assert_not_called()
+            notifications.return_value.run_failed.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_a_cancelled_run_off_web_still_notifies_nobody(self):
         """Cancellation is a person's own decision, not a silent stop - there
         is nobody left uninformed the way a schedule's failure would leave."""

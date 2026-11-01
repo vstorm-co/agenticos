@@ -1,5 +1,5 @@
 ---
-source_sha: "fed639325e0e"
+source_sha: "3820fd68b6d0"
 ---
 
 # La consola { #the-console }
@@ -49,7 +49,7 @@ Cuando **Approve everything** no está disponible, los ajustes del chat distingu
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen cuarenta y nueve tarjetas. No las verás todas: **cada tarjeta está
+Existen cincuenta y siete tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -59,12 +59,26 @@ vacía.
 Un selector arriba dice de quién es el dashboard, y ofrece solo las vistas que
 puedes abrir. Todos empiezan en **Me**:
 
-| Vista            | Responde a                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Me**           | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo                                                                                     |
-| **Organization** | La página que se ordena, descrita abajo                                                                                                                                                                                                                                                     |
-| **Group**        | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
-| **Deployment**   | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones                                                                                                                                                         |
+| Vista            | Responde a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Me**           | Un saludo, tu periodo y todo lo que te espera, en dos frases - llamadas, respuestas por revisar, suites que fallan, sugerencias del asistente; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, los agents que necesitan atención, las mejoras que te esperan, tus agents, lo que han compartido contigo, tus [datasets](datasets.md) con aquello contra lo que prueban sus casos, los eval runs y suites más recientes, las sugerencias del asistente por agent, skill y archivo, y las lagunas de conocimiento |
+| **Me**           | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Organization** | La página que se ordena, descrita abajo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Group**        | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías                                                                                                                                                                                                                                                                                             |
+| **Deployment**   | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+En **Me**, **Agents that need attention** lista los agents que puedes ver con
+respuestas valoradas negativamente, runs fallidos o una suite de evals que falla
+en el periodo - solo cifras, nunca lo que se dijo - con **Improve** en los que
+puedes editar. La galería de agents marca los mismos agents de los últimos
+treinta días con la insignia **Needs attention**, que al pasar el cursor dice
+por qué. Las respuestas y los runs solo cuentan para la versión que el agent
+sirve ahora en su entorno predeterminado: publicar una corrección borra la señal
+hasta que la nueva versión acumule las suyas. Ambos requieren `runs:view`.
+
+Debajo, **Improvements waiting for you** lista las sesiones de
+[Improve](authoring.md#the-improve-wizard) detenidas a la espera de tu siguiente
+paso o decisión, cada una abierta en su parada.
 
 La vista de la organización muestra las tarjetas que responden con datos,
 agrupadas en bandas. El resto - integraciones, canales, rutinas, sincronización
@@ -318,6 +332,15 @@ pregunta y terminan: un run que lanza una programación aparece en una página
 Activity abierta y cambia de estado allí, sin que haya ninguna petición tuya
 detrás.
 
+También los datasets: un caso añadido o quitado, un cambio en la calificación,
+una puntuación o una decisión de revisión, y los borradores que el
+[generador de casos](datasets.md#generating-cases) termina en segundo plano, que
+aparecen en la pestaña Generated de un dataset abierto sin recargar.
+
+Las lagunas de conocimiento se anuncian igual: un tema descartado o redactado en
+una pestaña, y las preguntas que un pase de agrupación coloca cada 15 minutos,
+aparecen en una pestaña Lagunas de conocimiento abierta sin recargar.
+
 La excepción es el Builder, porque guarda tu borrador mientras escribes. Cuando el
 agent que editas cambia en otro lugar, deja de guardar y obtiene la nueva versión.
 Si no hay nada sin guardar, simplemente la adopta; si hay cambios sin guardar, te
@@ -325,10 +348,11 @@ dice quién lo cambió y por dónde, y espera a que elijas **Recargar** (su vers
 o **Conservar mis cambios** (la tuya, guardada encima de la suya).
 
 Solo te enteras de lo que podrías leer: un cambio en un agent, un skill, una base
-de conocimiento, un archivo de contexto, una página, una clave o un servidor MCP
-que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
+de conocimiento, un archivo de contexto, una página, una clave, un servidor MCP
+o un dataset que no ves nunca llega a tu consola, y una eliminación solo llega a los roles que
 ven todas las filas de ese tipo. Los runs llegan a los roles que leen el historial
-de runs o deciden aprobaciones, los bots de canal a los roles que los gestionan, y
+de runs o deciden aprobaciones, las lagunas de conocimiento a los roles que leen
+todos los runs, los bots de canal a los roles que los gestionan, y
 tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
 
 ## Chat { #chat }
@@ -701,6 +725,24 @@ conexiones sumados. La tarjeta de panel **Voice minutes**, en la banda de Uso
 para quien tenga `runs:view`, muestra los minutos de llamada y las llamadas del
 periodo y los tres agents principales.
 
+## Activity { #activity }
+
+**Activity** muestra a quien tiene `runs:view` cada run de la organización: las
+conversaciones, los agents de la organización respondiendo casos de eval y los
+agents propios de la plataforma trabajando. Quién puede leer un run y su
+transcripción no depende del tipo de run.
+
+El run de un agent de la plataforma muestra su nombre en la columna Agent y una
+etiqueta junto a su superficie: **Improve** para el asistente, **Grader** para el
+juez, **Knowledge gaps** para el clasificador y el redactor, y **Test
+questions** para el generador de casos. Un agent que responde un caso de eval
+lleva **Eval**. Junto a la etiqueta hay un enlace a donde se lee ese trabajo: la
+sesión de Improve, el eval run, el tema de la carencia o el dataset.
+
+El filtro **Source** reduce la lista a **Conversations**, **Improve and evals**
+o **System agents**. Empieza en todas las fuentes, así que un enlace desde un
+borrador o una sesión a su run llega a una fila que la lista muestra.
+
 ## Para qué sirve cada área { #what-each-area-is-for }
 
 La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
@@ -710,26 +752,27 @@ poco: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
 **Organization** (Organizations, Groups). Un grupo plegado se abre solo en
 cualquier página que le pertenezca, y se queda como lo dejaste.
 
-| Área | Contiene | Lee |
-|---|---|---|
-| **Agents** | El catálogo, el Builder, las versiones, el uso compartido, las pruebas, la actividad | [Tu primer agent](first-agent.md) |
-| **Chat** | Hablar con un agent publicado | [Superficies](channels.md) |
-| **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
-| **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
-| **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
-| **Tables** | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista | [Virtual Tables](virtual-tables.md) |
-| **Workflows** | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo | [Workflows](workflows.md) |
-| **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
-| **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
-| **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
-| **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
-| **Channels** | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
-| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
-| **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
-| **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
-| **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
-| **Admin** | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md) |
+| Área              | Contiene                                                                                          | Lee                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Agents**        | El catálogo, el Builder, las versiones, el uso compartido, las pruebas, la actividad              | [Tu primer agent](first-agent.md)                                           |
+| **Chat**          | Hablar con un agent publicado                                                                     | [Superficies](channels.md)                                                  |
+| **Knowledge**     | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta                            | [Procesamiento de archivos](file-processing.md)                             |
+| **Skills**        | Procedimientos escritos que un agent carga cuando hacen falta                                     | [Skills](skills.md)                                                         |
+| **Context**       | Conocimiento permanente ligado a muchos agents                                                    | [Archivos de contexto](context.md)                                          |
+| **Tables**        | Registros tipados y sus columnas, vistos como tabla, tablero kanban o lista                       | [Virtual Tables](virtual-tables.md)                                         |
+| **Workflows**     | Automatizaciones de varios pasos que ejecutan tus agents, construidas en un lienzo                | [Workflows](workflows.md)                                                   |
+| **Datasets**      | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada       | [Datasets](datasets.md)                                                     |
+| **Routines**      | Horarios y disparadores por evento                                                                | [Disparadores](triggers.md)                                                 |
+| **Runs**          | Qué se ejecutó, cuánto costó, qué tocó, si falló                                                  | [Governance](governance.md#audit)                                           |
+| **Documents**     | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron         | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes**     | Dónde ejecutan código los agents: hosts, sesiones en curso, política                              | [La sandbox](sandbox.md)                                                    |
+| **MCP servers**   | Conexiones a herramientas externas, personales y de toda la organización                          | [MCP](mcp.md)                                                               |
+| **Channels**      | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas                            | [Superficies](channels.md)                                                  |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents  | [Capabilities](reference/capabilities.md#remote-agents)                     |
+| **Vault**         | Credenciales, selladas por organización                                                           | [Secretos](secrets.md)                                                      |
+| **Organizations** | Miembros, roles, invitaciones                                                                     | [Permisos](permissions.md)                                                  |
+| **Settings**      | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil                       | [Configuración](configuration.md)                                           |
+| **Admin**         | El despliegue en sí: usuarios, inquilinos, sistema, jobs en segundo plano, ajustes del despliegue | [El despliegue](deployment.md)                                              |
 
 El catálogo de **Agents** se puede filtrar por **category** y **tag** — las
 etiquetas editables y locales a la organización que se muestran en la tarjeta de
@@ -737,6 +780,12 @@ cada agent. Cada filtro es un menú de las etiquetas de los agents que puedes ve
 marca varias para ampliarlo. Las categories y los tags de un agent los mantienes desde su página
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
+
+La pestaña **History** de un agente reúne sus versiones publicadas y sus entornos
+con nombre y, para quien puede leer sus runs, su **Improvement history**: cada
+sesión de Improve, qué midió, qué se decidió y cuánto costó. Una sesión terminada
+abre su asistente solo para leer, con lo decidido en su último paso; consulte el
+[historial de mejoras](authoring.md#improvement-history).
 
 Los detalles de la organización se dividen en pestañas: **Members**, **Profile**,
 **Budget and approvals**, **Proactivity**, **Voice** y **AI Architect**. Las
@@ -783,7 +832,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **cuarenta y nueve widgets** que ordenas tú, guardados por
+- El dashboard son **cincuenta y siete widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la
@@ -800,7 +849,6 @@ que un problema real se lea como algo tranquilo.
   recurso vacío.
 
 El pie de la barra lateral muestra la versión de compilación de la consola junto a la búsqueda y las notificaciones, también en la barra contraída y el menú móvil. Procede de la versión del paquete frontend incluida en la compilación y no requiere solicitudes de red. El texto emergente la identifica como versión de la consola; un proceso API actualizado por separado puede ejecutar otra versión.
-
 
 Una versión estable más reciente de AgenticOS resalta el número con un punto verde. Al pulsarlo se ven las versiones en uso y disponible y un enlace al lanzamiento oficial. La comprobación en segundo plano se ejecuta al abrir la consola, cada 30 minutos durante el uso y, si los datos están obsoletos, al recuperar el foco o la conexión. El servidor comparte los resultados públicos durante cinco minutos y no envía a GitHub datos de la cuenta, organización o despliegue. Los fallos de red mantienen visible la versión en uso sin afirmar que sea la última. El aviso no recarga la página ni instala actualizaciones automáticamente.
 

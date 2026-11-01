@@ -160,7 +160,8 @@ conversation nobody is reviewing, and the next reader would have no way to tell 
 considered improvement from a hallucinated one.
 
 So a write becomes a **proposal**, and it appears above the list on the Skills page
-for anyone holding `skills:edit`:
+for whoever may edit that skill - its owner, or anybody granted edit on it - and,
+for a skill not written yet, for anyone who may create skills. Nobody else sees it:
 
 - **Apply** rewrites the skill and bumps its version, which reaches every bound
   agent on its next run.
@@ -185,6 +186,23 @@ meant to delete leave the same absence.
 Three turns of one conversation refining the same skill leave **one** proposal, not
 three. A reviewer asked the same question three times has been given more work
 rather than more information.
+
+A change records the version of the skill it was written against: for a run, the
+version that run was given, and a later turn that rewrites the change records its
+own. Apply refuses it once somebody has changed the skill since, so an edit made
+while the change waited is not overwritten. Compare the two and edit the skill by
+hand, or ask again.
+
+The [authoring assistant](authoring.md#skills) proposes skill changes the same way,
+with its rationale and the runs behind it, and Apply refuses them the same way.
+
+Each change says, beside **Apply**, which agents' published versions read the
+skill, which eval suites applying it queues and which guards check it only at
+the next promotion, and **Check with evals** comes first.
+Applying tells those agents' owners. A decision names the version of the change
+you read: a change rewritten since - by a later turn or a new request - is
+refused with "The proposal changed since you opened it", and of two decisions
+made at once only one counts.
 
 Workspace proposals use the same metadata limits as stored skills: a name of
 1–64 characters and a description up to 500 characters. A change outside these
@@ -378,3 +396,13 @@ after publish is skipped with a warning rather than failing the run.
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
   unlike the bundled three, which arrive on their own.
+
+### Proposing a new skill { #proposing-a-new-skill }
+
+The assistant can propose **Worth creating a skill** when a reusable procedure appears in at least three distinct evidence answers. Each supporting passage must occur in the answer itself; reader comments alone do not establish a repeated procedure. The card shows its name, description, full body, rationale and verified evidence. A check binds a temporary skill to the candidate only: no skill row or published version is created.
+
+**Accept** creates the private skill and binds it to the agent's draft in the same transaction. It requires `skills:edit` as well as edit access to the agent. Without creation permission the proposal remains readable and testable, but Accept explains why it is disabled. **Dismiss** creates nothing. **Undo** removes the binding and keeps the independent skill; accepting again reuses it only while its name and body still match. Skills contain written know-how and grant no tools. Additional tool access needs separate policy-checked proposals, with writing tools requiring approval.
+
+A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
+
+The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.

@@ -30,7 +30,11 @@ import { EmbeddingDialog } from "@/components/kb/embedding-dialog";
 import { IngestionDialog } from "@/components/kb/ingestion-dialog";
 import { IngestionPanel } from "@/components/kb/ingestion-panel";
 import { UploadOverrideDialog } from "@/components/kb/upload-override-dialog";
+import { KnowledgeGapHelpers } from "@/components/knowledge-gaps/knowledge-gap-helpers";
+import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
+import { gapStatus } from "@/lib/knowledge-gap-status";
 import { useKBDetail, usePermissions, usePollWhileIngesting, useUrlState } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import { overrideSize } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { IngestionOverride, KBDocument } from "@/types";
@@ -42,14 +46,17 @@ interface KBDetailPageProps {
 }
 
 /** Which section of a knowledge base is on screen. `?tab=` from the start (#939). */
-type KBTab = "documents" | "ingestion" | "sync";
+type KBTab = "documents" | "ingestion" | "sync" | "gaps";
 
-function parseTab(value: string | null): KBTab {
+/** `gaps` only for a caller who may see it: a link naming it otherwise opens the documents. */
+function parseTab(value: string | null, maySeeGaps: boolean): KBTab {
+  if (value === "gaps") return maySeeGaps ? value : "documents";
   return value === "ingestion" || value === "sync" ? value : "documents";
 }
 
 export default function KBDetailPage({ params }: KBDetailPageProps) {
   const t = useTranslations("pages.kb");
+  const tGaps = useTranslations("knowledgeGaps");
   const router = useRouter();
   const { id } = use(params);
 
@@ -67,7 +74,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // hydration mismatch and flashes the documents before the named section
   // appears.
   const [tabParam, setTabParam] = useUrlState("tab");
-  const tab = parseTab(tabParam);
+  // A run in Activity links to the gap topic it drafted.
+  const [topicParam, topicView] = useUrlOverlay("topic");
+  const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: KBTab) => setTabParam(next === "documents" ? null : next);
   const {
     kb,
@@ -90,6 +99,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
+    updateGapHelpers,
     updateEmbeddings,
     uploadDocument,
     deleteDocument,
@@ -106,6 +116,10 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   // upload and delete would be offering actions that can only refuse.
   const { can } = usePermissions();
   const mayEdit = can(Perm.collectionsEdit);
+  // A topic is made of people's questions, which the server shows only to a
+  // member who reads every run.
+  const maySeeGaps = can(Perm.runsView);
+  const tab = parseTab(tabParam, maySeeGaps);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [creatingSource, setCreatingSource] = useState(false);
@@ -323,6 +337,11 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             <RefreshCw className="size-4 shrink-0" aria-hidden />
             {t("syncSources")}
           </TabsTrigger>
+          {maySeeGaps && (
+            <TabsTrigger value="gaps" data-tour="kb-tab-gaps">
+              {tGaps("tab")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="documents" className="flex flex-1 flex-col">
@@ -374,6 +393,27 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             onRetry={() => refresh()}
           />
         </TabsContent>
+
+        {maySeeGaps && (
+          <TabsContent value="gaps">
+            {mayEdit && kb.scope !== "app" && (
+              <div className="mb-3 flex justify-end">
+                <KnowledgeGapHelpers kb={kb} onSave={updateGapHelpers} />
+              </div>
+            )}
+            <div className="mb-8" data-tour="kb-gaps">
+              <KnowledgeGapsPanel
+                scope={{ kind: "collection", id }}
+                topicId={topicParam}
+                onTopicChange={(topic) =>
+                  topic === null ? topicView.close() : topicView.open(topic)
+                }
+                status={gapStatus(gapStatusParam)}
+                onStatusChange={(next) => setGapStatusParam(next === "open" ? null : next)}
+              />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* The count is the collection's, not the table's. Documents page in

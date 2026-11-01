@@ -59,12 +59,8 @@ const CONTROL_WAIT_MS = 400;
  */
 const OPTIONAL_WAIT_MS = 800;
 
-/**
- * The buttons greyed out while a transition is in flight. Next and Back are
- * locked so a reader cannot advance past the control being revealed and desync
- * the walk from the page; close stays live so they can always leave.
- */
-const LOCKED_BUTTONS: AllowedButtons[] = ["next", "previous"];
+/** How a selected Radix tab and an open popover trigger each say they are open. */
+const OPEN_STATES = new Set(["active", "open"]);
 
 /**
  * The guided tour: driver.js walks the reader across the product a page at a
@@ -83,20 +79,20 @@ const LOCKED_BUTTONS: AllowedButtons[] = ["next", "previous"];
  * navigates; a step with an `activate` target pulses its Radix tab, then
  * switches to it. Only then does the spotlight land on the step's target.
  * Because the caption is pinned, none of that moves the text: the pulse is for
- * the eye to follow the highlight, not a timer the reader races. While a
- * transition is in flight Next and Back are greyed (`LOCKED_BUTTONS`), so a
- * reader cannot click past the control being revealed and desync the walk from
- * the page it is meant to be on; they re-enable once the destination is shown.
- * A detail step with nothing to open (an empty list) describes the section where
- * the reader is rather than skip it. Which steps to show, in what order,
- * permission-filtered, and whether closing persists completion, all come from
- * `useOnboardingTour`. Ending the first-run tour returns the reader to the
- * dashboard rather than leaving them on its last page; the "?" replay leaves
- * them where they opened it. A "?" walk that runs to its end offers the
- * interactive flow that creates the section's resource (`flowForPage` →
- * `CreationOffer`); an early close does not. While a flow runs the passive
- * overlay stays down so the coach can own the screen. Mounted once in the
- * dashboard layout.
+ * the eye to follow the highlight, not a timer the reader races. Next and Back
+ * stay live throughout: a press mid-transition aborts it before the tab switch
+ * or the navigation fires, and the step it lands on makes its own way there. A
+ * target that never shows - a tab that would not open, a section the reader
+ * cannot see - leaves the caption in the middle of the screen rather than holding
+ * the walk. A detail step with nothing to open (an empty list) describes the
+ * section where the reader is rather than skip it. Which steps to show, in what
+ * order, permission-filtered, and whether closing persists completion, all come
+ * from `useOnboardingTour`. Ending the first-run tour returns the reader to the
+ * dashboard rather than leaving them on its last page; the "?" replay leaves them
+ * where they opened it. A "?" walk that runs to its end offers the interactive
+ * flow that creates the section's resource (`flowForPage` → `CreationOffer`); an
+ * early close does not. While a flow runs the passive overlay stays down so the
+ * coach can own the screen. Mounted once in the dashboard layout.
  */
 export function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -108,6 +104,7 @@ export function OnboardingTour() {
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
+  const systemAgentPage = useOnboardingStore((state) => state.systemAgentPage);
   const needsDetail = useMemo(
     () => steps.some((s) => s.page !== undefined && FETCHED_DETAIL_PAGES.has(s.page)),
     [steps],
@@ -117,11 +114,9 @@ export function OnboardingTour() {
   // What the reader sees of the light (`tour-spotlight.ts`). Made on the first
   // step and taken down with the overlay, so a closed tour leaves no layer behind.
   const spotlightRef = useRef<TourSpotlight | null>(null);
-  // Whether a transition is in flight. driver.js greys its own Next and Back for
-  // one (`LOCKED_BUTTONS`); the arrow keys below are not its buttons, so they read
-  // this instead — without it a held arrow would step past the control being
-  // revealed and desync the walk from the page it is meant to be on.
-  const lockedRef = useRef(false);
+  // When the walk arrived on the page it is on, so an optional stop absent from a
+  // page that has long finished loading is skipped at once rather than after a wait.
+  const arrivedRef = useRef({ path: "", at: 0 });
 
   const closeWalk = useCallback(() => {
     dismiss();
@@ -136,10 +131,10 @@ export function OnboardingTour() {
     if (mode === "tour") {
       openOffer("create-agent");
     } else if (mode === "page") {
-      const flow = flowForPage(pageKey(stripLocale(pathname)));
+      const flow = flowForPage(pageKey(stripLocale(pathname)), systemAgentPage);
       if (flow) openOffer(flow);
     }
-  }, [closeWalk, mode, openOffer, pathname]);
+  }, [closeWalk, mode, openOffer, pathname, systemAgentPage]);
 
   // The arrows walk the tour, which is what a reader who has already read the
   // caption reaches for rather than moving a mouse to a pinned button. Capture
@@ -150,7 +145,8 @@ export function OnboardingTour() {
     if (!isOpen || !step || mode === "flow") return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-      if (lockedRef.current || isTypingTarget(event.target)) return;
+      // A held arrow repeats faster than a page can follow, so only a fresh press steps.
+      if (event.repeat || isTypingTarget(event.target)) return;
       event.preventDefault();
       if (event.key === "ArrowLeft") {
         if (!isFirst) back();
@@ -179,14 +175,15 @@ export function OnboardingTour() {
     const light = spotlightRef.current;
 
     const here = stripLocale(pathname);
+    if (arrivedRef.current.path !== here)
+      arrivedRef.current = { path: here, at: performance.now() };
     const detail = step.page ? detailTargets[step.page] : undefined;
 
     const buttons: AllowedButtons[] = isFirst ? ["next", "close"] : ["previous", "next", "close"];
     // Resolves once the light has arrived on `element`, so whatever follows — the
     // pulse of a control about to fire — plays where the reader is looking rather
     // than under a light still on its way.
-    const show = (element: Element | undefined, locked = false): Promise<void> => {
-      lockedRef.current = locked;
+    const show = (element: Element | undefined): Promise<void> => {
       const driveStep: DriveStep = {
         element,
         popover: {
@@ -197,7 +194,6 @@ export function OnboardingTour() {
           title: t(`steps.${step.id}.title`),
           description: t(`steps.${step.id}.body`),
           showButtons: buttons,
-          disableButtons: locked ? LOCKED_BUTTONS : undefined,
           showProgress: true,
           progressText: t("progress", { current: index + 1, total: steps.length }),
           nextBtnText: isLast ? t("finish") : t("next"),
@@ -242,7 +238,7 @@ export function OnboardingTour() {
     const reveal = async (selector: string) => {
       const control = await waitForElement(selector, signal, CONTROL_WAIT_MS);
       if (signal.aborted || !(control instanceof HTMLElement)) return;
-      await show(control, true);
+      await show(control);
       if (signal.aborted) return;
       await pulse(control, signal, REVEAL_MS);
     };
@@ -265,7 +261,13 @@ export function OnboardingTour() {
           void show(undefined);
           return;
         }
-      } else if (step.page && here !== step.page) {
+      } else if (step.page && pageKey(here) !== step.page) {
+        // A detail page with no example to resolve - an eval run, an Improve
+        // session - names no route, so there is nowhere to go but where we are.
+        if (!step.page.startsWith("/")) {
+          void show(undefined);
+          return;
+        }
         await reveal(`a[href$="${step.page}"]`);
         if (signal.aborted) return;
         router.push(step.page);
@@ -274,6 +276,7 @@ export function OnboardingTour() {
 
       // On the right page. Reveal the tab that opens the section, switch to it,
       // then land the spotlight on the target — the caption never having moved.
+      let pressed = false;
       if (step.activate) {
         // An optional step's tab can itself be conditional (the Memory tab renders only
         // when the capability is bound), so the activate wait takes the short timeout too.
@@ -283,23 +286,33 @@ export function OnboardingTour() {
           step.optional ? OPTIONAL_WAIT_MS : undefined,
         );
         if (signal.aborted) return;
-        // Only a tab that is not already open. Consecutive stops in one tab (the
-        // builder's Build, its Toolbox) each named it, so the light climbed to the
-        // tab bar, pressed a tab that was already selected and dropped back down —
-        // a detour on every step that read as the light jumping around.
-        if (trigger instanceof HTMLElement && trigger.getAttribute("data-state") !== "active") {
-          await show(trigger, true);
+        // Only a tab, popover or wizard step that is not already open. Consecutive
+        // stops in one tab (the builder's Build, its Toolbox) each named it, so the
+        // light climbed to the tab bar, pressed a tab that was already selected and
+        // dropped back down - and a popover's trigger, pressed again, closes it.
+        if (
+          trigger instanceof HTMLElement &&
+          !OPEN_STATES.has(trigger.getAttribute("data-state") ?? "") &&
+          !trigger.closest('[aria-current="step"]')
+        ) {
+          await show(trigger);
           if (signal.aborted) return;
           await pulse(trigger, signal, REVEAL_MS);
           if (signal.aborted) return;
           activateTab(trigger);
+          pressed = true;
         }
       }
+      // Waiting in turn on each absent stop - the settings stops that live on its
+      // other pages - would leave the previous caption standing for all of them.
+      const optionalWait = pressed
+        ? OPTIONAL_WAIT_MS
+        : Math.max(0, OPTIONAL_WAIT_MS - (performance.now() - arrivedRef.current.at));
       const element = step.target
         ? await waitForElement(
             `[data-tour="${step.target}"]`,
             signal,
-            step.optional ? OPTIONAL_WAIT_MS : undefined,
+            step.optional ? optionalWait : undefined,
           )
         : undefined;
       if (signal.aborted) return;

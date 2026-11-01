@@ -8,8 +8,10 @@ import { MarkdownEditor, MarkdownModeToggle } from "./markdown-editor";
 // here is that the preview pane shows the value rather than the textarea, so the
 // renderer is stood in for by something that simply prints what it was given.
 vi.mock("@/components/chat/markdown-content", () => ({
-  MarkdownContent: ({ content }: { content: string }) => (
-    <div data-testid="rendered">{content}</div>
+  MarkdownContent: ({ content, inertImages }: { content: string; inertImages?: boolean }) => (
+    <div data-testid="rendered" data-inert-images={String(Boolean(inertImages))}>
+      {content}
+    </div>
   ),
 }));
 
@@ -37,6 +39,14 @@ describe("the markdown editor", () => {
 
     expect(screen.getByTestId("rendered")).toHaveTextContent("# Heading");
     expect(screen.queryByLabelText("Instructions")).toBeNull();
+  });
+
+  it("previews text somebody else wrote without fetching its images, when asked to", async () => {
+    mount({ inertImages: true });
+
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    expect(screen.getByTestId("rendered")).toHaveAttribute("data-inert-images", "true");
   });
 
   it("comes back to the source with the value intact", async () => {

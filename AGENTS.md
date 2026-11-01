@@ -237,10 +237,14 @@ retranslated is how a stale translation stops being visible.
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
+| Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
+| Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
+| Authoring assistant — suggestions from evidence, decisions, checking with evals | `docs/authoring.md` |
 | Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
-| Named environments, promotion, per-environment tracing | `docs/environments.md` |
+| Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
+| Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |

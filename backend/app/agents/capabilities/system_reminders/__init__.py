@@ -225,6 +225,7 @@ def _compile(config: SystemRemindersConfig) -> list[CompiledReminder]:
     # nothing here for a person to approve. See `system_reminders/_capability.py`.
     tools=(),
     config_schema=SystemRemindersConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> SystemReminders[object] | None:
     """The configured reminders, or `None` when none were configured.

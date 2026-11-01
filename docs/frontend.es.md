@@ -1,5 +1,5 @@
 ---
-source_sha: "3b553bcc7ca4"
+source_sha: "c099c87e9633"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -13,14 +13,14 @@ Playwright. Gestor de paquetes y runner: **bun**.
 
 ## Dónde vive cada cosa { #where-things-live }
 
-| Ruta | |
-|---|---|
-| `src/app/[locale]/(dashboard)/…` | El producto. Las rutas llevan **prefijo de locale** |
-| `src/app/api/…` | Route handlers que hacen de proxy hacia el backend |
-| `src/lib/` | Clientes de API tipados, `query-keys.ts` y los registries de más abajo |
-| `src/hooks/` | Uno por recurso — `use-agents`, `use-permissions`, … |
-| `src/stores/` | Zustand, uno por asunto |
-| `src/components/<domain>/` | La UI por dominio; los primitivos en `ui/`, los estados vacíos y de error en `states/` |
+| Ruta                             |                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------- |
+| `src/app/[locale]/(dashboard)/…` | El producto. Las rutas llevan **prefijo de locale**                                    |
+| `src/app/api/…`                  | Route handlers que hacen de proxy hacia el backend                                     |
+| `src/lib/`                       | Clientes de API tipados, `query-keys.ts` y los registries de más abajo                 |
+| `src/hooks/`                     | Uno por recurso — `use-agents`, `use-permissions`, …                                   |
+| `src/stores/`                    | Zustand, uno por asunto                                                                |
+| `src/components/<domain>/`       | La UI por dominio; los primitivos en `ui/`, los estados vacíos y de error en `states/` |
 
 Los Server Components son lo predeterminado. `"use client"` es para state,
 effects y handlers, no por costumbre.
@@ -101,8 +101,8 @@ Dos trampas, y las dos ya han llegado a producción aquí:
   un rol solo se ofrece cuando el de quien llama lo supera estrictamente. Un
   "todos los roles menos owner" cableado a mano es lo que le ofreció a un Admin
   la opción Admin y devolvió 403 una vez tecleado el correo.
-- **Una página que nombra una organización en su URL *es* esa organización.** El
-  cliente de API estampa `X-Organization-Id` desde la organización *activa*, así
+- **Una página que nombra una organización en su URL _es_ esa organización.** El
+  cliente de API estampa `X-Organization-Id` desde la organización _activa_, así
   que una página que actúa sobre la organización de su ruta mientras lee los
   permisos de la activa decide sobre los miembros de Acme según tu rol en
   Globex. La adopción vive en `ActiveOrgGuard`, una sola vez.
@@ -141,12 +141,12 @@ traducción que falta renderiza inglés en lugar de la clave.
 Cada uno de ellos es una tabla que leen varias partes de la UI. Añadir a la
 tabla es el cambio entero; añadir una segunda fuente es el bug.
 
-| | Guarda | Se añade con |
-|---|---|---|
-| `lib/tool-catalog.ts` | El icono, el rótulo mientras corre, el nombre al terminar y el renderizador de cada tool que registra el backend | Una fila indexada por el id de tool de la capability. Un test de backend compara las dos en ambas direcciones |
-| `lib/brand-glyphs.generated.ts` | Cada marca de servicio, de connector y de provider, como datos de path en bruto | Una fila en `scripts/gen-brand-icons.ts`, y después `bun run gen:brand-icons`. Nunca un import de un paquete de iconos |
-| `lib/dashboard/registry.ts` | Los widgets del dashboard y el permiso al que está sujeto cada uno | Cinco ediciones, enumeradas más abajo en la página |
-| `lib/dialog-sizes.ts` | Un token de anchura y un token de forma por diálogo | Eligiendo un token, nunca una altura a medida |
+|                                 | Guarda                                                                                                           | Se añade con                                                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `lib/tool-catalog.ts`           | El icono, el rótulo mientras corre, el nombre al terminar y el renderizador de cada tool que registra el backend | Una fila indexada por el id de tool de la capability. Un test de backend compara las dos en ambas direcciones          |
+| `lib/brand-glyphs.generated.ts` | Cada marca de servicio, de connector y de provider, como datos de path en bruto                                  | Una fila en `scripts/gen-brand-icons.ts`, y después `bun run gen:brand-icons`. Nunca un import de un paquete de iconos |
+| `lib/dashboard/registry.ts`     | Los widgets del dashboard y el permiso al que está sujeto cada uno                                               | Cinco ediciones, enumeradas más abajo en la página                                                                     |
+| `lib/dialog-sizes.ts`           | Un token de anchura y un token de forma por diálogo                                                              | Eligiendo un token, nunca una altura a medida                                                                          |
 
 ## Dos cosas que debe una superficie nueva { #two-things-a-new-surface-owes }
 
@@ -212,3 +212,13 @@ razón para conservar un spec que monta más de lo que leen sus assertions.
 
 [El backend →](architecture.md) · [Añadir una funcionalidad →](adding_features.md) ·
 [Pruebas →](testing.md)
+
+## Pruebas en la consola { #evals-in-the-console }
+
+Las pruebas reutilizan `PageHeader`, `ListCard`, tamaños de diálogo, pestañas y `WizardSteps`. Los cambios actualizan las consultas registradas mediante `/ws/events`; una evaluación humana también actualiza suites, sesiones de mejora y protecciones de entorno. Un error de lectura ofrece reintentar en lugar de una vista vacía de éxito. Las vistas estrechas conservan campos de 16 px y espacio para el Arquitecto.
+
+Los datasets mantienen sus propios permisos y opciones para compartir. Se reutilizan entre agentes y departamentos, por lo que la consola no deduce un departamento del agente que los prueba. Los evaluadores siguen siendo agentes tipificados, con los grupos y permisos del catálogo. Las relaciones se eligen en la pestaña de pruebas del agente y la de evaluación del dataset; no se crea una segunda relación competidora para añadirlos a un agente.
+
+El Arquitecto no recibe una nueva capability para escribir datasets en este hito. Crear preguntas es una acción expresamente estimada y autorizada del flujo de mejora; el asistente de la esquina no puede iniciar silenciosamente ese trabajo de pago. Su botón sigue accesible junto a las vistas de pruebas.
+
+`e2e/improvement.mobile.spec.ts` recorre la API y el worker reales. Comprueba casos, editor, evaluación, revisión, resultados, asistente de mejora y publicación confirmada con protección del entorno. Solo el modelo externo se sustituye por una implementación de prueba. GitHub Actions conserva capturas claras y oscuras a anchuras de teléfono y escritorio para la revisión visual.

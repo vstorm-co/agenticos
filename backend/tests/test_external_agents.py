@@ -479,7 +479,7 @@ class TestDelegatingToOne:
 class TestServingOurs:
     async def test_serving_takes_publish_and_a_published_version(self) -> None:
         service = AgentRegistryService(MagicMock())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=None)
+        agent = MagicMock(id=uuid.uuid4(), kind="agent", current_version_id=None)
         service.get = AsyncMock(return_value=agent)
         with pytest.raises(BadRequestError, match="Publish the agent"):
             await service.set_a2a(CTX, agent.id, enabled=True)
@@ -490,7 +490,7 @@ class TestServingOurs:
     )
     async def test_switching_it_is_recorded(self, enabled: bool, action: str) -> None:
         service = AgentRegistryService(MagicMock())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), kind="agent", current_version_id=uuid.uuid4())
         service.get = AsyncMock(return_value=agent)
         with (
             patch(

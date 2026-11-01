@@ -124,6 +124,15 @@ class TestPricing:
             _usage(input_tokens=MILLION), "claude-sonnet-5-5", "anthropic"
         )
 
+    def test_an_embedding_model_openrouter_serves_by_its_bare_name_is_priced_as_openais(self):
+        through_openrouter = price_request(
+            _usage(input_tokens=MILLION), "text-embedding-3-small", "openrouter"
+        )
+        assert through_openrouter is not None
+        assert through_openrouter == price_request(
+            _usage(input_tokens=MILLION), "text-embedding-3-small", "openai"
+        )
+
     def test_a_vendor_that_does_not_list_the_model_leaves_it_unpriced(self):
         assert price_request(_usage(input_tokens=1000), "acme/unknown-9.9", "openrouter") is None
 

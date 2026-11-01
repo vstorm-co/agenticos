@@ -13,7 +13,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
+from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, SkillBody, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
@@ -41,6 +41,12 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.services.skills.agents_using", nowhere)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
+
+
+@pytest.fixture(autouse=True)
+def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No eval suite watches a skill here; `integration/test_eval_suites` covers that."""
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock())
 
 
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthContext:
@@ -141,6 +147,19 @@ class TestCatalogConstruction:
         assert skill.defer_loading is True
         assert skill.get_description() == "How refunds are handled."
         assert "Check the order first." in "".join(skill.get_instructions())
+
+    def test_a_proposed_body_is_served_in_place_of_the_stored_one(self):
+        """How an eval checks a skill change: the agent is the same, the skill is not."""
+        stored = _skill()
+        leaves = []
+        Skills(
+            skills=[stored],
+            bodies={stored.id: SkillBody(description="Refunds, revised.", content="Say 30 days.")},
+        ).apply(leaves.append)
+
+        (skill,) = [leaf for leaf in leaves if leaf.id == "refunds"]
+        assert skill.get_description() == "Refunds, revised."
+        assert "Say 30 days." in "".join(skill.get_instructions())
 
     def test_script_execution_is_not_exposed(self):
         """Without a sandbox, run_skill_script is remote code execution."""
@@ -702,6 +721,27 @@ class TestSkillManagement:
         assert delete.call_args.args[1] is skill
         assert audit.call_args.kwargs["action"] == "skill.deleted"
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
+
+    @pytest.mark.anyio
+    async def test_deleting_a_skill_is_a_change_the_suites_of_its_agents_hear(self):
+        """A published spec keeps the deleted skill's id and runs without it."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch("app.services.skills.resource_grant_repo.delete_for_resource", new=AsyncMock()),
+            patch("app.services.skills.skill_repo.delete", new=AsyncMock()),
+            patch("app.services.skills.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.eval_suite.EvalSuiteService.dependency_changed", new=AsyncMock()
+            ) as changed,
+        ):
+            await SkillService(_db()).delete(ctx, skill.id)
+
+        changed.assert_awaited_once_with(
+            organization_id=skill.organization_id, kind="skill", resource_id=skill.id
+        )
 
 
 class TestTheListingOnlyReads:

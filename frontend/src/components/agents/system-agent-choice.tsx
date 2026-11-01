@@ -1,0 +1,147 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+
+import {
+  FormField,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
+import { useAgentsOfKind } from "@/hooks/use-agents";
+import { ROUTES } from "@/lib/constants";
+import type { Agent, SystemAgentKind } from "@/types/agents";
+
+interface ChoiceProps {
+  kind: SystemAgentKind;
+  value: string | null;
+  onChange: (value: string | null) => void;
+  disabled?: boolean;
+  /** Worded for the Improve wizard, which names the helper by what it does. */
+  wizard?: boolean;
+}
+
+/** Load alternatives only when the person opens this optional configuration. */
+export function SystemAgentChoice(props: ChoiceProps) {
+  const t = useTranslations("agents");
+  const tw = useTranslations("improvement.helper");
+  const [expanded, setExpanded] = useState(false);
+  const label = props.wizard ? tw("label") : t(`systemKind.${props.kind}`);
+  return (
+    <details
+      aria-label={label}
+      className="rounded-md border p-3 text-sm"
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
+    >
+      <summary className="cursor-pointer font-medium">{label}</summary>
+      {expanded && <SystemAgentSelect {...props} />}
+    </details>
+  );
+}
+
+function SystemAgentSelect({ kind, value, onChange, disabled = false, wizard }: ChoiceProps) {
+  const t = useTranslations("agents");
+  const tw = useTranslations("improvement.helper");
+  const id = useId();
+  const { agents, isLoading, error } = useAgentsOfKind(kind);
+  const fallback = agents.find((agent) => agent.system_key != null);
+  const alternatives = agents.filter((agent) => agent.system_key == null);
+  const picked = value === null ? fallback : agents.find((agent) => agent.id === value);
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  // An open list locks the page's scrolling, so content landing above it (an
+  // estimate) could push trigger and list off a phone's screen; follow them.
+  useEffect(() => {
+    const element = trigger.current;
+    if (!open || !element) return;
+    let frame = requestAnimationFrame(function watch() {
+      const { top, bottom } = element.getBoundingClientRect();
+      if (top < 0 || bottom > window.innerHeight) element.scrollIntoView({ block: "nearest" });
+      frame = requestAnimationFrame(watch);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+  const hint = (
+    <p className="text-muted-foreground text-xs">{wizard ? tw("hint") : t("systemChoice.hint")}</p>
+  );
+  if (fallback && value === null && alternatives.length === 0) {
+    return (
+      <div className="mt-3 space-y-2">
+        <p>
+          {t.rich("systemChoice.only", {
+            helper: identity(fallback),
+            link: (chunks) => (
+              <Link className="underline" href={ROUTES.AGENT_DETAIL(fallback.id)}>
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
+        {hint}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 space-y-2">
+      <FormField htmlFor={id} label={t("systemChoice.label")}>
+        <Select
+          open={open}
+          onOpenChange={setOpen}
+          value={value ?? "default"}
+          onValueChange={(next) => onChange(next === "default" ? null : next)}
+          disabled={disabled || isLoading || error !== null}
+        >
+          <SelectTrigger ref={trigger} id={id}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">
+              {fallback
+                ? t("systemChoice.defaultNamed", { helper: identity(fallback) })
+                : t("systemChoice.default")}
+            </SelectItem>
+            {alternatives.map((agent) => (
+              <SelectItem
+                key={agent.id}
+                value={agent.id}
+                disabled={agent.current_version_id === null || agent.status === "archived"}
+              >
+                {agent.name}
+                {agent.current_version_id === null ? ` · ${t("systemChoice.unpublished")}` : ""}
+              </SelectItem>
+            ))}
+            {value !== null && picked === undefined && (
+              <SelectItem value={value} disabled>
+                {t("systemChoice.missing")}
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      </FormField>
+      {error !== null && (
+        <p role="alert" className="text-destructive text-xs">
+          {t("systemChoice.loadFailed")}
+        </p>
+      )}
+      {picked && (
+        <p className="text-muted-foreground text-xs">
+          <Link className="underline" href={ROUTES.AGENT_DETAIL(picked.id)}>
+            {picked.name}
+          </Link>
+          {picked.published_model && (
+            <span className="font-mono"> · {picked.published_model.label}</span>
+          )}
+        </p>
+      )}
+      {hint}
+    </div>
+  );
+}
+
+function identity(agent: Agent): string {
+  return agent.published_model ? `${agent.name} · ${agent.published_model.label}` : agent.name;
+}

@@ -62,15 +62,23 @@ export type WidgetId =
   | "routines"
   | "notifications"
   | "artifacts"
+  | "datasets"
+  | "review-queue"
+  | "eval-runs"
+  | "eval-suites"
+  | "suggestions"
   | "voice-minutes"
   | "projects"
   | "recent-visuals"
+  | "authoring-suggestions"
+  | "knowledge-gaps"
+  | "needs-attention"
+  | "improvements-waiting"
   | "tables"
   | "workflows"
   | "approval-outcomes"
   | "workflow-logs"
   | "suggestions";
-
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
 
@@ -536,6 +544,33 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "attention",
     seeAll: ROUTES.RAG,
   },
+  // The agents with answers rated down, failed runs or a failing suite, gated on
+  // what `GET /stats/attention` asks: it counts over everybody's runs.
+  "needs-attention": {
+    id: "needs-attention",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "attention",
+  },
+  // `runs:view`, as `GET /improvements` asks: a session is read from its agent's runs.
+  "improvements-waiting": {
+    id: "improvements-waiting",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "attention",
+  },
+  // `runs:view`, not `collections:view`: a topic is made of people's questions,
+  // which `GET /knowledge-gaps` shows only to a member who reads every run.
+  "knowledge-gaps": {
+    id: "knowledge-gaps",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.RAG,
+  },
   members: {
     id: "members",
     gate: holds(Perm.membersManage),
@@ -630,6 +665,54 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "workspace",
     seeAll: ROUTES.ARTIFACTS,
+  },
+  // The datasets an eval would run over, gated on the permission `GET /datasets`
+  // itself asks.
+  datasets: {
+    id: "datasets",
+    gate: holds(Perm.datasetsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+    seeAll: ROUTES.DATASETS,
+  },
+  // Eval results waiting for a verdict, gated on what `GET /datasets/review-queue`
+  // asks; the queue itself only holds datasets the reader may see. Its "See all"
+  // is the Review tab of the dataset holding the most, which the card works out.
+  "review-queue": {
+    id: "review-queue",
+    gate: holds(Perm.datasetsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+  },
+  // The latest eval runs, gated on what `GET /eval-runs/recent` asks; the list
+  // holds only runs over agents and datasets the reader may see.
+  "eval-runs": {
+    id: "eval-runs",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+    seeAll: ROUTES.EVALS,
+  },
+  // The organization's eval suites by how they last came out, gated on what
+  // `GET /eval-suites` asks; it lists suites only on agents the reader may see.
+  "eval-suites": {
+    id: "eval-suites",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "workspace",
+  },
+  // What the authoring assistant suggested and nobody decided, gated on what
+  // `GET /authoring/waiting` asks; it lists only agents the reader may edit.
+  "authoring-suggestions": {
+    id: "authoring-suggestions",
+    gate: holds(Perm.agentsEdit),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "workspace",
   },
   // The reader's projects, most recently changed first - what `GET /projects`
   // itself asks, and nothing more.

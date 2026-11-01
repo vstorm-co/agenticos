@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4471e1f0e0"
+source_sha: "6e6d51ad6ea9"
 ---
 
 # Governance { #governance }
@@ -58,11 +58,11 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
     einem einzelnen Agent, ist überhaupt keine Obergrenze. Siehe
     [warum sie sich nicht zusammenlegen lassen](#why-they-cannot-be-collapsed).
 
-| Ebene | Gesetzt in | Misst | Angehoben von |
-|---|---|---|---|
-| **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
-| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
-| **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run *und* jeder Ingestion in der Organisation | wer `budgets:manage` hält |
+| Ebene                       | Gesetzt in                         | Misst                                                          | Angehoben von                                  |
+| --------------------------- | ---------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
+| **Agent, monatlich**        | dem Spec des Agents                | den eigenen Runs dieses Agents                                 | wer den Agent bearbeiten darf                  |
+| **Abteilung, monatlich**    | den Einstellungen der Abteilung    | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
+| **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run _und_ jeder Ingestion in der Organisation            | wer `budgets:manage` hält                      |
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die
 Organisation** — dem `DEFAULT_ORG_MONTHLY_BUDGET_USD` des Deployments
@@ -81,7 +81,7 @@ Nachbarn aufgebraucht, und genau das macht es zu keinem Cap. Das Cap einer
 Organisation, gemessen an den Ausgaben eines einzelnen Agents, würde nie binden.
 
 Also misst jedes Cap seine eigene Größe, und die Abfrage reist mit dem Limit. Ein
-Agent mit 5 $ unter einer Obergrenze von 50 $ bindet jetzt, wenn *er* 5 $
+Agent mit 5 $ unter einer Obergrenze von 50 $ bindet jetzt, wenn _er_ 5 $
 ausgegeben hat, und die Ablehnung nennt das Cap, das tatsächlich gebunden hat,
 statt es daraus abzuleiten, welche der beiden Zahlen kleiner war.
 
@@ -93,7 +93,7 @@ gestoppt.
 
 Beide Caps sind dort lesbar, wo ihre Ausgaben stehen: das der Organisation auf
 ihrer eigenen Zeile (`GET /orgs/{org_id}`) und das jedes Agents als
-`budget_monthly_usd` in der Agent-Liste — die Zahl der *veröffentlichten*
+`budget_monthly_usd` in der Agent-Liste — die Zahl der _veröffentlichten_
 Version, denn das ist die, die der Runner durchsetzt, und nicht das, was der
 Draft gerade verspricht. Die Headroom-Karte des Dashboards verbindet diese mit
 `GET /spend`, sodass ein Cap im Anmarsch zu sehen ist, bevor `budget_exceeded` in
@@ -107,7 +107,7 @@ das Cap des Agents geprüft, dann gegen jede Abteilung mit Cap, in der die Perso
 ist, die ihn gestartet hat, dann gegen das der Organisation. Jede Abteilung misst
 den Monat ihrer eigenen Mitglieder, sodass eine Person in Finanzen und Vertrieb
 von derjenigen gestoppt wird, die zuerst ausgeschöpft ist, und die Ablehnung
-nennt sie - *Sales department monthly budget exhausted*.
+nennt sie - _Sales department monthly budget exhausted_.
 
 Die Leitung der Abteilung und die Administratoren werden einmal benachrichtigt,
 wenn sie 80 % ihres Monats überschreitet, und erneut, wenn ihr Cap einen Run
@@ -129,7 +129,7 @@ Kanal - gehört zu keiner Abteilung und wird nicht gezählt.
     explizit, statt dem Session-Kontext überlassen zu werden — der bei jeder
     Exception zurückrollt und bei einer Cancellation überhaupt nie erreicht wird.
 
-!!! important "Eine Baseline ist das, was *andere* Runs ausgegeben haben"
+!!! important "Eine Baseline ist das, was _andere_ Runs ausgegeben haben"
 
     Beide Abfragen lassen die eigene Zeile des fragenden Runs aus. Ein
     fortgesetzter Run behält seine Zeile, und bis dahin hat `finish_run`
@@ -142,7 +142,7 @@ Kanal - gehört zu keiner Abteilung und wird nicht gezählt.
     erreicht, bei dem er zu 60 % stand. Das Cap der Organisation zählte identisch
     doppelt.
 
-Der Guard ist ein harter Stopp für einen Run, der die Ausgaben *sieht*, und die
+Der Guard ist ein harter Stopp für einen Run, der die Ausgaben _sieht_, und die
 eigenen Kosten eines Runs landen erst auf seiner Zeile, wenn er fertig ist.
 
 Die Baseline, die ein Run liest, ist also die Summe der Runs, die bereits fertig
@@ -159,12 +159,23 @@ der Anfrage sehr wohl begrenzt. Deshalb ist das Cap eine Obergrenze auf
 Ein Deployment, das ein striktes Cap braucht, lässt seine Agents durch eine
 einzige Queue laufen statt parallel.
 
+### Evals zahlen aus denselben Budgets { #evals-spend-from-the-same-budgets }
+
+Ein [Eval-Run](evals.md) besteht aus gewöhnlichen Runs. Jeder Fall wird daher
+vor jeder Modellanfrage gegen die Limits des Agents und der Organisation
+geprüft, und was er ausgibt, zählt gegen beide - ein eigenes Eval-Budget gibt
+es nicht. Ein großes Dataset kann deshalb das Monatsbudget aufbrauchen, das der
+Produktionsverkehr braucht. Der Start eines Runs zeigt, was jedes Limit nach
+der geschätzten Ausgabe behält, und wird abgelehnt, bevor etwas läuft, wenn die
+Schätzung höher ist als das, was einem der beiden bleibt; siehe
+[Das verbleibende Budget](evals.md#the-budget-it-leaves).
+
 ### Ein Run kostet mehr als seine Modellanfragen { #a-run-costs-more-than-its-model-requests }
 
 Eine Wissenssuche bettet die Frage ein, bevor sie danach suchen kann, und dieses
 Embedding wird dem Run berechnet, der es angefordert hat. Der Embedding-Dienst
 ist prozessweit — er bedient jeden Run und jeden Ingestion-Job zugleich — und
-bucht deshalb gegen den Run, der *gerade gemessen wird*, statt ein Budget als
+bucht deshalb gegen den Run, der _gerade gemessen wird_, statt ein Budget als
 Argument entgegenzunehmen.
 
 Was das Messen zu etwas macht, das eine Oberfläche vergessen kann, und das
@@ -178,7 +189,7 @@ Die Capability [Lange Gespräche](reference/capabilities.md#context-management) 
 andere. Ihre zusammenfassende Strategie schreibt die Zusammenfassung über einen
 Agent, den sie selbst baut, sodass diese Anfrage an keinem Budget-Guard
 vorbeikommt; die Capability bucht ihre Kosten gegen denselben Zähler.
-*Außerhalb* des Guards zu liegen hat eine Konsequenz, die man kennen sollte: Die
+_Außerhalb_ des Guards zu liegen hat eine Konsequenz, die man kennen sollte: Die
 Ausgabe wird festgehalten statt abgelehnt, sodass eine Kompaktierung, die ein Cap
 überschreitet, den Run bei der Anfrage danach stoppt.
 
@@ -193,13 +204,13 @@ Dieses Flag reist inzwischen den ganzen Weg nach unten. Es steht auf der
 Run-Zeile, auf der Message-Zeile, die ein Turn schreibt, und auf der Summe, die
 eine Unterhaltung meldet; jede Oberfläche, die Geld zeichnet, setzt ein `≥`
 davor statt einer Zahl, die sich als exakt liest. Null auf einer Message, die
-geschrieben wurde, bevor es die Spalte gab, bedeutet *nicht erfasst*, was nicht
+geschrieben wurde, bevor es die Spalte gab, bedeutet _nicht erfasst_, was nicht
 dieselbe Aussage ist wie „exakt" — ein Client markiert nur, was er weiß.
 
 **Jede Oberfläche hält es jetzt fest, und jeder Turn hält seinen eigenen Anteil
 fest.** Eine Message, die von einem Channel, der API oder dem Widget geschrieben
 wurde, trug bis vor Kurzem gar keine Kosten, sodass sich ein Slack-Thread nicht
-aufsummieren ließ. Die geschriebene Zahl ist die *Differenz* zu dem, was die
+aufsummieren ließ. Die geschriebene Zahl ist die _Differenz_ zu dem, was die
 früheren Turns dieses Runs bereits beanspruchen, nicht die Zahl der Run-Zeile:
 Eine Run-Zeile ist kumulativ, und ein Run, der parkte und fortgesetzt wurde,
 schreibt zwei Assistenten-Turns — beide mit der Zeile zu stempeln würde die
@@ -222,8 +233,8 @@ der Antwort, und der Run scheitert einfach.
 
 Jeder Agent trägt deshalb eine Anzeige — nicht nur einer mit gebundener
 Capability [Lange Gespräche](reference/capabilities.md#context-management), denn die
-Warnung zählt am meisten für den Agent, der *nicht* kompaktieren wird. Sie
-meldet, wie viele Token die letzte Anfrage eines Turns getragen hat, *nach* jeder
+Warnung zählt am meisten für den Agent, der _nicht_ kompaktieren wird. Sie
+meldet, wie viele Token die letzte Anfrage eines Turns getragen hat, _nach_ jeder
 Kompaktierung: Der Wert fällt, wenn die Kompaktierung wirkt, weil er misst, was
 hinausging, und nicht, was die Unterhaltung hält.
 
@@ -288,7 +299,7 @@ zusammenzufassen wäre. Jede Anfrage würde dann eine Zusammenfassung kaufen, di
 nichts ändert. Die Kompaktierung wird übersprungen, der Chat sagt warum, und die
 Behebung ist Sache des Autors: ein größeres Window oder ein höherer Bruchteil.
 
-Diese Ablehnung ruht auf einer Zahl, die eine *Antwort* erzeugt, sodass ein Turn
+Diese Ablehnung ruht auf einer Zahl, die eine _Antwort_ erzeugt, sodass ein Turn
 seine eigene nicht messen kann, bevor er entscheiden muss — und ein Chat-Turn ist
 meist eine Anfrage. Die Unterhaltung trägt den letzten Messwert, und ein Run
 startet von ihm. Der erste Turn eines Fadens hat daher nichts, woran er sich
@@ -306,14 +317,14 @@ das Cap des Parents die Ausgaben einer Delegation vor seiner nächsten
 Modellanfrage sehen lässt, genau in dem Moment, in dem Delegation vervielfacht,
 was ein Turn kosten kann. Jeder Eintrag ist mit der Delegation gestempelt, die
 ihn gebucht hat, und so beantwortet ein einziges Ledger trotzdem „was hat
-*dieser* Delegate gekostet" — siehe unten.
+_dieser_ Delegate gekostet" — siehe unten.
 
 Daraus folgt, dass **die Caps, die innerhalb einer Delegation binden, die des
 Parents sind**. Das eigene `budget.monthly_usd` eines Delegates wird mitten im
 Run des Parents nicht durchgesetzt: Zwei Guards, die ein Ledger messen, würden
 jede Anfrage doppelt zählen, und die Obergrenze, auf die es ankommt, ist die des
 Runs, den jemand gestartet hat. Das eigene Cap des Delegates gilt weiterhin für
-Runs *des Delegates selbst*.
+Runs _des Delegates selbst_.
 
 Jeder Delegate bepreist allerdings seine eigenen Anfragen, denn ein Guard
 bepreist, was er festhält: Ein Delegate auf Anthropic, gemessen durch einen für
@@ -329,7 +340,7 @@ Schleife. Siehe die
 
 Zwei dieser drei gehören dem Delegate selbst, und das ist die Linie, die das
 Budget nicht überschreitet: `max_steps` wird vom Spec des Delegates gelesen, und
-sein `max_depth` deckelt, wie tief *es* gehen darf, wie viel Raum sein Aufrufer
+sein `max_depth` deckelt, wie tief _es_ gehen darf, wie viel Raum sein Aufrufer
 auch übrig hatte. Ein Cap auf Ausgaben ist ein Cap auf den Run, den jemand
 gestartet hat; ein Cap auf Verschachtelung ist eine Entscheidung, die der Autor
 des Delegates getroffen hat und seine Prüfer lesen, also kann ein Aufrufer sie
@@ -340,7 +351,7 @@ nicht aufweiten.
 Eine Delegation an einen **veröffentlichten** Agent bekommt eine eigene
 `agent_runs`-Zeile, die `parent_run_id` und die Task-Id der Delegation trägt. Ein
 **Inline-Spezialist** bekommt keine: Er hat keinen Agent, dem eine zuzuordnen
-wäre, also sind seine Kosten die *des Runs*, und der Tool-Aufruf im Transkript
+wäre, also sind seine Kosten die _des Runs_, und der Tool-Aufruf im Transkript
 ist der Datensatz.
 
 Welchem Run allerdings, ist die Frage, die
@@ -349,7 +360,7 @@ Welchem Run allerdings, ist die Frage, die
 - Ein Spezialist direkt unter dem eigenen Agent des Runs wird auf die **oberste
   Zeile** gebucht, die ohnehin das ganze Ledger ist.
 - Ein Spezialist unter einem **veröffentlichten Delegate** wird auf die Zeile
-  *dieses Delegates* gebucht, nicht auf die oberste — der Monat des Delegates
+  _dieses Delegates_ gebucht, nicht auf die oberste — der Monat des Delegates
   enthält also, was sein Spezialist ausgegeben hat, und das ist der einzige Ort,
   an dem es ehrlich landen könnte.
 
@@ -427,12 +438,12 @@ der zweimal parkte, hinterlässt drei Segmente und eine Zeile.
 
 `cost_is_partial` wird auf dieselbe Weise mitgeführt, und zwar aus einem Grund,
 den das Geld nicht teilt: Es gilt jetzt je Zeile statt je Run, sodass ein
-Delegate, der *vor* der Freigabe eine unbepreiste Anfrage stellte und auf einem
+Delegate, der _vor_ der Freigabe eine unbepreiste Anfrage stellte und auf einem
 bepreisten Modell fortsetzte, sonst auf seiner Zeile exakte Kosten behaupten
 würde. Das Flag ist wahr, wenn es für irgendein Segment wahr war.
 
 Das ist es wert, gesagt zu werden, weil der Fehlschlag, den es ersetzt, unsichtbar
-war. Die Zeile hielt früher nur das fest, was der Delegate *nach* dem letzten
+war. Die Zeile hielt früher nur das fest, was der Delegate _nach_ dem letzten
 Fortsetzen ausgegeben hatte, und das ist in der gewöhnlichen Form — erst die
 Arbeit tun, dann um Erlaubnis bitten, auf das Ergebnis hin zu handeln — die kleine
 Hälfte. Nichts ging in der Summe daneben, denn das Geld lag die ganze Zeit in der
@@ -442,10 +453,10 @@ beantwortet.
 Die Child-Zeile ist das, was zwei verschiedene Fragen beantwortbar macht, und sie
 wollen entgegengesetzte Arithmetik:
 
-| Die Frage | Child-Zeilen |
-|---|---|
-| **Was schuldet die Organisation?** | **ausgeschlossen** - die Zeile des Parents enthält diese Token bereits, beides zu zählen stellt der Organisation also eine Anfrage doppelt in Rechnung |
-| **Was hat *dieser Agent* diesen Monat gekostet?** | **eingeschlossen** - die Zeilen eines Delegates sind der einzige Ort, an dem seine eigenen Ausgaben festgehalten sind, und jede hält die eigenen Anfragen dieses Agents und die seiner Inline-Spezialisten ([#228](https://github.com/vstorm-co/agenticos/issues/228)), aber nicht die seiner veröffentlichten Delegates, die eigene Zeilen haben |
+| Die Frage                                         | Child-Zeilen                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Was schuldet die Organisation?**                | **ausgeschlossen** - die Zeile des Parents enthält diese Token bereits, beides zu zählen stellt der Organisation also eine Anfrage doppelt in Rechnung                                                                                                                                                                                            |
+| **Was hat _dieser Agent_ diesen Monat gekostet?** | **eingeschlossen** - die Zeilen eines Delegates sind der einzige Ort, an dem seine eigenen Ausgaben festgehalten sind, und jede hält die eigenen Anfragen dieses Agents und die seiner Inline-Spezialisten ([#228](https://github.com/vstorm-co/agenticos/issues/228)), aber nicht die seiner veröffentlichten Delegates, die eigene Zeilen haben |
 
 Die zweite ist das, was „der Researcher hat diesen Monat 40 $ gekostet"
 beantwortbar macht, und sie ist es, worauf ein Nutzungsbericht je Agent oder ein
@@ -463,7 +474,7 @@ sein Usage-Limit oder eine Budget-Obergrenze gestoppt hat, behält die Nachricht
 des Limits unversehrt: Das ist eine Obergrenze, die ihre Arbeit tut, kein
 Fehlschlag, der zu diagnostizieren wäre.
 
-Die Regel reicht auch bis ins Transkript des *Parents*. Wenn ein Agent im
+Die Regel reicht auch bis ins Transkript des _Parents_. Wenn ein Agent im
 Hintergrund delegiert, fragt er `check_task` und `wait_tasks` nach dem Ausgang
 ab, und was diese antworten, wird zu einer Tool-Aufruf-Zeile in der Unterhaltung
 — unversehrt gespeichert, denn eine Tool-Rückgabe ist die eigene Antwort des
@@ -474,7 +485,7 @@ liegt.
 
 **Die gefensterte Zahl des Dashboards trägt es ebenfalls.** `GET /stats/usage`
 antwortet mit einem `cost`-Block für den Zeitraum, den der Filter gewählt hat,
-und dieser Block sind Runs *plus* Ingestion — dieselbe Arithmetik, mit der das
+und dieser Block sind Runs _plus_ Ingestion — dieselbe Arithmetik, mit der das
 monatliche Cap gemessen wird — mit `model_usd` und `ingestion_usd` daneben, damit
 ein Leser sehen kann, wohin das Geld ging, ohne zu subtrahieren. Bis 0.0.152
 meldete er allein die Modellhälfte, was zwei verschiedene Definitionen von Kosten
@@ -492,7 +503,7 @@ synchronisiert hat, hieße also, ihre Ausgaben zu erfinden.
 Spalte ist die Voreinstellung. Die Zahl seit Monatsbeginn und die Aufschlüsselung
 je Agent dahinter schließen Child-Zeilen aus, sodass sie sich auf die Summe
 darüber addieren — und die Nutzungs-E-Mail der Organisation meldet dieselbe Summe
-statt eine Summe aus einer von ihnen. Nur eine Frage, die *über einen Agent*
+statt eine Summe aus einer von ihnen. Nur eine Frage, die _über einen Agent_
 gestellt wird, schließt sie ein. Drei dieser fünf Abfragen gingen ohne diese
 Unterscheidung live und meldeten je 1,40 $ für 1,00 $ Arbeit; kommt eine neue
 hinzu, ist die Voreinstellung die sichere.
@@ -502,10 +513,10 @@ hinzu, ist die Voreinstellung die sichere.
 **Nach Provider** und **nach Schlüssel** können keine der beiden Spalten
 benutzen, und das falsch zu machen ist auf dem Bildschirm unsichtbar.
 Child-Zeilen auszuschließen summiert korrekt und ordnet das Geld des Delegates
-dann dem Anbieter des *Parents* zu, weil das der Provider auf der summierten
+dann dem Anbieter des _Parents_ zu, weil das der Provider auf der summierten
 Zeile ist: Ein Orchestrator auf OpenAI, der 0,40 $ Arbeit an einen Agent auf
-Anthropic delegierte, meldete `openai $1.00` und überhaupt keine Anthropic-Zeile.
-Sie einzuschließen meldete `openai $1.00` + `anthropic $0.40` — mehr als die
+Anthropic delegierte, meldete `openai $1.00`und überhaupt keine Anthropic-Zeile.
+Sie einzuschließen meldete`openai $1.00` + `anthropic $0.40` — mehr als die
 Rechnung.
 
 Diese beiden summieren also die **eigenen** Ausgaben jedes Runs: seine Kosten
@@ -549,10 +560,10 @@ Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
 Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
 festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
 Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
-Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
+Proaktivität**. Aktivität zeigt das Symbol und den Filter **Proaktiv**, die
 Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
 Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
-behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
+behalten den vor dem Fehler verfügbaren Austausch. Wie andere Einträge der Aktivität
 erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
 aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
 Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
@@ -624,15 +635,15 @@ Monatsbeginn von 1,00 $, und beide Hälften hatten über verschiedene Fragen rec
 
 Die Liste nimmt dieselbe zweiseitige Arithmetik wie die Summen oben, aus
 demselben Grund — sodass eine Oberfläche, die auf einen Agent eingeengt ist,
-zeigt, was *dieser Agent* getan hat, die Arbeit seiner Delegates eingeschlossen:
+zeigt, was _dieser Agent_ getan hat, die Arbeit seiner Delegates eingeschlossen:
 
-| Frage | Antwort |
-|---|---|
-| `GET /runs` | Runs, die jemand gestartet hat. `parent_run_id IS NULL` |
-| `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in Activity, denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
-| `GET /runs?parent_run_id=<id>` | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations` |
-| `GET /runs/<id>` | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet |
-| `GET /runs/<id>/transcript` | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten) |
+| Frage                                              | Antwort                                                                                                                                                                                                              |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /runs`                                        | Runs, die jemand gestartet hat. `parent_run_id IS NULL`                                                                                                                                                              |
+| `GET /runs?agent_id=<id>&include_delegations=true` | Die eigene Historie eines Agents. Das fragen das Panel Recent runs im Builder und `?agent=` in **Aktivität** (Activity), denn die Zeilen eines Delegates sind der einzige Datensatz darüber, was er selbst getan hat |
+| `GET /runs?parent_run_id=<id>`                     | Was dieser Run delegiert hat — die Abfrage, für die `agent_runs_parent_run_id_idx` existiert. Hat Vorrang vor `include_delegations`                                                                                  |
+| `GET /runs/<id>`                                   | Ein Run, delegiert oder nicht. Wo ein Link aus einem Transkript landet                                                                                                                                               |
+| `GET /runs/<id>/transcript`                        | Die Turns dieses Runs, der Reihe nach - was eine Run-Detailansicht als Schritte rendert. Autorisiert, nicht besessen (unten)                                                                                         |
 
 **Einen Run zu lesen ist autorisiert, nicht besessen.**
 
@@ -681,17 +692,17 @@ darin nur Zeilen der obersten Ebene: die Kosten des Zeitraums und ihre
 Aufteilung nach Provider (die doppelte Rechnung oben), aber auch die Run-Summe,
 die Tagesreihe, die Aufteilung nach Ausgängen, die Oberflächen, die
 Latenz-Perzentile, die Zahl der aktiven Personen und die Tabelle je Person. Über
-die Kosten hinaus *kopiert* eine delegierte Zeile `user_id` und `surface` ihres
+die Kosten hinaus _kopiert_ eine delegierte Zeile `user_id` und `surface` ihres
 Parents, sie zu zählen würde also zusätzlich eine zweite Person und eine zweite
 Ankunft auf einem Channel erfinden, den jemand einmal benutzt hat.
 
 Zwei Aggregate nehmen die andere Seite, und beide werden über einen Agent
 gefragt:
 
-| Frage | Child-Zeilen |
-|---|---|
-| `by_agent` — die Adoption-Karte | **eingeschlossen.** Ausgeschlossen hat ein Agent, der vierhundertmal am Tag als jemandes Delegate läuft, keine Zeile, und die Karte bezeichnet jeden veröffentlichten Agent ohne Zeile als vergessen und bietet an, ihn zu archivieren. Ihre Balken können daher die Run-Summe daneben übersteigen; nichts summiert sie |
-| `?group_by=version` — die Karte zum Versionsvergleich | **eingeschlossen.** Ein Spezialist, der nur je als Delegate ausgeführt wird, hätte sonst nichts, was sich über seine Versionen vergleichen ließe |
+| Frage                                                 | Child-Zeilen                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `by_agent` — die Adoption-Karte                       | **eingeschlossen.** Ausgeschlossen hat ein Agent, der vierhundertmal am Tag als jemandes Delegate läuft, keine Zeile, und die Karte bezeichnet jeden veröffentlichten Agent ohne Zeile als vergessen und bietet an, ihn zu archivieren. Ihre Balken können daher die Run-Summe daneben übersteigen; nichts summiert sie |
+| `?group_by=version` — die Karte zum Versionsvergleich | **eingeschlossen.** Ein Spezialist, der nur je als Delegate ausgeführt wird, hätte sonst nichts, was sich über seine Versionen vergleichen ließe                                                                                                                                                                        |
 
 Die Invariante, die so oder so überlebt: Die Segmente des Ausgangs-Donuts
 summieren sich weiterhin auf `total_runs`, und sein Segment `awaiting_approval`
@@ -704,13 +715,13 @@ steckengebliebener Parent, und diese Karte beantwortet „warum wird mein Agent
 nicht fertig"; heute ändert das nichts, denn eine Delegation wird bereits fertig
 in die Datenbank geschrieben und parkt daher nie.
 
-Die letzten beiden sind `?run=<id>` auf der Activity-Seite: ein Run, die
+Die letzten beiden sind `?run=<id>` auf der Seite **Aktivität** (Activity): ein Run, die
 Delegationen darunter jeweils mit der Task-Id abgezeichnet, die ihre
 `subagent_*`-Frames trugen, und ein Link hinauf zu dem Run, dem eine Delegation
 berechnet wurde. Ein Delegationspanel in einem Chat verlinkt mit der `run_id`
 dorthin, die sein terminaler Frame trägt — deshalb trägt der Frame eine.
 Delegierte Zeilen in der Tabelle der obersten Ebene zu verschachteln wird hier
-bewusst *nicht* getan; ein Tabellen-Primitiv für das ganze Produkt ist
+bewusst _nicht_ getan; ein Tabellen-Primitiv für das ganze Produkt ist
 [separat vorgeschlagen](https://github.com/vstorm-co/agenticos/issues/139), und
 die Verschachtelung gehört dorthin und nicht in eine maßgeschneiderte
 Run-Tabelle.
@@ -718,8 +729,8 @@ Run-Tabelle.
 ### Was der Kostenbildschirm zeigt { #what-the-cost-screen-shows }
 
 `GET /spend` nimmt sein Fenster auf zwei Wegen, weil die Seite nach beiden Arten
-fragt: `days` für die Voreinstellungen *letzte N Tage* und `from`/`to` für
-*diesen Monat*, *letzten Monat* und einen Kalenderbereich. `from` gewinnt, wenn
+fragt: `days` für die Voreinstellungen _letzte N Tage_ und `from`/`to` für
+_diesen Monat_, _letzten Monat_ und einen Kalenderbereich. `from` gewinnt, wenn
 beide ankommen — ein expliziter Bereich ist eine speziellere Anfrage als eine
 Voreinstellung, die niemand geändert hat —, und `period_days` kommt in diesem
 Fall als null zurück, statt eine Zahl zu wiederholen, der der Bereich
@@ -739,15 +750,15 @@ als zu 20 % ausgeschöpft.
 Jede Zeile je Agent trägt **zwei Kostenzahlen unter zwei verschiedenen Namen**,
 und das ist die Regel dieser Seite durchgehend:
 
-| | |
-|---|---|
-| `cost_usd` | Sein Anteil am Fenster, **nur Runs der obersten Ebene**, sodass sich die Spalte auf die Summe darüber addiert |
+|                     |                                                                                                                                                                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cost_usd`          | Sein Anteil am Fenster, **nur Runs der obersten Ebene**, sodass sich die Spalte auf die Summe darüber addiert                                                                                                           |
 | `month_to_date_usd` | Sein **eigener** Kalendermonat, delegierte Zeilen **eingeschlossen** — die Ausgaben, auf die sein `monthly_cap_usd` ein Cap ist. Er addiert sich nicht auf den Monat der Organisation und wird auch nicht so gezeichnet |
 
 `partial_run_count` sagt, wie viel davon überhaupt eine Tatsache ist: wie viele
 **Runs der obersten Ebene** im Fenster sich nicht vollständig bepreisen ließen,
-sodass die Kosten um genau so viele eine Untergrenze sind. *„3 von 40 Runs ließen
-sich nicht bepreisen"* ist etwas, womit ein Leser etwas anfangen kann; eine Zahl
+sodass die Kosten um genau so viele eine Untergrenze sind. _„3 von 40 Runs ließen
+sich nicht bepreisen"_ ist etwas, womit ein Leser etwas anfangen kann; eine Zahl
 mit einem Pluszeichen daran nicht.
 
 Ein Run zählt, wenn ein Modell in seinem Baum keinen Preis hatte, **die seiner
@@ -773,7 +784,7 @@ Vorbehalt auf, denn das Geld im Fenster selbst ist exakt
 ([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
 Eine Zeile ist **eine je Agent**, mit `agent_name` darauf. Früher war sie eine je
-Agent *und Modell* und trug nur `model_label` — der Tab listete also Modellnamen,
+Agent _und Modell_ und trug nur `model_label` — der Tab listete also Modellnamen,
 wo ein Leser einen Agent erwartet, und teilte einen Agent auf zwei Zeilen auf,
 weil er auf zwei Modellen geantwortet hatte. Die Form je Modell überlebt dort, wo
 sie die gestellte Frage ist: Die Nutzungs-E-Mail gruppiert weiterhin so.
@@ -811,12 +822,12 @@ wurde, und er trägt den Namen und die Notiz der entscheidenden Person, denn ein
 nackte UUID ist keine Spur der Verantwortlichkeit. Auf einer entschiedenen Zeile
 gibt es bewusst keine Bedienelemente.
 
-| Parameter | |
-|---|---|
-| `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
-| `triggered_by_user_id` | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person |
-| `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich |
-| `oldest_first` | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss |
+| Parameter                    |                                                                                                                                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`                     | Wiederholbar. Abwesend heißt ausstehend — die Queue                                                                                                                                             |
+| `triggered_by_user_id`       | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person                                                                  |
+| `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich                                                                                                                                   |
+| `oldest_first`               | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss |
 
 Jede Zeile nennt drei Dinge, die in anderen Tabellen liegen — den Agent, die
 Person, deren Run den Aufruf geparkt hat, und die Person, die entschieden hat.
@@ -828,18 +839,18 @@ anonym.
 
 ### Die Run-Historie einengen { #narrowing-run-history }
 
-| Parameter | |
-|---|---|
-| `status` | Wiederholbar. `?status=failed&status=budget_exceeded` ist die Zeig-mir-die-Probleme-Abfrage, und die beiden sind genau deshalb getrennte Status, damit nach dem einen zu fragen nicht heißt, nach dem anderen zu fragen |
-| `surface` | Woher der Run kam |
-| `user_id` | Als wer der Run lief, was nicht immer der ist, der gefragt hat — die Runs eines Widgets tragen die Identität des Widget-Besitzers, weil der Besucher anonym ist |
-| `model_label` | Das Modell **so, wie der Run es festgehalten hat**, exakt verglichen. Nicht über den Modellkatalog aufgelöst: Die Spalte ist das, was geantwortet hat, und ein Profil, aus dem es kam, kann seither umbenannt oder gelöscht worden sein. Die Modellkarte des Dashboards zählt dieselben Zeichenketten, sodass „die Runs hinter diesem Balken" auf beiden Bildschirmen eine Menge ist |
-| `started_from`, `started_to` | An beiden Enden einschließlich, denn ein Bereichswähler übergibt ganze Tage |
-| `environment_id` | Runs auf der Version, die dieses Environment festpinnt. **Nie ein delegierter Run:** Die Version eines Delegates kommt von einem Pin, also wird die Spalte auf einem solchen bewusst nie geschrieben, und auf `production` einzuengen lässt jede Delegation fallen. Eine Oberfläche, die Delegationen einschließt, muss das sagen |
-| `exposure_id` | Runs, die über eine Bindung zugelassen wurden. Null für das Dashboard und die API |
-| `agent_version_id` | Runs, die einen eingefrorenen Spec ausgeführt haben — das „zeig mir die Zeilen hinter dieser Zahl" der Versionsleiste |
-| `rated` | `down` oder `up` — Runs, bei denen jemand eine vom Run erzeugte Message bewertet hat |
-| `order_by`, `descending` | `started_at` (die Voreinstellung, neueste zuerst), `duration`, `cost` oder `tokens` |
+| Parameter                    |                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status`                     | Wiederholbar. `?status=failed&status=budget_exceeded` ist die Zeig-mir-die-Probleme-Abfrage, und die beiden sind genau deshalb getrennte Status, damit nach dem einen zu fragen nicht heißt, nach dem anderen zu fragen                                                                                                                                                              |
+| `surface`                    | Woher der Run kam                                                                                                                                                                                                                                                                                                                                                                    |
+| `user_id`                    | Als wer der Run lief, was nicht immer der ist, der gefragt hat — die Runs eines Widgets tragen die Identität des Widget-Besitzers, weil der Besucher anonym ist                                                                                                                                                                                                                      |
+| `model_label`                | Das Modell **so, wie der Run es festgehalten hat**, exakt verglichen. Nicht über den Modellkatalog aufgelöst: Die Spalte ist das, was geantwortet hat, und ein Profil, aus dem es kam, kann seither umbenannt oder gelöscht worden sein. Die Modellkarte des Dashboards zählt dieselben Zeichenketten, sodass „die Runs hinter diesem Balken" auf beiden Bildschirmen eine Menge ist |
+| `started_from`, `started_to` | An beiden Enden einschließlich, denn ein Bereichswähler übergibt ganze Tage                                                                                                                                                                                                                                                                                                          |
+| `environment_id`             | Runs auf der Version, die dieses Environment festpinnt. **Nie ein delegierter Run:** Die Version eines Delegates kommt von einem Pin, also wird die Spalte auf einem solchen bewusst nie geschrieben, und auf `production` einzuengen lässt jede Delegation fallen. Eine Oberfläche, die Delegationen einschließt, muss das sagen                                                    |
+| `exposure_id`                | Runs, die über eine Bindung zugelassen wurden. Null für das Dashboard und die API                                                                                                                                                                                                                                                                                                    |
+| `agent_version_id`           | Runs, die einen eingefrorenen Spec ausgeführt haben — das „zeig mir die Zeilen hinter dieser Zahl" der Versionsleiste                                                                                                                                                                                                                                                                |
+| `rated`                      | `down` oder `up` — Runs, bei denen jemand eine vom Run erzeugte Message bewertet hat                                                                                                                                                                                                                                                                                                 |
+| `order_by`, `descending`     | `started_at` (die Voreinstellung, neueste zuerst), `duration`, `cost` oder `tokens`                                                                                                                                                                                                                                                                                                  |
 
 **Jeder Filter engt die Zählung ebenso ein wie die Seite**, sodass `total` immer
 die Zeilen darunter beschreibt. Die Liste und die Zählung sind zwei Abfragen, und
@@ -847,7 +858,7 @@ eine Bedingung, die nur eine von beiden erreicht, liest sich als Paging-Fehler
 statt als fehlende Klausel.
 
 `started_from` ist auch das, was diese Zählung mit dem Geld daneben in Einklang
-bringen lässt. Ungefenstert liest sie *alle Zeit*, während eine Ausgabenzahl
+bringen lässt. Ungefenstert liest sie _alle Zeit_, während eine Ausgabenzahl
 einen Kalendermonat liest, sodass eine drei Jahre alte Organisation „8.412 Runs"
 neben „31,20 $" zeigte und die naheliegende Lesart des Paars um drei Jahre falsch
 war. Eine Zahl und eine Ausgabenzahl auf einem Bildschirm teilen sich ein Fenster,
@@ -856,14 +867,14 @@ oder sie sagen, welches Fenster jede meint.
 Ein Wert außerhalb seines Typs wird mit einem 422 abgelehnt, statt gegen nichts
 abgeglichen zu werden: `status` und `surface` sind Zeichenkettenspalten, sodass
 `?status=complete` sonst mit einer leeren Seite antwortete — und eine leere Seite
-liest sich als *diese Woche ist nichts schiefgegangen*. `order_by` nimmt eine von
+liest sich als _diese Woche ist nichts schiefgegangen_. `order_by` nimmt eine von
 vier Ordnungen statt eines Spaltennamens, aus demselben Grund plus einem
 weiteren: Ein aus einem Query-String zusammengesetztes `ORDER BY` ist eine
 Angriffsfläche für Injection.
 
 **Jeder Einzelne davon reist in der URL**, und das ist es, was eine
 Dashboard-Karte an ihre eigenen Zeilen übergeben lässt:
-`/runs?surface=mattermost&period=30d` öffnet Activity mit der bereits gesetzten
+`/runs?surface=mattermost&period=30d` öffnet **Aktivität** (Activity) mit der bereits gesetzten
 Facette und einer Zählung, die zu der Karte passt, die verlinkt hat. Bis #768
 waren sie lokaler State, sodass die p95-Zahl die einzige Zahl auf dem Dashboard
 war, die die Runs dahinter erreichen konnte, und drei Karten überhaupt keinen
@@ -873,7 +884,7 @@ Link trugen — es gab nichts Ehrliches, worauf man sie hätte zeigen lassen kö
 `?tab=spend` öffnen die Queue und den Kostenbildschirm; die Run-Historie ist die
 Voreinstellung und wird nie geschrieben.
 
-Das ist die Adresse, die ein Link auf eine *Entscheidung* braucht, und der Grund,
+Das ist die Adresse, die ein Link auf eine _Entscheidung_ braucht, und der Grund,
 warum es den Parameter gibt: Das „See all" der Freigabe-Karte und der Alert, der
 sagt, dass ein Run geparkt ist, mussten beide auf die Run-Historie zeigen, wo
 sich nichts entscheiden lässt (#934).
@@ -890,7 +901,7 @@ Leiste lebendig blieb, während der Inhalt jedes Tabs verborgen war.
 
 **Die Dauer wird in SQL berechnet, über die ganze eingeengte Menge.**
 
-Das ist es, was von *„p95 ist 14,8 s"* auf dem Dashboard zu **diesen Runs**
+Das ist es, was von _„p95 ist 14,8 s"_ auf dem Dashboard zu **diesen Runs**
 führt. Eine Seite mit fünfundzwanzig Zeilen zu sortieren sortiert die falsche
 Menge, denn der langsamste Run eines Monats steht nicht in den Zeilen, die eine
 Seite mit den neuesten zuerst zufällig zurückgegeben hat. `cost` und `tokens`
@@ -902,10 +913,10 @@ Kosten- und Token-Zahlen werden erst geschrieben, wenn er fertig ist — so
 sortiert, wie gespeichert, läse sich ein noch laufender Run als der billigste und
 leichteste in der Organisation.
 
-Wie lange ein *noch laufender* Run schon läuft, ist eine andere Frage, und keine
+Wie lange ein _noch laufender_ Run schon läuft, ist eine andere Frage, und keine
 dieser Ordnungen beantwortet sie.
 
-Activity zeigt diese Dauer auf drei Wegen, und alle drei führen zu derselben
+**Aktivität** (Activity) zeigt diese Dauer auf drei Wegen, und alle drei führen zu derselben
 Abfrage:
 
 - Die Spaltenüberschrift **Took** ist ein Sortier-Bedienelement — wie die
@@ -955,7 +966,7 @@ Scope-Regel und dasselbe Fenster-Vokabular wie `GET /stats/usage` (siehe
 [Berechtigungen](permissions.md)). Nur Zählungen — die Kommentare bleiben hinter
 dem Run-Detail oben.
 
-Die drei Zahlen in Activity über den Tabs bleiben die der Organisation,
+Die drei Zahlen in **Aktivität** (Activity) über den Tabs bleiben die der Organisation,
 einschließlich der Run-Zählung, auch wenn die Tabelle darunter auf einen Agent
 eingeengt ist. Eine Zählung je Agent neben dem Monat der Organisation wären zwei
 Fragen unter einem Etikett — und die Zählung je Agent ist diejenige, die
@@ -976,12 +987,12 @@ Zeilen, die jemand gegen eine Rechnung abgleicht, einem Finanzteam übergibt ode
 an ein Audit hängt. Eine Seite, die die Frage auf dem Bildschirm beantworten kann
 und außerhalb davon nicht, schickt Menschen in die Datenbank.
 
-| Frage | Antwort |
-|---|---|
-| `GET /runs/export` | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
-| `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide` |
-| `GET /spend/export` | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view` |
-| `GET /audit/export` | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read` |
+| Frage                   | Antwort                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `GET /runs/export`      | Die Run-Historie, dieselben Filter wie `GET /runs` und dieselbe Voreinstellung nur oberste Ebene. `runs:view` |
+| `GET /approvals/export` | Der Freigabe-Datensatz, dieselben Filter wie `GET /approvals`. `approvals:decide`                             |
+| `GET /spend/export`     | Die Ausgaben-Aufschlüsselung je Agent, dasselbe Fenster wie `GET /spend`. `runs:view`                         |
+| `GET /audit/export`     | Die Audit-Spur über ein Fenster, CSV oder JSONL (`?fmt=`). `audit:read`                                       |
 
 Der Audit-Export ist der einzige, der auch **JSONL** anbietet (`?fmt=jsonl`),
 ein JSON-Objekt pro Zeile, weil eine Audit-Spur ebenso oft von einer
@@ -1040,7 +1051,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
   Tab ohnehin zeigt. Die Run-Tabelle zeigt eine `user_id` und keinen Namen, also
   liefert der Run-Export allein die Id — eine CSV, wer was ausgeführt hat, mit
   aufgelösten Namen, ist die Tabelle je Person, die Entscheidung 3 des
-  Activity-Designs abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
+  Designs für **Aktivität** (Activity) abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
   die auslösenden und entscheidenden E-Mail-Adressen auf dem Bildschirm bereits
   auf, also behält der Freigabe-Export sie.
 - **Audit.** Jeder Export schreibt einen `audit_log`-Eintrag — ein privilegierter
@@ -1092,7 +1103,7 @@ Spec).
 
 Ein langer Run driftet: Anweisungen verblassen, Behauptungen ohne Quelle häufen
 sich, der Agent entfernt sich von der Anfrage. Ein Agent kann bis zu fünf
-Reviewer haben (`reviewers` im Spec, *Run-Reviewer* im Builder neben den
+Reviewer haben (`reviewers` im Spec, _Run-Reviewer_ im Builder neben den
 Limits), jeder ein zweites, meist günstigeres Modell mit einem Anliegen. Alle
 `every` Modell-Requests liest ein Reviewer die letzten `window` Tokens des Runs
 und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
@@ -1109,7 +1120,7 @@ Ein Agent ohne Reviewer macht keine zusätzlichen Modellaufrufe.
 
 Ein Agent, der Datensätze abarbeitet - zehn Zeilen aktualisieren, dann
 zusammenfassen -, zahlt für jeden abhängigen Aufruf einen Modell-Turn, und jeder
-Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem *Code-Modus*
+Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem _Code-Modus_
 (`code_mode` im Spec, neben den Limits im Builder) werden die Tools des Agents in
 ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
 Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
@@ -1152,15 +1163,15 @@ nur, solange der Anfang jedes Requests gleich bleibt; eine umgestellte Tool-List
 oder ein Zeitstempel in den Anweisungen lässt den Anbieter den vollen Preis für
 Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
 Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
-eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
-gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
-abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
+eingebrochen ist, wird im Request-Wasserfall des Runs markiert - _Cache
+gebrochen_, solange der Anbieter ihn noch hätte halten sollen, _Cache
+abgelaufen_, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
 Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
 Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
 API-Worker beide bedient.
 
 Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
-der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
+der Cache nicht gehalten hat: eine Karte _Prompt-Cache_, eine Zeile pro Agent
 und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
 wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
 auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
@@ -1249,7 +1260,7 @@ Vier Eigenschaften, die man kennen sollte:
   gelöscht, ein Modellprofil entfernt, eine Capability in einem Deploy
   weggefallen, eine MCP-Verbindung nicht mehr geteilt. Der Spec wird
   zusammengesetzt, bevor der Run die Freigabe-Queue verlässt, sodass eine
-  Ablehnung dort den *Versuch* ablehnt: Die Entscheidung steht, und das Fortsetzen
+  Ablehnung dort den _Versuch_ ablehnt: Die Entscheidung steht, und das Fortsetzen
   funktioniert wieder, sobald der Spec es tut.
 - **Eine entschiedene Freigabe kann nicht zweimal entschieden werden.** Die zweite
   Entscheidung wird abgelehnt — einschließlich einer Entscheidung, die eine
@@ -1258,14 +1269,14 @@ Vier Eigenschaften, die man kennen sollte:
   `APPROVAL_EXPIRY_HOURS` überschreitet**, und der Run dahinter wird beendet statt
   für immer geparkt zu bleiben. Der Status ist `expired` mit einem
   `decided_by_user_id` von null, und das ist es, was in der Verantwortungsspur
-  einen Ablauf von einer Zurückweisung unterscheidet. Die Activity-Seite zeigt
+  einen Ablauf von einer Zurückweisung unterscheidet. Die Seite **Aktivität** (Activity) zeigt
   weiterhin das **Alter** der ältesten Wartezeit, denn eine Queue innerhalb ihres
   Ablauffensters ist die, auf der jemand noch handeln kann.
 - **`required` funktioniert auf jeder Capability**, nicht nur auf
   nebenwirkungsbehafteten. „Das liest nur, aber in meiner Organisation gibt das
   trotzdem jemand frei" ist eine echte Entscheidung und lässt sich ausdrücken.
 - **Außer auf einem Tool, das der Modell-Provider ausführt, wo es beim
-  Veröffentlichen abgelehnt wird.** Das Gate umschließt die *Tool-Ausführung*, und
+  Veröffentlichen abgelehnt wird.** Das Gate umschließt die _Tool-Ausführung_, und
   das ist der einzige Ort, an dem sich ein Aufruf halten lässt, sodass ein natives
   Fetch oder eine native Suche — auf der Seite des Providers ausgeführt — es nie
   erreicht, und eines davon zu gaten würde die Queue leer lassen, während der Agent
@@ -1310,7 +1321,7 @@ Vier Eigenschaften, die man kennen sollte:
 
 Die Regel oben gehört dem Agent, wird beim Veröffentlichen und je Tool
 entschieden, und das ist der richtige Ort dafür: Sie ist eine Aussage darüber, was
-der Agent *ist*. Was sie nicht ausdrücken kann, ist die Stimmung einer Sitzung —
+der Agent _ist_. Was sie nicht ausdrücken kann, ist die Stimmung einer Sitzung —
 wer zwanzig Turns lang mit einem Agent arbeitet, der drei Tools gatet, beantwortet
 in jedem Turn dieselben drei Fragen, und der einzige Ausweg war, den Agent neu zu
 veröffentlichen und ihn für alle dauerhaft zu ändern, um einen Nachmittag zu
@@ -1319,11 +1330,11 @@ retten ([#925](https://github.com/vstorm-co/agenticos/issues/925)).
 Eine Chat-Sitzung trägt also einen **Freigabe-Modus**, auf dem Send-Frame neben
 der Modell-Übersteuerung und in den Run hineingelesen:
 
-| Modus | Was er tut |
-|---|---|
-| **Follow the agent** (Voreinstellung) | Der Spec entscheidet. Genau das Verhalten, das es vor dem Bedienelement gab, und das, was ein Client bekommt, der nichts sendet |
-| **Approve everything** | Stehende Zustimmung für diese Unterhaltung: Jeder gegatete Aufruf wird gewährt, ohne zu parken — und jeder schreibt trotzdem seine Zeile |
-| **Ask about everything** | Gate jedes Tool, das der Agent erreichen kann, einschließlich derer, die der Spec ungegatet ließ, und derer, die keiner Capability gehören |
+| Modus                                 | Was er tut                                                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Follow the agent** (Voreinstellung) | Der Spec entscheidet. Genau das Verhalten, das es vor dem Bedienelement gab, und das, was ein Client bekommt, der nichts sendet            |
+| **Approve everything**                | Stehende Zustimmung für diese Unterhaltung: Jeder gegatete Aufruf wird gewährt, ohne zu parken — und jeder schreibt trotzdem seine Zeile   |
+| **Ask about everything**              | Gate jedes Tool, das der Agent erreichen kann, einschließlich derer, die der Spec ungegatet ließ, und derer, die keiner Capability gehören |
 
 Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
 
@@ -1335,7 +1346,7 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
   ein fortgesetzter Run teilen, statt an einem Socket, den ein Aufrufer vergessen
   könnte.
 - **Ein Verzicht braucht `approvals:decide` und die Erlaubnis der Organisation.**
-  Eine stehende Zustimmung *ist* die Entscheidung, zu deren Festhalten die
+  Eine stehende Zustimmung _ist_ die Entscheidung, zu deren Festhalten die
   Freigabe-Queue existiert, und `member` und `builder` führen Agents aus, ohne sie
   zu halten — ohne die Berechtigungsprüfung gewährte sich also der alltägliche
   Chat-Nutzer mit einem Klick die Autorität, die die API ihm einen Endpunkt weiter
@@ -1410,7 +1421,7 @@ Parken ausgegeben hat, bleibt stehen.
 
 Drei Dinge, die er bewusst nicht tut:
 
-- **Er setzt den Run nicht fort.** Ein *zurückgewiesener* Aufruf wird durch
+- **Er setzt den Run nicht fort.** Ein _zurückgewiesener_ Aufruf wird durch
   Fortsetzen erledigt: Die Verweigerung wird nachgespielt und der Agent arbeitet
   bis zu einer Antwort weiter. Das ist eine Modellanfrage gegen die eigenen
   Schlüssel der Organisation, und eine solche nach Zeitplan zu stellen, für einen
@@ -1435,7 +1446,7 @@ Der andere Zustand, den nichts im Prozess je auflösen wird.
 Die Zeile eines Runs wird als `running` committet, bevor sein Modell aufgerufen
 wird ([#12][12-issue]), sodass ein Worker, der mitten im Run getötet wird — OOM,
 ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nichts
-mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
+mehr zu Ende bringt: für immer in **Aktivität** (Activity), und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
 Während sein Modell arbeitet, stempelt der Prozess, der einen Run ausführt, ihn
@@ -1499,7 +1510,7 @@ genau das, was ein Löschen nach dem Entstehen der Zeile getan hätte.
 Was der Run des Parents tut, ist parken, statt etwas in die Hand zu bekommen, das
 wie eine fertige Delegation aussieht. Das ist es wert, gesagt zu werden, weil es
 früher anders war: Jeder hier gebaute Agent deklariert einen Output-Typ, der einen
-Run mit seinen geparkten Aufrufen als *Output* enden lässt, statt auszulösen, und
+Run mit seinen geparkten Aufrufen als _Output_ enden lässt, statt auszulösen, und
 die Delegationsbibliothek serialisierte dieses Objekt und reichte dem Modell des
 Parents `{"calls": [], "approvals": [...]}` als Bericht des Spezialisten, Task als
 abgeschlossen markiert. Es war der Standardpfad und kein Sonderfall, und es ist in
@@ -1526,7 +1537,7 @@ abdeckt — siehe
 [wie ein delegierter Run festgehalten wird](#what-a-delegated-run-is-recorded-as).
 Beide Hälften des Baums werden je Delegation statt je Run gehalten, und das ist
 es, was einen Spezialisten drei Ebenen tiefer parken und trotzdem seinem eigenen
-Agent zurechnen lässt. Die Ausgaben werden selbst dann behalten, wenn die *Stelle*
+Agent zurechnen lässt. Die Ausgaben werden selbst dann behalten, wenn die _Stelle_
 des Delegates es nicht konnte — die Message-Historie der Bibliothek ist Telemetrie
 nach bestem Bemühen, und eine von vorn ausgeführte Delegation hat trotzdem
 ausgegeben, was sie ausgegeben hat.
@@ -1582,21 +1593,21 @@ getan hat. Keiner trägt einen Datensatz, einen Filterwert oder eine Zeile: Sie
 halten Versionen, Fingerabdrücke, Anfrage-IDs und die Worte, die eine Person
 bestätigt hat.
 
-| Aktion | Aufgezeichnet, wenn |
-|---|---|
-| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert |
-| `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
-| `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
-| `artifact.auto_consent_changed` | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
-| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat |
-| `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
-| `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
-| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |
-| `organization.public_live_data_changed` | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert |
-| `artifact.public_data_consented` | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
-| `artifact.public_data_withdrawn` | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt |
-| `artifact.public_data_voided` | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived` |
-| `artifact.action_started` | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen |
+| Aktion                                                                  | Aufgezeichnet, wenn                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `artifact.published`                                                    | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert                                                                                                                                                                                                       |
+| `artifact.data_consented`                                               | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat                                                                                 |
+| `artifact.data_withdrawn`                                               | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat                                                                                                                              |
+| `artifact.auto_consent_changed`                                         | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat                                                                                                                                                                                                                                            |
+| `artifact.edit_data_granted`                                            | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat                                                                                                                                                                                                                 |
+| `artifact.owner_changed`                                                | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat                                                                                                                                                                                                                 |
+| `artifact.share_requested`                                              | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents                                                                                                                                                                                                                              |
+| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem                                                                                                                                                                                                                                                                                                                |
+| `organization.public_live_data_changed`                                 | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert                                                                                                                                                                                                                    |
+| `artifact.public_data_consented`                                        | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
+| `artifact.public_data_withdrawn`                                        | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt                                                                                                                                                                                                                     |
+| `artifact.public_data_voided`                                           | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived`                                                                                                                                                           |
+| `artifact.action_started`                                               | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen                                                                                                                                                                        |
 
 **Public pages with live data** ist eine Einstellung der Organisation, standardmäßig
 aus, in den Einstellungen der Organisation neben dem Verzicht auf Freigaben. Sie
@@ -1626,11 +1637,12 @@ still geworden ist.
 
 Jeder Alert in diesem Abschnitt schreibt zwei Dinge: die unten beschriebene
 E-Mail, und eine Zeile an **der Glocke** in der [Konsole](console.md#the-bell)
-- dem eigenen Postfach der Konsole, keine Kopie der Mail. Die Zeile *ist* die
-In-App-Zustellung; nichts weiter muss gelingen, damit sie erscheint. E-Mail
-ist ein zweiter, unabhängig wiederholter Kanal desselben Schreibvorgangs,
-weshalb der eine fehlschlagen kann - eine unzustellbare Adresse, ein
-ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
+
+- dem eigenen Postfach der Konsole, keine Kopie der Mail. Die Zeile _ist_ die
+  In-App-Zustellung; nichts weiter muss gelingen, damit sie erscheint. E-Mail
+  ist ein zweiter, unabhängig wiederholter Kanal desselben Schreibvorgangs,
+  weshalb der eine fehlschlagen kann - eine unzustellbare Adresse, ein
+  ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
@@ -1640,6 +1652,9 @@ Anfragen zum Teilen einer Seite und Besitzerwechsel nennen die Seite und die Per
 
 Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
+
+Ein `eval`-Run ist einer von vielen gemeinsam gemeldeten Runs einer Evaluation; er sendet keine einzelne Abschluss- oder Fehlermeldung.
+
 unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
 benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
 hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, Vorschläge,
@@ -1693,7 +1708,7 @@ bei jedem weiteren Ereignis neu zu schreiben, also genau die Flut, die die
 Grenze verhindern soll.
 
 Eine Zeile fällt neunzig Tage nach dem Schreiben aus dem Postfach, wenn sie
-*gelesen* ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
+_gelesen_ ist, und ein Jahr danach unabhängig davon, ob sie je geöffnet
 wurde - beides gezählt ab dem Schreiben, nie ab dem Lesen, sodass eine am Tag
 vor ihrer oberen Grenze geöffnete Zeile mit jeder anderen so alten
 zusammen verschwindet. Ein Sweep im Hintergrund, den niemand auslöst. Der
@@ -1723,11 +1738,11 @@ Alerts**. Ein deploymentweites Publikum machte den lauten Agent und den, den
 niemand verpassen darf, zu derselben Einstellung, sodass der einzige Weg, den
 ersten leiser zu stellen, war, für den zweiten taub zu werden.
 
-| Alert | Löst aus, wenn | Voreingestelltes Publikum |
-|---|---|---|
-| **Budget** | dieser Agent sein eigenes monatliches Cap erreicht hat | die Admins und der Besitzer des Agents |
-| **Freigaben** | ein Tool-Aufruf geparkt hat | wer den Run gestartet hat, plus die Admins |
-| **Nutzung** | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus |
+| Alert         | Löst aus, wenn                                             | Voreingestelltes Publikum                  |
+| ------------- | ---------------------------------------------------------- | ------------------------------------------ |
+| **Budget**    | dieser Agent sein eigenes monatliches Cap erreicht hat     | die Admins und der Besitzer des Agents     |
+| **Freigaben** | ein Tool-Aufruf geparkt hat                                | wer den Run gestartet hat, plus die Admins |
+| **Nutzung**   | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus                                        |
 
 Das Log eines Workflows hat eigene Alerts, die auf der Logs-Seite des Workflows gesetzt
 werden statt in einer Spec; siehe [Alerts](workflows.md#log-alerts). Sie lösen aus, wenn
@@ -1738,12 +1753,12 @@ dieselben Glocken- und E-Mail-Einstellungen wie im Rest dieses Abschnitts, unter
 
 Ein Publikum ist eine Liste von Rollen, nicht von Adressen:
 
-| Publikum | Löst sich auf zu |
-|---|---|
-| `admins` | die Owner und Admins der Organisation, **plus die App-Admins des Deployments** |
-| `owner` | der Besitzer des Agents |
+| Publikum    | Löst sich auf zu                                                                 |
+| ----------- | -------------------------------------------------------------------------------- |
+| `admins`    | die Owner und Admins der Organisation, **plus die App-Admins des Deployments**   |
+| `owner`     | der Besitzer des Agents                                                          |
 | `initiator` | wer den Run gestartet hat; niemand, bei einem Run, den ein Zeitplan begonnen hat |
-| `chosen` | genau die daneben benannten Mitglieder |
+| `chosen`    | genau die daneben benannten Mitglieder                                           |
 
 Rollen statt Adressen, weil ein Spec in das Repository eines Kunden exportiert
 wird und die Menschen darin überlebt: `admins` bedeutet nach einer Umstrukturierung
@@ -1755,10 +1770,10 @@ Id sich nicht mehr auflöst.
 ### Ein Alert verlinkt dorthin, wo die Entscheidung ist { #an-alert-links-to-where-the-decision-is }
 
 **Freigabe-Post öffnet die Queue** — `/runs?tab=approvals`, den Approvals-Tab von
-Activity, die einzige Oberfläche, die Approve und Reject trägt. Früher öffnete sie
+**Aktivität** (Activity), die einzige Oberfläche, die Approve und Reject trägt. Früher öffnete sie
 `/agents/{id}`, den Builder: ein Satz Prosa darüber, dass Tool-Aufrufe eine Queue
 erreichen, und keine Queue. Also landete die eine E-Mail, deren ganzer Zweck
-*jemand muss jetzt entscheiden* ist, eine Suche von der Entscheidung entfernt,
+_jemand muss jetzt entscheiden_ ist, eine Suche von der Entscheidung entfernt,
 während der geparkte Run auf `ApprovalService.expire_stale` zualterte (#935).
 Für den Tab gab es keine URL, bis #934 sie in `?tab=` legte.
 
@@ -1777,15 +1792,15 @@ Publikum für einen geparkten Aufruf schließt ein, wer den Run gestartet hat, u
 ein Builder, der seinen eigenen Agent aus dem Chat startet, ist der gewöhnliche
 Initiator — der Alert erreichte also regelmäßig jemanden, den die Plattform
 ablehnen würde. Sie bekamen **„waiting on your approval"** mit einer Schaltfläche
-**Review the request**, folgten ihr, und Activity zeichnete überhaupt keinen
+**Review the request**, folgten ihr, und **Aktivität** (Activity) zeichnete überhaupt keinen
 Approvals-Tab: Die Ablehnung kam als abwesender Tab an statt als Satz.
 
 Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitten:
 
-| Empfänger hält | Bekommt |
-|---|---|
-| `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| irgendetwas Geringeres | die *Tatsache*: Der Run ist angehalten, nicht gescheitert, ihn freizugeben ist Sache eines Owners, Admins oder Operators, und von ihnen wird nichts verlangt |
+| Empfänger hält         | Bekommt                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `approvals:decide`     | die Anfrage, mit dem Link zur Queue                                                                                                                          |
+| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, ihn freizugeben ist Sache eines Owners, Admins oder Operators, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum
@@ -1813,7 +1828,7 @@ Die Konsole handelt in derjenigen Organisation, die der Leser zuletzt benutzt ha
 Auswahl. Jede Alert-URL trug früher keine, sodass jemand in zwei Organisationen,
 der zuletzt in Globex gearbeitet hatte, den Freigabe-Alert für einen Run in Acme
 öffnete und **Globex'** Queue las — sehr wahrscheinlich leer, und zu lesen als
-*es wartet nichts* über einen Run, der geparkt ist und auf
+_es wartet nichts_ über einen Run, der geparkt ist und auf
 `ApprovalService.expire_stale` zualtert. Die Agent-Links waren leiser falsch:
 `/agents/{id}` unter der falschen Organisation ist eine Ablehnung für einen Agent,
 den der Leser wirklich sehen kann, einen Wechsel entfernt.
@@ -1822,7 +1837,7 @@ Also trägt jeder Link `org=<id>`, an einer Stelle gebaut —
 `NotificationService._link`, das den Trenner aus dem Pfad wählt, weil der
 Freigabe-Link bereits `?tab=approvals` trägt — statt an jeder der vier
 Aufrufstellen, und die Konsole übernimmt sie genau so, wie sie die Id in
-`/orgs/{id}` übernimmt: Eine Seite, die eine Organisation nennt, *ist* diese
+`/orgs/{id}` übernimmt: Eine Seite, die eine Organisation nennt, _ist_ diese
 Organisation. Die Übernahme ist ein Layout-Effekt in `ActiveOrgGuard`, vor dem
 Zurücksetzen des Tenant-Caches und vor den eigenen Abfragen der Seite, sodass die
 erste Anfrage der Seite bereits den richtigen Tenant trägt. Der Pfad steht über
@@ -1863,6 +1878,79 @@ beide Zahlen sehen maßgeblich aus.
 
 Das Senden blockiert nie und löst nie in den Aufrufer hinein aus: Ein Run, der
 bereits geendet hat, darf nicht noch einmal scheitern, weil SMTP ausgefallen war.
+
+## KI-Unterstützung { #ai-assistance }
+
+Ein Schalter auf dem Tab **Budget und Freigaben** der Organisationsseite
+entscheidet, ob Modelle die Evals und das Authoring der Organisation
+unterstützen: den Eval-Judge, der [Dataset-Scores](datasets.md#judge) bewertet,
+den Entwerfer, der den Inhalt schreibt, der einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und den
+Fall-Generator und den Authoring-Assistenten, die nach ihnen kommen. Er ist
+standardmäßig aus, für eine Organisation, die es vor dem Schalter gab, wie für
+eine neue: Ob Modelle bewerten und entwerfen, entscheidet die Organisation, und
+wer `org:settings` hat, schaltet ihn ein. Jede Änderung wird im
+[Audit-Trail](#audit) als `organization.ai_assistance` festgehalten, mit dem,
+der sie vorgenommen hat.
+
+Ist er aus, lehnt der Service, der einen solchen Run starten würde, ihn ab,
+gleich welcher Client fragt - ein ausgeblendetes Bedienelement ist nicht die
+Grenze. Das Scoring führt weiterhin seine regelbasierten Prüfungen und den
+Abgleich der Tool-Aufrufe aus, hält die Kriterien des Judge mit der Begründung
+als übersprungen fest und lässt einen Fall, dessen Judge erforderlich war,
+unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
+
+**Bewertungsmodell**, neben dem Schalter, ist das Modell, mit dem neue Bewerter
+bewerten. Ein Bewerter, der schwächer ist als der Agent, den er bewertet, liest
+Antworten falsch, die der Agent richtig hatte. Ist keines gewählt, nimmt ein
+neuer Bewerter daher das günstigste Chat-Modell der Organisation, das beim
+Schreiben mehr kostet als das des Agents - des Entwurfs oder der
+veröffentlichten Version, je nachdem, welches mehr kostet -, und ohne ein
+solches Modell oder ohne Preis zum Vergleich wie bisher das erste andere Modell
+der Organisation. Es gilt für Bewerter, die ab dann angelegt werden, etwa den des
+ersten Testsets eines Agents; ein bestehender Bewerter behält sein Modell, da
+eine gespeicherte Bewertung meint, was dieses Modell bewertet hat. Jede Änderung
+wird als `organization.grading_model` festgehalten.
+
+Diese Funktionen laufen als [Bewerter](concepts.md#system-agents). Jeder Run
+ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
+Monatsbudget des Bewerters und das der Organisation geprüft, seine Kosten werden
+aufgezeichnet, und er wird in **Aktivität** (Activity) unter der Oberfläche `eval` aufgeführt.
+Ein Bewerter startet mit einem eigenen Budget - 5 $ im Monat -, das sich wie das
+jedes Agents ändern lässt.
+
+Der [Authoring-Assistent](authoring.md) ist auf dieselbe Weise ein System-Agent,
+mit einem eigenen Budget von 5 $. Auf dem Dashboard wird, was er kostet, getrennt
+von den Evals ausgewiesen, als Ausgabe für Verbesserungen. Ebenso, was der
+Klassifizierer und der Entwerfer für [Wissenslücken](knowledge-gaps.md) kosten:
+Sie füllen, was einer Wissensbasis fehlt, statt einen Agent zu messen. Der Judge
+und der Fall-Generator bleiben bei den Evals.
+
+Ein Bewerter wird nie bereitgestellt: Kein Kanal, kein Embed, keine
+öffentliche Seite und kein Zeitplan lassen sich an ihn hängen, kein Agent kann
+an ihn delegieren, und ein Run auf einer anderen Oberfläche als `eval` wird
+abgelehnt. Seine Ausgaben entstehen daher nur durch die Funktionen oben.
+
+## Übergangene Promotionen { #promotion-overrides }
+
+Eine Umgebung, die von [Eval-Suites bewacht](environments.md#guarding-a-promotion-with-evals)
+wird, übernimmt eine Version erst, wenn sie auf ihr bestehen. An ihnen vorbei zu
+promoten ist ein **Übergehen**: Es braucht `promotions:override` - Owner und
+Admins haben es, und eine eigene Rolle kann es bekommen - von einer Person, die
+als sie selbst angemeldet ist, nicht von einem API-Schlüssel oder einem
+Administrator, der sie imitiert, und eine Begründung von mindestens zehn
+Zeichen. Es wird im [Audit-Trail](#audit) als
+`agent.environment_promotion_overridden` verzeichnet, mit der Begründung und
+dem Ergebnis jedes Wächters, an der Version in der Historie gezeigt und an den
+Eigentümer jedes nicht bestandenen Wächters geschickt.
+
+Zu ändern, welche Suites eine Umgebung bewachen, die Festlegung eines Wächters
+zu verschieben oder abzuschwächen, was ein Wächter prüft, braucht dieselbe
+Berechtigung; jede dieser Änderungen, und eine strengere Schwelle, wird als
+`agent.environment_guards_changed` verzeichnet. Eine Änderung an der Bewertung
+eines Datasets wird als `dataset.scoring_changed` verzeichnet, mit den Namen
+der geänderten Teile statt ihrem Inhalt, das Anlegen seines Judges als
+`dataset.judge_created`.
 
 ## Audit { #audit }
 
@@ -1952,7 +2040,7 @@ dieselbe Session, wenn der Administrator sie beendet, mit dem Administrator als
 Akteur. Ein Ablauf schreibt nichts, denn niemand hat gehandelt — und ebenso wenig
 die Person, die sich überall abmeldet, was eine Impersonierung über
 `DELETE /sessions` so beendet, wie es jede andere Session beendet. Ob es der
-Person *gesagt* wird, ist die Deployment-Einstellung `notify_impersonated_users`
+Person _gesagt_ wird, ist die Deployment-Einstellung `notify_impersonated_users`
 ([Das Deployment](deployment.md#acting-as-another-account)); ist sie aus, was die
 Voreinstellung ist, ist diese Spur der einzige Datensatz.
 
@@ -2015,15 +2103,15 @@ Ort für die Fristen je Tenant.
 
 ### Die Klassen { #the-classes }
 
-| Klasse | Was mitgeht | Gemessen ab |
-|---|---|---|
-| Gespräche | Nachrichten, Tool-Aufrufe und Dateien; eine gesperrte Charge lässt Gespräche mit nicht abgeschlossenen Runs aus, und ein dauerhafter Auftrag zur Dateilöschung wird zusammen mit den Zeilen bestätigt | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
-| Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
-| Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung |
-| Apps | Eine [veröffentlichte Seite](artifacts.md), alle Versionen, Grants und der öffentliche Link; die Dateilöschung wird in derselben Transaktion eingereiht | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
-| Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
-| Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
-| Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |
+| Klasse                 | Was mitgeht                                                                                                                                                                                                                              | Gemessen ab                                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Gespräche              | Nachrichten, Tool-Aufrufe und Dateien; eine gesperrte Charge lässt Gespräche mit nicht abgeschlossenen Runs aus, und ein dauerhafter Auftrag zur Dateilöschung wird zusammen mit den Zeilen bestätigt                                    | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist            |
+| Runs                   | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben                                                                                                                                                                                      | Dem Start des Runs                                                                                  |
+| Workspaces             | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend _ist_ die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung                                                                                 |
+| Apps                   | Eine [veröffentlichte Seite](artifacts.md), alle Versionen, Grants und der öffentliche Link; die Dateilöschung wird in derselben Transaktion eingereiht                                                                                  | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
+| Gedächtnis             | Die Gedächtnisdateien eines Agenten                                                                                                                                                                                                      | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen               |
+| Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei                                                                                                                                                                                      | Dem Zeitpunkt des Hochladens                                                                        |
+| Audit                  | Einträge auf der Spur dieser Organisation                                                                                                                                                                                                | Dem Zeitpunkt des Eintrags                                                                          |
 
 **Ein Dokument, das noch eingelesen wird, ebenfalls nicht.** Ein Worker hält es,
 und ihm Zeile und hochgeladenes Original unter einer Ingestion wegzunehmen, die
@@ -2150,6 +2238,8 @@ Es ist wert, gesagt zu werden, weil eine Governance-Seite anderes nahelegt:
 - **Stille bedeutet etwas.** Ein Alert, der nicht ankam, heißt, dass die Sache
   nicht passiert ist, und das stimmt nur, weil hier nichts nach bestem Bemühen
   läuft.
+- **Eine Promotion an ihren Evals vorbei ist ein Übergehen**, mit Begründung,
+  eigener Berechtigung und einem Eintrag an der Version.
 
 ## Referenz { #reference }
 

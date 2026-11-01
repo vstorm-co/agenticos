@@ -57,10 +57,12 @@ class ArtifactsConfig(BaseModel):
             description=(
                 "Read a published app's source across conversations and sandboxes before updating it."
             ),
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="list_artifacts",
             description="List the pages this agent published that this run may open, newest first.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="preview_artifact",
@@ -68,6 +70,7 @@ class ArtifactsConfig(BaseModel):
                 "See a page you published as somebody opening it would: a picture, and what "
                 "went wrong."
             ),
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="share_artifact",

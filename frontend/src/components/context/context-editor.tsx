@@ -7,6 +7,7 @@ import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/c
 import { FileEditor } from "@/components/files";
 import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
+import { ImproveContextButton } from "@/components/authoring/improve-skill-button";
 import { displayName } from "@/components/context/file-name";
 import type { ContextEdit } from "@/hooks/use-context";
 import type { ContextFile } from "@/types/providers";
@@ -105,6 +106,7 @@ export function ContextEditor({
             name={file.name}
             canManage={canEdit}
           />
+          {canEdit && <ImproveContextButton contextId={file.id} unsaved={changed} />}
           {canEdit && onDelete && (
             <ResourceActions name={file.name} onDelete={onDelete} disabled={isSaving} />
           )}

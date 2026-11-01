@@ -1,7 +1,7 @@
 """Tests for the generated sharing routes.
 
 The five sharing endpoints exist once per resource type - agents, collections,
-skills, context files, vault secrets, artifacts - generated from one definition.
+skills, context files, vault secrets, artifacts, datasets - generated from one definition.
 What is worth testing is the generation itself: that each type really gets all
 five, that they are wired to the right resource type, and that a row from
 another organization is refused before the sharing service is ever reached.
@@ -17,6 +17,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_artifact,
     load_collection,
     load_context,
+    load_dataset,
     load_mcp_connection,
     load_project,
     load_secret,
@@ -29,6 +30,7 @@ from app.api.routes.v1.sharing import (
     artifact_sharing_router,
     collection_sharing_router,
     context_sharing_router,
+    dataset_sharing_router,
     mcp_connection_sharing_router,
     project_sharing_router,
     secret_sharing_router,
@@ -49,6 +51,7 @@ ROUTERS = (
     ("tables", table_sharing_router),
     ("workflows", workflow_sharing_router),
     ("artifacts", artifact_sharing_router),
+    ("datasets", dataset_sharing_router),
     ("mcp-connections", mcp_connection_sharing_router),
     ("projects", project_sharing_router),
 )
@@ -59,6 +62,7 @@ LOADERS = (
     ("skill", load_skill, "Skill not found", "skill_id"),
     ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
+    ("dataset", load_dataset, "Dataset not found", "dataset_id"),
     ("table", load_table, "Table not found", "table_id"),
     ("workflow", load_workflow, "Workflow not found", "workflow_id"),
     ("mcp_connection", load_mcp_connection, "MCP connection not found", "connection_id"),

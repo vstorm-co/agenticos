@@ -43,7 +43,7 @@ from app.repositories import background_worker as worker_repo
 from app.repositories.background_job import ClaimedJob, FailOutcome
 from app.worker.attempt import Attempt
 from app.worker.executors import Died, Executor, Failed, Outcome, Slot, Succeeded
-from app.worker.jobs import Pool, TaskKind
+from app.worker.jobs import Pool, SettleLater, TaskKind
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +271,10 @@ class Worker:
                     return
                 await self.on_ended(kind, payload, why)
                 await job_repo.mark_settled(db, job_id)
+        except SettleLater as later:
+            logger.warning(
+                "background_job_end_deferred", extra={"job_id": str(job_id), "reason": str(later)}
+            )
         except Exception:
             logger.exception("background_job_end_unsettled", extra={"job_id": str(job_id)})
 

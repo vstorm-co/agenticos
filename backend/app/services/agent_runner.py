@@ -59,7 +59,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -139,7 +139,12 @@ from app.agents.capabilities.channel_tools import (
     ChannelDirectory,
 )
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID
-from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
+from app.agents.capabilities.context import (
+    CONTEXT_BODIES_RESOURCE,
+    CONTEXT_FILES_RESOURCE,
+    ContextBody,
+    context_config,
+)
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
@@ -147,6 +152,7 @@ from app.agents.capabilities.guardrails import (
     input_screen,
     output_screen,
 )
+from app.agents.capabilities.knowledge import KNOWLEDGE_SEARCH_LOG_RESOURCE, KnowledgeSearchLog
 from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
@@ -164,6 +170,7 @@ from app.agents.capabilities.sandbox import (
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+from app.agents.capabilities.skills import SKILL_BODIES_RESOURCE, SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig, acting_delegate
 from app.agents.capabilities.tool_output_limits import SPILL_LOG_RESOURCE
 from app.agents.connect_on_use import (
@@ -177,6 +184,15 @@ from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import AgentOutput, BuiltAgent, answer_text, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.hand_off import CallWorker, HandOffSpend
+from app.agents.isolation import (
+    CallRow,
+    RunIsolation,
+    RunKnowledge,
+    ToolClass,
+    ToolRecording,
+    capability_tools,
+    recorded_calls,
+)
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
 from app.agents.mcp import PLATFORM_MCP_PREFIX, unreachable_briefing
@@ -213,6 +229,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.agents.system_agents import for_the_platform, refuse_system_agent, searches
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.core.audit import current_impersonator, record_audit
 from app.core.config import settings
@@ -228,12 +245,16 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.update_gate import require_admission
-from app.db.models.agent import Agent, AgentStatus
+from app.db.locks import LockScope, try_hold_subject
+from app.db.models.agent import Agent, AgentKind, AgentStatus
+from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.credential import ModelProfile
+from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
 from app.db.models.skill import Skill
@@ -249,7 +270,9 @@ from app.repositories import (
     conversation_share_repo,
     external_agent_repo,
     group_repo,
+    intercepted_tool_call_repo,
     knowledge_base_repo,
+    knowledge_gap_repo,
     member_repo,
     message_rating_repo,
     organization_repo,
@@ -260,12 +283,14 @@ from app.repositories import (
 from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.schemas.agent_run import RunOriginRead
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
+    Candidate,
     delegation_binding,
     models_a_run_reaches,
 )
@@ -297,6 +322,7 @@ from app.services.channels.formatting import (
 )
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
+from app.services.collection_access import readable_kb
 from app.services.context import ContextService
 from app.services.conversation import ConversationService
 from app.services.device_hub import LocalTarget
@@ -318,6 +344,7 @@ from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
+from app.services.rag.overlay import with_overlay
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
@@ -344,6 +371,23 @@ if TYPE_CHECKING:
     from pydantic_ai_harness.planning import PlanStore
 
 logger = logging.getLogger(__name__)
+
+_PREVIEW_CHARS = 80
+
+_ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
+    AgentKind.JUDGE.value: "grader",
+    AgentKind.IMPROVER.value: "improve",
+    AgentKind.CLASSIFIER.value: "knowledge_gaps",
+    AgentKind.DRAFTER.value: "knowledge_gaps",
+    AgentKind.GENERATOR.value: "test_questions",
+}
+
+
+def _preview(text: str) -> str:
+    """A question as one line of a list: whitespace folded, cut at 80 characters."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= _PREVIEW_CHARS else f"{flat[: _PREVIEW_CHARS - 1].rstrip()}…"
+
 
 _DELEGATION_RUN_STATUS: Mapping[DelegationStatus, RunStatus] = {
     "completed": RunStatus.COMPLETED,
@@ -407,6 +451,59 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     if spec.observability and spec.observability.token_secret_id:
         ids.append(spec.observability.token_secret_id)
     return ids
+
+
+@dataclass(frozen=True)
+class _TestConnections:
+    """What the run's environment answers with test systems instead.
+
+    Both maps are keyed by the id a spec names. A value of `None` is a binding
+    whose test side was deleted: it is off in this environment, never answered
+    by the production side.
+    """
+
+    mcp: Mapping[UUID, UUID | None] = field(default_factory=dict)
+    secrets: Mapping[UUID, UUID | None] = field(default_factory=dict)
+
+
+def _with_test_secrets(
+    spec: AgentSpec, overrides: Mapping[UUID, UUID | None]
+) -> tuple[AgentSpec, frozenset[str]]:
+    """The spec with each overridden capability secret pointing at its test one,
+    and the ids of the bindings that were swapped.
+
+    Swapped on the spec rather than at unsealing, so the one resolver that
+    yields plaintext stays the only one and the capability never learns it was
+    handed a test key. The swapped bindings are named rather than recognised by
+    their new secret afterwards: a binding that holds that test key in its own
+    right was never swapped. A disabled binding builds nothing, so it is left
+    alone - and never refused for a test key it would not use.
+
+    Raises:
+        BadRequestError: If an override's test secret was deleted. The
+            capability cannot run without a key, and the production one is the
+            key this environment exists to keep it away from.
+    """
+    capabilities: list[CapabilityBindingSpec] = []
+    swapped: set[str] = set()
+    for binding in spec.capabilities:
+        if not binding.enabled or binding.secret_id is None or binding.secret_id not in overrides:
+            capabilities.append(binding)
+            continue
+        test_id = overrides[binding.secret_id]
+        if test_id is None:
+            raise BadRequestError(
+                message=(
+                    f"The test key this environment uses for capability '{binding.id}' was "
+                    "deleted. Choose another one in the environment, or remove the override."
+                ),
+                details={"capability_id": binding.id},
+            )
+        capabilities.append(binding.model_copy(update={"secret_id": test_id}))
+        swapped.add(binding.id)
+    if not swapped:
+        return spec, frozenset()
+    return spec.model_copy(update={"capabilities": capabilities}), frozenset(swapped)
 
 
 def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
@@ -1432,6 +1529,8 @@ class PreparedRun:
     user the same.
     """
 
+    knowledge_searches: KnowledgeSearchLog | None = None
+    """The knowledge searches the run and its delegates made, waiting for `finish`."""
     delegate_recorders: list[tuple[UUID, RunRecorder]] = field(default_factory=list)
     """Each delegate's agent id and request recording, so `finish` can count the
     cache busts it hit on the row that answers for that agent - a delegate's agent
@@ -1517,6 +1616,11 @@ class PreparedRun:
     failed open on the path where somebody had said no (#1326).
     """
 
+    isolation: RunIsolation | None = None
+    """How this run treats its tools when it is isolated - an eval - and what it
+    held back, for :meth:`AgentRunnerService.finish` to write. `None` is every
+    other run, whose tools act on the world."""
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -1561,6 +1665,7 @@ class PreparedRun:
         with (
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
+            with_overlay(None if self.isolation is None else self.isolation.knowledge_overlay),
             acting_for_no_person(self.built.deps.run_person is None),
             acting_impersonated(self.built.deps.impersonated),
         ):
@@ -1613,6 +1718,7 @@ class PreparedRun:
         with (
             guarded_by(self.built.budget),
             metered_by(self.built.ledger),
+            with_overlay(None if self.isolation is None else self.isolation.knowledge_overlay),
             acting_for_no_person(self.built.deps.run_person is None),
             acting_impersonated(self.built.deps.impersonated),
         ):
@@ -1946,10 +2052,40 @@ _DEFERRED_SKILLS_BRIEFING = (
 Said before the writes can have succeeded, so it does not claim they did."""
 
 
+def _add_collection(names: list[str], scopes: dict[str, VectorScope], base: KnowledgeBase) -> None:
+    """Add a base to the collections an agent searches, merging one that shares a name.
+
+    Bases that passed the organization check share a vector tenant, so two with
+    one collection name are read as a union without widening to their siblings.
+    """
+    name = base.collection_name
+    if previous := scopes.get(name):
+        scopes[name] = replace(
+            previous,
+            additional_knowledge_base_ids=(*previous.additional_knowledge_base_ids, base.id),
+        )
+    else:
+        names.append(name)
+        scopes[name] = base.vector_scope
+
+
+def _searched_bases(resources: Mapping[str, Any]) -> dict[str, tuple[UUID, ...]]:
+    """Each bound collection name, to the knowledge bases a search of it reads."""
+    return {
+        name: tuple(
+            base_id
+            for base_id in (scope.knowledge_base_id, *scope.additional_knowledge_base_ids)
+            if base_id is not None
+        )
+        for name, scope in resources["kb_vector_scopes"].items()
+    }
+
+
 def _start_turn_on_first_use(
     workspace: RecordingWorkspace,
     prepared: PreparedRun,
     skills: list[Skill],
+    bodies: Mapping[UUID, SkillBody],
     *,
     earlier: EarlierAttachments | None = None,
     can_parse: bool = False,
@@ -1966,7 +2102,7 @@ def _start_turn_on_first_use(
     """
 
     async def start() -> None:
-        prepared.materialised_skills = await materialise_skills(workspace, skills)
+        prepared.materialised_skills = await materialise_skills(workspace, skills, bodies)
         if earlier is not None:
             await restore_earlier_attachments(workspace, earlier, can_parse=can_parse)
         prepared.earlier_attachments_checked = checked_earlier
@@ -2444,6 +2580,11 @@ class _Delegation:
     """One stash for the whole tree, because a delegation three levels down parks
     the run somebody started and is continued from that run's stored state."""
 
+    test_connections: _TestConnections
+    """The run's environment overrides, which every level of the tree honours."""
+
+    isolation: RunIsolation | None
+    """The run's isolation, when it is an eval, which every level of the tree is under."""
     output_screen: ScreenedStream | None = None
     """The run's own output check, for what every level of the tree streams."""
 
@@ -2513,6 +2654,7 @@ def _delegate_builder(
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
     extra_toolsets: list[AbstractToolset[Any]],
+    test_bindings: frozenset[str] = frozenset(),
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
@@ -2556,6 +2698,8 @@ def _delegate_builder(
             # delegate meters nothing the parent can see, and the parent's cap
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
+            isolation=delegation.isolation,
+            test_bindings=test_bindings,
             answering_call=delegation.answering_call,
         )
         # Kept so `finish` counts its cache busts on the row of the agent that hit them.
@@ -2941,20 +3085,31 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            name = collection.collection_name
-            if previous := scopes.get(name):
-                # Both bases passed the organization check above, so they share
-                # a vector tenant. Read their union without widening to siblings.
-                scopes[name] = replace(
-                    previous,
-                    additional_knowledge_base_ids=(
-                        *previous.additional_knowledge_base_ids,
-                        collection.id,
-                    ),
-                )
-            else:
-                names.append(name)
-                scopes[name] = collection.vector_scope
+            _add_collection(names, scopes, collection)
+        return {"kb_collection_names": names, "kb_vector_scopes": scopes}
+
+    async def _run_collections(
+        self, ctx: AuthContext, spec: AgentSpec, knowledge: RunKnowledge | None
+    ) -> dict[str, Any]:
+        """The knowledge bases a system agent searches on this run, as `_bound_collections` names them.
+
+        Picked by whoever started the run rather than bound in the spec, and
+        only those the person the run is for may read: what it finds is shown to
+        the readers of what it answers.
+        """
+        names: list[str] = []
+        scopes: dict[str, VectorScope] = {}
+        if knowledge is None or not searches(spec):
+            return {"kb_collection_names": names, "kb_vector_scopes": scopes}
+        found = await knowledge_base_repo.get_by_ids(self.db, list(knowledge.knowledge_base_ids))
+        for base_id in knowledge.knowledge_base_ids:
+            base = found.get(base_id)
+            if (
+                base is not None
+                and base.organization_id == ctx.organization_id
+                and await readable_kb(self.db, ctx, base)
+            ):
+                _add_collection(names, scopes, base)
         return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
@@ -3010,6 +3165,8 @@ class AgentRunnerService:
         output_schema: dict[str, Any] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
         voice: VoiceRun | None = None,
@@ -3078,6 +3235,16 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            isolation: Run isolated, as an eval does: only reads and calls to the
+                environment's test connections execute, everything else is held
+                and recorded, and a recording - when given - answers calls
+                instead. See :mod:`app.agents.isolation`.
+            candidate: Run this instead of the version the environment pins -
+                how an eval runs a given version, or a draft. The environment
+                then supplies only the connections and the tracing. An
+                unpublished candidate is validated against the caller's access
+                and the run is attributed to no version, so a draft's answers
+                never count as a published version's.
             public_origin: An outsider supplied this run's input - a delivery
                 fired an event trigger, or a workflow admitted by an external door
                 runs the agent - so nobody is behind it, whoever `ctx` names.
@@ -3111,6 +3278,7 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
+        version_id: UUID | None
         test_spec: dict[str, Any] | None = None
         if draft:
             if effective_environment_id is not None:
@@ -3121,16 +3289,22 @@ class AgentRunnerService:
             agent, spec = await self.registry.get_draft_spec(ctx, agent_id)
             version_id = None
             test_spec = spec.model_dump(mode="json")
-        elif version_id is not None:
+        elif candidate is None and version_id is not None:
             agent, spec, version_id = await self.registry.get_pinned_spec(ctx, agent_id, version_id)
-        else:
+        elif candidate is None:
             agent, spec, version_id = await self.registry.get_runnable_spec(
                 ctx, agent_id, environment_id=effective_environment_id
+            )
+        else:
+            agent, spec, version_id = await self.registry.get_candidate_spec(
+                ctx, agent_id, candidate, environment_id=effective_environment_id
             )
         if source_run is not None:
             _, spec = await self._parked_spec(ctx, source_run)
             version_id = source_run.agent_version_id
             test_spec = source_run.test_spec
+        skill_bodies = {} if candidate is None else candidate.skill_bodies
+        context_bodies = {} if candidate is None else candidate.context_bodies
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -3168,6 +3342,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            isolation=isolation,
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
             voice=voice,
@@ -3176,6 +3351,8 @@ class AgentRunnerService:
             person_time_zone=person_time_zone,
             is_test=test or draft,
             test_spec=test_spec,
+            skill_bodies=skill_bodies,
+            context_bodies=context_bodies,
         )
         prepared.output_schema = output_schema
         prepared.run_limit_usd = run_limit_usd
@@ -3306,6 +3483,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        isolation: RunIsolation | None = None,
         run_limit_usd: Decimal | None = None,
         public_origin: bool = False,
         impersonated: bool = False,
@@ -3313,6 +3491,8 @@ class AgentRunnerService:
         person_time_zone: str | None = None,
         is_test: bool = False,
         test_spec: dict[str, Any] | None = None,
+        skill_bodies: Mapping[UUID, SkillBody] | None = None,
+        context_bodies: Mapping[UUID, ContextBody] | None = None,
         on_sandbox_wait: SandboxWaitSink | None = None,
         channel_file_attempts: int = 0,
         restored_channel_context: str = "",
@@ -3348,6 +3528,13 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        # A system agent runs only through the system agent runner, on the eval
+        # surface - here, so a resumed run and every fresh surface are held to it.
+        if surface != RunSurface.EVAL:
+            refuse_system_agent(agent, action=f"a {surface.value} run")
+        system = agent.kind != AgentKind.AGENT.value
+        if system:
+            spec = for_the_platform(spec)
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec), local
         )
@@ -3426,12 +3613,31 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
+        knowledge = None if isolation is None else isolation.knowledge
+        bound = (
+            await self._run_collections(ctx, spec, knowledge)
+            if system
+            else await self._bound_collections(spec, ctx)
+        )
+        search_log = KnowledgeSearchLog(
+            agent_id=agent.id,
+            collections=_searched_bases(bound),
+            found=None if knowledge is None else knowledge.found,
+        )
         resources: dict[str, Any] = {
-            **await self._bound_collections(spec, ctx),
-            "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
-            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
-                ctx, spec.context_ids, config=context_config(spec.capabilities)
+            **bound,
+            KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
+            "skills": await self.skills.resolve_for_agent(
+                ctx, spec.skill_ids, projected=skill_bodies
             ),
+            CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
+                ctx,
+                spec.context_ids,
+                projected=context_bodies,
+                config=context_config(spec.capabilities),
+            ),
+            SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
+            CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -3474,6 +3680,16 @@ class AgentRunnerService:
             resources[BROWSER_STEP_MODEL_RESOURCE] = (
                 await self.models.resolve(models_ctx, profile_id=step_profile)
             ).build()
+        # Read off the run on a resume, so a continuation reaches the systems
+        # the run began on.
+        test_connections = await self._test_connections(
+            ctx,
+            environment_id=(
+                existing_run.environment_id if existing_run is not None else environment_id
+            ),
+        )
+        spec, test_bindings = _with_test_secrets(spec, test_connections.secrets)
+
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
         # `resources` deliberately: a resource may end up in a log line and a
@@ -3548,6 +3764,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
+            test_connections=test_connections.mcp,
             platform_credential=await self._platform_credential(
                 spec, ctx, existing_run, agent_id=agent.id
             ),
@@ -3579,11 +3796,11 @@ class AgentRunnerService:
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
-                # A draft under test has no version; naming the current one
-                # would credit its answers to something it did not run.
-                agent_version_id=(
-                    None if test_spec is not None else version_id or agent.current_version_id
-                ),
+                # A draft under test, or an unpublished candidate, has no version;
+                # naming the current one would credit its answers to something it
+                # did not run.
+                agent_version_id=version_id,
+                improvement_run_id=isolation.improvement_run_id if isolation else None,
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 key_scopes=(
@@ -3847,7 +4064,9 @@ class AgentRunnerService:
                 if resources["skills"]:
                     spec = _with_skills_briefing(spec, deferred=True)
             else:
-                materialised = await materialise_skills(workspace.workspace, resources["skills"])
+                materialised = await materialise_skills(
+                    workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                )
                 if materialised.written:
                     spec = _with_skills_briefing(spec)
                 if earlier is not None:
@@ -3903,6 +4122,8 @@ class AgentRunnerService:
             delegations=delegations,
             delegate_recorders=delegate_recorders,
             stash=stash,
+            test_connections=test_connections,
+            isolation=isolation,
             answering_call=None if voice is None else voice.options,
         )
         if runtime is not None:
@@ -4064,6 +4285,8 @@ class AgentRunnerService:
             # advanced, so it counts across turns rather than resetting each one.
             recorded_overhead=recorded.overhead,
             recorded_reminder_state=recorded.reminder_state,
+            isolation=isolation,
+            test_bindings=test_bindings,
             voice=None if voice is None else voice.options,
         )
 
@@ -4116,6 +4339,7 @@ class AgentRunnerService:
                 if isinstance(gap, UnavailablePersonalService)
             ],
             delegations=delegations,
+            knowledge_searches=search_log,
             delegate_recorders=delegate_recorders,
             stash=stash,
             ctx=ctx,
@@ -4134,6 +4358,7 @@ class AgentRunnerService:
                 public_origin=public_origin,
                 impersonated=impersonated,
             ),
+            isolation=isolation,
         )
         if channel_directory is not None:
             built.deps.send_channel_file = channel_file_sender(
@@ -4146,6 +4371,7 @@ class AgentRunnerService:
                 workspace.workspace,
                 prepared,
                 resources["skills"],
+                resources[SKILL_BODIES_RESOURCE],
                 earlier=earlier,
                 can_parse=workspace.parses_documents,
                 checked_earlier=checked_earlier,
@@ -4172,6 +4398,8 @@ class AgentRunnerService:
         delegations: list[RecordedDelegation],
         delegate_recorders: list[tuple[UUID, RunRecorder]],
         stash: DelegationStash,
+        test_connections: _TestConnections,
+        isolation: RunIsolation | None,
         answering_call: VoiceOptions | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
@@ -4201,6 +4429,12 @@ class AgentRunnerService:
                 continuation finds one. Given to every level of the tree, because
                 the run being continued is the one somebody started however deep
                 the delegation that parked it was.
+            test_connections: The run's environment overrides, applied at every
+                level: a delegate binding the production CRM reaches the sandbox
+                in staging, exactly as the agent that delegated to it does.
+            isolation: The run's isolation, shared by the whole tree, so a
+                delegate's write is held - and recorded in the run's one list -
+                exactly as its parent's is.
             answering_call: The call the tree works for, when it is a call's
                 text twin that delegates (#54): see `_Delegation.answering_call`.
 
@@ -4238,6 +4472,8 @@ class AgentRunnerService:
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
+            test_connections=test_connections,
+            isolation=isolation,
             output_screen=_output_screen(spec),
             answering_call=answering_call,
         )
@@ -4543,7 +4779,7 @@ class AgentRunnerService:
             )
         )
         own_resources = await self._delegate_resources(
-            ctx, spec, shared=shared, parent_resources=resources
+            ctx, spec, agent_id=None, shared=shared, parent_resources=resources
         )
         return ResolvedSubagent(
             name=specialist.name,
@@ -4649,6 +4885,7 @@ class AgentRunnerService:
                 message=f"A delegate this agent is pinned to, '{delegate.name}', is archived",
                 details={"agent_id": str(ref.agent_id), "slug": delegate.slug},
             )
+        refuse_system_agent(delegate, action="a delegate")
         version = await agent_repo.get_version(
             self.db, ref.agent_version_id, organization_id=ctx.organization_id
         )
@@ -4668,7 +4905,7 @@ class AgentRunnerService:
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
-            ctx, pinned, shared=shared, parent_resources=resources
+            ctx, pinned, agent_id=ref.agent_id, shared=shared, parent_resources=resources
         )
         runnable = pinned
         nested_config = _delegation_config(pinned)
@@ -4735,11 +4972,13 @@ class AgentRunnerService:
         )
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
+        runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
+            test_connections=delegation.test_connections.mcp,
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
@@ -4771,6 +5010,7 @@ class AgentRunnerService:
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
+                test_bindings=test_bindings,
                 reviewer_models=await self._reviewer_models(ctx, runnable),
             ),
             max_steps=runnable.max_steps,
@@ -4790,6 +5030,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         spec: AgentSpec,
         *,
+        agent_id: UUID | None,
         shared: list[CapabilityBindingSpec],
         parent_resources: dict[str, Any],
     ) -> dict[str, Any]:
@@ -4818,13 +5059,21 @@ class AgentRunnerService:
         workspace is opened per delegate: only the run has one. Sharing is how a
         delegate reaches a durable workspace at all.
         """
+        bound = await self._bound_collections(spec, ctx)
         resources: dict[str, Any] = {
-            **await self._bound_collections(spec, ctx),
+            **bound,
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(
                 ctx, spec.context_ids, config=context_config(spec.capabilities)
             ),
         }
+        parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
+        if isinstance(parent_log, KnowledgeSearchLog):
+            # An inline specialist has no agent of its own (`agent_id` is None);
+            # its searches are the delegating agent's.
+            resources[KNOWLEDGE_SEARCH_LOG_RESOURCE] = parent_log.for_agent(
+                agent_id, _searched_bases(bound)
+            )
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             resources[WORKSPACE_SHARED_RESOURCE] = parent_resources.get(WORKSPACE_SHARED_RESOURCE)
@@ -5051,6 +5300,144 @@ class AgentRunnerService:
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
 
+    async def _write_knowledge_searches(self, prepared: PreparedRun) -> None:
+        """Write the knowledge searches the run made, once.
+
+        Never raises, for the reason :meth:`_write_delegations` gives: it shares a
+        `finally` with the run's cost row, and a search record lost is a gap
+        nobody sees, where a failed terminal write loses what the run cost. A
+        savepoint keeps a failed insert from aborting the transaction that
+        commits that row.
+        """
+        log = prepared.knowledge_searches
+        if log is None or not log.records:
+            return
+        records = list(log.records)
+        log.records.clear()
+        run = prepared.run
+        if run.surface == RunSurface.EVAL.value or run.is_test or prepared.isolation is not None:
+            # A gap is a question a person asked; an eval replays or generates them,
+            # and a builder testing a draft is not asking.
+            return
+        starter = None if run.initiated_by_publisher_fallback else run.user_id
+        if starter is not None and not await self._may_record_about(starter):
+            return
+        try:
+            async with self.db.begin_nested():
+                await knowledge_gap_repo.record_searches(
+                    self.db,
+                    records,
+                    organization_id=run.organization_id,
+                    run_id=run.id,
+                    conversation_id=run.conversation_id,
+                )
+        except Exception:
+            logger.exception("knowledge_searches_not_written", extra={"run_id": str(run.id)})
+
+    async def _may_record_about(self, user_id: UUID) -> bool:
+        """Whether a search made answering this person may still be written.
+
+        An erasure of the person takes `PERSONAL_DATA_PER_USER` before it purges
+        their searches, and the run's own project chat and row outlive the
+        account with no link back to them - so a search written after the purge
+        would be theirs and found by nothing. Taken without waiting: this
+        transaction already holds its run row, which the erasure updates after
+        taking the lock. Held, it lasts to the run's commit, and the purge that
+        follows removes what was written; not held, or the account gone, the
+        searches are dropped, as a gap nobody sees.
+        """
+        if not await try_hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id):
+            return False
+        return await user_repo.get_by_id(self.db, user_id) is not None
+
+    async def _write_interceptions(self, prepared: PreparedRun) -> None:
+        """Write what an isolated run held back, and forget it.
+
+        Written with the run rather than as each call happens, for the reason
+        approvals are: the session is shared by everything in the run, and a
+        tool call is no place to write on it. Not guarded like the manifest: an
+        eval whose intended calls were lost is an eval that cannot be scored, so
+        a failure here fails the run's write as loudly as its own row would.
+        """
+        isolation = prepared.isolation
+        if isolation is None or not isolation.intercepted:
+            return
+        held, isolation.intercepted = isolation.intercepted, []
+        await intercepted_tool_call_repo.add_many(
+            self.db,
+            run_id=prepared.run.id,
+            organization_id=prepared.run.organization_id,
+            calls=[
+                InterceptedToolCall(
+                    agent_id=call.agent_id,
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    tool_id=call.tool_id,
+                    args=call.args,
+                    outcome=call.outcome.value,
+                    reason=None if call.reason is None else call.reason.value,
+                )
+                for call in held
+            ],
+        )
+
+    async def tool_recording(self, ctx: AuthContext, run_id: UUID) -> ToolRecording:
+        """The calls a past run made, ready to answer an isolated run's calls.
+
+        Read from the run's `tool_calls` rows - the arguments and the result of
+        every call its transcript kept - in the order they were made, and
+        resolved to stable ids through the version that answered, so a candidate
+        that renamed a tool still matches its own recorded calls. A call that
+        never returned is left out: there is nothing to answer it with.
+
+        The manifest is the check that no row is missing. Its request waterfall
+        names every call the model asked for, and survives every trim; a call it
+        names that has no row means the transcript lost part of the run. A row
+        whose call never returned passes that check and answers nothing, so the
+        candidate's matching call is divergent - a fact about the original run.
+        Within a turn written without `parts` the order of identical calls is
+        not known; see :func:`conversation_repo.list_tool_calls_for_run`.
+
+        Raises:
+            NotFoundError: If the run is not this caller's to read.
+            BadRequestError: If the run cannot be replayed whole - it kept no
+                manifest, or its transcript is missing a call the manifest names.
+                A partial recording would answer some calls and call the rest
+                divergent, which reads as the agent's doing.
+        """
+        run = await self.get_run(ctx, run_id)
+        manifest = await run_manifest_repo.get_by_run(self.db, run.id, ctx.organization_id)
+        rows = await conversation_repo.list_tool_calls_for_run(
+            self.db, run_id=run.id, organization_id=ctx.organization_id
+        )
+        requested = Counter(
+            name
+            for request in (manifest.payload if manifest else {}).get("requests", [])
+            for name in request.get("tool_calls", [])
+        )
+        if manifest is None or requested - Counter(call.tool_name for call, _ in rows):
+            raise BadRequestError(
+                message="That run kept no complete record of its tool calls to answer from",
+                details={"run_id": run.id},
+            )
+        tools: dict[str, ToolClass] = {}
+        if run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            if version is not None:
+                tools = capability_tools(AgentSpec.model_validate(version.spec))
+        return ToolRecording(
+            recorded_calls(
+                [
+                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
+                    for call, _ in rows
+                    if call.result is not None
+                ],
+                tools=tools,
+            )
+        )
+
     async def _write_approvals(self, prepared: PreparedRun, *, include_pending: bool) -> None:
         """Write the approval rows the run parked, once, off the shared session.
 
@@ -5258,6 +5645,7 @@ class AgentRunnerService:
             prepared,
             include_pending=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
+        await self._write_interceptions(prepared)
 
         parked = (
             None
@@ -5305,6 +5693,7 @@ class AgentRunnerService:
         # the parent's row is written on every path: a delegation that spent money
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
+        await self._write_knowledge_searches(prepared)
         await self._record_manifest(prepared)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would
@@ -5541,10 +5930,15 @@ class AgentRunnerService:
             )
             pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
             await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
-        elif RunSurface(run.surface) not in {RunSurface.WEB, RunSurface.FOLLOW_UPS}:
-            # A chat user watching `WEB` already sees a completion or a
-            # failure on screen; every other surface is exactly the "stops
-            # silently" gap this module's own docstring names.
+        elif RunSurface(run.surface) not in (
+            RunSurface.WEB,
+            RunSurface.EVAL,
+            RunSurface.FOLLOW_UPS,
+        ):
+            # A chat user watching `WEB` already sees the outcome on screen, a
+            # follow-up run is part of the answer it follows, and an `EVAL` run is
+            # one of many its eval reports on as a whole; every other surface is
+            # the "stops silently" gap this module's docstring names.
             # A routine's own finish is told by the routine, with its name and the
             # start of its answer, which this point does not have (#2301).
             if status is RunStatus.COMPLETED and RunSurface(run.surface) is not RunSurface.SCHEDULE:
@@ -5582,6 +5976,9 @@ class AgentRunnerService:
         generated_files: set[str] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        model_profile_id: UUID | None = None,
+        isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
         output_schema: dict[str, Any] | None = None,
         structured: list[dict[str, Any]] | None = None,
         run_limit_usd: Decimal | None = None,
@@ -5590,6 +5987,7 @@ class AgentRunnerService:
         steering: SteeringInbox | None = None,
         aside: bool = False,
         reports_failure: bool = False,
+        started: Callable[[AgentRun], Awaitable[None]] | None = None,
         draft: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
@@ -5599,7 +5997,12 @@ class AgentRunnerService:
 
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it. `version_id` runs
-        one named version instead, as a workflow step does.
+        one named version instead, as a workflow step does. With `isolation` it
+        is how an eval runs: on that environment's test connections, with every
+        other write held and recorded. `candidate` names what the eval runs
+        instead of the version the environment pins; see :meth:`prepare`.
+
+        `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -5647,6 +6050,10 @@ class AgentRunnerService:
         `steering` is the inbox of a surface whose person may add to the task
         while it runs, and `aside` answers a question on the side of one (#2087).
 
+        `started` is told the run's row once it exists, before the model is
+        called, so a caller that keeps a link to the run has it even when the
+        run then fails or is stopped; what it writes is committed with the run.
+
         `draft` runs the unpublished draft as a test, as `prepare` documents - the
         HTTP API's way of trying an agent before it is published (#2301).
 
@@ -5677,6 +6084,9 @@ class AgentRunnerService:
             environment_id=environment_id,
             version_id=version_id,
             on_compaction=on_compaction,
+            model_profile_id=model_profile_id,
+            isolation=isolation,
+            candidate=candidate,
             output_schema=output_schema,
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
@@ -5684,6 +6094,8 @@ class AgentRunnerService:
             draft=draft,
         )
         prepared.channel_author_context = channel_author_context
+        if started is not None:
+            await started(prepared.run)
         prepared.built.deps.steering = steering
         input_edge = input_screen_for(prepared.spec)
         if steering is not None:
@@ -6391,6 +6803,27 @@ class AgentRunnerService:
             approved_args[tool_call_id] = approval.tool_args
         return decided, _resume_plan(state, approved_args)
 
+    async def _test_connections(
+        self, ctx: AuthContext, *, environment_id: UUID | None
+    ) -> _TestConnections:
+        """The overrides of the environment this run names.
+
+        None for a run naming no environment: that is the default environment,
+        which the environment service refuses overrides on - production keeps
+        the connections its spec binds.
+        """
+        if environment_id is None:
+            return _TestConnections()
+        rows = await agent_environment_repo.list_connections(
+            self.db, environment_ids=[environment_id], organization_id=ctx.organization_id
+        )
+        return _TestConnections(
+            mcp={row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.MCP},
+            secrets={
+                row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.SECRET
+            },
+        )
+
     async def _with_environment_observability(
         self, ctx: AuthContext, spec: AgentSpec, *, environment_id: UUID | None
     ) -> AgentSpec:
@@ -6787,6 +7220,46 @@ class AgentRunnerService:
         return await agent_run_repo.down_rated_run_ids(
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
         )
+
+    async def origins(self, ctx: AuthContext, run_ids: Sequence[UUID]) -> dict[UUID, RunOriginRead]:
+        """Which of these runs a platform agent made, and what each worked on.
+
+        Read under the same `runs:view` the rows are: the names and ids only say
+        where the work is, and each of those pages checks its own access.
+        """
+        found = await agent_run_repo.run_origins(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        return {
+            run_id: RunOriginRead(
+                kind=_ORIGIN_KINDS[origin.kind],
+                agent_name=origin.agent_name,
+                agent_id=origin.agent_id,
+                improvement_id=origin.improvement_id,
+                topic_id=origin.topic_id,
+                knowledge_base_id=origin.knowledge_base_id,
+                dataset_id=origin.dataset_id,
+            )
+            for run_id, origin in found.items()
+        }
+
+    async def previews(
+        self, run_ids: Sequence[UUID], *, questions: Mapping[UUID, str]
+    ) -> dict[UUID, str]:
+        """What each of these runs was asked, as a list shows it beside the run.
+
+        `questions` holds what is already known for some of them - an eval case's
+        question, for a run that answered or graded one. The rest show the first
+        user turn they recorded - the transcript's own text, read under the
+        `runs:view` the transcript is. A run that kept no conversation has none.
+        The ids come from a listing already narrowed to the caller's organization.
+        """
+        turns = await conversation_repo.first_user_turns(
+            self.db,
+            [run_id for run_id in run_ids if run_id not in questions],
+            chars=_PREVIEW_CHARS * 4,
+        )
+        return {run_id: _preview(text) for run_id, text in {**turns, **questions}.items()}
 
     async def voice_chains(
         self, ctx: AuthContext, run_ids: Sequence[UUID]

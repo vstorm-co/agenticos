@@ -119,6 +119,29 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             return None
         return described or None
 
+    def gates(self, tool_def: ToolDefinition) -> bool:
+        """Whether a call to this tool waits for a person's decision."""
+        # A capability id is what tells this deployment's tool from an MCP
+        # server's, whose approval is a different question - except for the
+        # framework's own, which carries no capability id and is still ours to
+        # gate: `load_capability` is how a skill is opened, so a spec that asked
+        # for approval before a skill is loaded has nowhere else to put it
+        # (#1704 review).
+        # An MCP server's tool carries its binding's verdict, set by
+        # `ApprovalMarked` from the binding's policy and the server's read-only
+        # hint (#2060) - only for a tool no capability owns, so a capability's
+        # tool cannot be released by metadata.
+        capability_id = tool_def.capability_id
+        marked = capability_id is None and (tool_def.metadata or {}).get(NEEDS_APPROVAL) is True
+        return tool_def.name not in self.asking_tool_names and (
+            self.gate_every_tool
+            or marked
+            or (
+                tool_def.name in self.required_tool_names
+                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+            )
+        )
+
     async def wrap_tool_execute(
         self,
         ctx: RunContext[AgentDeps],
@@ -130,26 +153,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        # A capability id is what tells this deployment's tool from an MCP
-        # server's, whose approval is a different question - except for the
-        # framework's own, which carries no capability id and is still ours to
-        # gate: `load_capability` is how a skill is opened, so a spec that asked
-        # for approval before a skill is loaded has nowhere else to put it
-        # (#1704 review).
-        # An MCP server's tool carries its binding's verdict, set by
-        # `ApprovalMarked` from the binding's policy and the server's read-only
-        # hint (#2060) - only for a tool no capability owns, so a capability's
-        # tool cannot be released by metadata.
-        marked = capability_id is None and (tool_def.metadata or {}).get(NEEDS_APPROVAL) is True
-        gated = tool_def.name not in self.asking_tool_names and (
-            self.gate_every_tool
-            or marked
-            or (
-                tool_def.name in self.required_tool_names
-                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
-            )
-        )
-        if not gated:
+        if not self.gates(tool_def):
             return await handler(args)
 
         ask = ctx.deps.request_approval

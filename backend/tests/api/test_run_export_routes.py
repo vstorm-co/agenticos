@@ -126,10 +126,11 @@ class TestTheFiltersReachTheService:
             response = await client.get(
                 f"/api/v1/runs/export?{_RANGE}&agent_id={agent_id}"
                 f"&surface=slack&include_delegations=true&agent_version_id={version_id}"
-                "&status=failed,budget_exceeded"
+                "&status=failed,budget_exceeded&source=evaluation"
             )
         assert response.status_code == 200
         kwargs = service.export_runs.await_args.kwargs
+        assert kwargs["filters"].source == "evaluation"
         assert kwargs["agent_id"] == agent_id
         assert kwargs["include_delegations"] is True
         assert kwargs["filters"].statuses == ["failed", "budget_exceeded"]

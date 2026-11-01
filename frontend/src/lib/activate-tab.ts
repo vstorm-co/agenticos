@@ -23,10 +23,12 @@ export function activateTab(
   trigger: HTMLElement,
   { moveFocus = true }: { moveFocus?: boolean } = {},
 ): void {
-  // A popover's trigger opens on a click, not a press: the chat's settings, whose
-  // approval-mode and connection stops sit inside it, waited out their timeout
-  // behind a closed popover and the walk stood still between them.
-  if (trigger.getAttribute("aria-haspopup") === "dialog") {
+  // Only a Radix tab selects on a press. A popover's trigger - the chat's settings,
+  // whose stops sit inside it - or a wizard's step button opens on a click, and
+  // pressing one left the walk waiting out its timeout for a section that never
+  // opened. driver.js marks a tab it highlights `aria-haspopup`, so the role, not
+  // that attribute, says which this is.
+  if (trigger.getAttribute("role") !== "tab") {
     trigger.click();
     return;
   }

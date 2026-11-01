@@ -727,6 +727,91 @@ describe("context, the capability that reads the files", () => {
 });
 
 /**
+ * A system agent's Toolbox: the same workbench, handed only what it may bind.
+ *
+ * Nobody is there to approve anything while it runs and its save refuses an
+ * approval, so neither the capability nor a tool offers one; and the platform
+ * hands each run its knowledge bases, so Knowledge sets the search's steps
+ * instead of offering collections.
+ */
+describe("a system agent's workbench", () => {
+  const KNOWLEDGE: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "knowledge",
+    name: "Knowledge search",
+    category: "knowledge",
+    description: "Search the organization's knowledge bases.",
+    tools: [{ id: "search_documents", name: "search_documents", description: "Search." }],
+    contracts: [],
+  };
+
+  const COLLECTION = { id: "k1", name: "Handbook" } as AgentResources["collections"][number];
+
+  function renderSystem(props: Partial<Parameters<typeof CapabilityWorkbench>[0]> = {}) {
+    const onMaxSteps = vi.fn();
+    renderWorkbench({
+      catalog: [KNOWLEDGE, CONTEXT],
+      selected: [binding("knowledge")],
+      resources: { ...NO_RESOURCES, collections: [COLLECTION] },
+      system: { kind: "judge", maxSteps: 4, onMaxSteps },
+      ...props,
+    });
+    return onMaxSteps;
+  }
+
+  it("opens Knowledge on the search's steps, with no collection to pick", async () => {
+    const onMaxSteps = renderSystem();
+    await openCapability("Knowledge search");
+
+    expect(screen.getByRole("tab", { name: "Knowledge base" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.queryByRole("tab", { name: "Collections" })).toBeNull();
+    expect(screen.queryByText("Handbook")).toBeNull();
+    const steps = screen.getByRole("spinbutton", { name: "Max steps" });
+    expect(steps).toHaveValue(4);
+    await userEvent.clear(steps);
+    expect(onMaxSteps).toHaveBeenLastCalledWith(null);
+  });
+
+  it("offers no approval, for the capability or for any of its tools", async () => {
+    renderSystem();
+    await openCapability("Knowledge search");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(screen.queryByText("Human approval")).toBeNull();
+    await openTools();
+    const row = screen.getByRole("listitem", { name: "search_documents" });
+    expect(within(row).queryByText("Approval")).toBeNull();
+    expect(within(row).getByLabelText("Description the model reads")).toBeEnabled();
+  });
+
+  it("keeps both approvals on an ordinary agent's panel", async () => {
+    renderSystem({ system: undefined });
+    await openCapability("Knowledge search");
+
+    expect(screen.getByRole("tab", { name: "Collections" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(screen.getByText("Human approval")).toBeInTheDocument();
+    await openTools();
+    const row = screen.getByRole("listitem", { name: "search_documents" });
+    expect(within(row).getByText("Approval")).toBeInTheDocument();
+  });
+
+  it("takes nothing from a reader who may not edit it", async () => {
+    renderSystem({ disabled: true });
+    await openCapability("Knowledge search");
+
+    expect(screen.getByRole("switch", { name: "Knowledge search enabled" })).toBeDisabled();
+    expect(
+      screen.getByRole("switch", { name: "Give this agent Knowledge search", hidden: true }),
+    ).toBeDisabled();
+    expect(screen.getByRole("spinbutton", { name: "Max steps" })).toBeDisabled();
+  });
+});
+
+/**
  * Image generation, the fourth capability with a panel of its own.
  *
  * Whose model draws and which one are two decisions, and both lists are the

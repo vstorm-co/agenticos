@@ -265,6 +265,11 @@ class McpConnection(Base, TimestampMixin):
     # at it, so an ordinary MCP connect is untouched.
     granted_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # `readOnlyHint` is the server's own claim. An isolated run lets a tool it
+    # marks run live only on a connection somebody chose to believe it of.
+    trust_read_only_hints: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     # Whether the server's own `initialize` instructions join the agent's. Off by
     # default: it is text the server's operator wrote, read with the authority of
     # the agent's own instructions, so someone who manages the connection opts in.

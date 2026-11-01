@@ -1,0 +1,444 @@
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+import { formatDateTime } from "@/lib/utils";
+import { caseScore } from "@/test-utils/scores";
+
+import type { CaseScore, ScorerResult } from "@/types/scoring";
+import { ScoreCard } from "./score-card";
+
+function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
+  return {
+    scorer: "judge",
+    name: "tone",
+    required: true,
+    status: "fail",
+    score: 0.4,
+    reason: "2/5: curt",
+    reason_code: null,
+    unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
+    judge_run_id: null,
+    knowledge: [],
+    ...overrides,
+  };
+}
+
+function score(overrides: Partial<CaseScore> = {}): CaseScore {
+  return {
+    ...caseScore(),
+    id: "s1",
+    dataset_id: "d1",
+    case_id: "c1",
+    case_revision_id: "r1",
+    question: "How long is the refund window?",
+    reference_answer: null,
+    run_id: "run-1",
+    run_model: null,
+    judge: null,
+    results: [result()],
+    passed: false,
+    review_state: "none",
+    human_passed: null,
+    human_note: null,
+    reviewed_by_user_id: null,
+    reviewed_at: null,
+    created_by_user_id: null,
+    created_at: "2026-10-13T00:00:00Z",
+    outcome: false,
+    ...overrides,
+  };
+}
+
+/**
+ * One score: each scorer's verdict and reason, and a person's verdict apart from
+ * them - so the judge's opinion stays readable after it is overruled.
+ */
+describe("ScoreCard", () => {
+  it("says which agent answered, at which version, on which model, and when", () => {
+    const { rerender } = render(
+      <ScoreCard
+        score={score({ run_model: "gpt-4.1", agent_name: "Support", agent_version: 3 })}
+      />,
+    );
+
+    expect(screen.getByText("Support · v3")).toBeInTheDocument();
+    expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText(/2026/)).toHaveAttribute("datetime", "2026-10-13T00:00:00Z");
+
+    rerender(<ScoreCard score={score({ agent_name: "Support", agent_version: null })} />);
+    expect(screen.getByText("Support · Draft")).toBeInTheDocument();
+  });
+
+  it("shows what the case expected: the tool calls in their order, and the checks", () => {
+    render(
+      <ScoreCard
+        score={score({
+          expected_tool_calls: [
+            { tool: "search_kb", args: { query: "refunds" } },
+            { tool: "lookup_order", args: {} },
+          ],
+          order_mode: "in_order",
+          checks: [{ type: "contains", value: "days" }],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Expected tool calls, in this order")).toBeInTheDocument();
+    expect(screen.getByText('search_kb {"query":"refunds"}')).toBeInTheDocument();
+    expect(screen.getByText("lookup_order")).toBeInTheDocument();
+    expect(screen.getByText("contains days")).toBeInTheDocument();
+  });
+
+  it("folds a long answer and opens it on request, and says when none is kept", async () => {
+    const long = `${"word ".repeat(100)}end`;
+    const { rerender } = render(<ScoreCard score={score({ answer: long })} />);
+
+    const toggle = screen.getByRole("button", { name: "Show all" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    rerender(<ScoreCard score={score({ answer: "Thirty days." })} />);
+    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
+
+    rerender(<ScoreCard score={score({ answer: null })} />);
+    expect(screen.getByText("The answer is not kept.")).toBeInTheDocument();
+  });
+
+  it("says the answer is hidden from a reader who may not view the agent that gave it", () => {
+    render(<ScoreCard score={score({ answer: null, answer_hidden: true })} />);
+
+    expect(screen.getByText(/^Answer and grading evidence hidden:/)).toBeInTheDocument();
+    expect(screen.queryByText("The answer is not kept.")).toBeNull();
+  });
+
+  it("marks the judge's quotes the answer does not hold apart from its reason", () => {
+    render(
+      <ScoreCard
+        score={score({ results: [result({ unverified_quotes: ["ninety days", "a refund"] })] })}
+      />,
+    );
+
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(
+      screen.getByText("Quoted, but not in the answer: ninety days · a refund"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows what a judge that searches found in the knowledge base, under its reason", () => {
+    render(
+      <ScoreCard
+        score={score({
+          results: [
+            result({
+              knowledge: [
+                { source: "refund-policy.md", quote: "Refunds are accepted within 30 days." },
+                { source: null, quote: "Store credit never expires." },
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    const found = screen.getByText("Found in the knowledge base").parentElement as HTMLElement;
+    const [named, unnamed] = within(found).getAllByRole("listitem") as [HTMLElement, HTMLElement];
+    expect(named).toHaveTextContent("refund-policy.md");
+    expect(within(named).getByText("Refunds are accepted within 30 days.").tagName).toBe("Q");
+    // A passage the search could not name a file for still says where it came from.
+    expect(unnamed).toHaveTextContent("A document");
+    expect(unnamed).toHaveTextContent("Store credit never expires.");
+    expect(within(found).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("says nothing of the knowledge base when the judge found nothing there", () => {
+    render(<ScoreCard score={score()} />);
+
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(screen.queryByText("Found in the knowledge base")).toBeNull();
+  });
+
+  it("says why an answer is not graded, links the judge's run that erred, and offers to score again", async () => {
+    const rescore = vi.fn();
+    const { rerender } = render(
+      <ScoreCard
+        linksRuns
+        score={score({
+          passed: null,
+          outcome: null,
+          unscored_reason: "judge_reason_echo",
+          results: [
+            result({
+              status: "error",
+              reason_code: "judge_reason_echo",
+              judge_run_id: "judge-1",
+            }),
+          ],
+        })}
+        onRescore={rescore}
+      />,
+    );
+
+    expect(
+      screen.getAllByText(/restated the criterion instead of saying why/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/counts as neither passed nor failed/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the judge's run" })).toHaveAttribute(
+      "href",
+      "/runs?run=judge-1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Score again" }));
+    expect(rescore).toHaveBeenCalled();
+
+    rerender(
+      <ScoreCard
+        linksRuns
+        score={score({
+          passed: null,
+          outcome: null,
+          unscored_reason: "pattern_timeout",
+          results: [result({ status: "error", reason_code: "pattern_timeout" })],
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(/A required scorer reached no verdict \(pattern_timeout\)\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Score again" })).toBeNull();
+  });
+
+  it("warns when the judge graded on the model that answered, and only then", () => {
+    const { rerender } = render(
+      <ScoreCard score={score({ judge_model: "GPT-4.1", run_model: "GPT-4.1" })} />,
+    );
+    expect(
+      screen.getByText(/The judge graded on GPT-4.1, the model that answered/),
+    ).toBeInTheDocument();
+
+    rerender(<ScoreCard score={score({ judge_model: "Claude", run_model: "GPT-4.1" })} />);
+    expect(screen.queryByText(/the model that answered/)).toBeNull();
+    rerender(<ScoreCard score={score({ judge_model: null, run_model: null })} />);
+    expect(screen.queryByText(/the model that answered/)).toBeNull();
+  });
+
+  it("shows the rule a grade follows from, a top grade nothing backs, and what an unreadable judge said", () => {
+    render(
+      <ScoreCard
+        score={score({
+          results: [
+            result({ rule: "Refunds over $500 need a manager", unverified: true }),
+            result({
+              name: "policy",
+              status: "error",
+              reason_code: "judge_output_invalid",
+              judge_said: "It is fine.",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Rule: Refunds over $500 need a manager")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unverified: nothing quoted from the answer backs this grade/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("The judge answered: “It is fine.”")).toBeInTheDocument();
+  });
+
+  it("says when it was graded in the reader's own time zone", () => {
+    render(<ScoreCard score={score({ created_at: "2026-10-13T23:30:00Z" })} />);
+
+    expect(screen.getByText(formatDateTime("2026-10-13T23:30:00Z", "en"))).toHaveAttribute(
+      "datetime",
+      "2026-10-13T23:30:00Z",
+    );
+  });
+
+  it("shows what the scored revision asked, and its reference answer", () => {
+    render(<ScoreCard score={score({ reference_answer: "Thirty days." })} />);
+
+    expect(screen.getByText("How long is the refund window?")).toBeInTheDocument();
+    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+  });
+
+  it("shows what did not pass first, folds what passed, and links the scored run", async () => {
+    render(
+      <ScoreCard
+        linksRuns
+        score={score({
+          results: [
+            result({ judge_run_id: "judge-1" }),
+            result({
+              scorer: "check",
+              name: "contains 'days'",
+              status: "pass",
+              reason: "Contains it",
+              required: false,
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(screen.queryByText("Contains it")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "+1 passed" }));
+    expect(screen.getByText("Contains it")).toBeInTheDocument();
+    expect(screen.getByText("optional")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Judge's run" })).toHaveAttribute(
+      "href",
+      "/runs?run=judge-1",
+    );
+    expect(screen.getByRole("link", { name: "Scored run" })).toHaveAttribute(
+      "href",
+      "/runs?run=run-1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Hide what passed" }));
+    expect(screen.queryByText("Contains it")).toBeNull();
+  });
+
+  it("links the question to its case with the case's tags, and an eval run's score to the run", () => {
+    render(
+      <ScoreCard
+        linksRuns
+        score={score({
+          case_tags: ["billing"],
+          eval_run_id: "e1",
+          agent_id: "a1",
+          results: [result({ status: "pass" })],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "How long is the refund window?" })).toHaveAttribute(
+      "href",
+      "/datasets/d1?tab=cases&case=c1",
+    );
+    expect(screen.getByText("billing")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Eval run ↗" })).toHaveAttribute(
+      "href",
+      "/agents/a1/evals/e1",
+    );
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /passed/ })).toBeNull();
+  });
+
+  it("links no run to a reader who may not open one", () => {
+    const { unmount } = render(
+      <ScoreCard
+        score={score({
+          eval_run_id: "e1",
+          agent_id: "a1",
+          results: [result({ judge_run_id: "j1" })],
+        })}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "Eval run ↗" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Judge's run" })).toBeNull();
+    unmount();
+
+    render(<ScoreCard score={score({ results: [result()] })} />);
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+    // What it says about the answer stays: only the way to a page that would refuse goes.
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+  });
+
+  it("says why the judge did not run in the reader's words", () => {
+    render(
+      <ScoreCard
+        score={score({
+          outcome: null,
+          passed: null,
+          run_id: null,
+          results: [result({ status: "skipped", reason_code: "ai_assistance_off", reason: "raw" })],
+        })}
+      />,
+    );
+
+    expect(screen.getAllByText("Not graded")).toHaveLength(2);
+    expect(
+      screen.getByText(
+        "AI assistance is switched off for this organization, so the judge did not run.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("raw")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+  });
+
+  it("marks a person's verdict apart from the scorers, with their note", () => {
+    render(
+      <ScoreCard
+        score={score({
+          outcome: true,
+          human_passed: true,
+          human_note: "Policy changed",
+          review_state: "done",
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Passed")).toBeInTheDocument();
+    expect(screen.getByText("Decided in review")).toBeInTheDocument();
+    expect(screen.getByText("Policy changed")).toBeInTheDocument();
+    expect(screen.getByText("Fail")).toBeInTheDocument();
+  });
+
+  it("records a verdict with the note written beside it", async () => {
+    const onVerdict = vi.fn();
+    render(<ScoreCard score={score()} onVerdict={onVerdict} />);
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Note" }), "Fine by policy");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
+
+    expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: true, note: "Fine by policy" });
+    expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: "Fine by policy" });
+  });
+
+  it("sends no note when none was written, and withdraws without one", async () => {
+    const onVerdict = vi.fn();
+    render(
+      <ScoreCard score={score({ human_passed: false, human_note: "x" })} onVerdict={onVerdict} />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Withdraw decision" }));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Note" }));
+    await userEvent.click(screen.getByRole("button", { name: "Answer is wrong" }));
+
+    expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: null, note: null });
+    expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: null });
+  });
+
+  it("holds the decision while one is being saved", () => {
+    render(<ScoreCard score={score()} onVerdict={vi.fn()} busy />);
+
+    expect(
+      screen.getByRole("button", { name: "Answer is fine (the judge was wrong)" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Answer is wrong" })).toBeDisabled();
+  });
+
+  it("offers review only for a score not already waiting", async () => {
+    const onReview = vi.fn();
+    const { rerender } = render(<ScoreCard score={score()} onReview={onReview} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
+    expect(onReview).toHaveBeenCalled();
+
+    rerender(<ScoreCard score={score({ review_state: "pending" })} onReview={onReview} busy />);
+    expect(screen.getByText("Waiting for a decision")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
+  });
+});

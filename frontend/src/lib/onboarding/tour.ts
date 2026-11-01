@@ -10,8 +10,24 @@ import { Perm, type Permission } from "@/types/permissions";
  */
 export const AGENT_BUILDER = "agent-builder";
 
+/**
+ * One eval run's page, `/agents/<id>/evals/<run>`. Its own identity rather than
+ * the builder's, whose highlights name tabs this page does not have. Not on the
+ * first-run walk, so nothing has to resolve a run to open.
+ */
+export const EVAL_RUN = "eval-run";
+export const IMPROVEMENT = "improvement";
+/** The Improve wizard before a session exists: choosing, pricing and starting one. */
+export const IMPROVEMENT_START = "improvement-start";
+
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
+
+/**
+ * A dataset's own page, `/datasets/<id>`, collapsed the same way: its cases, its
+ * scoring and its scores. The walk opens the first dataset the reader can see.
+ */
+export const DATASET_DETAIL = "dataset-detail";
 
 /**
  * The two organization detail routes, collapsed the same way. Unlike the builder
@@ -149,9 +165,129 @@ export interface TourStep {
    * page is not the same as an absent one.
    */
   optional?: boolean;
+  /**
+   * Which builder the stop belongs to, where only one kind of agent's page has its
+   * target or its copy is true of one kind only. A system agent's holds no MCP
+   * servers, exposure, evals, voice or test panel, and its Toolbox offers only what
+   * it reads, so the walk leaves an ordinary agent's stops out rather than waiting
+   * for a target that never mounts or describing tools it cannot have. Omitted
+   * means both.
+   */
+  agentKind?: "ordinary" | "system";
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
+  {
+    id: "improvement-start",
+    page: IMPROVEMENT_START,
+    target: "improvement-start",
+    permission: Perm.runsView,
+  },
+  {
+    id: "improvement-test-set",
+    page: IMPROVEMENT_START,
+    target: "improvement-quote",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-question-set",
+    page: IMPROVEMENT_START,
+    target: "improvement-question-set",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-details",
+    page: IMPROVEMENT_START,
+    target: "improvement-details",
+    permission: Perm.runsView,
+  },
+  {
+    id: "improvement-steps",
+    page: IMPROVEMENT,
+    target: "improvement-steps",
+    permission: Perm.runsView,
+  },
+  {
+    id: "improvement-understand",
+    page: IMPROVEMENT,
+    target: "improvement-evidence",
+    activate: "improvement-step-understand",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-questions",
+    page: IMPROVEMENT,
+    target: "improvement-test-questions",
+    activate: "improvement-step-understand",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-changes",
+    page: IMPROVEMENT,
+    target: "improvement-changes",
+    activate: "improvement-step-changes",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-next-step",
+    page: IMPROVEMENT,
+    target: "improvement-next-step",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-check",
+    page: IMPROVEMENT,
+    target: "improvement-check",
+    activate: "improvement-step-check",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-review",
+    page: IMPROVEMENT,
+    target: "improvement-open-check",
+    activate: "improvement-step-check",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-results",
+    page: IMPROVEMENT,
+    target: "improvement-results",
+    activate: "improvement-step-result",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-automatic-check",
+    page: IMPROVEMENT,
+    target: "improvement-automatic-check",
+    activate: "improvement-step-accept",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-guard",
+    page: IMPROVEMENT,
+    target: "improvement-guard",
+    activate: "improvement-step-accept",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
+    id: "improvement-accept",
+    page: IMPROVEMENT,
+    target: "improvement-accept",
+    activate: "improvement-step-accept",
+    permission: Perm.runsView,
+    optional: true,
+  },
   { id: "welcome", inTour: true },
 
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
@@ -231,12 +367,26 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
+  // The band's toggle rather than its cards: it renders only while the
+  // organization holds a system agent, and folded it is one bounded line.
+  { id: "agents-system", page: ROUTES.AGENTS, target: "agents-system", optional: true },
 
   // The builder, entered from the Agents list. The engine opens an example agent
   // (the seeded "AgenticOS", or the first one there is), switches to the
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.
+  // The assistant strip above the instructions: only an editor of an ordinary
+  // agent sees it, so it waits on `agents:edit` and may be absent.
+  {
+    id: "agent-assistant-strip",
+    page: AGENT_BUILDER,
+    target: "agent-assistant-strip",
+    activate: "agent-tab-build",
+    permission: Perm.agentsEdit,
+    optional: true,
+    agentKind: "ordinary",
+  },
   {
     id: "agent-instructions",
     page: AGENT_BUILDER,
@@ -255,6 +405,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-starters",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
+    agentKind: "ordinary",
   },
   {
     id: "agent-model",
@@ -271,6 +422,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-voice",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
+    agentKind: "ordinary",
   },
   {
     id: "agent-identity",
@@ -288,6 +440,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
+  },
+  {
+    id: "agent-system-toolbox",
+    page: AGENT_BUILDER,
+    target: "agent-capabilities-header",
+    activate: "agent-tab-toolbox",
+    permission: Perm.agentsView,
+    agentKind: "system",
   },
   {
     id: "agent-mcp",
@@ -298,6 +459,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-mcp-intro",
     activate: "agent-tab-mcp",
     permission: Perm.agentsView,
+    agentKind: "ordinary",
   },
   // What the agent is *given* - collections, skills - is picked inside the panel
   // of the capability that reads it, so these point at the row that opens that
@@ -311,7 +473,19 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
   },
+  // A system agent's search picks no collection: the platform hands each run the
+  // knowledge bases it is about, and the panel sets how many steps it takes.
+  {
+    id: "agent-system-knowledge",
+    page: AGENT_BUILDER,
+    target: "capability-knowledge",
+    activate: "agent-tab-toolbox",
+    permission: Perm.agentsView,
+    agentKind: "system",
+  },
+  // Optional because a classifier's Toolbox offers no skills.
   {
     id: "agent-skills",
     page: AGENT_BUILDER,
@@ -319,6 +493,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,
+    optional: true,
   },
   {
     id: "agent-limits",
@@ -335,6 +510,33 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-availability",
     permission: Perm.agentsView,
     inTour: true,
+    agentKind: "ordinary",
+  },
+  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
+  {
+    id: "agent-evals",
+    page: AGENT_BUILDER,
+    target: "agent-evals",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+    agentKind: "ordinary",
+  },
+  // The suites card sits on the same tab, so the stop needs the same permission.
+  {
+    id: "agent-eval-suites",
+    page: AGENT_BUILDER,
+    target: "agent-eval-suites",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+    agentKind: "ordinary",
+  },
+  {
+    id: "agent-gaps",
+    page: AGENT_BUILDER,
+    target: "agent-gaps",
+    activate: "agent-tab-gaps",
+    permission: Perm.runsView,
+    agentKind: "ordinary",
   },
   {
     id: "agent-history",
@@ -344,6 +546,49 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // The agent's improvement sessions, read with its runs.
+  {
+    id: "agent-improvement-history",
+    page: AGENT_BUILDER,
+    target: "agent-improvement-history",
+    activate: "agent-tab-history",
+    permission: Perm.runsView,
+    agentKind: "ordinary",
+    inTour: true,
+  },
+  // On the first named environment's test-connections toggle, which only an
+  // agent with one renders and only a publisher sees.
+  {
+    id: "agent-test-connections",
+    page: AGENT_BUILDER,
+    target: "environment-connections",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+    agentKind: "ordinary",
+  },
+  // On the first environment's guard toggle: which eval suites a version has to
+  // pass before that environment takes it. Read by any publisher, changed only
+  // with the override permission, so the stop needs only what the toggle does.
+  {
+    id: "agent-environment-guards",
+    page: AGENT_BUILDER,
+    target: "environment-guards",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+    agentKind: "ordinary",
+  },
+  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // the Evals tab is: the run it starts is read there.
+  {
+    id: "agent-test-draft",
+    page: AGENT_BUILDER,
+    target: "agent-test-draft",
+    permission: Perm.runsView,
+    optional: true,
+    agentKind: "ordinary",
+  },
   // Trying it beside the Builder before publishing (#2074).
   {
     id: "agent-test",
@@ -351,6 +596,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-test",
     permission: Perm.agentsEdit,
     inTour: true,
+    agentKind: "ordinary",
   },
   // Who reaches the agent, in one dialog (#2062). The page's "?" walk only: the
   // launch pass already takes one stop per Builder tab.
@@ -366,6 +612,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-publish",
     permission: Perm.agentsPublish,
     inTour: true,
+  },
+
+  {
+    id: "eval-verdict",
+    page: EVAL_RUN,
+    target: "eval-verdict",
+    permission: Perm.runsView,
   },
 
   {
@@ -432,6 +685,49 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
   { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
 
+  {
+    id: "datasets-new",
+    page: ROUTES.DATASETS,
+    target: "datasets-new",
+    permission: Perm.datasetsEdit,
+    inTour: true,
+  },
+  {
+    id: "datasets-list",
+    page: ROUTES.DATASETS,
+    target: "datasets-list",
+    permission: Perm.datasetsView,
+  },
+  // Every eval run across agents, reached from the dashboard's Eval runs card.
+  {
+    id: "evals-all",
+    page: ROUTES.EVALS,
+    target: "evals-all",
+    permission: Perm.runsView,
+  },
+  // One dataset: writing a case, having the generator draft some, and the drafts
+  // waiting for a decision - the last only while some wait.
+  {
+    id: "datasets-add-case",
+    page: DATASET_DETAIL,
+    target: "datasets-add-case",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-generate",
+    page: DATASET_DETAIL,
+    target: "datasets-generate",
+    activate: "datasets-generated-tab",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-proposals",
+    page: DATASET_DETAIL,
+    target: "datasets-proposals",
+    activate: "datasets-generated-tab",
+    permission: Perm.datasetsEdit,
+    optional: true,
+  },
   // Workflows — the visual editor's list. Same shape as Agents: a create button
   // the launch pass points at (create-gated), and the status list the "?" adds
   // (view-gated). The create control opens the blank/template dialog.
@@ -588,6 +884,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
+  {
+    id: "runs-score-against-case",
+    page: ROUTES.RUNS,
+    target: "runs-score-against-case",
+    permission: Perm.datasetsRun,
+    optional: true,
+  },
 
   {
     id: "knowledge-new",
@@ -674,6 +977,46 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "kb-tab-sync",
     permission: Perm.collectionsView,
   },
+  {
+    id: "kb-gaps",
+    page: KB_DETAIL,
+    target: "kb-gaps",
+    activate: "kb-tab-gaps",
+    permission: Perm.runsView,
+  },
+  // Offered only with AI assistance on, to whoever may change the base, with answers waiting.
+  {
+    id: "kb-gaps-check",
+    page: KB_DETAIL,
+    target: "kb-gaps-check",
+    activate: "kb-tab-gaps",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
+
+  // Each tab stop selects its own tab; the review stop anchors on the review filter
+  // because the list below it can hold any number of results.
+  {
+    id: "dataset-grading",
+    page: DATASET_DETAIL,
+    target: "datasets-grading",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-judge",
+    page: DATASET_DETAIL,
+    target: "datasets-grading-judge",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-review",
+    page: DATASET_DETAIL,
+    target: "datasets-review-filter",
+    activate: "datasets-review-tab",
+    permission: Perm.datasetsView,
+  },
 
   {
     id: "tables-catalog",
@@ -720,7 +1063,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ORG_MEMBERS,
     target: "org-governance",
     activate: "org-tab-governance",
-    anyPermission: [Perm.budgetsManage, Perm.approvalsDecide],
+    anyPermission: [Perm.budgetsManage, Perm.approvalsDecide, Perm.orgSettings],
   },
   {
     id: "org-proactivity",
@@ -985,6 +1328,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
 const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.AGENTS, AGENT_BUILDER],
   [ROUTES.RAG, KB_DETAIL],
+  [ROUTES.DATASETS, DATASET_DETAIL],
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
@@ -994,8 +1338,12 @@ const WORKFLOW_LOGS_PATH = /^\/workflows\/[^/]+\/logs$/;
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
+  if (/^\/agents\/[^/]+\/improve\/new(\/|$)/.test(path)) return IMPROVEMENT_START;
+  if (/^\/agents\/[^/]+\/improve\/[^/]+/.test(path)) return IMPROVEMENT;
+  if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;
@@ -1043,16 +1391,27 @@ export function visibleTourSteps(can: (permission: Permission) => boolean): read
  * list. Richer than the launch pass — it returns a section's `inTour` stops *and*
  * its "?"-only ones. The interstitials (welcome, finish) have no page and never
  * appear here.
+ *
+ * `systemAgent` says the builder on screen is a system agent's, which a path
+ * cannot: it walks that page's own stops instead of an ordinary agent's. The
+ * Agents list never opens one - its example is an agent from a list system agents
+ * are left out of.
  */
 export function stepsForPage(
   path: string,
   can: (permission: Permission) => boolean,
+  systemAgent = false,
 ): readonly TourStep[] {
   const current = pageKey(path);
   const flow = flowFor(current);
   const reachable = new Set(flow.slice(flow.indexOf(current)));
+  const kind = systemAgent ? "system" : "ordinary";
   return TOUR_STEPS.filter(
-    (step) => step.page !== undefined && reachable.has(step.page) && canVisitStep(step, can),
+    (step) =>
+      step.page !== undefined &&
+      reachable.has(step.page) &&
+      canVisitStep(step, can) &&
+      (step.agentKind === undefined || step.agentKind === kind),
   );
 }
 

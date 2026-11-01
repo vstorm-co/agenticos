@@ -168,11 +168,18 @@ def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str
     `anthropic/claude-sonnet-5.5` was unpriced, so every request through it was
     booked at $0 and no budget could stop the run. The vendor spells a version
     with dashes where the aggregator uses a dot, so both are tried.
+
+    OpenRouter also answers to an OpenAI model's bare name, which is how the
+    embedding catalog spells its models there, so a bare name through it is
+    priced as OpenAI's own; without a vendor the snapshot cannot place an
+    embedding model at all, and every knowledge search was booked at $0.
     """
     lookups: list[tuple[str, str | None]] = [(model_name, provider), (model_name, None)]
     vendor, slash, bare = model_name.partition("/")
     if slash:
         lookups += [(name, vendor) for name in dict.fromkeys((bare, bare.replace(".", "-")))]
+    elif provider == "openrouter":
+        lookups.append((model_name, "openai"))
     return lookups if provider else lookups[1:]
 
 

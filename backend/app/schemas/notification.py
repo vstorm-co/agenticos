@@ -9,6 +9,7 @@ from pydantic import Field, ValidationError
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
+from app.schemas.improvement import NextStepBlocked
 
 
 class NotificationAgent(BaseSchema):
@@ -41,6 +42,39 @@ def _agent_of(context: dict[str, Any] | None) -> NotificationAgent | None:
         return None
 
 
+class NotificationOutcome(BaseSchema):
+    """How a finished session, test or question writing ended, as codes the console words."""
+
+    status: str
+    reason: str | None = None
+    next_step_blocked: NextStepBlocked | None = Field(
+        default=None, description="Why an improvement's next step cannot be taken, when it cannot"
+    )
+
+
+_OUTCOME_EVENTS = {
+    NotificationEventType.IMPROVEMENT_FINISHED.value,
+    NotificationEventType.EVAL_RUN_FINISHED.value,
+    NotificationEventType.CASE_GENERATION_FINISHED.value,
+}
+
+
+def _outcome_of(notification: Notification) -> NotificationOutcome | None:
+    context = notification.render_context or {}
+    if notification.event_type not in _OUTCOME_EVENTS or not isinstance(context.get("status"), str):
+        return None
+    reason = context.get("reason")
+    try:
+        blocked = NextStepBlocked.model_validate(context.get("next_step_blocked"))
+    except ValidationError:
+        blocked = None
+    return NotificationOutcome(
+        status=context["status"],
+        reason=reason if isinstance(reason, str) else None,
+        next_step_blocked=blocked,
+    )
+
+
 class NotificationRead(BaseSchema):
     """One inbox row - `render_context` itself never leaves the service layer."""
 
@@ -53,6 +87,11 @@ class NotificationRead(BaseSchema):
     agent: NotificationAgent | None = Field(
         default=None,
         description="The agent the row is about, for its face; null for a row about none.",
+    )
+    outcome: NotificationOutcome | None = Field(
+        default=None,
+        description="For a finished improvement, test or question writing: how it ended, "
+        "so the console can word it in the reader's language.",
     )
 
     @classmethod
@@ -75,6 +114,7 @@ class NotificationRead(BaseSchema):
             read_at=notification.read_at,
             created_at=notification.created_at,
             agent=_agent_of(notification.render_context),
+            outcome=_outcome_of(notification),
         )
 
 

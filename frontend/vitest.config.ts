@@ -57,6 +57,8 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/authoring/**/*.tsx",
+        "src/components/improvement/**/*.tsx",
         // The workflow editor's client-side validation mirror (#1787): pure TS
         // over the in-memory graph, held to the gate the way the agents
         // components above are.
@@ -75,7 +77,7 @@ export default defineConfig({
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
         // What the nightly look proposed (#2301).
-        "src/components/dashboard/widgets/suggestions.tsx",
+        "src/components/dashboard/widgets/authoring-suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
@@ -93,6 +95,17 @@ export default defineConfig({
         "src/components/dashboard/agent-face.tsx",
         "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/dashboard/widgets/datasets.tsx",
+        "src/components/dashboard/widgets/review-queue.tsx",
+        "src/components/dashboard/widgets/eval-runs.tsx",
+        "src/components/dashboard/widgets/eval-suites.tsx",
+        "src/components/dashboard/widgets/suggestions.tsx",
+        "src/components/evals/**/*.{ts,tsx}",
+        "src/components/datasets/**/*.{ts,tsx}",
+        "src/components/dashboard/widgets/knowledge-gaps.tsx",
+        "src/components/dashboard/widgets/needs-attention.tsx",
+        "src/components/dashboard/widgets/improvements-waiting.tsx",
+        "src/components/knowledge-gaps/**/*.tsx",
         "src/components/dashboard/widgets/voice-minutes.tsx",
         "src/components/dashboard/widgets/projects.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
@@ -137,6 +150,8 @@ export default defineConfig({
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
         "src/components/layout/navigation-progress.tsx",
+        // Asks before leaving drops a change somebody has not saved.
+        "src/components/layout/unsaved-changes-guard.tsx",
         // The offline strip in the apps (#2097).
         "src/components/layout/offline-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
@@ -319,6 +334,8 @@ export default defineConfig({
         "src/components/teams/org-voice-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
+        // The link that lands on the AI assistance switch, new and so inside the gate.
+        "src/components/teams/enable-ai-assistance-link.tsx",
         // The deployment's switch for compressed dictation audio (#1797), new and
         // so inside the gate, like the Voice card above.
         "src/components/admin/dictation-audio-card.tsx",

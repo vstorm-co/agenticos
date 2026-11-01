@@ -51,6 +51,9 @@ class NotificationEventType(enum.StrEnum):
     MCP_SERVER_DOWN = "mcp_server_down"
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
     BACKGROUND_TASK_PAUSED = "background_task_paused"
+    EVAL_SUITE_FAILED = "eval_suite_failed"
+    PROMOTION_OVERRIDDEN = "promotion_overridden"
+    SHARED_CHANGE_APPLIED = "shared_change_applied"
     # Written by a workflow's `notification.send` step. Its audience is the step's
     # own recipient list, already checked against the workflow's reach, rather
     # than a setting on an agent (#1789).
@@ -62,6 +65,10 @@ class NotificationEventType(enum.StrEnum):
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
+    IMPROVEMENT_FINISHED = "improvement_finished"
+    EVAL_SUITE_REEVALUATED = "eval_suite_reevaluated"
+    EVAL_RUN_FINISHED = "eval_run_finished"
+    CASE_GENERATION_FINISHED = "case_generation_finished"
     # A workflow's log crossed an alert rule's threshold in its window.
     WORKFLOW_LOG_ALERT = "workflow_log_alert"
 
@@ -159,9 +166,12 @@ class Notification(Base, TimestampMixin):
             "'agent_usage_report', 'security_event', 'configuration_changed', "
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
-            "'background_task_paused', 'workflow_notification', "
+            "'background_task_paused', 'eval_suite_failed', 'promotion_overridden', "
+            "'shared_change_applied', 'workflow_notification', "
             "'artifact_owner_changed', 'artifact_share_requested', "
-            "'capability_requested', 'suggestion', 'finding', 'workflow_log_alert')",
+            "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
+            "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
+            "'workflow_log_alert')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

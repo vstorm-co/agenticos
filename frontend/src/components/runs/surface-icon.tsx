@@ -2,6 +2,7 @@ import {
   BellRing,
   CalendarClock,
   Code2,
+  FlaskConical,
   Globe,
   MessageSquare,
   Mic,
@@ -48,6 +49,7 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  eval: FlaskConical,
   // A workflow's `agent.run` step - the workflows module's own mark, so a run a
   // graph asked for is recognisable as one.
   workflow: Workflow,
@@ -67,6 +69,7 @@ const LABEL_KEYS = {
   teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  eval: "surfaceEval",
   workflow: "surfaceWorkflow",
   proactive: "surfaceProactive",
 } as const;

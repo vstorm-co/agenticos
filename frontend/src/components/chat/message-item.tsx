@@ -48,6 +48,7 @@ import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 import { TurnExtras } from "./turn-extras";
 
@@ -99,6 +100,8 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** The question an answer replied to, when `MessageList` can see it. */
+  asked?: AskedBefore;
   /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
   request?: string;
 }
@@ -114,6 +117,7 @@ export const MessageItem = memo(function MessageItem({
   onRegenerate,
   pins,
   agents = [],
+  asked,
   request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
@@ -477,6 +481,7 @@ export const MessageItem = memo(function MessageItem({
                 currentRating={message.user_rating ?? null}
                 ratingCount={message.rating_count ?? undefined}
                 isAssistant={!isUser}
+                asked={asked}
                 onRatingChange={(updatedData) => {
                   updateMessage(message.id, (msg) => ({
                     ...msg,

@@ -327,6 +327,10 @@ nav:
           - models.md
           - skills.md
           - context.md
+          - datasets.md
+          - evals.md
+          - authoring.md
+          - knowledge-gaps.md
           - virtual-tables.md
           - workflows.md
           - file-processing.md

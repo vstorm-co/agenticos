@@ -1,0 +1,336 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { DiffView } from "./diff-view";
+
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui";
+import { useEvalCases, useEvalRun } from "@/hooks/use-eval-runs";
+import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { expectedEffect } from "@/lib/authoring-text";
+import { ROUTES } from "@/lib/constants";
+import type {
+  AuthoringRequest,
+  EvidenceSource,
+  Hunk,
+  ProposedSkill,
+  SuggestionBatch,
+} from "@/types/authoring";
+import { ConversationEvidence, EvidenceList, RationaleText } from "./evidence-list";
+import { NewSkillPreview } from "./new-skill-preview";
+import { FieldDiff, fieldLabel } from "./field-change";
+import { RejectedChanges } from "./rejected-changes";
+
+/** One request owns the notice, so observing a new request cannot reopen an old result. */
+type CreateSkill = (requestId: string, index: number, skill: ProposedSkill) => Promise<boolean>;
+
+export function AuthoringResultNotice({
+  request,
+  batch,
+  canReadRuns,
+  onCreateSkill,
+}: {
+  request: AuthoringRequest;
+  batch: SuggestionBatch | null;
+  canReadRuns: boolean;
+  onCreateSkill?: CreateSkill;
+}) {
+  const t = useTranslations("authoring.result");
+  const working = request.status === "queued" || request.status === "running";
+  const [observedWorking, setObservedWorking] = useState(working);
+  const [dismissed, setDismissed] = useState(false);
+  const [requested, setRequested] = useState(false);
+  // A guarded adjustment to changed input, preserving the transition across query refreshes.
+  if (working && !observedWorking) setObservedWorking(true);
+  if (request.status !== "completed" || request.kind !== "improve") return null;
+  const matchingBatch = batch?.request_id === request.id ? batch : null;
+  const open = requested || (observedWorking && !dismissed);
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setRequested(true)}>
+        {t("open")}
+      </Button>
+      {open && (
+        <AuthoringResultDialog
+          request={request}
+          batch={matchingBatch}
+          canReadRuns={canReadRuns}
+          onCreateSkill={onCreateSkill}
+          onOpenChange={(next) => {
+            if (!next) {
+              setRequested(false);
+              setDismissed(true);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+export function AuthoringResultDialog({
+  request,
+  batch,
+  canReadRuns,
+  onCreateSkill,
+  onOpenChange,
+}: {
+  request: AuthoringRequest;
+  batch: SuggestionBatch | null;
+  canReadRuns: boolean;
+  onCreateSkill?: CreateSkill;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const t = useTranslations("authoring.result");
+  const tb = useTranslations("authoring.batch");
+  const changes = batch?.hunks ?? [];
+  const effect = batch ? expectedEffect(batch, (count) => tb("fromEvidence", { count })) : "";
+  const checkId = batch?.check_eval_run_ids.at(-1);
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}>
+        <DialogHeader>
+          <DialogTitle>{t("title")}</DialogTitle>
+          <DialogDescription>
+            {changes.length > 0
+              ? t("counts", {
+                  proposed: request.report?.proposed ?? changes.length,
+                  recorded: request.report?.recorded ?? changes.length,
+                  reviewed: request.evidence.runs ?? 0,
+                })
+              : t("empty")}
+          </DialogDescription>
+        </DialogHeader>
+        <div className={`${DIALOG_BODY} space-y-5`}>
+          {request.evidence.problem_answers !== undefined && (
+            <p className="text-sm font-medium">
+              {t("problems", { count: request.evidence.problem_answers })}
+            </p>
+          )}
+          {changes.length > 0 && effect && <p className="text-sm">{effect}</p>}
+          {changes.map((hunk) => (
+            <ChangePreview key={hunk.id} hunk={hunk} quotes={canReadRuns} />
+          ))}
+          <RejectedChanges
+            report={request.report}
+            onCreateSkill={
+              onCreateSkill && ((index, skill) => onCreateSkill(request.id, index, skill))
+            }
+          />
+          {changes.length === 0 && !request.report?.rejected?.length && (
+            <p className="text-muted-foreground text-sm">{t("nothingToPlace")}</p>
+          )}
+          {canReadRuns && checkId ? (
+            <CheckedAnswers runId={checkId} />
+          ) : (
+            changes.length > 0 && <p className="text-muted-foreground text-sm">{t("checkFirst")}</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>{t("close")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function ChangePreview({
+  hunk,
+  quotes = true,
+  sources,
+}: {
+  hunk: Hunk;
+  quotes?: boolean;
+  /** In the Improve wizard: where each evidence run came from, which "Based on" names instead of the run. */
+  sources?: Record<string, EvidenceSource>;
+}) {
+  const t = useTranslations("authoring.result");
+  const ts = useTranslations("authoring.suggestion");
+  const tSkill = useTranslations("authoring.newSkill");
+  const tField = useTranslations("authoring.field");
+  const tw = useTranslations("improvement.changeKind");
+  const tWidgets = useTranslations("improvement.widgets");
+  const wizard = sources !== undefined;
+  const kind = wizard
+    ? hunk.kind === "create_skill"
+      ? tw("skill")
+      : hunk.kind === "instructions"
+        ? tw("instructions")
+        : hunk.kind === "tool_override"
+          ? tw("tool", { tool: hunk.base_name ?? hunk.tool_id ?? "" })
+          : fieldLabel(hunk, tField)
+    : hunk.kind === "create_skill"
+      ? tSkill("title")
+      : hunk.kind === "instructions"
+        ? ts("instructions")
+        : hunk.kind === "tool_override"
+          ? ts("tool", { tool: hunk.tool_id ?? "" })
+          : t("configuration");
+  const before =
+    hunk.kind === "tool_override"
+      ? [hunk.base_name ?? hunk.tool_id, hunk.base_description].filter(Boolean).join("\n")
+      : hunk.old_text;
+  const after =
+    hunk.kind === "tool_override"
+      ? [
+          hunk.new_name ?? hunk.base_name ?? hunk.tool_id,
+          hunk.new_description ?? hunk.base_description,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : hunk.new_text;
+  const reasons = (
+    <>
+      <div>
+        <h4 className="text-xs font-medium">{t("why")}</h4>
+        <RationaleText
+          text={hunk.rationale}
+          evidence={hunk.evidence}
+          conversations={
+            sources &&
+            Object.fromEntries(
+              Object.entries(sources).map(([run, source]) => [run, source.conversation_id]),
+            )
+          }
+        />
+      </div>
+      <div>
+        <h4 className="mb-1 text-xs font-medium">{t("basedOn")}</h4>
+        {wizard ? (
+          <ConversationEvidence items={hunk.evidence} sources={sources} />
+        ) : (
+          <EvidenceList
+            items={quotes ? hunk.evidence : hunk.evidence.map((item) => ({ ...item, quote: null }))}
+            dropped={hunk.evidence_dropped}
+          />
+        )}
+      </div>
+    </>
+  );
+  return (
+    <article className="space-y-3 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{kind}</Badge>
+        {!hunk.applies && <Badge variant="warning">{wizard ? tw("stale") : ts("stale")}</Badge>}
+      </div>
+      {hunk.kind === "create_skill" ? (
+        <NewSkillPreview hunk={hunk} />
+      ) : hunk.kind === "spec_field" ? (
+        <FieldDiff hunk={hunk} editing={null} expected={!wizard} />
+      ) : (
+        <DiffView
+          before={before}
+          after={after}
+          context={hunk.kind === "instructions" ? hunk.context_before : ""}
+          trailing={hunk.kind === "instructions" ? hunk.context_after : ""}
+          emptyLabel={t("emptyPassage")}
+        />
+      )}
+      {wizard ? (
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">{tWidgets("reasons")}</summary>
+          <div className="mt-2 space-y-3">{reasons}</div>
+        </details>
+      ) : (
+        reasons
+      )}
+    </article>
+  );
+}
+
+/** Read only when a person opens results; answers stay behind runs:view. */
+export function CheckedAnswers({ runId }: { runId: string }) {
+  const { run, error } = useEvalRun(runId);
+  const t = useTranslations("authoring.result");
+  if (error)
+    return (
+      <p role="alert" className="text-destructive text-sm">
+        {t("unavailable")}
+      </p>
+    );
+  if (!run)
+    return (
+      <p role="status" className="text-muted-foreground text-sm">
+        {t("loading")}
+      </p>
+    );
+  if (run.status !== "completed")
+    return <p className="text-muted-foreground text-sm">{t("checkFirst")}</p>;
+  return (
+    <AnswerRows
+      runId={runId}
+      baselineId={run.arms.find((arm) => arm.role === "baseline")?.id}
+      candidateId={run.arms.find((arm) => arm.role === "candidate")?.id}
+      href={`${ROUTES.AGENTS}/${run.agent_id}/evals/${runId}`}
+    />
+  );
+}
+
+function AnswerRows({
+  runId,
+  baselineId,
+  candidateId,
+  href,
+}: {
+  runId: string;
+  baselineId?: string;
+  candidateId?: string;
+  href: string;
+}) {
+  const { cases, total, isLoading, error } = useEvalCases(runId, { limit: 5 });
+  const t = useTranslations("authoring.result");
+  if (error)
+    return (
+      <p role="alert" className="text-destructive text-sm">
+        {t("unavailable")}
+      </p>
+    );
+  if (isLoading)
+    return (
+      <p role="status" className="text-muted-foreground text-sm">
+        {t("loading")}
+      </p>
+    );
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-medium">{t("answers")}</h3>
+      {cases.map((item) => (
+        <article key={item.case_id} className="space-y-2 rounded-lg border p-3">
+          <p className="text-sm font-medium">{item.input}</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              { label: t("before"), arm: baselineId },
+              { label: t("after"), arm: candidateId },
+            ].map(({ label, arm }) => (
+              <div key={label} className="min-w-0">
+                <h4 className="text-muted-foreground text-xs">{label}</h4>
+                <p className="text-sm break-words whitespace-pre-wrap">
+                  {item.attempts.find((attempt) => attempt.arm_id === arm && attempt.attempt === 0)
+                    ?.answer ?? t("noAnswer")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+      {total > cases.length && (
+        <p className="text-muted-foreground text-xs">
+          {t("more", { count: total - cases.length })}
+        </p>
+      )}
+      <Link className="text-sm underline underline-offset-4" href={href}>
+        {t("allAnswers")}
+      </Link>
+    </section>
+  );
+}

@@ -25,6 +25,7 @@ import { ErrorState } from "@/components/states";
 import {
   InviteLinkDialog,
   InviteMemberDialog,
+  OrgAiAssistance,
   OrgApprovalWaiver,
   OrgAssistant,
   OrgPublicLiveData,
@@ -663,6 +664,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         >
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
+          {org && <OrgAiAssistance org={org} />}
           {org && <OrgPublicLiveData org={org} />}
         </TabsContent>
         <TabsContent

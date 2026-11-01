@@ -60,6 +60,11 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     # may open the page is shown the row.
     NotificationEventType.ARTIFACT_SHARE_REQUESTED: ContentGate.ARTIFACTS_VIEW,
     NotificationEventType.ARTIFACT_VERSION_PUBLISHED: ContentGate.ARTIFACTS_VIEW,
+    NotificationEventType.EVAL_SUITE_FAILED: ContentGate.RUNS_VIEW,
+    NotificationEventType.EVAL_RUN_FINISHED: ContentGate.RUNS_VIEW,
+    NotificationEventType.CASE_GENERATION_FINISHED: ContentGate.RUNS_VIEW,
+    NotificationEventType.EVAL_SUITE_REEVALUATED: ContentGate.RUNS_VIEW,
+    NotificationEventType.PROMOTION_OVERRIDDEN: ContentGate.RUNS_VIEW,
     # Names a workflow and how many of its log lines matched, never the lines: only
     # someone who may still view the workflow is shown the row.
     NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,

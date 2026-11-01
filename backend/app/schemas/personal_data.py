@@ -42,10 +42,19 @@ class PersonalDataExport(BaseModel):
         description="Which organizations they belong to, as what, and since when."
     )
     ratings: list[dict[str, Any]] = Field(description="Answers they marked good or bad.")
+    case_verdicts: list[dict[str, Any]] = Field(
+        description="Eval scores they passed or failed by hand, with the note they left."
+    )
+    scored_answers: list[dict[str, Any]] = Field(
+        description="Answers to their runs that an eval score kept, with when it was scored."
+    )
     sessions: list[dict[str, Any]] = Field(
         description="Where and when they signed in. Never the credential; the row holds a hash."
     )
     runs: list[dict[str, Any]] = Field(description="Runs they started, and what each cost.")
+    knowledge_searches: list[dict[str, Any]] = Field(
+        description="What agents searched their knowledge bases for while answering them."
+    )
     memory: list[dict[str, Any]] = Field(
         description="What agents have written down about them, in every organization."
     )
@@ -94,6 +103,12 @@ class PersonalDataExport(BaseModel):
             "Never a code or token the consent was exchanged for."
         )
     )
+    case_proposals: list[dict[str, Any]] = Field(
+        description=(
+            "Test cases drafted from their conversations and still waiting for a "
+            "decision - a paraphrase of what they asked is still about them."
+        )
+    )
 
 
 class PersonalDataPurge(BaseModel):
@@ -105,4 +120,37 @@ class PersonalDataPurge(BaseModel):
     )
     workspaces: int = Field(
         description="User-scoped agent workspaces, which no cascade reaches either."
+    )
+    dataset_cases: int = Field(
+        description="Dataset cases taken from their conversations, kept but unlinked from them."
+    )
+    anonymised_cases: int = Field(
+        description="Dataset case revisions whose text, taken from them, was replaced."
+    )
+    case_copies: int = Field(
+        description="Eval attempts and scores of those revisions, cleared of what they recorded."
+    )
+    history_turns: int = Field(
+        description="Cases asked by somebody else whose earlier turns held theirs, now replaced."
+    )
+    case_notes: int = Field(
+        description="Dataset cases that kept their comment on somebody else's answer as a note."
+    )
+    evidence_quotes: int = Field(
+        description="Quotes of them the authoring assistant kept as evidence, removed."
+    )
+    gap_drafts: int = Field(
+        description="Knowledge-gap drafts written from topics holding their searches, discarded."
+    )
+    knowledge_searches: int = Field(
+        description="Knowledge searches made while answering them, including API runs."
+    )
+    knowledge_gap_reasons: int = Field(
+        default=0, description="Classifier reasons about answers to this person, cleared."
+    )
+    scored_answers: int = Field(
+        description="Eval scores of their runs, kept but without the answer they scored."
+    )
+    case_proposals: int = Field(
+        description="Proposed dataset cases drafted from their conversations, deleted undecided.",
     )

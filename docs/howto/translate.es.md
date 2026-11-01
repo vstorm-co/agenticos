@@ -1,5 +1,5 @@
 ---
-source_sha: "083ce38797dc"
+source_sha: "85e967e18444"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -154,8 +154,8 @@ repositorio, y en cada página inglesa de este sitio. Traducirlas aquí y en nin
 otro sitio le da a un producto dos vocabularios, y un lector polaco que busque la
 palabra traducida no encuentra nada.
 
-**agent · spec · capability · skill · embed · budget · run · prompt · provider ·
-token · vault · workspace · sandbox · MCP**
+**agent · spec · capability · skill · dataset · embed · budget · run · prompt ·
+provider · token · vault · workspace · sandbox · MCP**
 
 Flexiónalos en vez de reemplazarlos, y traduce todo lo que los rodea.
 
@@ -185,6 +185,7 @@ una sola vez, aquí:
 | spec | der Spec | ten spec, speca | el spec |
 | capability | die Capability | ta capability (nieodmienne) | la capability |
 | skill | der Skill | ten skill, skilla | el skill |
+| dataset | das Dataset | ten dataset, datasetu | el dataset |
 | embed | das Embed | ten embed, embeda | el embed |
 | budget | das Budget | ten budżet | el budget |
 | run | der Run | ten run, runa | el run |
@@ -234,6 +235,38 @@ Cuando una frase afirma qué rechaza la plataforma, traduce el rechazo
 literalmente. No suavices "is refused" a "puede que no funcione", y no conviertas
 una afirmación sobre lo que no puede ocurrir en un consejo sobre lo que no
 deberías hacer.
+
+## Las palabras de las pantallas de evals { #the-words-the-eval-screens-use }
+
+La pestaña Evals de un agent, un dataset y el veredicto de un eval run nombran
+cada uno de estos conceptos de una sola manera, y una frase que nombra una
+pestaña la nombra como lo hace la pestaña. Los catálogos de la consola los
+guardan, y `frontend/messages/eval-terms.test.ts` rechaza en los espacios de
+nombres de evals las formas mezcladas a las que sustituyeron. Una página que cita
+una de estas pantallas usa la misma palabra, y `scripts/check_docs_glossary.py`
+lo exige en `make lint` a las páginas en polaco y alemán sobre ellas, con los
+mismos patrones de `frontend/messages/eval-terms.json`.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft: an agent's unpublished spec | wersja robocza | der Entwurf | el borrador |
+| draft: a text waiting to be accepted - a gap's content, a generated case | szkic | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
+
+Un borrador sigue sin ser nunca la versión publicada: el par published / draft de
+[Terminología que tiene que ser exacta](#terminology-that-has-to-be-exact)
+conserva su distinción, sea cual sea la palabra que tome el borrador. La consola
+no tiene catálogo en español, así que la columna española es el vocabulario de las
+páginas en español.
 
 ## Los cuatro archivos que renderiza GitHub, no este sitio { #the-four-files-github-renders-not-this-site }
 

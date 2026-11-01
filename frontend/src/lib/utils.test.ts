@@ -15,6 +15,7 @@ import {
   formatRunDuration,
   getPasswordStrength,
   isAppAdmin,
+  pushUrlParam,
   setUrlParam,
   timeAgo,
   truncate,
@@ -227,29 +228,41 @@ describe("formatElapsed", () => {
 
 describe("formatRunDuration", () => {
   it("reports sub-second runs in milliseconds and longer ones in seconds", () => {
-    expect(formatRunDuration("2026-08-04T09:00:00.000Z", "2026-08-04T09:00:00.850Z")).toBe(
+    expect(formatRunDuration("2026-08-04T09:00:00.000Z", "2026-08-04T09:00:00.850Z", "en")).toBe(
       "850 ms",
     );
-    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:01.400Z")).toBe("1.4 s");
-    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:30Z")).toBe("30 s");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:01.400Z", "en")).toBe(
+      "1.4 s",
+    );
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:00:30Z", "en")).toBe("30 s");
+  });
+
+  it("writes the number in the app's language, not the browser's", () => {
+    const took = ["2026-08-04T09:00:00Z", "2026-08-04T09:00:02.400Z"] as const;
+    expect(formatRunDuration(...took, "en")).toBe("2.4 s");
+    expect(formatRunDuration(...took, "pl")).toBe("2,4 s");
   });
 
   it("reads a long run in minutes, hours and days rather than thousands of seconds", () => {
-    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:01:05Z")).toBe("1 min 5 s");
-    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-05T07:14:41Z")).toBe("22 h 14 min");
-    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-06T12:00:00Z")).toBe("2 d 3 h");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:01:05Z", "en")).toBe(
+      "1 min 5 s",
+    );
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-05T07:14:41Z", "en")).toBe(
+      "22 h 14 min",
+    );
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-06T12:00:00Z", "en")).toBe("2 d 3 h");
   });
 
   it("admits it does not know a duration when the run has not finished", () => {
     // A null end is not a fast run: a still-running or parked run has no duration
     // yet, and rendering "0 ms" would call the unfinished the fastest.
-    expect(formatRunDuration("2026-08-04T09:00:00Z", null)).toBe("-");
-    expect(formatRunDuration(null, "2026-08-04T09:00:30Z")).toBe("-");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", null, "en")).toBe("-");
+    expect(formatRunDuration(null, "2026-08-04T09:00:30Z", "en")).toBe("-");
   });
 
   it("refuses a negative or unparsable window rather than printing nonsense", () => {
-    expect(formatRunDuration("2026-08-04T09:00:30Z", "2026-08-04T09:00:00Z")).toBe("-");
-    expect(formatRunDuration("2026-08-04T09:00:00Z", "not a date")).toBe("-");
+    expect(formatRunDuration("2026-08-04T09:00:30Z", "2026-08-04T09:00:00Z", "en")).toBe("-");
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "not a date", "en")).toBe("-");
   });
 });
 
@@ -279,6 +292,27 @@ describe("setUrlParam", () => {
     setUrlParam("agent", null);
 
     expect(window.location.search).toBe("");
+  });
+
+  it("keeps what the app marked the entry with, but not a guard's copy of another entry", () => {
+    window.history.replaceState({ __urlOverlay: "run", __unsavedHeld: true }, "", "/runs?run=r1");
+
+    setUrlParam("tab", "approvals");
+
+    expect(window.history.state).toEqual({ __urlOverlay: "run" });
+  });
+});
+
+describe("pushUrlParam", () => {
+  it("writes the parameter as a new entry carrying the given state", () => {
+    window.history.replaceState({}, "", "/datasets/d1?tab=evals");
+    const length = window.history.length;
+
+    pushUrlParam("case", "c1", { __urlOverlay: "case" });
+
+    expect(window.history.length).toBe(length + 1);
+    expect(window.location.search).toBe("?tab=evals&case=c1");
+    expect(window.history.state).toEqual({ __urlOverlay: "case" });
   });
 });
 

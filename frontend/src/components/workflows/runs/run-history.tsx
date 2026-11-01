@@ -139,7 +139,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
       key: "duration",
       header: t("runColumns.duration"),
       className: "whitespace-nowrap",
-      cell: (run) => formatRunDuration(run.started_at, run.ended_at),
+      cell: (run) => formatRunDuration(run.started_at, run.ended_at, locale),
       hideBelow: "sm",
     },
     {

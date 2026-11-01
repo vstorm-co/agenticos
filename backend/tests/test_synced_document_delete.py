@@ -94,7 +94,7 @@ class TestDeletingATrackedDocument:
     async def test_the_vectors_go_under_the_base_the_document_is_filed_under(self, monkeypatch):
         """Its base's own scope - tenant and base - so the delete reaches this
         document's chunks and nothing of a same-named base (#2537)."""
-        from app.repositories import knowledge_base_repo
+        from app.repositories import eval_suite_repo, knowledge_base_repo
 
         row = _row(vector_document_id="vector-doc-1")
         row.knowledge_base_id = uuid.uuid4()
@@ -104,6 +104,7 @@ class TestDeletingATrackedDocument:
         monkeypatch.setattr(
             knowledge_base_repo, "get_by_id", AsyncMock(return_value=MagicMock(vector_scope=scope))
         )
+        monkeypatch.setattr(eval_suite_repo, "list_watching", AsyncMock(return_value=[]))
         ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
         db = _deferring_db()
 

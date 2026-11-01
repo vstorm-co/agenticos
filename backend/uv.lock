@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.15"
 
 [manifest]
@@ -65,6 +65,8 @@ dependencies = [
     { name = "pywebpush" },
     { name = "rank-bm25" },
     { name = "redis" },
+    { name = "referencing" },
+    { name = "regex" },
     { name = "requests" },
     { name = "slack-sdk" },
     { name = "soupsieve" },
@@ -137,6 +139,7 @@ requires-dist = [
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jmespath", specifier = ">=1.1.0" },
     { name = "jsonschema", specifier = ">=4.23.0" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "ldap3", specifier = ">=2.9.1" },
     { name = "liteparse", specifier = ">=2.16.0" },
     { name = "llama-cloud", specifier = ">=2.18.0" },
@@ -167,6 +170,8 @@ requires-dist = [
     { name = "pywebpush", specifier = ">=2" },
     { name = "rank-bm25", specifier = ">=0.2.2" },
     { name = "redis", specifier = ">=8.1.0" },
+    { name = "referencing", specifier = ">=0.37.0" },
+    { name = "regex", specifier = ">=2026.9.10" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "slack-sdk", specifier = ">=3.45.0" },
     { name = "soupsieve", specifier = ">=2.9.2" },

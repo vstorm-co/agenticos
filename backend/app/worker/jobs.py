@@ -26,6 +26,8 @@ class Pool(enum.StrEnum):
 
     AGENT = "agent"
     """Agent runs: long, waiting on models, cheap in memory."""
+    EVAL = "eval"
+    """Eval runs: hours over a large dataset, so they never hold a slot an agent run needs."""
     INGEST = "ingest"
     """Parsing and embedding: CPU and memory heavy, each job in a child process."""
     SYSTEM = "system"
@@ -131,6 +133,58 @@ class RunAgent(Payload):
     """The request's fingerprint: an idempotent retry must send the same one."""
 
 
+class AdvanceImprovement(Payload):
+    """One short, restartable transition; paid work runs in its own child job."""
+
+    run_id: UUID
+    organization_id: UUID
+
+
+class RunEval(Payload):
+    """One eval run, answered, scored and compared case by case."""
+
+    eval_run_id: UUID
+    organization_id: UUID
+
+
+class GenerateCases(Payload):
+    """One case generation, drafted by the case generator."""
+
+    generation_id: UUID
+    organization_id: UUID
+
+
+class RunAuthoring(Payload):
+    """One Improve or Verify the authoring assistant was asked for."""
+
+    request_id: UUID
+    organization_id: UUID
+
+
+class ClassifyGaps(Payload):
+    """Answers read for the knowledge gaps of these knowledge bases, as the person who asked.
+
+    Without `message_ids`, a knowledge base's newest unread answers, as its
+    Knowledge gaps tab asks; with them, those answers alone, as an improvement
+    session sorts the answers it found bad.
+    """
+
+    organization_id: UUID
+    knowledge_base_ids: list[UUID] = Field(max_length=50)
+    user_id: UUID
+    message_ids: list[UUID] | None = Field(default=None, max_length=500)
+    improvement_run_id: UUID | None = None
+
+
+class DraftTopic(Payload):
+    """One knowledge gap topic drafted, as the person - or through the key - that asked."""
+
+    organization_id: UUID
+    topic_id: UUID
+    user_id: UUID | None
+    api_key_id: UUID | None = None
+
+
 class DispatchWorkflowNode(Payload):
     """One node attempt of a workflow run, named by the outbox row's node run.
 
@@ -226,6 +280,14 @@ class CleanupExternalState(Payload):
     """Deleted bases whose chunks go from a table that is kept, because another
     base still holds its name (#2537). Defaulted and left out of the dump when
     empty, as `prefixes` is."""
+
+
+class SettleLater(Exception):
+    """A settler that cannot close what its job left yet - a worker still holds it.
+
+    The worker logs it without a traceback and leaves the end owed, so the
+    rescuer's next pass runs the settler again.
+    """
 
 
 @dataclass(frozen=True)
@@ -329,6 +391,63 @@ RUN_AGENT = Task(
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
 )
+# One attempt, for `RUN_AGENT`'s reason: the cases a dead worker answered were
+# paid for. A job that ends for good - withdrawn, timed out, its worker dead -
+# closes its run through the kind's settler, which frees the organization's eval
+# slots it held; `REAP_ABANDONED_EVALS` is the ceiling when that settler cannot
+# run. A pool of its own, because a run holds its slot for as long as it lasts -
+# waiting on the organization's eval slots included - and in a shared pool enough
+# of them would leave a person's API run and every trigger fire with no slot at
+# all.
+RUN_EVAL = Task(
+    kind="run-eval",
+    payload_type=RunEval,
+    pool=Pool.EVAL,
+    max_attempts=1,
+    timeout=timedelta(hours=12),
+    priority=Priority.BULK,
+)
+# One attempt: each improver call is billed. A job that ends for good fails its
+# request through the kind's settler, and the request's own staleness check, when
+# it is next read, is the ceiling when that settler cannot run.
+RUN_AUTHORING = Task(
+    kind="run-authoring",
+    payload_type=RunAuthoring,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+# One attempt each: every classifying and drafting call is billed, and what one
+# recorded stays recorded, so a session or a topic reads the job's end.
+CLASSIFY_GAPS = Task(
+    kind="classify-gaps",
+    payload_type=ClassifyGaps,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+)
+DRAFT_TOPIC = Task(
+    kind="draft-knowledge-gap",
+    payload_type=DraftTopic,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+)
+# One attempt: the generator's call is billed. A job that ends without the
+# handler finishing the generation - its worker killed - fails the generation
+# through its settler, so nothing waits on it for ever.
+GENERATE_CASES = Task(
+    kind="generate-cases",
+    payload_type=GenerateCases,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 # One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
 # position, and a second attempt of the same job could only find its claim held.
 # Re-running a node is the workflow reconciler's call, made from `node_attempts`.
@@ -411,6 +530,16 @@ CLEANUP_EXTERNAL_STATE = Task(
     priority=Priority.SCHEDULED,
 )
 
+ADVANCE_IMPROVEMENT = Task(
+    kind="advance-improvement",
+    payload_type=AdvanceImprovement,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+SWEEP_IMPROVEMENTS = _sweep("sweep-improvements")
+
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -426,6 +555,9 @@ APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+CHECK_EVAL_SUITES = _sweep("check-eval-suites")
+REAP_ABANDONED_EVALS = _sweep("reap-abandoned-evals")
+GROUP_KNOWLEDGE_GAPS = _sweep("group-knowledge-gaps")
 WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minutes=2))
 WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
 WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
@@ -461,6 +593,13 @@ TASKS: dict[str, TaskKind] = {
         SYNC_SOURCE,
         FIRE_TRIGGER,
         RUN_AGENT,
+        RUN_EVAL,
+        RUN_AUTHORING,
+        ADVANCE_IMPROVEMENT,
+        SWEEP_IMPROVEMENTS,
+        CLASSIFY_GAPS,
+        DRAFT_TOPIC,
+        GENERATE_CASES,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         LOOK_THROUGH_WATCH,
@@ -483,6 +622,9 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
+        CHECK_EVAL_SUITES,
+        REAP_ABANDONED_EVALS,
+        GROUP_KNOWLEDGE_GAPS,
         WORKFLOW_DISPATCH_POLL,
         WORKFLOW_RECONCILE,
         WORKFLOW_SCHEDULES_CHECK,

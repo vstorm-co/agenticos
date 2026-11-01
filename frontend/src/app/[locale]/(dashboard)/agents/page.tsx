@@ -11,6 +11,8 @@ import {
   AgentLimitNotice,
   isAtAgentLimit,
 } from "@/components/agents/agent-limit-notice";
+import { CatalogSection } from "@/components/agents/catalog-section";
+import { SystemAgentsSection } from "@/components/agents/system-agents-section";
 import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
 import { LabelFilter } from "@/components/agents/label-filter";
@@ -29,8 +31,9 @@ import {
   SearchInput,
   Skeleton,
 } from "@/components/ui";
-import { useAgentCeiling, useAgents, usePermissions } from "@/hooks";
+import { useAgentAttention, useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { resolvePreset } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -118,6 +121,13 @@ export default function AgentsPage() {
   const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: canEdit });
   const atLimit = isAtAgentLimit(ceiling);
   const tLimit = useTranslations("agentLimit");
+  // Which agents need a look over the last thirty days - read only by whoever may see runs.
+  const lately = resolvePreset("30d");
+  const { agents: needingAttention } = useAgentAttention(
+    { from: lately.from, to: lately.to },
+    { enabled: can(Perm.runsView) },
+  );
+  const attention = new Map(needingAttention.map((item) => [item.agent_id, item]));
 
   // Any narrowing at all - the client status/text filters and the server facet.
   // A zero-match facet returns an empty page, so this is what tells "no agent
@@ -234,86 +244,95 @@ export default function AgentsPage() {
         <AgentLimitNotice ceiling={ceiling} id={AGENT_LIMIT_NOTICE_ID} />
       ) : null}
 
-      {/* The header and the controls are static, so they stay put while the
-          list loads rather than being replaced by a placeholder of themselves.
-          The panel below is equally static - loading, empty and populated all
-          render inside the same frame. */}
-      {isLoading ? (
-        <AgentsCard visible={null} total={0} controls={galleryControls}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="border-border rounded-xl border p-4">
-                <div className="flex items-start gap-3">
-                  <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-3 w-full" />
+      <CatalogSection
+        title={t("agentsCount", { count: total })}
+        defaultOpen
+        storageKey="agents.catalog.agents"
+      >
+        {/* The header and the controls are static, so they stay put while the
+            list loads rather than being replaced by a placeholder of themselves.
+            The panel below is equally static - loading, empty and populated all
+            render inside the same frame. */}
+        {isLoading ? (
+          <AgentsCard visible={null} total={0} controls={galleryControls}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {[0, 1, 2].map((row) => (
+                <div key={row} className="border-border rounded-xl border p-4">
+                  <div className="flex items-start gap-3">
+                    <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-3 w-full" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </AgentsCard>
-      ) : (
-        <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
-          {visible.length === 0 ? (
-            <ListCardEmpty
-              icon={Bot}
-              title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
-              description={
-                filtersActive
-                  ? t("noAgentHereMatches")
-                  : canEdit
-                    ? !ceilingKnown
-                      ? undefined
-                      : atLimit
-                        ? tLimit("emptyGallery")
-                        : t("createOneGiveInstructions")
-                    : t("nobodyHasSharedAgent")
-              }
-              cta={
-                filtersActive
-                  ? {
-                      label: t("clearFilters"),
-                      onClick: clearFilters,
-                    }
-                  : canEdit && ceilingKnown && !atLimit
-                    ? {
-                        label: (
-                          <>
-                            <Plus className="h-3.5 w-3.5" />
-                            {t("newAgent")}
-                          </>
-                        ),
-                        onClick: () => setCreateOpen(true),
-                      }
-                    : undefined
-              }
-            />
-          ) : (
-            <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {visible.map((agent) => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  canEdit={canEdit}
-                  busy={busyId === agent.id}
-                  actions={{
-                    onDuplicate: () =>
-                      clone.mutate(agent.id, {
-                        onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
-                      }),
-                    onArchive: () => setPendingArchive(agent),
-                    onRestore: () => unarchive.mutate(agent.id),
-                    onDelete: () => setPendingDelete(agent),
-                  }}
-                />
               ))}
             </div>
-          )}
-        </AgentsCard>
-      )}
+          </AgentsCard>
+        ) : (
+          <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
+            {visible.length === 0 ? (
+              <ListCardEmpty
+                icon={Bot}
+                title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
+                description={
+                  filtersActive
+                    ? t("noAgentHereMatches")
+                    : canEdit
+                      ? !ceilingKnown
+                        ? undefined
+                        : atLimit
+                          ? tLimit("emptyGallery")
+                          : t("createOneGiveInstructions")
+                      : t("nobodyHasSharedAgent")
+                }
+                cta={
+                  filtersActive
+                    ? {
+                        label: t("clearFilters"),
+                        onClick: clearFilters,
+                      }
+                    : canEdit && ceilingKnown && !atLimit
+                      ? {
+                          label: (
+                            <>
+                              <Plus className="h-3.5 w-3.5" />
+                              {t("newAgent")}
+                            </>
+                          ),
+                          onClick: () => setCreateOpen(true),
+                        }
+                      : undefined
+                }
+              />
+            ) : (
+              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {visible.map((agent) => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    canEdit={canEdit}
+                    attention={attention.get(agent.id)}
+                    busy={busyId === agent.id}
+                    actions={{
+                      onDuplicate: () =>
+                        clone.mutate(agent.id, {
+                          onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
+                        }),
+                      onArchive: () => setPendingArchive(agent),
+                      onRestore: () => unarchive.mutate(agent.id),
+                      onDelete: () => setPendingDelete(agent),
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </AgentsCard>
+        )}
+      </CatalogSection>
+
+      <SystemAgentsSection query={query} agentsMatched={visible.length > 0} />
 
       <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} ceiling={ceiling} />
       <CreateAgentDialog

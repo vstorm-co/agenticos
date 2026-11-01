@@ -28,12 +28,30 @@ describe("staleQueries", () => {
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
     expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
     expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
+    expect(staleQueries(change("eval_suite"))).toEqual([qk.evalSuites.all(), qk.evalRuns.all()]);
+    expect(staleQueries(change("eval_run"))).toEqual([
+      qk.evalRuns.all(),
+      qk.datasets.all(),
+      qk.improvements.all(),
+    ]);
+    expect(staleQueries(change("knowledge_gap"))).toEqual([
+      qk.knowledgeGaps.all(),
+      qk.improvements.all(),
+    ]);
+    expect(staleQueries(change("improvement"))).toEqual([
+      qk.improvements.all(),
+      qk.authoring.all(),
+      qk.evalRuns.all(),
+    ]);
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {
     expect(staleQueries(change("agent"))).toEqual([
       qk.agents.all(),
+      qk.improvements.all(),
+      qk.authoring.all(),
       qk.sharing.all(),
+      qk.environments.all(),
       qk.runs.assistantSignals(ORG),
     ]);
     expect(staleQueries(change("skill"))).toEqual([qk.skills.all(), qk.sharing.all()]);
@@ -45,6 +63,14 @@ describe("staleQueries", () => {
     expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
       qk.mcpConnections.all(),
+      qk.sharing.all(),
+    ]);
+    expect(staleQueries(change("dataset"))).toEqual([
+      qk.datasets.all(),
+      qk.evalRuns.all(),
+      qk.evalSuites.all(),
+      qk.improvements.all(),
+      qk.environments.all(),
       qk.sharing.all(),
     ]);
   });

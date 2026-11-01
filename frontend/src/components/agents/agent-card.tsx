@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArchiveRestore,
   Archive,
@@ -17,6 +17,7 @@ import {
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
+import { SystemAgentBadge } from "@/components/agents/system-agent-badge";
 import { Beam } from "@/components/ui/beam";
 import {
   Badge,
@@ -30,10 +31,14 @@ import {
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDate } from "@/lib/utils";
+import { isSystemAgent } from "@/lib/system-agents";
 import type { Agent } from "@/types/agents";
 import { useLocale, useTranslations } from "next-intl";
 
 import { groupsLabel } from "@/components/sharing/audience-chip";
+import { attentionParts } from "@/lib/attention";
+import { ImproveLink } from "@/components/agents/improve-link";
+import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
 /**
@@ -79,11 +84,18 @@ export function AgentCard({
   canEdit,
   actions,
   busy,
+  footer,
+  attention,
 }: {
   agent: Agent;
   canEdit: boolean;
-  actions: AgentCardActions;
+  /** The card's menu - duplicate, archive, delete. Absent for an agent the platform owns. */
+  actions?: AgentCardActions;
   busy?: boolean;
+  /** A line under the labels, such as the datasets a judge grades. */
+  footer?: ReactNode;
+  /** What makes the agent need a look lately, for a reader who may see runs. */
+  attention?: AgentAttention;
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
@@ -149,7 +161,21 @@ export function AgentCard({
               </p>
               <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
                 <AccessChip agent={agent} />
+                {attention && <AttentionBadge agentId={agent.id} attention={attention} />}
+                {isSystemAgent(agent.kind) &&
+                  (agent.system_key ? (
+                    <Badge
+                      variant="secondary"
+                      className="font-normal"
+                      title={t(`defaultBadge.${agent.kind}Hint`)}
+                    >
+                      {t(`defaultBadge.${agent.kind}`)}
+                    </Badge>
+                  ) : (
+                    <SystemAgentBadge kind={agent.kind} />
+                  ))}
               </div>
+              {footer !== undefined && <div className="mt-2">{footer}</div>}
             </div>
           </div>
 
@@ -174,54 +200,56 @@ export function AgentCard({
                   // of many still returns to the right one.
                   agentId={agent.id}
                 />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t("moreActionsFor", { name: agent.name })}
-                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
-                      <Copy className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("duplicate")}
-                        description={t("menuDuplicateHint")}
-                      />
-                    </DropdownMenuItem>
-                    {archived ? (
-                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
-                        <ArchiveRestore className="h-4 w-4" />
+                {actions && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t("moreActionsFor", { name: agent.name })}
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
+                        <Copy className="h-4 w-4" />
                         <DropdownMenuItemText
-                          label={t("restore")}
-                          description={t("menuRestoreHint")}
+                          label={t("duplicate")}
+                          description={t("menuDuplicateHint")}
                         />
                       </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
-                        <Archive className="h-4 w-4" />
+                      {archived ? (
+                        <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
+                          <ArchiveRestore className="h-4 w-4" />
+                          <DropdownMenuItemText
+                            label={t("restore")}
+                            description={t("menuRestoreHint")}
+                          />
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
+                          <Archive className="h-4 w-4" />
+                          <DropdownMenuItemText
+                            label={t("archive")}
+                            description={t("menuArchiveHint")}
+                          />
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
+                        onSelect={actions.onDelete}
+                      >
+                        <Trash2 className="h-4 w-4" />
                         <DropdownMenuItemText
-                          label={t("archive")}
-                          description={t("menuArchiveHint")}
+                          label={t("deletePermanently")}
+                          description={t("menuDeleteHint")}
                         />
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
-                      onSelect={actions.onDelete}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("deletePermanently")}
-                        description={t("menuDeleteHint")}
-                      />
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             )}
           </div>
@@ -265,5 +293,31 @@ function IconAction({
     >
       <Icon className="h-4 w-4" />
     </Link>
+  );
+}
+
+/** Leads to the Improve wizard for a reader who may run it, and only describes otherwise. */
+function AttentionBadge({ agentId, attention }: { agentId: string; attention: AgentAttention }) {
+  const tAttention = useTranslations("attention");
+  const badge = (
+    <Badge
+      variant="warning"
+      className="font-normal"
+      title={attentionParts(attention, tAttention).join(" · ")}
+    >
+      {tAttention("badge")}
+    </Badge>
+  );
+  if (!attention.can_edit) return badge;
+  return (
+    <ImproveLink
+      agentId={agentId}
+      aria-label={tAttention("improveLabel", {
+        reasons: attentionParts(attention, tAttention).join(", "),
+      })}
+      className="focus-visible:ring-ring pointer-events-auto relative rounded-md outline-none focus-visible:ring-2"
+    >
+      {badge}
+    </ImproveLink>
   );
 }

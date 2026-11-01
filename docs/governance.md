@@ -49,11 +49,11 @@ at all.
     neighbours' runs; the organization's measured against one agent is no ceiling
     at all. See [why they cannot be collapsed](#why-they-cannot-be-collapsed).
 
-| Level | Set in | Meters | Raised by |
-|---|---|---|---|
-| **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
-| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` and `budgets:manage` |
-| **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
+| Level                    | Set in                    | Meters                                        | Raised by                                           |
+| ------------------------ | ------------------------- | --------------------------------------------- | --------------------------------------------------- |
+| **Agent monthly**        | the agent's spec          | that agent's own runs                         | whoever may edit the agent                          |
+| **Department monthly**   | the department's settings | runs its members started, on any agent        | whoever holds `members:manage` and `budgets:manage` |
+| **Organization monthly** | organization settings     | every run _and_ ingestion in the organization | whoever holds `budgets:manage`                      |
 
 A **new organization starts with the organization ceiling already set** — the
 deployment's `DEFAULT_ORG_MONTHLY_BUDGET_USD` ([configuration](configuration.md),
@@ -71,7 +71,7 @@ precisely what makes it not a cap. An organization's cap measured against one
 agent's spend would never bind.
 
 So each cap meters its own quantity, and the lookup travels with the limit. A $5
-agent under a $50 ceiling now binds when *it* has spent $5, and the refusal names
+agent under a $50 ceiling now binds when _it_ has spent $5, and the refusal names
 the cap that actually bound rather than inferring it from which of two numbers was
 smaller.
 
@@ -82,7 +82,7 @@ at $10.
 
 Both caps are readable where their spend is: the organization's on its own row
 (`GET /orgs/{org_id}`), and each agent's as `budget_monthly_usd` on the agent
-listing - the *published* version's number, since that is the one the runner
+listing - the _published_ version's number, since that is the one the runner
 enforces, not whatever the draft currently promises. The dashboard's headroom
 card joins these against `GET /spend`, so a cap can be seen approaching before
 `budget_exceeded` starts appearing in run history.
@@ -94,7 +94,7 @@ cap. It sits between the other two: a run is checked against the agent's cap,
 then each capped department of the person who started it, then the
 organization's. Each department meters its own members' month, so a person in
 Finance and Sales is stopped by whichever of the two runs out first, and the
-refusal names it - *Sales department monthly budget exhausted*.
+refusal names it - _Sales department monthly budget exhausted_.
 
 The department's lead and the administrators hear when it passes 80% of its
 month, once, and again when its cap stops a run. A run nobody started - a
@@ -114,7 +114,7 @@ schedule, a channel visitor - belongs to no department and is not counted.
     to the session context - which rolls back on any exception and is never
     reached at all on cancellation.
 
-!!! important "A baseline is what *other* runs have spent"
+!!! important "A baseline is what _other_ runs have spent"
 
     Both lookups leave the asking run's own row out. A resumed run keeps its
     row, and by then `finish_run` has committed what it spent — while the
@@ -125,7 +125,7 @@ schedule, a channel visitor - belongs to no department and is not counted.
     refused with $4 of headroom, telling its owner it had reached a cap it was
     at 60% of. The organization's cap double-counted identically.
 
-The guard is a hard stop for a run that *sees* the spend, and a run's own cost only
+The guard is a hard stop for a run that _sees_ the spend, and a run's own cost only
 lands on its row when it finishes.
 
 So the baseline a run reads is the sum of runs that have already finished, and
@@ -141,12 +141,22 @@ simultaneous runs.
 A deployment that needs a strict cap runs its agents through one queue rather than
 in parallel.
 
+### Evals spend from the same budgets { #evals-spend-from-the-same-budgets }
+
+An [eval run](evals.md) is made of ordinary runs, so every case is checked
+against the agent's and the organization's caps before each model request, and
+what it spends counts against both - there is no separate eval budget. A large
+dataset can therefore use up the month's budget that production traffic needs.
+Starting a run shows what each cap keeps once it has spent its estimate, and is
+refused before anything runs when the estimate is more than either has left;
+see [The budget it leaves](evals.md#the-budget-it-leaves).
+
 ### A run costs more than its model requests
 
 A knowledge search embeds the question before it can search it, and that embedding
 is billed to the run that asked for it. The embedding service is process-global -
 it serves every run and every ingestion job at once - so it books against whichever
-run is *currently metered* rather than taking a budget as an argument.
+run is _currently metered_ rather than taking a budget as an argument.
 
 Which makes the meter something a surface can forget, and forgetting it is silent:
 no exception and no warning, just a run that reports less than it spent and an
@@ -157,7 +167,7 @@ about, because there is no way to execute a prepared agent without it.
 [Long conversations](reference/capabilities.md#context-management) is the other
 one. Its summarizing strategy writes the summary through an agent it builds
 itself, so that request passes no budget guard; the capability books what it cost
-against the same meter. Being *outside* the guard has one consequence worth
+against the same meter. Being _outside_ the guard has one consequence worth
 knowing: the spend is recorded rather than refused, so a compaction that crosses a
 cap stops the run on the request after it.
 
@@ -171,13 +181,13 @@ is a **floor**.
 That flag now travels the whole way down. It is on the run row, on the message
 row a turn writes, and on the total a conversation reports; every surface that
 draws money draws `≥` in front of it rather than a figure that reads as exact.
-Null on a message written before the column existed means *not recorded*, which
+Null on a message written before the column existed means _not recorded_, which
 is not the same claim as "exact" — a client marks only what it knows.
 
 **Every surface records it now, and each turn records its own share.** A message
 written by a channel, the API or the widget carried no cost at all until
 recently, so a Slack thread could not be totalled. The number written is the
-*difference* from what that run's earlier turns already claim, not the run row's
+_difference_ from what that run's earlier turns already claim, not the run row's
 figure: a run row is cumulative, and a run that parked and was resumed writes two
 assistant turns — stamping both with the row would count the parked half twice.
 The messages of a run therefore sum to exactly what the run says it spent.
@@ -196,8 +206,8 @@ refused by the provider, mid-answer, and the run simply fails.
 
 Every agent therefore carries a gauge — not only one with
 [Long conversations](reference/capabilities.md#context-management) bound, because
-the warning matters most to the agent that will *not* compact. It reports how
-many tokens the last request of a turn carried, *after* any compaction: the
+the warning matters most to the agent that will _not_ compact. It reports how
+many tokens the last request of a turn carried, _after_ any compaction: the
 reading falls when compaction works, because it measures what went out rather
 than what the conversation holds.
 
@@ -254,7 +264,7 @@ not in the history to summarise. Every request would then buy a summary that
 changes nothing. Compaction is skipped, the chat says why, and the fix is an
 author's: a larger window, or a higher fraction.
 
-That refusal rests on a number a *response* produces, so a turn cannot measure
+That refusal rests on a number a _response_ produces, so a turn cannot measure
 its own before it has to decide — and a chat turn is usually one request. The
 conversation carries the last reading, and a run starts from it. The first turn
 of a thread therefore has nothing to go on and compacts as configured; from the
@@ -270,13 +280,13 @@ has **one spend ledger**, and every delegate records into it. That is what makes
 the parent's cap see a delegation's spend before its next model request, at
 precisely the moment delegation multiplies what a turn can cost. Each entry is
 stamped with the delegation that booked it, which is how one ledger still answers
-"what did *this* delegate cost" - see below.
+"what did _this_ delegate cost" - see below.
 
 It follows that **the caps that bind inside a delegation are the parent's**. A
 delegate's own `budget.monthly_usd` is not enforced mid-parent-run: two guards
 metering one ledger would double-count every request, and the ceiling that matters
 is the one on the run somebody started. The delegate's own cap still governs runs
-*of the delegate itself*.
+_of the delegate itself_.
 
 Each delegate prices its own requests, though, because a guard prices what it
 records: a delegate on Anthropic metered through a guard built for OpenAI would be
@@ -290,7 +300,7 @@ its loop. See the
 
 Two of those three are the delegate's own, which is the line the budget does not
 cross: `max_steps` is read off the delegate's spec, and its `max_depth` caps how
-deep *it* may go however much room its caller had left. A cap on spend is a cap on
+deep _it_ may go however much room its caller had left. A cap on spend is a cap on
 the run somebody started; a cap on nesting is a decision the delegate's author made
 and its reviewers read, so a caller cannot widen it.
 
@@ -298,7 +308,7 @@ and its reviewers read, so a caller cannot widen it.
 
 A delegation to a **published** agent gets an `agent_runs` row of its own, carrying
 `parent_run_id` and the delegation's task id. An **inline specialist** gets none: it
-has no agent to attribute one to, so its cost is the *run's* and the tool call in
+has no agent to attribute one to, so its cost is the _run's_ and the tool call in
 the transcript is the record.
 
 Which run's, though, is the question
@@ -306,7 +316,7 @@ Which run's, though, is the question
 
 - A specialist directly under the run's own agent bills to the **top-level row**,
   which is the whole ledger anyway.
-- A specialist under a **published delegate** bills to *that delegate's* row, not
+- A specialist under a **published delegate** bills to _that delegate's_ row, not
   the top-level one — so the delegate's month includes what its specialist spent,
   which is the only place it could honestly land.
 
@@ -370,11 +380,11 @@ leaves three segments and one row.
 
 `cost_is_partial` is carried the same way, and for a reason the money does not
 share: it is per row now rather than per run, so a delegate that made an unpriced
-request *before* the approval and resumed onto a priced model would otherwise have
+request _before_ the approval and resumed onto a priced model would otherwise have
 its row claim an exact cost. The flag is true if it was true of any segment.
 
 That is worth stating because the failure it replaces was invisible. The row used to
-hold only what the delegate spent *after* the last resume, which on the ordinary
+hold only what the delegate spent _after_ the last resume, which on the ordinary
 shape - do the work, then ask permission to act on the result - is the small half.
 Nothing failed to add up, because the money was in the parent's row all along; what
 was wrong was every number that answers "what did this delegate cost".
@@ -382,10 +392,10 @@ was wrong was every number that answers "what did this delegate cost".
 The child row is what makes two different questions answerable, and they want
 opposite arithmetic:
 
-| The question | Child rows |
-|---|---|
-| **What does the organization owe?** | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request |
-| **What did *this agent* cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests and its inline specialists' ([#228](https://github.com/vstorm-co/agenticos/issues/228)) but not its published delegates', which have rows of their own |
+| The question                               | Child rows                                                                                                                                                                                                                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **What does the organization owe?**        | **excluded** - the parent's row already contains these tokens, so counting both bills the organization twice for one request                                                                                                                                                       |
+| **What did _this agent_ cost this month?** | **included** - a delegate's rows are the only place its own spend is recorded, and each one holds that agent's own requests and its inline specialists' ([#228](https://github.com/vstorm-co/agenticos/issues/228)) but not its published delegates', which have rows of their own |
 
 The second is what makes "the researcher cost $40 this month" answerable, and it is
 what a per-agent usage report or a budget alert on that agent fires on. The
@@ -400,7 +410,7 @@ provider's own text goes to the server log. A delegate stopped by its usage limi
 or by a budget ceiling keeps the limit's message whole: that is a ceiling doing
 its job, not a failure to diagnose.
 
-The rule reaches the *parent's* transcript too. When an agent delegates in the
+The rule reaches the _parent's_ transcript too. When an agent delegates in the
 background it polls `check_task` and `wait_tasks` for the outcome, and what those
 answer becomes a tool-call row in the conversation — stored whole, because a tool
 return is the tool's own answer rather than something this platform composed. So
@@ -408,7 +418,7 @@ they name the exception's class rather than repeating the provider's message,
 which is `subagents-pydantic-ai` 0.2.20 and the reason the floor is there.
 
 **The dashboard's windowed figure carries it too.** `GET /stats/usage` answers a
-`cost` block for whatever period the filter chose, and that block is runs *plus*
+`cost` block for whatever period the filter chose, and that block is runs _plus_
 ingestion — the same arithmetic the monthly cap is measured with — with
 `model_usd` and `ingestion_usd` beside it so a reader can see where the money
 went without subtracting. It reported the model half alone until 0.0.152, which
@@ -426,7 +436,7 @@ spend.
 is the default. The month-to-date figure and the per-agent breakdown behind it
 exclude child rows, so they add up to the total printed above them — and the
 organization's usage email reports that same total rather than a sum of one of
-them. Only a question asked *about one agent* includes them. Three of these five
+them. Only a question asked _about one agent_ includes them. Three of these five
 queries shipped without the distinction and each reported $1.40 for $1.00 of work;
 if a new one is added, the default is the safe one.
 
@@ -434,10 +444,10 @@ if a new one is added, the default is the safe one.
 
 **By provider** and **by key** cannot use either column, and getting that wrong is
 invisible on screen. Excluding child rows totals correctly and then attributes the
-delegate's money to the *parent's* vendor, because that is the provider on the row
+delegate's money to the _parent's_ vendor, because that is the provider on the row
 being summed: an orchestrator on OpenAI delegating $0.40 of work to an agent on
-Anthropic reported `openai $1.00` and no Anthropic row at all. Including them
-reported `openai $1.00` + `anthropic $0.40` — more than the bill.
+Anthropic reported `openai $1.00`and no Anthropic row at all. Including them
+reported`openai $1.00` + `anthropic $0.40` — more than the bill.
 
 So these two sum each run's **own** spend: its cost with its direct delegations'
 costs subtracted. `openai $0.60` + `anthropic $0.40`, which is both the right
@@ -541,16 +551,16 @@ month-to-date figure of $1.00, and both halves were right about a different
 question.
 
 The list takes the same two-sided arithmetic as the sums above, for the same
-reason — so a surface narrowed to one agent shows what *that agent* did, delegate
+reason — so a surface narrowed to one agent shows what _that agent_ did, delegate
 work included:
 
-| Ask | Answer |
-|---|---|
-| `GET /runs` | Runs somebody started. `parent_run_id IS NULL` |
+| Ask                                                | Answer                                                                                                                                                          |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /runs`                                        | Runs somebody started. `parent_run_id IS NULL`                                                                                                                  |
 | `GET /runs?agent_id=<id>&include_delegations=true` | One agent's own history. What the Builder's Recent runs panel and Activity's `?agent=` ask, because a delegate's rows are the only record of what it itself did |
-| `GET /runs?parent_run_id=<id>` | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations` |
-| `GET /runs/<id>` | One run, delegated or not. Where a link from a transcript lands |
-| `GET /runs/<id>/transcript` | That run's turns, in order - what a run detail view renders as steps. Authorized, not owned (below) |
+| `GET /runs?parent_run_id=<id>`                     | What that run delegated — the query `agent_runs_parent_run_id_idx` exists for. Takes precedence over `include_delegations`                                      |
+| `GET /runs/<id>`                                   | One run, delegated or not. Where a link from a transcript lands                                                                                                 |
+| `GET /runs/<id>/transcript`                        | That run's turns, in order - what a run detail view renders as steps. Authorized, not owned (below)                                                             |
 
 **Reading a run is authorized, not owned.**
 
@@ -596,16 +606,16 @@ response is the organization's question, so every block in it counts top-level
 rows only: the period cost and its split by provider (the double bill above),
 but also the run total, the day series, the outcomes split, the surfaces, the
 latency percentiles, the active-people count and the per-person table. Beyond
-cost, a delegated row *copies* its parent's `user_id` and `surface`, so counting
+cost, a delegated row _copies_ its parent's `user_id` and `surface`, so counting
 it would additionally invent a second person and a second arrival on a channel
 somebody used once.
 
 Two aggregates take the other side, and both are asked about one agent:
 
-| Ask | Child rows |
-|---|---|
-| `by_agent` — the adoption card | **included.** Excluded, an agent that runs four hundred times a day as somebody's delegate has no row, and the card names every published agent without one as forgotten and offers to archive it. Its bars can therefore exceed the run total beside them; nothing sums them |
-| `?group_by=version` — the version-compare card | **included.** A specialist that only ever executes as a delegate would otherwise have nothing to compare across its versions |
+| Ask                                            | Child rows                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `by_agent` — the adoption card                 | **included.** Excluded, an agent that runs four hundred times a day as somebody's delegate has no row, and the card names every published agent without one as forgotten and offers to archive it. Its bars can therefore exceed the run total beside them; nothing sums them |
+| `?group_by=version` — the version-compare card | **included.** A specialist that only ever executes as a delegate would otherwise have nothing to compare across its versions                                                                                                                                                  |
 
 The invariant that survives either way: the outcomes donut's segments still sum
 to `total_runs`, and its `awaiting_approval` segment still counts the same
@@ -621,7 +631,7 @@ The last two are `?run=<id>` on the Activity page: one run, the delegations unde
 it each badged with the task id its `subagent_*` frames carried, and a link up to
 the run a delegation was charged to. A delegation panel in a chat links there with
 the `run_id` its terminal frame carries — which is why the frame carries one.
-Nesting delegated rows inside the top-level table is deliberately *not* done here;
+Nesting delegated rows inside the top-level table is deliberately _not_ done here;
 a table primitive shared by the whole product is
 [proposed separately](https://github.com/vstorm-co/agenticos/issues/139), and
 nesting belongs in that rather than in one bespoke run table.
@@ -629,8 +639,8 @@ nesting belongs in that rather than in one bespoke run table.
 ### What the cost screen shows
 
 `GET /spend` takes its window two ways, because the page asks for both kinds:
-`days` for the *last N days* presets, and `from`/`to` for *this month*, *last
-month* and a calendar range. `from` wins when both arrive — an explicit range is a
+`days` for the _last N days_ presets, and `from`/`to` for _this month_, _last
+month_ and a calendar range. `from` wins when both arrive — an explicit range is a
 more specific request than a default nobody changed — and `period_days` comes back
 null in that case rather than repeating a number the range contradicts.
 
@@ -646,14 +656,14 @@ measured against it. A monthly ceiling compared with a rolling seven days reads 
 Each per-agent row carries **two cost figures under two different names**, which is
 this page's rule throughout:
 
-| | |
-|---|---|
-| `cost_usd` | Its share of the window, **top-level runs only**, so the column sums to the total above it |
+|                     |                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cost_usd`          | Its share of the window, **top-level runs only**, so the column sums to the total above it                                                                                       |
 | `month_to_date_usd` | Its **own** calendar month, delegated rows **included** — the spend its `monthly_cap_usd` is a cap on. It does not sum to the organization's month and is not drawn as if it did |
 
 `partial_run_count` says how much of any of it is a fact: how many **top-level
 runs** in the window could not be fully priced, so the cost is a floor by exactly
-that many. *"3 of 40 runs could not be priced"* is something a reader can act on;
+that many. _"3 of 40 runs could not be priced"_ is something a reader can act on;
 a figure wearing a plus sign is not.
 
 A run counts when any model in its tree had no price, **its delegates' included** —
@@ -675,7 +685,7 @@ unpriced out-of-window parent raises no caveat, because the window's own money i
 exact ([#620](https://github.com/vstorm-co/agenticos/issues/620)).
 
 A row is **one per agent**, with `agent_name` on it. It used to be one per agent
-*and model*, carrying only `model_label` — so the tab listed model names where a
+_and model_, carrying only `model_label` — so the tab listed model names where a
 reader expects an agent, and split one agent across two rows for having answered on
 two models. The per-model shape survives where it is the question being asked: the
 usage email still groups that way.
@@ -707,12 +717,12 @@ is the queue somebody acts on; `?status=approved&status=rejected` is the record 
 what was decided, and it carries the decider's name and note because a bare UUID is
 not an accountability trail. There are deliberately no controls on a decided row.
 
-| Parameter | |
-|---|---|
-| `status` | Repeats. Absent means pending — the queue |
-| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person |
-| `created_from`, `created_to` | When the call was parked, inclusive both ends |
-| `oldest_first` | Defaults to true, and the default is load-bearing — see above: nothing ages a call out, so newest-first would bury the row that most needs seeing |
+| Parameter                    |                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`                     | Repeats. Absent means pending — the queue                                                                                                         |
+| `triggered_by_user_id`       | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person                                     |
+| `created_from`, `created_to` | When the call was parked, inclusive both ends                                                                                                     |
+| `oldest_first`               | Defaults to true, and the default is load-bearing — see above: nothing ages a call out, so newest-first would bury the row that most needs seeing |
 
 Each row names three things that live in other tables — the agent, the person whose
 run parked the call, and the person who decided. The agent and the run are inner
@@ -722,33 +732,33 @@ being deleted and a widget's visitor is anonymous to begin with.
 
 ### Narrowing run history
 
-| Parameter | |
-|---|---|
-| `status` | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other |
-| `surface` | Where the run came from |
-| `user_id` | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous |
-| `model_label` | The model **as the run recorded it**, matched exactly. Not resolved through the model catalog: the column is what answered, and a profile it came from may since have been renamed or deleted. The dashboard's model card counts these same strings, so "the runs behind this bar" is one set on both screens |
-| `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days |
-| `environment_id` | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so |
-| `exposure_id` | Runs admitted through one binding. Null for the dashboard and the API |
-| `agent_version_id` | Runs that executed one frozen spec — the version strip's "show me the rows behind this number" |
-| `rated` | `down` or `up` — runs where somebody rated a message the run produced |
-| `order_by`, `descending` | `started_at` (the default, newest first), `duration`, `cost` or `tokens` |
+| Parameter                    |                                                                                                                                                                                                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`                     | Repeats. `?status=failed&status=budget_exceeded` is the show-me-the-problems query, and the two are separate statuses precisely so that asking for one is not asking for the other                                                                                                                            |
+| `surface`                    | Where the run came from                                                                                                                                                                                                                                                                                       |
+| `user_id`                    | Who the run ran **as**, which is not always who asked — a widget's runs carry the widget owner's identity, because the visitor is anonymous                                                                                                                                                                   |
+| `model_label`                | The model **as the run recorded it**, matched exactly. Not resolved through the model catalog: the column is what answered, and a profile it came from may since have been renamed or deleted. The dashboard's model card counts these same strings, so "the runs behind this bar" is one set on both screens |
+| `started_from`, `started_to` | Inclusive both ends, because a range picker hands over whole days                                                                                                                                                                                                                                             |
+| `environment_id`             | Runs on the version that environment pins. **Never a delegated run:** a delegate's version comes from a pin, so the column is deliberately never written on one, and narrowing to `production` drops every delegation. A surface that includes delegations has to say so                                      |
+| `exposure_id`                | Runs admitted through one binding. Null for the dashboard and the API                                                                                                                                                                                                                                         |
+| `agent_version_id`           | Runs that executed one frozen spec — the version strip's "show me the rows behind this number"                                                                                                                                                                                                                |
+| `rated`                      | `down` or `up` — runs where somebody rated a message the run produced                                                                                                                                                                                                                                         |
+| `order_by`, `descending`     | `started_at` (the default, newest first), `duration`, `cost` or `tokens`                                                                                                                                                                                                                                      |
 
 **Every filter narrows the count as well as the page**, so `total` always
 describes the rows under it. The list and the count are two queries, and a filter
 reaching only one of them reads as a paging bug rather than as a missing clause.
 
 `started_from` is also what makes that count reconcilable with the money beside
-it. Unwindowed it reads *all time* while a spend figure reads one calendar month,
+it. Unwindowed it reads _all time_ while a spend figure reads one calendar month,
 so an organization three years old showed "8,412 runs" next to "$31.20" and the
 obvious reading of the pair was wrong by three years. A figure and a spend figure
 on one screen share one window, or they say which window each is.
 
 A value outside its type is refused with a 422 rather than matched against
 nothing: `status` and `surface` are string columns, so `?status=complete` would
-otherwise answer with an empty page — and an empty page reads as *nothing went
-wrong this week*. `order_by` takes one of four orders rather than a column name,
+otherwise answer with an empty page — and an empty page reads as _nothing went
+wrong this week_. `order_by` takes one of four orders rather than a column name,
 for the same reason plus one more: an `ORDER BY` assembled from a query string is
 an injection surface.
 
@@ -762,7 +772,7 @@ at all — there was nothing honest to point them at.
 **Including which tab is open.** `?tab=approvals` and `?tab=spend` open the queue
 and the cost screen; the run history is the default and is never written.
 
-That is the address a link to a *decision* needs, and the reason the parameter
+That is the address a link to a _decision_ needs, and the reason the parameter
 exists: the approvals card's "See all" and the alert that says a run is parked both
 had to point at the run history, where nothing can be decided (#934).
 
@@ -778,7 +788,7 @@ was hidden.
 
 **Duration is computed in SQL, over the whole narrowed set.**
 
-That is what gets from *"p95 is 14.8s"* on the dashboard to **those runs**. Sorting
+That is what gets from _"p95 is 14.8s"_ on the dashboard to **those runs**. Sorting
 one page of twenty-five sorts the wrong set, because the slowest run of a month is
 not in whichever rows a newest-first page happened to return. `cost` and `tokens`
 are the same arrangement for money and context weight.
@@ -788,7 +798,7 @@ no duration, it is not the fastest run either, and its cost and token figures ar
 written only when it finishes — sorted as stored, a run still going would read as
 the cheapest and lightest in the organization.
 
-How long a *still-running* run has been going is a different question, and none of
+How long a _still-running_ run has been going is a different question, and none of
 these orders answers it.
 
 Activity surfaces that duration three ways, and all three lead to the same query:
@@ -850,12 +860,12 @@ somebody reconciles against an invoice, hands to a finance team, or attaches to 
 audit. A page that can answer the question on screen and not off it sends people to
 the database.
 
-| Ask | Answer |
-|---|---|
-| `GET /runs/export` | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
-| `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide` |
-| `GET /spend/export` | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view` |
-| `GET /audit/export` | The audit trail over a window, CSV or JSONL (`?fmt=`). `audit:read` |
+| Ask                     | Answer                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------- |
+| `GET /runs/export`      | Run history, the same filters as `GET /runs` and the same top-level-only default. `runs:view` |
+| `GET /approvals/export` | The approvals record, the same filters as `GET /approvals`. `approvals:decide`                |
+| `GET /spend/export`     | The per-agent spend breakdown, the same window as `GET /spend`. `runs:view`                   |
+| `GET /audit/export`     | The audit trail over a window, CSV or JSONL (`?fmt=`). `audit:read`                           |
 
 The audit export is the one that also offers **JSONL** (`?fmt=jsonl`), one JSON
 object per line, because an audit trail is as often ingested by a log pipeline as
@@ -949,7 +959,7 @@ beside `max_steps` (`loop_guard` in the spec).
 
 A long run drifts: instructions fade, claims pile up without a source, the agent
 wanders off the request. An agent can carry up to five reviewers (`reviewers` in
-the spec, *Run reviewers* in the Builder beside the limits), each a second,
+the spec, _Run reviewers_ in the Builder beside the limits), each a second,
 usually cheaper model with one concern. Every `every` model requests a reviewer
 reads the most recent `window` tokens of the run and either lets it be or sends
 one short correction, which the run's model receives on its next request with the
@@ -964,7 +974,7 @@ the run. An agent without a reviewer makes no extra model calls.
 
 An agent that works through records - update ten rows, then summarise them - pays
 a model turn per dependent call, and every turn re-sends the whole context. With
-*Code mode* on (`code_mode` in the spec, beside the limits in the Builder) the
+_Code mode_ on (`code_mode` in the spec, beside the limits in the Builder) the
 agent's tools are folded into one `run_code` tool: the model writes a short Python
 script that runs in the Monty sandbox and calls the tools in loops and in
 parallel, up to `max_tool_calls` per script.
@@ -1001,13 +1011,13 @@ start of each request stays identical; a reordered tool list or a timestamp in
 the instructions makes the provider charge full price for tokens it had cached.
 Every agent reads the provider's own cache figures on each response, and a
 request whose cached prefix collapsed is marked in the run's request waterfall -
-*cache bust* while the provider should still have held it, *cache expired* once
+_cache bust_ while the provider should still have held it, _cache expired_ once
 its retention passed - with how many cached tokens it did not read back, and logged with
 the agent and model. The first request of a turn is compared with what the
 previous turn cached, when the same API worker serves both.
 
 The counts are kept on each run, so **Runs → Spend** adds up where the cache did
-not hold: a *Prompt cache* card, one row per agent and model, with its busts,
+not hold: a _Prompt cache_ card, one row per agent and model, with its busts,
 expiries and the cached tokens they did not read back over the window - a
 measure of the miss, not of what was billed again, since a compaction can also
 shrink the prompt the cache held. The card is not shown while every cache held.
@@ -1087,7 +1097,7 @@ Four properties worth knowing:
   it parked on, and that version's spec may have stopped building since - a secret
   a binding names deleted, a model profile removed, a capability dropped in a
   deploy, an MCP connection unshared. The spec is assembled before the run leaves
-  the approval queue, so a refusal there refuses the *attempt*: the decision
+  the approval queue, so a refusal there refuses the _attempt_: the decision
   stands and resuming works again once the spec does.
 - **A decided approval cannot be decided twice.** The second decision is refused —
   including a decision arriving a second after the expiry sweep took the call.
@@ -1101,7 +1111,7 @@ Four properties worth knowing:
   reads, but in my organization somebody approves it anyway" is a real decision
   and is expressible.
 - **Except on a tool the model provider runs, where it is refused at publish.**
-  The gate wraps *tool execution*, which is the only place a call can be held, so
+  The gate wraps _tool execution_, which is the only place a call can be held, so
   a native fetch or a native search — executed on the provider's side — never
   reaches it, and gating one would leave the queue empty while the agent acted
   unapproved. Which configurations hand which tools over is declared by the
@@ -1139,7 +1149,7 @@ Four properties worth knowing:
 ### How much one conversation wants to be asked
 
 The rule above is the agent's, decided at publish time and per tool, and that is
-the right place for it: it is a statement about what the agent *is*. What it
+the right place for it: it is a statement about what the agent _is_. What it
 cannot express is the mood of one session — somebody working through twenty turns
 with an agent that gates three tools answers the same three questions every turn,
 and their only way out was to republish the agent and change it for everybody,
@@ -1149,11 +1159,11 @@ permanently, to fix an afternoon
 So a chat session carries an **approval mode**, on the send frame beside the model
 override and read into the run:
 
-| Mode | What it does |
-|---|---|
-| **Follow the agent** (default) | The spec decides. Exactly the behaviour that existed before the control did, and what a client that sends nothing gets |
-| **Approve everything** | Standing consent for this conversation: every gated call is granted without parking — and each one still writes its row |
-| **Ask about everything** | Gate every tool the agent can reach, including the ones the spec left ungated and the ones no capability owns |
+| Mode                           | What it does                                                                                                            |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **Follow the agent** (default) | The spec decides. Exactly the behaviour that existed before the control did, and what a client that sends nothing gets  |
+| **Approve everything**         | Standing consent for this conversation: every gated call is granted without parking — and each one still writes its row |
+| **Ask about everything**       | Gate every tool the agent can reach, including the ones the spec left ungated and the ones no capability owns           |
 
 Four things make it a session setting rather than a hole in the model:
 
@@ -1164,7 +1174,7 @@ Four things make it a session setting rather than a hole in the model:
   a fresh run and a resumed one share, rather than at the socket a caller could
   forget.
 - **Waiving needs `approvals:decide`, and the organization's leave.** A standing
-  consent *is* the decision the approval queue exists to record, and `member` and
+  consent _is_ the decision the approval queue exists to record, and `member` and
   `builder` run agents without holding it — so without the permission check the
   everyday chat user grants themselves, in one click, the authority the API
   refuses them one endpoint over. The organization's own switch
@@ -1231,7 +1241,7 @@ nobody came back, and what it spent before it parked stands.
 
 Three things it deliberately does not do:
 
-- **It does not continue the run.** A *rejected* call is settled by resuming: the
+- **It does not continue the run.** A _rejected_ call is settled by resuming: the
   denial is replayed and the agent carries on to an answer. That is a model request
   against the organization's own keys, and making one on a schedule, for a run
   nobody is waiting on, is not a cost to incur unasked.
@@ -1306,7 +1316,7 @@ exactly what deleting it after the row existed would have done.
 What the parent's run does is park, rather than be handed something that looks like
 a finished delegation. That is worth stating because it used to be otherwise: every
 agent built here declares an output type that lets a run end with its parked calls
-as *output* instead of raising, and the delegation library used to serialise that
+as _output_ instead of raising, and the delegation library used to serialise that
 object and hand the parent's model `{"calls": [], "approvals": [...]}` as the
 specialist's report, task marked completed. It was the default path rather than an
 edge case, and it is fixed in the pinned version.
@@ -1328,7 +1338,7 @@ the delegation finally ends covers all of it - see
 [what a delegated run is recorded as](#what-a-delegated-run-is-recorded-as). Both
 halves of the tree are kept per delegation rather than per run, which is what lets a
 specialist three levels down park and still be accounted to its own agent. The spend
-is kept even when the delegate's *place* could not be - the library's message history
+is kept even when the delegate's _place_ could not be - the library's message history
 is best-effort telemetry, and a delegation re-run from the start has still spent what
 it spent.
 
@@ -1376,21 +1386,21 @@ leaves an entry with the person who took it. None of them carries a record, a fi
 value or a row: they hold versions, fingerprints, request ids and the words a person
 confirmed.
 
-| Action | Recorded when |
-|---|---|
-| `artifact.published` | A version was published, with its number, the fingerprint of its page queries and `actions`, the ids of the workflows it declares |
-| `artifact.data_consented` | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it |
-| `artifact.data_withdrawn` | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit` |
-| `artifact.auto_consent_changed` | The owner turned "Share new versions automatically" on or off, with the text they confirmed |
-| `artifact.edit_data_granted` | The owner, or an Owner or Admin, gave a person or a group "Can edit, including data", with the text they confirmed |
-| `artifact.owner_changed` | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped |
-| `artifact.share_requested` | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run |
-| `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom |
-| `organization.public_live_data_changed` | An Owner or Admin switched **Public pages with live data** on or off for the organization, with the old and the new value |
-| `artifact.public_data_consented` | The owner, or an Owner or Admin for them, confirmed that anyone with the page's public link, and the sites that embed it, may read its data. Names the version, the fingerprint, the tables and columns, the embedding sites and whether a password is set, and `for_owner` when someone confirmed for them |
-| `artifact.public_data_withdrawn` | An editor took that consent back, signed in as themselves (not impersonating), with the fingerprint it held |
-| `artifact.public_data_voided` | The consent was cleared because something under it changed, with a `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` or `archived` |
-| `artifact.action_started` | A member confirmed and started a workflow from a page's action. Names the page, the version, the workflow and the run, never the input values, which are on the run |
+| Action                                                                  | Recorded when                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `artifact.published`                                                    | A version was published, with its number, the fingerprint of its page queries and `actions`, the ids of the workflows it declares                                                                                                                                                                           |
+| `artifact.data_consented`                                               | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it                                                                   |
+| `artifact.data_withdrawn`                                               | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit`                                                                                                                                |
+| `artifact.auto_consent_changed`                                         | The owner turned "Share new versions automatically" on or off, with the text they confirmed                                                                                                                                                                                                                 |
+| `artifact.edit_data_granted`                                            | The owner, or an Owner or Admin, gave a person or a group "Can edit, including data", with the text they confirmed                                                                                                                                                                                          |
+| `artifact.owner_changed`                                                | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped                                                                                                                                                                                                          |
+| `artifact.share_requested`                                              | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run                                                                                                                                                                                                   |
+| `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom                                                                                                                                                                                                                                                                          |
+| `organization.public_live_data_changed`                                 | An Owner or Admin switched **Public pages with live data** on or off for the organization, with the old and the new value                                                                                                                                                                                   |
+| `artifact.public_data_consented`                                        | The owner, or an Owner or Admin for them, confirmed that anyone with the page's public link, and the sites that embed it, may read its data. Names the version, the fingerprint, the tables and columns, the embedding sites and whether a password is set, and `for_owner` when someone confirmed for them |
+| `artifact.public_data_withdrawn`                                        | An editor took that consent back, signed in as themselves (not impersonating), with the fingerprint it held                                                                                                                                                                                                 |
+| `artifact.public_data_voided`                                           | The consent was cleared because something under it changed, with a `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` or `archived`                                                                                                                             |
+| `artifact.action_started`                                               | A member confirmed and started a workflow from a page's action. Names the page, the version, the workflow and the run, never the input values, which are on the run                                                                                                                                         |
 
 **Public pages with live data** is an organization setting, off by default, in the
 organization's settings beside the approval waiver. It decides whether a page's data may
@@ -1415,14 +1425,17 @@ why the agent went quiet.
 
 Every alert in this section writes two things: the email described below, and a
 row at **the bell** in [Console](console.md#the-bell) - the console's own inbox,
-not a copy of the mail. The row *is* the in-app delivery; nothing further has to
+not a copy of the mail. The row _is_ the in-app delivery; nothing further has to
 succeed for it to show up. Email is a second, independently retried channel off
 the same write, which is why one can fail - a bounced address, a down SMTP relay
+
 - without the other ever knowing.
 
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round.
+
+An `eval` run is one of many reported together by the eval; it sends no individual completion or failure notification.
 
 Page-sharing requests and page ownership changes name the page and person, never its data.
 
@@ -1472,7 +1485,7 @@ would say so. The notice carries no count - counting would mean rewriting it on
 every further event, which is the flood the cap exists to prevent.
 
 A row is dropped from the inbox ninety days after it was written if it was
-*read*, and a year after regardless of whether it ever was - both counted from
+_read_, and a year after regardless of whether it ever was - both counted from
 when the row was written, never from when it was read, so a row opened the day
 before its outer bound ages out with every other row that old. A background
 sweep, not something a person triggers. The email sweep will not send a row it
@@ -1498,11 +1511,11 @@ Who hears about an agent is part of the agent's spec, under **Limits → Alerts*
 A deployment-wide audience made the noisy agent and the one nobody may miss the
 same setting, so the only way to quieten the first was to go deaf to the second.
 
-| Alert | Fires when | Default audience |
-|---|---|---|
-| **Budget** | this agent reached its own monthly cap | the admins and the agent's owner |
-| **Approvals** | a tool call parked | whoever started the run, plus the admins |
-| **Usage** | weekly and monthly, what this agent spent | off |
+| Alert         | Fires when                                | Default audience                         |
+| ------------- | ----------------------------------------- | ---------------------------------------- |
+| **Budget**    | this agent reached its own monthly cap    | the admins and the agent's owner         |
+| **Approvals** | a tool call parked                        | whoever started the run, plus the admins |
+| **Usage**     | weekly and monthly, what this agent spent | off                                      |
 
 A workflow's log has alerts of its own, set on the workflow's Logs page rather than in
 a spec; see [Alerts](workflows.md#log-alerts). They fire when a rule's matching lines
@@ -1512,12 +1525,12 @@ section, under **Workflow log alerts**.
 
 An audience is a list of roles, not addresses:
 
-| Audience | Resolves to |
-|---|---|
-| `admins` | the organization's owners and admins, **plus the deployment's app admins** |
-| `owner` | the agent's owner |
-| `initiator` | whoever started the run; nobody, for a run a schedule began |
-| `chosen` | exactly the members named alongside it |
+| Audience    | Resolves to                                                                |
+| ----------- | -------------------------------------------------------------------------- |
+| `admins`    | the organization's owners and admins, **plus the deployment's app admins** |
+| `owner`     | the agent's owner                                                          |
+| `initiator` | whoever started the run; nobody, for a run a schedule began                |
+| `chosen`    | exactly the members named alongside it                                     |
 
 Roles rather than addresses because a spec is exported to a client's repository
 and outlives the people in it: `admins` still means the right people after a
@@ -1530,8 +1543,8 @@ approval queue must not go silent because one id no longer resolves.
 **Approvals mail opens the queue** — `/runs?tab=approvals`, Activity's Approvals
 tab, which is the only surface carrying Approve and Reject. It used to open
 `/agents/{id}`, the Builder: one sentence of prose about tool calls reaching a
-queue, and no queue. So the one email whose whole purpose is *somebody has to
-decide, now* landed a search away from the decision, while the parked run aged
+queue, and no queue. So the one email whose whole purpose is _somebody has to
+decide, now_ landed a search away from the decision, while the parked run aged
 towards `ApprovalService.expire_stale` (#935). There was no URL for the tab
 until #934 put it in `?tab=`.
 
@@ -1555,10 +1568,10 @@ sentence.
 
 So the audience is split by the permission rather than trimmed to it:
 
-| Recipient holds | Gets |
-|---|---|
-| `approvals:decide` | the request, with the link to the queue |
-| anything less | the *fact*: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
+| Recipient holds    | Gets                                                                                                                      |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `approvals:decide` | the request, with the link to the queue                                                                                   |
+| anything less      | the _fact_: the run is held not failed, approving it belongs to an owner, admin or operator, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
@@ -1582,7 +1595,7 @@ The console acts on whichever organization the reader last used: `apiClient`
 stamps `X-Organization-Id` from a selection persisted per browser. Every alert
 URL used to carry none, so somebody in two organizations who was last working in
 Globex opened the approval alert for a run in Acme and read **Globex's** queue —
-very likely empty, and reading as *nothing is waiting* about a run that is parked
+very likely empty, and reading as _nothing is waiting_ about a run that is parked
 and ageing towards `ApprovalService.expire_stale`. The agent links were wrong
 more quietly: `/agents/{id}` under the wrong organization is a refusal for an
 agent the reader can genuinely see, one switch away.
@@ -1590,7 +1603,7 @@ agent the reader can genuinely see, one switch away.
 So every link carries `org=<id>`, built in one place — `NotificationService._link`,
 which picks the separator from the path because the approvals link already
 carries `?tab=approvals` — rather than at each of the four call sites, and the console adopts it exactly
-as it adopts the id in `/orgs/{id}`: a page that names an organization *is* that
+as it adopts the id in `/orgs/{id}`: a page that names an organization _is_ that
 organization. The adoption is a layout effect in `ActiveOrgGuard`, before the
 tenant cache reset and before the page's own queries, so the first request the
 page makes already carries the right tenant. The path outranks the parameter — a
@@ -1627,6 +1640,70 @@ than no report, because both numbers look authoritative.
 
 Sending never blocks and never raises into the caller: a run that has already
 ended must not fail again because SMTP was down.
+
+## AI assistance { #ai-assistance }
+
+One switch, on the organization page's **Budget and approvals** tab, decides whether
+models assist the organization's evals and authoring: the eval judge that
+grades [dataset scores](datasets.md#judge), the drafter that writes the content
+a [knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing,
+and the case generator and authoring assistant that come after them. It is off
+by default, for an organization that existed before the switch as for a new one:
+whether models judge and draft is the organization's decision, and whoever holds
+`org:settings` turns it on. Each change is recorded in the [audit trail](#audit)
+as `organization.ai_assistance`, with who made it.
+
+When it is off, the service that would start such a run refuses it, whichever
+client asks - a hidden control is not the boundary. Scoring still runs its
+rule-based checks and tool-call matching, records the judge's criteria as
+skipped with the reason, and leaves a case whose judge was required unscored
+rather than passed. People's verdicts stay available.
+
+**Grading model**, beside the switch, is the model new judges grade on. A
+judge weaker than the agent it grades misreads answers the agent got right, so
+with none chosen, a new judge takes the cheapest of the organization's chat
+models that costs more to write with than the agent's - the draft's or the
+published version's, whichever costs more - and, with no such model or no
+price to compare, the organization's first other model, as before. It applies
+to judges created from then on, such as the one an agent's first test set
+gets; an existing judge keeps its model, since a stored grade means what that
+model graded. Each change is recorded as `organization.grading_model`.
+
+These features run as [judges](concepts.md#system-agents). Each run is an
+ordinary run: it is budget-checked against the judge's own monthly budget and
+the organization's before every model call, its cost is recorded, and it is
+listed in Activity under the `eval` surface. A judge starts with a budget of its
+own - $5 a month - which can be changed like any agent's.
+
+The [authoring assistant](authoring.md) is a system agent in the same way, with
+its own $5 budget. On the dashboard, what it costs is named apart from evals, as
+spent on improvements. So is what the [knowledge gap](knowledge-gaps.md)
+classifier and drafter cost: they fill what a knowledge base lacks rather than
+measure an agent. The judge and the case generator stay with evals.
+
+A judge is never exposed: no channel, embed, public page or schedule can be
+attached to it, no agent can delegate to it, and a run of it on any surface but
+`eval` is refused. Its spend therefore stays the platform's own, started only by
+the features above.
+
+## Promotion overrides { #promotion-overrides }
+
+An environment [guarded by eval suites](environments.md#guarding-a-promotion-with-evals)
+takes a version only once they pass on it. Promoting past them is an
+**override**: it needs `promotions:override` - held by owners and admins, and
+grantable to a custom role - from a person signed in as themselves, not an API
+key or an administrator impersonating them, and a reason of at least ten
+characters. It is recorded in the [audit trail](#audit) as
+`agent.environment_promotion_overridden`, with the reason and each guard's
+result, shown on the version in the history, and sent to the owner of each
+guard that had not passed.
+
+Changing which suites guard an environment, moving
+a guard's pin or weakening what a guarding suite checks needs the same
+permission; each, and a stricter threshold, is recorded as
+`agent.environment_guards_changed`. Changing a dataset's grading is recorded as
+`dataset.scoring_changed`, naming the parts that changed rather than their
+contents, and creating a dataset's judge as `dataset.judge_created`.
 
 ## Audit
 
@@ -1706,7 +1783,7 @@ the account, the session row the impersonation is, and when it expires;
 ends it, with the administrator as the actor. An expiry writes nothing, because
 nobody acted — and neither does the person signing out everywhere, which ends an
 impersonation through `DELETE /sessions` the way it ends any other session.
-Whether the person is *told* is the deployment's `notify_impersonated_users`
+Whether the person is _told_ is the deployment's `notify_impersonated_users`
 setting ([The deployment](deployment.md#acting-as-another-account)); off, which
 is the default, this trail is the only record.
 
@@ -1765,15 +1842,15 @@ where the per-tenant periods are set.
 
 ### The classes
 
-| Class | What leaves with it | Measured from |
-|---|---|---|
-| Conversations | Messages, tool calls and attached files; a locked batch excludes conversations with unfinished runs, and file cleanup is committed as a durable job with the row deletion | The thread's last activity, so one somebody is still returning to is not old |
-| Runs | The run row, its manifest and its tool approvals | When the run started |
-| Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL. A project's are kept as long as the project is | Last use |
-| Apps | A [published page](artifacts.md), every version, grants and public link; file cleanup is queued in the same transaction | The last publication, so a report a schedule republishes is not old |
-| Memory | An agent's memory files | Last write, because a note is written once and read for months |
-| Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
-| Audit | Entries on this organization's trail | When the entry was recorded |
+| Class              | What leaves with it                                                                                                                                                                                        | Measured from                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Conversations      | Messages, tool calls and attached files; a locked batch excludes conversations with unfinished runs, and file cleanup is committed as a durable job with the row deletion                                  | The thread's last activity, so one somebody is still returning to is not old |
+| Runs               | The run row, its manifest and its tool approvals                                                                                                                                                           | When the run started                                                         |
+| Workspaces         | The platform's record of an agent's files. For the `state` backend the row _is_ the storage; a sandbox backend's files are reaped by the sandbox's own TTL. A project's are kept as long as the project is | Last use                                                                     |
+| Apps               | A [published page](artifacts.md), every version, grants and public link; file cleanup is queued in the same transaction                                                                                    | The last publication, so a report a schedule republishes is not old          |
+| Memory             | An agent's memory files                                                                                                                                                                                    | Last write, because a note is written once and read for months               |
+| Uploaded documents | The row, its vectors and the uploaded file                                                                                                                                                                 | When it was uploaded                                                         |
+| Audit              | Entries on this organization's trail                                                                                                                                                                       | When the entry was recorded                                                  |
 
 **A document still being ingested is not swept either.** A worker is holding
 it, and taking its row and its stored original out from under an ingestion that
@@ -1890,6 +1967,8 @@ Worth stating, because a governance page implies otherwise:
   and another tenant's reads as absent.
 - **Silence is meaningful.** An alert that did not arrive means the thing did not
   happen, which is only true because nothing is best-effort here.
+- **A promotion past its evals is an override**, with a reason, a permission of
+  its own and a record on the version.
 
 ## Reference
 

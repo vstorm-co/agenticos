@@ -1,10 +1,10 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "78079a09c19f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
 
-Alles, was ein Agent *tun* kann, stammt aus einer von zwei Quellen: aus einer
+Alles, was ein Agent _tun_ kann, stammt aus einer von zwei Quellen: aus einer
 Capability, die im Code dieses Deployments registriert ist, oder aus einem
 [MCP-Server](../mcp.md), den jemand verbunden hat. Diese Seite ist die erste Liste.
 
@@ -63,42 +63,42 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 
 ## Was ausgeliefert wird { #what-ships }
 
-| id | Name | Kategorie | Tools | Scope | Schlüssel | Sprachanruf |
-|---|---|---|---|---|---|---|
-| `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — | unverändert |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | angepasst |
-| `context` | Kontext | knowledge | `list_context`, `read_context` | — | — | unverändert |
-| `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | unverändert |
-| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich | unverändert |
-| `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
-| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | unverändert |
-| `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | unverändert |
-| `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
-| `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
-| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
-| `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
-| `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
-| `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
-| `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
-| `text_to_speech` | Sprachausgabe | analysis | `generate_speech` | — | erforderlich | unverändert |
-| `video_generation` | Videoerzeugung | analysis | `generate_video` | — | erforderlich | übergeben |
-| `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich | übergeben |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | übergeben |
-| `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | unverändert |
-| `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — | abgebildet |
-| `system_reminders` | Erinnerung an Anweisungen | reasoning | keine, mit Absicht | — | — | ohne Wirkung |
-| `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — | entfällt |
-| `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — | unverändert |
-| `guardrails` | Schutzregeln | utility | keine, mit Absicht | — | — | auf Transkripten |
-| `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — | ohne Wirkung |
-| `media` | Bilder auslagern | utility | keine, mit Absicht | — | — | ohne Wirkung |
-| `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
-| `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
-| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
-| `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
+| id                    | Name                        | Kategorie  | Tools                                                                                                                                                                                                           | Scope                | Schlüssel                    | Sprachanruf        |
+| --------------------- | --------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------- | ------------------ |
+| `knowledge`           | Wissenssuche                | knowledge  | `search_documents`                                                                                                                                                                                              | `knowledge:read`     | —                            | unverändert        |
+| `skills`              | Skills                      | knowledge  | `read_skill_resource`                                                                                                                                                                                           | `knowledge:read`     | —                            | angepasst          |
+| `context`             | Kontext                     | knowledge  | `list_context`, `read_context`                                                                                                                                                                                  | —                    | —                            | unverändert        |
+| `memory_files`        | Gedächtnis                  | knowledge  | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`                                                                                                                                    | —                    | —                            | unverändert        |
+| `memory_mem0`         | Gedächtnis (mem0)           | knowledge  | `remember`, `recall`                                                                                                                                                                                            | —                    | erforderlich                 | unverändert        |
+| `conversation_search` | Frühere Gespräche           | knowledge  | `search_conversations`, `read_conversation`                                                                                                                                                                     | `conversations:read` | —                            | unverändert        |
+| `virtual_tables`      | Tabellen                    | data       | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views`                | `tables:read`        | —                            | unverändert        |
+| `workflows`           | Workflows                   | automation | `list_workflows`, `run_workflow`, `get_workflow_run`                                                                                                                                                            | `workflows:run`      | —                            | unverändert        |
+| `web_research`        | Websuche                    | research   | `web_search`                                                                                                                                                                                                    | `web:read`           | für kostenpflichtige Dienste | unverändert        |
+| `web_fetch`           | Webseiten lesen             | research   | `web_fetch`                                                                                                                                                                                                     | `web:fetch`          | —                            | unverändert        |
+| `browser_use`         | Webbrowser                  | research   | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse`         | über das Extra `browser`     | übergeben          |
+| `computer_use`        | Computer-Bedienung          | research   | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot`                                                                                                                              | `computer:use`       | für einen Daemon             | übergeben          |
+| `code_execution`      | Berechnungen                | analysis   | `run_python`                                                                                                                                                                                                    | `code:execute`       | —                            | unverändert        |
+| `sandbox`             | Sandbox                     | analysis   | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`                                                                                                                                         | `sandbox:execute`    | für Daytona                  | übergeben          |
+| `charts`              | Diagramme                   | analysis   | `create_chart`                                                                                                                                                                                                  | —                    | —                            | unverändert        |
+| `visuals`             | Visuals                     | analysis   | `draw`, `revise_visual`, `read_visual`                                                                                                                                                                          | —                    | —                            | unverändert        |
+| `image_generation`    | Bilderzeugung               | analysis   | `generate_image`                                                                                                                                                                                                | —                    | erforderlich                 | unverändert        |
+| `text_to_speech`      | Sprachausgabe               | analysis   | `generate_speech`                                                                                                                                                                                               | —                    | erforderlich                 | unverändert        |
+| `video_generation`    | Videoerzeugung              | analysis   | `generate_video`                                                                                                                                                                                                | —                    | erforderlich                 | übergeben          |
+| `coding_agent`        | Coding Agent                | analysis   | `run_coding_agent`                                                                                                                                                                                              | `sandbox:execute`    | erforderlich                 | übergeben          |
+| `subagents`           | Subagents                   | reasoning  | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate`                                      | `agents:delegate`    | —                            | übergeben          |
+| `planning`            | Planung                     | reasoning  | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks`                                                      | —                    | —                            | unverändert        |
+| `thinking`            | Nachdenken                  | reasoning  | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | abgebildet         |
+| `system_reminders`    | Erinnerung an Anweisungen   | reasoning  | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | ohne Wirkung       |
+| `tool_search`         | Tool-Suche                  | utility    | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | entfällt           |
+| `clock`               | Datum und Uhrzeit           | utility    | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | unverändert        |
+| `guardrails`          | Schutzregeln                | utility    | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | auf Transkripten   |
+| `compaction`          | Lange Gespräche             | utility    | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | ohne Wirkung       |
+| `media`               | Bilder auslagern            | utility    | keine, mit Absicht                                                                                                                                                                                              | —                    | —                            | ohne Wirkung       |
+| `tool_output_limits`  | Grenzen für Tool-Ergebnisse | utility    | `read_tool_result`                                                                                                                                                                                              | —                    | —                            | unverändert        |
+| `artifacts`           | Apps                        | utility    | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact`                                                                                                                     | —                    | —                            | unverändert        |
+| `channel_tools`       | Infos zum Chat-Kanal        | channels   | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file`                                                                                                      | —                    | —                            | nicht verfügbar    |
+| `ask_user`            | Rückfragen                  | utility    | `ask_user_question`                                                                                                                                                                                             | —                    | —                            | auf dem Bildschirm |
+| `follow_ups`          | Nächste Schritte            | utility    | `suggest_next_steps`, `propose_setup`                                                                                                                                                                           | —                    | —                            | nicht verfügbar    |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -106,7 +106,7 @@ Instruktionen, `tool_search` steuert seine Suchfunktion erst bei, sobald es ein
 Toolset umschließt, das zurückgestellte Tools enthält — für sich allein deklariert
 es nichts —, `guardrails` prüft und überschreibt den Text, der durch einen Run
 fließt, `compaction` schreibt die Historie um, die eine Anfrage mitführt, `media`
-schreibt um, wie eine verdichtete Historie *gespeichert* wird, und
+schreibt um, wie eine verdichtete Historie _gespeichert_ wird, und
 `system_reminders` hängt steuernden Text an das Ende der Anfrage.
 
 Keine der sieben lässt etwas übrig, das eine Person genehmigen müsste, also
@@ -121,19 +121,19 @@ beides auseinandergeht: `create_agent` und `delegate` erscheinen nur unter
 unten unter [Delegation](#delegation) erklärt.
 
 **Die Spalte Sprachanruf zeigt, was eine Capability in einem [Sprachanruf](../voice.md#what-a-call-can-use) tut.**
-*Unverändert* läuft ohne Änderung. *Angepasst*: Skills werden bei Bedarf als
-Instruktionen geladen, ohne ihr Lese-Tool. *Entfällt*: Die Tool-Suche gibt dem
+_Unverändert_ läuft ohne Änderung. _Angepasst_: Skills werden bei Bedarf als
+Instruktionen geladen, ohne ihr Lese-Tool. _Entfällt_: Die Tool-Suche gibt dem
 Anruf seine MCP-Tools direkt, weil die Tools eines Anrufs beim Verbinden
-feststehen. *Abgebildet*: Das Nachdenken wird zur eigenen Reasoning-Einstellung
-des Realtime-Modells. *Übergeben* läuft im eigenen
+feststehen. _Abgebildet_: Das Nachdenken wird zur eigenen Reasoning-Einstellung
+des Realtime-Modells. _Übergeben_ läuft im eigenen
 Textmodell des Agenten, dem der Anruf eine Aufgabe übergibt
 ([Arbeit übergeben](../voice.md#handing-work-off)); die Karte Stimme (Voice) im
 Builder listet diese für einen Agent auf, der sie hat, ebenso das Arbeiten
 während Tools laufen, das ein übergebenes Tool nur in den Hintergrund schickt.
-*Auf dem Bildschirm* stellt seine Fragen auf der Karte der Anrufansicht in
-`/chat`. Die Chat-Kanal-Abfrage ist *nicht verfügbar*, weil ein Anruf nie über
+_Auf dem Bildschirm_ stellt seine Fragen auf der Karte der Anrufansicht in
+`/chat`. Die Chat-Kanal-Abfrage ist _nicht verfügbar_, weil ein Anruf nie über
 einen Kanal geführt wird, und ebenso wenig Nächste Schritte, deren Schaltflächen
-ein Anruf nirgends zeigen kann. *Ohne Wirkung* kennzeichnet drei,
+ein Anruf nirgends zeigen kann. _Ohne Wirkung_ kennzeichnet drei,
 die auf den Modellanfragen eines Text-Runs und deren gespeicherter Historie
 arbeiten, die ein Anruf nicht sendet.
 
@@ -145,17 +145,55 @@ teilnimmt, im Feld `voice`: `live` auf dem eigenen Modell des Anrufs,
 `hand_off` oder `never`.
 
 **Eine davon steht gar nicht in der Toolbox.** `channel_tools` wird pro gebundenem
-Bot unter *Where this agent is available* gewählt, und die Veröffentlichung lehnt
+Bot unter _Where this agent is available_ gewählt, und die Veröffentlichung lehnt
 einen Spec ab, der diese Capability zu führen versucht — siehe
 [Chat-Kanal-Abfrage](#chat-channel-lookup).
 
+## Was ein Eval ausführt { #what-an-eval-runs }
+
+Ein Eval führt den Agent wirklich aus, also führt es ein Tool nur aus, wenn das
+Tool außerhalb des Runs nichts ändert oder eine Testverbindung der
+[Umgebung](../environments.md#in-an-eval) erreicht. Jede Capability erklärt,
+welche ihrer Tools nur lesen — `read_only`, neben `side_effecting` —, und ein
+Tool, das nichts erklärt, schreibt. Dies sind die Tools, die schreiben und die
+ein Eval anhält und aufzeichnet:
+
+| id                 | Tools, die schreiben                                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `artifacts`        | `publish_artifact`                                                                                                                |
+| `ask_user`         | `ask_user_question`                                                                                                               |
+| `browser_use`      | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `coding_agent`     | `run_coding_agent`                                                                                                                |
+| `image_generation` | `generate_image`                                                                                                                  |
+| `memory_files`     | `write_memory`, `edit_memory`, `delete_memory`                                                                                    |
+| `memory_mem0`      | `remember`                                                                                                                        |
+| `sandbox`          | `write_file`, `edit_file`, `execute`                                                                                              |
+| `visuals`          | `draw`, `revise_visual`, `read_visual`                                                                                            |
+
+Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
+eines Delegaten unterliegen ihren eigenen Erklärungen. `side_effecting` und
+`read_only` beantworten verschiedene Fragen: Das erste ist, wonach die Freigabe
+standardmäßig fragt, das zweite, was ein Eval ausführen darf, und ein nicht
+erklärtes Tool ist beim ersten ungesperrt und beim zweiten blockiert.
+
+Eine Umgebung kann den Vault-Schlüssel einer Capability gegen einen Testschlüssel
+tauschen, aber ein getauschter Schlüssel macht einen Schreibvorgang nicht von
+sich aus sicher: Der Schlüssel von `browser_use` gehört dem gehosteten Browser
+oder seinem Proxy, während ihre `cdp_url` weiterhin den Browser nennt, der
+klickt.
+Eine Capability erklärt `test_key_isolates` nur, wenn allein der Schlüssel
+bestimmt, wohin ihre Schreibvorgänge gehen, und nie mit einer URL, einem Host
+oder einem Endpoint in ihrer Konfiguration. Keine mitgelieferte Capability
+erklärt es, also wird in einem Eval jeder Schreibvorgang oben aufgezeichnet,
+nicht ausgeführt, welcher Schlüssel auch immer gilt.
+
 ## Wissenssuche { #knowledge-search }
 
-`search_documents` — *Durchsucht die Dokumente der Organisation nach Passagen, die
-für eine Frage relevant sind.*
+`search_documents` — _Durchsucht die Dokumente der Organisation nach Passagen, die
+für eine Frage relevant sind._
 
 Durchsucht die Collections, die der Spec des Agents bindet, und belegt, was es
-verwendet hat. Das Modell bestimmt, *was* gesucht wird, niemals *wo*: Die
+verwendet hat. Das Modell bestimmt, _was_ gesucht wird, niemals _wo_: Die
 Collections werden vor dem Run aus dem Spec aufgelöst und der Capability übergeben,
 sodass ein Agent keine Collection erreichen kann, die ihm niemand zugeordnet hat.
 
@@ -170,25 +208,25 @@ kann ein Kommentar in einem Codeblock sein, der im vorherigen Chunk begann.
 Das entscheidet der Dokumenttyp, wenn das Ergebnis angezeigt wird, sodass eine
 früher ingestierte Collection keine erneute Ingestion braucht.
 
-| Konfiguration | Standard | Bereich |
-|---|---|---|
-| `default_top_k` | 5 | 1–50 |
-| `self_query_enabled` | `false` | an / aus |
-| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
-| `query_analysis_max_variants` | 3 | 1–5 |
-| `parent_context` | `off` | `off`, `window`, `parent` |
+| Konfiguration                 | Standard | Bereich                      |
+| ----------------------------- | -------- | ---------------------------- |
+| `default_top_k`               | 5        | 1–50                         |
+| `self_query_enabled`          | `false`  | an / aus                     |
+| `query_analysis_mode`         | `off`    | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3        | 1–5                          |
+| `parent_context`              | `off`    | `off`, `window`, `parent`    |
 
 `default_top_k` greift nur, wenn das Modell nicht selbst eine Anzahl verlangt.
 
 `parent_context` schaltet Small-to-Big-Retrieval ein. Treffer und Ranking laufen
 immer über die präzisen kleinen Chunks; diese Option entscheidet nur, wie viel
-umgebenden Kontext jeder Treffer *zurückgegeben* bekommt, zusammengesetzt auf dem
+umgebenden Kontext jeder Treffer _zurückgegeben_ bekommt, zusammengesetzt auf dem
 Rückweg:
 
-| Modus | Was das Modell erhält |
-|---|---|
-| `off` | Nur der getroffene Chunk — der Standard, unverändertes Verhalten |
-| `window` | Der getroffene Chunk mit dem Chunk davor und danach im selben Dokument |
+| Modus    | Was das Modell erhält                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| `off`    | Nur der getroffene Chunk — der Standard, unverändertes Verhalten                                   |
+| `window` | Der getroffene Chunk mit dem Chunk davor und danach im selben Dokument                             |
 | `parent` | Der getroffene Chunk mit so viel seines Dokuments darum herum, wie passt, den nächsten Text zuerst |
 
 Der getroffene Chunk wird nie gekürzt. Nur der um ihn herum hinzugefügte Text
@@ -238,14 +276,14 @@ Schweigen.
 ### Abfrageanalyse und -erweiterung { #query-analysis-and-expansion }
 
 Kurze, unterspezifizierte oder im Vokabular abweichende Fragen finden zu wenig.
-Standardmäßig aus, erweitert `query_analysis_mode` die Abfrage optional *vor* dem
+Standardmäßig aus, erweitert `query_analysis_mode` die Abfrage optional _vor_ dem
 Abruf:
 
-| Modus | Was er tut | Kosten |
-|---|---|---|
-| `off` | Sucht die Abfrage so, wie sie geschrieben wurde | keine |
+| Modus         | Was er tut                                                                                                                                                                       | Kosten                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `off`         | Sucht die Abfrage so, wie sie geschrieben wurde                                                                                                                                  | keine                                       |
 | `multi_query` | Das Modell des Runs schreibt bis zu `query_analysis_max_variants` Umformulierungen; das Original und die Varianten werden je einzeln gesucht und ihre Ergebnisse zusammengeführt | ein Modellaufruf, plus ein Abruf je Abfrage |
-| `hyde` | Das Modell des Runs schreibt eine kurze hypothetische Antwort, und der Abruf läuft gegen *deren* Embedding | ein Modellaufruf |
+| `hyde`        | Das Modell des Runs schreibt eine kurze hypothetische Antwort, und der Abruf läuft gegen _deren_ Embedding                                                                       | ein Modellaufruf                            |
 
 `multi_query` und `hyde` fügen je einen Modellaufruf vor der Suche hinzu und
 tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
@@ -261,7 +299,7 @@ ohne das Modell aufzurufen, und ebenso ein Modell, das scheitert oder keine
 einfache Anfrage beantworten kann: Die Suche läuft dann mit der Abfrage, wie sie
 geschrieben wurde, statt zu scheitern.
 
-Erweiterung erhöht die *Trefferquote*, niemals den *Zugriff*. Jede von ihr
+Erweiterung erhöht die _Trefferquote_, niemals den _Zugriff_. Jede von ihr
 erzeugte Abfrage wird unter demselben Mandanten-Scope und denselben
 Geschäftsfiltern wie das Original gesucht, sodass eine erweiterte Abfrage niemals
 ein Dokument einer anderen Organisation oder außerhalb des Scopes erreichen kann.
@@ -318,7 +356,7 @@ Eingefügter Inhalt wird als Referenzmaterial gerahmt — abgegrenzt und mit ein
 Zeile eingeleitet, die dem Modell sagt, es als Information zu behandeln und nicht
 als Instruktionen —, weil der Inhalt einer Datei von einer Person geschrieben ist
 und das Modell wörtlich erreicht. Die Abgrenzung ist ein Best-Effort gegen einen
-*versehentlichen* Ausbruch: Ein Inhalt, der selbst ein schließendes
+_versehentlichen_ Ausbruch: Ein Inhalt, der selbst ein schließendes
 `</context-file>`- oder `</context-files>`-Tag enthält, oder ein Name oder Format
 mit einem `"` darin, wird neutralisiert, damit er keinen Text in die
 vertrauenswürdigen Instruktionen zurückspülen kann. Es ist keine
@@ -386,7 +424,7 @@ Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt
 Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
 leisten — ständiges Wissen, das eine Person verfasst und an Agents bindet —, und
 eine Aufgabe mit zwei Mechanismen ist der Weg, auf dem die beiden sich
-widersprechen. Gedächtnis ist das, was der *Agent* gelernt hat; alles, was ein
+widersprechen. Gedächtnis ist das, was der _Agent_ gelernt hat; alles, was ein
 Mensch schreibt, gehört in den Kontext.
 
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
@@ -409,8 +447,8 @@ schlimmer als gar keiner.
 
 ### Lesen und löschen { #reading-it-and-erasing-it }
 
-Niemand blättert kraft einer Organisationsrolle durch die Notizen *eines
-anderen*. Das war die gesamte frühere Antwort - Löschen und überhaupt keine
+Niemand blättert kraft einer Organisationsrolle durch die Notizen _eines
+anderen_. Das war die gesamte frühere Antwort - Löschen und überhaupt keine
 Liste - und sie war halb richtig: eine Liste ist beim Speicher einer Kollegin
 ein Überwachungsmittel und beim eigenen das Gegenteil davon. Die Antwort hat
 deshalb jetzt drei Teile (#1594).
@@ -421,16 +459,17 @@ Agenten hier über Sie aufgeschrieben haben, über alle Agenten hinweg, mit dem
 Agenten, der die jeweilige Notiz schrieb, und dem Zeitpunkt. Drei Dinge können
 Sie mit einer Notiz tun:
 
-| | |
-|---|---|
+|                          |                                                                                                                                                                                                                                                                                                             |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Nicht mehr verwenden** | Die Notiz wird nicht mehr gelistet, gelesen oder von einem Tool bearbeitet, erreicht das Modell also nicht mehr - und existiert weiter, zum Nachlesen und Wiederherstellen. Die mittlere Antwort für eine Notiz, die falsch oder zu persönlich ist und bei der Sie noch nicht sicher sind, ob sie weg soll. |
-| **Wieder verwenden** | Stellt sie wieder her. |
-| **Löschen** | Weg. |
+| **Wieder verwenden**     | Stellt sie wieder her.                                                                                                                                                                                                                                                                                      |
+| **Löschen**              | Weg.                                                                                                                                                                                                                                                                                                        |
 
-Der *Name* einer stillgelegten Notiz bleibt vergeben, ein Agent, der ihn erneut
+Der _Name_ einer stillgelegten Notiz bleibt vergeben, ein Agent, der ihn erneut
 schreibt, belebt die Zeile also mit neuem Inhalt. Das hebt die Stilllegung nicht
 auf: was Sie stillgelegt haben, wird überschrieben, und die Zeile hält etwas, das
 der Agent seither gelernt hat. Die Alternative - ein dauerhaft unbrauchbarer Name
+
 - wäre ein Speicher, der stumm den Dienst verweigert.
 
 **Der Index zieht mit.** `MEMORY.md` wird in die Instruktionen jeder Anfrage
@@ -461,7 +500,7 @@ neben der Capability.
 
 **Was die Selbstauskunft nicht erreicht.** Ein an mem0 gebundener Agent hält seine
 Erinnerungen im Dienst eines Dritten, und diese Seite listet sie nicht - die API
-von mem0 beantwortet, was zu einer *Frage* passt, nicht was ein Speicher enthält.
+von mem0 beantwortet, was zu einer _Frage_ passt, nicht was ein Speicher enthält.
 Solche Agenten werden auf der Seite **genannt** statt weggelassen, denn eine Liste
 nativer Notizen, als vollständiges Inventar präsentiert, wäre schlimmer als eine,
 die sagt, was ihr fehlt. Das Löschen erreicht mem0; das Lesen nicht.
@@ -523,7 +562,7 @@ fensterweise, und die Antwort sagt, wie man das nächste Fenster anfordert.
 Die einer einzigen Person: derjenigen, der der Run antwortet. Drei Wege hinein,
 dieselben drei, die die Konsole erlaubt — Unterhaltungen, die ihr gehören,
 Unterhaltungen, die mit ihr geteilt wurden, und Kanal-Threads, an denen sie
-teilgenommen hat *und in denen sie noch Mitglied ist*, gegen die Chat-Plattform
+teilgenommen hat _und in denen sie noch Mitglied ist_, gegen die Chat-Plattform
 geprüft. Das Run-Log eines Triggers ist bewusst nicht dabei: Es ist ein Protokoll
 von Runs unter der Autorität einer anderen Person, und ein Agent, der im Auftrag
 einer Person sucht, hält keine ihrer Berechtigungen, mit der er es prüfen könnte.
@@ -564,12 +603,12 @@ gibt keine Einstellung, die den Korpus erweitert.
 
 ## Websuche { #web-search }
 
-`web_search` — *Durchsucht das öffentliche Web nach aktuellen Informationen.*
+`web_search` — _Durchsucht das öffentliche Web nach aktuellen Informationen._
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
-| `max_results` | 5 | 1–10, von `native` ignoriert |
+| Konfiguration | Standard     | Werte                                            |
+| ------------- | ------------ | ------------------------------------------------ |
+| `method`      | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
+| `max_results` | 5            | 1–10, von `native` ignoriert                     |
 
 Die Konsole benennt jede Methode, statt den gespeicherten Wert auszugeben, und
 zeichnet die Marke des jeweiligen Dienstes daneben: Das Feld trägt
@@ -595,7 +634,7 @@ ersten Suche scheitert.
 
 Genehmigung und `native` lassen sich nicht kombinieren, aus dem Grund, den
 [Webabruf](#web-fetch) weiter unten nennt: Das [Genehmigungs-Gate](../governance.md)
-umschließt die *Tool-Ausführung*, und eine native Suche wird vom Modell-Provider
+umschließt die _Tool-Ausführung_, und eine native Suche wird vom Modell-Provider
 ausgeführt — deshalb wird eine Bindung, die für `web_search` eine Genehmigung
 verlangt und `method` auf `native` setzt, beim Veröffentlichen abgelehnt, statt ein
 Gate zu bekommen, das nie auslöst. Wählen Sie eine Methode, die dieses Deployment
@@ -607,14 +646,14 @@ eigenen Scope.
 
 ## Webseiten lesen { #web-fetch }
 
-`web_fetch` — *Liest die vollständige Seite unter einer URL, als Markdown.*
+`web_fetch` — _Liest die vollständige Seite unter einer URL, als Markdown._
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `method` | `local` | `local`, `native`, `auto` |
-| `max_content_chars` | 50000 | 1000–200000, von `native` ignoriert |
-| `allowed_domains` | — | reine Hostnamen, die der Agent abrufen darf; null bedeutet beliebige |
-| `blocked_domains` | — | reine Hostnamen, die er nie abrufen darf |
+| Konfiguration       | Standard | Werte                                                                |
+| ------------------- | -------- | -------------------------------------------------------------------- |
+| `method`            | `local`  | `local`, `native`, `auto`                                            |
+| `max_content_chars` | 50000    | 1000–200000, von `native` ignoriert                                  |
+| `allowed_domains`   | —        | reine Hostnamen, die der Agent abrufen darf; null bedeutet beliebige |
+| `blocked_domains`   | —        | reine Hostnamen, die er nie abrufen darf                             |
 
 - **`local`** — dieses Deployment ruft die Seite ab. Der Standard, weil es die
   einzige Methode ist, die sich bei jedem Modell identisch verhält.
@@ -638,7 +677,7 @@ Was aus einer Antwort wird, entscheidet sich hier:
   `max_content_chars` abgeschnitten. Die Bibliothek würde die rohen Bytes zurückgeben,
   damit das Modell sie nativ liest. Ein Modell hinter einem OpenAI-kompatiblen Endpunkt,
   das das nicht kann, lehnt die ganze Anfrage ab (`Unsupported chat content part type:
-  'file'`), und der Agent ruft dasselbe Dokument dann erneut ab.
+'file'`), und der Agent ruft dasselbe Dokument dann erneut ab.
   Extrahiert wird nur der Text bis `max_content_chars`, und ein PDF wird höchstens
   2.000 Seiten weit gelesen: Ein längeres endet mit einem Hinweis, der die Seite
   nennt, an der das Lesen stoppte, und wenn die gelesenen Seiten keinen Text hatten,
@@ -683,12 +722,12 @@ Wildcard, ein Schema, ein Pfad, ein Port oder eine leere **Allowlist**. Jeder da
 würde sonst eine Denylist still nichts verweigern lassen oder eine Allowlist still
 alles verweigern lassen.
 
-Eine leere *Denylist* verweigert nichts, und genau das bedeutet es bereits, sie
+Eine leere _Denylist_ verweigert nichts, und genau das bedeutet es bereits, sie
 nicht zu setzen — sie wird daher als nicht gesetzt gelesen statt abgelehnt: Ein
 importierter Spec, der „keine verbotenen Hosts“ als `[]` schreibt, sagt damit etwas
 Wahres.
 
-Ein Eintrag, der treffen *kann*, wird in der einen Schreibweise gespeichert, nach
+Ein Eintrag, der treffen _kann_, wird in der einen Schreibweise gespeichert, nach
 der DNS gefragt würde: klein geschrieben, ohne abschließendes Root-Label,
 IDNA-kodiert. Ein Name hat mehr als eine Schreibweise, und ein exakter Abgleich
 gegen eine davon ist ein Filter mit einem Loch darin — `https://exämple.com/`
@@ -726,7 +765,7 @@ Agents.
 
 ## Webbrowser { #browser-automation }
 
-`browse_web` — *Eine Aufgabe in einem echten Webbrowser erledigen, Schritt für Schritt.*
+`browse_web` — _Eine Aufgabe in einem echten Webbrowser erledigen, Schritt für Schritt._
 
 Eine Aufgabe und eine Start-URL. Die Capability öffnet die Seite in einem Chromium, den
 Sie betreiben, und wiederholt drei Dinge: die Seite in eine nummerierte Tabelle der
@@ -737,7 +776,7 @@ nächste Aktion dient, und nennt genau eine Aktion: klicken, tippen, auswählen,
 eine URL öffnen, zurückgehen, warten, mit einer Antwort enden, einen Menschen bitten
 oder melden, dass die Seite blockiert.
 
-Greifen Sie zu ihr, wenn eine Seite *bedient* werden muss — ein Formular, ein Filter,
+Greifen Sie zu ihr, wenn eine Seite _bedient_ werden muss — ein Formular, ein Filter,
 eine Anmeldung, für die Zugangsdaten vorliegen, eine Suche, deren Ergebnisse einen
 Klick brauchen, ein Ablauf über mehrere Seiten. Für eine Seite, die nur gelesen werden
 muss, ist [Web-Abruf](#web-fetch) schneller und ohne Nebenwirkungen.
@@ -849,23 +888,23 @@ Die Vorschau behält nur das neueste wartende Bild und trennt einen Empfänger,
 der zwei Sekunden lang keine Daten annimmt. Bilder laufen einmal über den
 Live-View-Socket, ohne doppelte Kopie im Chatstream.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `cdp_url` | leer | ein Chromium-DevTools-Endpunkt; Pflicht, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen |
-| `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Muster wie `*.example.com` erlaubt; null heißt keine Einschränkung im Web. Jede Anfrage, die ins Netz der Installation zeigt (private, Loopback-, Link-Local- oder Metadaten-Adresse, auch nach einer Weiterleitung), wird abgelehnt, außer ihr Host steht hier - tragen Sie ein internes Werkzeug ein, um es zu besuchen (und hinter `BROWSER_EGRESS_PROXY` auch in die Ausnahmen des Proxys) |
-| `max_steps` | 50 | 1–200; Schritte pro Aufruf, jeder eine Modellanfrage |
-| `vision` | `false` | sendet dem Modell bei jedem Schritt auch einen Screenshot; das Modell muss Bilder lesen |
-| `prefer_native_browser` | `true` | nativer eingebetteter Tab für lokales DOM; für Chromium-Kompatibilität deaktivieren. Vision und Sprach-/Zeitzonenüberschreibungen verwenden Chromium; Remote-Verbindungen bleiben unverändert |
-| `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt angeboten werden dürfen |
-| `preview` | `true` | sendet die Ansicht in den Chat, während das Browsen läuft |
-| `preview_width` | 1024 | 320–1920; die Breite der Ansicht und damit der Vorschaubilder |
-| `step_model_profile_id` | leer | ein Modellprofil, das `browse_web` bei jedem Schritt statt des Modells des Agents fragt - ein günstigeres Modell macht einen langen Browse günstiger und nur dort schneller, wo sein Anbieter schnell antwortet (Claude Haiku über OpenRouter brauchte pro Schritt so lange wie Sonnet); leer heißt das Modell des Agents, das seine eigenen Browser-Tools immer nutzen |
-| `connection` | `built_in` | `built_in`, `proxy`, `hosted` oder `local`: wie der Browser ins Netz geht |
-| `proxy_url` | leer | bei `proxy`: `http://`, `https://` oder `socks5://` mit Host und Port; das Secret des Bindings, falls vorhanden, ist sein `username:password` |
-| `hosted_url` | leer | bei `hosted`: die `wss://`-CDP-Adresse des Dienstes; das Secret des Bindings ist sein Schlüssel und Pflicht |
-| `hosted_key_param` | `apiKey` | wie der gehostete Browser seinen Schlüssel in der Query der Adresse nennt |
-| `timezone` | leer | eine IANA-Zeitzone, die der Browser meldet - passend zur Region des Proxys |
-| `locale` | leer | ein Sprach-Tag wie `pl-PL`, gesendet als `Accept-Language` und `navigator.language` |
+| Konfiguration           | Standard   | Werte                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cdp_url`               | leer       | ein Chromium-DevTools-Endpunkt; Pflicht, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen                                                                                                                                                                                                                                                                                                                                     |
+| `allowed_domains`       | null       | Hosts, auf denen der Browser sein darf; Muster wie `*.example.com` erlaubt; null heißt keine Einschränkung im Web. Jede Anfrage, die ins Netz der Installation zeigt (private, Loopback-, Link-Local- oder Metadaten-Adresse, auch nach einer Weiterleitung), wird abgelehnt, außer ihr Host steht hier - tragen Sie ein internes Werkzeug ein, um es zu besuchen (und hinter `BROWSER_EGRESS_PROXY` auch in die Ausnahmen des Proxys) |
+| `max_steps`             | 50         | 1–200; Schritte pro Aufruf, jeder eine Modellanfrage                                                                                                                                                                                                                                                                                                                                                                                   |
+| `vision`                | `false`    | sendet dem Modell bei jedem Schritt auch einen Screenshot; das Modell muss Bilder lesen                                                                                                                                                                                                                                                                                                                                                |
+| `prefer_native_browser` | `true`     | nativer eingebetteter Tab für lokales DOM; für Chromium-Kompatibilität deaktivieren. Vision und Sprach-/Zeitzonenüberschreibungen verwenden Chromium; Remote-Verbindungen bleiben unverändert                                                                                                                                                                                                                                          |
+| `candidate_cap`         | 60         | 2–200; wie viele Elemente in einem Schritt angeboten werden dürfen                                                                                                                                                                                                                                                                                                                                                                     |
+| `preview`               | `true`     | sendet die Ansicht in den Chat, während das Browsen läuft                                                                                                                                                                                                                                                                                                                                                                              |
+| `preview_width`         | 1024       | 320–1920; die Breite der Ansicht und damit der Vorschaubilder                                                                                                                                                                                                                                                                                                                                                                          |
+| `step_model_profile_id` | leer       | ein Modellprofil, das `browse_web` bei jedem Schritt statt des Modells des Agents fragt - ein günstigeres Modell macht einen langen Browse günstiger und nur dort schneller, wo sein Anbieter schnell antwortet (Claude Haiku über OpenRouter brauchte pro Schritt so lange wie Sonnet); leer heißt das Modell des Agents, das seine eigenen Browser-Tools immer nutzen                                                                |
+| `connection`            | `built_in` | `built_in`, `proxy`, `hosted` oder `local`: wie der Browser ins Netz geht                                                                                                                                                                                                                                                                                                                                                              |
+| `proxy_url`             | leer       | bei `proxy`: `http://`, `https://` oder `socks5://` mit Host und Port; das Secret des Bindings, falls vorhanden, ist sein `username:password`                                                                                                                                                                                                                                                                                          |
+| `hosted_url`            | leer       | bei `hosted`: die `wss://`-CDP-Adresse des Dienstes; das Secret des Bindings ist sein Schlüssel und Pflicht                                                                                                                                                                                                                                                                                                                            |
+| `hosted_key_param`      | `apiKey`   | wie der gehostete Browser seinen Schlüssel in der Query der Adresse nennt                                                                                                                                                                                                                                                                                                                                                              |
+| `timezone`              | leer       | eine IANA-Zeitzone, die der Browser meldet - passend zur Region des Proxys                                                                                                                                                                                                                                                                                                                                                             |
+| `locale`                | leer       | ein Sprach-Tag wie `pl-PL`, gesendet als `Accept-Language` und `navigator.language`                                                                                                                                                                                                                                                                                                                                                    |
 
 Für `local` lokales Browsen unter **Work on** in der gekoppelten [Desktop-App](../desktop.de.md#local-browser-models-and-mcp) wählen. Kein serverseitiger CDP-Endpunkt ist erforderlich. Ein temporäres sichtbares Chromium-Profil nutzt das Netzwerk des Computers einschließlich LAN-Diensten nach nativer Zustimmung; die Seiten-Domainliste gilt weiterhin. Proxy- und Hosted-Bindings werden abgelehnt statt ignoriert. Zeitzone und Sprache lassen sich überschreiben. Die folgende Einrichtung des Deployment-Browsers gilt für die anderen Modi.
 
@@ -930,7 +969,7 @@ noch über CDP lesen könnte: Sie schaltet die Domäne `Runtime` nie ein und ers
 wo ein Browser sie zeigt - so wirkt auch eine Headless-Shell, die ein Betreiber behält,
 wie ein Desktop-Browser.
 
-Geprüft gegen die Bot-Erkennung von BrowserScan (*Normal* in
+Geprüft gegen die Bot-Erkennung von BrowserScan (_Normal_ in
 jedem Punkt) und die Tabelle von Sannysoft (alles bestanden). `BROWSER_TZ` und
 `BROWSER_LANG` in der Umgebung legen fest, wo und in welcher Sprache er sich ausgibt;
 Standard sind `UTC` und `en-US`. Eine Bot-Prüfung ist keine Nutzungsbedingung: Was
@@ -969,13 +1008,13 @@ entfallen.
 
 ## Computer-Bedienung { #computer-use }
 
-`computer_screenshot` — *Take a screenshot of the desktop.*
+`computer_screenshot` — _Take a screenshot of the desktop._
 
-`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
+`computer_act` — _Act on the desktop: click, type, press keys, scroll, drag, open an app or wait._
 
-`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
+`computer_apps` — _List the applications installed on the desktop, to open one with `launch`._
 
-`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+`computer_save_screenshot` — _Save a screenshot of the desktop for the user: shown in the chat and kept._
 
 Der Agent bedient einen ganzen Desktop und kann so jede Anwendung nutzen, nicht
 nur eine Webseite. Er sieht sich einen Screenshot an und sendet einige Maus- und
@@ -1001,13 +1040,13 @@ zwischen Screenshot und Klick ändern, während der Bildschirm seine Größe beh
 Lehnen Sie daher einen Stapel ab, der auf ein Fenster zielt, dem Sie nicht
 zutrauen, unverändert zu bleiben.
 
-| `desktop` | Der Desktop | Braucht |
-|---|---|---|
-| `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop` |
-| `daemon` | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und das Token des Daemons als Secret der Bindung |
-| `e2b` | Ein eigener E2B-Desktop des Runs aus der `desktop`-Vorlage von E2B, beendet, wenn der Run ihn loslässt | Der E2B-Schlüssel der Organisation als Secret der Bindung |
-| `local` | Der eigene Bildschirm der Person, in einem Chat, der über die [Desktop-App](../desktop.md#the-screen) auf ihrem Computer arbeitet | Nichts: Die App fragt die Person vor dem ersten Screenshot |
-| `auto` | Der Bildschirm der Person, wenn der Chat auf ihrem Computer arbeitet, sonst ein E2B-Desktop, wenn die Bindung einen Schlüssel nennt, sonst die Sandbox | Was der Desktop braucht, auf dem es landet |
+| `desktop` | Der Desktop                                                                                                                                                                                                         | Braucht                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sandbox` | Ein Linux-Desktop (XFCE und Firefox) in der eigenen [Sandbox](#files-shell) des Agents, auf derselben Maschine, auf der seine Shell- und Datei-Tools arbeiten                                                       | Die Capability [Sandbox](#files-shell) auf einer Sandbox-Verbindung, mit der Runtime `desktop`    |
+| `daemon`  | Ein `computerd`, den der Betreiber betreibt: sein eigener Linux-Desktop (X11), der Bildschirm eines Macs (`uv run deploy/computer/computerd.py`) oder ein Desktop in einem Container (`deploy/computer/Dockerfile`) | `daemon_url` auf `COMPUTER_DAEMON_ALLOWED_HOSTS` und das Token des Daemons als Secret der Bindung |
+| `e2b`     | Ein eigener E2B-Desktop des Runs aus der `desktop`-Vorlage von E2B, beendet, wenn der Run ihn loslässt                                                                                                              | Der E2B-Schlüssel der Organisation als Secret der Bindung                                         |
+| `local`   | Der eigene Bildschirm der Person, in einem Chat, der über die [Desktop-App](../desktop.md#the-screen) auf ihrem Computer arbeitet                                                                                   | Nichts: Die App fragt die Person vor dem ersten Screenshot                                        |
+| `auto`    | Der Bildschirm der Person, wenn der Chat auf ihrem Computer arbeitet, sonst ein E2B-Desktop, wenn die Bindung einen Schlüssel nennt, sonst die Sandbox                                                              | Was der Desktop braucht, auf dem es landet                                                        |
 
 Ein Sandbox-Desktop braucht nichts Eigenes: keine Adresse, kein Token und keinen
 Provider. Er lebt und wird geteilt genau wie die Sandbox, pro Gespräch oder pro
@@ -1080,14 +1119,14 @@ vom Desktop einer anderen fern: Geben Sie jedem Desktop ein eigenes Token.
 `daemon_url` ist allein die Adresse des Daemons, und eine mit Query, Fragment
 oder Zugangsdaten wird verweigert.
 
-| Einstellung | Standard | Bereich |
-|---|---|---|
-| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
-| `daemon_url` | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query, Fragment oder Zugangsdaten |
-| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
-| `max_actions_per_call` | 20 | 1–50, nicht über `max_actions` |
-| `max_actions` | 200 | 1–2000 pro Run |
-| `preview` | an | |
+| Einstellung                      | Standard                                           | Bereich                                                    |
+| -------------------------------- | -------------------------------------------------- | ---------------------------------------------------------- |
+| `desktop`                        | `auto`                                             | `auto`, `sandbox`, `daemon`, `e2b`, `local`                |
+| `daemon_url`                     | leer, bei `daemon` beim Veröffentlichen verweigert | ein erlaubter Host, ohne Query, Fragment oder Zugangsdaten |
+| `screen_width` × `screen_height` | 1280 × 800                                         | 640–1920 × 480–1200                                        |
+| `max_actions_per_call`           | 20                                                 | 1–50, nicht über `max_actions`                             |
+| `max_actions`                    | 200                                                | 1–2000 pro Run                                             |
+| `preview`                        | an                                                 |                                                            |
 
 Der Chat zeichnet den Desktop in einem Fenster unter der Nachricht, während der
 Agent arbeitet: ein Fenster pro Run, geöffnet vom ersten Screenshot, mit einem
@@ -1126,15 +1165,15 @@ es nur an, wenn der Besitzer das verlangt.
 
 ## Berechnungen { #run-python }
 
-`run_python` — *Führt ein kleines Python-Programm aus, um etwas zu berechnen.*
+`run_python` — _Führt ein kleines Python-Programm aus, um etwas zu berechnen._
 
 Eine eingeschränkte Sandbox ohne Netzwerk und ohne Dateisystem — deshalb sind Zeit
 und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
 
-| Konfiguration | Standard | Bereich |
-|---|---|---|
-| `timeout_secs` | 10 | > 0, ≤ 120 |
-| `max_memory_mb` | 256 | 16–4096 |
+| Konfiguration   | Standard | Bereich    |
+| --------------- | -------- | ---------- |
+| `timeout_secs`  | 10       | > 0, ≤ 120 |
+| `max_memory_mb` | 256      | 16–4096    |
 
 !!! info "Pro Agent, nicht pro Deployment"
 
@@ -1144,8 +1183,8 @@ und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
 
 ## Sandbox { #files-shell }
 
-`ls`, `read_file`, `glob`, `grep` — *Lesen.*
-`write_file`, `edit_file`, `execute` — *Schreiben und Ausführen.*
+`ls`, `read_file`, `glob`, `grep` — _Lesen._
+`write_file`, `edit_file`, `execute` — _Schreiben und Ausführen._
 
 Ein Workspace, der zwischen den Zügen überdauert. `code_execution` rechnet und
 vergisst; dieser merkt sich, und auf einem containergestützten Backend hat er eine
@@ -1153,15 +1192,15 @@ echte Shell. Ein Agent, dem beides gewährt ist, rechnet mit dem einen und bewah
 seine Arbeit im anderen auf — was die übliche Paarung auf dem `state`-Backend ist,
 denn dieses hat gar keine Shell.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `backend` | `state` | `state`, `service` |
-| `connection_id` | null | eine registrierte Sandbox-Verbindung; null nimmt die Standardverbindung der Organisation. Nur `service` |
-| `session_scope` | `conversation` | `run`, `conversation`, `channel`, `user`, `agent` |
-| `runtime` | null | ein Alias, den der Dienst dieser Verbindung zulässt; nur `service` |
-| `include_execute` | `true` | entfernt die Shell vollständig, wenn ausgeschaltet, statt sie zu gaten |
+| Konfiguration     | Standard       | Werte                                                                                                   |
+| ----------------- | -------------- | ------------------------------------------------------------------------------------------------------- |
+| `backend`         | `state`        | `state`, `service`                                                                                      |
+| `connection_id`   | null           | eine registrierte Sandbox-Verbindung; null nimmt die Standardverbindung der Organisation. Nur `service` |
+| `session_scope`   | `conversation` | `run`, `conversation`, `channel`, `user`, `agent`                                                       |
+| `runtime`         | null           | ein Alias, den der Dienst dieser Verbindung zulässt; nur `service`                                      |
+| `include_execute` | `true`         | entfernt die Shell vollständig, wenn ausgeschaltet, statt sie zu gaten                                  |
 
-Es gibt kein `docker`- oder `daytona`-Backend zur Auswahl. *Wo* eine Sandbox läuft,
+Es gibt kein `docker`- oder `daytona`-Backend zur Auswahl. _Wo_ eine Sandbox läuft,
 ist eine Eigenschaft der Verbindung, die ein Betreiber registriert hat — Sandboxes
 in der App —, also heißt die Verbindung zu benennen, die Art zu benennen. Beides
 getrennt zu wählen, machte es möglich, zwei Dinge zu wählen, die einander
@@ -1171,7 +1210,7 @@ Ein Deployment, das seinen eigenen Sandbox-Dienst betreibt - `sandboxd`, gestart
 aus der Compose-Datei dieses Projekts, mit dem Token, das `make sandbox-token`
 erzeugt hat -, muss nichts registrieren. Wenn eine Organisation ohne
 Standardverbindung zum ersten Mal ihre Sandboxes auflistet oder einen Agenten
-ausführt, der eine braucht, registriert die Plattform *This deployment's sandbox*
+ausführt, der eine braucht, registriert die Plattform _This deployment's sandbox_
 als Standard, im Namen des Eigentümers der Organisation, mit dem Token in dessen
 Tresor und einem Audit-Eintrag wie bei jeder anderen Verbindung. Auf dieselbe
 Weise bekommt der Architekt Dateien und Code, wenn er auf einem solchen
@@ -1182,13 +1221,13 @@ Datenteilung.** Das Erste falsch zu setzen, kostet eine Funktion. Das Zweite fal
 zu setzen, zeigt einer Person die Dateien einer anderen — es lohnt sich also,
 zweimal zu lesen:
 
-| Scope | Wer den Workspace teilt |
-|---|---|
-| `run` | Niemand — jeder Zug bekommt einen frischen |
-| `conversation` | Alle in diesem Chat. In Slack *ist* ein Thread ein Chat, Threads teilen sich also nichts |
-| `channel` | Jeder Thread in einem Kanal. Eine Direktnachricht hat eine eigene Chat-id, Personen bekommen also weiterhin eigene |
-| `user` | Eine Person, über jede Oberfläche hinweg, auf der sie diesen Agent erreicht |
-| `agent` | **Alle, die mit diesem Agent sprechen**, organisationsweit |
+| Scope          | Wer den Workspace teilt                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `run`          | Niemand — jeder Zug bekommt einen frischen                                                                         |
+| `conversation` | Alle in diesem Chat. In Slack _ist_ ein Thread ein Chat, Threads teilen sich also nichts                           |
+| `channel`      | Jeder Thread in einem Kanal. Eine Direktnachricht hat eine eigene Chat-id, Personen bekommen also weiterhin eigene |
+| `user`         | Eine Person, über jede Oberfläche hinweg, auf der sie diesen Agent erreicht                                        |
+| `agent`        | **Alle, die mit diesem Agent sprechen**, organisationsweit                                                         |
 
 `conversation` und `channel` gibt es als getrennte Antworten, weil eine
 Chat-Plattform daraus verschiedene Dinge macht. `SlackAdapter` faltet `thread_ts`
@@ -1233,10 +1272,10 @@ Kopie würde einen anbieten, den der Dienst inzwischen nicht mehr zulässt.
 
 Was jedes Backend im Betrieb kostet:
 
-| Backend | Braucht | Shell | Wo die Dateien liegen |
-|---|---|---|---|
-| `state` | nichts | nein | diese Datenbank, gedeckelt bei `SANDBOX_STATE_MAX_BYTES` |
-| `service` | eine registrierte Verbindung | ja | ein Container auf diesem Host, oder Daytonas Cloud auf dem eigenen Konto der Organisation |
+| Backend   | Braucht                      | Shell | Wo die Dateien liegen                                                                     |
+| --------- | ---------------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| `state`   | nichts                       | nein  | diese Datenbank, gedeckelt bei `SANDBOX_STATE_MAX_BYTES`                                  |
+| `service` | eine registrierte Verbindung | ja    | ein Container auf diesem Host, oder Daytonas Cloud auf dem eigenen Konto der Organisation |
 
 Ein Betreiber kann sehen, was läuft: Sandboxes listet die offenen Sandboxes dieser
 Organisation auf ihrem Standard-Host mit ihren Runtimes, Leerlaufzeiten und
@@ -1246,7 +1285,7 @@ Speicher, sowie das Aktivitätsprotokoll pro Sandbox. Siehe
 Die Veröffentlichung wird für einen `service`-Workspace abgelehnt, wenn die
 Organisation keine Verbindung registriert hat, wenn die benannte verschwunden ist
 oder wenn diese Verbindung keine Zugangsdaten hat — jeweils namentlich, denn alle
-drei sind Zustände, die ein Deployment *nach* der Veröffentlichung eines Agents
+drei sind Zustände, die ein Deployment _nach_ der Veröffentlichung eines Agents
 erreicht, und die Behebung liegt bei einem Betreiber statt beim Autor.
 
 **Nur `execute` ist als nebenwirkend deklariert**, und nichts fragt, bis ein Autor
@@ -1262,7 +1301,7 @@ jemandem aus, deshalb ist es das, das ein Gate lohnt.
 Eine Bindung, die das strengere Verhalten will, setzt es pro Tool:
 `tool_approval: {"write_file": "required"}`. Siehe [Governance](../governance.md)
 dafür, wie eine Genehmigung einer Person vorgelegt wird — und für die zwei Dinge,
-die eine einzelne *Chat-Sitzung* zusätzlich zum Spec sagen kann: für diese
+die eine einzelne _Chat-Sitzung_ zusätzlich zum Spec sagen kann: für diese
 Unterhaltung auf jeden gegateten Aufruf verzichten, oder bei jedem Tool nachfragen,
 das der Agent hat, einschließlich der MCP-Tools, die das spec-gesteuerte Gate
 bewusst in Ruhe lässt (agenticos#925).
@@ -1277,7 +1316,7 @@ Treffer innerhalb einer gesperrten Datei werden verworfen, sodass eine Suche kei
 Zeile daraus zurückgeben kann. Namen sind nicht geheim, deshalb zeigen `ls` und
 `glob` weiterhin, was da ist; nur die Inhalte werden vorenthalten.
 
-Ein Befehl, der einen dieser Pfade *nennt*, wird ebenfalls abgelehnt, sodass
+Ein Befehl, der einen dieser Pfade _nennt_, wird ebenfalls abgelehnt, sodass
 `cat /etc/shadow` die Regel nicht dadurch umgeht, dass es ein anderes Tool fragt.
 Das ist Verteidigung in der Tiefe und keine Grenze, und der Unterschied zählt: Eine
 Shell erreicht eine Datei auf Wegen, die eine String-Prüfung nicht sehen kann,
@@ -1307,8 +1346,8 @@ mit `skills:edit` nimmt sie an oder verwirft sie — siehe [Skills](../skills.md
 
 ## Diagramme { #charts }
 
-`create_chart` — *Zeichnet ein Diagramm aus Zahlen, die Sie bereits haben, damit
-der Nutzer sie sehen kann.*
+`create_chart` — _Zeichnet ein Diagramm aus Zahlen, die Sie bereits haben, damit
+der Nutzer sie sehen kann._
 
 Stellt Zahlen dar, die das Modell bereits hat. Es ruft nichts ab, rechnet nichts
 und aggregiert nichts — paaren Sie es dafür mit `code_execution` oder `knowledge`.
@@ -1330,21 +1369,21 @@ Unterhaltung neu gezeichnet.
 
 ## Bilderzeugung { #image-generation }
 
-`generate_image` — *Erzeugt ein Bild aus einer schriftlichen Beschreibung.*
+`generate_image` — _Erzeugt ein Bild aus einer schriftlichen Beschreibung._
 
 Zeichnet ein Bild mit einem eigenen Bildmodell — getrennt vom Modell des Agents —,
 sodass es funktioniert, auf welchem Modell der Agent auch läuft. `create_chart`
 trägt Zahlen auf; dies zeichnet Bilder.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `provider` | `openai` | Die Provider, deren Modellklasse das Bild-Tool unterstützt *und* einen API-Schlüssel entgegennimmt - heute zwei |
-| `model` | `gpt-image-2` | Die Modelle dieses Providers, aus `app/core/catalog/image_models.json` |
-| `quality` | Provider-Standard | `low`, `medium`, `high`, `auto` |
-| `size` | Provider-Standard | `auto`, `1024x1024`, `1024x1536`, `1536x1024`, `512`, `1K`, `2K`, `4K` |
-| `background` | Provider-Standard | `transparent`, `opaque`, `auto` |
-| `output_format` | Provider-Standard | `png`, `webp`, `jpeg` |
-| `aspect_ratio` | Provider-Standard | `16:9`, `1:1`, `9:16`, … |
+| Konfiguration   | Standard          | Werte                                                                                                           |
+| --------------- | ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `provider`      | `openai`          | Die Provider, deren Modellklasse das Bild-Tool unterstützt _und_ einen API-Schlüssel entgegennimmt - heute zwei |
+| `model`         | `gpt-image-2`     | Die Modelle dieses Providers, aus `app/core/catalog/image_models.json`                                          |
+| `quality`       | Provider-Standard | `low`, `medium`, `high`, `auto`                                                                                 |
+| `size`          | Provider-Standard | `auto`, `1024x1024`, `1024x1536`, `1536x1024`, `512`, `1K`, `2K`, `4K`                                          |
+| `background`    | Provider-Standard | `transparent`, `opaque`, `auto`                                                                                 |
+| `output_format` | Provider-Standard | `png`, `webp`, `jpeg`                                                                                           |
+| `aspect_ratio`  | Provider-Standard | `16:9`, `1:1`, `9:16`, …                                                                                        |
 
 **Welche Provider zeichnen können, beantwortet das SDK, keine Liste.**
 `Model.supported_native_tools()` ist eine Klassenmethode auf jeder Modellklasse,
@@ -1373,7 +1412,7 @@ verworfen - die Absicherung dagegen, dass in der Datei etwas Unzeichenbares oder
 Unkonfigurierbares wächst.
 
 Die beiden Provider benennen das Bildmodell an verschiedenen Stellen, und der
-Katalog trägt auch das. Bei **Google** *ist* das gewählte Modell das Bildmodell.
+Katalog trägt auch das. Bei **Google** _ist_ das gewählte Modell das Bildmodell.
 Bei **OpenAI** wird das Tool von einem Responses-Modell aufgerufen und zeichnet mit
 dem gewählten, deshalb benennt der Eintrag diesen Aufrufer und die Wahl reist als
 das eigene `model` des Tools. Keines von beidem ist eine Frage, die dem Autor
@@ -1384,7 +1423,7 @@ Früher war dies ein einziger aufgezählter String, der das SDK-Präfix trug
 (`openai-responses:gpt-5.4`), und ein gespeicherter Spec hält das noch. Gegen die
 beiden Felder gelesen, ist das ein unbekanntes Modell, deshalb normalisiert die
 Konfiguration die alte Form beim Einlesen: Das Präfix benennt den Provider, und ein
-Name, der der *Aufrufer* statt eines zeichnenden Modells ist, löst auf das erste
+Name, der der _Aufrufer_ statt eines zeichnenden Modells ist, löst auf das erste
 Bildmodell dieses Providers auf. Nur dort, wo kein `provider` gespeichert war —
 eine Bindung, die einen benennt, sagt beide Hälften.
 
@@ -1421,20 +1460,20 @@ Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
 
 ## Sprachausgabe { #text-to-speech }
 
-`generate_speech` — *Liest einen Text als Audioclip vor.*
+`generate_speech` — _Liest einen Text als Audioclip vor._
 
 Liest einen Text über einen Sprach-Provider vor, den der Autor wählt, und verhält
 sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als Player
 gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2259).
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
-| `model` | `gpt-4o-mini-tts` | Die Modelle dieses Providers aus `app/core/catalog/text_to_speech_models.json` |
-| `voice` | die erste des Modells | Die Voreinstellung, mit der der Agent spricht; er darf pro Clip innerhalb von `voices` wechseln. Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs |
-| `voices` | keine: jede Stimme des Modells | Bis zu 20 Stimmen, zu denen der Agent pro Clip wechseln darf, jede als `id` und, für eine Kontostimme, eine `note` mit bis zu 120 Zeichen, die sagt, wer es ist. Leer erlaubt jede Stimme des Modells - bei ElevenLabs jede Stimmen-ID im Konto |
-| `output_format` | das erste des Providers | `mp3`, `wav` (Gemini liefert nur `wav`) |
-| `max_characters` | `5000` | 1–10 000; der meiste Text, den ein Aufruf sprechen darf |
+| Konfiguration    | Standard                       | Werte                                                                                                                                                                                                                                           |
+| ---------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`       | `openai`                       | `openai`, `elevenlabs`, `google`                                                                                                                                                                                                                |
+| `model`          | `gpt-4o-mini-tts`              | Die Modelle dieses Providers aus `app/core/catalog/text_to_speech_models.json`                                                                                                                                                                  |
+| `voice`          | die erste des Modells          | Die Voreinstellung, mit der der Agent spricht; er darf pro Clip innerhalb von `voices` wechseln. Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs                                           |
+| `voices`         | keine: jede Stimme des Modells | Bis zu 20 Stimmen, zu denen der Agent pro Clip wechseln darf, jede als `id` und, für eine Kontostimme, eine `note` mit bis zu 120 Zeichen, die sagt, wer es ist. Leer erlaubt jede Stimme des Modells - bei ElevenLabs jede Stimmen-ID im Konto |
+| `output_format`  | das erste des Providers        | `mp3`, `wav` (Gemini liefert nur `wav`)                                                                                                                                                                                                         |
+| `max_characters` | `5000`                         | 1–10 000; der meiste Text, den ein Aufruf sprechen darf                                                                                                                                                                                         |
 
 **Provider, Modelle, Stimmen und Preise sind Daten** in der Katalogdatei. Ein
 Provider ist ein [Secret-Zweck](../secrets.md) mit einem einfachen API-Schlüssel -
@@ -1460,7 +1499,7 @@ die das Modell nicht hat, wird beim Veröffentlichen abgelehnt, und eine Stimme
 außerhalb der Liste wird beim Aufruf an das Modell zurückgelenkt.
 
 **Die Schlüsselauswahl zeigt die Schlüssel des gewählten Providers.** Das Secret
-ist für jeden Provider erforderlich und als erforderlich deklariert, *wenn*
+ist für jeden Provider erforderlich und als erforderlich deklariert, _wenn_
 `provider` einer von ihnen ist - das sagt dem Builder, dass der Provider der Zweck
 des Schlüssels ist.
 
@@ -1480,6 +1519,7 @@ zu einem Preis pro Zeichen typischer Sprache geprüft. Gemini, das sein Audio al
 rohes PCM liefert, wird danach aus dem Audio gebucht, das jedes Stück zurückgab -
 Text-Tokens hinein und 25 Audio-Tokens pro Sekunde heraus -, sodass eine langsame
 Sprechweise kostet, was der Provider dafür abrechnet. Ein datierter Preis gilt ab seinem Tag
+
 - so ist die Verdopplung der Gemini-Preise am 01.01.2027 erfasst.
 
 **Gebucht beim Sprechen, ein Clip nach dem anderen.** Jedes Stück eines langen
@@ -1503,7 +1543,7 @@ erreicht weder die Logs noch das Modell.
 
 ## Videoerzeugung { #video-generation }
 
-`generate_video` — *Erzeugt ein kurzes Video aus einer schriftlichen Beschreibung.*
+`generate_video` — _Erzeugt ein kurzes Video aus einer schriftlichen Beschreibung._
 
 Erzeugt einen kurzen Clip über einen Video-Provider, den der Autor wählt, und
 verhält sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als
@@ -1514,19 +1554,19 @@ Run zurückgab, oder einem Pfad im Workspace, wo ein erzeugtes Bild auch unter
 erreicht nie die erzeugten Dateien der Organisation: Der Run muss das Bild selbst
 gemacht haben.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
-| `model` | `gemini-omni-1.1-flash` | Die Modelle dieses Providers aus `app/core/catalog/video_models.json` |
-| `resolution` | die erste des Modells | Die Voreinstellung; der Agent darf pro Clip eine andere verlangen, bis `max_resolution` |
-| `max_resolution` | keine: jede, die das Modell rendert | Die höchste, die der Agent verlangen darf; mindestens `resolution` |
-| `aspect_ratio` | das erste des Modells | Die Voreinstellung; der Agent darf jedes Seitenverhältnis verlangen, das das Modell rendert |
-| `seconds` | 5 oder der nächste Wert des Modells | Im Bereich des Modells; für Gemini Omni abgelehnt, das selbst entscheidet |
-| `max_seconds` | der längste Clip des Modells | Der längste Clip, den der Agent verlangen darf; für Gemini Omni abgelehnt |
-| `audio` | Voreinstellung des Providers | Die Voreinstellung, an oder aus; der Agent darf pro Clip beides verlangen. Abgelehnt, wo der Ton des Modells feststeht |
+| Konfiguration       | Standard                                  | Werte                                                                                                                                                 |
+| ------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`          | `google`                                  | `google`, `byteplus`, `xai`, `alibaba`                                                                                                                |
+| `model`             | `gemini-omni-1.1-flash`                   | Die Modelle dieses Providers aus `app/core/catalog/video_models.json`                                                                                 |
+| `resolution`        | die erste des Modells                     | Die Voreinstellung; der Agent darf pro Clip eine andere verlangen, bis `max_resolution`                                                               |
+| `max_resolution`    | keine: jede, die das Modell rendert       | Die höchste, die der Agent verlangen darf; mindestens `resolution`                                                                                    |
+| `aspect_ratio`      | das erste des Modells                     | Die Voreinstellung; der Agent darf jedes Seitenverhältnis verlangen, das das Modell rendert                                                           |
+| `seconds`           | 5 oder der nächste Wert des Modells       | Im Bereich des Modells; für Gemini Omni abgelehnt, das selbst entscheidet                                                                             |
+| `max_seconds`       | der längste Clip des Modells              | Der längste Clip, den der Agent verlangen darf; für Gemini Omni abgelehnt                                                                             |
+| `audio`             | Voreinstellung des Providers              | Die Voreinstellung, an oder aus; der Agent darf pro Clip beides verlangen. Abgelehnt, wo der Ton des Modells feststeht                                |
 | `alibaba_workspace` | keiner: der gemeinsame DashScope-Endpunkt | Nur Alibaba: die Workspace-ID in Model Studio, ein Host-Label; Wan wird dann unter `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` aufgerufen |
-| `alibaba_region` | `ap-southeast-1` | Nur Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
-| `timeout_seconds` | `600` | 60–1800 |
+| `alibaba_region`    | `ap-southeast-1`                          | Nur Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong`                                             |
+| `timeout_seconds`   | `600`                                     | 60–1800                                                                                                                                               |
 
 **Was jedes Modell erzeugen kann, sind Daten.** Der Katalog nennt für jedes
 Modell den Längenbereich, die Seitenverhältnisse, die Auflösungen, ob seine Clips
@@ -1579,7 +1619,7 @@ Versuch würde erneut abgerechnet.
 
 ## Coding Agent { #coding-agent }
 
-`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
+`run_coding_agent` — _Hand a software task to the coding agent, which works on it in the sandbox until done._
 
 Übergibt Softwarearbeit an **Claude Code** oder **Codex**, die im eigenen
 [Sandbox](../sandbox.md) des Agent laufen. Ein gewöhnlicher Agent mit Shell kann
@@ -1589,13 +1629,13 @@ arbeitet, bis sie erledigt ist, und der Chat zeigt es bei der Arbeit. Ein andere
 Agent erreicht einen Coding Agent über gewöhnliche [Delegation](#delegation), wie
 jeden Spezialisten.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `harness` | `claude_code` | `claude_code` (ein Anthropic-API-Key oder ein Claude-Abo-Token), `codex` (ein OpenAI-API-Key oder eine ChatGPT-Anmeldung) |
-| `access` | `edit` | `edit` ändert Dateien und führt Befehle aus; `read_only` liest den Code und antwortet (nur Claude Code) |
-| `model` | Standard des Harness | Claude Opus, Sonnet oder Haiku 5.5 für Claude Code; GPT-5.6 Sol, Terra, Luna oder GPT-5.3 Codex für Codex |
-| `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt. Entfällt, sobald Codex gewählt ist |
-| `timeout_minutes` | 15 | 1–60, pro Aufgabe |
+| Konfiguration     | Standard             | Werte                                                                                                                                                                 |
+| ----------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `harness`         | `claude_code`        | `claude_code` (ein Anthropic-API-Key oder ein Claude-Abo-Token), `codex` (ein OpenAI-API-Key oder eine ChatGPT-Anmeldung)                                             |
+| `access`          | `edit`               | `edit` ändert Dateien und führt Befehle aus; `read_only` liest den Code und antwortet (nur Claude Code)                                                               |
+| `model`           | Standard des Harness | Claude Opus, Sonnet oder Haiku 5.5 für Claude Code; GPT-5.6 Sol, Terra, Luna oder GPT-5.3 Codex für Codex                                                             |
+| `base_url`        | direkt Anthropic     | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt. Entfällt, sobald Codex gewählt ist |
+| `timeout_minutes` | 15                   | 1–60, pro Aufgabe                                                                                                                                                     |
 
 **Ein Tool, und das Binding entscheidet, was es darf.** Bei `edit` bearbeitet das
 Harness jede Datei und führt jeden Befehl im Sandbox aus, mit abgeschalteten eigenen
@@ -1678,7 +1718,7 @@ Claude Code dort jeden Key an.
 läuft in einem frischen Workspace im Speicher ohne Shell, sodass ein per Delegation
 erreichter Coding Agent sein Harness nirgends starten kann. Geben Sie dem
 delegierenden Agent die Capability `sandbox` auf einer Sandbox-Verbindung und nehmen
-Sie `sandbox` in *Capabilities, die Delegaten erben* der Delegation auf: Der Coding Agent
+Sie `sandbox` in _Capabilities, die Delegaten erben_ der Delegation auf: Der Coding Agent
 arbeitet dann im Container des Elternteils, und die Dateien, die er schreibt, sind
 die, die der Elternteil sieht.
 
@@ -1691,9 +1731,9 @@ Harness meldet, was sie verbraucht hat - fehlgeschlagen, abgelaufen oder gestopp
 
 ## Visuals { #visuals }
 
-`draw` — *Zeichnet im Gespräch: ein Diagramm, eine Karte, einen Ablauf, eine Erklärung, eine 3D-Szene.*
-`revise_visual` — *Ändert ein Visual durch exakte Ersetzungen, ohne es neu zu zeichnen.*
-`read_visual` — *Liest ein Visual dieses Gesprächs, wie es jetzt ist, mit angewendeten Überarbeitungen.*
+`draw` — _Zeichnet im Gespräch: ein Diagramm, eine Karte, einen Ablauf, eine Erklärung, eine 3D-Szene._
+`revise_visual` — _Ändert ein Visual durch exakte Ersetzungen, ohne es neu zu zeichnen._
+`read_visual` — _Liest ein Visual dieses Gesprächs, wie es jetzt ist, mit angewendeten Überarbeitungen._
 
 Zeichnet im Chat selbst. `kind` ist `svg` für Diagramme und Illustrationen,
 `mermaid` für Flussdiagramme, Sequenzen und ER-Diagramme oder `html` für alles
@@ -1713,8 +1753,8 @@ Schatten oder Verläufe.
 
 **Eine Zeichnung kann das Gespräch fortsetzen.** `agenticos.followUp(text)` in einer
 Zeichnung bittet darum, die Wahl der Person als ihre nächste Nachricht zu senden -
-*Diesen Stopp planen*, *Diese Zahlen verwenden*. Die Konsole zeigt den Text unter
-der Zeichnung und sendet ihn erst, wenn die Person auf *Senden* klickt; eine Bitte
+_Diesen Stopp planen_, _Diese Zahlen verwenden_. Die Konsole zeigt den Text unter
+der Zeichnung und sendet ihn erst, wenn die Person auf _Senden_ klickt; eine Bitte
 ohne Klick dahinter wird verworfen. Siehe
 [Folgenachrichten](../artifacts.md#visuals).
 
@@ -1769,16 +1809,16 @@ Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 
-`publish_artifact` — *veröffentlicht eine fertige Seite — einen Bericht, ein
-kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link.*
-`read_artifact` — *liest die aktuelle Version einer Seite, die dieser Agent
-veröffentlicht hat, so wie sie geschrieben wurde.*
-`list_artifacts` — *listet die Seiten auf, die dieser Agent veröffentlicht hat
-und die dieser Run öffnen darf, die neueste zuerst.*
-`preview_artifact` — *zeigt eine veröffentlichte Seite so, wie jemand sie beim
-Öffnen sähe: ein Bild und was schiefgegangen ist.*
-`share_artifact` — *bittet darum, eine Seite, die Sie veröffentlicht haben, mit
-mehr Personen zu teilen; das teilt selbst nichts.*
+`publish_artifact` — _veröffentlicht eine fertige Seite — einen Bericht, ein
+kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link._
+`read_artifact` — _liest die aktuelle Version einer Seite, die dieser Agent
+veröffentlicht hat, so wie sie geschrieben wurde._
+`list_artifacts` — _listet die Seiten auf, die dieser Agent veröffentlicht hat
+und die dieser Run öffnen darf, die neueste zuerst._
+`preview_artifact` — _zeigt eine veröffentlichte Seite so, wie jemand sie beim
+Öffnen sähe: ein Bild und was schiefgegangen ist._
+`share_artifact` — _bittet darum, eine Seite, die Sie veröffentlicht haben, mit
+mehr Personen zu teilen; das teilt selbst nichts._
 
 Veröffentlicht ein in sich geschlossenes HTML- oder Markdown-Dokument als
 [App](../artifacts.md): eine geteilte Ressource mit einem Besitzer, einer
@@ -1935,35 +1975,35 @@ lesen kann.
 
 ## Delegation { #delegation }
 
-`task` — *übergibt ein in sich geschlossenes Stück Arbeit an einen der
-Spezialisten dieses Agents.*
-`check_task`, `wait_tasks`, `list_active_tasks` — *eine laufende verfolgen.*
-`send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — *eine steuern
-oder stoppen.* Diese sechs werden nur angeboten, wenn eine Delegation im
+`task` — _übergibt ein in sich geschlossenes Stück Arbeit an einen der
+Spezialisten dieses Agents._
+`check_task`, `wait_tasks`, `list_active_tasks` — _eine laufende verfolgen._
+`send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task` — _eine steuern
+oder stoppen._ Diese sechs werden nur angeboten, wenn eine Delegation im
 Hintergrund erreichbar ist — ein Agent mit reinem `sync` bekommt keine davon.
-`create_agent`, `delegate` — *ein Spezialist, den das Modell sich selbst
-schreibt, wenn der Autor es erlaubt.*
-`answer_subagent` — *deklariert, und keinem Modell angeboten.*
+`create_agent`, `delegate` — _ein Spezialist, den das Modell sich selbst
+schreibt, wenn der Autor es erlaubt._
+`answer_subagent` — _deklariert, und keinem Modell angeboten._
 
 Ein Agent übergibt einen Teil einer Aufgabe an einen anderen, jeder auf seinem
 eigenen Modell mit seinem eigenen Wissen und seinem eigenen Schrittlimit, namentlich
 angesprochen. Es gibt zwei Formen von Delegierten, und der Unterschied entscheidet,
 wie geprüft, versioniert und abgerechnet wird — [Konzepte](../concepts.md#delegate-vs-inline-specialist)
-ist der Ort, an dem das erklärt wird. An welche *veröffentlichten* Agents dieser
+ist der Ort, an dem das erklärt wird. An welche _veröffentlichten_ Agents dieser
 delegieren darf, steht nicht in dieser Konfiguration: Es ist `subagents` auf der
 obersten Ebene des Specs, wo die Veröffentlichungsprüfung, der YAML-Export und das
 Berechtigungsmodell es alle sehen können.
 
-| Konfiguration | Standard | Bereich |
-|---|---|---|
-| `inline` | keine | Spezialisten, die in diesem Agent definiert sind |
-| `mode` | `sync` | `sync`, `async`, `auto` |
-| `allow_questions` | `false` | eine synchrone Delegierte darf die Person des übergeordneten Agents fragen |
-| `allow_dynamic` | `false` | |
-| `max_depth` | 1 | 1–3 |
-| `max_fanout` | 3 | 1–10 |
-| `max_result_chars` | 2000 | 200–20000 |
-| `share_with_delegates` | keine | Capability-ids, an die dieser Agent selbst gebunden ist, außer `subagents` |
+| Konfiguration          | Standard | Bereich                                                                    |
+| ---------------------- | -------- | -------------------------------------------------------------------------- |
+| `inline`               | keine    | Spezialisten, die in diesem Agent definiert sind                           |
+| `mode`                 | `sync`   | `sync`, `async`, `auto`                                                    |
+| `allow_questions`      | `false`  | eine synchrone Delegierte darf die Person des übergeordneten Agents fragen |
+| `allow_dynamic`        | `false`  |                                                                            |
+| `max_depth`            | 1        | 1–3                                                                        |
+| `max_fanout`           | 3        | 1–10                                                                       |
+| `max_result_chars`     | 2000     | 200–20000                                                                  |
+| `share_with_delegates` | keine    | Capability-ids, an die dieser Agent selbst gebunden ist, außer `subagents` |
 
 **Der Modus ist die Entscheidung des Autors, nicht die des Modells.**
 
@@ -1973,7 +2013,7 @@ voreingestellt ist, deshalb sind „das Modell hat sich zum Warten entschieden�
 eine Einstellung als auch eine Wahl zu ehren, und die Einstellung wurde geprüft.
 
 Also wird das Argument unterwegs ersetzt, und `auto` ist die Art, wie ein Autor
-die Entscheidung bewusst abgibt. `auto` wird *vor* dem Start der Delegation
+die Entscheidung bewusst abgibt. `auto` wird _vor_ dem Start der Delegation
 aufgelöst, denn ob ein Panel offen bleibt, nachdem der übergeordnete Agent
 geantwortet hat, hängt von der Antwort ab.
 
@@ -2005,7 +2045,7 @@ eine Taktgrenze sollte keinen Run beenden.
 selbst**: 1 heißt, dieser Agent delegiert und seine Delegierten nicht; 2 erlaubt
 eine verschachtelte Ebene.
 
-An der Grenze wird eine Delegierte *ohne* die Delegations-Capability gebaut statt
+An der Grenze wird eine Delegierte _ohne_ die Delegations-Capability gebaut statt
 mit einer, die nur ablehnen kann. Ein Tool, das immer „keine Delegierten verfügbar“
 antwortet, ist eine Beschreibung, für die das Modell in jedem Zug bezahlt und die
 es trotzdem versucht.
@@ -2015,7 +2055,7 @@ deaktivieren, und eine zweite Schreibweise desselben Schalters ist eine, die der
 ersten widerspricht.
 
 **Und jeder Agent im Baum wird an seinem eigenen `max_depth` gemessen, nicht an dem
-der Wurzel.** Eine Delegierte bekommt den *niedrigeren* Wert aus dem, was der Baum
+der Wurzel.** Eine Delegierte bekommt den _niedrigeren_ Wert aus dem, was der Baum
 noch übrig hat, und dem, was ihr eigener Spec erlaubt — eine für drei Ebenen
 konfigurierte Wurzel, die an einen Agent delegiert, dessen Autor 1 gewählt hat,
 bekommt eins: Diese Delegierte delegiert und ihre Delegierten nicht, genau so, wie
@@ -2060,7 +2100,7 @@ der Bibliothek, und eine Frage, die sie stellt, wird über den eigenen
 übergeordneten Agents ohnehin schon hält — und niemals vom Modell.
 
 Es ist die Entscheidung des Autors, weil die Frage einen Namen trägt, den der
-Autor veröffentlicht hat. Ein Spezialist, den das Modell *erfindet*, fragt
+Autor veröffentlicht hat. Ein Spezialist, den das Modell _erfindet_, fragt
 nie, was auch immer hier steht: Instruktionen, die ein Modell vor einem Moment
 geschrieben hat, sind nicht die des Autors, um sie einer Person vorzulegen.
 
@@ -2075,7 +2115,7 @@ jede Delegierte ist — damit ist die synchrone Hälfte von
 
 **`answer_subagent` wird keinem Modell angeboten.**
 
-Es beantwortet eine Frage, auf der eine *Hintergrund*-Delegierte geparkt hat, und
+Es beantwortet eine Frage, auf der eine _Hintergrund_-Delegierte geparkt hat, und
 keine Delegierte hier parkt auf einer: Eine synchrone Frage geht über `ask_user` an
 eine Person und nie über dieses Tool, und einer asynchronen Delegierten wird
 `ask_parent` gar nicht erst gegeben. Die einzig mögliche Antwort des Tools ist
@@ -2118,7 +2158,7 @@ Zehn Tools, die nur ablehnen können, sind zehn Tools im Kontext jedes Zuges.
 `tool_approval` hinter ein Gate: `send_message_to_subagent`, `soft_cancel_task` und `hard_cancel_task`. Das Steuern
 ändert mitten im Run, was eine Delegierte tut, und jeder der beiden Abbrüche
 vernichtet Arbeit, die bezahlt und nicht geliefert wurde. `task` hat bewusst keine
-Seiteneffekte, was sich einen Moment lang falsch liest: Was eine Delegierte *tut*,
+Seiteneffekte, was sich einen Moment lang falsch liest: Was eine Delegierte _tut_,
 wird vom eigenen Spec der Delegierten gegatet, über dasselbe Genehmigungs-Gate, das
 dieser Run benutzt — die Delegation zusätzlich zu gaten hieße also, jemanden um
 Genehmigung zu bitten, bevor die Arbeit, die vielleicht Genehmigung braucht,
@@ -2134,7 +2174,7 @@ ab, an die der übergeordnete Agent selbst nicht gebunden ist, denn zu verleihen
 was man nicht hält, ist eine Konfigurationszeile, die sich wie eine Entscheidung
 liest und nichts tut. In der Praxis existiert das für `sandbox`: Es zu teilen, ist
 die Art, wie ein Rechercheur `/workspace/notes.md` schreibt und ein Autor es
-liest. Eine Delegierte, die `sandbox` bindet, *ohne* dass ihr der des übergeordneten
+liest. Eine Delegierte, die `sandbox` bindet, _ohne_ dass ihr der des übergeordneten
 Agents geteilt wurde, bekommt den In-Memory-Workspace, denn nur der Run öffnet
 einen.
 
@@ -2144,7 +2184,7 @@ teilt, hält es per Definition.
 
 Geteilt landet die Bindung des übergeordneten Agents bei einer Delegierten, die
 keine bindet, und die Laufzeit liest dann die Spezialisten, `allow_dynamic`,
-`max_fanout`, `max_depth` und die Teilungsliste des *übergeordneten* Agents, als
+`max_fanout`, `max_depth` und die Teilungsliste des _übergeordneten_ Agents, als
 hätte der Autor der Delegierten sie gewählt.
 
 Die Veröffentlichung lehnt das ab, und die Laufzeit streicht es außerdem aus der
@@ -2230,12 +2270,12 @@ umgeht.
 
 Ein behaltener hält den gesamten Run, in dem er erfunden wurde, eine
 Genehmigungsparkung eingeschlossen: Die Registrierung lebt in einer Registry, die
-die Delegationsbibliothek pro *gebautem* Agent aufbaut, und ein Run, der parkt,
+die Delegationsbibliothek pro _gebautem_ Agent aufbaut, und ein Run, der parkt,
 wird bei der Fortsetzung erneut gebaut — sie ging also über die Parkung hinweg
 verloren, bis die Registrierungen in `PausedRunState` mitgeführt und beim erneuten
 Abspielen neu registriert wurden
 ([#175](https://github.com/vstorm-co/agenticos/issues/175)). Er überdauert nicht
-in den *nächsten Zug der Unterhaltung*, der ein frischer Aufbau ohne pausierten
+in den _nächsten Zug der Unterhaltung_, der ein frischer Aufbau ohne pausierten
 Zustand ist — ein in einer Antwort erzeugter Name ist in der nächsten unbekannt,
 und die Beschreibung von `create_agent` sagt dem Modell, es solle ihn erneut
 erzeugen, wenn `task` das nahelegt.
@@ -2320,12 +2360,12 @@ delegieren darf, steht unter
 
 ## Planung { #planning }
 
-`write_plan` — *legt die ganze Checkliste an oder ersetzt sie.*
-`read_plan` — *zeigt die Schritte und ihre ids vor einer feinkörnigen Änderung.*
-`add_task`, `update_task_status`, `update_task_statuses`, `remove_task` — *ändern
-einen Schritt oder eine Gruppe, ohne den Plan zu ersetzen.*
-`add_subtask`, `set_dependency`, `get_available_tasks` — *abhängigkeitsbewusste
-Planung, nur unter `enable_subtasks` angeboten.*
+`write_plan` — _legt die ganze Checkliste an oder ersetzt sie._
+`read_plan` — _zeigt die Schritte und ihre ids vor einer feinkörnigen Änderung._
+`add_task`, `update_task_status`, `update_task_statuses`, `remove_task` — _ändern
+einen Schritt oder eine Gruppe, ohne den Plan zu ersetzen._
+`add_subtask`, `set_dependency`, `get_available_tasks` — _abhängigkeitsbewusste
+Planung, nur unter `enable_subtasks` angeboten._
 
 Eine Checkliste, die das Modell während der Arbeit für sich selbst führt: was
 erledigt ist, was in Arbeit ist, was übrig ist. Bei mehrstufiger Arbeit ist ein
@@ -2336,15 +2376,15 @@ Prompt-Präfix bytegleich bleibt und nur der veränderliche Plan in jedem Zug ne
 gelesen wird. Der Plan landet nie im System-Prompt.
 
 Sie überschneidet sich mit der [Delegation](#delegation) so, wie sich ein Plan mit
-einem Team überschneidet: Die Planung entscheidet, *was* die Schritte sind, die
-Delegation entscheidet, *wer* sie macht. Sie sind orthogonal — ein Plan ist ein
+einem Team überschneidet: Die Planung entscheidet, _was_ die Schritte sind, die
+Delegation entscheidet, _wer_ sie macht. Sie sind orthogonal — ein Plan ist ein
 Toolset plus eine Erinnerung, Delegation ist ein Toolset plus eine Run-Hülle —,
 deshalb darf ein Agent beides binden, eines oder keines.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `enable_subtasks` | `false` | fügt die drei Subtask-/Abhängigkeits-Tools und den Status `blocked` hinzu |
-| `cache_ttl` | `5m` | `5m`, `1h` — wie lange das Präfix vor der Erinnerung cachen darf |
+| Konfiguration     | Standard | Werte                                                                     |
+| ----------------- | -------- | ------------------------------------------------------------------------- |
+| `enable_subtasks` | `false`  | fügt die drei Subtask-/Abhängigkeits-Tools und den Status `blocked` hinzu |
+| `cache_ttl`       | `5m`     | `5m`, `1h` — wie lange das Präfix vor der Erinnerung cachen darf          |
 
 **Keines der neun Tools wirkt auf die Welt.** Jedes verändert eine Checkliste, die
 das Modell für sich selbst führt, deshalb gibt es hier nichts, was eine Person
@@ -2357,7 +2397,7 @@ Genehmigungsrichtlinie gegatet noch von einer Bindung umbenannt werden.
 
 Die Checkliste ist Zustand, und jede Grenze, die ein Run hat, würde sie sonst
 verlieren. Ein Run, der mitten im Plan auf einer Genehmigung parkt, wird als
-frischer Run fortgesetzt — und eine Chat-Nachricht *ist* hier ein Run, deshalb
+frischer Run fortgesetzt — und eine Chat-Nachricht _ist_ hier ein Run, deshalb
 begann die nächste Nachricht mit einem leeren Speicher.
 
 Ein Agent schrieb drei Schritte, wurde gebeten, mit dem ersten zu beginnen, und
@@ -2378,12 +2418,12 @@ Erinnerung am Ende würde eine Aufgabe, die niemand erledigt, „Ihren aktuellen
 nennen, und `read_plan` würde damit antworten (agenticos#1221).
 
 Die Zeile zu behalten, braucht eine weitere Regel, denn ein Zug schreibt seinen
-Speicher am Ende zurück: Der Zug, dessen Speicher *über* einem fertigen Plan leer
+Speicher am Ende zurück: Der Zug, dessen Speicher _über_ einem fertigen Plan leer
 geöffnet wurde, schreibt nichts. Er hat nichts an der Checkliste getan, und ein
 leerer Dump würde die Zeile schon bei der nächsten gewöhnlichen Nachricht löschen.
 Ein Agent, der neue Arbeit beginnt, legt wie üblich einen Plan an und ersetzt ihn.
 
-Der Filter sitzt beim *Befüllen*, nicht beim Abhaken des letzten Schritts, und
+Der Filter sitzt beim _Befüllen_, nicht beim Abhaken des letzten Schritts, und
 darin besteht die ganze Entscheidung. Innerhalb des Zuges, der
 einen Plan abschließt, hält der Speicher ihn noch, sodass der Agent zusammenfassen
 kann, was er gerade getan hat, und nichts dem Transkript widerspricht. Erst die
@@ -2439,9 +2479,9 @@ auf `BackgroundTools` aus pydantic-ai-harness.
 Keine Tools. Bittet das Modell, vor der Antwort nachzudenken: langsamer und teurer,
 besser bei Arbeit, die mehrere Schritte gleichzeitig im Kopf braucht.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `effort` | ungesetzt | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+| Konfiguration | Standard  | Werte                                              |
+| ------------- | --------- | -------------------------------------------------- |
+| `effort`      | ungesetzt | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Ungesetzt bedeutet den eigenen Standardaufwand des Providers. Eine Stufe, die ein
 Provider nicht hat, wird auf die nächstliegende abgebildet, sodass ein Spec über
@@ -2458,11 +2498,11 @@ von `SystemReminders` aus
 
 Es gibt drei Arten von Erinnerungen, jede mit ihrem eigenen Takt:
 
-| Art | Kosten | Text, den sie einfügt |
-|---|---|---|
-| `reminders[]` | keine | Eine feste Zeile, die Sie schreiben |
-| `goal_reanchor` | keine | Die erste Nutzeranfrage des Runs, als Anker wiederholt |
-| `llm_reminder` | ein Modellaufruf pro Auslösung | Ein kurzer Hinweis, den ein Modell aus dem jüngsten Transkript schreibt |
+| Art             | Kosten                         | Text, den sie einfügt                                                   |
+| --------------- | ------------------------------ | ----------------------------------------------------------------------- |
+| `reminders[]`   | keine                          | Eine feste Zeile, die Sie schreiben                                     |
+| `goal_reanchor` | keine                          | Die erste Nutzeranfrage des Runs, als Anker wiederholt                  |
+| `llm_reminder`  | ein Modellaufruf pro Auslösung | Ein kurzer Hinweis, den ein Modell aus dem jüngsten Transkript schreibt |
 
 Jede Art nimmt `interval` (bei jeder N-ten Modellanfrage auslösen), `first_after`
 (die Nummer der Anfrage, bei der zum ersten Mal ausgelöst wird) und `max_fires`
@@ -2479,14 +2519,14 @@ aufgehört hat, statt auf null zurückzuspringen, und eine Unterhaltung zu verla
 und neu zu laden, setzt sie fort (#787). Gespeichert werden nur die Zähler; der
 Erinnerungstext wird pro Anfrage eingefügt und gelangt nie ins Transkript.
 
-**Das Einfügen ist cache-sicher.** Eine ausgelöste Erinnerung wird an das *Ende*
+**Das Einfügen ist cache-sicher.** Eine ausgelöste Erinnerung wird an das _Ende_
 der Anfrage als flüchtiger Nutzer-Prompt hinter einem Cache-Breakpoint angehängt,
 nachdem der Kern die dauerhafte Historie gespeichert hat — sie erreicht also das
 Modell, gelangt aber nie in `message_history`, es häufen sich keine veralteten
 Erinnerungen an, und das gecachte Präfix (Tools, System, die echte Unterhaltung)
 bleibt Zug um Zug bytegleich, während nur die kleine Erinnerung außerhalb des
 Caches liegt. In den System-Prompt einzufügen, würde stattdessen bei jeder
-Auslösung das gecachte Präfix sprengen *und* veraltete Erinnerungen ansammeln.
+Auslösung das gecachte Präfix sprengen _und_ veraltete Erinnerungen ansammeln.
 
 **Eine LLM-Erinnerung wird erfasst und erbt das Modell des Runs.**
 
@@ -2576,9 +2616,9 @@ des Agents, damit er aufhört, eines anzunehmen — das Versagen, das dies beheb
 ein Agent, der selbstbewusst über „dieses Quartal“ von seinem Trainingsstand aus
 nachdenkt.
 
-| Konfiguration | Standard | |
-|---|---|---|
-| `timezone` | `UTC` | ein beliebiger IANA-Name, z. B. `Europe/Warsaw` |
+| Konfiguration | Standard |                                                 |
+| ------------- | -------- | ----------------------------------------------- |
+| `timezone`    | `UTC`    | ein beliebiger IANA-Name, z. B. `Europe/Warsaw` |
 
 ## Lange Gespräche { #context-management }
 
@@ -2587,18 +2627,18 @@ sodass ein Run, der sonst an die Grenze des Modells gestoßen wäre, weiterarbei
 Die Strategien stammen aus
 [`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
 
-| Konfiguration | Standard | |
-|---|---|---|
-| `strategy` | `summarize` | `summarize`, `tiered`, `clear_tool_results`, `sliding_window` |
-| `max_fraction` | `0.9` | 0,05–0,95 des Fensters, ab dem die Compaction beginnt |
-| `keep_messages` | 20 | jüngste Nachrichten, die eine Zusammenfassung oder ein Fenster überleben |
-| `keep_tool_pairs` | 3 | jüngste Tool-Aufrufe, die ihre Ergebnisse behalten |
-| `summary_prompt` | der bibliothekseigene | was dem zusammenfassenden Modell gesagt wird; muss `{messages}` enthalten |
-| `context_window` | ungesetzt | überschreibt das Fenster — das, wogegen dies auslöst, *und* das, wodurch die Anzeige im Chat teilt |
-| `fallback_context_window` | 200000 | Fenster, das anzunehmen ist, wenn das des Modells nicht aufgelöst werden kann |
+| Konfiguration             | Standard              |                                                                                                    |
+| ------------------------- | --------------------- | -------------------------------------------------------------------------------------------------- |
+| `strategy`                | `summarize`           | `summarize`, `tiered`, `clear_tool_results`, `sliding_window`                                      |
+| `max_fraction`            | `0.9`                 | 0,05–0,95 des Fensters, ab dem die Compaction beginnt                                              |
+| `keep_messages`           | 20                    | jüngste Nachrichten, die eine Zusammenfassung oder ein Fenster überleben                           |
+| `keep_tool_pairs`         | 3                     | jüngste Tool-Aufrufe, die ihre Ergebnisse behalten                                                 |
+| `summary_prompt`          | der bibliothekseigene | was dem zusammenfassenden Modell gesagt wird; muss `{messages}` enthalten                          |
+| `context_window`          | ungesetzt             | überschreibt das Fenster — das, wogegen dies auslöst, _und_ das, wodurch die Anzeige im Chat teilt |
+| `fallback_context_window` | 200000                | Fenster, das anzunehmen ist, wenn das des Modells nicht aufgelöst werden kann                      |
 
 `summarize` ist der Standard, weil es die einzige Strategie ist, die bewahrt, was
-die älteren Züge *gesagt* haben. Die Strategien ohne LLM sind billiger, weil sie
+die älteren Züge _gesagt_ haben. Die Strategien ohne LLM sind billiger, weil sie
 Information wegwerfen — ein gleitendes Fenster verwirft die ältesten Nachrichten
 rundheraus, ein geleertes Tool-Ergebnis löscht eine Antwort, die der Agent noch
 brauchen könnte —, und ein Agent, der mitten im Run still vergisst, was ihm gesagt
@@ -2635,7 +2675,7 @@ dessen zusammengesetzte id auf nichts auflöst, und `genai-prices` hält für
 `anthropic:claude-sonnet-4-5` 1.000.000 fest gegenüber echten 200.000, wo
 `max_fraction=0.9` den Auslöser auf 900.000 legt und die Compaction nie auslöst.
 `context_window` überschreibt alles und ist die Antwort auf beides — ein Provider
-veröffentlicht das Maximum, das ein Modell annehmen *kann*, und ein Deployment mit
+veröffentlicht das Maximum, das ein Modell annehmen _kann_, und ein Deployment mit
 Beta- oder Tier-Beschränkung bekommt weniger.
 
 **Der Auslöser berücksichtigt, was jede Anfrage mitführt.** Er misst die
@@ -2672,13 +2712,13 @@ zusammenfassende Strategie: Die anderen bearbeiten eine Liste und kehren zurück
 den sie selbst baut und den kein Budget-Guard umschließt, deshalb misst die
 Capability den Verbrauch des Runs über den Hook hinweg und bucht die Differenz auf
 das Konto des Runs. Sie wird festgehalten statt verhindert: Der Guard lehnt bei der
-*nächsten* Anfrage ab, deshalb stoppt eine Compaction, die ein Cap überschreitet,
+_nächsten_ Anfrage ab, deshalb stoppt eine Compaction, die ein Cap überschreitet,
 den Run danach und nicht während ihrer selbst.
 
 **Die Anzeige daneben gehört nicht zu dieser Bindung.** Wie voll das Fenster war,
 meldet jeder Agent, ob er komprimiert oder nicht — siehe
 [wie voll das Kontextfenster ist](../governance.md#how-full-the-context-window-is).
-Die Warnung zählt am meisten für den Agent, der *nicht* komprimieren wird, denn das
+Die Warnung zählt am meisten für den Agent, der _nicht_ komprimieren wird, denn das
 ist der, der an die Decke stößt und abgelehnt wird.
 
 ## Bilder auslagern { #media-offload }
@@ -2689,13 +2729,13 @@ Speicher und hinterlässt in der gespeicherten Historie eine
 stammen aus
 [`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
 
-| Konfiguration | Standard | |
-|---|---|---|
-| `threshold_bytes` | 32768 | 1 KiB–10 MiB; Teile ab dieser Größe werden ausgelagert |
+| Konfiguration     | Standard |                                                        |
+| ----------------- | -------- | ------------------------------------------------------ |
+| `threshold_bytes` | 32768    | 1 KiB–10 MiB; Teile ab dieser Größe werden ausgelagert |
 
 **Es gibt eine Stelle, an der sich Medien wirklich anhäufen, und das ist diese.**
 Ein Anhang erreicht das Modell einmal, in der Runde, in der er angehängt wurde:
-die gewöhnliche Historie wird aus dem *Text* des Transkripts aufgebaut, ein Bild
+die gewöhnliche Historie wird aus dem _Text_ des Transkripts aufgebaut, ein Bild
 wird also nicht erneut gesendet. Die Ausnahme ist eine
 [verdichtete](#context-management) Konversation — dann wird der bibliothekseigene
 Dump der Run-Nachrichten vollständig gespeichert und exakt so wiedergegeben, wie
@@ -2725,14 +2765,14 @@ ein Modell bezahlt wurde, weil der Speicher gestockt hat, ist schlimmer als eine
 Historie, die größer ist als nötig. Ein Fehler wird geloggt und die Historie so
 verwendet, wie sie ist.
 
-Es reduziert nicht, was das Modell *bekommt*: die Teile werden vor dem Absenden
+Es reduziert nicht, was das Modell _bekommt_: die Teile werden vor dem Absenden
 wieder eingesetzt, und genau das hält den Run korrekt. Sie in eine URL
 umzuschreiben, die das Modell selbst abruft, ist eine andere Funktion und bräuchte
 die öffentliche URL, die dieser Speicher bewusst nicht ausgibt.
 
 ## Grenzen für Tool-Ergebnisse { #tool-output-limits }
 
-Ein Tool, `read_tool_result`. Wo `compaction` die Historie *innerhalb* des Fensters
+Ein Tool, `read_tool_result`. Wo `compaction` die Historie _innerhalb_ des Fensters
 zwischen zwei Anfragen stutzt, verhindert dies, dass eine übergroße Tool-Rückgabe
 überhaupt dorthin gelangt. Ein `ToolReturnPart` bleibt bestehen, deshalb wird ein
 grep über ein großes Repository oder eine geschwätzige API-Antwort bei jeder
@@ -2744,15 +2784,15 @@ verkleinert eine Rückgabe einmal, wenn sie entsteht, und lässt die verkleinert
 bestehen. Die Verkleinerung selbst ist `ToolOutputLimits` aus
 [`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
 
-| Konfiguration | Standard | |
-|---|---|---|
-| `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 60000 | Größe, ab der eine Rückgabe verkleinert wird; 15000, wenn `over_tokens` gesetzt ist |
-| `over_tokens` | `false` | die Schwelle in geschätzten Tokens messen, nicht in Zeichen |
-| `max_chars` | 20000 | Zeichen, die beim Abschneiden einer Rückgabe erhalten bleiben, oder wenn ein Spill darauf zurückfällt; nicht gesetzt, nie mehr als der Schwellenwert |
-| `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — welches Ende bzw. welche Enden behalten werden |
-| `strip_ansi` | `false` | Terminal-Farbcodes vor dem Messen und Verkleinern entfernen |
-| `summary_prompt` | der bibliothekseigene | was dem zusammenfassenden Modell gesagt wird; muss `{tool_name}` und `{output}` enthalten |
+| Konfiguration         | Standard              |                                                                                                                                                      |
+| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action`              | `spill`               | `spill`, `truncate`, `summarize`                                                                                                                     |
+| `threshold`           | 60000                 | Größe, ab der eine Rückgabe verkleinert wird; 15000, wenn `over_tokens` gesetzt ist                                                                  |
+| `over_tokens`         | `false`               | die Schwelle in geschätzten Tokens messen, nicht in Zeichen                                                                                          |
+| `max_chars`           | 20000                 | Zeichen, die beim Abschneiden einer Rückgabe erhalten bleiben, oder wenn ein Spill darauf zurückfällt; nicht gesetzt, nie mehr als der Schwellenwert |
+| `truncation_strategy` | `head_tail`           | `head`, `tail`, `head_tail` — welches Ende bzw. welche Enden behalten werden                                                                         |
+| `strip_ansi`          | `false`               | Terminal-Farbcodes vor dem Messen und Verkleinern entfernen                                                                                          |
+| `summary_prompt`      | der bibliothekseigene | was dem zusammenfassenden Modell gesagt wird; muss `{tool_name}` und `{output}` enthalten                                                            |
 
 `spill` ist der Standard und der einzige verlustfreie: Die vollständige Rückgabe
 wird in das Backend des Agents geschrieben und durch ein Handle, eine Vorschau und
@@ -2771,7 +2811,7 @@ Organisation zugeordnet hat. Der Spill lebt dort, unter einem `tool_output/`-Pr�
 teilt also die Lebensdauer dieses Workspace, und der Agent kann ihn sogar über sein
 eigenes `read_file` und `grep` erreichen.
 
-Beim standardmäßigen Sitzungs-Scope `run` *ist* diese Lebensdauer der Run, und
+Beim standardmäßigen Sitzungs-Scope `run` _ist_ diese Lebensdauer der Run, und
 genau das verlangt die Anforderung „darf den Run nicht überdauern“.
 
 Ein Spill ist ein Artefakt innerhalb eines Runs und überdauert den Run auch auf
@@ -2780,7 +2820,7 @@ einem länger gefassten Workspace (`conversation`, `user`, `agent`) nie:
 - bei einem `state`-Workspace wird das reservierte Präfix beim Schreiben entfernt,
   sodass angesammelte Spills ihn nicht mehr in Richtung seiner Byte-Obergrenze
   drücken und die eigenen Schreibvorgänge des Agents ablehnen lassen können;
-- bei einem *Container*-Workspace werden die Spills des Runs beim Schließen des
+- bei einem _Container_-Workspace werden die Spills des Runs beim Schließen des
   Workspace von dessen Dateisystem gelöscht — anhand genau der Handles, die der Run
   festgehalten hat, nie durch ein Abräumen des Präfixes, sodass zwei gleichzeitige
   Runs, die sich einen Workspace teilen, einander die Spills nicht mitten im Flug
@@ -2802,23 +2842,23 @@ Umgebungsverbrauch auf das Konto des Runs gebucht — siehe
 [wie die Kosten eines Runs gezählt werden](../governance.md). `spill` und
 `truncate` rufen kein Modell auf und kosten nichts.
 
-Der Harness setzt Verkleinerungen aus einer geordneten Liste von Größen-*Bändern*
+Der Harness setzt Verkleinerungen aus einer geordneten Liste von Größen-_Bändern_
 zusammen; hier wählt ein Autor eine `action` bei einer `threshold`, denn das
 Builder-Formular kann keine verschachtelte Liste zeichnen — aus demselben Grund
 wählt `compaction` eine Strategie, statt Stufen zusammenzusetzen.
 
 ## Tool-Suche { #tool-search }
 
-Keine eigenen Tools. Lässt den Agent ein Tool aus einer großen Menge *finden*,
+Keine eigenen Tools. Lässt den Agent ein Tool aus einer großen Menge _finden_,
 statt bei jeder Anfrage das Schema jedes Tools in seinem Kontext mitzuführen. Das
 zählt am meisten für [MCP](../mcp.md): Ein Agent darf beliebig viele Server binden,
 und jedes Tool, das ein Server bereitstellt, ist ein Schema, für das das Modell in
 jedem Zug bezahlt, ob es es jemals aufruft oder nicht.
 
-| Konfiguration | Standard | Werte |
-|---|---|---|
-| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
-| `max_results` | 10 | 1–50, von der nativen Suche ignoriert |
+| Konfiguration | Standard | Werte                                 |
+| ------------- | -------- | ------------------------------------- |
+| `strategy`    | `auto`   | `auto`, `keywords`, `bm25`, `regex`   |
+| `max_results` | 10       | 1–50, von der nativen Suche ignoriert |
 
 - **`auto`** — native Tool-Suche, wo der Provider sie anbietet (Anthropic BM25 oder
   regex, OpenAI serverseitig), sonst überall der lokale Schlagwortalgorithmus.
@@ -2866,19 +2906,19 @@ fertige Detektoren aus `pydantic-ai-harness` und ein Detektor für Telefonnummer
 den der Harness nicht mitbringt; ein Agent ist Daten, deshalb wählt und
 parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 
-| Kante | Liest | Schwärzen | Blockieren |
-|---|---|---|---|
-| Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
-| Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| Kante          | Liest                                                   | Schwärzen                                | Blockieren              |
+| -------------- | ------------------------------------------------------- | ---------------------------------------- | ----------------------- |
+| Eingabe        | den Prompt des Nutzers                                  | `redact_secrets_in`, `redact_pii_in`     | `blocked_keywords_in`   |
+| Ausgabe        | die Antwort des Agents                                  | `redact_secrets_out`, `redact_pii_out`   | `blocked_keywords_out`  |
+| Tool-Ergebnis  | was ein Tool zurückgab, bevor das Modell es liest       | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | Tool-Argumente | was der Agent einem Tool übergibt, bevor das Tool läuft | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
-| Konfiguration | Standard | |
-|---|---|---|
-| `redact_secrets_*` | `false` | API-Schlüssel, Tokens, JWTs und PEM-Blöcke entfernen |
-| `redact_pii_*` | `false` | E-Mail, Telefonnummer (gültig in ihrem Nummerierungsplan), IBAN (mod-97), Karte (Luhn) und US-SSN entfernen |
-| `blocked_keywords_*` | `""` | durch Komma oder Zeilenumbruch getrennte Begriffe; ein Treffer beendet den Run |
-| `phone_regions` | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest, höchstens 16 |
+| Konfiguration        | Standard           |                                                                                                                               |
+| -------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `redact_secrets_*`   | `false`            | API-Schlüssel, Tokens, JWTs und PEM-Blöcke entfernen                                                                          |
+| `redact_pii_*`       | `false`            | E-Mail, Telefonnummer (gültig in ihrem Nummerierungsplan), IBAN (mod-97), Karte (Luhn) und US-SSN entfernen                   |
+| `blocked_keywords_*` | `""`               | durch Komma oder Zeilenumbruch getrennte Begriffe; ein Treffer beendet den Run                                                |
+| `phone_regions`      | `"US, GB, DE, PL"` | durch Komma oder Zeilenumbruch getrennte ISO-3166-Codes, deren nationale Telefonformate das PII-Schwärzen liest, höchstens 16 |
 
 Jedes Kantenfeld ist standardmäßig aus, und eine Capability, die ohne konfigurierte
 Kante aktiviert wird, hängt nichts an — ein Agent, der sie nicht nutzt, zahlt nichts.
@@ -2985,16 +3025,16 @@ Mechanismus ist das, was eine einzige Tür vermeidet.
 
 ## Infos zum Chat-Kanal { #chat-channel-lookup }
 
-`get_channel_info` — *Beschreibt den Kanal, in dem diese Unterhaltung stattfindet.*
-`list_channel_members` — *Listet die Personen in diesem Kanal auf.*
-`search_channels` — *Findet andere Kanäle nach Namen oder Zweck, ohne sie zu lesen.*
-`read_channel_history` — *Liest die jüngsten Nachrichten in diesem Kanal, die neuesten zuletzt.*
-`send_channel_file` — *Angeforderte Workspace-Datei senden.*
+`get_channel_info` — _Beschreibt den Kanal, in dem diese Unterhaltung stattfindet._
+`list_channel_members` — _Listet die Personen in diesem Kanal auf._
+`search_channels` — _Findet andere Kanäle nach Namen oder Zweck, ohne sie zu lesen._
+`read_channel_history` — _Liest die jüngsten Nachrichten in diesem Kanal, die neuesten zuletzt._
+`send_channel_file` — _Angeforderte Workspace-Datei senden._
 
 Verbinden Sie das Konto mit einer direkten Nachricht an den Bot: nur `link` ohne Schrägstrich. Öffnen Sie den privaten Verbindungslink nach der Anmeldung bei AgenticOS und kehren Sie zum Channel zurück. Benötigen frühere Thread-Dateien eine Kontoverbindung, erklärt der Bot dies ohne Download und versucht es nach der Verbindung erneut. Channel-Bilder verwenden die doppelte CSS-Auflösung; sehr breite horizontale Mermaid-Flussdiagramme erhalten nur für das PNG eine vertikale Anordnung.
 
 Die eine Capability, die der Spec eines Agents nicht binden darf. Sie wird **pro
-Bindung** gewährt, im Builder unter *Where this agent is available*, denn eine
+Bindung** gewährt, im Builder unter _Where this agent is available_, denn eine
 Organisation kann einen Agent an zwei Mattermost-Server und drei Slack-Workspaces
 binden — und „darf er lesen, was in diesem Kanal gesagt wurde“ hat beim internen
 eine andere Antwort als beim Kundenkanal. Ein Feld im Spec hätte eine Antwort für
@@ -3008,10 +3048,10 @@ Vorgehens statt des Einschleusens eines Toolsets: Ihre Tools können durch
 `tool_approval` gegatet und durch `tool_overrides` umbenannt werden, und beides
 liest den Spec.
 
-| Konfiguration | Standard | Bereich |
-|---|---|---|
-| `tools` | `[]` | beliebige der vier ids |
-| `default_limit` | 20 | 1–200 |
+| Konfiguration   | Standard | Bereich                |
+| --------------- | -------- | ---------------------- |
+| `tools`         | `[]`     | beliebige der vier ids |
+| `default_limit` | 20       | 1–200                  |
 
 Standardmäßig wird nichts gewährt, und was eine Plattform nicht beantworten kann,
 wird nicht angeboten: Telegram gibt einem Bot kein Verzeichnis von Chats zum Suchen
@@ -3118,14 +3158,14 @@ Der Katalog ist die Antwort des Deployments auf „was existiert“. Ein
 `capabilities[]`-Eintrag in einem Spec ist die Antwort eines Agents auf „wie
 benutze ich es“, und er darf vier Dinge ändern:
 
-| Feld | Wirkung |
-|---|---|
-| `config` | Gegen das Schema dieser Capability validiert, **beim Veröffentlichen**, nicht zur Laufzeit |
-| `approval` | `default` \| `required` \| `never` für jedes Tool, das die Capability beisteuert |
-| `tool_approval` | Dasselbe, pro Tool, überschreibt `approval` |
-| `tool_overrides` | Der `name` und die `description`, die das Modell sieht, pro Tool |
-| `secret_id` | Welches Secret der Organisation eine deklarierte Schlüsselanforderung erfüllt |
-| `enabled` | Aus, ohne die Konfiguration zu verlieren |
+| Feld             | Wirkung                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `config`         | Gegen das Schema dieser Capability validiert, **beim Veröffentlichen**, nicht zur Laufzeit |
+| `approval`       | `default` \| `required` \| `never` für jedes Tool, das die Capability beisteuert           |
+| `tool_approval`  | Dasselbe, pro Tool, überschreibt `approval`                                                |
+| `tool_overrides` | Der `name` und die `description`, die das Modell sieht, pro Tool                           |
+| `secret_id`      | Welches Secret der Organisation eine deklarierte Schlüsselanforderung erfüllt              |
+| `enabled`        | Aus, ohne die Konfiguration zu verlieren                                                   |
 
 Die Genehmigung ist der Grund, warum eine Capability ihre Tools überhaupt
 deklariert. „Darf dieser Agent Dateien schreiben“ und „darf er sie lesen“ sind zwei
@@ -3148,6 +3188,7 @@ einwirken.
     Es am sichtbaren Namen zu verschlüsseln, hieße, dass eine Umbenennung das Gate
     still entfernt und ein Aufruf mit Seiteneffekten dann unbeaufsichtigt läuft,
     ohne dass etwas es meldet. Eine id, die keine solche Capability bereitstellt,
+
 wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte.
 
 ## Scopes { #scopes }
@@ -3155,20 +3196,20 @@ wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufru
 Eine Capability darf Scopes deklarieren, die die Organisation gewährt haben muss;
 geprüft wird, wenn der Agent zusammengebaut wird:
 
-| Scope | Deklariert von |
-|---|---|
-| `knowledge:read` | `knowledge`, `skills` |
-| `conversations:read` | `conversation_search` |
-| `web:read` | `web_research` |
-| `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_use` |
-| `code:execute` | `code_execution` |
-| `sandbox:execute` | `sandbox` |
-| `agents:delegate` | `subagents` |
-| `tables:read` | `virtual_tables` und jeder [Workflow-Knoten für Tabellen](workflow-nodes.md#virtual-tables) |
-| `tables:write` | die Workflow-Knoten für Tabellen, die schreiben |
-| `workflows:run` | `workflows` |
-| `computer:use` | `computer_use` |
+| Scope                | Deklariert von                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| `knowledge:read`     | `knowledge`, `skills`                                                                       |
+| `conversations:read` | `conversation_search`                                                                       |
+| `web:read`           | `web_research`                                                                              |
+| `web:fetch`          | `web_fetch`                                                                                 |
+| `web:browse`         | `browser_use`                                                                               |
+| `code:execute`       | `code_execution`                                                                            |
+| `sandbox:execute`    | `sandbox`                                                                                   |
+| `agents:delegate`    | `subagents`                                                                                 |
+| `tables:read`        | `virtual_tables` und jeder [Workflow-Knoten für Tabellen](workflow-nodes.md#virtual-tables) |
+| `tables:write`       | die Workflow-Knoten für Tabellen, die schreiben                                             |
+| `workflows:run`      | `workflows`                                                                                 |
+| `computer:use`       | `computer_use`                                                                              |
 
 !!! note "Alle zwölf werden heute standardmäßig gewährt"
 
@@ -3177,7 +3218,7 @@ geprüft wird, wenn der Agent zusammengebaut wird:
     die Prüfung ist in der Zwischenzeit aktiv und ehrlich statt abgeschaltet und
     vergessen.
 
-!!! warning "`agents:delegate` ist nicht das Tor dafür, an *wen* delegiert werden darf"
+!!! warning "`agents:delegate` ist nicht das Tor dafür, an _wen_ delegiert werden darf"
 
     Das ist `agents:run`, geprüft an der veröffentlichenden Person gegen die Zeile
     jeder Delegierten. Dieser Scope beantwortet eine Frage, die keine Berechtigung
@@ -3248,15 +3289,15 @@ sein Autor geschrieben hat.
 Wie ein Tool über Probleme berichtet, entscheidet, was das Modell als Nächstes tut,
 und die drei sind nicht austauschbar.
 
-| Der Fehlschlag | Was das Tool tut | Warum |
-|---|---|---|
-| Die eigenen Argumente des Modells — eine Diagrammreihe mit der falschen Anzahl Werte, eine Kontextdatei, die es nicht gibt, ein `NameError` in selbst geschriebenem Python | Wiederholungsaufforderung | Ein anderer Aufruf ist eine plausible Behebung, und die Meldung sagt, wie ein korrekter Aufruf aussieht |
-| Ein vorübergehender Fehlschlag dessen, was hinter dem Tool steht — ein Suchanbieter ist ausgefallen, eine Wissensdatenbank läuft in einen Timeout | Wiederholungsaufforderung | Ein Fehler in der Form eines Ergebnisses liest sich als „nichts gefunden“, und das Modell antwortet dann selbstbewusst aus dem Gedächtnis, ohne zu sagen, dass es das musste |
-| Ein Ergebnis, das schlicht eine schlechte Nachricht ist — ein Befehl mit Exit-Code ungleich null, eine Suche ohne Treffer, ein Kanal, den dieser Bot nicht sehen kann | Als Text zurückgegeben | Es ist die Antwort. Das Modell denkt darüber nach und macht weiter |
-| Eine Ablehnung — eine Berechtigungsregel, eine Capability, die das Deployment nicht anbietet | Als Text zurückgegeben | Eine Wiederholungsaufforderung lädt das Modell ein, nach einem Weg daran vorbei zu suchen |
+| Der Fehlschlag                                                                                                                                                             | Was das Tool tut          | Warum                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Die eigenen Argumente des Modells — eine Diagrammreihe mit der falschen Anzahl Werte, eine Kontextdatei, die es nicht gibt, ein `NameError` in selbst geschriebenem Python | Wiederholungsaufforderung | Ein anderer Aufruf ist eine plausible Behebung, und die Meldung sagt, wie ein korrekter Aufruf aussieht                                                                      |
+| Ein vorübergehender Fehlschlag dessen, was hinter dem Tool steht — ein Suchanbieter ist ausgefallen, eine Wissensdatenbank läuft in einen Timeout                          | Wiederholungsaufforderung | Ein Fehler in der Form eines Ergebnisses liest sich als „nichts gefunden“, und das Modell antwortet dann selbstbewusst aus dem Gedächtnis, ohne zu sagen, dass es das musste |
+| Ein Ergebnis, das schlicht eine schlechte Nachricht ist — ein Befehl mit Exit-Code ungleich null, eine Suche ohne Treffer, ein Kanal, den dieser Bot nicht sehen kann      | Als Text zurückgegeben    | Es ist die Antwort. Das Modell denkt darüber nach und macht weiter                                                                                                           |
+| Eine Ablehnung — eine Berechtigungsregel, eine Capability, die das Deployment nicht anbietet                                                                               | Als Text zurückgegeben    | Eine Wiederholungsaufforderung lädt das Modell ein, nach einem Weg daran vorbei zu suchen                                                                                    |
 
 Wiederholungen sind budgetiert: Ein Tool-Aufruf bekommt einen Versuch, sich selbst
-zu korrigieren, und eine *jenseits* dieses Budgets ausgelöste Wiederholung beendet
+zu korrigieren, und eine _jenseits_ dieses Budgets ausgelöste Wiederholung beendet
 den ganzen Run statt des Aufrufs. Der letzte Versuch gibt daher seine Meldung
 zurück, statt zu werfen — gesteuert, solange Budget dafür da ist, und nie
 schlechter als die Antwort, die er ohnehin gegeben hätte. Der eine Helfer, der das

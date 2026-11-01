@@ -193,6 +193,7 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -223,6 +224,9 @@ class RAGDocumentService:
         `sync_source_id` is the source a connector sync ingested this for, and
         the row is opened claimed by it: that claim is what lets a later run of
         the source remove it once it is no longer listed (`unlisted_by_source`).
+
+        `knowledge_gap_topic_id` is the knowledge gap topic a person wrote the
+        document for, when they added it from the topic.
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -251,6 +255,7 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
 
     async def dispatch_upload(
@@ -266,6 +271,7 @@ class RAGDocumentService:
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         organizational_unit: str | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
@@ -355,6 +361,7 @@ class RAGDocumentService:
             embedding_model=collection.embedding_model,
             organizational_unit=blank_is_absent(organizational_unit),
             initiated_by_user_id=ctx.user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
         doc_id = rag_doc.id
 
@@ -481,12 +488,29 @@ class RAGDocumentService:
                 keep_id=doc.id,
                 source_path=doc.source_path,
             )
+        await self._content_changed(doc)
         # No notification on the way out. A document that indexed cleanly is
         # not news: the collection already shows its status, and one row per
         # file made the ordinary case - thirty files dropped in at once -
         # thirty interruptions that buried the rows worth reading.
         # `ingestion_failed` still fires, and a connector run still reports its
         # whole-attempt figure through `sync_completed`.
+
+    async def _content_changed(self, doc: RAGDocument) -> None:
+        """Queue the eval suites of the agents that search this document's knowledge base.
+
+        What a collection holds is what its agents answer from, and it changes
+        with no publish - so the suites watching for that change are what notice.
+        """
+        if doc.organization_id is None or doc.knowledge_base_id is None:
+            return
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=doc.organization_id,
+            kind="knowledge_base",
+            resource_id=doc.knowledge_base_id,
+        )
 
     async def _retire_superseded(
         self,
@@ -699,6 +723,7 @@ class RAGDocumentService:
         # #2537). Read now, before the row is deleted.
         scope = await self.vector_scope(doc)
         await rag_document_repo.delete(self.db, doc.id)
+        await self._content_changed(doc)
 
         from app.core.background import spawn_after_commit
 
@@ -809,7 +834,11 @@ class RAGDocumentService:
         failed vector delete leaves the row for the next run to try again,
         rather than vectors nothing tracks. A synced document stores no file.
         """
-        await rag_document_repo.delete(self.db, UUID(doc_id))
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return
+        await rag_document_repo.delete(self.db, doc.id)
+        await self._content_changed(doc)
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

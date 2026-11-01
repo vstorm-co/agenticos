@@ -9,6 +9,7 @@ import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type {
   Organization,
   OrganizationList,
@@ -17,6 +18,25 @@ import type {
   VoiceSettingsUpdate,
   WelcomeDmChanges,
 } from "@/types";
+
+/**
+ * Whether AI assistance is on in the active organization: `null` until it is known.
+ *
+ * Read from the organization itself rather than the cached list, and again on
+ * focus: the switch may be changed from another tab or by another admin, and a
+ * page that offers the judge on a stale "on" offers something the server refuses.
+ */
+export function useAiAssistance(): { orgId: string | null; enabled: boolean | null } {
+  const orgId = useOrgStore((s) => s.activeOrgId);
+  const { data } = useQuery({
+    queryKey: qk.organizations.detail(orgId ?? ""),
+    queryFn: () => apiClient.get<Organization>(`/orgs/${orgId}`),
+    enabled: orgId !== null,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  return { orgId, enabled: data?.ai_assistance_enabled ?? null };
+}
 
 /**
  * Every organization the caller belongs to.
@@ -239,6 +259,31 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setAiAssistance = useCallback(
+    async (id: string, enabled: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        ai_assistance_enabled: enabled,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      queryClient.setQueryData(qk.organizations.detail(id), updated);
+      return updated;
+    },
+    [writeCache, queryClient],
+  );
+
+  // The model new judges grade on; null picks one per agent by price.
+  const setGradingModel = useCallback(
+    async (id: string, profileId: string | null): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        grading_model_profile_id: profileId,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      queryClient.setQueryData(qk.organizations.detail(id), updated);
+      return updated;
+    },
+    [writeCache, queryClient],
+  );
+
   const setPublicLiveData = useCallback(
     async (id: string, allowed: boolean): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
@@ -281,9 +326,10 @@ export function useOrganizations() {
     [writeCache, setActiveOrgId, t],
   );
 
+  // A change not yet saved belongs to the organization being left, so it is asked about first.
   const switchOrg = useCallback(
     (id: string) => {
-      setActiveOrgId(id);
+      useUnsavedChangesStore.getState().leave(() => setActiveOrgId(id));
     },
     [setActiveOrgId],
   );
@@ -299,6 +345,8 @@ export function useOrganizations() {
     setProactivity,
     setWelcomeDm,
     setChatApprovalWaiver,
+    setAiAssistance,
+    setGradingModel,
     setPublicLiveData,
     setVoiceSettings,
     deleteOrg,

@@ -1,5 +1,5 @@
 ---
-source_sha: "45b8ddef8277"
+source_sha: "6b5734e8d7df"
 ---
 
 # Skille { #skills }
@@ -25,8 +25,8 @@ flowchart LR
     E --> Z2
 ```
 
-Dwadzieścia skilli kosztuje mniej więcej dwadzieścia *opisów* zamiast dwudziestu
-*procedur*.
+Dwadzieścia skilli kosztuje mniej więcej dwadzieścia _opisów_ zamiast dwudziestu
+_procedur_.
 
 !!! note "Wykrywanie jest tanie, ale nie darmowe"
 
@@ -71,6 +71,7 @@ sobą niesie. `GET /api/v1/skills` zwraca ten początek jako `excerpt`; samą tr
 wczytuje dopiero otwarcie skilla.
 
 ## Decide without asking
+
 ...
 ```
 
@@ -97,11 +98,11 @@ Przez [capability `skills`](reference/capabilities.md#skills). Każdy skill, kt�
 agent dostaje, staje się **osobną capability** — wypisaną modelowi z nazwy i opisu,
 a otwieraną na żądanie:
 
-| Jak | Co robi |
-|---|---|
-| Katalog capability | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
-| `load_capability` | Pełna treść jednego skilla, wciągnięta do rozmowy |
-| `read_skill_resource` | Jeden plik obok skilla |
+| Jak                   | Co robi                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| Katalog capability    | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
+| `load_capability`     | Pełna treść jednego skilla, wciągnięta do rozmowy                         |
+| `read_skill_resource` | Jeden plik obok skilla                                                    |
 
 `load_capability` jest narzędziem samego frameworka agentowego, a nie czymś, co
 publikuje ta platforma — spec go więc nie przyznaje i nie zmienia mu nazwy. Może go
@@ -167,7 +168,9 @@ inny agent, wewnątrz rozmowy, której nikt nie przegląda, a kolejny czytelnik 
 miałby jak odróżnić przemyślanego ulepszenia od zahalucynowanego.
 
 Dlatego zapis staje się **propozycją** i pojawia się nad listą na stronie Skills
-każdemu, kto ma `skills:edit`:
+temu, kto może edytować ten skill - jego właścicielowi albo komuś z grantem edycji
+na nim - a dla skilla, którego jeszcze nie ma, każdemu, kto może tworzyć skille.
+Nikt inny jej nie widzi:
 
 - **Apply** przepisuje skilla i podbija jego wersję, która dociera do każdego
   podpiętego agenta przy jego następnym runie.
@@ -185,7 +188,7 @@ którego nigdy nie była przeznaczona.
 
 Dwie rzeczy zostają odrzucone, zamiast być zgadywane: katalog utworzony przez
 agenta bez `SKILL.md` w środku oraz taki, któremu agent zepsuł frontmatter. A
-*usunięty* zasób celowo nie jest zmianą, bo plik, którego model nigdy nie
+_usunięty_ zasób celowo nie jest zmianą, bo plik, którego model nigdy nie
 dotknął, i taki, który zamierzał usunąć, zostawiają po sobie ten sam brak.
 
 Trzy tury jednej rozmowy dopracowujące ten sam skill zostawiają **jedną**
@@ -197,6 +200,24 @@ ostrzeżeniem; oryginalne pliki pozostają bez zmian. Zapis propozycji używa
 savepointu, więc odrzucona propozycja nie wycofa tury ani nie zablokuje zapisania
 jej statusu i kosztu.
 
+Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
+którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply
+ją odrzuca, jeśli ktoś w międzyczasie zmienił skill, więc edycja zrobiona, gdy
+zmiana czekała, nie zostaje nadpisana. Porównaj obie wersje i popraw skill
+ręcznie albo poproś jeszcze raz.
+
+[Asystent tworzenia](authoring.md#skills) proponuje zmiany skilli w ten sam
+sposób, razem z uzasadnieniem i runami, na których się opiera, a Apply odrzuca
+je tak samo.
+
+Każda zmiana mówi, obok **Apply**, opublikowane wersje których agentów czytają
+skill, które suity evali ustawi w kolejce jej zastosowanie i którzy strażnicy
+sprawdzą ją dopiero przy następnej promocji, a pierwsze jest
+**Check with evals**. Zastosowanie powiadamia właścicieli tych agentów. Decyzja
+wskazuje wersję zmiany, którą przeczytałeś: zmiana przepisana od tego czasu -
+przez późniejszą turę albo nową prośbę - jest odrzucana z komunikatem „The
+proposal changed since you opened it”, a z dwóch decyzji podjętych naraz liczy
+się tylko jedna.
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 
@@ -315,13 +336,13 @@ nie przeczytał. Każdy katalog w `app/core/catalog/skills/` i
 Odpowiadają na różne pytania, a różnica ma znaczenie, kiedy agent dostanie nie
 to, co trzeba.
 
-|  | Skille | [Wiedza](file-processing.md) |
-|---|---|---|
-| Zawiera | Procedurę — jak to robimy | Dokumenty — co wiemy |
-| Pisane przez | Człowieka, świadomie | Wciągane hurtowo |
-| Pobierane przez | Model wybierający nazwę | Wyszukiwanie semantyczne po chunkach |
-| Cytuje | Nic; *jest* instrukcją | Fragment i jego źródło |
-| Skala | Dziesiątki | Tysiące dokumentów |
+|                 | Skille                    | [Wiedza](file-processing.md)         |
+| --------------- | ------------------------- | ------------------------------------ |
+| Zawiera         | Procedurę — jak to robimy | Dokumenty — co wiemy                 |
+| Pisane przez    | Człowieka, świadomie      | Wciągane hurtowo                     |
+| Pobierane przez | Model wybierający nazwę   | Wyszukiwanie semantyczne po chunkach |
+| Cytuje          | Nic; _jest_ instrukcją    | Fragment i jego źródło               |
+| Skala           | Dziesiątki                | Tysiące dokumentów                   |
 
 !!! example "Co jest czym"
 
@@ -366,7 +387,7 @@ Alternatywa jest gorsza na dwa konkretne sposoby:
 - Każdy kontekst bez podmiotu — klucz API, osadzony widget, wiadomość z kanału —
   zostaje z założenia odrzucony przez `resolve_access`, więc sprawdzanie przy
   każdym uruchomieniu zdarłoby każdy skill dokładnie z tych powierzchni.
-- Tam, gdzie podmiot *jest*, jedna opublikowana wersja dawałaby członkowi —
+- Tam, gdzie podmiot _jest_, jedna opublikowana wersja dawałaby członkowi —
   którego rola sięga wyłącznie udostępnionych skilli — chudsze instrukcje niż
   daje budującemu, a różnica nie byłaby widoczna nigdzie.
 
@@ -377,7 +398,7 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 ## Podsumowanie { #recap }
 
 - Skill to **procedura**, napisana przez człowieka i wczytywana tylko wtedy, gdy
-  model uzna jego *description* za istotny — wykrywanie kosztuje linijkę na
+  model uzna jego _description_ za istotny — wykrywanie kosztuje linijkę na
   skilla, a treść nie kosztuje nic, dopóki nie zostanie otwarta.
 - W workspace'ie skill to także **pliki** i to właśnie czyni jego skrypty
   uruchamialnymi.
@@ -386,3 +407,13 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
   życzenie — w odróżnieniu od dołączonej trójki, która przychodzi sama.
+
+### Propozycja nowego skilla { #proposing-a-new-skill }
+
+Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje w co najmniej trzech różnych odpowiedziach stanowiących materiał źródłowy. Każdy cytat musi występować w samej odpowiedzi; komentarze czytelników nie dowodzą powtarzającej się procedury. Karta pokazuje nazwę, opis, pełną treść, uzasadnienie i zweryfikowane cytaty. Ewaluacja przypina tymczasowy skill tylko do kandydata: nie tworzy rekordu skilla ani opublikowanej wersji.
+
+**Accept** tworzy prywatny skill i przypina go do draftu agenta w jednej transakcji. Wymaga `skills:edit` oraz edycji agenta. Bez uprawnienia tworzenia można czytać i sprawdzać propozycję, ale wyłączone Accept wyjaśnia powód. **Dismiss** niczego nie tworzy. **Undo** usuwa przypięcie i zachowuje niezależny skill; kolejna akceptacja wykorzystuje go ponownie tylko wtedy, gdy nazwa i treść nadal pasują. Skill zawiera instrukcje i nie nadaje dostępu do narzędzi. Dodatkowy dostęp wymaga osobnych propozycji sprawdzanych przez politykę, z zatwierdzaniem narzędzi zapisujących.
+
+Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Pojawia się z pełną treścią na liście **pomysły czekają na Twoją decyzję**. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
+
+Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.

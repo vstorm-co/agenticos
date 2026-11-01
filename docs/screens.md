@@ -201,6 +201,94 @@ The choice nobody else exposes: **PyMuPDF**, **LiteParse** or **LlamaParse**, th
 ![Parsing, per upload](assets/screens/light/kb-parse-options.webp#only-light)
 ![Parsing, per upload](assets/screens/dark/kb-parse-options.webp#only-dark)
 
+## Testing and improving an agent
+
+These screens come from a second demo organization, Demo, and its Refund desk agent: an Acme store's refund and delivery questions, graded by checks and a judge. The questions are made up; the answers, grades and Improve sessions are real runs.
+
+### Datasets
+
+The test questions your agents are checked against. Every change to a dataset's cases makes a new version, so two eval runs are compared on the same questions or not at all.
+
+![Datasets](assets/screens/light/datasets.webp#only-light)
+![Datasets](assets/screens/dark/datasets.webp#only-dark)
+
+### A dataset's cases
+
+Each question with where it came from, how many checks it carries, and whether Improve uses it to write changes or keeps it aside to check the result.
+
+![A dataset's cases](assets/screens/light/dataset-cases.webp#only-light)
+![A dataset's cases](assets/screens/dark/dataset-cases.webp#only-dark)
+
+### Grading
+
+What makes an answer pass: the checks every case gets, which judge grades it, on which criteria and from what score. Checks cost nothing; each judge grade is a run on a model.
+
+![Grading](assets/screens/light/dataset-grading.webp#only-light)
+![Grading](assets/screens/dark/dataset-grading.webp#only-dark)
+
+### A dataset's evals
+
+Every run against this dataset as a pass-rate line per agent, each point coloured by whether it fixed or broke cases, and the runs listed under it.
+
+![A dataset's evals](assets/screens/light/dataset-evals.webp#only-light)
+![A dataset's evals](assets/screens/dark/dataset-evals.webp#only-dark)
+
+### One eval run
+
+The verdict first, in a sentence, then the pass rate before and after, what it cost against its estimate, and the cases that changed. An answer that came out differently when asked again is not counted as a change.
+
+![One eval run](assets/screens/light/eval-run.webp#only-light)
+![One eval run](assets/screens/dark/eval-run.webp#only-dark)
+
+### An agent's evals
+
+The same trend from the agent's side: every dataset it was run against, one line each, with Run evals beside it.
+
+![An agent's evals](assets/screens/light/agent-evals.webp#only-light)
+![An agent's evals](assets/screens/dark/agent-evals.webp#only-dark)
+
+### Improve
+
+Where an improvement starts: the answers people rated down, the failing test answers, how the test questions split between writing changes and checking them, and what the first step costs. Each later step is priced before you press it.
+
+![Improve](assets/screens/light/improve-start.webp#only-light)
+![Improve](assets/screens/dark/improve-start.webp#only-dark)
+
+### Improve · Understand
+
+What went wrong, sorted into what the agent can fix and what the knowledge base is missing, one card per question with the grades in words. The session stops here for you to look.
+
+![Improve · Understand](assets/screens/light/improve-understand.webp#only-light)
+![Improve · Understand](assets/screens/dark/improve-understand.webp#only-dark)
+
+### Improve · Changes
+
+The changes the helper wrote, as a diff of the agent's own text, with why and what each is based on. You can reword one before it is checked; the check measures your wording.
+
+![Improve · Changes](assets/screens/light/improve-changes.webp#only-light)
+![Improve · Changes](assets/screens/dark/improve-changes.webp#only-dark)
+
+### Improve · Result
+
+What the session came to: each attempt with how many questions it fixed and broke among those kept aside, what it cost, and which attempt to keep. Nothing goes live until a person accepts it.
+
+![Improve · Result](assets/screens/light/improve-result.webp#only-light)
+![Improve · Result](assets/screens/dark/improve-result.webp#only-dark)
+
+### Knowledge gaps
+
+Questions an agent searched its knowledge bases for and found nothing relevant to, grouped by topic. Nothing is added to a knowledge base by itself; a person drafts the document and adds it.
+
+![Knowledge gaps](assets/screens/light/knowledge-gaps.webp#only-light)
+![Knowledge gaps](assets/screens/dark/knowledge-gaps.webp#only-dark)
+
+### AI assistance
+
+The organization's switch for everything that calls a model on its own behalf: the eval judge, the case generator, the helper that writes changes and the knowledge-gap drafts. Off until somebody turns it on; every use is a metered run.
+
+![AI assistance](assets/screens/light/ai-assistance.webp#only-light)
+![AI assistance](assets/screens/dark/ai-assistance.webp#only-dark)
+
 ## What happened, and what is waiting
 
 ### Runs

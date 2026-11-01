@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Figure } from "@/components/ui";
@@ -31,6 +31,7 @@ const SHOWN_AGENTS = 2;
 
 export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
+  const locale = useLocale();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
   const { spend, isLoading, error, refetch } = useSpend();
@@ -75,8 +76,8 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
             <Figure
               value={`${Math.round((used / cap) * 100)}%`}
               caption={t("headline", {
-                cap: formatUsd(cap),
-                left: formatUsd(Math.max(cap - used, 0)),
+                cap: formatUsd(cap, locale),
+                left: formatUsd(Math.max(cap - used, 0), locale),
               })}
             />
             <HeadroomBar used={used} cap={cap} className="mt-3" />
@@ -100,7 +101,7 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
                         <span className="truncate">{agent.name}</span>
                       </span>
                       <span className="text-foreground shrink-0 tabular-nums">
-                        {formatUsd(agentUsed)} / {formatUsd(agentCap)}
+                        {formatUsd(agentUsed, locale)} / {formatUsd(agentCap, locale)}
                       </span>
                     </div>
                     <HeadroomBar used={agentUsed} cap={agentCap} className="mt-1" />

@@ -49,6 +49,7 @@ class ToolSearchConfig(BaseModel):
     # and `factory._defer_for_tool_search`.
     tools=(),
     config_schema=ToolSearchConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> ToolSearch[object]:
     config = ctx.config if isinstance(ctx.config, ToolSearchConfig) else ToolSearchConfig()

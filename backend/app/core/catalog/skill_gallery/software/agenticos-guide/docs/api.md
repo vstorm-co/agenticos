@@ -127,6 +127,16 @@ Refreshing does not start a new session — the refresh token rotates in place a
 the access token keeps naming the same one — so a long-lived connection is not cut
 off by a routine refresh.
 
+### Work that runs after the request { #work-that-runs-after-the-request }
+
+An organization key cannot start an [eval run](evals.md) or a request to the
+[authoring assistant](authoring.md): those routes are for people signed in, and
+a key is answered `403` on them. Work that runs later, in the background, is
+held to its starter's authority as it stands when the work starts - a role lost
+since stops it. Were a key ever let start such work, the same would hold for
+the key: its scopes as they stand then, and a key revoked, expired or deleted
+since stopping the work, with a reason on the run or the request.
+
 ## The organization header
 
 **An API key acts in its own organization**, and needs no header. Sending
@@ -608,7 +618,9 @@ authenticated the same way, with the organization in `?organization_id=`, it
 sends one JSON frame per successful public write in that organization —
 `resource`, `id`, `action` (`created`, `updated` or `deleted`), `surface`
 (`console`, `api_key`, `mcp` or `assistant`) and who made it — and only for rows
-the caller may read.
+the caller may read. Changes nobody wrote arrive the same way: `run` for a run
+moving through its states, and `system` for the platform's own scheduled work,
+such as a knowledge gaps grouping pass.
 
 ## Voice calls
 

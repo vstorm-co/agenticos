@@ -1,5 +1,5 @@
 ---
-source_sha: "7298c6f9c182"
+source_sha: "f186947f1867"
 ---
 
 # La API HTTP { #the-http-api }
@@ -17,11 +17,11 @@ publica su propia lista de rutas.
 
 Tres formas de entrar, para tres llamantes distintos.
 
-| | Cabecera | Para |
-|---|---|---|
-| **Clave de API de la organización** | `Authorization: Bearer aos_…` | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
-| **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token |
-| **Cookie de sesión** | la pone la consola | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript |
+|                                     | Cabecera                               | Para                                                                                                                                         |
+| ----------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Clave de API de la organización** | `Authorization: Bearer aos_…`          | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
+| **JWT**                             | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token                                                     |
+| **Cookie de sesión**                | la pone la consola                     | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript                                                                           |
 
 ### Claves de API de la organización { #organization-api-keys }
 
@@ -29,15 +29,15 @@ Una clave la emite un miembro, en una organización, desde **Settings → API**
 (o con `POST /api/v1/api-keys` desde una sesión iniciada). Lleva la autoridad de
 ese miembro, limitada dos veces:
 
-- **A los permisos con los que se emitió.** Elige una plantilla — *Read-only*,
-  *Knowledge ingest*, *Full access* — o marca permisos del
+- **A los permisos con los que se emitió.** Elige una plantilla — _Read-only_,
+  _Knowledge ingest_, _Full access_ — o marca permisos del
   [catálogo](permissions.md). Solo puedes conceder lo que tienes.
 - **A lo que el emisor puede hacer ahora.** Cada petición vuelve a leer la
   membresía del emisor, así que degradarlo limita al instante cada una de sus
   claves. Sacarlo de la organización, o que se vaya, revoca todas las claves que
   emitió y todas las apps que conectó - para siempre, así que volver a invitarlo no
   reactiva ninguna. Un
-  permiso concedido sobre un recurso amplía lo que una *persona* puede hacer con
+  permiso concedido sobre un recurso amplía lo que una _persona_ puede hacer con
   una fila; nunca amplía una clave más allá de sus permisos.
 
 La clave se muestra **una vez**, en la respuesta que la crea. Solo se guarda su
@@ -128,7 +128,6 @@ run cuando `AGENT_ID` está definido, y revoca la clave al salir.
 BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
 ```
 
-
 ### Sesiones y revocación { #sessions-and-revocation }
 
 Un access token JWT queda ligado a la sesión que abrió su inicio de sesión — el id
@@ -141,6 +140,18 @@ cierra el socket, no solo la siguiente petición HTTP.
 Renovar no abre una sesión nueva — el refresh token rota en su sitio y el access
 token sigue nombrando la misma — así que una conexión de larga vida no se corta
 por una renovación rutinaria.
+
+### Trabajo que se ejecuta después de la petición { #work-that-runs-after-the-request }
+
+Una clave de la organización no puede iniciar un [eval run](evals.md) ni una
+petición al [asistente de autoría](authoring.md): esas rutas son para personas
+con sesión iniciada, y a una clave se le responde `403` en ellas. El trabajo que
+se ejecuta más tarde, en segundo plano, se ciñe a la autoridad de quien lo
+inició tal como está cuando el trabajo empieza - un rol perdido desde entonces
+lo detiene. Si alguna vez se dejara a una clave iniciar ese trabajo, lo mismo
+valdría para ella: sus permisos tal como estén entonces, y una clave revocada,
+caducada o eliminada desde entonces detendría el trabajo, con un motivo en el
+run o en la petición.
 
 ## La cabecera de organización { #the-organization-header }
 
@@ -427,7 +438,6 @@ Publicar disparadores automáticos y cambiar su autoridad de ejecución requiere
 
 Los formularios públicos aplican el límite de bytes de entrada al leer el flujo de la solicitud, antes de analizar JSON o buscar el token. Los cuerpos demasiado grandes, declarados o enviados por fragmentos, devuelven `413`; JSON mal formado y campos no válidos devuelven `422`. Cada entrada de `details.problems` de un `422` es `{field, message, type}`, donde `type` es el tipo de error propio del validador (`missing`, `int_type`, `extra_forbidden`, ...), de modo que un formulario puede decir, respuesta por respuesta, qué necesitaba.
 
-
 Un workflow cuyo nodo trigger es un webhook o una programación recibe su exposure al
 publicarse esa versión, y la respuesta de la publicación la lleva como `exposure`. El
 secreto de firma de un webhook está en el `webhook_secret` de la publicación que lo
@@ -496,6 +506,7 @@ por los registros de su tabla que se añaden, cambian o borran - según nombre s
 que empiezan por una tabla, `PATCH .../triggers/{trigger_id}` con `{"is_active": false}`
 pausa uno, y `GET .../triggers/{trigger_id}/admissions` lista lo que decidió sobre
 cada registro. Consulta [Triggers](virtual-tables.md#triggers).
+
 ## Agents por A2A { #agents-over-a2a }
 
 Un agent que su organización sirve por A2A responde JSON-RPC en
@@ -544,7 +555,7 @@ de la API en `$BASE`. Crea la clave en **Settings → API** con los permisos que
 nombra el ejemplo; la consola la muestra una vez.
 
 **Sube un documento a una base de conocimiento y búscalo** — una clave con
-`collections:view` y `collections:edit` (la plantilla *Knowledge ingest*). La
+`collections:view` y `collections:edit` (la plantilla _Knowledge ingest_). La
 ingesta corre en segundo plano, así que una búsqueda justo después de subirlo puede
 no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado, y
 `GET /api/v1/kb/$KB_ID/ingestion` responde `complete` cuando ya no se procesa ninguno.
@@ -639,7 +650,9 @@ autenticado igual, con la organización en `?organization_id=`, envía un frame 
 por cada escritura correcta a través de la API pública en esa organización —
 `resource`, `id`, `action` (`created`, `updated` o `deleted`), `surface`
 (`console`, `api_key`, `mcp` o `assistant`) y quién la hizo — y solo sobre filas
-que quien llama puede leer.
+que quien llama puede leer. Los cambios que nadie escribió llegan igual: `run`
+para un run que pasa por sus estados, y `system` para el trabajo programado de
+la propia plataforma, como un pase de agrupación de lagunas de conocimiento.
 
 ## Llamadas de voz { #voice-calls }
 
@@ -662,33 +675,33 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 
 **El cliente envía** frames JSON, y a través del relay también audio binario:
 
-| Frame | Campos | Cuándo |
-|---|---|---|
-| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
-| `approval` | `id`, `decision` (`approve` o `deny`) | Al decidir una aprobación que la llamada está esperando |
-| `mute` | `muted` | El relay: el micrófono silenciado |
-| `played` | `bytes` | El relay: cuánto audio del agent se ha reproducido |
-| `end` | - | Colgar |
-| *binario* | PCM de 16 bits a la frecuencia de entrada del modelo | El relay: el audio de quien llama |
+| Frame      | Campos                                                                                                                                    | Cuándo                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `start`    | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho                      |
+| `approval` | `id`, `decision` (`approve` o `deny`)                                                                                                     | Al decidir una aprobación que la llamada está esperando |
+| `mute`     | `muted`                                                                                                                                   | El relay: el micrófono silenciado                       |
+| `played`   | `bytes`                                                                                                                                   | El relay: cuánto audio del agent se ha reproducido      |
+| `end`      | -                                                                                                                                         | Colgar                                                  |
+| _binario_  | PCM de 16 bits a la frecuencia de entrada del modelo                                                                                      | El relay: el audio de quien llama                       |
 
 **El servidor envía:**
 
-| Frame | Campos | Significa |
-|---|---|---|
-| `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
-| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
-| `caption` | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final` | Un subtítulo en vivo |
-| `turn_saved` | `message` | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id` |
-| `tool` | `name`, `status` (`running` o `done`) | Una herramienta que está ejecutando el agent |
-| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Una aprobación para la persona de la llamada: los argumentos exactos y lo que se le oyó decir |
-| `approval_unavailable` | `tool`, `args` | Una llamada a herramienta que quien llama no puede aprobar por voz |
-| `approval_settled` | `id`, `outcome` (`approved`, `denied` o `expired`) | Cómo terminó una aprobación |
-| `notice` | `kind`, `message` (opcional) | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza |
-| `limit` | `seconds_left` | El tiempo de la llamada casi se ha agotado |
-| `clear_playback` | - | El relay: descartar el audio del agent en cola |
-| `ended` | `reason`, `message` | La llamada ha terminado |
-| *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
+| Frame                  | Campos                                                                                                                                | Significa                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `answer`               | `sdp`                                                                                                                                 | WebRTC: la respuesta del provider para la conexión peer del navegador                                          |
+| `ready`                | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token`         | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
+| `state`                | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent                                                                      |
+| `caption`              | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final`            | Un subtítulo en vivo                                                                                           |
+| `turn_saved`           | `message`                                                                                                                             | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id`   |
+| `tool`                 | `name`, `status` (`running` o `done`)                                                                                                 | Una herramienta que está ejecutando el agent                                                                   |
+| `approval_required`    | `id`, `tool`, `args`, `said`, `timeout_seconds`                                                                                       | Una aprobación para la persona de la llamada: los argumentos exactos y lo que se le oyó decir                  |
+| `approval_unavailable` | `tool`, `args`                                                                                                                        | Una llamada a herramienta que quien llama no puede aprobar por voz                                             |
+| `approval_settled`     | `id`, `outcome` (`approved`, `denied` o `expired`)                                                                                    | Cómo terminó una aprobación                                                                                    |
+| `notice`               | `kind`, `message` (opcional)                                                                                                          | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza                                  |
+| `limit`                | `seconds_left`                                                                                                                        | El tiempo de la llamada casi se ha agotado                                                                     |
+| `clear_playback`       | -                                                                                                                                     | El relay: descartar el audio del agent en cola                                                                 |
+| `ended`                | `reason`, `message`                                                                                                                   | La llamada ha terminado                                                                                        |
+| _binario_              | PCM de 16 bits a la frecuencia de salida del modelo                                                                                   | El relay: el audio del agent                                                                                   |
 
 **A un visitante de un widget o de una página alojada se le dice menos.** Su
 `ready` no incluye `run_id`; `cap_seconds` es el límite de la llamada - la
@@ -731,13 +744,13 @@ otro agent. Ningún frame lleva nunca una credencial del provider.
 
 La acompañan cinco rutas HTTP:
 
-| Ruta | Control | Responde |
-|---|---|---|
-| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga |
-| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona |
-| `GET /api/v1/providers/realtime-models` | `agents:view` | El catálogo en tiempo real del que elige la sección Voice |
-| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
-| `GET /api/v1/runs?modality=voice` | `runs:view` | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas |
+| Ruta                                           | Control                                                                | Responde                                                                                                                                                                                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/v1/agents/{agent_id}/voice`          | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario  | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga                                                                                                                                |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona                                                                                  |
+| `GET /api/v1/providers/realtime-models`        | `agents:view`                                                          | El catálogo en tiempo real del que elige la sección Voice                                                                                                                                                                                        |
+| `GET /api/v1/voice/usage?start=…&end=…`        | `runs:view`                                                            | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
+| `GET /api/v1/runs?modality=voice`              | `runs:view`                                                            | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas                                                                                               |
 
 Una aprobación que pertenece a una llamada en curso se decide en la llamada:
 `POST /api/v1/approvals/{id}` la rechaza con `400`.
@@ -806,14 +819,14 @@ ruta, el run asíncrono.
 
 ## Convenciones { #conventions }
 
-| | |
-|---|---|
-| Prefijo | `/api/v1` |
-| Crear | `POST`, `201` |
-| Actualización parcial | `PATCH` |
-| Borrar | `DELETE`, `204`, sin cuerpo |
-| Paginación | parámetros de consulta `skip` (≥ 0) y `limit` (1–100); las respuestas de lista llevan `items` y `total` |
-| Rutas | kebab-case |
+|                       |                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| Prefijo               | `/api/v1`                                                                                               |
+| Crear                 | `POST`, `201`                                                                                           |
+| Actualización parcial | `PATCH`                                                                                                 |
+| Borrar                | `DELETE`, `204`, sin cuerpo                                                                             |
+| Paginación            | parámetros de consulta `skip` (≥ 0) y `limit` (1–100); las respuestas de lista llevan `items` y `total` |
+| Rutas                 | kebab-case                                                                                              |
 
 ## Estabilidad, con franqueza { #stability-honestly }
 

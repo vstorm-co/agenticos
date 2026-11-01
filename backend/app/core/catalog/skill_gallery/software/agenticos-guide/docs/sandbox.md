@@ -31,7 +31,7 @@ flowchart LR
 - **The API container holds no Docker socket.** That is the whole reason
   `sandboxd` is a separate service rather than a library call: running a container
   requires the daemon, and reaching the daemon is equivalent to root on the host.
-- **`sandboxd` holds the socket and asks the *host's* daemon** to start a
+- **`sandboxd` holds the socket and asks the _host's_ daemon** to start a
   container. So a sandbox is a **sibling** of `sandboxd`, not a container inside
   it. There is no Docker-in-Docker here, nothing is `--privileged`, and no nested
   daemon runs.
@@ -111,6 +111,28 @@ alone afterwards, because regenerating it orphans every workspace the service is
 currently holding. That is also why the service's own dashboard is off (`SANDBOXD_UI_ENABLED: 0`): that page
 asks a human to paste the token into a browser.
 
+## A new agent's workspace
+
+A new agent starts with a workspace its organization can publish. The container
+workspace from the starter template is kept when the organization has a default
+sandbox connection, or when this deployment runs `sandboxd` and the organization has
+an owner to register one under — the first publish sets that connection up.
+Otherwise the agent starts on the stored `state` workspace: files without a shell,
+which needs nothing, so a new agent publishes on a deployment with no sandbox
+service.
+
+The capability catalog the Builder starts from and a template install both ask
+this per organization, and the answer is kept for a minute. A `sandboxd` that
+should answer and does not is logged as `sandbox_service_not_answering`, and the
+agent starts on `state`. An agent that is already saved keeps its spec.
+
+A publish refused for want of a sandbox offers a fix beside the reason.
+**Switch the workspace to Files** rewrites the draft onto the `state` workspace,
+saves it and checks it again. **Stop sharing what this agent cannot share** does the
+same for a delegation share list that names a capability the agent no longer holds,
+and drops `subagents` from it too, which a delegate never inherits. Neither publishes: that stays a click of its own. The codes travel in the refusal's
+`details.fixes` (see [architecture](architecture.md#a-refusal-that-names-a-field)).
+
 ## A session, and what shares one
 
 !!! abstract "One container per session, never one for everybody"
@@ -170,35 +192,35 @@ What separates one tenant from another:
 **Two runtimes ship, and they are defined in this repository** —
 `backend/app/core/catalog/sandbox_runtimes.json`:
 
-| | `workbench` — 1.93 GB, built in about 65 s on a warm host |
-|---|---|
-| Built on | `python:3.12-slim` |
-| Languages | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript |
-| Coding agents | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](reference/capabilities.md#coding-agent) |
-| Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
-| Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
-| Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats |
-| Data | `pandas`, `duckdb`, `tabulate` |
-| Charts and images | `matplotlib` (Agg), `pillow` |
-| Web | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify` |
-| Other | `pyyaml` |
-| Memory | 2 GiB |
-| Network | yes |
+|                   | `workbench` — 1.93 GB, built in about 65 s on a warm host                                                                                |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Built on          | `python:3.12-slim`                                                                                                                       |
+| Languages         | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript                                                                       |
+| Coding agents     | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](reference/capabilities.md#coding-agent)                                    |
+| Tools             | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo`                                      |
+| Reading           | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
+| Documents         | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats           |
+| Data              | `pandas`, `duckdb`, `tabulate`                                                                                                           |
+| Charts and images | `matplotlib` (Agg), `pillow`                                                                                                             |
+| Web               | `httpx`, `requests`, `beautifulsoup4`, `lxml`, `markdownify`                                                                             |
+| Other             | `pyyaml`                                                                                                                                 |
+| Memory            | 2 GiB                                                                                                                                    |
+| Network           | yes                                                                                                                                      |
 
-| | `desktop` — for [computer use](reference/capabilities.md#computer-use) |
-|---|---|
-| Built on | `python:3.12-slim` |
-| Desktop | Xvfb on display `:0`, XFCE, Firefox ESR; `xdotool` and `scrot`, which drive and photograph it |
-| Tools | `git`, `curl`, `jq`, `procps`, `unzip` |
-| Memory | 2 GiB |
-| Network | yes, so the browser on it can open a page |
+|          | `desktop` — for [computer use](reference/capabilities.md#computer-use)                        |
+| -------- | --------------------------------------------------------------------------------------------- |
+| Built on | `python:3.12-slim`                                                                            |
+| Desktop  | Xvfb on display `:0`, XFCE, Firefox ESR; `xdotool` and `scrot`, which drive and photograph it |
+| Tools    | `git`, `curl`, `jq`, `procps`, `unzip`                                                        |
+| Memory   | 2 GiB                                                                                         |
+| Network  | yes, so the browser on it can open a page                                                     |
 
 Two rather than eight, and the reason is `prewarm`: the service builds **every**
 entry of its allowlist when it starts, so eight aliases is eight `pip install`s in
 a start-up nobody is watching, eight images cached on the host, and an agent asked
 to read a PDF getting whichever alias its spec happened to name. `workbench` is
-built to be the answer to *write and run some code, read what the user attached,
-plot it, fetch a page*, and it is first, so it is what an agent naming no runtime
+built to be the answer to _write and run some code, read what the user attached,
+plot it, fetch a page_, and it is first, so it is what an agent naming no runtime
 gets.
 
 `desktop` is the one thing `workbench` cannot be: a screen for an agent
@@ -223,22 +245,22 @@ Measured on `python:3.12-slim` (205 MB), arm64:
 - **LibreOffice, at +683 MB, and it is worth it.** It buys three things nothing
   else here does: `lit` can read the legacy `.doc`, `.xls` and `.ppt` formats,
   which is what a business user actually attaches; `soffice --headless
-  --convert-to pdf deck.pptx` renders a deck the agent built with `python-pptx`,
+--convert-to pdf deck.pptx` renders a deck the agent built with `python-pptx`,
   which is how a presentation becomes something a person can open; and
   `--convert-to png` turns a slide into an image the agent can read back and
-  *look at*, since `read_file` is multimodal here. About a second per document
+  _look at_, since `read_file` is multimodal here. About a second per document
   after the first. Writer and Calc are +135 MB of that 683 and are in for one
   reason: office conversion that worked for presentations and not for documents
   would be an exception in the product and an exception in the prompt.
-- **It only works because the runtime is *built*.** LibreOffice creates a user
+- **It only works because the runtime is _built_.** LibreOffice creates a user
   profile on first run, so it needs a real account with a writable home — which
   the builder makes when `SANDBOXD_SANDBOX_UID` is set (`useradd --uid 10001
-  --create-home`). Run the same image as a bare uid with no passwd entry and
+--create-home`). Run the same image as a bare uid with no passwd entry and
   every conversion fails with `User installation could not be completed`. That is
   also why a ready-made `image` runtime cannot simply add LibreOffice: the two
   decisions are one decision.
 - **Node from nodejs.org, not from apt.** Debian's `nodejs npm` is +398 MB and
-  ships npm 9; the official tarball is +239 MB *and* current — and Node 20, which
+  ships npm 9; the official tarball is +239 MB _and_ current — and Node 20, which
   this recipe first pinned, has been end-of-life since April 2026. The arch is
   detected in the command, because the same catalogue builds on amd64 and arm64.
 - **`poppler-utils` (+67 MB) beside liteparse, not instead of it.** `lit` is the
@@ -248,7 +270,7 @@ Measured on `python:3.12-slim` (205 MB), arm64:
   book" into a plan.
 - **OCR is the cost that matters, and it is measured.** `lit` OCRs only pages with
   no text layer, so 120 generated pages cost a fraction of a second — but a
-  *scanned* page costs **8.8 s**, so a 300-page scan is about 44 minutes against a
+  _scanned_ page costs **8.8 s**, so a 300-page scan is about 44 minutes against a
   300-second command ceiling: killed, with nothing to show. `--target-pages 1-40`
   bounds it (three scanned pages in 1.6 s), and `--no-ocr` on a scan **succeeds and
   returns 179 bytes** — a silent near-empty answer, which is the worse of the two
@@ -278,8 +300,8 @@ otherwise by failing inside somebody's request.
 
 **And it is told how to work, not only what is installed.**
 
-The instruction that earns its place is the one nothing else can teach: *do not
-read a large file to look through it*. Extract it once to a text file, `rg -n` for
+The instruction that earns its place is the one nothing else can teach: _do not
+read a large file to look through it_. Extract it once to a text file, `rg -n` for
 the places that matter, `sed -n '400,460p'` to read one.
 
 A book is thousands of lines and an answer needs tens of them. A model that pulls
@@ -320,25 +342,27 @@ An entry is one of two shapes, never both:
   "alias": "workbench",
   "description": "What it is for - shown in the connection dialog",
   "base_image": "python:3.12-slim",
-  "setup_commands": ["apt-get update && apt-get install -y --no-install-recommends git"],
+  "setup_commands": [
+    "apt-get update && apt-get install -y --no-install-recommends git"
+  ],
   "packages": ["pillow"],
   "mem_limit": "2g",
   "needs_network": true
 }
 ```
 
-| Field | |
-|---|---|
-| `alias` | What a spec names. Lower case, `[a-z][a-z0-9-]*` |
-| `description` | Shown in the connection dialog's `Default runtime`. Say what it is *for* |
-| `image` | A ready-made image. Starts in the time a pull takes, and installs nothing |
-| `base_image` | Built once on first use and cached after — the shape that can install |
-| `setup_commands` | Shell at build time, before the packages: an apt layer, an installer |
-| `packages` | `pip`, installed at build time. Needs a `base_image` |
-| `env_vars` | Set in every container on this runtime — `MPLBACKEND`, `PYTHONUTF8` |
-| `briefing` | Sentences the model is told that cannot be derived from the fields above |
-| `mem_limit` | Docker's own syntax (`2g`). Absent, `SANDBOXD_MEM_LIMIT` applies |
-| `needs_network` | Whether a **session** on it gets a network. A build always has one |
+| Field            |                                                                           |
+| ---------------- | ------------------------------------------------------------------------- |
+| `alias`          | What a spec names. Lower case, `[a-z][a-z0-9-]*`                          |
+| `description`    | Shown in the connection dialog's `Default runtime`. Say what it is _for_  |
+| `image`          | A ready-made image. Starts in the time a pull takes, and installs nothing |
+| `base_image`     | Built once on first use and cached after — the shape that can install     |
+| `setup_commands` | Shell at build time, before the packages: an apt layer, an installer      |
+| `packages`       | `pip`, installed at build time. Needs a `base_image`                      |
+| `env_vars`       | Set in every container on this runtime — `MPLBACKEND`, `PYTHONUTF8`       |
+| `briefing`       | Sentences the model is told that cannot be derived from the fields above  |
+| `mem_limit`      | Docker's own syntax (`2g`). Absent, `SANDBOXD_MEM_LIMIT` applies          |
+| `needs_network`  | Whether a **session** on it gets a network. A build always has one        |
 
 Four things the file will not let you get wrong, or that will bite if you skip
 this section:
@@ -366,12 +390,12 @@ the only question worth answering is whether it can drift:
 `backend/tests/test_sandbox_runtime_catalog.py` fails when one has, naming the
 file and telling you to run `make sandbox-runtimes`.
 
-Generated *into* a tracked file rather than read from a side file at start-up,
+Generated _into_ a tracked file rather than read from a side file at start-up,
 because `docker compose up` has to work without generating anything first — the
 alternative is a deployment silently taking the library's own default allowlist.
 
 And it is not a form in the product. `PUT /policy` changes ceilings and lifetimes
-at run time and deliberately refuses the *membership* of this list, along with
+at run time and deliberately refuses the _membership_ of this list, along with
 `network_mode`, `oci_runtime`, `sandbox_uid`, `work_dir` and `persist_containers`:
 naming an image is a decision about isolation, and the service token is held by an
 application rather than by whoever runs the host. Changing the list is a restart.
@@ -381,7 +405,7 @@ application rather than by whoever runs the host. Changing the list is a restart
 The **connection dialog's** `Default runtime` offers this catalogue — what the
 compose files gave the service — populated before any host has been asked, and
 marked once one has answered. The **agent Builder's** `Runtime` offers what the
-service on that connection *actually* allows, read live from it, so an alias it
+service on that connection _actually_ allows, read live from it, so an alias it
 names is one the next tool call will accept. Where the two disagree the second is
 right: a host can have been started with a different allowlist, and a deployment
 that generated its own is exactly the case worth not dropping.
@@ -501,7 +525,7 @@ What holds:
   **has to be the service's own uid**: opening a session `chown`s the workspace to
   this user, and an unprivileged `sandboxd` can only do that for itself, so a
   different number fails at the first session rather than at start-up. It applies
-  to a runtime this deployment *builds* — a ready-made image has no such account
+  to a runtime this deployment _builds_ — a ready-made image has no such account
   and no virtualenv, so an agent inside one could install nothing.
 
 What remains, stated rather than implied:
@@ -585,14 +609,14 @@ every file, because a tree that stops without saying so is one somebody reads as
 everything the agent is keeping.
 
 A directory that will not answer is skipped, and the listing reports itself
-incomplete. Only the *root* refusing makes the workspace unreadable, because one folder the agent chmod'ed away is not a
+incomplete. Only the _root_ refusing makes the workspace unreadable, because one folder the agent chmod'ed away is not a
 host nobody can read.
 
 And an image's thumbnail is a `read_bytes` for that file: the suffix and the size
 are checked off the listing entry before anything is fetched, and one request draws
 at most 24. Past that a tile keeps the glyph.
 
-A *stored* workspace pays neither — its files and their bytes are a column of the
+A _stored_ workspace pays neither — its files and their bytes are a column of the
 row the listing already read.
 
 The chat's **Files** panel and a workspace's own listing draw their tiles the
@@ -606,12 +630,12 @@ Files live on the host, at `{SANDBOXD_WORKSPACE_ROOT}/{session_id}/workspace` �
 on the dev server and in production. That bind mount is also what makes the
 product's Files panel possible: reading a workspace never starts a container.
 
-| | Setting | What happens |
-|---|---|---|
-| An idle session | `SANDBOXD_IDLE_TIMEOUT` 1800 s | The container is closed and reaped. **The files stay** |
-| A stopped container | `SANDBOXD_CONTAINER_TTL` 86400 s | What the session installed — the build, the wheels, `node_modules` — is reclaimed. The workspace is untouched |
-| The workspace directory | `SANDBOXD_WORKSPACE_TTL` **unset** | Kept **indefinitely** |
-| The record of what was done | `OPERATION_RETENTION_DAYS` 30 | The daily `sandbox-log-sweep` deletes the rows. The files are untouched |
+|                             | Setting                            | What happens                                                                                                  |
+| --------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| An idle session             | `SANDBOXD_IDLE_TIMEOUT` 1800 s     | The container is closed and reaped. **The files stay**                                                        |
+| A stopped container         | `SANDBOXD_CONTAINER_TTL` 86400 s   | What the session installed — the build, the wheels, `node_modules` — is reclaimed. The workspace is untouched |
+| The workspace directory     | `SANDBOXD_WORKSPACE_TTL` **unset** | Kept **indefinitely**                                                                                         |
+| The record of what was done | `OPERATION_RETENTION_DAYS` 30      | The daily `sandbox-log-sweep` deletes the rows. The files are untouched                                       |
 
 The last row is the library's default and it is deliberate — the notes and scripts
 are the work, and an agent's user expects them next week.
@@ -673,6 +697,8 @@ reap.
   its sibling rather than a container inside it.
 - A **session key** folds in scope, organization, backend kind and host — which is
   precisely what decides who shares a container.
+- A **new agent starts on a workspace its organization can publish**: the container
+  one where a connection exists or can be set up, `state` otherwise.
 - **Two runtimes ship**, `workbench` and `desktop`, and the model is told what is in
   the one it runs on, composed from the same catalogue that built it.
 - The record of what an agent did lives in **this platform's table**, holds a path

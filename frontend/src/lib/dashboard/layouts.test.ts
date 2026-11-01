@@ -93,6 +93,15 @@ describe("the layouts", () => {
     expect(stewardEntry?.titleKey).toBeUndefined();
   });
 
+  it("puts knowledge gaps on a new person's own dashboard, beside the suggestions", () => {
+    const placed = viewLayout("me", "steward").flatMap((section) =>
+      section.entries.map((entry) => entry.widget),
+    );
+
+    expect(placed).toContain("knowledge-gaps");
+    expect(placed.indexOf("knowledge-gaps")).toBe(placed.indexOf("authoring-suggestions") + 1);
+  });
+
   it("places no card twice", () => {
     // The arrangement this was taken from held `my-agents` twice, by accident.
     // A default that ships a duplicate is one every new person inherits.

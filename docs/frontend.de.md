@@ -1,5 +1,5 @@
 ---
-source_sha: "3b553bcc7ca4"
+source_sha: "c099c87e9633"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -13,14 +13,14 @@ Playwright. Paketmanager und Runner: **bun**.
 
 ## Wo was liegt { #where-things-live }
 
-| Pfad | |
-|---|---|
-| `src/app/[locale]/(dashboard)/…` | Das Produkt. Routen tragen ein **Locale-Präfix** |
-| `src/app/api/…` | Route Handler, die zum Backend weiterleiten |
-| `src/lib/` | Typisierte API-Clients, `query-keys.ts` und die Registries weiter unten |
-| `src/hooks/` | Einer pro Ressource — `use-agents`, `use-permissions`, … |
-| `src/stores/` | Zustand, einer pro Anliegen |
-| `src/components/<domain>/` | UI nach Domäne; Primitive in `ui/`, Leer- und Fehlerzustände in `states/` |
+| Pfad                             |                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `src/app/[locale]/(dashboard)/…` | Das Produkt. Routen tragen ein **Locale-Präfix**                          |
+| `src/app/api/…`                  | Route Handler, die zum Backend weiterleiten                               |
+| `src/lib/`                       | Typisierte API-Clients, `query-keys.ts` und die Registries weiter unten   |
+| `src/hooks/`                     | Einer pro Ressource — `use-agents`, `use-permissions`, …                  |
+| `src/stores/`                    | Zustand, einer pro Anliegen                                               |
+| `src/components/<domain>/`       | UI nach Domäne; Primitive in `ui/`, Leer- und Fehlerzustände in `states/` |
 
 Server Components sind der Default. `"use client"` ist für State, Effects und
 Handler da, nicht für die Gewohnheit.
@@ -103,8 +103,8 @@ Zwei Fallen, die hier beide schon ausgeliefert wurden:
   strikt überragt. Ein fest verdrahtetes "jede Rolle außer owner" ist das, was
   einem Admin die Option Admin anbot und nach dem Eintippen der E-Mail-Adresse
   mit 403 antwortete.
-- **Eine Seite, die eine Organisation in ihrer URL nennt, *ist* diese
-  Organisation.** Der API-Client stempelt `X-Organization-Id` aus der *aktiven*
+- **Eine Seite, die eine Organisation in ihrer URL nennt, _ist_ diese
+  Organisation.** Der API-Client stempelt `X-Organization-Id` aus der _aktiven_
   Organisation, also entscheidet eine Seite, die auf der Organisation in ihrem
   Pfad handelt und dabei die Permissions der aktiven liest, über die Mitglieder
   von Acme nach Ihrer Rolle in Globex. Die Übernahme wohnt in `ActiveOrgGuard`,
@@ -145,12 +145,12 @@ rendert eine fehlende Übersetzung Englisch statt des Keys.
 Jede davon ist eine Tabelle, die mehrere Teile der UI lesen. Der Tabelle etwas
 hinzuzufügen ist die ganze Änderung; eine zweite Quelle hinzuzufügen ist der Bug.
 
-| | Hält | Hinzufügen über |
-|---|---|---|
-| `lib/tool-catalog.ts` | Icon, laufende Beschriftung, fertigen Namen und Renderer für jedes Tool, das das Backend registriert | Eine Zeile, die auf der Tool-id der Capability sitzt. Ein Backend-Test vergleicht beide in beide Richtungen |
-| `lib/brand-glyphs.generated.ts` | Jedes Dienst-, Connector- und Provider-Zeichen, als rohe Pfaddaten | Eine Zeile in `scripts/gen-brand-icons.ts`, dann `bun run gen:brand-icons`. Nie ein Import aus einem Icon-Paket |
-| `lib/dashboard/registry.ts` | Die Dashboard-Widgets und die Permission, an der jedes gemessen wird | Fünf Änderungen, unten auf der Seite aufgeführt |
-| `lib/dialog-sizes.ts` | Ein Breiten-Token und ein Form-Token pro Dialog | Ein Token wählen, nie eine maßgeschneiderte Höhe |
+|                                 | Hält                                                                                                 | Hinzufügen über                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `lib/tool-catalog.ts`           | Icon, laufende Beschriftung, fertigen Namen und Renderer für jedes Tool, das das Backend registriert | Eine Zeile, die auf der Tool-id der Capability sitzt. Ein Backend-Test vergleicht beide in beide Richtungen     |
+| `lib/brand-glyphs.generated.ts` | Jedes Dienst-, Connector- und Provider-Zeichen, als rohe Pfaddaten                                   | Eine Zeile in `scripts/gen-brand-icons.ts`, dann `bun run gen:brand-icons`. Nie ein Import aus einem Icon-Paket |
+| `lib/dashboard/registry.ts`     | Die Dashboard-Widgets und die Permission, an der jedes gemessen wird                                 | Fünf Änderungen, unten auf der Seite aufgeführt                                                                 |
+| `lib/dialog-sizes.ts`           | Ein Breiten-Token und ein Form-Token pro Dialog                                                      | Ein Token wählen, nie eine maßgeschneiderte Höhe                                                                |
 
 ## Zwei Dinge, die eine neue Oberfläche schuldet { #two-things-a-new-surface-owes }
 
@@ -218,3 +218,13 @@ Assertions lesen.
 
 [Das Backend →](architecture.md) · [Ein Feature hinzufügen →](adding_features.md) ·
 [Testen →](testing.md)
+
+## Tests in der Konsole { #evals-in-the-console }
+
+Tests verwenden `PageHeader`, `ListCard`, Dialoggrößen, Registerkarten und `WizardSteps` der Konsole. Datenänderungen aktualisieren registrierte Abfragen über `/ws/events`; menschliche Bewertungen aktualisieren auch Prüfungssuiten, Verbesserungssitzungen und Umgebungsschutz. Ein Lesefehler bietet einen erneuten Versuch statt einer leeren Erfolgsansicht. Schmale Ansichten behalten 16-px-Formularfelder und Platz für den Architekten.
+
+Datasets behalten eigene Freigaben und Ressourcenrechte. Sie werden von mehreren Agenten und Abteilungen verwendet; daher wird ihre Abteilung nicht aus einem testenden Agenten abgeleitet. Bewertungsagenten bleiben typisierte Agenten mit Freigaben und Gruppen des Agentenkatalogs. Die Zuordnung erfolgt im Test-Tab des Agenten und im Bewertungs-Tab des Datasets; eine zweite konkurrierende Beziehung zum Hinzufügen entsteht nicht.
+
+Der Architekt erhält in diesem Meilenstein keine neue Capability zum Schreiben von Datasets. Fragen werden durch eine ausdrücklich geschätzte, berechtigungsgeprüfte Aktion im Verbesserungsablauf erstellt; der Eckassistent kann diese kostenpflichtige Arbeit nicht still starten. Seine Schaltfläche bleibt neben den Testansichten erreichbar.
+
+`e2e/improvement.mobile.spec.ts` durchläuft echte API und Hintergrundworker. Geprüft werden Dataset-Fälle, Falleditor, Bewertung, Durchsicht, Testergebnis, Verbesserungsassistent und bestätigte Veröffentlichung mit Umgebungsschutz. Nur das externe Modell ist eine Testattrappe. GitHub Actions bewahrt Screenshots beider Farbschemata in Telefon- und Desktopbreite zur Sichtprüfung auf.

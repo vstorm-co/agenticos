@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  IMPROVEMENT,
+  IMPROVEMENT_START,
   AGENT_BUILDER,
+  DATASET_DETAIL,
+  EVAL_RUN,
   ARTIFACT_DETAIL,
   KB_DETAIL,
   GROUP_DETAIL,
@@ -40,6 +44,7 @@ const UNGATED_LAUNCH = [
 // Every builder stop, in the order the "?" walks them. The launch pass takes a
 // subset of these (instructions, tools, publish).
 const BUILDER_STEPS = [
+  "agent-assistant-strip",
   "agent-instructions",
   "agent-starters",
   "agent-model",
@@ -51,7 +56,14 @@ const BUILDER_STEPS = [
   "agent-skills",
   "agent-limits",
   "agent-availability",
+  "agent-evals",
+  "agent-eval-suites",
+  "agent-gaps",
   "agent-history",
+  "agent-improvement-history",
+  "agent-test-connections",
+  "agent-environment-guards",
+  "agent-test-draft",
   "agent-test",
   "agent-share",
   "agent-publish",
@@ -59,7 +71,14 @@ const BUILDER_STEPS = [
 
 // Every collection-detail stop, in the order the "?" walks them. The launch
 // pass takes one of these (kb-documents).
-const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
+const KB_STEPS = [
+  "kb-header",
+  "kb-documents",
+  "kb-ingestion",
+  "kb-sync",
+  "kb-gaps",
+  "kb-gaps-check",
+];
 
 // The organization detail walk: the members page (profile, the Voice card, the
 // AI Architect's card, then the list), then across into the roles matrix. None
@@ -86,6 +105,12 @@ describe("pageKey", () => {
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
     expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
+  });
+
+  it("collapses every concrete dataset route onto the one dataset identity", () => {
+    expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
+    expect(pageKey("/datasets")).toBe("/datasets");
+    expect(pageHasSteps("/datasets/abc-123")).toBe(true);
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -244,6 +269,7 @@ describe("stepsForPage", () => {
       "agents-templates",
       "agents-new",
       "agents-filters",
+      "agents-system",
       ...BUILDER_STEPS,
     ]);
   });
@@ -253,6 +279,47 @@ describe("stepsForPage", () => {
       BUILDER_STEPS,
     );
   });
+
+  it("walks a system agent's builder without the stops its page never renders", () => {
+    // Each left out would wait for a target that never mounts on a system agent's
+    // page. Its Toolbox is walked by its own words: it offers no tools, and its
+    // search picks no collection.
+    expect(stepsForPage("/agents/some-id", () => true, true).map((step) => step.id)).toEqual([
+      "agent-instructions",
+      "agent-model",
+      "agent-identity",
+      "agent-system-toolbox",
+      "agent-system-knowledge",
+      "agent-skills",
+      "agent-limits",
+      "agent-history",
+      "agent-share",
+      "agent-publish",
+    ]);
+  });
+
+  it("walks a system agent's Toolbox on the anchors an ordinary agent's walk uses", () => {
+    const anchors = (id: string) => {
+      const step = TOUR_STEPS.find((entry) => entry.id === id);
+      return [step?.target, step?.activate];
+    };
+
+    expect(anchors("agent-system-toolbox")).toEqual(anchors("agent-toolbox"));
+    expect(anchors("agent-system-knowledge")).toEqual(anchors("agent-knowledge"));
+  });
+
+  it("passes over the skills stop where a Toolbox offers none, as a classifier's does", () => {
+    expect(TOUR_STEPS.find((step) => step.id === "agent-skills")?.optional).toBe(true);
+  });
+
+  it.each(["agent-system-toolbox", "agent-system-knowledge"])(
+    "never stops at the system agent's %s on an ordinary agent's walk",
+    (id) => {
+      expect(TOUR_STEPS.some((step) => step.id === id)).toBe(true);
+      expect(stepsForPage("/agents/some-id", () => true).map((step) => step.id)).not.toContain(id);
+      expect(visibleTourSteps(() => true).map((step) => step.id)).not.toContain(id);
+    },
+  );
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its eight tabs onto one identity, so help opened on any of
@@ -284,16 +351,25 @@ describe("stepsForPage", () => {
   });
 
   it("is permission-filtered the same way the tour is", () => {
-    // agents-new is edit-gated, agents-filters is not, and the builder walk is
-    // agents:view — a caller who can do nothing still gets the one ungated stop.
+    // agents-new is edit-gated, agents-filters and agents-system are not, and the
+    // builder walk is agents:view — a caller who can do nothing still gets the
+    // ungated stops.
     expect(stepsForPage(ROUTES.AGENTS, () => false).map((step) => step.id)).toEqual([
       "agents-filters",
+      "agents-system",
     ]);
     expect(
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agent-test"]);
+    ).toEqual([
+      "agents-templates",
+      "agents-new",
+      "agents-filters",
+      "agents-system",
+      "agent-assistant-strip",
+      "agent-test",
+    ]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -301,7 +377,33 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test"));
+    ).toEqual(
+      // agents:publish publishes and manages an environment's test connections and
+      // guards; trying the agent beside the Builder and asking the assistant take
+      // agents:edit; the Evals tab, testing the draft, the knowledge gaps and
+      // the improvement history are runs:view.
+      BUILDER_STEPS.filter(
+        (id) =>
+          id !== "agent-assistant-strip" &&
+          id !== "agent-publish" &&
+          id !== "agent-test-connections" &&
+          id !== "agent-environment-guards" &&
+          id !== "agent-test" &&
+          id !== "agent-evals" &&
+          id !== "agent-eval-suites" &&
+          id !== "agent-test-draft" &&
+          id !== "agent-gaps" &&
+          id !== "agent-improvement-history",
+      ),
+    );
+  });
+
+  it("walks an eval run's own page rather than the builder's", () => {
+    expect(pageKey("/agents/a-1/evals/run-1")).toBe(EVAL_RUN);
+    expect(pageKey("/agents/a-1")).toBe(AGENT_BUILDER);
+    expect(stepsForPage("/agents/a-1/evals/run-1", () => true).map((step) => step.id)).toEqual([
+      "eval-verdict",
+    ]);
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {
@@ -326,6 +428,7 @@ describe("stepsForPage", () => {
       "activity-runs",
       "activity-spend",
       "run-detail-input",
+      "runs-score-against-case",
     ]);
   });
 
@@ -391,7 +494,8 @@ describe("stepsForPage", () => {
       const ids = stepsForPage("/orgs/id/members", (permission) => permission === grant).map(
         (step) => step.id,
       );
-      expect(ids.includes("org-governance")).toBe(grant !== Perm.orgSettings);
+      // Every one of the three opens Budget and approvals: AI assistance sits there too.
+      expect(ids.includes("org-governance")).toBe(true);
       expect(ids.includes("org-proactivity")).toBe(grant !== Perm.approvalsDecide);
     },
   );
@@ -587,5 +691,39 @@ describe("voice call stops (#54)", () => {
       expect(step?.permission).toBe(permission);
       expect(step?.activate).toBe(activate);
     },
+  );
+});
+
+it("tells the Improve start page from a session's own page", () => {
+  expect(pageKey("/agents/a1/improve/s1")).toBe(IMPROVEMENT);
+  expect(pageKey("/agents/a1/improve/new")).toBe(IMPROVEMENT_START);
+});
+
+it("describes the start of an improvement on the page that starts one", () => {
+  expect(
+    TOUR_STEPS.filter((step) => step.page === IMPROVEMENT_START).map((step) => step.target),
+  ).toEqual([
+    "improvement-start",
+    "improvement-quote",
+    "improvement-question-set",
+    "improvement-details",
+  ]);
+});
+
+it("describes every stage of an improvement on its own page", () => {
+  expect(TOUR_STEPS.filter((step) => step.page === IMPROVEMENT).map((step) => step.target)).toEqual(
+    [
+      "improvement-steps",
+      "improvement-evidence",
+      "improvement-test-questions",
+      "improvement-changes",
+      "improvement-next-step",
+      "improvement-check",
+      "improvement-open-check",
+      "improvement-results",
+      "improvement-automatic-check",
+      "improvement-guard",
+      "improvement-accept",
+    ],
   );
 });

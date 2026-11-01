@@ -263,6 +263,25 @@ describe("SharingPanel", () => {
     expect(share.mutate).toHaveBeenCalledWith({ subject_user_id: "u-nina", level: "use" });
   });
 
+  it("offers a dataset no use level, which gives no built-in role anything", async () => {
+    render(<SharingPanel resourceType="dataset" resourceId="a1" canManage />);
+    await userEvent.click(screen.getByLabelText("Access"));
+
+    expect(await screen.findByRole("option", { name: "Can edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Can use" })).toBeNull();
+  });
+
+  it("says a dataset's existing use grant does nothing, and lets it be removed", async () => {
+    sharing = { ...SHARING, resource_type: "dataset", grants: [{ ...GRANT, level: "use" }] };
+    render(<SharingPanel resourceType="dataset" resourceId="a1" canManage />);
+
+    expect(screen.getByLabelText("Access for sam@example.com")).toHaveTextContent(
+      "Can use - no effect: running evals needs permission to read runs",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Remove sam@example.com" }));
+    expect(revoke.mutate).toHaveBeenCalledWith({ kind: "user", id: "u-sam" });
+  });
+
   it("lists a group it is shared with by name, marked as a group", () => {
     renderPanel(true, { grants: [GRANT, GROUP_GRANT] });
 

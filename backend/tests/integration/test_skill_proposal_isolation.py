@@ -43,7 +43,12 @@ async def test_failed_proposal_flush_leaves_terminal_run_and_session_usable(db):
     # Bypass collection deliberately: a future caller can still violate the DB
     # contract, and the savepoint must protect the run independently of validation.
     invalid = SkillChange(
-        name="invalid", skill_id=None, description="x" * 501, content="Body", resources={}
+        name="invalid",
+        skill_id=None,
+        base_version=None,
+        description="x" * 501,
+        content="Body",
+        resources={},
     )
     with patch("app.services.agent_runner.collect_changes", AsyncMock(return_value=[invalid])):
         await AgentRunnerService(db)._propose_skill_changes(prepared)

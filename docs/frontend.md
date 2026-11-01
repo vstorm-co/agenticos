@@ -197,3 +197,14 @@ keep a spec that mounts more than its assertions read.
 
 [The backend →](architecture.md) · [Adding a feature →](adding_features.md) ·
 [Testing →](testing.md)
+
+
+## Evals in the console
+
+Evals reuse the console's `PageHeader`, `ListCard`, dialog sizes, tabs and `WizardSteps`. Data changes invalidate the registered query families through `/ws/events`; a manual verdict also refreshes suites, improvement sessions and environment guards. A read failure has a retry action instead of an empty-success state. Narrow layouts keep form fields at 16 px and leave bottom space for the Architect.
+
+Datasets keep their own sharing and resource grants. They are reusable across agents and departments, so the console does not infer a department from an agent that happens to test them. Judges remain typed agents, using the agent catalog's sharing and groups. Dataset selection in an agent's Evals tab and grader selection in a dataset's Grading tab are the attachment paths; there is no second, competing “Add to an agent” relationship.
+
+The Architect does not receive a new dataset-writing capability in this milestone. Creating questions is an explicitly estimated, permission-checked action in the improvement flow; the corner assistant cannot silently start that paid work. Its button remains reachable beside the eval views.
+
+`e2e/improvement.mobile.spec.ts` crosses the real API and background worker. It checks dataset cases, the case editor, grading, review, the eval result, the improvement wizard and confirmed publication with an environment guard. Only the external model is a fixture. GitHub Actions retains light/dark screenshots at phone and desktop widths for the visual pass.

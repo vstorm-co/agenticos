@@ -1,5 +1,5 @@
 ---
-source_sha: "f96ca8950f4c"
+source_sha: "ee6d4d1266f8"
 ---
 
 # Begriffe { #concepts }
@@ -28,7 +28,7 @@ und Skills, ein Budget und wem Bescheid zu geben ist, wenn etwas passiert.
 Definiert ist er in [`app/agents/spec.py`](reference/spec.md) und von Pydantic
 validiert.
 
-Ein Agent hat genau einen *Draft*-Spec, den der Builder laufend bearbeitet und
+Ein Agent hat genau einen _Draft_-Spec, den der Builder laufend bearbeitet und
 speichert.
 
 Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
@@ -87,7 +87,7 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
 Das Veröffentlichen kopiert den Draft in eine Version. Umgebungen bestimmen,
 welche Version eine Oberfläche bedient. Runs halten die ausgeführte Version fest.
 
-Deshalb bleibt *was hat dieser Agent letzten Dienstag getan* auch nach einem
+Deshalb bleibt _was hat dieser Agent letzten Dienstag getan_ auch nach einem
 Dutzend Bearbeitungen beantwortbar. Deshalb veröffentlicht ein Rollback auch eine
 **neue** Version, kopiert aus der alten, statt Historie zu löschen — die
 Zeitleiste zeigt, dass ein Rollback stattgefunden hat, statt so zu tun, als habe
@@ -124,7 +124,7 @@ Zwei Folgen sind erwähnenswert:
    Laufen, und es folgt Veröffentlichungen, bis jemand es anheftet. Ein später
    hinzugefügtes Environment wartet auf eine Promotion, sofern nichts anderes
    eingestellt ist.
-2. Ein **Rollback landet auf demselben Weg** wie eine Veröffentlichung — es *ist*
+2. Ein **Rollback landet auf demselben Weg** wie eine Veröffentlichung — es _ist_
    die Veröffentlichung eines älteren Specs. Eine alte Version wieder vor Menschen
    zu stellen, ist daher ein Klick auf ihrer Verlaufszeile (promote), keine
    Nebenwirkung des Wiederherstellens des Drafts.
@@ -216,7 +216,7 @@ Workspace.
 **Als ich ausführen**, eine Einstellung am Trigger, ist die einzige Ausnahme, und
 nur der Ersteller kann sie einschalten, für sich selbst. Ein Auslösen erreicht
 dann sein Gedächtnis und seine eigenen MCP-Verbindungen wie sein eigener Chat —
-das morgendliche *sag mir, was in meinem Postfach wichtig ist*, das der Standard
+das morgendliche _sag mir, was in meinem Postfach wichtig ist_, das der Standard
 nicht kann — zu diesen Bedingungen:
 
 - **Ein Zeitplan liest und schreibt das Gedächtnis; ein Ereignis liest es nur.**
@@ -247,11 +247,11 @@ nicht kann — zu diesen Bedingungen:
 Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
 läuft:
 
-| Ein unbeaufsichtigter Run braucht | Verwenden Sie |
-|---|---|
-| Stehende Fakten oder Vorlieben | Den eigenen Prompt des Triggers, eine an den Agent gebundene [Context-Datei](context.md) oder das Gedächtnis des Erstellers mit **Als ich ausführen** |
-| Zustand, der von einem Auslösen zum nächsten erhalten bleibt | Eine [Sandbox](sandbox.md) mit `session_scope: conversation`: Jedes Auslösen eines Triggers hängt an dieselbe Run-Log-Unterhaltung an |
-| Ein Postfach oder einen anderen externen Dienst | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, oder die eigene des Erstellers mit **Als ich ausführen** |
+| Ein unbeaufsichtigter Run braucht                            | Verwenden Sie                                                                                                                                         |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stehende Fakten oder Vorlieben                               | Den eigenen Prompt des Triggers, eine an den Agent gebundene [Context-Datei](context.md) oder das Gedächtnis des Erstellers mit **Als ich ausführen** |
+| Zustand, der von einem Auslösen zum nächsten erhalten bleibt | Eine [Sandbox](sandbox.md) mit `session_scope: conversation`: Jedes Auslösen eines Triggers hängt an dieselbe Run-Log-Unterhaltung an                 |
+| Ein Postfach oder einen anderen externen Dienst              | Eine Verbindung, die mit dem Konto der Organisation gebunden ist, oder die eigene des Erstellers mit **Als ich ausführen**                            |
 
 [Webseiten auf Änderungen prüfen](howto/competitor-monitoring.md) und
 [ein persönlicher Assistent](howto/personal-assistant.md) treffen beide auf diese
@@ -262,9 +262,9 @@ Regel und zeigen den Ausweg.
 Weil er durch denselben Runner geht: Das Budget wird gleich durchgesetzt, ein
 Approval parkt ihn gleich, das Audit-Protokoll benennt ihn gleich.
 
-Er ist mit der Oberfläche `schedule` gestempelt, sodass *wie wird dieser Agent
-genutzt* einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
-Jedes Auslösen ist ein eigener Run in Activity, und seine Antworten sammeln sich
+Er ist mit der Oberfläche `schedule` gestempelt, sodass _wie wird dieser Agent
+genutzt_ einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
+Jedes Auslösen ist ein eigener Run in **Aktivität** (Activity), und seine Antworten sammeln sich
 in einer Run-Log-Unterhaltung, die der Trigger einmal eröffnet — sofort, sobald
 der Trigger angelegt ist, sodass er ein anklickbarer Eintrag ist, bevor er je
 ausgelöst hat. Ein Trigger kann außerdem jede Antwort in einem Teams-Channel oder
@@ -311,7 +311,7 @@ Gruppenchat posten, in dem der Bot seiner Organisation ist
 Jeder Trigger lässt sich außerdem **jetzt ausführen**: ein zusätzliches Auslösen
 auf Zuruf, das seine Taktung unberührt lässt.
 
-Es wird *angenommen* statt abgewartet. Die Anfrage antwortet, sobald das Auslösen
+Es wird _angenommen_ statt abgewartet. Die Anfrage antwortet, sobald das Auslösen
 als Job für den Worker eingereiht ist — dieselbe dauerhafte Tür, durch
 die ein geplantes oder zugestelltes Auslösen geht —, und der Run erscheint in der
 Run-Log-Unterhaltung des Triggers, während er läuft.
@@ -346,19 +346,19 @@ Status, Token-Zählungen und Kosten.
 
 **Ein Run, der fehlschlägt, hält trotzdem fest, was er ausgegeben hat.**
 
-*Wie* er geendet hat, ist ein eigener Status statt `failed`, denn wer nach
+_Wie_ er geendet hat, ist ein eigener Status statt `failed`, denn wer nach
 Problemen filtert, sollte nicht durch korrekt arbeitende Plattform waten müssen:
 
-| Status | Der Run |
-|---|---|
-| `failed` | ist kaputtgegangen |
-| `budget_exceeded` | hat eine Obergrenze erreicht — ein Ausgabenlimit, das seine Arbeit tut |
-| `guardrail_blocked` | wurde von einem [Guardrail](reference/capabilities.md#guardrails) abgelehnt |
-| `loop_stopped` | wiederholte nach einer Warnung dieselben Tool-Aufrufe und wurde [gestoppt](governance.md#step-limits) |
-| `cancelled` | wurde gestoppt: die Stopp-Schaltfläche im Composer, ein weggefallener Socket, eine von oben abgebrochene Delegation. Auf jeder Oberfläche, nicht nur der streamenden |
+| Status              | Der Run                                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `failed`            | ist kaputtgegangen                                                                                                                                                     |
+| `budget_exceeded`   | hat eine Obergrenze erreicht — ein Ausgabenlimit, das seine Arbeit tut                                                                                                 |
+| `guardrail_blocked` | wurde von einem [Guardrail](reference/capabilities.md#guardrails) abgelehnt                                                                                            |
+| `loop_stopped`      | wiederholte nach einer Warnung dieselben Tool-Aufrufe und wurde [gestoppt](governance.md#step-limits)                                                                  |
+| `cancelled`         | wurde gestoppt: die Stopp-Schaltfläche im Composer, ein weggefallener Socket, eine von oben abgebrochene Delegation. Auf jeder Oberfläche, nicht nur der streamenden   |
 | `awaiting_approval` | ist auf einem Approval geparkt und ist **fortsetzbar** — sein Nachrichtenverlauf ist gespeichert, sodass die Entscheidung für die Unterhaltung gilt, zu der sie gehört |
 
-Ein Run, der *innerhalb einer Delegation* parkt, speichert eine Ebene je Agent,
+Ein Run, der _innerhalb einer Delegation_ parkt, speichert eine Ebene je Agent,
 jede mit ihrer eigenen Unterhaltung, sodass ein Approval den stehengebliebenen
 Delegierten fortsetzt, statt seine Arbeit neu zu beginnen.
 
@@ -374,7 +374,7 @@ Delegierten fortsetzt, statt seine Arbeit neu zu beginnen.
 
 ### Ein Run und sein Transkript { #a-run-and-its-transcript }
 
-Ein Run sagt, was er gekostet hat. `messages.run_id` sagt, was er *getan* hat.
+Ein Run sagt, was er gekostet hat. `messages.run_id` sagt, was er _getan_ hat.
 
 Jeder Zug, den ein Run erzeugt hat, trägt die id des Runs, sodass "die Schritte
 dieses Runs" eine Abfrage statt einer Vermutung ist — was ein Aufriss aus der
@@ -397,8 +397,8 @@ zu ihm scrollt. Das ist eine Bequemlichkeit und kein Übergriff: Jeder Zug, den
 ein Run schreibt, trägt seine `run_id` — die Frage des Nutzers eingeschlossen —,
 sodass ein Inhaber von `runs:view` den Strang ohnehin durch Iterieren über die
 Transkripte seiner Runs zusammensetzen könnte. Der Detail-Lesezugriff trägt
-außerdem `prev_run_id` / `next_run_id`, die Runs beiderseits *in derselben
-Unterhaltung*, sodass das Durchschreiten eines Strangs zwei Pfeile statt Wege
+außerdem `prev_run_id` / `next_run_id`, die Runs beiderseits _in derselben
+Unterhaltung_, sodass das Durchschreiten eines Strangs zwei Pfeile statt Wege
 zurück zur Liste sind.
 
 !!! warning "Die Verknüpfung ist eine Spalte, kein Zeitfenster — und das ist Absicht"
@@ -410,7 +410,7 @@ zurück zur Liste sind.
 
     Beides ist falsch auf eine Weise, die der Leser nicht sehen kann.
 
-Der Prompt wird geschrieben, *bevor* die Run-Zeile existiert, denn ein Aufbau,
+Der Prompt wird geschrieben, _bevor_ die Run-Zeile existiert, denn ein Aufbau,
 der abgelehnt wird — ein gelöschtes Secret, ein bei einem Deploy entferntes
 Model-Profil —, darf nicht verlieren, was jemand getippt hat. Er wird verknüpft,
 sobald es einen Run gibt, mit dem er zu verknüpfen ist.
@@ -428,7 +428,7 @@ sie einheitlich gemacht hat; die Ausnahmen stehen unter
 
 Die Run-Historie filtert auf genau das. `GET /runs` nimmt eine kommagetrennte
 Liste von Status entgegen (`?status=failed,budget_exceeded`), denn die Frage des
-Betreibers ist eine *Menge* von Ausgängen statt ein Status nach dem anderen. Ein
+Betreibers ist eine _Menge_ von Ausgängen statt ein Status nach dem anderen. Ein
 unbekannter Status wird abgelehnt, statt stillschweigend auf nichts zu passen —
 eine leere Seite muss "keine solchen Runs" bedeuten.
 
@@ -508,7 +508,7 @@ Ein Approval löst vom Spezifischsten her auf:
 2. der Modus der Capability, dann
 3. keine Freigabe, wenn keines von beiden etwas sagt.
 
-Der Builder nennt das *Ergebnis* in Worten, statt die Regel zu beschreiben, denn
+Der Builder nennt das _Ergebnis_ in Worten, statt die Regel zu beschreiben, denn
 eine Regel, die der Leser im Kopf durchrechnen muss, ist eine Einstellung, die
 niemand anzufassen wagt.
 
@@ -524,11 +524,11 @@ eine neue.
 ### Collection gegen Skill { #collection-vs-skill }
 
 Eine **Collection** sind Dokumente, gechunkt und eingebettet, und sie wird
-*durchsucht*. Das Model wählt, wonach es sucht; es kann nie ausweiten, wo es
+_durchsucht_. Das Model wählt, wonach es sucht; es kann nie ausweiten, wo es
 sucht.
 
 Ein **Skill** ist ein Ordner voller Markdown — eine `SKILL.md` und was sonst
-dazugehört — und er wird *gelesen*. Seine Beschreibung ist der einzige Teil, den
+dazugehört — und er wird _gelesen_. Seine Beschreibung ist der einzige Teil, den
 das Model sieht, bevor es entscheidet, ob es ihn öffnet, weshalb die Beschreibung
 eines Skills sagen sollte, **wann er zutrifft**, statt was darin steht.
 
@@ -546,7 +546,7 @@ Builders gleich aus, und fast alles, worauf es bei Delegation ankommt, folgt
 daraus, welche Sie gewählt haben.
 
 Ein **Delegate** ist ein anderer veröffentlichter Agent der Organisation,
-referenziert über `agent_id` *und* `agent_version_id` — gepinnt. Er wird über
+referenziert über `agent_id` _und_ `agent_version_id` — gepinnt. Er wird über
 seinen Slug angesprochen, dieselbe Kennung, die eine Channel-Erwähnung auflöst.
 
 Ein **Inline-Spezialist** ist innerhalb des Specs des Eltern-Agents definiert:
@@ -558,12 +558,12 @@ eigenen Collections und Skills und sein eigenes Schrittlimit.
 Das macht einen Spezialisten in jeder Hinsicht bis auf eine zu einem Agent. Vier
 Dinge machen hier etwas zu einem Agent:
 
-| | Ein veröffentlichter Delegate | Ein Inline-Spezialist |
-|---|---|---|
-| **Versioniert** | ja — gepinnt, und ein Pin bewegt sich nur, wenn jemand ihn bewegt | **nein** |
-| **Bei der Veröffentlichung berechtigungsgeprüft** | ja — `agents:run` auf dieser Zeile | ja — dieselben Prüfungen von Scope, Secret, Collection und Skill wie bei den eigenen Bindings des Elternteils |
-| **Eigene Capabilities** | ja — die seines veröffentlichten Specs | ja — seine eigenen, plus das, was das Elternteil teilt |
-| **Gemessen und gedeckelt** | ja | ja — durch die Obergrenzen des Runs, was [innerhalb jeder Delegation bindet](governance.md#delegation-spends-the-parents-budget) |
+|                                                   | Ein veröffentlichter Delegate                                     | Ein Inline-Spezialist                                                                                                            |
+| ------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Versioniert**                                   | ja — gepinnt, und ein Pin bewegt sich nur, wenn jemand ihn bewegt | **nein**                                                                                                                         |
+| **Bei der Veröffentlichung berechtigungsgeprüft** | ja — `agents:run` auf dieser Zeile                                | ja — dieselben Prüfungen von Scope, Secret, Collection und Skill wie bei den eigenen Bindings des Elternteils                    |
+| **Eigene Capabilities**                           | ja — die seines veröffentlichten Specs                            | ja — seine eigenen, plus das, was das Elternteil teilt                                                                           |
+| **Gemessen und gedeckelt**                        | ja                                                                | ja — durch die Obergrenzen des Runs, was [innerhalb jeder Delegation bindet](governance.md#delegation-spends-the-parents-budget) |
 
 **Die fehlende ist die Version**, und alles, was ein Spezialist nicht kann, folgt
 daraus: Nichts sonst kann ihn referenzieren, das Bearbeiten des Elternteils
@@ -649,6 +649,152 @@ wer an was delegieren darf.
 
 ---
 
+## System-Agents { #system-agents }
+
+Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
+**Bewerter**, die Antworten für die [Bewertung von Datasets](datasets.md#judge)
+benoten, der **Knowledge gap drafter**, der die Passage entwirft, die einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und der
+**Knowledge gap classifier**, der Antworten auf
+[Fragen liest, die eine Wissensbasis nicht beantworten konnte](knowledge-gaps.md#answers-and-comments).
+Das sind **System-Agents**. Die Art eines Agents sagt, welcher er ist - `agent`
+für die, die Menschen benutzen, `judge`, `drafter` und `classifier` für diese.
+Jede Organisation erhält bei ihrer Erstellung den Standard-Bewerter
+**Eval judge**, den Drafter und den Klassifizierer, eine
+früher erstellte Organisation erhält jeden davon, sobald etwas ihn zum ersten
+Mal braucht, und ein Dataset kann einen eigenen Bewerter bekommen.
+
+Ein System-Agent wird von der Plattform ausgeführt und ist kein Agent, den
+Menschen benutzen. Agents führt sie getrennt, in einem eingeklappten Band
+**System-Agents** unter **Agents**, nach Art gruppiert: zuerst die **Bewerter**
+
+- jede Karte sagt, welche Datasets er bewertet -, dann der
+  **Lücken-Entwerfer** und zuletzt der **Lücken-Klassifizierer**. Der von der
+  Plattform angelegte Agent jeder Art ist als Standard seiner Art markiert -
+  **Standardbewerter**, **Standard-Fallgenerator** und so weiter. Agent-Auswahlen
+  lassen sie weg.
+
+Einen zu ändern ist eine Einstellung der Organisation. Seine Instruktionen,
+sein Modell oder Budget zu bearbeiten, ihn zu veröffentlichen, eine Version
+wiederherzustellen, ihn zu archivieren oder zu löschen braucht `org:settings` -
+die Berechtigung, die [AI assistance](governance.md#ai-assistance) schaltet -,
+wem auch immer die Zeile gehört; alle anderen, die Agents sehen dürfen, lesen
+ihn, und seine Seite sagt, warum die Bedienelemente gesperrt sind. Geöffnet wird
+er aus dem Band oder, beim Drafter, über **Anweisungen des Drafters bearbeiten**
+an einem Entwurf, und seine Kopfzeile nennt **System-Agent** und seine Art.
+
+Seine Seite hat die Tabs eines Agents, nur weniger: **Bauen** für seine
+Instruktionen und sein Modell, **Toolbox** für das, was er binden darf -
+Knowledge search, Context und Skills -, **Limits** für sein Budget und
+**Historie**. Die eines Bewerters hat außerdem **Datasets**, die ihn gewählt
+haben, mit Bewertung oder ohne - jedes klappt seine letzten Bewertungen dort und
+die Eval-Runs auf, aus denen sie stammen - samt der Angabe, wie oft Menschen ihm
+bei den von ihm bewerteten und von ihnen entschiedenen Ergebnissen zustimmten.
+Die Toolbox eines Klassifizierers hat keine Skills, es sei denn, sein Entwurf
+enthält noch welche - dann lassen sie sich nur entfernen.
+
+**New agent** → **Systemagent** erstellt jeden der fünf Typen: Bewerter,
+Fallgenerator, Lücken-Drafter, Lücken-Klassifizierer oder Verbesserungsassistent
+(`POST /agents/system`). Er beginnt mit den Anweisungen, der Temperatur und dem
+Budget seines Typs auf dem ersten Modell der Organisation und wird bei
+entsprechender Berechtigung veröffentlicht; jede spätere Änderung braucht
+`org:settings`. Wählen Sie den Bewerter in der
+Dataset-Bewertung, den Generator beim Generieren, Wissenshelfer im Lücken-Tab
+der Wissensbasis und den Assistenten beim Verbessern. Standard ist jeweils der
+Agent der Organisation, in der Auswahl mit seinem veröffentlichten Modell
+genannt; gibt es keinen anderen Agent dieses Typs, gibt es nichts zu wählen,
+und die Auswahl nennt nur diesen Agent mit einem Link zu seiner Seite. Eine Auswahl muss den richtigen Typ haben,
+veröffentlicht und für den Benutzer ausführbar sein; eine fehlende Auswahl wird
+nie still durch den Standard ersetzt.
+
+Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
+und senden keine Run-Benachrichtigung. Ein System-Agent startet mit einem
+eigenen kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich
+ihr ganzes Budget für Evaluierung, Entwürfe oder das Prüfen von Antworten
+ausgibt.
+
+Auch der **Fallgenerator** ist ein System-Agent, von der Art `generator`: Er
+entwirft [Fälle für Datasets](datasets.md#generating-cases) und wird genauso
+angelegt, mit einem eigenen Budget. Er steht im selben Band, nach dem
+Drafter, und wird wie ein Bewerter geöffnet und bearbeitet; der Tab Generated eines
+Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
+
+Nur die Plattform führt ihn aus. Chat, API, A2A, ein Embed oder eine
+öffentliche Seite, ein Kanal, ein Zeitplan und die Delegation durch einen
+anderen Agent lehnen ihn ab, im Service, der den Run starten würde, nicht nur in
+der Konsole. Weder ein Eval noch eine Verbesserungssitzung testet oder
+verbessert ihn: Er antwortet seinem Aufrufer in JSON, nie auf die Frage eines
+Menschen, also sagen die Fragen eines Datasets nichts über ihn.
+
+Jeder Run eines System-Agents ist [isoliert](environments.md#in-an-eval) wie
+der eines Evals. Ein System-Agent liest Text, den niemand geprüft hat - eine zu
+bewertende Antwort, ein Dokument, ein Gespräch -, und seine Antwort erreicht
+Menschen, die vielleicht nicht lesen dürfen, was er gelesen hat; darum ist das
+einzige Tool, das er haben darf, eine Suche in den Wissensbasen, um die es in
+seinem Run geht, und niemandes Gedächtnis gelangt in ihn.
+
+### Was seine Spec enthalten darf { #system-agent-spec }
+
+Ein System-Agent reicht nicht über das hinaus, worum es in seinem Run geht.
+Seine Spec darf **Thinking**, **Context**, **Skills** und **Knowledge search**
+binden - wie er denkt, welchen festen Text er liest und eine Suche - und sonst
+nichts. Einen Draft zu speichern oder YAML zu importieren, das eine andere
+Capability, eine gebundene Wissensbasis, einen MCP-Server, einen Delegierten,
+Sprache oder Diktat, Starter, Code Mode oder einen Reviewer hinzufügt, wird
+Feld für Feld abgelehnt, ebenso ein Approval auf einer der vier erlaubten:
+Niemand ist da, um eines zu erteilen, während er läuft.
+
+**Knowledge search** bindet keine Wissensbasis. Die Plattform wählt die, um die
+es in jedem Run geht - die des bewerteten Agents für einen Bewerter, die der
+Lücke für Entwerfer und Klassifizierer, die, aus denen eine Generierung Fälle
+entwirft, für den Fallgenerator, die des verbesserten Agents für den
+Verbesserungsassistenten -, und der Run durchsucht nur die, die seine Person
+lesen darf. Eine Suche endet innerhalb von `max_steps`: 3, wenn nichts gesetzt
+ist, höchstens 5, jeder ein bezahlter Request, den Schätzungen mitzählen. Die
+Kontextdateien und Skills, die er liest, müssen mit der ganzen Organisation
+geteilt sein, und niemandes Gedächtnis gelangt in seinen Run, was auch immer
+seine Version enthält.
+
+Zum Veröffentlichen braucht er außerdem Instruktionen und Platz für seine
+Antwort. Die Antwort ist ein einziges JSON-Objekt, daher würde ein
+`max_tokens` unter der Untergrenze seiner Art jede Antwort abschneiden statt
+einer; ohne Angabe gilt das Limit des Modells.
+
+| Art                    | Untergrenze | Platz für                                                                                                                        |
+| ---------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Bewerter               | 4 096       | Eine Bewertung je Kriterium - bis zu 20 Rubrik-Kriterien, die Referenz und das Gegenbeispiel - mit Begründung, Regel und Zitaten |
+| Fallgenerator          | 20 000      | Bis zu 50 entworfene Fälle, zu den 400 Tokens, mit denen die Schätzung der Generierung jeden berechnet                           |
+| Lücken-Entwerfer       | 6 144       | Einen Abschnitt an seiner Grenze von 20 000 Zeichen, mit Titel und Quellenangaben                                                |
+| Lücken-Klassifizierer  | 2 048       | Einen Stapel von 20 Antworten, jede mit Label und einer Begründung von höchstens 300 Zeichen                                     |
+| Verbesserungsassistent | 8 192       | Einen neuen Skill an seiner Grenze von 20 000 Zeichen neben den Instruktionsänderungen desselben Vorschlags                      |
+
+### Seine Umgebung und sein Ruhestand { #retiring-a-system-agent }
+
+Ein System-Agent läuft in seiner Standardumgebung, die jeder Veröffentlichung
+folgt. Eine Umgebung hinzuzufügen, eine zu fixieren, zu schützen oder eine
+Version zu befördern wird abgelehnt - stellen Sie stattdessen eine Version
+wieder her -, und eine Veröffentlichung bewegt eine Standardumgebung, die vor
+dieser Regel fixiert wurde.
+
+Der Standard jeder Art in der Organisation wird nie archiviert oder gelöscht:
+Alles, was keinen anderen gewählt hat, läuft auf ihm. Einer, den die
+Organisation angelegt hat, wird archiviert oder gelöscht, sobald kein Dataset
+mit ihm bewertet, keine Wissensbasis mit ihm Lücken entwirft oder sortiert und
+keine Assistenten-Anfrage, Fallgenerierung, Verbesserungssitzung und kein Eval
+mit ihm beschäftigt ist; die Ablehnung nennt, was ihn noch verwendet.
+
+Hat die Organisation bereits ein Model-Profil, wird ein System-Agent auf dem
+ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
+Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge, der
+Drafter und der Klassifizierer werden auf dem ersten Modell der Organisation
+veröffentlicht, sobald
+eines hinzugefügt wird; der eigene Bewerter eines Datasets wartet, bis ein
+Mensch sein Modell wählt und ihn veröffentlicht, und bis dahin sagen das die
+Funktionen, die ihn verwenden.
+
+Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
+Organisation entscheidet, ob System-Agents überhaupt laufen.
+
 ## Model-Profile { #model-profiles }
 
 Ein **Model-Profil** ist ein benanntes Model, hinterlegt mit einem gespeicherten
@@ -692,7 +838,7 @@ nicht entschlüsselt werden kann.
 ## Zusammenfassung { #recap }
 
 - Ein **Spec** ist der Agent als Daten, er hält Verweise und nie Werte.
-- **Veröffentlichen** friert ihn zu einer **Version** ein, und ein *Environment*
+- **Veröffentlichen** friert ihn zu einer **Version** ein, und ein _Environment_
   ist eine eigene Entscheidung darüber, welcher Version Menschen begegnen.
 - Eine **Exposure** ist, wo er erreichbar ist; ein **Trigger** ist, wann er
   läuft, ohne dass jemand zusieht. Beides ist operativer Zustand neben dem Spec,
@@ -708,19 +854,19 @@ nicht entschlüsselt werden kann.
 
 - :material-account-key:{ .lg .middle } **[Berechtigungen](permissions.md)**
 
-    Rollen, Scopes und Grants.
+  Rollen, Scopes und Grants.
 
 - :material-shield-check:{ .lg .middle } **[Governance](governance.md)**
 
-    Budgets, Approvals, Alarme, Audit.
+  Budgets, Approvals, Alarme, Audit.
 
 - :material-toolbox:{ .lg .middle } **[Capabilities](reference/capabilities.md)**
 
-    Was einem Agent gegeben werden kann.
+  Was einem Agent gegeben werden kann.
 
 - :material-connection:{ .lg .middle } **[MCP](mcp.md)**
 
-    Die Tools, die hier niemand schreiben muss.
+  Die Tools, die hier niemand schreiben muss.
 
 </div>
 

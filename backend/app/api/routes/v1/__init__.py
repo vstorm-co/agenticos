@@ -45,12 +45,17 @@ from app.api.routes.v1 import model_providers
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
-from app.api.routes.v1 import skill_changes
+from app.api.routes.v1 import context_changes, skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
+from app.api.routes.v1 import datasets
+from app.api.routes.v1 import dataset_generations
+from app.api.routes.v1 import agent_test_sets, eval_runs, eval_suites
+from app.api.routes.v1 import knowledge_gaps
+from app.api.routes.v1 import authoring, improvements
 from app.api.routes.v1 import virtual_tables
 from app.api.routes.v1 import (
     workflow_approvals,
@@ -133,6 +138,17 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
+v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
+v1_router.include_router(
+    dataset_generations.router, prefix="/datasets", tags=["datasets:generation"]
+)
+v1_router.include_router(eval_runs.router, tags=["evals"])
+v1_router.include_router(eval_suites.router, tags=["evals"])
+v1_router.include_router(agent_test_sets.router, tags=["datasets"])
+v1_router.include_router(knowledge_gaps.router, prefix="/knowledge-gaps", tags=["knowledge-gaps"])
+v1_router.include_router(authoring.router, tags=["authoring"])
+v1_router.include_router(improvements.router, tags=["improvements"])
+v1_router.include_router(improvements.sessions, tags=["improvements"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
@@ -189,12 +205,18 @@ v1_router.include_router(
 )
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(
+    context_changes.router, prefix="/context-changes", tags=["context:changes"]
+)
+v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]
 )
 v1_router.include_router(sharing.agent_sharing_router, prefix="/agents", tags=["agents:sharing"])
 v1_router.include_router(sharing.skill_sharing_router, prefix="/skills", tags=["skills:sharing"])
 v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
+)
+v1_router.include_router(
+    sharing.dataset_sharing_router, prefix="/datasets", tags=["datasets:sharing"]
 )
 v1_router.include_router(sharing.table_sharing_router, prefix="/tables", tags=["tables:sharing"])
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])

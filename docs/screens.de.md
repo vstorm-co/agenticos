@@ -1,5 +1,5 @@
 ---
-source_sha: "66957b7e7527"
+source_sha: "141d29d9cb14"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -205,6 +205,94 @@ Die Wahl, die sonst niemand offenlegt: **PyMuPDF**, **LiteParse** oder **LlamaPa
 ![Parsing, pro Upload](assets/screens/light/kb-parse-options.webp#only-light)
 ![Parsing, pro Upload](assets/screens/dark/kb-parse-options.webp#only-dark)
 
+## Einen Agent testen und verbessern { #testing-and-improving-an-agent }
+
+Diese Ansichten stammen aus einer zweiten Demo-Organisation, Demo, und ihrem Agent Refund desk: Fragen eines Acme-Shops zu Erstattungen und Lieferung, bewertet von Checks und einem Judge. Die Fragen sind erfunden; die Antworten, Bewertungen und Verbesserungssitzungen sind echte Runs.
+
+### Datasets { #datasets }
+
+Die Testfragen, an denen Ihre Agents geprüft werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, damit zwei Eval-Runs auf denselben Fragen verglichen werden oder gar nicht.
+
+![Datasets](assets/screens/light/datasets.webp#only-light)
+![Datasets](assets/screens/dark/datasets.webp#only-dark)
+
+### Die Fälle eines Datasets { #a-datasets-cases }
+
+Jede Frage mit ihrer Herkunft, der Zahl ihrer Checks und ob die Verbesserung sie zum Schreiben der Änderungen nutzt oder zurücklegt, um das Ergebnis zu prüfen.
+
+![Die Fälle eines Datasets](assets/screens/light/dataset-cases.webp#only-light)
+![Die Fälle eines Datasets](assets/screens/dark/dataset-cases.webp#only-dark)
+
+### Bewertung { #grading }
+
+Was eine Antwort bestehen lässt: die Checks, die jeder Fall bekommt, welcher Judge bewertet, nach welchen Kriterien und ab welcher Punktzahl. Checks kosten nichts; jede Bewertung durch den Judge ist ein Run auf einem Modell.
+
+![Bewertung](assets/screens/light/dataset-grading.webp#only-light)
+![Bewertung](assets/screens/dark/dataset-grading.webp#only-dark)
+
+### Die Evals eines Datasets { #a-datasets-evals }
+
+Jeder Run gegen dieses Dataset als Bestehensquote-Linie pro Agent; die Farbe eines Punkts zeigt, ob er Fälle repariert oder gebrochen hat, darunter die Liste der Runs.
+
+![Die Evals eines Datasets](assets/screens/light/dataset-evals.webp#only-light)
+![Die Evals eines Datasets](assets/screens/dark/dataset-evals.webp#only-dark)
+
+### Ein Eval-Run { #one-eval-run }
+
+Zuerst das Urteil in einem Satz, dann die Bestehensquote vorher und nachher, die Kosten gegenüber der Schätzung und die Fälle, die sich geändert haben. Eine Antwort, die bei erneutem Fragen anders ausfiel, zählt nicht als Änderung.
+
+![Ein Eval-Run](assets/screens/light/eval-run.webp#only-light)
+![Ein Eval-Run](assets/screens/dark/eval-run.webp#only-dark)
+
+### Die Evals eines Agents { #an-agents-evals }
+
+Derselbe Verlauf aus Sicht des Agents: jedes Dataset, gegen das er lief, eine Linie pro Dataset, daneben der Knopf zum Starten der Evals.
+
+![Die Evals eines Agents](assets/screens/light/agent-evals.webp#only-light)
+![Die Evals eines Agents](assets/screens/dark/agent-evals.webp#only-dark)
+
+### Verbessern { #improve }
+
+Wo eine Verbesserung beginnt: die negativ bewerteten Antworten, die fehlgeschlagenen Testantworten, wie sich die Testfragen auf das Schreiben der Änderungen und ihre Prüfung aufteilen, und was der erste Schritt kostet. Jeder weitere Schritt wird bepreist, bevor Sie ihn drücken.
+
+![Verbessern](assets/screens/light/improve-start.webp#only-light)
+![Verbessern](assets/screens/dark/improve-start.webp#only-dark)
+
+### Verbessern · Verstehen { #improve-understand }
+
+Was schiefging, sortiert danach, was der Agent beheben kann und was der Wissensbasis fehlt, eine Karte pro Frage mit den Bewertungen in Worten. Die Sitzung hält hier an, damit Sie es sich ansehen.
+
+![Verbessern · Verstehen](assets/screens/light/improve-understand.webp#only-light)
+![Verbessern · Verstehen](assets/screens/dark/improve-understand.webp#only-dark)
+
+### Verbessern · Änderungen { #improve-changes }
+
+Die Änderungen, die der Helfer geschrieben hat, als Diff des eigenen Texts des Agents, mit Begründung und dem, worauf sie beruhen. Sie können eine Änderung umformulieren, bevor sie geprüft wird; die Prüfung misst Ihre Formulierung.
+
+![Verbessern · Änderungen](assets/screens/light/improve-changes.webp#only-light)
+![Verbessern · Änderungen](assets/screens/dark/improve-changes.webp#only-dark)
+
+### Verbessern · Ergebnis { #improve-result }
+
+Wozu die Sitzung kam: jeder Versuch mit der Zahl der zurückgelegten Fragen, die er repariert und gebrochen hat, seinen Kosten und der Wahl, welcher Versuch bleibt. Nichts geht live, bevor ein Mensch es annimmt.
+
+![Verbessern · Ergebnis](assets/screens/light/improve-result.webp#only-light)
+![Verbessern · Ergebnis](assets/screens/dark/improve-result.webp#only-dark)
+
+### Wissenslücken { #knowledge-gaps }
+
+Fragen, für die ein Agent seine Wissensbasen durchsucht und nichts Passendes gefunden hat, nach Thema gruppiert. Nichts gelangt von selbst in eine Wissensbasis; ein Mensch entwirft das Dokument und fügt es hinzu.
+
+![Wissenslücken](assets/screens/light/knowledge-gaps.webp#only-light)
+![Wissenslücken](assets/screens/dark/knowledge-gaps.webp#only-dark)
+
+### KI-Unterstützung { #ai-assistance }
+
+Der Schalter der Organisation für alles, was von sich aus ein Modell aufruft: den Eval-Judge, den Fallgenerator, den Helfer, der Änderungen schreibt, und die Entwürfe für Wissenslücken. Aus, bis jemand ihn einschaltet; jede Nutzung ist ein gemessener Run.
+
+![KI-Unterstützung](assets/screens/light/ai-assistance.webp#only-light)
+![KI-Unterstützung](assets/screens/dark/ai-assistance.webp#only-dark)
+
 ## Was passiert ist, und was wartet { #what-happened-and-what-is-waiting }
 
 ### Runs { #runs }
@@ -230,7 +318,7 @@ Alles, was auf einen Menschen wartet, mit dem, was der Agent vorhat. Eine Approv
 
 ### Spend { #spend }
 
-Was tatsächlich ausgegeben wurde, nach Zeitraum. Ein Budget wird *vor* der Modellanfrage geprüft statt hinterher zusammengezählt, also stoppt ein Run, der eines reißt, mitten in der Antwort und verzeichnet seine Kosten trotzdem.
+Was tatsächlich ausgegeben wurde, nach Zeitraum. Ein Budget wird _vor_ der Modellanfrage geprüft statt hinterher zusammengezählt, also stoppt ein Run, der eines reißt, mitten in der Antwort und verzeichnet seine Kosten trotzdem.
 
 ![Spend](assets/screens/light/spend.webp#only-light)
 ![Spend](assets/screens/dark/spend.webp#only-dark)

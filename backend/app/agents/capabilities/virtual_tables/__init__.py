@@ -24,7 +24,9 @@ __all__ = [
 
 
 def _reads(tool_id: str, description: str) -> CapabilityToolInfo:
-    return CapabilityToolInfo(id=tool_id, description=description, side_effecting=False)
+    return CapabilityToolInfo(
+        id=tool_id, description=description, side_effecting=False, read_only=True
+    )
 
 
 def _writes(tool_id: str, description: str) -> CapabilityToolInfo:

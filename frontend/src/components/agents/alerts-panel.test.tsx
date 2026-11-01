@@ -62,6 +62,17 @@ describe("the alerts panel", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).not.toBeChecked();
   });
 
+  it("offers a system agent no approval alert, since nothing it runs waits on one", () => {
+    const onChange = vi.fn();
+    render(<AlertsPanel value={DEFAULT_NOTIFICATIONS} onChange={onChange} approvals={false} />, {
+      wrapper,
+    });
+
+    expect(screen.getByRole("switch", { name: "Budget alerts" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Approval requests" })).toBeNull();
+  });
+
   it("does not offer the run's initiator for a usage report", () => {
     // A report covers a period, not a run, so there is no such person - and the
     // backend refuses it. Offering it would be offering a save that fails.

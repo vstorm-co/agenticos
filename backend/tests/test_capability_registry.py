@@ -9,13 +9,14 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, ValidationError, create_model
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.test import TestModel
 
@@ -23,6 +24,7 @@ from app.agents.capabilities import (
     REGISTRY,
     CapabilityBinding,
     CapabilityBuildContext,
+    CapabilityDef,
     CapabilityToolInfo,
     ProviderExecuted,
     ToolOverride,
@@ -542,6 +544,179 @@ class TestEffectiveTools:
             get("knowledge").effective_tools({"search_docuemnts": ToolOverride(name="typo")})
             == get("knowledge").tools
         )
+
+
+class TestReadOnlyDeclarations:
+    """Which tools an eval may run against the normal connections.
+
+    Pinned as a table, so a new tool - or a capability nobody classified - fails
+    here and somebody decides, rather than an eval blocking it or running it by
+    accident.
+    """
+
+    WRITES = frozenset(
+        {
+            ("artifacts", "publish_artifact"),
+            ("artifacts", "share_artifact"),
+            ("computer_use", "computer_screenshot"),
+            ("computer_use", "computer_act"),
+            ("computer_use", "computer_apps"),
+            ("computer_use", "computer_save_screenshot"),
+            ("virtual_tables", "create_table"),
+            ("virtual_tables", "create_record"),
+            ("virtual_tables", "upsert_record"),
+            ("virtual_tables", "update_record"),
+            ("virtual_tables", "delete_record"),
+            ("workflows", "run_workflow"),
+            ("ask_user", "ask_user_question"),
+            ("browser_use", "browse_web"),
+            ("browser_use", "browser_open"),
+            ("browser_use", "browser_read"),
+            ("browser_use", "browser_click"),
+            ("browser_use", "browser_type"),
+            ("browser_use", "browser_select"),
+            ("browser_use", "browser_scroll"),
+            ("browser_use", "browser_back"),
+            ("browser_use", "browser_new_tab"),
+            ("browser_use", "browser_tabs"),
+            ("browser_use", "browser_switch_tab"),
+            ("browser_use", "browser_close_tab"),
+            ("coding_agent", "run_coding_agent"),
+            ("image_generation", "generate_image"),
+            ("text_to_speech", "generate_speech"),
+            ("follow_ups", "suggest_next_steps"),
+            ("follow_ups", "propose_setup"),
+            ("video_generation", "generate_video"),
+            ("memory_files", "write_memory"),
+            ("memory_files", "edit_memory"),
+            ("memory_files", "delete_memory"),
+            ("memory_mem0", "remember"),
+            ("sandbox", "write_file"),
+            ("sandbox", "edit_file"),
+            ("sandbox", "execute"),
+            ("visuals", "draw"),
+            ("visuals", "revise_visual"),
+            ("visuals", "read_visual"),
+        }
+    )
+
+    def test_every_declared_tool_is_classified_as_the_table_says(self):
+        writes = {
+            (definition.id, tool.id)
+            for definition in all_capabilities()
+            for tool in definition.tools
+            if not definition.tool_is_read_only(tool)
+        }
+
+        assert writes == self.WRITES
+
+    def test_a_capability_that_declares_nothing_writes(self):
+        tool = CapabilityToolInfo(id="send_email", description="Send it.")
+        definition = CapabilityDef(
+            id="mailer",
+            name="Mailer",
+            category="test",
+            description="Sends mail.",
+            builder=lambda _ctx: None,
+            tools=(tool,),
+        )
+
+        assert definition.tool_is_read_only(tool) is False
+
+    def test_a_tool_declaration_beats_its_capabilitys(self):
+        (read_artifact,) = (t for t in get("artifacts").tools if t.id == "read_artifact")
+
+        assert get("artifacts").read_only is False
+        assert get("artifacts").tool_is_read_only(read_artifact) is True
+
+    def test_a_rename_keeps_the_declaration(self):
+        """The eval guard reads effective tools; a rename must not make a read write."""
+        (tool,) = (
+            t
+            for t in get("memory_files").effective_tools(
+                {"read_memory": ToolOverride(name="look_up_note")}
+            )
+            if t.id == "read_memory"
+        )
+
+        assert (tool.name, tool.read_only) == ("look_up_note", True)
+
+
+class TestTestKeyIsolation:
+    """Which capabilities let a swapped vault key carry their writes into an eval.
+
+    The declaration is what lets a write execute in an isolated run, so it is
+    pinned: a capability gaining it fails here until somebody decides.
+    """
+
+    DECLARED: frozenset[str] = frozenset()
+
+    #: Config fields that name where a capability's calls go. A capability with
+    #: one can be pointed at production whatever key it holds.
+    _TARGET = re.compile(
+        r"url|uri|host|endpoint|base|server|dsn|address|domain|port", re.IGNORECASE
+    )
+
+    @classmethod
+    def _offending(cls, definitions: Iterable[CapabilityDef]) -> set[str]:
+        return {
+            definition.id
+            for definition in definitions
+            if definition.test_key_isolates
+            and definition.config_schema is not None
+            and any(cls._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
+
+    def test_the_declarations_are_the_ones_decided(self):
+        declared = {d.id for d in all_capabilities() if d.test_key_isolates}
+
+        assert declared == self.DECLARED
+
+    def test_a_capability_whose_config_names_a_target_never_declares_it(self):
+        """A test key next to a production URL still writes to production."""
+        assert self._offending(all_capabilities()) == set()
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "cdp_url",
+            "api_base",
+            "base_url",
+            "server_uri",
+            "Hostname",
+            "smtp_server",
+            "dsn",
+            "ip_address",
+            "domain",
+            "port",
+            "endpoint",
+        ],
+    )
+    def test_a_declaration_beside_any_field_naming_a_target_is_refused(self, field):
+        config = create_model("Config", **{field: (str, "x")})
+        definition = CapabilityDef(
+            id="mailer",
+            name="Mailer",
+            category="test",
+            description="Sends mail.",
+            builder=lambda _ctx: None,
+            tools=(),
+            config_schema=config,
+            test_key_isolates=True,
+        )
+
+        assert self._offending([definition]) == {"mailer"}
+
+    def test_the_config_check_sees_the_capabilities_it_exists_for(self):
+        """Without this the check above could pass by matching nothing."""
+        named = {
+            definition.id
+            for definition in all_capabilities()
+            if definition.config_schema is not None
+            and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
+
+        assert {"browser_use", "memory_mem0"} <= named
 
 
 class TestProviderExecutedDeclarations:

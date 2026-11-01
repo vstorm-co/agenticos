@@ -4,7 +4,10 @@ import {
   Bell,
   CheckCircle2,
   Database,
+  GitPullRequest,
   KeyRound,
+  ListChecks,
+  ShieldAlert,
   Lightbulb,
   Megaphone,
   PanelsTopLeft,
@@ -32,6 +35,9 @@ const HELD = "bg-warning/10 text-warning";
 
 /** What each kind of event looks like: its icon, and the tint that says how it went. */
 const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
+  eval_run_finished: { icon: ListChecks, tone: NEUTRAL },
+  case_generation_finished: { icon: Sparkles, tone: NEUTRAL },
+  improvement_finished: { icon: Sparkles, tone: NEUTRAL },
   run_completed: { icon: CheckCircle2, tone: GOOD },
   run_failed: { icon: AlertCircle, tone: BAD },
   approval_requested: { icon: ShieldCheck, tone: HELD },
@@ -51,6 +57,10 @@ const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
   mcp_server_down: { icon: PlugZap, tone: BAD },
   mcp_server_recovered: { icon: Plug, tone: GOOD },
   background_task_paused: { icon: PauseCircle, tone: BAD },
+  eval_suite_failed: { icon: ListChecks, tone: BAD },
+  eval_suite_reevaluated: { icon: ListChecks, tone: NEUTRAL },
+  promotion_overridden: { icon: ShieldAlert, tone: BAD },
+  shared_change_applied: { icon: GitPullRequest, tone: HELD },
   // Somebody asked for a capability one of your agents lacks (#2301).
   capability_requested: { icon: Sparkles, tone: HELD },
   // What the night's look at your week proposes (#2301).

@@ -95,7 +95,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
                       {person.runs}
                     </td>
                     <td className="text-foreground py-1.5 text-right tabular-nums">
-                      {formatUsd(Number(person.cost_usd))}
+                      {formatUsd(Number(person.cost_usd), locale)}
                     </td>
                     <td className="text-muted-foreground py-1.5 text-right">
                       {timeAgo(person.last_run_at, tTime, locale)}

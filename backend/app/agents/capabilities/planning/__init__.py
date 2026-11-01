@@ -80,6 +80,7 @@ class PlanningConfig(BaseModel):
 
 @register(
     id="planning",
+    read_only=True,
     name="Planning",
     category="reasoning",
     description="Let the agent keep a checklist of steps for a multi-step task.",
@@ -88,6 +89,7 @@ class PlanningConfig(BaseModel):
     # binding, and the offered subset is decided by `enable_subtasks` at build time.
     tools=PLANNING_TOOLS,
     config_schema=PlanningConfig,
+    tunable=True,
     # None of the tools acts on the world - they mutate a checklist the model keeps
     # for itself - so there is nothing here for a person to approve.
     side_effecting=False,

@@ -324,9 +324,10 @@ jobs:
         run: make docker-minio
 
       - name: Run tests with the coverage gate
-        # --cov with no argument uses the include list in pyproject.toml: the
-        # platform layer, held at 100%. Template-inherited subsystems are
-        # reported by the next step but do not gate the build.
+        # The suite measures all of `app` once; the gate is the report over the
+        # platform layer of it - the include list in pyproject.toml - held at
+        # 100%. Template-inherited subsystems are reported from the same data by
+        # the step after next, and do not gate the build.
         #
         # `COV_REPORT=xml` is the only difference from what `make test` does on a
         # laptop, and it is for Codecov below rather than for the gate.
@@ -343,11 +344,21 @@ jobs:
           PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
 
+      - name: Retain backend coverage diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
-        if: always()
-        run: make coverage-all
+        # A report over the data the gate step measured, not a second suite.
+        if: ${{ !cancelled() }}
+        run: make coverage-all REUSE_COVERAGE=1
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
@@ -432,6 +443,15 @@ jobs:
         # step: `test:run` measures nothing and 2909 green tests still owe 100%
         # lines, statements and functions.
         run: make test-frontend-cov
+
+      - name: Retain frontend coverage diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/coverage-final.json
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Build
         # `next build` type-checks the route tree and fails on a server
@@ -543,6 +563,12 @@ jobs:
             > "$RUNNER_TEMP/backend.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/backend.pid"
 
+      - name: Start background work for the evals journey
+        run: |
+          uv run --directory backend python -m app.worker --pools agent,eval,system \
+            > "$RUNNER_TEMP/eval-worker.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/eval-worker.pid"
+
       - name: Wait for the backend to be healthy
         # Polled, not slept. A fixed wait is either too short on a cold runner
         # or wasted on a warm one, and the failure it produces is a browser
@@ -650,8 +676,8 @@ jobs:
       # report embeds most of it, but only for the runs it managed to finish -
       # a suite the runner killed leaves `test-results/` and no report at all,
       # which is the case #162 was diagnosed without.
-      - name: Upload the raw Playwright output when a journey fails
-        if: failure()
+      - name: Upload the raw Playwright output and evals screenshots
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-results
@@ -663,6 +689,20 @@ jobs:
         # Half of an E2E failure is on the other side of the proxy.
         if: failure()
         run: cat "$RUNNER_TEMP/backend.log"
+
+      # Kept as a file too, and on every outcome: a backend that dies mid-suite
+      # takes the rest of the specs down until the job times out, and a
+      # cancelled job never reaches the step above.
+      - name: Upload the backend log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backend-log
+          path: |
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/eval-worker.log
+          retention-days: 7
+          if-no-files-found: ignore
 
   security:
     name: Security Scan

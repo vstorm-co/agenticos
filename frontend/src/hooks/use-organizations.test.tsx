@@ -7,12 +7,14 @@ import { toast } from "sonner";
 import {
   preferredOrg,
   serverFallbackOrg,
+  useAiAssistance,
   useOrganizationList,
   useOrganizations,
   useTenantId,
 } from "./use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { Organization } from "@/types";
 
 vi.mock("@/lib/api-client", () => ({
@@ -98,6 +100,25 @@ describe("preferredOrg", () => {
       "b",
     );
     expect(preferredOrg([org({ id: "a" })], ["a"])).toBeNull();
+  });
+});
+
+describe("useAiAssistance", () => {
+  it("reads the active organization's own switch, not the cached list", async () => {
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    vi.mocked(apiClient.get).mockResolvedValue(org({ ai_assistance_enabled: false }));
+
+    const { result } = renderHook(() => useAiAssistance(), { wrapper });
+
+    await waitFor(() => expect(result.current).toEqual({ orgId: "org-1", enabled: false }));
+    expect(apiClient.get).toHaveBeenCalledWith("/orgs/org-1");
+  });
+
+  it("knows nothing before an organization is chosen", () => {
+    const { result } = renderHook(() => useAiAssistance(), { wrapper });
+
+    expect(result.current).toEqual({ orgId: null, enabled: null });
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 
@@ -333,6 +354,34 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
   });
 
+  it("switches AI assistance with only that field, and keeps the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ ai_assistance_enabled: false }));
+
+    await result.current.setAiAssistance("org-1", false);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { ai_assistance_enabled: false });
+    await waitFor(() => expect(result.current.orgs[0]?.ai_assistance_enabled).toBe(false));
+  });
+
+  it("sets and clears the grading model with only that field, and keeps the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ grading_model_profile_id: "p2" }));
+
+    await result.current.setGradingModel("org-1", "p2");
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      grading_model_profile_id: "p2",
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.grading_model_profile_id).toBe("p2"));
+
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ grading_model_profile_id: null }));
+    await result.current.setGradingModel("org-1", null);
+    expect(apiClient.patch).toHaveBeenLastCalledWith("/orgs/org-1", {
+      grading_model_profile_id: null,
+    });
+  });
+
   it("sends only the public live data field, and keeps the answer in the list", async () => {
     const result = await hook();
     vi.mocked(apiClient.patch).mockResolvedValue(org({ public_live_data: true }));
@@ -400,6 +449,19 @@ describe("useOrganizations", () => {
     result.current.switchOrg("org-2");
 
     expect(useOrgStore.getState().activeOrgId).toBe("org-2");
+  });
+
+  it("asks before switching away from a change not yet saved", async () => {
+    const result = await hook([org(), org({ id: "org-2" })]);
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    useUnsavedChangesStore.setState({ sources: { editor: { discard: vi.fn() } }, prompt: null });
+
+    result.current.switchOrg("org-2");
+    expect(useOrgStore.getState().activeOrgId).toBe("org-1");
+
+    await useUnsavedChangesStore.getState().answer("discard");
+    expect(useOrgStore.getState().activeOrgId).toBe("org-2");
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null });
   });
 
   it("refetches the list on demand, whatever the caller passes", async () => {

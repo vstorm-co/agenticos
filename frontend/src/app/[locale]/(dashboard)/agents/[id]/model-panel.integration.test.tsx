@@ -58,6 +58,8 @@ vi.mock("@/hooks", async () => {
         name: "Support",
         status: "draft",
         has_avatar: false,
+        can_edit: true,
+        can_publish: true,
         draft_spec: {
           name: "Support",
           instructions: "Be helpful.",
@@ -91,6 +93,7 @@ vi.mock("@/hooks", async () => {
     useAgentVersion: () => ({ version: undefined, isLoading: false }),
     useAgentVersions: () => ({ versions: [] }),
     useAllAgentVersions: () => ({ versions: [] }),
+    useDraftBase: () => ({ base: undefined }),
     useCapabilityCatalog: () => ({ capabilities: [] }),
     usePromptVariables: () => ({ variables: [] }),
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
@@ -121,6 +124,11 @@ vi.mock("@/hooks", async () => {
   };
 });
 
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useDraftEvalRuns: () => ({ runs: [] }),
+  useEvalArmSpec: () => ({ spec: undefined }),
+  useRunsADataset: () => false,
+}));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
@@ -137,6 +145,7 @@ vi.mock("@/stores", () => ({
 // lives; mounted here they only make the page slower and this spec's failures
 // harder to read.
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
+vi.mock("@/components/authoring/assistant-strip", () => ({ AssistantStrip: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({ ModelSettingsForm: () => null }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/agents/voice-card", () => ({ VoiceCard: () => null }));
@@ -165,7 +174,7 @@ async function mount() {
 }
 
 beforeEach(() => {
-  validate.mockResolvedValue({ problems: [], fields: [] });
+  validate.mockResolvedValue({ problems: [], fields: [], fixes: [] });
   state.permissions = [Perm.agentsEdit];
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
@@ -281,6 +290,7 @@ describe("publish refused for having no model", () => {
     validate.mockResolvedValue({
       problems: ["Unknown capability: typo", NO_MODEL],
       fields: [{ field: "model_profile_id", message: NO_MODEL }],
+      fixes: [],
     });
     const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
     state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
@@ -312,6 +322,7 @@ describe("publish refused for having no model", () => {
     validate.mockResolvedValue({
       problems: [NO_MODEL],
       fields: [{ field: "model_profile_id", message: NO_MODEL }],
+      fixes: [],
     });
     const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
     state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
@@ -329,7 +340,7 @@ describe("publish refused for having no model", () => {
   });
 
   it("offers no link for a problem that is not the missing model", async () => {
-    validate.mockResolvedValue({ problems: ["Unknown capability: typo"], fields: [] });
+    validate.mockResolvedValue({ problems: ["Unknown capability: typo"], fields: [], fixes: [] });
     state.permissions = [Perm.agentsEdit, Perm.agentsPublish];
     await mount();
 
