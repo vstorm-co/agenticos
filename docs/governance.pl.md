@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4471e1f0e0"
+source_sha: "c0eda1b8c1d5"
 ---
 
 # Governance { #governance }
@@ -506,15 +506,20 @@ wydatki umierają razem z jego procesem.
 
 ### Praca z własnej inicjatywy { #proactive-work }
 
-Przebiegi proaktywne są przypisywane do opublikowanego agenta startowego
-**AgenticOS** organizacji (slug `agenticos`). To stałe przypisanie platformy;
-nie wybiera modelu ani nie uruchamia instrukcji agenta startowego. Osobny model
-i limity ustawia się w **Organizacje → Członkowie → Proaktywność**. Activity
-pokazuje ikonę i filtr **Proaktywność**, żądania do modelu i ich koszt oraz
-zapis wymiany z wynikami narzędzi i końcową odpowiedzią strukturalną. Nieudane
-sprawdzenia zachowują wymianę dostępną przed błędem. Odczyt wymaga `runs:view`,
-jak inne zapisy Activity, i nie tworzy rozmów w Chat. Nie można odzyskać wymian,
-których starsze przebiegi nie zapisały; zbyt duży zapis jest oznaczany jako skrócony.
+Uruchomienia proaktywne są zapisywane pod opublikowanym agentem startowym
+**AgenticOS** organizacji (slug `agenticos`), żeby każde miało wiersz, koszt i
+ślad, ale agent startowy się nie wykonuje i nie wybiera modelu: każde takie
+uruchomienie niesie [rolę systemową](#system-agents), która wykonała pracę.
+Osobny model proaktywności i limity wybierasz w **Organizacje → Członkowie →
+Proaktywność**.
+
+Aktywność pokazuje ikonę i filtr **Proaktywne**, żądania do
+modelu i ich koszty oraz zapisaną wymianę, łącznie z wynikami narzędzi i
+końcową strukturalną odpowiedzią. Nieudane sprawdzenia zachowują wymianę
+dostępną sprzed błędu. Te zapisy wymagają `runs:view`, jak inne zapisy
+Aktywności, i nie tworzą rozmów w Czacie. Starsze uruchomienia nie odzyskają
+wymian, które nigdy nie zostały zapisane; zapisy zbyt duże wyraźnie mówią, że
+zostały przycięte.
 
 Pole modelu korzysta z tego samego wyboru dostawcy, modelu i klucza z sejfu co
 Builder agenta. Uprawnienie `connections:manage` pozwala utworzyć tam profil
@@ -566,6 +571,33 @@ wymagająca `org:settings`: wiadomość prywatna dla nowej osoby od botów
 organizacji w Slacku, Teams i Mattermost, słowami organizacji, jeśli je napisała
 (`{organization}`, `{bot}` i `{url}` zostają uzupełnione), albo wbudowanym
 powitaniem w jej języku.
+
+### Agenci systemowi { #system-agents }
+
+Część pracy należy do samej platformy i mimo to potrzebuje modelu. **Rola
+systemowa** daje jej właściciela, którego operator widzi: jedna konfiguracja na
+organizację i rolę, nigdy wiersz agenta, nigdy jedna na zadanie i nigdy
+przypisana agentowi startowemu ani żadnemu agentowi, którego instrukcje się nie
+wykonały (#2575). **Organizacje → Członkowie → Agenci systemowi**
+(`budgets:manage`) wylicza każdą rolę z modelem, na którym działa, wydatkami w tym
+miesiącu i ostatnimi wykonaniami.
+
+| Rola | Co robi | Konfiguracja |
+|---|---|---|
+| `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W Proaktywności, powyżej: ten sam model i limit, tutaj tylko do odczytu |
+| `memory_maintenance` | Czyta zakończony czat webowy raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
+
+Rolę się wyłącza, nie usuwa. **Utrzymanie pamięci** działa tylko tam, gdzie
+wybrano model — nie ma domyślnego — i zatrzymuje się na swoim budżecie miesięcznym
+albo na limicie organizacji; limit proaktywności osoby nie jest na nią wydawany.
+Czyta czat tylko tam, gdzie działa pamięć: zakończony czat webowy z osobą po
+drugiej stronie, dla agenta z włączoną Pamięcią.
+
+Embed, run z kluczem API, czat
+grupowy, run z harmonogramu lub zdarzenia i delegacja nigdy nie są czytane. To, co
+zapisuje, zostaje w zakresie samej rozmowy — profilu osoby albo jej relacji z tym
+agentem — i nie może udostępnić ani poprawić claimu. Praca deterministyczna, jak
+zaplanowana konsolidacja zmienionej pamięci, nie potrzebuje modelu ani roli.
 
 ### Co pokazuje historia runów { #what-run-history-shows }
 

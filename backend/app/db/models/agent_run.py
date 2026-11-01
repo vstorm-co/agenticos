@@ -312,6 +312,14 @@ class AgentRun(Base, TimestampMixin):
     modality: Mapped[str] = mapped_column(
         String(8), nullable=False, default="text", server_default="text"
     )
+    system_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    """The platform role that did this work, when no agent's instructions ran (#2575).
+
+    A system role's model call is recorded under the starter agent so it has a row,
+    a cost and a trace, but it is not the starter's work: this says whose it was,
+    so Activity can name `memory_maintenance` rather than an agent that never ran,
+    and a role's spend is counted apart from a person's own proactivity limit.
+    """
     status: Mapped[str] = mapped_column(
         String(24), nullable=False, default=RunStatus.RUNNING.value, index=True
     )

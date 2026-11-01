@@ -56,6 +56,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
+from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.virtual_table import (
     VirtualTable,
     VirtualTableMedia,
@@ -232,6 +233,7 @@ __all__ = [
     "AgentMemoryFile",
     "MemoryClaim",
     "MemoryScopeState",
+    "SystemAgentProfile",
     "VirtualTable",
     "VirtualTableMedia",
     "VirtualTableOutbox",

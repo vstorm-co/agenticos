@@ -99,6 +99,7 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.CONSOLIDATE_MEMORY, _each_tick(memory_tasks.consolidate_memory)),
+            Handler(jobs.EXTRACT_MEMORY, memory_tasks.extract_memory),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
             Handler(jobs.WORKFLOW_DISPATCH_POLL, _each_tick(workflow_tasks.poll_due_dispatches)),
             Handler(jobs.WORKFLOW_RECONCILE, _each_tick(workflow_tasks.reconcile)),

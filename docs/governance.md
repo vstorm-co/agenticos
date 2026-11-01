@@ -469,16 +469,19 @@ heartbeat recorded, unlike a text run, whose spend dies with its process.
 
 ### Proactive work { #proactive-work }
 
-Proactive runs are attributed to the organization's published **AgenticOS**
-starter agent (`agenticos` slug). This association is fixed by the platform;
-it does not select the model or run the starter's instructions. Choose the
-separate proactivity model and limits on **Organizations → Members →
-Proactivity**. Activity shows the **Proactive** icon and filter, the model
-requests and their costs, and the recorded exchange including tool results and
-the final structured answer. Failed checks retain the exchange available before
-the failure. These records require `runs:view`, like other Activity records,
-and do not create conversations in Chat. Older runs cannot recover exchanges
-that were never recorded; oversized records explicitly say they were trimmed.
+Proactive runs are recorded under the organization's published **AgenticOS**
+starter agent (`agenticos` slug) so each has a row, a cost and a trace, but the
+starter does not run and does not choose the model: every such run carries the
+[system role](#system-agents) that did the work. Choose the separate proactivity
+model and limits on **Organizations → Members → Proactivity**.
+
+Activity shows the
+**Proactive** icon and filter, the model requests and their costs, and the
+recorded exchange including tool results and the final structured answer. Failed
+checks retain the exchange available before the failure. These records require
+`runs:view`, like other Activity records, and do not create conversations in Chat.
+Older runs cannot recover exchanges that were never recorded; oversized records
+explicitly say they were trimmed.
 
 The model field uses the same provider, model and vault-key picker as the Agent
 Builder. With `connections:manage`, a member can create a model profile there;
@@ -529,6 +532,32 @@ The same card holds the **welcome message**, off by default and gated on
 Teams and Mattermost bots, in the organization's own words when it wrote some
 (`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
 their language.
+
+### System agents { #system-agents }
+
+Some work is the platform's own and still needs a model. A **system role** gives it
+an owner an operator can see: one configuration per organization and role, never
+an agent row, never one per job, and never attributed to the starter agent or any
+agent whose instructions did not run (#2575). **Organizations → Members → System
+agents** (`budgets:manage`) lists each role with what it runs on, this month's
+spend and its recent executions.
+
+| Role | What it does | Configured |
+|---|---|---|
+| `daily_briefing` | The nightly look at each person's week and the briefing built from it | Under Proactivity, above: the same model and limit, shown here read-only |
+| `memory_maintenance` | Reads a finished web chat once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own |
+
+A role is disabled, not deleted. **Memory maintenance** runs only where a model
+was chosen - there is no default - and stops at its monthly budget or the
+organization's cap; a person's proactivity limit is not spent on it. It reads a
+chat only where memory works: a completed web chat with a person behind it, for an
+agent that has Memory on.
+
+An embed, an API-key run, a group chat, a scheduled or an
+event run and a delegation are never read. What it records stays in the
+conversation's own scope - the person's profile or their relationship with that
+agent - and it cannot share or correct a claim. Deterministic work, such as the
+scheduled consolidation of changed memory, needs no model and no role.
 
 ### What run history shows
 

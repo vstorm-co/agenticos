@@ -7904,6 +7904,38 @@
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
       "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
+    },
+    "systemAgents": {
+      "title": "System agents",
+      "description": "Work the platform does itself and that needs a model. Each role has its own configuration and history; none of it is attributed to an agent whose instructions did not run.",
+      "on": "On",
+      "off": "Off",
+      "managedIn": "Runs on {model}. Configured under Proactivity above, so there is one model and one limit.",
+      "managedInNoModel": "No model chosen yet. Configured under Proactivity above.",
+      "enabled": "Run this role",
+      "model": "Model",
+      "modelHint": "Chosen, never defaulted: the role spends money nobody asked for in the moment.",
+      "budget": "Monthly budget (USD)",
+      "noBudget": "No cap of its own",
+      "invalid": "Enter a number of zero or more.",
+      "modelRequired": "Choose the model this role runs on before turning it on.",
+      "save": "Save",
+      "saved": "Saved",
+      "savedOff": "Turned off",
+      "spent": "Spent this month: {amount}",
+      "spentOf": "Spent this month: {amount} of {budget}",
+      "noRuns": "No executions yet.",
+      "unknownModel": "model unknown",
+      "roles": {
+        "daily_briefing": {
+          "name": "Daily briefing",
+          "what": "The nightly look at each person's week and the briefing built from it."
+        },
+        "memory_maintenance": {
+          "name": "Memory maintenance",
+          "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
+        }
+      }
     }
   },
   "theme": {

@@ -29,6 +29,10 @@ export const qk = {
     /** Whether the deployment names a browser to sign in with from Settings. */
     browser: () => ["browser-sign-ins", "browser"] as const,
   },
+  systemAgents: {
+    /** The platform roles and their history in one organization. */
+    list: (orgId: string) => ["system-agents", orgId] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,

@@ -64,6 +64,7 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import table_views
 from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
+from app.api.routes.v1 import system_agents
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
@@ -184,6 +185,7 @@ v1_router.include_router(
 )
 v1_router.include_router(artifacts.embed_router, prefix="/artifact-embed", tags=["artifacts:embed"])
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
+v1_router.include_router(system_agents.router, prefix="/system-agents", tags=["system-agents"])
 v1_router.include_router(
     browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
 )

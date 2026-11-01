@@ -7783,6 +7783,38 @@
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
       "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
+    },
+    "systemAgents": {
+      "title": "Systemagenten",
+      "description": "Arbeit, die die Plattform selbst erledigt und die ein Modell braucht. Jede Rolle hat eigene Konfiguration und Verlauf; nichts davon wird einem Agent zugeschrieben, dessen Anweisungen nicht liefen.",
+      "on": "An",
+      "off": "Aus",
+      "managedIn": "Läuft auf {model}. Konfiguriert unter Proaktivität oben, es gibt also ein Modell und ein Limit.",
+      "managedInNoModel": "Noch kein Modell gewählt. Konfiguriert unter Proaktivität oben.",
+      "enabled": "Diese Rolle ausführen",
+      "model": "Modell",
+      "modelHint": "Gewählt, nie voreingestellt: Die Rolle gibt Geld aus, das niemand im Moment angefordert hat.",
+      "budget": "Monatsbudget (USD)",
+      "noBudget": "Keine eigene Obergrenze",
+      "invalid": "Geben Sie eine Zahl ab null ein.",
+      "modelRequired": "Wählen Sie das Modell dieser Rolle, bevor Sie sie einschalten.",
+      "save": "Speichern",
+      "saved": "Gespeichert",
+      "savedOff": "Ausgeschaltet",
+      "spent": "Diesen Monat ausgegeben: {amount}",
+      "spentOf": "Diesen Monat ausgegeben: {amount} von {budget}",
+      "noRuns": "Noch keine Ausführungen.",
+      "unknownModel": "Modell unbekannt",
+      "roles": {
+        "daily_briefing": {
+          "name": "Tägliches Briefing",
+          "what": "Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing."
+        },
+        "memory_maintenance": {
+          "name": "Gedächtnispflege",
+          "what": "Liest einen beendeten Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin fest, im eigenen Scope der Unterhaltung. Solange sie aus ist oder kein Modell hat, läuft nichts."
+        }
+      }
     }
   },
   "theme": {

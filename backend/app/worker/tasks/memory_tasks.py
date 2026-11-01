@@ -11,12 +11,19 @@ import logging
 
 from app.db.session import get_db_context
 from app.repositories import memory_claim as claim_repo
-from app.services.memory import claims
+from app.services.memory import claims, extraction
+from app.worker.jobs import ExtractMemory
 
 logger = logging.getLogger(__name__)
 
 SCOPES_PER_SWEEP = 200
 """How many changed scopes one sweep folds; the rest wait for the next."""
+
+
+async def extract_memory(payload: ExtractMemory) -> int:
+    """Read one finished chat for what is worth remembering. Returns how many claims it recorded."""
+    async with get_db_context() as db:
+        return await extraction.extract(db, payload.organization_id, payload.run_id)
 
 
 async def consolidate_memory() -> int:

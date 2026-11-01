@@ -56,6 +56,7 @@ from app.repositories import context as context_repo
 from app.repositories import virtual_table as virtual_table_repo
 from app.repositories import table_view as table_view_repo
 from app.repositories import memory as memory_repo
+from app.repositories import system_agent as system_agent_repo
 
 from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
@@ -149,6 +150,7 @@ __all__ = [
     "virtual_table_repo",
     "table_view_repo",
     "memory_repo",
+    "system_agent_repo",
     "notification_repo",
     "voice_call_repo",
     "generated_media_repo",

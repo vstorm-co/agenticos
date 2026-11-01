@@ -5320,6 +5320,38 @@
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
       "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
+    },
+    "systemAgents": {
+      "title": "Agenci systemowi",
+      "description": "Praca, którą platforma wykonuje sama i która potrzebuje modelu. Każda rola ma własną konfigurację i historię; nic z tego nie jest przypisywane agentowi, którego instrukcje się nie wykonały.",
+      "on": "Włączona",
+      "off": "Wyłączona",
+      "managedIn": "Działa na {model}. Konfigurowana w Proaktywności powyżej, więc jest jeden model i jeden limit.",
+      "managedInNoModel": "Model nie został jeszcze wybrany. Konfigurowana w Proaktywności powyżej.",
+      "enabled": "Uruchamiaj tę rolę",
+      "model": "Model",
+      "modelHint": "Wybierany, nigdy domyślny: rola wydaje pieniądze, o które nikt nie prosił w danej chwili.",
+      "budget": "Budżet miesięczny (USD)",
+      "noBudget": "Bez własnego limitu",
+      "invalid": "Podaj liczbę równą zero lub większą.",
+      "modelRequired": "Wybierz model tej roli, zanim ją włączysz.",
+      "save": "Zapisz",
+      "saved": "Zapisano",
+      "savedOff": "Wyłączono",
+      "spent": "Wydano w tym miesiącu: {amount}",
+      "spentOf": "Wydano w tym miesiącu: {amount} z {budget}",
+      "noRuns": "Brak wykonań.",
+      "unknownModel": "model nieznany",
+      "roles": {
+        "daily_briefing": {
+          "name": "Codzienny briefing",
+          "what": "Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing."
+        },
+        "memory_maintenance": {
+          "name": "Utrzymanie pamięci",
+          "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
+        }
+      }
     }
   },
   "theme": {

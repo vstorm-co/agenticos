@@ -1,5 +1,5 @@
 ---
-source_sha: "5f4471e1f0e0"
+source_sha: "c0eda1b8c1d5"
 ---
 
 # Governance { #governance }
@@ -503,10 +503,21 @@ con su proceso.
 
 ### Trabajo por iniciativa propia { #proactive-work }
 
-Las ejecuciones proactivas se atribuyen al agente inicial **AgenticOS**
-publicado de la organización (slug `agenticos`). Esta asociación está fijada por
-la plataforma; no selecciona el modelo ni ejecuta las instrucciones del agente
-inicial.
+Los runs proactivos se registran bajo el agent inicial **AgenticOS** publicado de
+la organización (slug `agenticos`) para que cada uno tenga una fila, un coste y un
+rastro, pero el agent inicial no se ejecuta ni elige el modelo: cada uno de esos
+runs lleva el [rol de sistema](#system-agents) que hizo el trabajo. El modelo de
+proactividad aparte y los límites se eligen en **Organizaciones → Miembros →
+Proactividad**.
+
+Actividad muestra el icono y el filtro **Proactivo**, las
+peticiones al modelo y sus costes, y el intercambio registrado, con los
+resultados de herramientas y la respuesta estructurada final. Las comprobaciones
+fallidas conservan el intercambio disponible antes del fallo. Estos registros
+requieren `runs:view`, como otros registros de Actividad, y no crean
+conversaciones en el Chat. Los runs antiguos no pueden recuperar intercambios que
+nunca se registraron; los registros demasiado grandes dicen expresamente que se
+recortaron.
 
 El modelo independiente y los límites se eligen en **Organizaciones →
 Miembros → Proactividad**. Activity muestra el icono y filtro **Proactivo**, las
@@ -572,6 +583,34 @@ sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
 Mattermost de la organización a un miembro nuevo, con las palabras de la
 organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
 el saludo incorporado en su idioma.
+
+### Agentes de sistema { #system-agents }
+
+Parte del trabajo es de la propia plataforma y aun así necesita un modelo. Un
+**rol de sistema** le da un responsable que un operador puede ver: una
+configuración por organización y rol, nunca una fila de agent, nunca una por tarea
+y nunca atribuida al agent inicial ni a ningún agent cuyas instrucciones no se
+ejecutaron (#2575). **Organizaciones → Miembros → Agentes de sistema**
+(`budgets:manage`) lista cada rol con el modelo en que corre, el gasto de este mes
+y sus últimas ejecuciones.
+
+| Rol | Qué hace | Configuración |
+|---|---|---|
+| `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En Proactividad, arriba: el mismo modelo y límite, aquí solo de lectura |
+| `memory_maintenance` | Lee una vez un chat web terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
+
+Un rol se desactiva, no se borra. El **mantenimiento de memoria** solo corre donde
+se eligió un modelo —no hay uno por defecto— y se detiene en su presupuesto
+mensual o en el tope de la organización; el límite de proactividad de una persona
+no se gasta en él. Lee un chat solo donde funciona la memoria: un chat web
+terminado con una persona detrás, para un agent con Memoria activada.
+
+Un embed, un
+run con clave de API, un chat de grupo, un run programado o por evento y una
+delegación nunca se leen. Lo que registra se queda en el scope de la propia
+conversación —el perfil de la persona o su relación con ese agent— y no puede
+compartir ni corregir un claim. El trabajo determinista, como la consolidación
+programada de memoria cambiada, no necesita modelo ni rol.
 
 ### Qué muestra el historial de runs { #what-run-history-shows }
 

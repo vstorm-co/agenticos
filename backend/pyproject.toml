@@ -999,11 +999,15 @@ include = [
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
     "app/repositories/memory_claim.py",
+    "app/repositories/system_agent.py",
     "app/services/memory/_native.py",
     "app/services/memory/_claims.py",
     "app/services/memory/_runtime.py",
+    "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/system_agent.py",
     "app/api/routes/v1/memory.py",
+    "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
@@ -1682,11 +1686,15 @@ include = [
     "app/services/knowledge_reach.py",
     "app/repositories/memory.py",
     "app/repositories/memory_claim.py",
+    "app/repositories/system_agent.py",
     "app/services/memory/_native.py",
     "app/services/memory/_claims.py",
     "app/services/memory/_runtime.py",
+    "app/services/memory/extraction.py",
     "app/services/memory/facade.py",
+    "app/services/system_agent.py",
     "app/api/routes/v1/memory.py",
+    "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
