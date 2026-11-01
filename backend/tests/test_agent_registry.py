@@ -42,7 +42,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.schemas.agent import AgentCreate
+from app.schemas.agent import AgentCreate, LocalCodingAgent
 from app.schemas.deployment_settings import DeploymentLimits
 from app.services import agent_templates
 from app.services.agent_registry import (
@@ -497,6 +497,10 @@ class TestList:
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
             ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             yield
 
@@ -541,9 +545,17 @@ class TestList:
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities",
                 new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
             ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_local_coding_agents",
+                new=AsyncMock(
+                    return_value={version_id: LocalCodingAgent(harness="codex", access="edit")}
+                ),
+            ),
         ):
             rows, _total = await AgentRegistryService(_db()).list_agents(ctx)
 
+        assert rows[0].local_coding_agent == LocalCodingAgent(harness="codex", access="edit")
+        assert rows[1].local_coding_agent is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
         assert rows[1].starters == []

@@ -99,6 +99,13 @@ def normalize_labels_query(values: list[str], *, max_items: int) -> list[str] | 
     return kept[:max_items]
 
 
+class LocalCodingAgent(BaseSchema):
+    """A coding agent an agent's published version runs on the person's computer."""
+
+    harness: Literal["claude_code", "codex"]
+    access: Literal["edit", "read_only"]
+
+
 class PublishedModel(BaseSchema):
     """The model an agent's published version runs on.
 
@@ -217,6 +224,15 @@ class AgentRead(BaseSchema):
     published_capabilities: list[str] | None = Field(
         default=None,
         description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
+    )
+    local_coding_agent: LocalCodingAgent | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs on the person's own "
+            "computer, or null when it runs none there. Read off the frozen spec, filled by "
+            "the listing, so the chat's composer can say which agent will work in which "
+            "folder before the person sends."
+        ),
     )
     published_model: PublishedModel | None = Field(
         default=None,

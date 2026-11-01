@@ -1229,6 +1229,9 @@ class AgentRegistryService:
         published_capabilities = await agent_repo.published_capabilities(
             self.db, version_ids=version_ids
         )
+        local_agents = await agent_repo.published_local_coding_agents(
+            self.db, version_ids=version_ids
+        )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -1273,6 +1276,9 @@ class AgentRegistryService:
                 published_capabilities=published_capabilities.get(agent.current_version_id, [])
                 if agent.current_version_id
                 else [],
+                local_coding_agent=(
+                    local_agents.get(agent.current_version_id) if agent.current_version_id else None
+                ),
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id

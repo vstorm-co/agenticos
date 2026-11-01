@@ -2153,7 +2153,16 @@
     "turnLostAskAgain": "Ask again",
     "browserResume": "Resume session",
     "browserResumePrompt": "Resume the browser session. Read the current page again before continuing.",
-    "browserMenu": "Browser options"
+    "browserMenu": "Browser options",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "can edit",
+      "readOnly": "read only",
+      "needsFolder": "{agent} runs on this computer: choose a folder under Chat controls → Work on → This computer.",
+      "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

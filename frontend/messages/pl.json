@@ -2153,7 +2153,16 @@
     "turnLostAskAgain": "Zapytaj ponownie",
     "browserResume": "Wznów sesję",
     "browserResumePrompt": "Wznów sesję przeglądarki. Odczytaj aktualną stronę przed kontynuowaniem.",
-    "browserMenu": "Opcje przeglądarki"
+    "browserMenu": "Opcje przeglądarki",
+    "localAgent": {
+      "claudeCode": "Claude Code",
+      "codex": "Codex",
+      "ready": "{agent} · {folder} · {access}",
+      "edit": "może edytować",
+      "readOnly": "tylko odczyt",
+      "needsFolder": "{agent} działa na tym komputerze: wybierz folder w Ustawieniach czatu → Pracuj na → Ten komputer.",
+      "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
