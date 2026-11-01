@@ -1,5 +1,5 @@
 ---
-source_sha: "2da70849bc40"
+source_sha: "3fa7145d9337"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1684,10 +1684,17 @@ daher ein eigener Raum: Eine Unterhaltung daraus wird nur denen gezeigt, die
 noch in diesem Thread sind, und die Notizen, die der Agent dort führt, werden
 nicht mit dem Kanal geteilt.
 
+**Ein Thread, in den der Bot mittendrin geholt wird, wird zuerst gelesen.** Die
+letzten Nachrichten darin, mit Autor und Zeit, und die Dateien, die Leute dort
+gepostet haben, erreichen den Agenten vor der Antwort, wie bei Slack und
+Mattermost; Dateien, die der Bot selbst gepostet hat, bleiben außen vor. Nötig
+ist **Read Message History**, und `read_channel_history` liest einen Thread oder
+einen Kanal genauso, wo die Anbindung es erlaubt.
+
 Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
-verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die
-Verzeichnis-Tools werden auf Discord nicht angeboten, und die Rollen eines Servers
-werden nicht auf Gruppen der Organisation abgebildet.
+verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die Tools für
+Kanalmitglieder, Kanaldetails und Kanalsuche werden auf Discord nicht angeboten,
+und die Rollen eines Servers werden nicht auf Gruppen der Organisation abgebildet.
 
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

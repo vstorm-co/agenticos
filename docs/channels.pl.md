@@ -1,5 +1,5 @@
 ---
-source_sha: "2da70849bc40"
+source_sha: "3fa7145d9337"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1564,10 +1564,17 @@ zaproszenie, więc jest osobnym pokojem: rozmowa z niego jest pokazywana
 wyłącznie tym, którzy nadal są w tym wątku, a notatki, które agent tam
 prowadzi, nie są wspólne z kanałem.
 
+**Wątek, do którego bota dołączono w trakcie, jest czytany najpierw.** Ostatnie
+wiadomości w nim, z autorem i czasem, oraz pliki, które tam wrzucili ludzie,
+trafiają do agenta przed odpowiedzią, tak jak na Slacku i Mattermoście; pliki
+wrzucone przez samego bota są pomijane. Potrzebne jest **Read Message History**,
+a `read_channel_history` czyta wątek albo kanał tak samo, gdy pozwala na to
+powiązanie.
+
 Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
 których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
-katalogu nie są oferowane na Discordzie, a role serwera nie są mapowane na grupy
-organizacji.
+członków kanału, jego szczegółów i wyszukiwania kanałów nie są oferowane na
+Discordzie, a role serwera nie są mapowane na grupy organizacji.
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

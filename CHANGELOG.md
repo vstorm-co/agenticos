@@ -28,7 +28,8 @@ Two things are versioned separately from this file and worth knowing about:
   message in place, with text the guardrails have already screened.
   Approvals and questions are buttons, or selects for more than 25 options.
   `/link`, `/unlink`, `/agents`, `/new` and `/help` work as on the other
-  platforms. Register one under **Channels → Add channel** with the bot token
+  platforms. A thread the bot is brought into partway is read for its earlier
+  messages and files before it answers, and `read_channel_history` works there. Register one under **Channels → Add channel** with the bot token
   and the Message Content Intent switched on. A public bot, one anyone can add
   to their own server, is refused until **Public Bot** is switched off; its
   commands are offered only in servers it was added to. A Discord bot takes no

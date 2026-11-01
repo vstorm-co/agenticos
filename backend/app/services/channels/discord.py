@@ -31,6 +31,7 @@ import json
 import logging
 import random
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -39,6 +40,7 @@ import logfire
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
+from app.agents.capabilities.channel_tools import ChannelPost
 from app.core.background import spawn
 from app.services.channels import connection_state
 from app.services.channels.base import (
@@ -582,6 +584,81 @@ class DiscordAdapter(ChannelAdapter):
             overwrites=channel.get("permission_overwrites") or [],
         )
 
+    async def _messages(self, bot_token: str, channel_id: str, limit: int) -> list[dict[str, Any]]:
+        """The last `limit` messages of one channel or thread, oldest first, without system ones.
+
+        Discord answers newest first and 100 at most. A system message - somebody
+        joined, a thread was renamed, a pin was added - is not what was said, so
+        only a plain message (0) and a reply (19) are kept.
+        """
+        response = await self._call(
+            "GET", f"/channels/{channel_id}/messages?limit={min(max(limit, 1), 100)}", bot_token
+        )
+        response.raise_for_status()
+        return [
+            message
+            for message in reversed(response.json())
+            if message.get("type") in _SPOKEN_MESSAGE_TYPES
+        ]
+
+    async def channel_history(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
+    ) -> list[ChannelPost]:
+        """The recent transcript, newest last: the thread when the agent is in one.
+
+        A Discord thread is a channel of its own, so reading it is the same call as
+        reading the channel it hangs from - with the thread's id. Asked for the
+        parent while answering in a thread, "summarise what we decided above"
+        summarised the rest of the room.
+        """
+        return [
+            ChannelPost(
+                author=str(
+                    (message.get("author") or {}).get("global_name")
+                    or (message.get("author") or {}).get("username")
+                    or "unknown"
+                ),
+                text=str(message.get("content") or ""),
+                posted_at=_posted_at(message.get("timestamp")),
+                post_id=str(message["id"]),
+                author_id=(
+                    str((message.get("author") or {}).get("id"))
+                    if (message.get("author") or {}).get("id")
+                    else None
+                ),
+            )
+            for message in await self._messages(bot_token, thread_id or channel_id, limit)
+        ]
+
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """The files on a thread's earlier messages, oldest first, as handles.
+
+        What a bot posted itself - a chart it drew, a file it returned - is left
+        out, so the agent is not handed its own output to answer about. The URLs
+        are the signed ones Discord just returned, which `download_attachment`
+        fetches like those of a live message.
+        """
+        found: list[IncomingAttachment] = []
+        for message in await self._messages(bot_token, thread_id, limit):
+            if (message.get("author") or {}).get("bot"):
+                continue
+            found.extend(_attachments(message))
+        return found
+
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Open the bot's Gateway connection."""
         existing = self._socket_tasks.get(bot_id)
@@ -1094,6 +1171,20 @@ class DiscordAdapter(ChannelAdapter):
     ) -> bool:
         """No webhook route accepts Discord traffic, so nothing verifies as Discord's."""
         return False
+
+
+_SPOKEN_MESSAGE_TYPES = frozenset({0, 19})
+"""Discord's `DEFAULT` and `REPLY` message types: what a person wrote, as opposed to a notice."""
+
+
+def _posted_at(timestamp: object) -> datetime | None:
+    """When Discord says a message was posted, or `None` where it did not say."""
+    if not isinstance(timestamp, str):
+        return None
+    try:
+        return datetime.fromisoformat(timestamp)
+    except ValueError:
+        return None
 
 
 def _attachments(message: dict[str, Any]) -> list[IncomingAttachment]:

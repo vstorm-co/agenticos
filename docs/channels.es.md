@@ -1,5 +1,5 @@
 ---
-source_sha: "2da70849bc40"
+source_sha: "3fa7145d9337"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1595,10 +1595,17 @@ canal en Discord. Un hilo privado es solo por invitación, así que es una sala
 propia: una conversación de él se muestra solo a quienes siguen en ese hilo, y
 las notas que el agent guarda allí no se comparten con el canal.
 
+**Un hilo al que el bot se incorpora a mitad se lee primero.** Los últimos
+mensajes del hilo, con quién los escribió y cuándo, y los archivos que la gente
+publicó allí llegan al agente antes de que responda, como en Slack y Mattermost;
+los archivos que publicó el propio bot se dejan fuera. Hace falta **Read Message
+History**, y `read_channel_history` lee un hilo o un canal igual donde la
+vinculación lo permite.
+
 Todavía no: una conexión sirve a un bot en como mucho 2500 servidores, por encima
 de los cuales Discord exige sharding y el bot se detiene con ese motivo. Las
-herramientas de directorio no se ofrecen en Discord, y los roles de un servidor no
-se asignan a grupos de la organización.
+herramientas de miembros del canal, detalles y búsqueda de canales no se ofrecen en
+Discord, y los roles de un servidor no se asignan a grupos de la organización.
 
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

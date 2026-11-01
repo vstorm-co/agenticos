@@ -1394,3 +1394,126 @@ def test_an_error_code_is_read_from_discord_s_body():
     assert discord._error_code(httpx.Response(400, json={"code": 160004})) == 160004
     assert discord._error_code(httpx.Response(400, text="nope")) is None
     assert discord._error_code(httpx.Response(400, json={"code": "x"})) is None
+
+
+class TestWhatWasSaidBeforeTheBot:
+    """The transcript and the files of a thread the bot was brought into partway."""
+
+    def _history(self, api: _Discord, path: str) -> None:
+        api.answer(
+            "GET",
+            path,
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "3",
+                        "type": 0,
+                        "content": "and then?",
+                        "timestamp": "2026-11-01T10:02:00+00:00",
+                        "author": {"id": USER, "username": "ada", "global_name": "Ada"},
+                    },
+                    {
+                        "id": "2",
+                        "type": 7,
+                        "content": "",
+                        "timestamp": "2026-11-01T10:01:00+00:00",
+                        "author": {"id": "7", "username": "grace"},
+                    },
+                    {
+                        "id": "1",
+                        "type": 19,
+                        "content": "the refund window is 30 days",
+                        "timestamp": "2026-11-01T10:00:00+00:00",
+                        "author": {"id": "8", "username": "grace"},
+                        "attachments": [
+                            {
+                                "filename": "policy.pdf",
+                                "size": 12,
+                                "content_type": "application/pdf",
+                                "url": "https://cdn.discordapp.com/attachments/1/2/policy.pdf",
+                            }
+                        ],
+                    },
+                ],
+            ),
+        )
+
+    async def test_a_thread_is_read_by_its_own_id_oldest_first_without_system_messages(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        self._history(api, f"/channels/{THREAD}/messages")
+
+        posts = await adapter.channel_history(
+            "tok", CHANNEL, api_base_url=None, limit=20, thread_id=THREAD
+        )
+
+        assert [(post.author, post.text, post.post_id) for post in posts] == [
+            ("grace", "the refund window is 30 days", "1"),
+            ("Ada", "and then?", "3"),
+        ]
+        assert posts[0].posted_at is not None and posts[0].posted_at.year == 2026
+        assert posts[1].author_id == USER
+        assert [path for _, path, _ in api.calls] == [f"/channels/{THREAD}/messages"]
+
+    async def test_without_a_thread_the_channel_is_read(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        self._history(api, f"/channels/{CHANNEL}/messages")
+
+        posts = await adapter.channel_history("tok", CHANNEL, api_base_url=None, limit=500)
+
+        assert len(posts) == 2
+        assert api.calls[0][1] == f"/channels/{CHANNEL}/messages"
+
+    async def test_files_are_those_people_posted_not_the_bots_own(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        self._history(api, f"/channels/{THREAD}/messages")
+
+        handles = await adapter.thread_attachments(
+            "tok", CHANNEL, thread_id=THREAD, api_base_url=None, limit=20
+        )
+
+        assert [item.filename for item in handles] == ["policy.pdf"]
+
+    async def test_a_bots_upload_is_not_fed_back_to_it(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET",
+            f"/channels/{THREAD}/messages",
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": "9",
+                        "type": 0,
+                        "content": "here is the chart",
+                        "author": {"id": OWN, "username": "bot", "bot": True},
+                        "attachments": [
+                            {
+                                "filename": "chart.png",
+                                "size": 5,
+                                "content_type": "image/png",
+                                "url": "https://cdn.discordapp.com/attachments/1/2/chart.png",
+                            }
+                        ],
+                    }
+                ],
+            ),
+        )
+
+        assert not await adapter.thread_attachments(
+            "tok", CHANNEL, thread_id=THREAD, api_base_url=None, limit=20
+        )
+
+    async def test_a_channel_the_bot_cannot_read_raises_for_the_router_to_report(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", f"/channels/{THREAD}/messages", httpx.Response(403, json={}))
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.channel_history(
+                "tok", CHANNEL, api_base_url=None, limit=5, thread_id=THREAD
+            )

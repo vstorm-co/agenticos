@@ -1520,9 +1520,16 @@ private thread is invite-only, so it is a room of its own: a conversation from
 it is shown only to those still in that thread, and the notes the agent keeps
 there are not shared with the channel.
 
+**A thread the bot is brought into partway is read first.** The last messages in
+it, with who wrote them and when, and the files people posted there, reach the
+agent before it answers, as on Slack and Mattermost; files the bot posted itself
+are left out. It needs **Read Message History**, and `read_channel_history` reads
+a thread or a channel the same way where the binding allows it.
+
 Not yet: one connection serves a bot in at most 2,500 servers, past which Discord
-asks for sharding and the bot stops with that reason. The directory tools are not
-offered on Discord, and a server's roles are not mapped to organization groups.
+asks for sharding and the bot stops with that reason. The channel members, details
+and search tools are not offered on Discord, and a server's roles are not mapped
+to organization groups.
 
 ## A bot that cannot start stops, rather than retrying
 
