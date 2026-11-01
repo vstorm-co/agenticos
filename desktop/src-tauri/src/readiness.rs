@@ -64,6 +64,12 @@ pub async fn desktop_readiness(app: AppHandle) -> Result<Readiness, String> {
     })
 }
 
+/// Whether the microphone is already allowed; never prompts.
+#[cfg(target_os = "macos")]
+pub(crate) fn microphone_granted() -> bool {
+    mac::microphone() == PermissionState::Granted
+}
+
 #[tauri::command]
 pub async fn desktop_request_permission(app: AppHandle, permission: Permission) -> Result<(), String> {
     #[cfg(target_os = "macos")]

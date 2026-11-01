@@ -11,6 +11,8 @@
 <dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>AgenticOS listens when you dictate a message or call an agent.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>AgenticOS asks Finder for the files you selected when you send them to Quick Ask.</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>

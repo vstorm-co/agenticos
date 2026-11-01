@@ -112,12 +112,35 @@ jobs:
           for name in "${names[@]}"; do
             printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "${!name}" "$delimiter" >> "$GITHUB_ENV"
           done
-      - name: Announce ad-hoc macOS distribution
+      - name: Sign macOS with the stable self-signed certificate
         if: runner.os == 'macOS' && vars.AGENTICOS_MACOS_SIGNING_ENABLED != 'true'
         shell: bash
+        env:
+          SIGNING_P12: ${{ secrets.MACOS_SELF_SIGNED_P12 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SELF_SIGNED_P12_PASSWORD }}
+          SIGNING_IDENTITY: ${{ vars.MACOS_SELF_SIGNED_IDENTITY }}
         run: |
-          echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
-          echo "::warning::macOS packages use ad-hoc signing without Apple notarization. First launch requires System Settings > Privacy & Security > Open Anyway. Updater signatures remain required."
+          set -euo pipefail
+          if [ -z "$SIGNING_P12" ]; then
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::macOS packages use ad-hoc signing: macOS asks again for Screen Recording and Microphone after every update. Create the stable certificate with scripts/create_macos_signing_cert.sh. Neither mode is notarized, so first launch needs Privacy & Security > Open Anyway."
+            exit 0
+          fi
+          test -n "$SIGNING_IDENTITY"
+          # One identity for every release keeps macOS's privacy grants, which
+          # are bound to the signing identity, across updates.
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(uuidgen)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "::notice::macOS packages are signed with the self-signed '$SIGNING_IDENTITY' certificate, without Apple notarization."
       - name: Import Windows signing certificate
         if: runner.os == 'Windows'
         shell: pwsh
