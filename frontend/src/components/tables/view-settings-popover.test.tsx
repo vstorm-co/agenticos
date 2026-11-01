@@ -99,4 +99,38 @@ describe("view settings", () => {
       ...columns.filter((c) => c.id !== "notes").map(viewColumnKey),
     ]);
   });
+  it("moves a field down with its button", async () => {
+    const { change, user } = await setup();
+    await user.click(screen.getByRole("button", { name: "Move Title down" }));
+    expect(change.mock.lastCall?.[0].column_order.slice(0, 2)).toEqual(["notes", "title"]);
+  });
+  it("marks the field a grip is held over, and clears it when the drag ends", () => {
+    render(<Harness change={vi.fn()} toggle={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "View settings" }));
+    const row = screen.getByRole("checkbox", { name: "Show Title" }).closest("[data-view-column]")!;
+    const idle = fireEvent.dragOver(row);
+    expect(idle).toBe(true);
+    expect(row.className).not.toContain("border-ring");
+
+    fireEvent.dragStart(screen.getByRole("button", { name: "Drag Notes" }), {
+      dataTransfer: { setData: vi.fn() },
+    });
+    const held = fireEvent.dragOver(row);
+    expect(held).toBe(false);
+    expect(row.className).toContain("border-ring");
+
+    fireEvent.dragEnd(row);
+    expect(row.className).not.toContain("border-ring");
+  });
+  it("leaves the order alone when a field is dropped onto its own place", () => {
+    const change = vi.fn();
+    render(<Harness change={change} toggle={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "View settings" }));
+    const row = screen.getByRole("checkbox", { name: "Show Title" }).closest("[data-view-column]")!;
+    fireEvent.dragStart(screen.getByRole("button", { name: "Drag Title" }), {
+      dataTransfer: { setData: vi.fn() },
+    });
+    fireEvent.drop(row);
+    expect(change).not.toHaveBeenCalled();
+  });
 });

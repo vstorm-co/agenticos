@@ -392,6 +392,43 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(graph({ entry: "w", nodes: [node("w", "trigger.webhook")] })))).toEqual([]);
   });
 
+  it("with two starts, reports a problem both share once and a global one beside it", () => {
+    const g = graph({
+      entry: "w",
+      nodes: [
+        node("w", "trigger.webhook"),
+        node("s", "trigger.schedule"),
+        node("c", "test.consumer"),
+        echo("island"),
+      ],
+      edges: [edge("e1", "w", "out", "c", "in"), edge("e2", "s", "out", "c", "in")],
+    });
+    const problems = run(g);
+    const codes = codesOf(problems);
+
+    expect(codes).toContain("unreachable-node");
+    expect(new Set(problems.map((problem) => JSON.stringify(problem))).size).toBe(problems.length);
+  });
+
+  it("rule 1 — a second trigger of a kind that cannot share a workflow is refused", () => {
+    const g = graph({
+      entry: "w1",
+      nodes: [node("w1", "trigger.webhook"), node("w2", "trigger.webhook")],
+    });
+
+    expect(codesOf(run(g))).toContain("trigger-not-entry");
+  });
+
+  it("rule 1 — a trigger that a step feeds is refused as an edge target", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [echo("a"), node("w", "trigger.webhook")],
+      edges: [edge("e1", "a", "out", "w", "in")],
+    });
+
+    expect(codesOf(run(g))).toContain("entry-is-edge-target");
+  });
+
   it("rule 2 — a second unreachable source node", () => {
     const g = graph({ entry: "entry", nodes: [echo("entry"), echo("island")] });
     expect(codesOf(run(g))).toEqual(["unreachable-node"]);
@@ -1049,6 +1086,20 @@ describe("binding-picker helpers", () => {
 
   it("computePrecede reports what must have run before a node", () => {
     expect(computePrecede(linear, CATALOG).get("c")).toEqual(new Set(["a", "b", "c"]));
+  });
+
+  it("computePrecede keeps only what runs before a step from every start", () => {
+    const twoStarts = graph({
+      entry: "w",
+      nodes: [node("w", "trigger.webhook"), node("s", "trigger.schedule"), echo("a")],
+      edges: [edge("e1", "w", "out", "a", "in"), edge("e2", "s", "out", "a", "in")],
+    });
+
+    const precede = computePrecede(twoStarts, CATALOG);
+
+    expect(precede.get("a")).toEqual(new Set(["a"]));
+    expect(precede.get("w")).toEqual(new Set(["w"]));
+    expect(precede.get("s")).toEqual(new Set(["s"]));
   });
 
   it("availableSourceNodes is what precedes the node, minus the node itself", () => {

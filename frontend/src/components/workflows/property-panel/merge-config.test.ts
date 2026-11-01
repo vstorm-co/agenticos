@@ -14,6 +14,7 @@ import type { NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 
 import {
   carryBranchKey,
+  carryPortRenameToMerges,
   fittingMergeConfig,
   fittingMergeConfigs,
   mergeBranches,
@@ -286,5 +287,115 @@ describe("carryBranchKey", () => {
   it("leaves a config with no list of names as it is", () => {
     const config = { wait_for: "all" };
     expect(carryBranchKey(config, from, to)).toBe(config);
+  });
+});
+
+describe("carryPortRenameToMerges", () => {
+  const RENAME = { from: "out", to: "result" };
+  /** `A` feeds merge `J` from the port the rename has already made `result`. */
+  const renamed = (config: Record<string, unknown>, extra: [string, string, string][] = []) =>
+    build(
+      [echo("A"), echo("B"), node("J", "logic.merge", config)],
+      [["A", "result", "J"], ...extra].map(
+        ([source, from, target]) => [source, from, target] as [string, string, string],
+      ),
+    );
+  const stored = (key: string, sourcePort = "out") => ({
+    branch_keys: [{ source_node_id: "A", source_port: sourcePort, key }],
+  });
+  const mergeConfig = (g: WorkflowGraph) => g.nodes.find((n) => n.id === "J")?.config;
+
+  it("moves a default-named branch and what reads it to the new port name", () => {
+    const g = renamed(stored("out"));
+    const withBinding: WorkflowGraph = {
+      ...g,
+      bindings: [
+        {
+          target_node_id: "B",
+          target_field: "message",
+          source: {
+            kind: "node_output",
+            node_id: "J",
+            port: "out",
+            field_path: ["branches", "out"],
+          },
+        },
+      ],
+    };
+
+    const carried = carryPortRenameToMerges(withBinding, "A", RENAME);
+
+    expect(mergeConfig(carried)).toEqual({
+      branch_keys: [{ source_node_id: "A", source_port: "result", key: "result" }],
+    });
+    expect(carried.bindings[0]?.source).toMatchObject({ field_path: ["branches", "result"] });
+  });
+
+  it("keeps a name the author chose while the wire follows the port", () => {
+    const carried = carryPortRenameToMerges(renamed(stored("late")), "A", RENAME);
+
+    expect(mergeConfig(carried)).toEqual({
+      branch_keys: [{ source_node_id: "A", source_port: "result", key: "late" }],
+    });
+  });
+
+  it("leaves a default name alone when another branch already goes by the new one", () => {
+    const g = renamed({
+      branch_keys: [
+        { source_node_id: "A", source_port: "out", key: "out" },
+        { source_node_id: "B", source_port: "out", key: "result" },
+      ],
+    });
+
+    const carried = carryPortRenameToMerges(g, "A", RENAME);
+
+    expect(mergeConfig(carried)).toEqual({
+      branch_keys: [
+        { source_node_id: "A", source_port: "result", key: "out" },
+        { source_node_id: "B", source_port: "out", key: "result" },
+      ],
+    });
+  });
+
+  it("carries a branch no key was stored for, and refuses when a name is taken", () => {
+    const readsOut: WorkflowGraph = {
+      ...renamed({}),
+      bindings: [
+        {
+          target_node_id: "B",
+          target_field: "message",
+          source: {
+            kind: "node_output",
+            node_id: "J",
+            port: "out",
+            field_path: ["branches", "out"],
+          },
+        },
+      ],
+    };
+    expect(carryPortRenameToMerges(readsOut, "A", RENAME).bindings[0]?.source).toMatchObject({
+      field_path: ["branches", "result"],
+    });
+
+    const clash = renamed({}, [["B", "out", "J"]]);
+    expect(
+      carryPortRenameToMerges({ ...clash, bindings: readsOut.bindings }, "A", RENAME).bindings[0]
+        ?.source,
+    ).toMatchObject({ field_path: ["branches", "out"] });
+
+    const keyed = renamed({
+      branch_keys: [{ source_node_id: "B", source_port: "out", key: "out" }],
+    });
+    const keyedGraph = { ...keyed, bindings: readsOut.bindings };
+    expect(carryPortRenameToMerges(keyedGraph, "A", RENAME).bindings[0]?.source).toMatchObject({
+      field_path: ["branches", "out"],
+    });
+  });
+
+  it("passes over a step that is not a merge, and a merge the step does not feed", () => {
+    const g = renamed({});
+    const untouched = carryPortRenameToMerges(g, "B", RENAME);
+
+    expect(untouched.nodes).toEqual(g.nodes);
   });
 });

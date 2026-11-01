@@ -155,6 +155,37 @@ describe("useCanvasShortcuts", () => {
     expect(store.getState().graph?.nodes).toHaveLength(1);
   });
 
+  it("selects the visible connections along with the steps on Select all", () => {
+    store.getState().seedGraph({
+      ...seeded(),
+      nodes: [nodeAt("a"), nodeAt("b")],
+      edges: [
+        {
+          id: "link",
+          source_node_id: "a",
+          source_port: "out",
+          target_node_id: "b",
+          target_port: "in",
+        },
+      ],
+    });
+    const { handle } = handlerFor(false);
+
+    handle(keyEvent({ key: "a", ctrlKey: true }));
+
+    expect(store.getState().selection).toMatchObject({ nodeIds: ["a", "b"], edgeIds: ["link"] });
+  });
+
+  it("selects nothing on Select all before a graph is seeded", () => {
+    const { handle } = handlerFor(false);
+    const event = keyEvent({ key: "a", ctrlKey: true });
+
+    handle(event);
+
+    expect(store.getState().selection.nodeIds).toEqual([]);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
   it("selects visible objects and copies, pastes and undoes notes with steps", () => {
     store
       .getState()

@@ -13,8 +13,8 @@ import {
 } from "./use-app-connections";
 
 vi.mock("@/hooks/use-mcp-servers", () => ({
-  useMcpCatalog: () => ({ servers: [] }),
-  useMcpCatalogPage: () => ({ servers: [] }),
+  useMcpCatalog: () => ({ servers: state.curated }),
+  useMcpCatalogPage: () => ({ servers: state.registry }),
   useMcpServerEntry: (key: string | null) => ({
     entry: state.entry?.key === key ? state.entry : null,
   }),
@@ -28,6 +28,8 @@ const other = { id: "c2", name: "crm", label: null, catalog_key: "hubspot" };
 
 const state = vi.hoisted(() => ({
   entry: null as McpCatalogEntry | null,
+  curated: [] as McpCatalogEntry[],
+  registry: [] as McpCatalogEntry[],
   canManage: true,
   // `workflow.can_edit`, not a permission: a grant on one workflow is enough.
   canRead: true,
@@ -45,6 +47,8 @@ vi.mock("@/hooks", () => ({
 
 beforeEach(() => {
   state.entry = null;
+  state.curated = [];
+  state.registry = [];
   state.canManage = true;
   state.canRead = true;
   state.loaded = true;
@@ -90,6 +94,47 @@ describe("useAppConnections", () => {
       canConnect: true,
       unavailable: true,
     });
+  });
+});
+
+function server(key: string, name: string): McpCatalogEntry {
+  return {
+    key,
+    name,
+    description: "",
+    category: "productivity",
+    auth: "oauth",
+    url: `https://${key}.example.com`,
+    icon: key,
+    docs_url: null,
+    token_hint: null,
+  };
+}
+
+describe("the server list", () => {
+  it("adds the registry's matches to the curated list once a search is open, one per key", () => {
+    state.curated = [server("hubspot", "CRM"), server("linear", "Linear")];
+    state.registry = [server("hubspot", "CRM again"), server("zendesk", "Support")];
+
+    const closed = renderHook(() => useAppConnections());
+    const searching = renderHook(() => useAppConnections("sup"));
+
+    expect(closed.result.current.servers.map((entry) => entry.key)).toEqual(["hubspot", "linear"]);
+    expect(searching.result.current.servers.map((entry) => entry.key)).toEqual([
+      "hubspot",
+      "linear",
+      "zendesk",
+    ]);
+    expect(searching.result.current.servers[0]?.name).toBe("CRM again");
+  });
+
+  it("takes a connected app's logo and address from the catalog it is listed in", () => {
+    state.curated = [server("hubspot", "CRM")];
+
+    const { result } = renderHook(() => useMcpAppStep({ connection_id: "c2", tool: "find" }));
+
+    expect(result.current?.app.icon).toBe("hubspot");
+    expect(result.current?.app.url).toBe("https://hubspot.example.com");
   });
 });
 

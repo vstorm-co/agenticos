@@ -142,3 +142,188 @@ describe("pointer dragging", () => {
     expect(result.current.position).toBeNull();
   });
 });
+
+describe("useKanbanDrag with a pointer", () => {
+  function pointerDown(clientX = 100, clientY = 100) {
+    return {
+      button: 0,
+      pointerId: 1,
+      clientX,
+      clientY,
+      target: document.body,
+    } as unknown as React.PointerEvent<HTMLDivElement>;
+  }
+
+  function pointerMove(board: HTMLElement, clientX: number, clientY = 100) {
+    const card = document.createElement("div");
+    board.append(card);
+    return {
+      pointerId: 1,
+      clientX,
+      clientY,
+      currentTarget: card,
+      preventDefault: vi.fn(),
+    } as unknown as React.PointerEvent<HTMLDivElement>;
+  }
+
+  function boardAt(left: number, right: number) {
+    const board = document.createElement("div");
+    board.dataset.kanbanBoard = "";
+    board.getBoundingClientRect = () => ({ left, right }) as DOMRect;
+    document.body.append(board);
+    return board;
+  }
+
+  it("lets Escape cancel a drag in progress without dropping", () => {
+    const onDrop = vi.fn();
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(onDrop));
+    const board = boardAt(0, 1000);
+    const item = { id: "r1" };
+
+    act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+    act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 400)));
+    expect(result.current.draggingItem).toBe(item);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    });
+    expect(result.current.draggingItem).toBe(item);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(result.current.draggingItem).toBeNull();
+    expect(onDrop).not.toHaveBeenCalled();
+    board.remove();
+  });
+
+  it("scrolls the board while a card is held near either edge", () => {
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(vi.fn()));
+    const board = boardAt(0, 1000);
+    board.scrollLeft = 100;
+    const item = { id: "r1" };
+    act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+
+    act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 980)));
+    expect(board.scrollLeft).toBe(118);
+
+    act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 20)));
+    expect(board.scrollLeft).toBe(100);
+
+    act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 500)));
+    expect(board.scrollLeft).toBe(100);
+    board.remove();
+  });
+
+  it("swallows the click that ends a drag, and only that one", () => {
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(vi.fn()));
+    const board = boardAt(0, 1000);
+    const item = { id: "r1" };
+    act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+    act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 400)));
+
+    const first = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    result.current.cardProps(item).onClickCapture(first as unknown as React.MouseEvent);
+    expect(first.preventDefault).toHaveBeenCalled();
+    expect(first.stopPropagation).toHaveBeenCalled();
+
+    const second = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    result.current.cardProps(item).onClickCapture(second as unknown as React.MouseEvent);
+    expect(second.preventDefault).not.toHaveBeenCalled();
+    board.remove();
+  });
+
+  it("ignores a press on a card's own actions or with another button", () => {
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(vi.fn()));
+    const board = boardAt(0, 1000);
+    const item = { id: "r1" };
+    const actions = document.createElement("button");
+    actions.dataset.kanbanActions = "";
+    document.body.append(actions);
+
+    act(() =>
+      result.current.cardProps(item).onPointerDown({
+        ...pointerDown(),
+        target: actions,
+      } as unknown as React.PointerEvent<HTMLDivElement>),
+    );
+    act(() =>
+      result.current.cardProps(item).onPointerDown({
+        ...pointerDown(),
+        button: 2,
+      } as unknown as React.PointerEvent<HTMLDivElement>),
+    );
+    act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 400)));
+
+    expect(result.current.draggingItem).toBeNull();
+    actions.remove();
+    board.remove();
+  });
+
+  it("refuses a native drag while a pointer drag owns the card", () => {
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(vi.fn()));
+    const item = { id: "r1" };
+    act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+
+    const event = { preventDefault: vi.fn() };
+    result.current.cardProps(item).onDragStart(event as unknown as React.DragEvent);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it("drops on the lane under the pointer, and the unassigned lane drops as null", () => {
+    const onDrop = vi.fn();
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(onDrop));
+    const board = boardAt(0, 1000);
+    const lane = document.createElement("div");
+    lane.dataset.kanbanLane = "lane-a";
+    lane.dataset.kanbanAccepts = "true";
+    const original = document.elementFromPoint;
+    document.elementFromPoint = () => lane;
+    const item = { id: "r1" };
+    try {
+      act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+      act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 400)));
+      act(() =>
+        result.current.cardProps(item).onPointerUp({
+          pointerId: 1,
+          clientX: 400,
+          clientY: 100,
+        } as unknown as React.PointerEvent<HTMLDivElement>),
+      );
+      expect(onDrop).toHaveBeenLastCalledWith(item, "lane-a");
+
+      lane.dataset.kanbanLane = "__none__";
+      act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+      act(() => result.current.cardProps(item).onPointerMove(pointerMove(board, 400)));
+      act(() =>
+        result.current.cardProps(item).onPointerUp({
+          pointerId: 1,
+          clientX: 400,
+          clientY: 100,
+        } as unknown as React.PointerEvent<HTMLDivElement>),
+      );
+      expect(onDrop).toHaveBeenLastCalledWith(item, null);
+    } finally {
+      document.elementFromPoint = original;
+      board.remove();
+    }
+  });
+
+  it("ignores a release from a pointer that is not the one dragging", () => {
+    const onDrop = vi.fn();
+    const { result } = renderHook(() => useKanbanDrag<{ id: string }>(onDrop));
+    const item = { id: "r1" };
+    act(() => result.current.cardProps(item).onPointerDown(pointerDown()));
+
+    act(() =>
+      result.current.cardProps(item).onPointerUp({
+        pointerId: 2,
+        clientX: 0,
+        clientY: 0,
+      } as unknown as React.PointerEvent<HTMLDivElement>),
+    );
+
+    expect(onDrop).not.toHaveBeenCalled();
+  });
+});

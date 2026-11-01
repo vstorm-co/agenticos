@@ -308,6 +308,38 @@ describe("SchemaEditorDialog", () => {
     expect(screen.getByDisplayValue("Closed")).toBeInTheDocument();
   });
 
+  it("keeps a multi-select default on a new option when the option is renamed", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <SchemaEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        table={table({ columns: [] })}
+        onSave={onSave}
+        isSaving={false}
+        error={null}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /add column/i }));
+    fireEvent.change(screen.getByLabelText("Column label"), { target: { value: "Tags" } });
+    await user.click(screen.getByRole("combobox", { name: "Column type" }));
+    await user.click(screen.getByRole("option", { name: "Multi select" }));
+    await user.click(screen.getByRole("button", { name: /add option/i }));
+    await user.type(screen.getByLabelText("Option label"), "Open");
+    await user.click(screen.getByRole("button", { name: "Default value" }));
+    await user.click(screen.getByRole("checkbox", { name: "Open" }));
+    await user.keyboard("{Escape}");
+    await user.type(screen.getByLabelText("Option label"), "ed");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave.mock.calls[0]?.[0][0]).toMatchObject({
+      label: "Tags",
+      options: [expect.objectContaining({ label: "Opened" })],
+    });
+    expect(onSave.mock.calls[0]?.[0][0].default).toEqual(["Opened"]);
+  });
+
   it("a newly added option can be removed, since it has no id yet to archive", async () => {
     const user = userEvent.setup();
     render(

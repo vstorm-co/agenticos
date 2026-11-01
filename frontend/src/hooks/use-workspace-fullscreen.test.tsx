@@ -52,3 +52,32 @@ it("lets an open menu consume Escape before leaving the workspace", async () => 
   fireEvent.keyDown(window, { key: "Escape" });
   expect(workspace).toHaveAttribute("data-expanded", "false");
 });
+
+it("stays expanded for any other key and for an Escape something else already handled", async () => {
+  function Example() {
+    const { ref, expanded, toggle } = useWorkspaceFullscreen();
+    return (
+      <div ref={ref} data-expanded={expanded}>
+        <button onClick={toggle}>Expand</button>
+      </div>
+    );
+  }
+  const claim = (event: KeyboardEvent) => event.preventDefault();
+  window.addEventListener("keydown", claim);
+  render(<Example />);
+  await userEvent.click(screen.getByRole("button", { name: "Expand" }));
+  const shell = screen.getByRole("button", { name: "Expand" }).parentElement;
+
+  fireEvent.keyDown(window, { key: "Enter" });
+  expect(shell).toHaveAttribute("data-expanded", "true");
+
+  try {
+    fireEvent.keyDown(window, { key: "Escape", cancelable: true });
+    expect(shell).toHaveAttribute("data-expanded", "true");
+  } finally {
+    window.removeEventListener("keydown", claim);
+  }
+
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(shell).toHaveAttribute("data-expanded", "false");
+});

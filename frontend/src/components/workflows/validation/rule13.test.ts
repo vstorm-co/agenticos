@@ -122,6 +122,17 @@ describe("a quick log's outputs", () => {
   });
 });
 
+describe("a quick log on a step the catalog does not know", () => {
+  it("judges no output against a definition it cannot read", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [{ ...node("a", "gone.step"), quick_log: { message: "m", outputs: ["out"] } }],
+    });
+
+    expect(quickLogProblems(g, resolveDefinitions(g, catalog))).toEqual([]);
+  });
+});
+
 describe("what a quick log may not say", () => {
   const LOOP_ITEM = makeDefinition({ id: "loop.item", kind: "control" });
   const loopCatalog = makeCatalog([DEBUG_ECHO, LOOP_ITEM]);
