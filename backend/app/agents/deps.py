@@ -81,6 +81,20 @@ class AgentDeps:
     # it missing has no personal reach rather than a default one.
     audience: RunAudience | None = None
 
+    # The member who answers for what this run does, derived server-side by
+    # `app.agents.audience.run_person_for`: `None` when an outsider supplied the
+    # input or a publisher stands in for a visitor nobody can name. A tool whose
+    # action needs a person refuses when this is `None`, so the default fails
+    # closed - a deps built without it reaches nothing that needs one.
+    run_person: UUID | None = None
+
+    # Whether the run was started under an administrator's impersonation of
+    # `run_person`. Carried on the run because the request that knew is gone by
+    # the time a spawned task, a worker or a resumed approval acts: a tool that
+    # may not do something while impersonating reads it here, not the ambient
+    # request state.
+    impersonated: bool = False
+
     # Collection names this agent may search, resolved from its bindings.
     kb_collection_names: list[str] = field(default_factory=list)
 
@@ -158,11 +172,11 @@ class AgentDeps:
 
         What a delegate **inherits**, and why each is deliberate:
 
-        `organization_id` and `user_id` - a delegation is not a privilege
-        boundary. The publisher's `AGENTS_RUN` on every delegate was checked when
-        the parent was published; at run time a delegate acts for the same person,
-        in the same organization, exactly as a bound collection or MCP connection
-        does.
+        `organization_id`, `user_id` and `run_person` - a delegation is not a
+        privilege boundary. The publisher's `AGENTS_RUN` on every delegate was
+        checked when the parent was published; at run time a delegate acts for
+        the same person, in the same organization, exactly as a bound collection
+        or MCP connection does.
 
         `agent_id` and `run_id` - the *parent's*, unchanged, and this is the one
         that looks like a bug and is not. They key the workspace session, so
@@ -218,6 +232,8 @@ class AgentDeps:
             organization_id=self.organization_id,
             user_id=self.user_id,
             user_name=self.user_name,
+            run_person=self.run_person,
+            impersonated=self.impersonated,
             agent_id=self.agent_id,
             run_id=self.run_id,
             conversation_id=self.conversation_id,

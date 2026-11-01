@@ -1,0 +1,1482 @@
+"use client";
+
+import { useState } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
+import { CodeEditor } from "@/components/workflows/property-panel/code-editor";
+import { argKeysOf } from "@/components/workflows/property-panel/code-keys";
+import { CurlImport } from "@/components/workflows/property-panel/curl-import";
+import type { CodeLanguage } from "@/lib/workflows/code-editing";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { SchemaForm } from "@/components/agents/schema-form";
+import { MemberPicker } from "@/components/orgs/member-picker";
+import {
+  AgentVersionPicker,
+  ChannelBotPicker,
+  WorkflowPicker,
+  SandboxConnectionPicker,
+  CollectionPicker,
+  SecretPicker,
+  TableColumnPicker,
+  type AgentVersionRef,
+} from "@/components/workflows/pickers";
+import {
+  useKnowledgeBases,
+  useMembers,
+  useModelProviders,
+  useWorkflowTable,
+  usePermissions,
+} from "@/hooks";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { useOrgStore } from "@/stores";
+import { COMPUTED_TYPES, type ColumnDef } from "@/types/tables";
+import { cn } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
+import {
+  bindingFieldPath,
+  type Binding,
+  type NodeCatalog,
+  type NodeDefinition,
+  type NodeInstance,
+  type TableIORef,
+  type Uuid,
+  type WorkflowGraph,
+} from "@/lib/workflows/types";
+
+import {
+  CHAT_TRIGGER,
+  FIELD_TRIGGERS,
+  FORM_TRIGGER,
+  MANUAL_TRIGGER,
+  SCHEDULE_TRIGGER,
+  WEBHOOK_TRIGGER,
+  WORKFLOW_CALL_TRIGGER,
+} from "@/lib/workflows/triggers";
+
+import { BindingField } from "./binding-field";
+import { type ConditionRoot, ConditionField, useConditionFields } from "./condition-field";
+import { AgentSourceField } from "@/components/workflows/agent-step/agent-source-field";
+import {
+  McpConnectionPicker,
+  McpToolField,
+  useMcpToolSchema,
+} from "@/components/workflows/pickers/mcp-tool-picker";
+import { NotificationChannels } from "./notification-channels";
+import { FormPageForm } from "./form-page-form";
+import { HttpAuthField } from "./http-auth-field";
+import { InputFieldsForm } from "./input-fields-form";
+import { MergeForm } from "./merge-form";
+import { ACCOUNT_TRIGGERS, PortalAccount } from "./portal-account";
+import { ScheduleTriggerForm } from "./schedule-trigger-form";
+import {
+  applyRebase,
+  rebaseClear,
+  rebaseRemove,
+  rebaseSwap,
+  bindingFor,
+  literalValueOf,
+} from "./bindings";
+import {
+  classify,
+  defsOf,
+  isBindable,
+  isRecord,
+  labelOf,
+  ownTitle,
+  objectFields,
+  resourceKind,
+  secretKind,
+  channelPlatforms,
+  singleFieldSchema,
+  type Defs,
+  type ResourceKind,
+  repeatsLabel,
+  type Schema,
+  type UnionShape,
+  unwrapOptional,
+} from "./schema-model";
+
+/**
+ * What a trigger with nothing to configure says instead of "no settings": how a
+ * run begins through it, and what it hands the steps after it.
+ */
+const TRIGGER_HINTS: Record<string, string> = {
+  [CHAT_TRIGGER]: "triggerHintChat",
+  [WEBHOOK_TRIGGER]: "triggerHintWebhook",
+};
+
+/** `agent.run`'s answer-shape override, edited as the Builder edits an agent's own. */
+const AGENT_RUN = "agent.run";
+const HTTP_REQUEST = "http.request";
+const STRUCTURED_OUTPUT = "structured_output_schema";
+/**
+ * The fields that hold an answer's JSON Schema, edited as the Builder edits an
+ * agent's answer format: the step, the field, and what no schema means there -
+ * the agent's own format, prose, or (for extraction) not a choice at all.
+ */
+const ANSWER_SHAPES: Record<string, { field: string; mode: "keepsOwn" | "text" | "fieldsOnly" }> = {
+  [AGENT_RUN]: { field: STRUCTURED_OUTPUT, mode: "keepsOwn" },
+  "ai.prompt": { field: STRUCTURED_OUTPUT, mode: "text" },
+  "ai.extract": { field: "output_schema", mode: "fieldsOnly" },
+};
+/** `agent.run`'s agent: `agent` (a catalog pin) or `inline` (configured here), one field. */
+const AGENT_SOURCE = "agent";
+const AGENT_INLINE = "inline";
+/** `mcp.call`'s server and tool: one field, since the tool is one the server offers. */
+const MCP_CALL = "mcp.call";
+const MERGE = "logic.merge";
+const MCP_SERVER = "connection_id";
+const MCP_TOOL = "tool";
+const MCP_ARGUMENTS = "arguments";
+
+/** Optional in the API does not mean secondary in a person's task. */
+const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
+  "http.request": ["method", "auth", "headers"],
+  "http.upload": ["method", "auth", "headers"],
+  "http.download": ["auth", "headers"],
+  "file.write": ["format", "filename"],
+  "file.read": ["parse_as"],
+  "convert.text_to_file": ["filename"],
+  "html.parse": ["selector"],
+  "image.transform": ["crop", "resize", "rotate_degrees", "output_format", "quality"],
+  "webhook.respond": ["status_code"],
+  "flow.wait": ["seconds", "until_called"],
+  "data.combine": ["mode", "key"],
+  "text.compare": ["method"],
+  "transform.crypto": ["operation"],
+  "transform.date_time": ["operation", "amount", "unit", "format", "timezone"],
+  "transform.edit_fields": ["set", "remove"],
+  "error.handle": ["branches"],
+  "debug.echo": ["message"],
+  "notification.send": ["channels"],
+  "table.create": ["visibility"],
+  "table.record.query": ["filters", "sort"],
+  "table.record.exists": ["filters"],
+  "trigger.table_record": ["events", "filters"],
+  "trigger.github": ["events"],
+  "trigger.gmail": ["subject_contains", "sender_contains", "label"],
+  "trigger.outlook": ["folder", "mailbox", "subject_contains", "sender_contains"],
+};
+const PRIMARY_INPUT: Readonly<Record<string, readonly string[]>> = {
+  "http.request": ["body"],
+  "html.parse": ["html", "file"],
+  "debug.echo": ["message"],
+  "data.map": ["source"],
+  "logic.if": ["value"],
+  "logic.switch": ["value"],
+  "transform.crypto": ["text"],
+  "transform.date_time": ["value"],
+  "notification.send": ["message"],
+  "human.approval": ["details", "proposal"],
+  "table.record.get": ["record_id", "external_id"],
+};
+
+/** Everything a recursive field needs beyond its own schema, value and path. */
+interface FieldCtx {
+  node: NodeInstance;
+  graph: WorkflowGraph;
+  catalog: NodeCatalog;
+  bindings: readonly Binding[];
+  /** Field-scoped validation messages, keyed by `target_field` path. */
+  errors: ReadonlyMap<string, string>;
+  disabled?: boolean;
+  updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
+  upsertBinding: (binding: Binding) => void;
+  removeBinding: (targetNodeId: Uuid, targetField: string) => void;
+}
+
+/** A value as an object, or an empty object when it is not one. */
+function record(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+/** A value as an array, or an empty array when it is not one. */
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+/** A string value, or null. */
+function strOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+/** Set one key of an object immutably, dropping it when the value is `undefined`. */
+function setKey(
+  base: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): Record<string, unknown> {
+  const next = { ...base };
+  if (value === undefined) delete next[key];
+  else next[key] = value;
+  return next;
+}
+
+/** Replace one element of an array immutably. */
+function replaceAt<T>(items: readonly T[], index: number, value: T): T[] {
+  return items.map((item, i) => (i === index ? value : item));
+}
+
+interface FieldProps {
+  schema: Schema;
+  name: string;
+  required: boolean;
+  path: (string | number)[];
+  defs: Defs;
+  ctx: FieldCtx;
+}
+
+/** A labelled group wrapping a nested object's or a union's fields. */
+function Fieldset({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="border-border/60 space-y-3 rounded-lg border p-3">
+      <legend className="text-muted-foreground px-1 text-xs font-medium">{label}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+/** The ids a multi-select leaf holds, in order, ignoring anything that is not one. */
+function idList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
+}
+
+/** `ids` with `id` added at the end, or removed if it was there. */
+function toggled(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((one) => one !== id) : [...ids, id];
+}
+
+/** Knowledge collections a step searches, chosen on what is in them. */
+function CollectionPin({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const { kbs } = useKnowledgeBases();
+  const selected = idList(value);
+  return (
+    <CollectionPicker
+      collections={kbs}
+      selectedIds={selected}
+      onToggle={(id) => onChange(toggled(selected, id))}
+      disabled={disabled}
+    />
+  );
+}
+
+/** One of the organization's models, for a step that asks one directly. */
+function ModelProfilePin({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const { profiles, profilesStatus } = useModelProviders();
+  const { can } = usePermissions();
+  return (
+    <ModelProfilePicker
+      profiles={profiles}
+      profilesStatus={profilesStatus}
+      allowAdd={can(Perm.connectionsManage)}
+      value={strOrNull(value)}
+      onChange={(id) => onChange(id ?? undefined)}
+      disabled={disabled}
+    />
+  );
+}
+
+/** Members of the organization a step addresses, chosen by name, stored by id. */
+function MemberPin({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: unknown;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { members } = useMembers(activeOrgId ?? "");
+  const selected = idList(value);
+  return (
+    <MemberPicker
+      members={members}
+      selected={selected}
+      onToggle={(id) => onChange(toggled(selected, id))}
+      label={(count) => t("pickerMembersChosen", { count })}
+      scope={t("pickerMembersScope")}
+      disabled={disabled}
+    />
+  );
+}
+
+/** A static config leaf whose value is a pinned resource, edited through a picker. */
+function ResourcePin({
+  kind,
+  schema,
+  label,
+  value,
+  error,
+  disabled,
+  onChange,
+}: {
+  kind: ResourceKind;
+  schema: Schema;
+  /** The field's own title, for a picker that labels its control; its own label when none. */
+  label: string | undefined;
+  value: unknown;
+  error?: string;
+  disabled?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  if (kind === "agent") {
+    const ref = record(value);
+    const current: AgentVersionRef = {
+      agent_id: strOrNull(ref["agent_id"]),
+      version_id: strOrNull(ref["version_id"]),
+    };
+    return (
+      <AgentVersionPicker value={current} onChange={onChange} disabled={disabled} error={error} />
+    );
+  }
+  if (kind === "table") {
+    // `kind` and `column_ids` have server defaults ("table", and null for every
+    // column), so a ref authored through the API may leave both out; the table id
+    // is what names one.
+    const current =
+      isRecord(value) && typeof value["table_id"] === "string"
+        ? ({
+            ...value,
+            kind: "table",
+            column_ids: value["column_ids"] ?? null,
+          } as unknown as TableIORef)
+        : null;
+    return (
+      <TableColumnPicker
+        value={current}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+        storedOnly={schema["x-columns"] === "stored"}
+      />
+    );
+  }
+  if (kind === "channel_bot") {
+    return (
+      <ChannelBotPicker
+        label={label}
+        platform={channelPlatforms(schema)}
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "workflow") {
+    return (
+      <WorkflowPicker
+        label={label}
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "sandbox_connection") {
+    return (
+      <SandboxConnectionPicker
+        label={label}
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "mcp_connection") {
+    return (
+      <McpConnectionPicker
+        value={strOrNull(value)}
+        onChange={(next) => onChange(next ?? undefined)}
+        disabled={disabled}
+        error={error}
+      />
+    );
+  }
+  if (kind === "collection" || kind === "member" || kind === "model_profile") {
+    const Pin =
+      kind === "collection" ? CollectionPin : kind === "member" ? MemberPin : ModelProfilePin;
+    return (
+      <div className="space-y-1.5">
+        <Pin value={value} disabled={disabled} onChange={onChange} />
+        {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
+      </div>
+    );
+  }
+  return (
+    <SecretPicker
+      label={label}
+      value={strOrNull(value)}
+      onChange={(next) => onChange(next ?? undefined)}
+      kind={secretKind(schema)}
+      disabled={disabled}
+      error={error}
+    />
+  );
+}
+
+/** A config leaf: a resource pin, an `x-bindable` binding, or a plain literal control. */
+function ConfigLeaf({
+  schema,
+  name,
+  required,
+  path,
+  ctx,
+  value,
+  onChange,
+}: FieldProps & { value: unknown; onChange: (value: unknown) => void }) {
+  const field = bindingFieldPath(path);
+  const error = ctx.errors.get(field);
+  const label = labelOf(schema, name);
+  const resource = resourceKind(schema);
+
+  if (ctx.node.definition_id === "notification.send" && name === "channels") {
+    return <NotificationChannels value={value} disabled={ctx.disabled} onChange={onChange} />;
+  }
+
+  if (resource !== null) {
+    // Only the collection and member pins leave their label to the form: the
+    // other pickers label their own controls, the secret, bot and host ones
+    // with the field's name.
+    const labelled =
+      resource !== "collection" && resource !== "member" && resource !== "model_profile";
+    return (
+      <div className="space-y-1.5">
+        {!labelled && <Label>{label}</Label>}
+        <ResourcePin
+          kind={resource}
+          schema={schema}
+          label={ownTitle(schema, name)}
+          value={value}
+          error={error}
+          disabled={ctx.disabled}
+          onChange={onChange}
+        />
+      </div>
+    );
+  }
+
+  const condition = schema["x-condition"];
+  if (condition === "item" || condition === "value") {
+    return (
+      <ConfigCondition
+        root={condition}
+        schema={schema}
+        name={name}
+        required={required}
+        ctx={ctx}
+        value={value}
+        error={error}
+        onChange={onChange}
+      />
+    );
+  }
+
+  const code = schema["x-code"];
+  if (code === "python" || code === "javascript") {
+    return (
+      <ConfigCode
+        language={code}
+        schema={schema}
+        name={name}
+        path={path}
+        ctx={ctx}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (isBindable(schema)) {
+    return (
+      <BindingField
+        targetNodeId={ctx.node.id}
+        targetField={field}
+        name={name}
+        schema={schema}
+        required={required}
+        bindings={ctx.bindings}
+        graph={ctx.graph}
+        catalog={ctx.catalog}
+        error={error}
+        disabled={ctx.disabled}
+        onUpsert={ctx.upsertBinding}
+        onRemove={ctx.removeBinding}
+      />
+    );
+  }
+
+  return (
+    <SchemaForm
+      schema={singleFieldSchema(name, schema, required)}
+      value={value === undefined ? {} : { [name]: value }}
+      idPrefix={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
+      disabled={ctx.disabled}
+      errors={error === undefined ? undefined : { [name]: error }}
+      onChange={(next) => onChange(next[name])}
+    />
+  );
+}
+
+/** A condition: built from rows over what the step reads (`ConditionField`). */
+function ConfigCondition({
+  root,
+  schema,
+  name,
+  required,
+  ctx,
+  value,
+  error,
+  onChange,
+}: {
+  root: ConditionRoot;
+  schema: Schema;
+  name: string;
+  required: boolean;
+  ctx: FieldCtx;
+  value: unknown;
+  error: string | undefined;
+  onChange: (value: unknown) => void;
+}) {
+  const fields = useConditionFields(root, ctx.node.id, ctx.graph, ctx.catalog, ctx.bindings);
+  return (
+    <ConditionField
+      root={root}
+      label={labelOf(schema, name)}
+      required={required}
+      hint={typeof schema["description"] === "string" ? schema["description"] : undefined}
+      value={typeof value === "string" ? value : undefined}
+      error={error}
+      disabled={ctx.disabled}
+      fields={fields}
+      onChange={onChange}
+    />
+  );
+}
+
+/** A code field: the editor, its label and help, and the keys `args` will have. */
+function ConfigCode({
+  language,
+  schema,
+  name,
+  path,
+  ctx,
+  value,
+  onChange,
+}: {
+  language: CodeLanguage;
+  schema: Schema;
+  name: string;
+  path: (string | number)[];
+  ctx: FieldCtx;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const field = bindingFieldPath(path);
+  const id = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+  const error = ctx.errors.get(field);
+  const label = labelOf(schema, name);
+  const description = schema["description"];
+  // A description that only says the label again is its hover hint instead.
+  const hinted = typeof description === "string" && repeatsLabel(label, description);
+  const placeholder = schema["x-placeholder"];
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} title={hinted ? description : undefined}>
+        {label}
+      </Label>
+      <CodeEditor
+        id={id}
+        language={language}
+        label={label}
+        value={typeof value === "string" ? value : ""}
+        onChange={(next) => onChange(next === "" ? undefined : next)}
+        placeholder={typeof placeholder === "string" ? placeholder : undefined}
+        disabled={ctx.disabled}
+        argKeys={argKeysOf(ctx.graph, ctx.catalog, stepData, ctx.node.id)}
+      />
+      {typeof description === "string" && !hinted && (
+        <p className="text-muted-foreground text-xs">{description}</p>
+      )}
+      {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
+    </div>
+  );
+}
+
+/** A discriminated union: a discriminator `Select`, then the chosen branch's fields. */
+function ConfigUnion({
+  shape,
+  label,
+  path,
+  defs,
+  ctx,
+  value,
+  onChange,
+}: {
+  shape: UnionShape;
+  label: string;
+  path: (string | number)[];
+  defs: Defs;
+  ctx: FieldCtx;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const rec = record(value);
+  const current =
+    typeof rec[shape.discriminator] === "string" ? (rec[shape.discriminator] as string) : "";
+  const branch = shape.branches.find((candidate) => candidate.value === current);
+
+  const select = (next: string) => {
+    // Switching branch discards the old branch's fields *and* any bindings nested
+    // under this path — a stale shape is discarded wholesale, never merged.
+    applyRebase(
+      rebaseClear(ctx.bindings, ctx.node.id, path.map(String)),
+      ctx.node.id,
+      ctx.upsertBinding,
+      ctx.removeBinding,
+    );
+    onChange({ [shape.discriminator]: next });
+  };
+
+  return (
+    <Fieldset label={label}>
+      <Select value={current} onValueChange={select} disabled={ctx.disabled}>
+        <SelectTrigger aria-label={t("nodeFormUnionLabel", { field: label })}>
+          <SelectValue placeholder={t("nodeFormUnionPlaceholder")} />
+        </SelectTrigger>
+        <SelectContent>
+          {shape.branches.map((candidate) => (
+            <SelectItem key={candidate.value} value={candidate.value}>
+              {candidate.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {branch !== undefined &&
+        objectFields(branch.schema, defs).map((child) => (
+          <ConfigNode
+            key={child.name}
+            schema={child.schema}
+            name={child.name}
+            required={child.required}
+            path={[...path, child.name]}
+            defs={defs}
+            ctx={ctx}
+            value={rec[child.name]}
+            onChange={(next) => onChange(setKey(record(value), child.name, next))}
+          />
+        ))}
+    </Fieldset>
+  );
+}
+
+/** An array of objects: add / remove / reorder repeatable rows over the recursive renderer. */
+function ConfigArray({
+  shape,
+  label,
+  path,
+  defs,
+  ctx,
+  value,
+  onChange,
+}: {
+  shape: { items: Schema };
+  label: string;
+  path: (string | number)[];
+  defs: Defs;
+  ctx: FieldCtx;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const rows = asArray(value);
+  const prefix = path.map(String);
+  const fields = objectFields(shape.items, defs);
+
+  const add = () => onChange([...rows, {}]);
+
+  const remove = (index: number) => {
+    applyRebase(
+      rebaseRemove(ctx.bindings, ctx.node.id, prefix, index),
+      ctx.node.id,
+      ctx.upsertBinding,
+      ctx.removeBinding,
+    );
+    const next = rows.filter((_, i) => i !== index);
+    onChange(next.length === 0 ? undefined : next);
+  };
+
+  const move = (index: number, target: number) => {
+    applyRebase(
+      rebaseSwap(ctx.bindings, ctx.node.id, prefix, index, target),
+      ctx.node.id,
+      ctx.upsertBinding,
+      ctx.removeBinding,
+    );
+    const next = [...rows];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+
+  return (
+    <Fieldset label={label}>
+      {rows.map((row, index) => (
+        <div key={index} className="border-border/60 space-y-3 rounded-md border p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-xs">
+              {t("nodeFormRow", { index: index + 1 })}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("nodeFormMoveUp", { index: index + 1 })}
+                disabled={ctx.disabled || index === 0}
+                onClick={() => move(index, index - 1)}
+              >
+                <ArrowUp />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("nodeFormMoveDown", { index: index + 1 })}
+                disabled={ctx.disabled || index === rows.length - 1}
+                onClick={() => move(index, index + 1)}
+              >
+                <ArrowDown />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("nodeFormRemoveRow", { index: index + 1 })}
+                disabled={ctx.disabled}
+                onClick={() => remove(index)}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          </div>
+          {fields.map((child) => (
+            <ConfigNode
+              key={child.name}
+              schema={child.schema}
+              name={child.name}
+              required={child.required}
+              path={[...path, index, child.name]}
+              defs={defs}
+              ctx={ctx}
+              value={record(row)[child.name]}
+              onChange={(next) =>
+                onChange(replaceAt(rows, index, setKey(record(row), child.name, next)))
+              }
+            />
+          ))}
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" disabled={ctx.disabled} onClick={add}>
+        <Plus />
+        {t("nodeFormAddRow")}
+      </Button>
+    </Fieldset>
+  );
+}
+
+/**
+ * Names mapped to text - a request's or an answer's headers: a row per entry,
+ * its name and its value. The rows are kept here as typed, so renaming one does
+ * not move it; what is saved drops a row with no name yet, and nothing at all
+ * when no row is left.
+ */
+function ConfigMap({
+  label,
+  disabled,
+  value,
+  onChange,
+}: {
+  label: string;
+  disabled: boolean;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations("workflows");
+  const [rows, setRows] = useState<[string, string][]>(() =>
+    Object.entries(record(value)).map(([name, text]) => [name, String(text)]),
+  );
+  const save = (next: [string, string][]) => {
+    setRows(next);
+    const named = next.filter(([name]) => name !== "");
+    onChange(named.length === 0 ? undefined : Object.fromEntries(named));
+  };
+
+  return (
+    <Fieldset label={label}>
+      {rows.map(([name, text], index) => (
+        <div key={index} className="flex items-center gap-2">
+          <Input
+            aria-label={t("nodeFormMapName", { index: index + 1 })}
+            placeholder={t("nodeFormMapNamePlaceholder")}
+            value={name}
+            disabled={disabled}
+            className="font-mono text-xs"
+            onChange={(event) => save(replaceAt(rows, index, [event.target.value, text]))}
+          />
+          <Input
+            aria-label={t("nodeFormMapValue", { index: index + 1 })}
+            placeholder={t("nodeFormMapValuePlaceholder")}
+            value={text}
+            disabled={disabled}
+            className="font-mono text-xs"
+            onChange={(event) => save(replaceAt(rows, index, [name, event.target.value]))}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("nodeFormRemoveRow", { index: index + 1 })}
+            disabled={disabled}
+            onClick={() => save(rows.filter((_, i) => i !== index))}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => setRows([...rows, ["", ""]])}
+      >
+        <Plus />
+        {t("nodeFormAddRow")}
+      </Button>
+    </Fieldset>
+  );
+}
+
+/** One config field, dispatched by its resolved shape. Recurses for objects, arrays and unions. */
+function ConfigNode({
+  schema,
+  name,
+  required,
+  path,
+  defs,
+  ctx,
+  value,
+  onChange,
+}: FieldProps & { value: unknown; onChange: (value: unknown) => void }) {
+  const shape = classify(schema, defs);
+  const label = labelOf(schema, name);
+
+  if (shape.kind === "object") {
+    return (
+      <Fieldset label={label}>
+        {shape.entries.map((child) => (
+          <ConfigNode
+            key={child.name}
+            schema={child.schema}
+            name={child.name}
+            required={child.required}
+            path={[...path, child.name]}
+            defs={defs}
+            ctx={ctx}
+            value={record(value)[child.name]}
+            onChange={(next) => onChange(setKey(record(value), child.name, next))}
+          />
+        ))}
+      </Fieldset>
+    );
+  }
+
+  if (shape.kind === "map") {
+    return (
+      <ConfigMap label={label} disabled={ctx.disabled ?? false} value={value} onChange={onChange} />
+    );
+  }
+
+  if (shape.kind === "union") {
+    return (
+      <ConfigUnion
+        shape={shape}
+        label={label}
+        path={path}
+        defs={defs}
+        ctx={ctx}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (shape.kind === "array") {
+    return (
+      <ConfigArray
+        shape={shape}
+        label={label}
+        path={path}
+        defs={defs}
+        ctx={ctx}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
+  return (
+    <ConfigLeaf
+      schema={schema}
+      name={name}
+      required={required}
+      path={path}
+      defs={defs}
+      ctx={ctx}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+
+function RecordInputNode(props: FieldProps) {
+  return props.name === "values" &&
+    ["table.record.create", "table.record.update", "table.record.upsert"].includes(
+      props.ctx.node.definition_id,
+    ) ? (
+    <TableValues {...props} />
+  ) : (
+    <InputNode {...props} />
+  );
+}
+
+/** Record values are named fields from the selected table, rather than an untyped dictionary. */
+function TableValues(props: FieldProps) {
+  const pin = record(props.ctx.node.config["table"]);
+  const { table } = useWorkflowTable(strOrNull(pin["table_id"]));
+  const selected = Array.isArray(pin["column_ids"]) ? pin["column_ids"] : null;
+  const whole = props.ctx.bindings.some(
+    (binding) => binding.target_node_id === props.ctx.node.id && binding.target_field === "values",
+  );
+  if (table === null || whole) return <InputNode {...props} />;
+  const properties: Record<string, Schema> = {};
+  const required: string[] = [];
+  for (const column of table.columns.filter(
+    (column) =>
+      !column.archived &&
+      !COMPUTED_TYPES.has(column.type) &&
+      (selected === null || selected.includes(column.id)),
+  )) {
+    properties[column.id] = columnSchema(column);
+    if (
+      props.ctx.node.definition_id === "table.record.create" &&
+      !column.nullable &&
+      column.default === null
+    )
+      required.push(column.id);
+  }
+  return (
+    <InputNode
+      {...props}
+      schema={{ type: "object", title: labelOf(props.schema, props.name), properties, required }}
+    />
+  );
+}
+
+function columnSchema(column: ColumnDef): Schema {
+  const base = { title: column.label };
+  if (column.type === "boolean") return { ...base, type: "boolean" };
+  if (column.type === "number") return { ...base, type: "number" };
+  if (column.type === "integer" || column.type === "rating") return { ...base, type: "integer" };
+  if (
+    column.type === "multi_select" ||
+    column.type === "link" ||
+    column.type === "multi_user" ||
+    column.type === "multi_agent"
+  )
+    return { ...base, type: "array", items: { type: "string" } };
+  if (column.type === "single_select")
+    return {
+      ...base,
+      type: "string",
+      oneOf: column.options
+        .filter((option) => !option.archived)
+        .map((option) => ({ const: option.id, title: option.label })),
+    };
+  return {
+    ...base,
+    type: "string",
+    ...(column.type === "long_text" || column.type === "rich_text" ? { "x-multiline": true } : {}),
+  };
+}
+
+/** One input field: a nested object recurses; anything else is bound wholesale. */
+function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
+  const shape = classify(schema, defs);
+  const label = labelOf(schema, name);
+
+  if (
+    shape.kind === "object" &&
+    shape.entries.some((entry) => entry.name === "file_id") &&
+    shape.entries.some((entry) => entry.name === "byte_size")
+  ) {
+    const field = bindingFieldPath(path);
+    const legacy = ctx.bindings.some(
+      (binding) =>
+        binding.target_node_id === ctx.node.id && binding.target_field.startsWith(`${field}/`),
+    );
+    return (
+      <div className="space-y-3" data-field={field}>
+        <BindingField
+          targetNodeId={ctx.node.id}
+          targetField={field}
+          name={name}
+          schema={{
+            $ref: "#/$defs/FileRef",
+            type: "object",
+            title: label,
+            properties: Object.fromEntries(
+              shape.entries.map((entry) => [entry.name, entry.schema]),
+            ),
+            required: shape.entries.filter((entry) => entry.required).map((entry) => entry.name),
+            "x-workflow-file": true,
+          }}
+          required={required}
+          bindings={ctx.bindings}
+          graph={ctx.graph}
+          catalog={ctx.catalog}
+          error={ctx.errors.get(field)}
+          disabled={ctx.disabled}
+          onUpsert={ctx.upsertBinding}
+          onRemove={ctx.removeBinding}
+        />
+        {legacy && (
+          <details>
+            <summary className="text-muted-foreground cursor-pointer text-xs">{label}</summary>
+            <div className="space-y-3 pt-3">
+              {shape.entries.map((child) => (
+                <InputNode
+                  key={child.name}
+                  {...child}
+                  path={[...path, child.name]}
+                  defs={defs}
+                  ctx={ctx}
+                />
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+    );
+  }
+
+  if (shape.kind === "object") {
+    return (
+      <Fieldset label={label}>
+        {shape.entries.map((child) => (
+          <InputNode
+            key={child.name}
+            schema={child.schema}
+            name={child.name}
+            required={child.required}
+            path={[...path, child.name]}
+            defs={defs}
+            ctx={ctx}
+          />
+        ))}
+      </Fieldset>
+    );
+  }
+
+  const field = bindingFieldPath(path);
+  return (
+    // Named for the dialog, which says a missing value once its field was left.
+    <div data-field={field}>
+      <BindingField
+        targetNodeId={ctx.node.id}
+        targetField={field}
+        name={name}
+        schema={schema}
+        required={required}
+        bindings={ctx.bindings}
+        graph={ctx.graph}
+        catalog={ctx.catalog}
+        error={ctx.errors.get(field)}
+        disabled={ctx.disabled}
+        onUpsert={ctx.upsertBinding}
+        onRemove={ctx.removeBinding}
+      />
+    </div>
+  );
+}
+
+export interface NodeFormProps {
+  definition: NodeDefinition;
+  node: NodeInstance;
+  graph: WorkflowGraph;
+  catalog: NodeCatalog;
+  bindings: readonly Binding[];
+  /** Field-scoped validation messages for this node, keyed by `target_field` path. */
+  errors: ReadonlyMap<string, string>;
+  disabled?: boolean;
+  updateNodeConfig: (nodeId: Uuid, config: Record<string, unknown>) => void;
+  upsertBinding: (binding: Binding) => void;
+  removeBinding: (targetNodeId: Uuid, targetField: string) => void;
+}
+
+/**
+ * The form for one node — its static `config_schema` settings and its
+ * `input_schema` bindings in one list — extending `schema-form.tsx` with `$ref`, nested
+ * objects, repeatable arrays, discriminated unions and binding-aware leaves.
+ */
+export function NodeForm(props: NodeFormProps) {
+  return props.definition.id === MCP_CALL ? (
+    <McpCallForm {...props} />
+  ) : (
+    <NodeFields {...props} toolSchema={null} />
+  );
+}
+
+/** `mcp.call`'s form, with its tool's argument schema looked up for its fields. */
+function McpCallForm(props: NodeFormProps) {
+  const toolSchema = useMcpToolSchema(
+    strOrNull(props.node.config[MCP_SERVER]),
+    strOrNull(props.node.config[MCP_TOOL]),
+  );
+  return <NodeFields {...props} toolSchema={toolSchema} />;
+}
+
+function NodeFields({
+  definition,
+  node,
+  graph,
+  catalog,
+  bindings,
+  errors,
+  disabled,
+  updateNodeConfig,
+  upsertBinding,
+  removeBinding,
+  toolSchema,
+}: NodeFormProps & {
+  /** An MCP tool's argument schema, drawn as one field per argument; null elsewhere. */
+  toolSchema: Record<string, unknown> | null;
+}) {
+  const t = useTranslations("workflows");
+  // What "N more options" brought out, while it is open: drawn just above the
+  // button that brought them, and kept there while they are filled in.
+  const [revealed, setRevealed] = useState<ReadonlySet<string> | null>(null);
+  const allShown = revealed !== null;
+  const ctx: FieldCtx = {
+    node,
+    graph,
+    catalog,
+    bindings,
+    errors,
+    disabled,
+    updateNodeConfig,
+    upsertBinding,
+    removeBinding,
+  };
+
+  if (definition.id === SCHEDULE_TRIGGER) {
+    return (
+      <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+    );
+  }
+  if (definition.id === MERGE) {
+    return (
+      <MergeForm
+        node={node}
+        graph={graph}
+        catalog={catalog}
+        disabled={disabled}
+        updateNodeConfig={updateNodeConfig}
+      />
+    );
+  }
+  if (FIELD_TRIGGERS.has(definition.id)) {
+    return (
+      <div className="space-y-4">
+        <p className="text-muted-foreground text-xs">
+          {t(
+            definition.id === MANUAL_TRIGGER
+              ? "triggerHintManual"
+              : definition.id === WORKFLOW_CALL_TRIGGER
+                ? "triggerHintCall"
+                : definition.id === FORM_TRIGGER
+                  ? "triggerHintForm"
+                  : "triggerHintApi",
+          )}
+        </p>
+        {definition.id === FORM_TRIGGER && (
+          <FormPageForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+        )}
+        <InputFieldsForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />
+      </div>
+    );
+  }
+
+  const configSchema = definition.config_schema;
+  const inputSchema = definition.input_schema;
+  const configFields =
+    configSchema === null ? [] : objectFields(configSchema, defsOf(configSchema));
+  // An MCP tool's arguments, once its schema is known, are one field per
+  // argument - each bound on its own as `arguments/<name>` - not one object.
+  const toolArguments =
+    toolSchema !== null && isRecord(toolSchema["properties"]) ? (toolSchema as Schema) : null;
+  const inputFields = (
+    inputSchema === null ? [] : objectFields(inputSchema, defsOf(inputSchema))
+  ).map((entry) =>
+    toolArguments !== null && entry.name === MCP_ARGUMENTS
+      ? { ...entry, schema: { ...toolArguments, title: labelOf(entry.schema, entry.name) } }
+      : entry,
+  );
+  const configDefs = configSchema === null ? {} : defsOf(configSchema);
+  const inputDefs = {
+    ...(inputSchema === null ? {} : defsOf(inputSchema)),
+    ...(toolArguments === null ? {} : defsOf(toolArguments)),
+  };
+
+  if (configFields.length === 0 && inputFields.length === 0) {
+    const hint = TRIGGER_HINTS[definition.id];
+    return (
+      <p className="text-muted-foreground text-xs">
+        {hint === undefined ? t("nodeFormNoFields") : t(hint)}
+      </p>
+    );
+  }
+
+  // What a step needs, and what the builder already set, show at once; a setting
+  // that is optional and still at its default waits under "More options". Once
+  // shown, every field stays in its place, so setting one does not move it.
+  const bound = (name: string) =>
+    bindings.some(
+      (binding) =>
+        binding.target_node_id === node.id &&
+        (binding.target_field === name || binding.target_field.startsWith(`${name}/`)),
+    );
+  const agentStep = definition.id === AGENT_RUN;
+  const mcpStep = definition.id === MCP_CALL;
+  const httpStep = ["http.request", "http.upload", "http.download"].includes(definition.id);
+  const httpUrlBinding = httpStep ? bindingFor(bindings, node.id, "url") : undefined;
+  // Drawn by another field: an agent step's `inline` by `agent`, an MCP step's
+  // tool by its server.
+  const drawnElsewhere = (name: string) =>
+    (agentStep && name === AGENT_INLINE) ||
+    (mcpStep && name === MCP_TOOL) ||
+    (definition.id === "email.send" && name === "smtp_secret_id");
+  // Shown however the options are folded: what is set, needed or always there.
+  const configWanted = (entry: (typeof configFields)[number]) =>
+    // An agent step always shows `agent`: neither it nor `inline` is required
+    // alone, but one of the two always is.
+    (agentStep && entry.name === AGENT_SOURCE) ||
+    PRIMARY_CONFIG[definition.id]?.includes(entry.name) === true ||
+    resourceKind(entry.schema) !== null ||
+    ((definition.id.startsWith("ai.") || definition.id.startsWith("decide.")) &&
+      [
+        "instructions",
+        "prompt",
+        "temperature",
+        "reasoning_effort",
+        "effort",
+        "model_settings",
+        "task",
+        "language",
+        "length",
+        "style",
+      ].includes(entry.name)) ||
+    entry.required ||
+    node.config[entry.name] !== undefined ||
+    bound(entry.name);
+  const inputWanted = (entry: (typeof inputFields)[number]) =>
+    PRIMARY_INPUT[definition.id]?.includes(entry.name) === true ||
+    (definition.id === "file.write" &&
+      entry.name ===
+        ({ text: "text", json: "json_value", csv: "rows" }[String(node.config.format ?? "text")] ??
+          "text")) ||
+    entry.required ||
+    bound(entry.name) ||
+    (definition.id === "core.output" && ["text", "structured"].includes(entry.name)) ||
+    (definition.id === "webhook.respond" && entry.name === "body") ||
+    (toolArguments !== null && entry.name === MCP_ARGUMENTS) ||
+    (["table.record.create", "table.record.update", "table.record.upsert"].includes(
+      definition.id,
+    ) &&
+      entry.name === "values");
+  // A field drawn by another is neither shown nor folded.
+  const foldable = configFields.filter((entry) => !drawnElsewhere(entry.name));
+  const foldedKeys = [
+    ...foldable.filter((entry) => !configWanted(entry)).map((entry) => `config:${entry.name}`),
+    ...inputFields.filter((entry) => !inputWanted(entry)).map((entry) => `input:${entry.name}`),
+  ];
+  const isRevealed = (key: string) => revealed?.has(key) === true;
+  // While open, every field stays drawn: one cleared or unbound there keeps its
+  // place until the options fold again, rather than leaving under the cursor.
+  const configShown = foldable.filter((entry) =>
+    allShown ? !isRevealed(`config:${entry.name}`) : configWanted(entry),
+  );
+  const inputShown = inputFields.filter((entry) =>
+    allShown ? !isRevealed(`input:${entry.name}`) : inputWanted(entry),
+  );
+  const folded = foldedKeys.length;
+  // One list, as a builder reads it: the list a step works on first - Filter's
+  // items before its condition - then what it is set to do, then what else it reads.
+  const isList = (schema: Schema) => unwrapOptional(schema)["type"] === "array";
+  const ordered = (
+    config: typeof configFields,
+    input: typeof inputFields,
+  ): { entry: (typeof configFields)[number]; input: boolean }[] => {
+    const inputs = input.map((entry) => ({ entry, input: true }));
+    return [
+      ...inputs.filter(({ entry }) => isList(entry.schema)),
+      ...config.map((entry) => ({ entry, input: false })),
+      ...inputs.filter(({ entry }) => !isList(entry.schema)),
+    ];
+  };
+  const drawn = [
+    ...ordered(configShown, inputShown),
+    // Brought out by "N more options": last, next to the button that did it.
+    ...ordered(
+      foldable.filter((entry) => isRevealed(`config:${entry.name}`)),
+      inputFields.filter((entry) => isRevealed(`input:${entry.name}`)),
+    ),
+  ];
+
+  const account = ACCOUNT_TRIGGERS[definition.id];
+  return (
+    <div className="space-y-6">
+      {account !== undefined && <PortalAccount account={account} />}
+      {definition.id === HTTP_REQUEST && (
+        <CurlImport
+          node={node}
+          disabled={disabled ?? false}
+          updateNodeConfig={updateNodeConfig}
+          upsertBinding={upsertBinding}
+        />
+      )}
+      {drawn.map(({ entry, input }) =>
+        input ? (
+          <RecordInputNode
+            key={`input:${entry.name}`}
+            schema={entry.schema}
+            name={entry.name}
+            required={entry.required}
+            path={[entry.name]}
+            defs={inputDefs}
+            ctx={ctx}
+          />
+        ) : (
+          // Named for the dialog, which says a missing value once its field was left.
+          <div key={`config:${entry.name}`} data-field={entry.name}>
+            {agentStep && entry.name === AGENT_SOURCE ? (
+              <AgentSourceField
+                config={node.config}
+                error={ctx.errors.get(AGENT_SOURCE) ?? ctx.errors.get(AGENT_INLINE)}
+                disabled={disabled}
+                onChange={(next) => updateNodeConfig(node.id, next)}
+              />
+            ) : mcpStep && entry.name === MCP_SERVER ? (
+              <McpToolField
+                connectionId={strOrNull(node.config[MCP_SERVER])}
+                tool={strOrNull(node.config[MCP_TOOL])}
+                serverError={ctx.errors.get(MCP_SERVER)}
+                toolError={ctx.errors.get(MCP_TOOL)}
+                disabled={disabled}
+                onChange={({ connectionId, tool }) =>
+                  updateNodeConfig(
+                    node.id,
+                    setKey(
+                      setKey(node.config, MCP_SERVER, connectionId ?? undefined),
+                      MCP_TOOL,
+                      tool ?? undefined,
+                    ),
+                  )
+                }
+              />
+            ) : httpStep && entry.name === "auth" ? (
+              <HttpAuthField
+                value={node.config.auth}
+                url={httpUrlBinding ? literalValueOf(httpUrlBinding) : node.config.url}
+                disabled={disabled}
+                errors={ctx.errors}
+                onChange={(next) => updateNodeConfig(node.id, setKey(node.config, "auth", next))}
+              />
+            ) : ANSWER_SHAPES[definition.id]?.field === entry.name ? (
+              <AnswerFormatForm
+                value={isRecord(node.config[entry.name]) ? record(node.config[entry.name]) : null}
+                onChange={(next) =>
+                  updateNodeConfig(node.id, setKey(node.config, entry.name, next ?? undefined))
+                }
+                disabled={disabled}
+                keepsOwn={ANSWER_SHAPES[definition.id]?.mode === "keepsOwn"}
+                fieldsOnly={ANSWER_SHAPES[definition.id]?.mode === "fieldsOnly"}
+              />
+            ) : (
+              <ConfigNode
+                schema={entry.schema}
+                name={entry.name}
+                required={entry.required}
+                path={[entry.name]}
+                defs={configDefs}
+                ctx={ctx}
+                value={node.config[entry.name]}
+                onChange={(next) =>
+                  updateNodeConfig(node.id, setKey(node.config, entry.name, next))
+                }
+              />
+            )}
+          </div>
+        ),
+      )}
+      {(folded > 0 || allShown) && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+          aria-expanded={allShown}
+          onClick={() => setRevealed(allShown ? null : new Set(foldedKeys))}
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={cn("size-4 transition-transform", allShown && "rotate-180")}
+          />
+          {allShown ? t("nodeFormFewerOptions") : t("nodeFormMoreOptions", { count: folded })}
+        </button>
+      )}
+    </div>
+  );
+}

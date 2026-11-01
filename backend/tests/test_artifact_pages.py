@@ -6,14 +6,19 @@ the platform script that turns a link into a question. The database is stubbed
 at the repository edge; `tests/integration/test_artifacts.py` proves the rows.
 """
 
+import hashlib
+import json
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import jwt
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
@@ -23,13 +28,28 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.security import create_artifact_view_token, get_password_hash
 from app.db.models.agent_environment import AgentEnvironment
-from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion, ConsentState
 from app.db.models.resource_grant import Visibility
-from app.schemas.artifact import ArtifactPublicLinkUpdate
+from app.schemas.artifact import ArtifactBinding, ArtifactPublicLinkUpdate, BindingReach
 from app.services import artifact as artifacts
 from app.services.artifact import ArtifactService
+from app.services.artifact_bindings import Refused
+from app.services.artifact_consent import Served, VersionConsent
+from app.services.artifact_lint import KIT_CLASSES, lint_page
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def _no_public_data_state() -> Any:
+    """`_detail` asks the public-data service for the link's state; these tests stub the
+    database, so it answers nothing."""
+    with patch(
+        "app.services.artifact_public_data.ArtifactPublicDataService.state",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
 
 PATH = "app.services.artifact"
 
@@ -71,6 +91,7 @@ def _artifact(ctx: AuthContext, **overrides: Any) -> Artifact:
         "public_key": None,
         "public_view_count": 0,
         "embed_origins": [],
+        "auto_consent": False,
         "published_at": datetime(2026, 9, 22, tzinfo=UTC),
         "created_at": datetime(2026, 9, 1, tzinfo=UTC),
     }
@@ -88,12 +109,23 @@ def _version(artifact: Artifact, *, number: int = 1, sha: str = "0") -> Artifact
         sha256=sha * 64,
         storage_path=f"artifacts/{artifact.organization_id}/{artifact.id}/{sha * 64}.html",
         run_id=None,
+        bindings=[],
+        actions=[],
+        consent_state="not_needed",
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
 
 
 def _service() -> ArtifactService:
     return ArtifactService(MagicMock())
+
+
+_UNBOUND = VersionConsent(
+    published_by_user_id=None,
+    published_by_membership_id=None,
+    query_fingerprint=None,
+    consent_state=ConsentState.NOT_NEEDED,
+)
 
 
 async def _apply(_db: object, *, artifact: Artifact, update_data: dict[str, Any]) -> Artifact:
@@ -187,6 +219,7 @@ class TestPublishingWithAnEnvironmentAndATitle:
                 ),
             ),
             patch(f"{PATH}._prune", new=AsyncMock()),
+            patch(f"{PATH}.on_new_version", new=AsyncMock()),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
             patch(f"{PATH}.get_file_storage", return_value=storage),
         ):
@@ -260,6 +293,57 @@ class TestPublishingWithAnEnvironmentAndATitle:
         assert result.version_number == 4
 
 
+class TestLoadingForSharing:
+    """`ArtifactService.load`: the sharing routes' page, found by the rule `read` applies."""
+
+    @staticmethod
+    async def _load(
+        artifact: Artifact | None, *, may_edit: bool = False
+    ) -> tuple[Artifact, AsyncMock]:
+        ctx = _ctx()
+        access = AsyncMock(return_value=may_edit)
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)) as get,
+            patch(f"{PATH}.resolve_access", new=access),
+        ):
+            loaded = await _service().load(ctx, uuid.uuid4())
+        assert get.await_args.kwargs["organization_id"] == ctx.organization_id
+        return loaded, access
+
+    async def test_a_live_page_is_loaded_without_asking_who_may_edit_it(self) -> None:
+        artifact = _artifact(_ctx())
+        loaded, access = await self._load(artifact)
+        assert loaded is artifact
+        access.assert_not_awaited()
+
+    @pytest.mark.parametrize("may_edit", [True, False])
+    async def test_an_archived_page_is_found_only_by_a_caller_who_may_edit_it(
+        self, may_edit: bool
+    ) -> None:
+        artifact = _artifact(_ctx())
+        artifact.archived_at = datetime.now(UTC)
+        if may_edit:
+            loaded, access = await self._load(artifact, may_edit=True)
+            assert loaded is artifact
+        else:
+            with pytest.raises(NotFoundError) as refused:
+                await self._load(artifact)
+            assert refused.value.details["artifact_id"]
+
+    async def test_a_page_of_another_organization_or_none_is_not_found(self) -> None:
+        with pytest.raises(NotFoundError):
+            await self._load(None)
+
+    def test_the_one_rule_hides_an_archived_page_from_whoever_may_not_edit_it(self) -> None:
+        live, archived = _artifact(_ctx()), _artifact(_ctx())
+        archived.archived_at = datetime.now(UTC)
+        assert [
+            artifacts.archived_hidden(live, can_edit=False),
+            artifacts.archived_hidden(archived, can_edit=False),
+            artifacts.archived_hidden(archived, can_edit=True),
+        ] == [False, True, False]
+
+
 class TestMay:
     async def test_the_owner_may(self) -> None:
         ctx = _ctx()
@@ -280,8 +364,8 @@ class TestMay:
     async def test_a_member_is_decided_by_resolve_access_with_the_permission_asked(self) -> None:
         with (
             patch(
-                f"{PATH}.member_repo.get_active",
-                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER)),
+                f"{PATH}.member_context",
+                new=AsyncMock(return_value=_ctx(OrgRoleName.MEMBER)),
             ),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)) as access,
         ):
@@ -289,6 +373,32 @@ class TestMay:
                 MagicMock(), _artifact(_ctx()), uuid.uuid4(), Perm.ARTIFACTS_VIEW
             )
         assert access.await_args.args[3] is Perm.ARTIFACTS_VIEW
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("app_admin", [True, False])
+    async def test_a_run_s_member_is_the_same_person_here_as_everywhere_else_in_the_service(
+        self, app_admin: bool
+    ) -> None:
+        """A deployment administrator who is only a Viewer here is served and may as ALL
+        everywhere else in the service (`member_context`); this answer must not differ."""
+        page = _artifact(_ctx())
+        with (
+            patch(
+                "app.services.access.member_repo.get_active",
+                new=AsyncMock(return_value=MagicMock(role=OrgRoleName.VIEWER)),
+            ),
+            patch(
+                "app.services.access.user_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(is_app_admin=app_admin)),
+            ),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            assert (
+                await artifacts._may(MagicMock(), page, uuid.uuid4(), Perm.ARTIFACTS_EDIT)
+            ) is app_admin
 
 
 def _opened(db: MagicMock) -> MagicMock:
@@ -318,7 +428,10 @@ class TestReadingAPageBack:
                 f"{PATH}.artifact_repo.get_by_identity", new=AsyncMock(return_value=artifact)
             ) as identity,
             patch(f"{PATH}._may", new=AsyncMock(return_value=may)),
-            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=version)),
+            patch(
+                f"{PATH}._served_to",
+                new=AsyncMock(return_value=Served(version=version, data=True, latest=True)),
+            ),
             patch(f"{PATH}.get_file_storage", return_value=storage),
         ):
             source = await artifacts.read_source(
@@ -354,6 +467,13 @@ class TestReadingAPageBack:
         with pytest.raises(NotFoundError, match="that this run may open"):
             await self._read(artifact, may=False, version=_version(artifact))
 
+    async def test_a_page_with_nothing_the_person_is_served_yet_says_it_waits_for_its_owner(
+        self,
+    ) -> None:
+        artifact = _artifact(_ctx())
+        with pytest.raises(NotFoundError, match="hasn't confirmed the data it shares"):
+            await self._read(artifact, version=None)
+
 
 class TestRestore:
     async def _restore(
@@ -375,6 +495,7 @@ class TestRestore:
             patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=source)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=latest)),
+            patch(f"{PATH}.consent_for", new=AsyncMock(return_value=_UNBOUND)),
             patch(
                 f"{PATH}._append_version",
                 new=AsyncMock(return_value=_version(artifact, number=9)),
@@ -393,7 +514,8 @@ class TestRestore:
         assert append.await_args.kwargs["sha256"] == source.sha256
         assert append.await_args.kwargs["run_id"] is None
         assert audit.await_args.kwargs["action"] == "artifact.version_restored"
-        assert audit.await_args.kwargs["details"] == {"version": 9, "restored": 2}
+        assert audit.await_args.kwargs["details"] == {"version": 9, "restored": 2, "bindings": []}
+        assert append.await_args.kwargs["bindings"] == []
 
     async def test_restoring_the_current_version_changes_nothing(self) -> None:
         artifact = _artifact(_ctx())
@@ -415,6 +537,116 @@ class TestRestore:
             await self._restore(artifact, None, None)
 
 
+def _stored_binding(name: str = "tickets") -> ArtifactBinding:
+    table_id, status = uuid.uuid4(), uuid.uuid4()
+    return ArtifactBinding(
+        name=name,
+        table_id=table_id,
+        limit=1000,
+        fields={"status": status},
+        reach=BindingReach(tables={table_id: {status: 0}}),
+    )
+
+
+class TestRestoringBindings:
+    """A restore keeps a version's page queries and reads what they reach again."""
+
+    async def _restore(
+        self, ctx: AuthContext, artifact: Artifact, outcome: Any, *, owner: Any = None
+    ) -> tuple[AsyncMock, AsyncMock, AsyncMock]:
+        source = _version(artifact, number=2, sha="a")
+        stored = _stored_binding()
+        source.bindings = [stored.model_dump(mode="json")]
+        storage = MagicMock()
+        storage.exists = AsyncMock(return_value=True)
+        reresolve = AsyncMock(return_value=outcome)
+        with (
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.lock", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.artifact_repo.get_version", new=AsyncMock(return_value=source)),
+            patch(
+                f"{PATH}.artifact_repo.latest_version",
+                new=AsyncMock(return_value=_version(artifact, number=8)),
+            ),
+            patch(f"{PATH}.member_context", new=AsyncMock(return_value=owner)) as members,
+            patch(f"{PATH}.reresolve", new=reresolve),
+            patch(f"{PATH}.artifact_repo.environment_names", new=AsyncMock(return_value={})),
+            patch(f"{PATH}.consent_for", new=AsyncMock(return_value=_UNBOUND)),
+            patch(
+                f"{PATH}._append_version",
+                new=AsyncMock(return_value=_version(artifact, number=9)),
+            ) as append,
+            patch(f"{PATH}.record_audit", new=AsyncMock()),
+        ):
+            await _service().restore_version(ctx, artifact.id, uuid.uuid4())
+        assert reresolve.await_args.args[1] == stored
+        return append, reresolve, members
+
+    async def test_the_owner_restoring_is_checked_as_themselves(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+        moved_on = _stored_binding()
+
+        append, reresolve, members = await self._restore(owner, artifact, moved_on)
+
+        assert reresolve.await_args.kwargs == {
+            "person": owner,
+            "owner": owner,
+            "workflow_ids": frozenset(),
+        }
+        members.assert_not_awaited()
+        assert append.await_args.kwargs["bindings"] == [moved_on.model_dump(mode="json")]
+
+    async def test_another_editor_restoring_is_checked_with_the_owner_as_they_are_now(
+        self,
+    ) -> None:
+        admin = _ctx(OrgRoleName.ADMIN)
+        artifact = _artifact(_ctx())
+        owner_now = _ctx(OrgRoleName.MEMBER)
+
+        _append, reresolve, members = await self._restore(
+            admin, artifact, _stored_binding(), owner=owner_now
+        )
+
+        assert reresolve.await_args.kwargs == {
+            "person": admin,
+            "owner": owner_now,
+            "workflow_ids": frozenset(),
+        }
+        assert members.await_args.kwargs["user_id"] == artifact.owner_user_id
+
+    @pytest.mark.security
+    async def test_a_version_reading_what_someone_cannot_read_is_not_restored(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+
+        with pytest.raises(AuthorizationError) as refused:
+            await self._restore(
+                owner,
+                artifact,
+                Refused("Binding tickets reads a table you can't read.", forbidden=True),
+            )
+
+        assert refused.value.message == (
+            "Binding tickets reads a table you can't read. So this version can't be restored."
+        )
+
+    async def test_a_query_the_tables_no_longer_answer_is_a_bad_request(self) -> None:
+        owner = _ctx()
+        artifact = _artifact(owner)
+
+        with pytest.raises(BadRequestError) as refused:
+            await self._restore(
+                owner, artifact, Refused("Binding tickets: filter 1: Bad.", forbidden=False)
+            )
+
+        assert refused.value.message == (
+            "Binding tickets: filter 1: Bad. So this version can't be restored."
+        )
+
+
 class TestAppendingAVersion:
     async def test_the_next_number_the_publication_time_and_a_prune(self) -> None:
         artifact = _artifact(_ctx())
@@ -425,6 +657,7 @@ class TestAppendingAVersion:
             ) as create,
             patch(f"{PATH}.artifact_repo.update", new=_apply),
             patch(f"{PATH}._prune", new=AsyncMock()) as prune,
+            patch(f"{PATH}.on_new_version", new=AsyncMock()) as settled,
         ):
             await artifacts._append_version(
                 MagicMock(),
@@ -435,19 +668,41 @@ class TestAppendingAVersion:
                 sha256="a" * 64,
                 storage_path="p",
                 run_id=None,
+                bindings=[],
+                actions=[],
+                consent=_UNBOUND,
                 actor_user_id=None,
             )
         assert create.await_args.kwargs["number"] == 3
+        assert create.await_args.kwargs["consent"]["consent_state"] == "not_needed"
+        assert create.await_args.kwargs["bindings"] == []
         assert artifact.published_at > datetime(2026, 9, 22, tzinfo=UTC)
         prune.assert_awaited_once()
+        settled.assert_awaited_once()
 
-    async def test_pruning_keeps_the_pinned_version(self) -> None:
+    @pytest.mark.parametrize(("membership", "kept"), [(uuid.uuid4(), [2, 4, 1]), (None, [2, 4])])
+    async def test_pruning_keeps_the_pinned_version_the_one_the_audience_is_served_and_the_consented_one(
+        self, membership: uuid.UUID | None, kept: list[int]
+    ) -> None:
         artifact = _artifact(_ctx(), public_version_number=2)
-        with patch(
-            f"{PATH}.artifact_repo.versions_beyond", new=AsyncMock(return_value=[])
-        ) as beyond:
+        with (
+            patch(
+                f"{PATH}.artifact_repo.latest_served",
+                new=AsyncMock(return_value=_version(artifact, number=4)),
+            ),
+            patch(f"{PATH}.owner_membership_id", new=AsyncMock(return_value=membership)),
+            patch(
+                f"{PATH}.artifact_repo.latest_consent",
+                new=AsyncMock(return_value=_version(artifact, number=1)),
+            ) as consented,
+            patch(
+                f"{PATH}.artifact_repo.versions_beyond", new=AsyncMock(return_value=[])
+            ) as beyond,
+        ):
             await artifacts._prune(MagicMock(), artifact)
-        assert beyond.await_args.kwargs["pinned"] == 2
+        assert beyond.await_args.kwargs["kept"] == kept
+        # Asked as the consent check asks it: this owner's membership, after a withdrawal.
+        assert consented.await_count == (0 if membership is None else 1)
 
 
 class TestPublicLinkSettings:
@@ -627,7 +882,7 @@ class TestThePublicLinkOpens:
     def _patches(self, artifact: Artifact | None, *, latest: ArtifactVersion | None = None) -> Any:
         return (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
-            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=latest)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=latest)),
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
         )
 
@@ -693,7 +948,7 @@ class TestTheEmbed:
         latest = _version(artifact) if artifact is not None else None
         with (
             patch(f"{PATH}.artifact_repo.get_by_public_key", new=AsyncMock(return_value=artifact)),
-            patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=latest)),
+            patch(f"{PATH}.artifact_repo.latest_served", new=AsyncMock(return_value=latest)),
             patch(f"{PATH}.artifact_repo.count_public_view", new=counted),
         ):
             return await _service().embed("k"), counted
@@ -757,7 +1012,14 @@ class TestContentFraming:
         version = _version(artifact)
         storage = MagicMock()
         storage.load = AsyncMock(return_value=b"<p>x</p>")
-        token = create_artifact_view_token(version.id, expires_in=timedelta(minutes=5))
+        token = create_artifact_view_token(
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience="public",
+            public_key="k",
+        )
         with (
             patch(
                 f"{PATH}.artifact_repo.get_version_with_artifact",
@@ -774,14 +1036,20 @@ class TestContentFraming:
     @pytest.mark.security
     @pytest.mark.parametrize(
         "overrides",
-        [{"public_key": None}, {"public_key": "k", "public_password_hash": "hash"}],
-        ids=["link-off", "behind-a-password"],
+        [{"public_key": "k", "public_password_hash": "hash"}],
+        ids=["behind-a-password"],
     )
     async def test_a_page_that_cannot_be_embedded_names_none(
         self, overrides: dict[str, Any]
     ) -> None:
         artifact = _artifact(_ctx(), embed_origins=["https://a.example.com"], **overrides)
         assert (await self._served(artifact)).embed_origins == []
+
+    @pytest.mark.security
+    async def test_a_page_whose_link_was_turned_off_opens_nothing(self) -> None:
+        artifact = _artifact(_ctx(), public_key=None, embed_origins=["https://a.example.com"])
+        with pytest.raises(NotFoundError):
+            await self._served(artifact)
 
 
 class TestTheLibrarySet:
@@ -827,23 +1095,57 @@ class TestTheLibrarySet:
         with pytest.raises(NotFoundError):
             await artifacts.library_file(name)
 
+    @pytest.mark.parametrize(
+        ("name", "digest"),
+        [
+            ("agenticos-1.css", "0def869049db20fffc0163f4b5712432bc6e7fa77dd98e9097ada63529968593"),
+            ("agenticos-2.css", "995d7828591f56a4e7bb16947730dad2bab0844ecd68074c6fc85dedc1e6771b"),
+            ("agenticos-2.js", "73c8953bdcddca2b113021fc9d743728811781f15212cc28ff271d4b89241450"),
+        ],
+    )
+    async def test_a_shipped_kit_file_is_never_edited(self, name: str, digest: str) -> None:
+        """Served `immutable` for a year: a viewer who cached the old bytes keeps them, so
+        an edit makes two viewers of one page disagree (#1974). A change is a new version."""
+        data, _ = await artifacts.library_file(name)
+        assert hashlib.sha256(data).hexdigest() == digest
+
+    async def test_kit_3_keeps_every_class_and_call_of_kit_2(self) -> None:
+        assert "agenticos-3.css" in artifacts.ARTIFACT_LIBRARY
+        assert "agenticos-3.js" in artifacts.ARTIFACT_LIBRARY
+        assert KIT_CLASSES[2] < KIT_CLASSES[3]
+        script_2, _ = await artifacts.library_file("agenticos-2.js")
+        script_3, _ = await artifacts.library_file("agenticos-3.js")
+
+        def calls(script: bytes) -> set[str]:
+            exported = script.decode()[script.decode().rindex("window.AO = {") :]
+            return set(re.findall(r"^\s+(\w+): \w+,$", exported, re.M))
+
+        assert calls(script_2) < calls(script_3)
+        assert calls(script_3) - calls(script_2) == {"onData", "onRun", "records", "run"}
+
+
+_SCRIPT = artifacts.base_platform_script()
+"""What the placement tests put in: where it goes does not depend on what it is."""
+
 
 class TestThePlatformScript:
     def test_it_goes_right_after_the_doctype_before_the_html_tag(self) -> None:
         # Before <html>, the parser opens the head for it; the page's own <html>
         # attributes still land on that element.
-        document = artifacts.with_platform_script(b"<!doctype html><HTML lang=x><Head><title>")
+        document = artifacts.with_platform_script(
+            b"<!doctype html><HTML lang=x><Head><title>", _SCRIPT
+        )
         assert document.startswith(b"<!doctype html><script data-agenticos")
         assert document.endswith(b"</script><HTML lang=x><Head><title>")
 
     def test_without_a_doctype_it_goes_first(self) -> None:
-        document = artifacts.with_platform_script(b"<html lang=en><body>")
+        document = artifacts.with_platform_script(b"<html lang=en><body>", _SCRIPT)
         assert document.startswith(b"<script data-agenticos")
 
     def test_a_doctype_after_a_mark_whitespace_and_comments_is_kept_first(self) -> None:
         # A doctype that is not first is ignored, and the page renders in quirks mode.
         document = artifacts.with_platform_script(
-            b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><p>x</p>"
+            b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><p>x</p>", _SCRIPT
         )
         assert document.startswith(
             b"\xef\xbb\xbf\n<!-- built by an agent --><!DOCTYPE html><script data-agenticos"
@@ -855,20 +1157,20 @@ class TestThePlatformScript:
         """Found by pattern, `<head>` inside a comment took the script into the
         comment, where it never ran and links bypassed the confirmation."""
         page = b"<!doctype html><!-- <head> --><script>var s = '<html>'</script><p>x</p>"
-        document = artifacts.with_platform_script(page)
+        document = artifacts.with_platform_script(page, _SCRIPT)
         assert document.startswith(b"<!doctype html><script data-agenticos")
         assert document.endswith(b"</script>" + page[len(b"<!doctype html>") :])
 
     def test_a_doctype_later_in_the_page_is_not_the_one_it_looks_for(self) -> None:
-        document = artifacts.with_platform_script(b"<p>x</p><pre><!doctype html></pre>")
+        document = artifacts.with_platform_script(b"<p>x</p><pre><!doctype html></pre>", _SCRIPT)
         assert document.startswith(b"<script data-agenticos")
 
     def test_a_fragment_gets_it_first(self) -> None:
-        assert artifacts.with_platform_script(b"<p>x</p>").endswith(b"</script><p>x</p>")
+        assert artifacts.with_platform_script(b"<p>x</p>", _SCRIPT).endswith(b"</script><p>x</p>")
 
     @pytest.mark.security
     def test_it_asks_the_parent_and_never_opens_anything_itself(self) -> None:
-        script = artifacts.platform_script()
+        script = artifacts.platform_script(nonce="n0", live=False, names=[])
         assert "agenticos:open-link" in script
         assert "parent.postMessage" in script
         assert "location.assign" not in script
@@ -876,9 +1178,109 @@ class TestThePlatformScript:
         assert 'url.protocol === "http:" || url.protocol === "https:"' in script
 
     @pytest.mark.security
+    def test_the_bridge_writes_only_names_and_the_nonce_into_the_page(self) -> None:
+        # A stored name cannot carry these - the binding-name pattern refuses
+        # them - so this is the escaping alone, asked of the function directly.
+        names = ["</script><img src=x onerror=alert(1)>", "a&b", "x\u2028y\u2029z"]
+        script = artifacts.platform_script(nonce="n-0_Q", live=True, names=names)
+        assert script.startswith(
+            artifacts.base_platform_script() + '<script data-agenticos="data">('
+        )
+        call = ")(window, document, "
+        config = script[script.rindex(call) + len(call) : script.rindex(");</script>")]
+        for raw in ("<", ">", "&", "\u2028", "\u2029"):
+            assert raw not in config
+        assert "\\u003c/script\\u003e" in config
+        assert json.loads(config) == {"n": "n-0_Q", "live": True, "names": names, "actions": False}
+        # The link bridge's close and the data bridge's: none from the names.
+        assert script.lower().count("</script") == 2
+
+
+class TestPageActionsFlag:
+    """The script's `actions` flag is on only for the page viewer's own address (#1976)."""
+
+    @staticmethod
+    def _config(document: bytes) -> dict[str, object]:
+        script = document.decode()
+        call = ")(window, document, "
+        return json.loads(script[script.rindex(call) + len(call) : script.rindex(");</script>")])
+
+    async def _served(
+        self, audience: Literal["member", "public"], *, actions: bool
+    ) -> artifacts.ServedArtifact:
+        artifact = _artifact(_ctx(), public_key="k")
+        version = _version(artifact)
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<p>x</p>")
+        member = audience == "member"
+        token = create_artifact_view_token(
+            version.id,
+            expires_in=timedelta(minutes=5),
+            nonce="n0",
+            live=False,
+            audience=audience,
+            actions=actions,
+            user_id=uuid.uuid4() if member else None,
+            organization_id=uuid.uuid4() if member else None,
+            public_key=None if member else "k",
+        )
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            return await _service().content(token)
+
+    async def test_the_viewers_address_turns_it_on(self) -> None:
+        served = await self._served("member", actions=True)
+        assert self._config(served.document)["actions"] is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("audience", "actions"), [("member", False), ("public", False), ("public", True)]
+    )
+    async def test_every_other_address_leaves_it_off(
+        self, audience: Literal["member", "public"], actions: bool
+    ) -> None:
+        served = await self._served(audience, actions=actions)
+        assert self._config(served.document)["actions"] is False
+
+    @pytest.mark.security
+    async def test_an_address_with_no_nonce_leaves_it_off(self) -> None:
+        # Minted before the nonce existed: nothing to match replies on.
+        artifact = _artifact(_ctx())
+        version = _version(artifact)
+        storage = MagicMock()
+        storage.load = AsyncMock(return_value=b"<p>x</p>")
+        token = jwt.encode(
+            {
+                "exp": datetime.now(UTC) + timedelta(minutes=5),
+                "sub": str(version.id),
+                "type": "artifact_view",
+                "aud": "member",
+                "uid": str(uuid.uuid4()),
+                "org": str(uuid.uuid4()),
+                "inj": False,
+                "acts": True,
+            },
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM,
+        )
+        with (
+            patch(
+                f"{PATH}.artifact_repo.get_version_with_artifact",
+                new=AsyncMock(return_value=(version, artifact)),
+            ),
+            patch(f"{PATH}.get_file_storage", return_value=storage),
+        ):
+            served = await _service().content(token)
+        assert self._config(served.document)["actions"] is False
+
     def test_a_follow_up_is_only_ever_asked_for_and_only_where_the_host_takes_one(self) -> None:
         """#2302: the page posts a request; nothing in it sends a message itself."""
-        script = artifacts.platform_script()
+        script = artifacts.platform_script(nonce="n0", live=False, names=[])
         assert 'post({ type: "agenticos:follow-up", text: message })' in script
         assert 'post({ type: "agenticos:hello" })' in script
         # Off until the parent - and only the parent - says it takes follow-ups.
@@ -891,7 +1293,7 @@ class TestThePlatformScript:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES", "")
-        assert "var MAP = null;" in artifacts.platform_script()
+        assert "var MAP = null;" in artifacts.platform_script(nonce="n0", live=False, names=[])
 
     @pytest.mark.security
     def test_a_page_is_told_the_deployment_s_tile_path_never_the_server_or_its_key(
@@ -901,14 +1303,15 @@ class TestThePlatformScript:
             artifacts.settings, "VISUAL_MAP_TILES", "https://t.example/{z}/{x}/{y}.png?key=secret"
         )
         monkeypatch.setattr(artifacts.settings, "VISUAL_MAP_TILES_ATTRIBUTION", "</script> & co")
-        script = artifacts.platform_script()
+        script = artifacts.platform_script(nonce="n0", live=False, names=[])
         assert f'"url": "{artifacts.tile_source()}{{z}}/{{x}}/{{y}}"' in script
         assert "t.example" not in script
         assert "secret" not in script
         assert '"maxZoom": 18' in script
         # Written into a script element: an attribution cannot close it.
         assert "<\\/script> & co" in script
-        assert script.count("</script>") == 1
+        # The link bridge's own close and the data bridge's: none from the attribution.
+        assert script.count("</script>") == 2
 
 
 class TestAgentFilter:
@@ -977,8 +1380,21 @@ class TestTheBundledSkill:
         assert skill.category == "design"
         assert {resource.name for resource in skill.resources} == {
             "templates/dashboard.html",
+            "templates/live-table.html",
             "templates/report.html",
         }
+
+    def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
+        """Every class the skill names is real, and every real one is named."""
+        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", self._skill().content))
+        assert named == KIT_CLASSES[3]
+
+    def test_every_template_is_built_on_kit_3_and_passes_the_lint(self) -> None:
+        for resource in self._skill().resources:
+            assert "lib/agenticos-3.css" in resource.content, resource.name
+            assert "lib/agenticos-3.js" in resource.content, resource.name
+            bound = ["tickets"] if resource.name == "templates/live-table.html" else []
+            assert lint_page(resource.content.encode(), bound=bound) == [], resource.name
 
     def test_every_library_file_it_names_is_one_the_deployment_serves(self) -> None:
         """A renamed or upgraded library would otherwise leave the skill teaching
@@ -994,6 +1410,6 @@ class TestTheBundledSkill:
     def test_the_tool_text_names_the_same_set(self) -> None:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
-        tool = build_artifacts_toolset().tools["publish_artifact"]
+        tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
         for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

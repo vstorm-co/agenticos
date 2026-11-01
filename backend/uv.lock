@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.15"
 
 [manifest]
@@ -10,7 +10,7 @@ overrides = [
 
 [[package]]
 name = "agenticos"
-version = "1.33.2"
+version = "1.34.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
@@ -21,6 +21,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "authlib" },
     { name = "bcrypt" },
+    { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "click" },
     { name = "croniter" },
@@ -33,6 +34,8 @@ dependencies = [
     { name = "httpx", extra = ["http2"] },
     { name = "httpx2" },
     { name = "itsdangerous" },
+    { name = "jmespath" },
+    { name = "jsonschema" },
     { name = "ldap3" },
     { name = "liteparse" },
     { name = "llama-cloud" },
@@ -64,6 +67,7 @@ dependencies = [
     { name = "redis" },
     { name = "requests" },
     { name = "slack-sdk" },
+    { name = "soupsieve" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "subagents-pydantic-ai" },
     { name = "tabulate" },
@@ -116,6 +120,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "authlib", specifier = ">=1.9.1" },
     { name = "bcrypt", specifier = ">=4.0.0" },
+    { name = "beautifulsoup4", specifier = ">=4.15.0" },
     { name = "boto3", specifier = ">=1.43.114" },
     { name = "cdp-use", marker = "extra == 'browser'", specifier = "==1.4.5" },
     { name = "click", specifier = ">=8.5.0" },
@@ -130,6 +135,8 @@ requires-dist = [
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.0" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
+    { name = "jmespath", specifier = ">=1.1.0" },
+    { name = "jsonschema", specifier = ">=4.23.0" },
     { name = "ldap3", specifier = ">=2.9.1" },
     { name = "liteparse", specifier = ">=2.16.0" },
     { name = "llama-cloud", specifier = ">=2.18.0" },
@@ -162,6 +169,7 @@ requires-dist = [
     { name = "redis", specifier = ">=8.1.0" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "slack-sdk", specifier = ">=3.45.0" },
+    { name = "soupsieve", specifier = ">=2.9.2" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.4" },
     { name = "subagents-pydantic-ai", specifier = ">=0.2.25" },
     { name = "tabulate", specifier = ">=0.9.0" },

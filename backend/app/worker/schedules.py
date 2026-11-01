@@ -81,6 +81,18 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A call a dead worker left is billed by the minute, and its heartbeat goes
     # stale 45 s after the worker died (#54).
     Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
+    # The workflow engine's sweeps. Postgres holds a run's position and every
+    # outbox row has its own job, so the poll is only the backstop for a job that
+    # died or was lost; the reconcile outlasts the 120 s dispatch lease
+    # several times over; a workflow schedule's floor is one minute; and a table
+    # trigger is promised within about ten seconds.
+    Schedule("workflow-dispatch-poll", jobs.WORKFLOW_DISPATCH_POLL, _MINUTE),
+    Schedule("workflow-reconcile", jobs.WORKFLOW_RECONCILE, timedelta(seconds=30)),
+    Schedule("workflow-schedules-check", jobs.WORKFLOW_SCHEDULES_CHECK, _MINUTE),
+    Schedule("workflow-table-triggers", jobs.WORKFLOW_TABLE_TRIGGERS, timedelta(seconds=10)),
+    # Count each alert rule's matching log lines over its window (the shortest is five
+    # minutes), so an alert is at most a minute late.
+    Schedule("workflow-log-alerts", jobs.WORKFLOW_LOG_ALERTS, _MINUTE),
     # A run whose process died stops beating; a chat says "Working" over it
     # until this ends it, so it is looked for every minute (#2301).
     Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _MINUTE),
@@ -108,6 +120,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("apply-retention", jobs.APPLY_RETENTION, _DAY),
     Schedule("sweep-notifications", jobs.SWEEP_NOTIFICATIONS, _DAY),
     Schedule("sweep-background-jobs", jobs.SWEEP_BACKGROUND_JOBS, _DAY),
+    Schedule("workflow-run-retention", jobs.WORKFLOW_RUN_RETENTION, _DAY),
     # Generated images, speech and video past `GENERATED_MEDIA_RETENTION_DAYS` (#2310).
     Schedule("sweep-generated-media", jobs.SWEEP_GENERATED_MEDIA, _DAY),
     # A report covers the period its occurrence names, so one that arrives while

@@ -17,13 +17,14 @@ carries a namespace: two unrelated ceilings must not block each other because a
 UUID happened to hash the same way.
 """
 
-from enum import IntEnum
+from enum import IntEnum, unique
 from uuid import UUID
 
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
+@unique
 class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
@@ -63,6 +64,32 @@ class LockScope(IntEnum):
     #: `resume_of` and token at once each passed the checks and each continued the
     #: call - one call's remaining time, spent several times over (Codex on #2204).
     VOICE_RESUME = 10
+    #: The live table names of one organization. A name is unique among live
+    #: tables, and "is this name free" followed by an insert is two statements:
+    #: without this two creates of one name both pass the check and the second
+    #: dies on the unique index with a 500 instead of a 409 (#1782).
+    VIRTUAL_TABLE_NAMES_PER_ORG = 20
+    #: The record count of one table. A quota reads "how many records" and then
+    #: inserts, which two creates can do at once and both pass at limit - 1, so
+    #: creates into one table take turns for the length of the check (#1823).
+    VIRTUAL_TABLE_RECORD_COUNT = 21
+    #: The agent one workflow step configures in place. Its first run creates it and
+    #: a changed spec publishes a version, each read-then-write: two runs of the step
+    #: at once would otherwise create it twice or publish the same spec twice.
+    WORKFLOW_STEP_AGENT = 22
+    #: The stored file bytes of one organization. A quota sums what is stored and
+    #: then inserts, which two steps can do at once and both pass at the ceiling.
+    WORKFLOW_FILE_BYTES = 15
+    #: The runs of one workflow chain, from its root run. A table trigger counts the
+    #: chain's runs and then admits one; two passes over events of one chain read the
+    #: same count and both admit past the limit, so the count is taken under this.
+    WORKFLOW_RUN_CHAIN = 16
+    #: Record writes and their retained copies share one per-organization byte ceiling.
+    VIRTUAL_TABLE_STORAGE_PER_ORG = 17
+    #: One streaming table export per organization, held until its response ends.
+    VIRTUAL_TABLE_EXPORT_PER_ORG = 18
+    #: Cumulative inline results across retained runs, before run-row locks.
+    WORKFLOW_INLINE_RESULTS_PER_ORG = 19
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.
@@ -105,6 +132,19 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     """
     await db.execute(
         select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
+
+
+async def try_hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> bool:
+    """Take a transaction lock without waiting; maintenance can skip a busy tenant."""
+    return bool(
+        await db.scalar(
+            select(
+                func.pg_try_advisory_xact_lock(
+                    cast(scope.value, Integer), cast(_key(subject), Integer)
+                )
+            )
+        )
     )
 
 

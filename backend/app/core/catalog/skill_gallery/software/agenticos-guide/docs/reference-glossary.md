@@ -94,3 +94,5 @@ in [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
+| Tables | `virtual_tables` |
+| Workflows | `workflows` |

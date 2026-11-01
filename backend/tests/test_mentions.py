@@ -244,6 +244,25 @@ class TestWhatTheRunWouldNotHave:
         offered = await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT)
         assert "GitHub" not in [item.name for item in offered if item.kind == "mcp"]
 
+    async def test_a_connection_whose_catalog_entry_was_removed_still_lists(
+        self, world: Any
+    ) -> None:
+        """The Work IQ application entries left the catalog (`m365-mail`); the
+        connection keeps its key and URL, and is offered by its own name."""
+        world.connection.catalog_key = "m365-mail"
+        world.connection.name = "outlook-work"
+        world.connection.url = "https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools"
+        servers = [
+            item
+            for item in await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT)
+            if item.kind == "mcp" and item.id == str(world.connection.id)
+        ]
+        assert [(item.name, item.icon) for item in servers] == [("outlook-work", None)]
+        resolved = await MentionService(MagicMock()).resolve(
+            _ctx(), CHAT_AGENT, [MentionRef(kind="mcp", id=str(world.connection.id))]
+        )
+        assert [item.id for item in resolved.mentions] == [str(world.connection.id)]
+
     async def test_the_note_names_tools_as_the_binding_renamed_them(self, world: Any) -> None:
         spec = world.specs[CHAT_AGENT]
         renamed = {

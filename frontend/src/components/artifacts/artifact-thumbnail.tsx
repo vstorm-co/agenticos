@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { useDataBridge } from "@/components/artifacts/artifact-frame";
 import { useArtifactView } from "@/hooks/use-artifacts";
 import { cn } from "@/lib/utils";
+import type { AnyBindingData } from "@/types/artifact";
 
 /**
  * Script, and nothing else: no dialogs, no forms, no popups, no same origin.
@@ -48,6 +50,14 @@ function useSeen(ref: React.RefObject<HTMLElement | null>): boolean {
   return seen;
 }
 
+/**
+ * What a thumbnail answers a live page with: no bindings, so the page fills in
+ * every name it declares as unavailable at once. A listing reads no records -
+ * one read per card - and a page waiting on data it will never get would
+ * otherwise sit out its own deadline first.
+ */
+const NO_DATA: Record<string, AnyBindingData> = {};
+
 /** How far a `VIEWPORT_WIDTH` page must shrink to fit the element's width. */
 function useFitScale(ref: React.RefObject<HTMLElement | null>): number {
   const [scale, setScale] = useState(0.25);
@@ -89,21 +99,26 @@ export function ArtifactThumbnail({
   versionId?: string | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
   const seen = useSeen(box);
   const scale = useFitScale(box);
   // The first address is kept, and the query stops once there is one: a refetch
   // - on reconnect, say - mints a new address, and a new `src` reloads the page.
-  const [src, setSrc] = useState<string | null>(null);
-  const view = useArtifactView(artifactId, versionId, seen && src === null);
+  // Its nonce is kept with it, because the data bridge answers only the frame
+  // whose address that nonce was minted for.
+  const [shown, setShown] = useState<{ url: string; nonce: string } | null>(null);
+  const src = shown?.url ?? null;
+  const view = useArtifactView(artifactId, versionId, seen && shown === null);
+  const bridge = useDataBridge(frame, shown?.nonce ?? "", NO_DATA, 0);
   const [loaded, setLoaded] = useState(false);
   const page = `${artifactId}:${versionId ?? ""}`;
   const [shownPage, setShownPage] = useState(page);
   if (shownPage !== page) {
     setShownPage(page);
-    setSrc(null);
+    setShown(null);
     setLoaded(false);
-  } else if (src === null && view.data !== undefined) {
-    setSrc(view.data.url);
+  } else if (shown === null && view.data !== undefined) {
+    setShown({ url: view.data.url, nonce: view.data.nonce });
   }
   const line = cn("bg-muted rounded", !view.isError && "animate-pulse");
 
@@ -123,6 +138,7 @@ export function ArtifactThumbnail({
       )}
       {src !== null && (
         <iframe
+          ref={frame}
           src={src}
           title={title}
           sandbox={THUMBNAIL_SANDBOX}
@@ -130,7 +146,10 @@ export function ArtifactThumbnail({
           loading="lazy"
           tabIndex={-1}
           aria-hidden
-          onLoad={() => setLoaded(true)}
+          onLoad={() => {
+            setLoaded(true);
+            bridge.onLoad();
+          }}
           data-loaded={loaded}
           className="peek-frame pointer-events-none absolute top-0 left-0 origin-top-left border-0 bg-white"
           style={{

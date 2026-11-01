@@ -151,8 +151,8 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
         binding.id for binding in spec.capabilities
     }
     # Its skills for building agents, installed with it (#2069), and the guide
-    # to AgenticOS itself that its questions about the product are answered from.
-    assert len(spec.skill_ids) == 8
+    # to AgenticOS itself, plus workflow-builder and virtual-tables.
+    assert len(spec.skill_ids) == 10
     # What the chat offers somebody opening it there with nothing said yet (#2301).
     assert spec.starters[0] == "Build me an agent that answers questions from our documents"
 

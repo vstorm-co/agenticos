@@ -22,21 +22,25 @@ class Visibility(enum.StrEnum):
 class GrantLevel(enum.StrEnum):
     """What a grant lets the subject do with one resource.
 
-    Ordered `READ < USE < EDIT`: *read* sees the configuration, *use* also
-    runs or attaches it, *edit* also changes it.
+    Ordered `READ < USE < EDIT < EDIT_DATA`: *read* sees the configuration, *use*
+    also runs or attaches it, *edit* also changes it. *edit_data* is for pages only
+    ("Can edit, including data"): an edit whose republishes the page's owner has
+    consented to in advance, so changing what data the page reads reaches everyone who
+    opens it. Being above *edit* it satisfies every check that asks for *edit*.
     """
 
     READ = "read"
     USE = "use"
     EDIT = "edit"
+    EDIT_DATA = "edit_data"
 
 
-GrantLevelLiteral = Literal["read", "use", "edit"]
+GrantLevelLiteral = Literal["read", "use", "edit", "edit_data"]
 """The stored levels, as a type the API schemas can also be written in.
 
 Declared here rather than in :mod:`app.schemas.resource_grant` because this is
-the module that makes it true: `ck_resource_grant_level` below is what stops a
-fourth value reaching the column, and a response model promising three of them
+the module that makes it true: `ck_resource_grant_level` below is what stops an
+unknown value reaching the column, and a response model promising these
 should be typed from the same place. Without it the ORM column is a plain
 `str`, and handing one to a schema field that says `Literal` type-checks
 nowhere and raises at response time.
@@ -47,6 +51,7 @@ GRANT_ORDER: dict[GrantLevel, int] = {
     GrantLevel.READ: 0,
     GrantLevel.USE: 1,
     GrantLevel.EDIT: 2,
+    GrantLevel.EDIT_DATA: 3,
 }
 
 
@@ -111,7 +116,13 @@ class ResourceGrant(Base, TimestampMixin):
             "subject_group_id",
             name="uq_resource_grant_group",
         ),
-        CheckConstraint("level IN ('read', 'use', 'edit')", name="ck_resource_grant_level"),
+        CheckConstraint(
+            "level IN ('read', 'use', 'edit', 'edit_data')", name="ck_resource_grant_level"
+        ),
+        CheckConstraint(
+            "level <> 'edit_data' OR resource_type = 'artifact'",
+            name="ck_resource_grant_edit_data_artifact",
+        ),
         CheckConstraint(
             "(subject_user_id IS NULL) <> (subject_group_id IS NULL)",
             name="ck_resource_grant_one_subject",

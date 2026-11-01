@@ -1,12 +1,12 @@
 ---
-source_sha: "ab1e8540de48"
+source_sha: "607874ad6395"
 title: "Wybierz pierwsze zadanie"
-description: "29 tutoriali: dokumenty, wsparcie, research, automatyzacja, produktywność i treści, każdy ze sprawdzeniem, które możesz wykonać."
+description: "30 tutoriali: dokumenty, wsparcie, research, automatyzacja, produktywność i treści, każdy ze sprawdzeniem, które możesz wykonać."
 ---
 
 # Wybierz pierwsze zadanie { #choose-a-first-task }
 
-Zacznij od pracy, której wynik ktoś w zespole potrafi ocenić. Każdy z 29 tutoriali poniżej daje syntetyczne dane wejściowe, konfigurację, dokładny prompt, kryteria sprawdzenia, typowe błędy i to, co warto zapisać. To punkty startowe z przebiegami referencyjnymi, nie historie klientów ani deklaracje skuteczności.
+Zacznij od pracy, której wynik ktoś w zespole potrafi ocenić. Każdy z 30 tutoriali poniżej daje syntetyczne dane wejściowe, konfigurację, dokładny prompt, kryteria sprawdzenia, typowe błędy i to, co warto zapisać. To punkty startowe z przebiegami referencyjnymi, nie historie klientów ani deklaracje skuteczności.
 
 Ostatnia kolumna mówi, kiedy maintainerzy ostatnio uruchomili tutorial na produkcie. Zapisany przebieg obejmuje dokładnie to, co opisuje blok przykładu na stronie: jedną konfigurację, jeden dzień i jeden model. Nie dowodzi, że Twoja konfiguracja przejdzie te same sprawdzenia. Tutorial, który wymaga konta w usłudze zewnętrznej, której maintainerzy nie podłączyli, ma wpis *Jeszcze nie zapisano*.
 
@@ -29,6 +29,7 @@ Ostatnia kolumna mówi, kiedy maintainerzy ostatnio uruchomili tutorial na produ
 | [Odpowiedz na pytanie z handbooka w Slacku](howto/slack-handbook-assistant.md) | Agent z dokumentem odpowiada w wątku na Slacku | Jeszcze nie zapisano |
 | [Segreguj zgłoszenia wsparcia z własnej aplikacji](howto/support-ticket-triage.md) | Zgłoszenia z Twojej aplikacji klasyfikowane przez podpisany webhook | v0.0.504, 25 września 2026 |
 | [Segreguj skrzynkę i przygotowuj szkice odpowiedzi](howto/email-triage.md) | Nowa poczta czytana przez trigger Gmaila i zamieniana w szkice odpowiedzi | Jeszcze nie zapisano |
+| [Odpowiedz na pocztę zatwierdzonym szkicem](howto/answer-mail-with-approved-draft.md) | Workflow, który przygotowuje odpowiedź, prosi człowieka o zatwierdzenie i zapisuje ją w wątku | Jeszcze nie zapisano |
 | [Odpowiadaj nowym pracownikom za pomocą plików kontekstu i skilli](howto/onboarding-helpdesk.md) | Stały kontekst i skille z procedurami dla nowych osób | v0.0.504, 25 września 2026 |
 
 ## Research i analiza { #research-and-analysis }

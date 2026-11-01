@@ -155,8 +155,13 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    include_messages: bool = Query(True),
 ) -> Any:
-    """Get a conversation with all its messages.
+    """Get a conversation, optionally including its full transcript.
+
+    `include_messages=false` returns metadata and an empty messages list; use
+    the paginated messages route to open a transcript in the console. The
+    default remains the complete transcript for existing API callers.
 
     Always scoped to the caller. This used to pass `user_id=None` - "do not
     filter by owner" - for anybody whose `users.role` column said `admin`, which
@@ -169,13 +174,15 @@ async def get_conversation(
     resolves against its agent's access; without it that thread would 404 for
     the very person who created the schedule.
     """
-    return await conversation_service.get_conversation(
+    conversation = await conversation_service.get_conversation(
         conversation_id,
         organization_id=active_org.id,
-        include_messages=True,
+        include_messages=include_messages,
         user_id=current_user.id,
         ctx=ctx,
     )
+
+    return conversation if include_messages else ConversationRead.model_validate(conversation)
 
 
 @router.get("/{conversation_id}/metadata", response_model=ConversationRead)

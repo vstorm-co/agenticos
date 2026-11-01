@@ -438,6 +438,7 @@ class TestDelegatingToOne:
         assert builder.call_args.kwargs == {
             "handle": "reviewer",
             "endpoint": CARD.url,
+            "card_url": row.card_url,
             "bearer": "remote-key",
         }
 

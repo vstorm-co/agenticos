@@ -24,7 +24,7 @@
  * the last resort for entries with no URL because the server is self-hosted.
  */
 
-import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
+import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpServerRef } from "@/types/agents";
 import type { PersonalServiceGapKind } from "@/types/chat";
@@ -431,4 +431,23 @@ export function mcpToolCount(
       total + (personal.find((c) => c.catalog_key === ref.catalog_key)?.last_tools?.length ?? 0)
     );
   }, 0);
+}
+
+/** What a person reads a connection as: its label, or its name when it has none. */
+export function connectionLabel(connection: Pick<McpConnectionRecord, "name" | "label">): string {
+  return connection.label ?? connection.name;
+}
+
+/**
+ * The tools a connection offers: those its last test recorded that its allow list
+ * lets through, or null when nothing has tested it yet - which is not "offers none".
+ */
+export function offeredTools(
+  connection: Pick<McpConnectionRecord, "last_tools" | "allowed_tools">,
+): McpToolInfo[] | null {
+  return (
+    connection.last_tools?.filter(
+      (entry) => !connection.allowed_tools || connection.allowed_tools.includes(entry.name),
+    ) ?? null
+  );
 }

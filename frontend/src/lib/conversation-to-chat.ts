@@ -23,7 +23,7 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
-  type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention";
+  type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run";
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
   mention_kind?: MentionKind | null;
@@ -32,6 +32,11 @@ export interface RawMessagePart {
   question?: string | null;
   answer?: string | null;
   asked_by?: string | null;
+  run_id?: string | null;
+  workflow_id?: string | null;
+  workflow_name?: string | null;
+  status?: string | null;
+  error?: string | null;
 }
 
 export interface RawMessage {
@@ -108,6 +113,20 @@ export function replayStoredParts(
         question: entry.question ?? "",
         answer: entry.answer ?? "",
         ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
+      });
+      return;
+    }
+    if (entry.type === "workflow_run") {
+      parts.push({
+        id: `${msgId}-workflow_run-${index}`,
+        type: "workflow_run" as const,
+        workflowRun: {
+          workflowId: entry.workflow_id ?? "",
+          workflowName: entry.workflow_name ?? null,
+          runId: entry.run_id ?? null,
+          status: entry.status ?? "succeeded",
+          error: entry.error ?? null,
+        },
       });
       return;
     }

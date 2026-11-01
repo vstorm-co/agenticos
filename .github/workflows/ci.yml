@@ -303,8 +303,7 @@ jobs:
         # goes to base and back rather than only forwards.
         #
         # `make check` does not run this, and that omission is deliberate rather
-        # than drift: `downgrade base` here empties a throwaway `test_db`, while
-        # on a laptop it points at whatever `backend/.env` says.
+        # than drift: it is slow and rarely needed, so `check` leaves it to a hand run.
         run: make test-migrations
 
       - name: Verify the models and the migrations still agree
@@ -331,6 +330,17 @@ jobs:
         #
         # `COV_REPORT=xml` is the only difference from what `make test` does on a
         # laptop, and it is for Codecov below rather than for the gate.
+        #
+        # `PYTEST_ADDOPTS` turns the Makefile's `-v` into one line of dots per
+        # worker. With a line per test (about 25,000 of them, a few of them 50 KB
+        # long) the run stopped three times in a row on this suite: both workers
+        # and the step's own output went silent in the same second, no stack
+        # was dumped, and the job ran into its 90-minute limit. The same suite
+        # finished in 14 to 20 minutes with quiet output, and with its output
+        # sent to a file. Failures still print in full with a short summary, and
+        # `faulthandler_timeout` still names a test that hangs.
+        env:
+          PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
 
       - name: Report coverage of template-inherited code

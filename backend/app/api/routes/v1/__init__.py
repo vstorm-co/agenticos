@@ -51,6 +51,18 @@ from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
+from app.api.routes.v1 import virtual_tables
+from app.api.routes.v1 import (
+    workflow_approvals,
+    workflow_evals,
+    workflow_exposures,
+    workflow_log_alerts,
+    workflow_run_socket,
+    workflow_runs,
+    workflows,
+)
+from app.api.routes.v1 import table_views
+from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
@@ -121,6 +133,42 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
+v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
+v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
+v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
+v1_router.include_router(workflow_runs.logs_router, prefix="/workflows", tags=["workflows:logs"])
+v1_router.include_router(
+    workflow_runs.org_logs_router, prefix="/workflow-logs", tags=["workflows:logs"]
+)
+v1_router.include_router(
+    workflow_runs.resume_router, prefix="/workflow-resume", tags=["workflow-runs"]
+)
+v1_router.include_router(
+    workflow_approvals.router, prefix="/workflow-approvals", tags=["workflow-approvals"]
+)
+v1_router.include_router(workflow_evals.router, prefix="/workflows", tags=["workflows:evals"])
+v1_router.include_router(
+    workflow_log_alerts.router, prefix="/workflows", tags=["workflows:log-alerts"]
+)
+v1_router.include_router(
+    workflow_exposures.router, prefix="/workflows", tags=["workflows:exposures"]
+)
+v1_router.include_router(
+    workflow_exposures.webhook_router, prefix="/workflow-webhooks", tags=["workflows:webhooks"]
+)
+v1_router.include_router(
+    workflow_exposures.webhook_test_router,
+    prefix="/workflow-webhook-tests",
+    tags=["workflows:webhooks"],
+)
+v1_router.include_router(
+    workflow_exposures.github_router, prefix="/workflow-github", tags=["workflows:webhooks"]
+)
+v1_router.include_router(
+    workflow_exposures.form_router, prefix="/public/workflow-forms", tags=["workflows:forms"]
+)
+v1_router.include_router(table_views.router, prefix="/tables", tags=["tables:views"])
+v1_router.include_router(virtual_table_triggers.router, prefix="/tables", tags=["tables:triggers"])
 # Apps were called artifacts until #2071. The old paths stay as deprecated
 # aliases for the v1 policy's 90 days (docs/api.md), so a script written against
 # them keeps working while it is moved.
@@ -148,8 +196,12 @@ v1_router.include_router(sharing.skill_sharing_router, prefix="/skills", tags=["
 v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
 )
+v1_router.include_router(sharing.table_sharing_router, prefix="/tables", tags=["tables:sharing"])
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
 v1_router.include_router(sharing.artifact_sharing_router, prefix="/apps", tags=["apps:sharing"])
+v1_router.include_router(
+    sharing.workflow_sharing_router, prefix="/workflows", tags=["workflows:sharing"]
+)
 v1_router.include_router(
     sharing.mcp_connection_sharing_router, prefix="/mcp-connections", tags=["mcp:sharing"]
 )
@@ -188,6 +240,7 @@ v1_router.include_router(
 )
 
 v1_router.include_router(agent.router, tags=["agent"])
+v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
 v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])

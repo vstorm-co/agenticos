@@ -47,6 +47,7 @@ class TestEveryMemberIsAssignedBySomething:
             "mattermost",
             "teams",
             "schedule",
+            "workflow",
             "proactive",
             "follow_ups",
         }

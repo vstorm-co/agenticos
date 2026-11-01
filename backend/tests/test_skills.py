@@ -1542,7 +1542,7 @@ class TestTheGalleryOnDisk:
         # 75 - the AgenticOS guide among them - the seven the AI Architect ships
         # with (#2069), the bundled visual-design (#2171) and the three that build,
         # plan and check a slide deck as a published page (#2576).
-        assert len(names) == 86
+        assert len(names) == 88
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")

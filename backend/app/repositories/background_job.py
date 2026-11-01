@@ -741,6 +741,30 @@ async def cancel_queued(db: AsyncSession, job_id: UUID) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def cancel_queued_for_payload(
+    db: AsyncSession, *, kind: str, organization_id: UUID, payload_key: str, payload_value: UUID
+) -> int:
+    """Withdraw `organization_id`'s queued jobs of `kind` whose payload names `payload_value` under `payload_key`.
+
+    For a caller that owns the work a job stands for and has just ended it - a
+    cancelled workflow run's timers - not an operator's choice, so it ignores
+    `cancellable`. Settled in the same write: what such a job would leave outside
+    the queue is closed by whoever cancelled it. Answers how many were withdrawn.
+    """
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.kind == kind,
+            BackgroundJob.organization_id == organization_id,
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload[payload_key].astext == str(payload_value),
+        )
+        .values(status="cancelled", finished_at=func.now(), settled_at=func.now())
+        .returning(BackgroundJob.id)
+    )
+    return len(result.scalars().all())
+
+
 async def delete_finished_before(db: AsyncSession, *, cutoff: datetime, limit: int) -> int:
     """Forget finished jobs older than `cutoff`, at most `limit` per call. Answers how many."""
     doomed = (

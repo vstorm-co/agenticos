@@ -130,6 +130,16 @@ class TestPresets:
         assert {preset.catalog_key for preset in watch_presets.for_server("github")} == {"github"}
         assert watch_presets.for_server(None) == ()
 
+    def test_the_mail_presets_are_offered_for_the_microsoft_365_server(self):
+        mail = {preset.key for preset in watch_presets.for_server("ms-365")}
+        assert {"mail-needs-reply", "mail-invoices", "mail-newsletters"} <= mail
+        assert watch_presets.for_server("m365-mail") == ()
+
+    def test_the_teams_preset_is_for_the_microsoft_365_server(self):
+        """It reads chats and channels, which `ms-365` lists and `work-iq` caps and bills."""
+        teams = next(p for p in watch_presets.PRESETS if p.key == "teams-unanswered")
+        assert teams.catalog_key == "ms-365"
+
 
 class TestWhatStopsAWatch:
     @pytest.mark.parametrize(

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, Visibility
-from app.repositories import member_repo, resource_grant_repo
+from app.repositories import member_repo, resource_grant_repo, user_repo
 
 
 class OwnedResource(Protocol):
@@ -62,6 +62,8 @@ COLLECTION = ResourceType(key="collection", view=Perm.COLLECTIONS_VIEW, edit=Per
 AGENT = ResourceType(key="agent", view=Perm.AGENTS_VIEW, edit=Perm.AGENTS_EDIT)
 SKILL = ResourceType(key="skill", view=Perm.SKILLS_VIEW, edit=Perm.SKILLS_EDIT)
 CONTEXT = ResourceType(key="context", view=Perm.CONTEXT_VIEW, edit=Perm.CONTEXT_EDIT)
+TABLE = ResourceType(key="table", view=Perm.TABLES_VIEW, edit=Perm.TABLES_EDIT)
+WORKFLOW = ResourceType(key="workflow", view=Perm.WORKFLOWS_VIEW, edit=Perm.WORKFLOWS_EDIT)
 # A stored key. The same rules as everything else here on purpose: a personal
 # key is private to its owner, a team key reaches whoever holds a grant, and an
 # organization key is everybody's - decided per row rather than by one
@@ -86,6 +88,16 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.SKILLS_EDIT: GrantLevel.EDIT,
     Perm.CONTEXT_VIEW: GrantLevel.READ,
     Perm.CONTEXT_EDIT: GrantLevel.EDIT,
+    Perm.TABLES_VIEW: GrantLevel.READ,
+    Perm.TABLES_EDIT: GrantLevel.EDIT,
+    Perm.WORKFLOWS_VIEW: GrantLevel.READ,
+    Perm.WORKFLOWS_EDIT: GrantLevel.EDIT,
+    # Same shape as `AGENTS_RUN`: "may invoke" is a `USE` grant, distinct from
+    # "may edit", which needs `EDIT`. Without this entry a caller relying on a
+    # resource grant rather than role scope would always be refused, since
+    # `_PERM_MIN_GRANT.get(perm)` decides what grant level satisfies a
+    # resource-scoped permission and an absent entry means none does.
+    Perm.WORKFLOWS_RUN: GrantLevel.USE,
     Perm.SECRETS_VIEW: GrantLevel.READ,
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
     Perm.ARTIFACTS_VIEW: GrantLevel.READ,
@@ -246,6 +258,50 @@ async def visible_resource_ids(
         resource_type=resource_type.key,
         minimum_level=required,
     )
+
+
+async def member_context(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> AuthContext | None:
+    """`user_id` as the member they are now, or `None` when they are not an active one.
+
+    For a run acting for a member: what it does in the organization is done with the
+    role they hold at the moment of the call, not the one they held when the run
+    began, so someone removed or deactivated mid-conversation stops acting through it
+    at once. Read through `member_repo.get_active` for the reason `publisher_context`
+    gives. Unlike that function this never stands anyone in: no member, no context.
+    """
+    member = await member_repo.get_active(db, organization_id=organization_id, user_id=user_id)
+    user = await user_repo.get_by_id(db, user_id) if member is not None else None
+    if member is None or user is None:
+        return None
+    return AuthContext(
+        user_id=user_id,
+        organization_id=organization_id,
+        role=member.role,
+        is_app_admin=user.is_app_admin,
+    )
+
+
+async def acting_member(
+    db: AsyncSession, organization_id: UUID | None, user_id: str | None
+) -> AuthContext | None:
+    """The member a run acts for, with the role they hold now - or `None` when the run
+    acts for no member, or they are no longer an active one.
+
+    :func:`member_context` for a run's own identifiers, which arrive as text, or not at
+    all: a capability that acts in the organization on a member's behalf - a table
+    write, a workflow started, a page bound to data - acts as who they are at the
+    moment of the call, so someone removed mid-conversation stops acting through it at
+    once.
+    """
+    if organization_id is None or user_id is None:
+        return None
+    try:
+        member_id = UUID(user_id)
+    except ValueError:
+        return None
+    return await member_context(db, organization_id=organization_id, user_id=member_id)
 
 
 async def publisher_context(

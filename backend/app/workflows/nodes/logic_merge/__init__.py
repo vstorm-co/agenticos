@@ -1,0 +1,33 @@
+"""`logic.merge` - registration and nothing else. See `_handler.py` and `README.md`."""
+
+from app.workflows._registry import register
+from app.workflows.contracts.definition import NodeDefinition, Port
+from app.workflows.nodes.logic_merge._handler import (
+    LogicMergeConfig,
+    LogicMergeOutput,
+    MergeBranchKey,
+    handle,
+)
+
+__all__ = ["LogicMergeConfig", "LogicMergeOutput", "MergeBranchKey"]
+
+register(
+    NodeDefinition(
+        id="logic.merge",
+        version=1,
+        name="Merge",
+        category="logic",
+        description="Join branches back into one path.",
+        kind="control",
+        config_schema=LogicMergeConfig,
+        input_schema=None,
+        output_schema=LogicMergeOutput,
+        ports=(
+            Port(id="in", label="In", kind="input", schema=None),
+            Port(id="out", label="Out", kind="output", schema=LogicMergeOutput),
+        ),
+        effect_kind="pure",
+        retry_guarantee="idempotent",
+        handler=handle,
+    )
+)

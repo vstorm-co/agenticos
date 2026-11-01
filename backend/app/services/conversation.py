@@ -456,6 +456,9 @@ class ConversationService:
         lost the project kept reading the chats they had started in it, and
         through them its files; the project as it stands decides, for everyone.
         """
+        if conversation.origin == "workflow":
+            return False
+
         if getattr(conversation, "project_id", None) is not None:
             return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
         owner = getattr(conversation, "user_id", None)
@@ -605,6 +608,9 @@ class ConversationService:
         archiving or deleting it stays its starter's while the project is still
         theirs to see.
         """
+        if conversation.origin == "workflow":
+            return False
+
         owner = getattr(conversation, "user_id", None)
         if getattr(conversation, "project_id", None) is not None:
             if turn:

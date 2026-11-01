@@ -1776,7 +1776,15 @@ describe("useChat - approvals and questions", () => {
     // reload, but the panel with the decision was gone, so the only way to finish
     // the run was the approvals queue on another page (#601).
     get.mockResolvedValue([
-      { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: { to: "a@b.c" } },
+      {
+        id: "ar-1",
+        tool_call_id: "tc-1",
+        tool_name: "send_email",
+        tool_args: { to: "a@b.c" },
+        // The stable id and the names its sentence is written from come back with it.
+        capability_tool_id: "send_email",
+        context: { recipient: "Ada" },
+      },
       // A run parked before the tool-call mapping was stored has no id to
       // resolve a card with; the decision is still offered.
       { id: "ar-2", tool_call_id: null, tool_name: "execute", tool_args: {} },
@@ -1792,7 +1800,14 @@ describe("useChat - approvals and questions", () => {
     ]);
     expect(result.current.pendingApproval).toEqual({
       actionRequests: [
-        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
+        {
+          id: "ar-1",
+          tool_call_id: "tc-1",
+          tool_name: "send_email",
+          args: { to: "a@b.c" },
+          capability_tool_id: "send_email",
+          context: { recipient: "Ada" },
+        },
         { id: "ar-2", tool_call_id: "", tool_name: "execute", args: {} },
       ],
       reviewConfigs: [

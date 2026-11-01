@@ -9,6 +9,7 @@ import { useFilePreviewStore } from "./file-preview-store";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
+import { useTableViewStore } from "./table-view-store";
 import { resetVisualState } from "./visual-stream-store";
 import { useWorkOnStore } from "./work-on-store";
 import { useWorkingStore } from "./working-store";
@@ -52,6 +53,9 @@ export function resetTenantState(): void {
   // it, an offer minted from this org's caches having no meaning in the next.
   useOnboardingStore.getState().close();
   useOnboardingStore.getState().dismissOffer();
+  // A conflict banner names a record id and holds its values, both of another
+  // tenant's table once the switch has happened.
+  useTableViewStore.getState().reset();
   // Visuals' pictures and saved apps are keyed by the provider's call id, which
   // another tenant's thread may reuse.
   resetVisualState();

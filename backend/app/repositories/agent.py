@@ -107,6 +107,25 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_for_workflow_node(
+    db: AsyncSession, *, workflow_id: UUID, node_id: UUID, organization_id: UUID, lock: bool = False
+) -> Agent | None:
+    """The agent one workflow step configures in place, if it has run before.
+
+    `lock` holds the row for a caller about to publish a version of it, so two
+    runs of the same step that both find the spec changed publish it once.
+    """
+    query = select(Agent).where(
+        Agent.organization_id == organization_id,
+        Agent.workflow_id == workflow_id,
+        Agent.workflow_node_id == node_id,
+    )
+    if lock:
+        query = query.with_for_update()
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
 async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
     """A published agent its organization chose to serve over A2A, whatever the tenant.
 
@@ -161,7 +180,11 @@ def _visible_clauses(
     Shared by `list_visible` and `list_visible_labels` so the filter's choices
     can never be drawn from a wider set than the listing they filter.
     """
-    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    # A workflow step's own agent is configured in its workflow, not the catalog.
+    where: list[ColumnElement[bool]] = [
+        Agent.organization_id == organization_id,
+        Agent.workflow_id.is_(None),
+    ]
     if not include_archived:
         where.append(Agent.status != AgentStatus.ARCHIVED.value)
     if shared_with_me:
@@ -627,6 +650,8 @@ async def create(
     visibility: str,
     categories: list[str],
     tags: list[str],
+    workflow_id: UUID | None = None,
+    workflow_node_id: UUID | None = None,
 ) -> Agent:
     await hold_subject_shared(db, LockScope.MODEL_PROFILE_REFERENCES, organization_id)
     agent = Agent(
@@ -640,6 +665,8 @@ async def create(
         visibility=visibility,
         categories=categories,
         tags=tags,
+        workflow_id=workflow_id,
+        workflow_node_id=workflow_node_id,
     )
     db.add(agent)
     await db.flush()
@@ -778,6 +805,8 @@ async def count_for_organization(db: AsyncSession, *, organization_id: UUID) -> 
         select(func.count(Agent.id)).where(
             Agent.organization_id == organization_id,
             Agent.status != AgentStatus.ARCHIVED.value,
+            # A workflow step's own agent is part of its workflow, not a seat.
+            Agent.workflow_id.is_(None),
         )
     )
     return int(result.scalar_one())

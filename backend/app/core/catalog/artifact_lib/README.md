@@ -25,6 +25,9 @@ that is not listed there is not served.
 | `agenticos-1.css` | The console's design tokens for pages | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.css` | The console's look and the `ao-` components pages are built from | 2 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting, icons, tabs | 2 | Apache-2.0 (this repository) | written here |
+| `agenticos-3.css` | Version 2's classes, forgiving of a header or table built loosely, plus loading, notes, lists, a toolbar and the header's icon and actions | 3 | Apache-2.0 (this repository) | written here |
+| `agenticos-3.js` | Version 2's `window.AO`, plus icons drawn as a script adds them, `AO.onData` and `AO.records` | 3 | Apache-2.0 (this repository) | written here |
+| `agenticos-map-1.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 | `agenticos-map-2.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 2 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 | `agenticos-map-1.js` | Version 1, kept for the pages that name it; it drops the pins on load and keeps one height. `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 
@@ -47,6 +50,12 @@ keep rendering. Remove an old file only when no kept version can still name it.
 
 Add the licence to `licenses/components.toml` and `NOTICE`, and the file to the
 `artifact-pages` bundled skill, which is how an agent learns the set exists.
+
+The page kit (`agenticos-<n>.css` and `.js`) follows the same rule, and
+`tests/test_artifact_pages.py` pins the bytes of every shipped version: a fix
+that would change how an existing page looks or behaves is the next version.
+`app/services/artifact_lint.py` reads each kit stylesheet's classes, so the
+publish warnings know a new version's classes without a list to update.
 
 ## Licences
 

@@ -14,9 +14,16 @@ import { Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
-import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
+import {
+  useAgents,
+  useChat,
+  useConversationWorkspace,
+  useModelProviders,
+  useWorkflowChat,
+  useWorkflows,
+} from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
-import { AgentPicker } from "./agent-picker";
+import { AgentPicker, isChattable } from "./agent-picker";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { SheetRow } from "./composer-sheet";
@@ -217,6 +224,7 @@ export function ChatContainer({
     fetchConversations,
     refreshConversations,
     selectConversation,
+    createConversation,
     rereadConversation,
     hasEarlierMessages,
     isLoadingEarlier,
@@ -441,6 +449,19 @@ export function ChatContainer({
     testing,
   });
 
+  // A message addressed to a workflow goes to it instead of the agent: the
+  // picker's choice, read from the same cached list the picker shows.
+  const { can } = usePermissions();
+  const { workflows } = useWorkflows({ enabled: can(Perm.workflowsRun) });
+  const selectedWorkflowId = useAgentSelectionStore((state) => state.selectedWorkflowId);
+  const selectedWorkflow =
+    workflows.find((workflow) => workflow.id === selectedWorkflowId && isChattable(workflow)) ??
+    null;
+  const workflowChat = useWorkflowChat({
+    createConversation,
+    onConversationCreated: handleConversationCreated,
+  });
+
   // The reader pressing the notice's button has gone to look for the answer, so
   // the notice stops saying one is on its way. The re-read is the same one a
   // reconnect does; only the acknowledgement is extra.
@@ -645,10 +666,11 @@ export function ChatContainer({
       // Typing on after a call: its summary has said its piece, and would otherwise
       // sit under the new turn.
       dismissCall();
-      if (holdSending) held.current = [content, fileIds, files, mentions];
+      if (selectedWorkflow) void workflowChat.send(selectedWorkflow, content);
+      else if (holdSending) held.current = [content, fileIds, files, mentions];
       else sendMessage(content, fileIds, files, mentions);
     },
-    [sendMessage, holdSending, dismissCall],
+    [sendMessage, holdSending, dismissCall, selectedWorkflow, workflowChat],
   );
   useEffect(() => {
     if (held.current === null || holdSending) return;

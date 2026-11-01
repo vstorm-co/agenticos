@@ -2,19 +2,38 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 import ipaddress
-import socket
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
-from app.core.sanitize import METADATA_ADDRESSES, METADATA_HOSTS
+from app.core.sanitize import (
+    PrivateAllowlist,
+    PrivateAllowlistEntryError,
+    parse_private_allowlist,
+    wire_spelling,
+)
 
 SmtpTlsMode = Literal["auto", "implicit", "starttls"]
 """How an encrypted SMTP connection is opened: chosen by the port, or forced."""
+
+
+def _reaches_host(listed: PrivateAllowlist, host: str, *, suffix_reaches: bool) -> bool:
+    """Whether a parsed entry names *host*: exactly, by suffix, or by a network holding it."""
+    host = host.removeprefix("[").removesuffix("]").lower().removesuffix(".")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        if suffix_reaches and listed.admits_name(host):
+            return True
+        return host in listed.names or wire_spelling(host) in listed.names
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return any(address in network for network in listed.networks)
 
 
 def find_env_file() -> Path | None:
@@ -178,6 +197,39 @@ class Settings(BaseSettings):
     # a separate registrable domain that routes to this API, it also puts the
     # page on another site, which a security review may ask for.
     ARTIFACT_ORIGIN: str | None = None
+    # How many page queries one page version may bind. Each binding is a query
+    # run as the page's owner every time the page is shown or refreshed, so the
+    # cap bounds what one open page costs the database, not what a page may say.
+    ARTIFACT_DATA_MAX_BINDINGS: int = Field(default=5, ge=1)
+    # How many records one binding serves a page, and the most its own `limit`
+    # may ask for. Past it the binding is served truncated, with `limit:
+    # "records"`; the query's filters and limit are how a page asks for fewer.
+    ARTIFACT_DATA_MAX_RECORDS: int = Field(default=1000, ge=1)
+    # How much data one page load is served, in bytes of the shaped payload as
+    # sent, across every binding of the page. Shared max-min fairly: a small
+    # binding is served whole, and the rest is split evenly among the others.
+    ARTIFACT_DATA_MAX_BYTES: int = Field(default=4 * 1024 * 1024, ge=1024)
+    # The longest any one query of a page load may run, in milliseconds - per
+    # query, not per binding. Each query is given the smaller of this and the
+    # time left on the page's deadline, and Postgres stops it there.
+    ARTIFACT_DATA_STATEMENT_TIMEOUT_MS: int = Field(default=2000, ge=1)
+    # The deadline of one page load, in seconds. It is checked before every query
+    # and between bindings, and never enforced by cancelling a query: a binding
+    # not reached in time is served `unavailable` with the reason `timeout`.
+    ARTIFACT_DATA_READ_TIMEOUT_SECONDS: int = Field(default=5, gt=0)
+    # How many page loads one API process serves at once. Each holds a database
+    # connection for up to the page's deadline, so this stays well below
+    # `DB_POOL_SIZE + DB_MAX_OVERFLOW`; a load past it is refused with a 429 at
+    # once rather than waiting for a connection. Per process, not per deployment.
+    ARTIFACT_DATA_MAX_CONCURRENT_LOADS: int = Field(default=4, ge=1)
+    # The Chromium DevTools endpoint `preview_artifact` renders a page in, as
+    # `http://artifact-render:9222` - an operator's setting, never an agent's, so it
+    # is checked on its own and not against `BROWSER_CDP_ALLOWED_HOSTS` (what
+    # authors may drive); `browser_choice` refuses its host. Unset, the tool answers
+    # with its text report and no screenshot. Run it as its own browser on a
+    # network with no egress (the compose `artifact-render` profile), not the one
+    # browsing agents drive: every byte a render needs comes from this API.
+    ARTIFACT_RENDER_CDP_URL: str | None = None
 
     # What a *stranger* may upload to a hosted page, in megabytes. Its own
     # setting and much smaller, because the two callers are not comparable: a
@@ -630,6 +682,26 @@ class Settings(BaseSettings):
     # counts nobody. Wide, because it bounds a page rather than rationing
     # visitors - what rations spend is the socket, counted per address.
     RATE_LIMIT_HOSTED_PAGE_PER_MINUTE: int = 240
+    # How many submissions one workflow's public form takes in a minute. Counted
+    # per form, for the hosted page's reason: the console's server forwards them,
+    # so every visitor arrives as the same caller. Each one is a run, so this is
+    # what bounds a stranger's spend on the form's publisher.
+    RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE: int = 20
+    # How many deliveries one workflow webhook (or GitHub trigger) may start runs
+    # from in a minute, counted per exposure once the signature has verified and
+    # the delivery would start one: a sender holding the secret starts a run per
+    # delivery, each one spending the workflow's budget. Anybody else, and the
+    # deliveries a trigger skips, spend nothing of it.
+    RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE: int = Field(default=60, gt=0)
+    # How many requests one address may send the webhook doors in a minute,
+    # whatever they carry, counted before anything is read. Wide: senders such as
+    # GitHub deliver for many hooks from a few addresses.
+    RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE: int = Field(default=600, gt=0)
+    # Shared fixed-hour allowances for external workflow email, counted by
+    # unique recipient before submission, across runs, workers and organizations.
+    WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR: int = Field(default=100, gt=0)
+    WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR: int = Field(default=500, gt=0)
+    WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR: int = Field(default=1000, gt=0)
     # How many auth attempts one caller gets per minute - login, register, token
     # refresh, and the reset/magic-link request and verify routes. Counted per IP
     # and, where the body carries one, per submitted address, both in the shared
@@ -643,6 +715,71 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # How many table writes one member may make per minute, counted per member
+    # and organization in the shared Redis: a record create, update, upsert or
+    # delete, and a table create, rename, archive or schema change. Every one of
+    # them stores a snapshot in history, and a receipt when an idempotency key
+    # rides along, so a member editing one cell back and forth is the way a
+    # tenant grows a shared database with tiny requests (#1823). Wide enough
+    # for an import script or a person editing by hand, narrow enough that a
+    # loop is refused after a minute rather than after a night.
+    RATE_LIMIT_TABLE_WRITES_PER_MINUTE: int = Field(default=300, gt=0)
+    # How many times one member may load a live page's data per minute, counted
+    # per member and organization. Every load runs each binding's view as a
+    # query, so this bounds what an open page with auto-refresh, or a loop
+    # calling the route, costs the database. Kept per process while the shared
+    # Redis cannot count.
+    RATE_LIMIT_ARTIFACT_DATA_PER_MINUTE: int = Field(default=30, gt=0)
+    # How many times a public page's data may be read from the tables per minute,
+    # counted per page across every visitor. Only a read that missed the short
+    # in-process cache counts, so a busy page is bounded by this, not by its audience.
+    RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE: int = Field(default=60, gt=0)
+    # The most bytes of records one process keeps for public pages' short in-process
+    # cache; the oldest reads go first, and a read over it is never kept.
+    ARTIFACT_PUBLIC_DATA_CACHE_BYTES: int = Field(default=32 * 1024 * 1024, ge=1024)
+    # How many requests to share a page or to open one a member may file per hour,
+    # counted per member and organization. Each one notifies the page's owner, so
+    # this bounds what one person can make arrive in somebody's inbox.
+    RATE_LIMIT_ARTIFACT_SHARE_REQUESTS_PER_HOUR: int = Field(default=10, gt=0)
+    # How many runs one member may start from one page's actions per minute, counted
+    # per member, organization and page. A page's script is untrusted; the console asks
+    # the person before each run, and this bounds a frame that asks in a loop.
+    RATE_LIMIT_ARTIFACT_ACTIONS_PER_MINUTE: int = Field(default=10, gt=0)
+    # Virtual Tables quotas, per organization. Every one is a ceiling on what one
+    # tenant may store in the shared PostgreSQL, and a write over one is refused
+    # with QUOTA_EXCEEDED and audited without its content (#1823). Tables count
+    # archived ones, because a table is never deleted and its rows stay.
+    TABLES_MAX_PER_ORGANIZATION: int = Field(default=200, gt=0)
+    TABLES_MAX_RECORDS_PER_TABLE: int = Field(default=100_000, gt=0)
+    # The serialized size of one record's values, in bytes. It bounds a create's
+    # and a delete's history snapshot and a receipt's copy, since each holds one
+    # record at most.
+    TABLES_MAX_RECORD_BYTES: int = Field(default=1_000_000, ge=1)
+    # Aggregate PostgreSQL JSONB payload storage: records, history, receipts and outbox.
+    TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION: int = Field(default=1_073_741_824, ge=1)
+    # How long an idempotency receipt answers a retry. After it, the same key is
+    # a new write. Also the bound on how long a receipt's full copy of a record
+    # is kept.
+    TABLES_RECEIPT_TTL_HOURS: int = Field(default=24, gt=0)
+    # How long a dispatched outbox row is kept. Undispatched rows are events the
+    # table-trigger consumer has not judged yet, and wait for the setting below.
+    TABLES_OUTBOX_RETENTION_DAYS: int = Field(default=3, gt=0)
+    # How long an *undispatched* outbox row is kept before it is dropped anyway.
+    # The table-trigger heartbeat (#1785) marks every row it judges, so a row
+    # this old means the worker has not run for that long. This is a dead-letter
+    # cutoff, not a claim the event was delivered: past it, the row is gone and
+    # no trigger will ever start for that record. Long, so a worker brought back
+    # after an outage has a generous window to catch up on its backlog first.
+    TABLES_OUTBOX_UNDISPATCHED_RETENTION_DAYS: int = Field(default=30, gt=0)
+    # How long a record's history is kept, counted from the change, for a deleted
+    # record as much as a live one.
+    TABLES_HISTORY_RETENTION_DAYS: int = Field(default=365, gt=0)
+    # How many quota-refusal audit entries this process writes at once. Moving that
+    # write off the request's own connection pool (so a burst of refusals cannot
+    # drain it) left it otherwise unbounded, opening one live connection per
+    # refusal; this caps it the way CHAT_CONVERT_MAX_CONCURRENCY and
+    # ML_MAX_CONCURRENT_PARSES cap their own pools of concurrent work.
+    TABLES_MAX_CONCURRENT_QUOTA_AUDITS: int = Field(default=4, gt=0)
     # How many requests one organization API key may make per minute, across
     # every public route. A key is a program, not a person, so the bound is on
     # what one integration can do to the deployment; a run or an ML call is
@@ -695,11 +832,15 @@ class Settings(BaseSettings):
     # The background workers (`python -m app.worker`, #2219). Each process serves
     # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
     # container runs two workers, one with `agent,system` and one with `ingest`.
-    WORKER_POOLS: str = "agent,ingest,system"
+    WORKER_POOLS: str = "agent,ingest,system,workflow"
     # Agent runs at once per worker process. They wait on models rather than
     # compute, so this is bounded by the database pool and the providers' rate
     # limits more than by CPU.
     WORKER_AGENT_CONCURRENCY: int = Field(default=10, ge=1)
+    # Workflow nodes at once per worker process. Most wait on a network call, a
+    # sandbox or a timer, but one holding a file takes up to `WORKFLOW_RUN_MAX_FILE_BYTES`
+    # of memory, so size the worker for this many of them.
+    WORKER_WORKFLOW_CONCURRENCY: int = Field(default=5, ge=1)
     # Sweeps, cleanups and reports at once per worker process.
     WORKER_SYSTEM_CONCURRENCY: int = Field(default=4, ge=1)
     # Child processes of the ingest pool: one parse each at a time. Each holds an
@@ -761,6 +902,116 @@ class Settings(BaseSettings):
     # it should be able to run something over the file. The ceiling is where
     # paying for the bytes twice stops being worth it.
     SANDBOX_INLINE_IMAGE_MAX_BYTES: int = 5 * 1024 * 1024
+
+    # A hard ceiling on one workflow graph. `analyze_graph` (app.workflows.graph.validate)
+    # retains an ancestor set per node - up to O(n^2) total memberships for a linear
+    # chain of n nodes (the dominator sets it replaced took ~330 MiB of traced
+    # allocation at 4,000 nodes in an isolated benchmark) - and the console routes that accept a graph are explicitly
+    # unmetered (SECURITY.md's hardening checklist), so an unbounded graph is a
+    # resource-exhaustion vector rather than only a slow request. Checked before a
+    # draft is even persisted, not only at publish.
+    WORKFLOW_GRAPH_MAX_NODES: int = Field(default=500, gt=0)
+    WORKFLOW_GRAPH_MAX_EDGES: int = Field(default=2000, gt=0)
+    WORKFLOW_GRAPH_MAX_BINDINGS: int = Field(default=2000, gt=0)
+    # The largest payload a run may be started with, as compact JSON. It is stored
+    # on the run's row and read at every `core.input` dispatch, and the surfaces
+    # that supply it are open to API keys and webhooks (#1792), so an unbounded one
+    # is a row anyone who may start a run can grow without limit.
+    WORKFLOW_RUN_MAX_INPUT_BYTES: int = Field(default=262_144, gt=0)
+    # What the files workflow steps write may add up to: per run, and per
+    # organization across every run that still holds its files. `http.download`
+    # bounds one file only, and a run keeps its files for as long as the run is
+    # kept, so without a total a loop of downloads fills the storage. A step that
+    # would pass either ceiling fails with `FILE_QUOTA_EXCEEDED` and stores nothing.
+    WORKFLOW_RUN_MAX_FILE_BYTES: int = Field(default=1_073_741_824, gt=0)
+    WORKFLOW_ORG_MAX_FILE_BYTES: int = Field(default=21_474_836_480, gt=0)
+    # How long a webhook delivery whose graph answers it (`webhook.respond`) holds
+    # its request open for that answer. Past it the sender gets the `202` a
+    # delivery without one gets, and the run goes on; a proxy in front with a
+    # shorter read timeout cuts the wait first.
+    WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, le=300)
+
+    # How long a `workflow-dispatch-node` claim holds a `DispatchOutbox` row
+    # before `workflow-reconcile` treats it as abandoned and reclaims it. Long
+    # enough that an ordinary node call is never reclaimed out from under
+    # itself; short enough that a worker that dies mid-call is noticed within
+    # one reconcile tick rather than stalling the run indefinitely.
+    WORKFLOW_DISPATCH_LEASE_SECONDS: float = Field(default=120.0, gt=0)
+    # The retry schedule of a node whose `policy` sets none - a node's own
+    # `policy.retry` replaces all three. The ceiling counts failed and
+    # interrupted attempts only - an attempt that waits (an approval, a backoff
+    # the node asked for) does not use it up - and the backoff doubles from the
+    # base per such attempt, capped at the max.
+    WORKFLOW_RETRY_CEILING: int = Field(default=3, gt=0)
+    WORKFLOW_RETRY_BACKOFF_BASE_SECONDS: float = Field(default=5.0, gt=0)
+    WORKFLOW_RETRY_BACKOFF_MAX_SECONDS: float = Field(default=300.0, gt=0)
+
+    # Inline attempt, run and webhook payloads share one encoded byte budget.
+    WORKFLOW_NODE_MAX_OUTPUT_BYTES: int = Field(default=10_485_760, gt=0)
+    WORKFLOW_RUN_MAX_INLINE_RESULT_BYTES: int = Field(default=67_108_864, gt=0)
+    WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES: int = Field(default=1_073_741_824, gt=0)
+
+    # What one `control.foreach` may iterate. The list is frozen into the
+    # loop's first attempt before any iteration starts, so it is bounded in
+    # count and in stored size - a longer list is refused, never truncated.
+    # Nesting is bounded at publish, and every node run a run creates, loop
+    # iterations included, counts against the per-run ceiling.
+    WORKFLOW_FOREACH_MAX_ITEMS: int = Field(default=1000, gt=0)
+    WORKFLOW_FOREACH_MAX_MANIFEST_BYTES: int = Field(default=1_048_576, gt=0)
+    # Latest yielded/error payloads are measured in SQL before Python loads them.
+    WORKFLOW_FOREACH_MAX_OUTPUT_BYTES: int = Field(default=10_485_760, gt=0)
+    WORKFLOW_FOREACH_MAX_DEPTH: int = Field(default=3, gt=0)
+    WORKFLOW_RUN_MAX_NODE_RUNS: int = Field(default=10_000, gt=0)
+
+    # A ceiling on how much workflow node work one organization, and one caller
+    # (across every organization they run in), may have queued or running on the
+    # shared runner at once. Each start reserves its graph's node count against
+    # these, and a start that would push past its ceiling is refused (429) until
+    # running work drains. This is what the per-minute run limit cannot do on its
+    # own: a limiter that charges one token per start lets an authenticated caller
+    # start many wide graphs below the rate limit and grow a persistent backlog on
+    # the runner shared with ingestion, triggers, approvals and notifications,
+    # starving other tenants (#1907).
+    #
+    # Left unset, each derives from `WORKFLOW_GRAPH_MAX_NODES` - a multiple of it
+    # (see the validator) - so raising the graph cap raises these with it rather
+    # than leaving a fixed default below a single largest run and refusing every
+    # start. The defaults below are those multiples at the default 500-node cap.
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG: int = Field(default=5000, gt=0)
+    WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL: int = Field(default=2000, gt=0)
+
+    @model_validator(mode="after")
+    def validate_workflow_admission_quota(self) -> Settings:
+        """Keep each admission ceiling at least one graph's worth of nodes.
+
+        A ceiling below `WORKFLOW_GRAPH_MAX_NODES` turns the quota into a
+        workflow-wide outage the moment nothing else is running, since each start
+        reserves the whole graph in the worst case. So a ceiling left at its
+        default is derived from the graph cap - a multiple of it, reproducing the
+        5000/2000 defaults at the default 500-node cap - which keeps a deployment
+        that only raised the graph cap starting up instead of failing on a fixed
+        default that is now too low. An *explicit* ceiling below the graph cap is
+        a real misconfiguration and is refused at startup rather than at the first
+        refused run.
+        """
+        multiples = {
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG": 10,
+            "WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL": 4,
+        }
+        for name, multiple in multiples.items():
+            if name in self.model_fields_set:
+                if getattr(self, name) < self.WORKFLOW_GRAPH_MAX_NODES:
+                    raise ValueError(
+                        f"{name} must be at least WORKFLOW_GRAPH_MAX_NODES "
+                        f"({self.WORKFLOW_GRAPH_MAX_NODES}), or a single largest-possible run "
+                        "could never be admitted"
+                    )
+            else:
+                object.__setattr__(
+                    self, name, max(getattr(self, name), multiple * self.WORKFLOW_GRAPH_MAX_NODES)
+                )
+        return self
+
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = "credentials/google-drive-sa.json"
     # Where uploaded files live: chat attachments, avatars, branding images and
     # the original of every knowledge-base document. `local` is the default and
@@ -917,53 +1168,82 @@ class Settings(BaseSettings):
     COMPUTER_DAEMON_ALLOWED_HOSTS: list[str] = []
 
     # Hosts an MCP connection's own URL may name although they resolve inside the
-    # deployment's network, such as a compose service. A listed host skips the
-    # address check in `app.agents.mcp.validate_mcp_url` for a connection's own
-    # URL, and the OAuth flow of such a connection may reach the listed hosts
-    # (`app.agents.mcp.trusted_hosts_for`). Matched exactly, case-folded. Empty
-    # refuses all.
+    # deployment's network, such as a compose service. A listed host may
+    # answer a private address in `app.agents.mcp.validate_mcp_url` for a
+    # connection's own URL (loopback, link-local and metadata answers stay
+    # refused, and a listed name that does not resolve yet can be saved), and the
+    # OAuth flow of such a connection may reach the listed hosts
+    # (`app.core.sanitize.allowlist_for`). Read by MCP only, with the same forms
+    # as `OUTBOUND_PRIVATE_ALLOWLIST`: a host, a `.suffix`, an address or a CIDR
+    # range, case-folded. Empty refuses all.
     MCP_ALLOWED_HOSTS: list[str] = []
 
     @field_validator("MCP_ALLOWED_HOSTS")
     @classmethod
     def validate_mcp_allowed_hosts(cls, v: list[str]) -> list[str]:
-        """Refuse an entry that can only be a cloud metadata service or this host.
+        """Refuse an entry the allowlist parser refuses, naming the setting.
 
-        A listed host skips the SSRF check, and `169.254.169.254` or
-        `metadata.google.internal` is never an MCP server, only the instance's
-        credentials - the same refusals `app.schemas.urls` makes for a service
-        an organization runs. Loopback is refused too: it is the API's own host,
-        where every port the deployment binds would open to every account. A
-        trailing dot is folded here because the URL may keep one and still
-        reach the same address, and an IPv4 address is read the way the
-        resolver reads it, so `2852039166` is `169.254.169.254`.
+        The same parser as `OUTBOUND_PRIVATE_ALLOWLIST`: a cloud metadata,
+        link-local or loopback address is refused however it is spelled, a
+        trailing dot is folded and an IPv4 address is read the way the resolver
+        reads it, so `2852039166` is `169.254.169.254`.
         """
-        for entry in v:
-            host = entry.strip().removeprefix("[").removesuffix("]").lower().rstrip(".")
-            if host in METADATA_HOSTS or host == "localhost" or host.endswith(".localhost"):
-                refused = True
-            else:
-                try:
-                    address = ipaddress.ip_address(host)
-                except ValueError:
-                    try:
-                        address = ipaddress.IPv4Address(socket.inet_aton(host))
-                    except OSError:
-                        address = None
-                if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
-                    address = address.ipv4_mapped
-                refused = address is not None and (
-                    address.is_link_local
-                    or address.is_loopback
-                    or address.is_unspecified
-                    or address in METADATA_ADDRESSES
-                )
-            if refused:
-                raise ValueError(
-                    f"MCP_ALLOWED_HOSTS lists {entry!r}, a cloud metadata, link-local or "
-                    "loopback address. A listed host skips the SSRF check, so remove it."
-                )
+        try:
+            parse_private_allowlist(v)
+        except PrivateAllowlistEntryError as exc:
+            raise ValueError(f"MCP_ALLOWED_HOSTS lists {exc.entry!r}, {exc.reason}") from exc
         return v
+
+    # Hosts and networks on the deployment's own network that outbound requests
+    # may reach although they resolve to private addresses: an exact host
+    # (`wiki`), a suffix (`.corp.example`, not the apex), an IP address or a CIDR
+    # range (`10.1.2.0/24`). Read by workflow HTTP steps, the git, web, S3 and A2A
+    # clients and MCP connections, each only for a request chain that starts at a
+    # listed host. Loopback, link-local, multicast and metadata addresses stay
+    # refused whatever is listed. Every member of every organization can reach
+    # every port on an admitted host, so list only what all of them may reach.
+    # Empty refuses all.
+    OUTBOUND_PRIVATE_ALLOWLIST: list[str] = []
+
+    @field_validator("OUTBOUND_PRIVATE_ALLOWLIST")
+    @classmethod
+    def validate_outbound_private_allowlist(cls, v: list[str]) -> list[str]:
+        """Refuse an entry that is malformed or reaches loopback, link-local or metadata."""
+        try:
+            parse_private_allowlist(v)
+        except PrivateAllowlistEntryError as exc:
+            raise ValueError(
+                f"OUTBOUND_PRIVATE_ALLOWLIST lists {exc.entry!r}, {exc.reason}"
+            ) from exc
+        return v
+
+    @model_validator(mode="after")
+    def validate_private_allowlist_spares_the_stores(self) -> Settings:
+        """Refuse an entry that reaches the database, Redis or the API itself.
+
+        Names and literals only: a validator does no DNS, so a range covering
+        their resolved addresses is `doctor`'s to report. A suffix over the API's
+        own name is allowed, since that name normally resolves publicly.
+        """
+        api_host = urlsplit(self.PUBLIC_BASE_URL).hostname
+        stores = (
+            (self.POSTGRES_HOST, "database", "POSTGRES_HOST", True),
+            (self.REDIS_HOST, "Redis", "REDIS_HOST", True),
+            (api_host, "API", "PUBLIC_BASE_URL", False),
+        )
+        for setting, entries in (
+            ("OUTBOUND_PRIVATE_ALLOWLIST", self.OUTBOUND_PRIVATE_ALLOWLIST),
+            ("MCP_ALLOWED_HOSTS", self.MCP_ALLOWED_HOSTS),
+        ):
+            for entry in entries:
+                listed = parse_private_allowlist([entry])
+                for host, what, name, suffix_reaches in stores:
+                    if host and _reaches_host(listed, host, suffix_reaches=suffix_reaches):
+                        raise ValueError(
+                            f"{setting} lists {entry!r}, which reaches this deployment's "
+                            f"{what} ({name}). Remove it."
+                        )
+        return self
 
     @field_validator("CORS_ORIGINS")
     @classmethod

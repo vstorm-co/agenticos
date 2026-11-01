@@ -1,5 +1,5 @@
 ---
-source_sha: "5c3c3b1dd419"
+source_sha: "6f4073673532"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2656,6 +2656,15 @@ Trzy rzeczy warte wiedzy przed ich przyznaniem:
   kazać mu pytać.
 
 Automatyczny kontekst kanału zawiera nazwę, cel i ograniczoną listę widocznych osób, oznaczone jako dane zamiast instrukcji. Narzędzia przyznawane per powiązanie umożliwiają dodatkowe odczyty i jawną wysyłkę plików; cofnięcie narzędzia nie usuwa automatycznego kontekstu.
+
+## Bot, którego wiadomości uruchamiają workflow { #a-bot-whose-messages-start-a-workflow }
+
+Workflow z wyzwalaczem **Channel message** przejmuje wiadomości bota zamiast jego
+agenta. Docierają do niego tylko wiadomości, na które agent by odpowiedział, a z nich
+tylko te pasujące do filtra wyzwalacza: wiadomość wskazująca innego agenta przez
+`@handle` nadal trafia do niego, a tę, którą filtr pomija, obsługuje agent bota jak
+dotąd. Workflow odpowiada własnym krokiem **Send a message** w wątku, z którego
+przyszła wiadomość. Zobacz [Z wiadomości na kanale](workflows.md#from-a-channel-message).
 
 ## Wybór { #choosing }
 

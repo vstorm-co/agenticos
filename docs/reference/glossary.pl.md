@@ -1,5 +1,5 @@
 ---
-source_sha: "c165075c95f6"
+source_sha: "e7399c8d7b47"
 ---
 
 # Słownik { #glossary }
@@ -97,3 +97,5 @@ w [Capabilities](capabilities.md).
 | Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |
+| Tabele | `virtual_tables` |
+| Workflowy | `workflows` |

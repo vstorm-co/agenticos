@@ -22,6 +22,7 @@ import {
   Plug,
   Trash2,
   Upload,
+  Workflow,
   Radio,
   UserPlus,
   X,
@@ -81,6 +82,7 @@ import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
@@ -121,6 +123,8 @@ import {
   MarkdownModeToggle,
   type MarkdownMode,
   Textarea,
+  Alert,
+  AlertDescription,
 } from "@/components/ui";
 import {
   useAgent,
@@ -218,6 +222,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   const router = useRouter();
   const {
@@ -366,8 +371,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(agent.draft_spec);
   }
 
-  const canEdit = can(Perm.agentsEdit);
-  const canPublish = can(Perm.agentsPublish);
+  // A workflow step's own agent is changed in that step, so nothing here edits it.
+  const ownedByWorkflow = agent?.workflow_id ?? null;
+  const canEdit = can(Perm.agentsEdit) && ownedByWorkflow === null;
+  const canPublish = can(Perm.agentsPublish) && ownedByWorkflow === null;
   const resourceCreation = useResourceCreation({
     mayCreateSkill: canEdit && can(Perm.skillsEdit),
     mayCreateContext: canEdit && can(Perm.contextEdit),
@@ -1315,6 +1322,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
         {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+        {ownedByWorkflow !== null && (
+          <Alert>
+            <Workflow className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">{t("ownedByWorkflow")}</span>
+              <Button asChild size="sm" variant="outline">
+                <Link href={ROUTES.WORKFLOW_DETAIL(ownedByWorkflow)}>{t("openWorkflow")}</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Above the tabs, whatever tab is open: a reference to something deleted
           is refused at publish, and the panel that would have listed it belongs
           to a capability the agent may not even have switched on. */}
@@ -1472,6 +1491,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
                   onToggle={() => toggleCapability(THINKING_ID)}
                   onChange={updateCapability}
+                  disabled={!canEdit}
+                />
+              </CardContent>
+            </Card>
+
+            <Card data-tour="agent-answer-format">
+              <CardHeader>
+                <CardTitle>{tAnswer("title")}</CardTitle>
+                <CardDescription>{tAnswer("description")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AnswerFormatForm
+                  value={spec.output_schema ?? null}
+                  onChange={(output_schema) => update({ output_schema })}
                   disabled={!canEdit}
                 />
               </CardContent>

@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Mic,
   Network,
+  Workflow,
   Sparkles,
   Zap,
 } from "lucide-react";
@@ -47,6 +48,9 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  // A workflow's `agent.run` step - the workflows module's own mark, so a run a
+  // graph asked for is recognisable as one.
+  workflow: Workflow,
   proactive: BellRing,
 } as const;
 
@@ -63,6 +67,7 @@ const LABEL_KEYS = {
   teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  workflow: "surfaceWorkflow",
   proactive: "surfaceProactive",
 } as const;
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a3cf294555"
+source_sha: "dba106dd80cc"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -95,8 +95,13 @@ utwardzające, zdefiniowane w `frontend/src/lib/csp.ts` i
 `frontend/src/lib/security-headers.ts`, jedne i drugie potwierdzone testami.
 Polityka to `default-src 'self'` z `connect-src` nazywającym dokładnie ten origin,
 `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `img-src` dopuszczającym `data:` dla znaków
-marki i awatarów, `frame-src 'self' blob:` dla podglądów dokumentów, `object-src
-'none'`, `base-uri 'self'` oraz `frame-ancestors 'none'`.
+marki i awatarów, `frame-src` dopuszczającym `'self'` i `blob:` dla podglądów
+dokumentów oraz trasę treści artefaktów
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`), `object-src
+'none'`, `base-uri 'self'` oraz `frame-ancestors 'none'`. Trasa treści jest
+wskazana ścieżką, a nie originem, więc ramka może załadować opublikowaną stronę
+i nic innego, co serwuje API; zobacz
+[Jak strona jest izolowana](artifacts.md#how-the-page-is-isolated).
 
 `script-src` nie zawiera `'unsafe-inline'`. Middleware generuje nonce dla
 każdego żądania, wpisuje `'nonce-…' 'strict-dynamic'` do dyrektywy, a Next

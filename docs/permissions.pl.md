@@ -1,5 +1,5 @@
 ---
-source_sha: "2ef13903688f"
+source_sha: "12680197c058"
 ---
 
 # Uprawnienia { #permissions }
@@ -62,8 +62,10 @@ Boolean na użytkowniku, całkowicie poza organizacjami. Dwa skutki:
    uprawnień rozwiązuje się względem jednej organizacji, a żaden z nich nie
    umie wyrazić „każdej organizacji” ([Governance](governance.md#alerts)).
 2. **Obejście w `AuthContext.permissions`**, które zwraca każde uprawnienie na
-   `Scope.ALL` — w każdej organizacji, także w tych, w których taka osoba nie ma
-   żadnego członkostwa.
+   `Scope.ALL` — w każdej organizacji, której taka osoba jest członkiem. Nie
+   sięga do organizacji, w której nie ma ona członkostwa: aktywna organizacja jest
+   ustalana, zanim zostanie odczytane jakiekolwiek uprawnienie, a to odmawia
+   każdemu, kto nie jest członkiem — także app adminowi.
 
 Obejście jest celowe, a docstring mówi dlaczego: taka osoba administruje
 wdrożeniem i tak czy inaczej ma dostęp do bazy danych, więc udawanie czegoś
@@ -274,6 +276,7 @@ robi.
 | `read` | zobaczyć konfigurację |
 | `use` | dodatkowo uruchomić go albo podpiąć |
 | `edit` | dodatkowo go zmienić |
+| `edit_data` | dodatkowo zmienić dane, które pokazuje strona — [tylko strony](#a-page-that-reads-data) |
 
 W konsoli to jeden dialog, tak jak udostępnia się dokument: przycisk **Share**
 przy agencie, skillu, bazie wiedzy lub pliku kontekstu - w dowolnej chwili po
@@ -289,8 +292,8 @@ jednego podmiotu, osoby albo grupy, a grupa z innej organizacji nie sięga tutaj
 do nikogo, nawet gdyby jakiś wiersz ją wskazywał.
 
 Tabela jest celowo generyczna — `resource_type` + `resource_id`, bez klucza obcego
-do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu i przechowywane
-klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
+do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu,
+[tabele](virtual-tables.md), workflow i przechowywane klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
 kaskadowo usunąć grantu, kiedy jego cel znika, więc serwisy usuwają granty razem
 z zasobem.
 
@@ -391,6 +394,75 @@ swoich grantów przy zwykłym listowaniu, więc filtr i tak je pobiera — bez t
 Dla kb wyklucza dodatkowo wiersze osobiste (z konstrukcji należące do
 wywołującego) i wiersze o zasięgu aplikacji (należące do wdrożenia — nigdy nikomu
 nieudostępniane).
+
+### Runy workflowów { #workflow-runs }
+
+Run nie ma własnej widoczności: dziedziczy ją po swoim workflowie. Uruchomienie
+wymaga `workflows:run` na workflowie, a run w trybie `test`, na
+nieopublikowanym drafcie, wymaga dodatkowo `workflows:edit`. Odczyt runa i jego
+zdarzeń wymaga `workflows:view`, a lista bez filtra pokazuje runy workflowów,
+które wywołujący widzi - własnych, widocznych dla organizacji i udostępnionych
+mu. Run, którego wywołujący nie widzi, odpowiada dokładnie tak, jak run, który
+nie istnieje.
+
+**Anulowanie jest węższe niż uruchomienie.** Osoba, która uruchomiła run, może
+go anulować, dopóki wolno jej uruchamiać ten workflow, a każdy, kto może
+edytować workflow, może anulować każdy jego run. Member, który może uruchomić
+workflow widoczny dla organizacji, zatrzyma swoje runy, ale nie runy kolegi;
+widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`.
+
+**Run działa w imieniu osoby, która go uruchomiła, sprawdzanej ponownie przy
+każdym węźle.** Węzeł może zostać wysłany dni po starcie runa, więc każde
+wysłanie wymaga, by konto nadal było aktywne, nadal było członkiem organizacji -
+także app admin, tak jak przy każdym żądaniu - i nadal miało `workflows:run` na
+workflowie, a przy runie `test` także `workflows:edit`. Gdy
+cokolwiek z tego się zmieniło, run kończy się błędem `PRINCIPAL_REVOKED`, zanim
+handler węzła się uruchomi. Run potrzebuje osoby, w której imieniu działa, więc
+kontekst bez podmiotu nie może go uruchomić.
+
+## Strona, która czyta dane { #a-page-that-reads-data }
+
+Opublikowana [strona powiązana z danymi tabel](artifacts.md#live-data) to jedyne
+miejsce, w którym ktoś czyta tabelę **z cudzego upoważnienia**. Każdy oglądający
+dostaje rekordy strony przez jej zapytania strony, czytane z dostępem **właściciela**
+strony, niezależnie od własnej roli czy grantów na tabeli. Warstwy powyżej decydują
+więc, kto może otworzyć stronę, a dalszy zestaw reguł decyduje, kto może to poszerzyć.
+
+**Dostęp właściciela stoi za każdym załadowaniem.** Właściciel strony musi być aktywnym
+członkiem i mieć `read` na każdej tabeli, do której sięgają zapytania, przy każdym
+serwowaniu; w przeciwnym razie dane są `unavailable` (`creator_gone`,
+`creator_lost_access`). Osoba publikująca też musi czytać każdą tabelę, przy
+publikacji, więc nikt nie wiąże tego, czego nie może przeczytać.
+
+**Zgoda je udostępnia.** Zgoda właściciela na udostępnienie danych wersji jest per
+wersja, wyrażana jako on sam (nie przy impersonacji, nie przez klucz API, nigdy przez
+narzędzie agenta) i zapisana z członkostwem właściciela. Owner albo Admin —
+`artifacts:edit` w zakresie `ALL` — może potwierdzić za właściciela, co trafia do
+audytu jako takie. Grant na edycję strony nie wystarcza. Każdy edytor może zgodę wycofać,
+bo wycofanie tylko zawęża; obniża też każdy grant `edit_data` na stronie do `edit`.
+
+**`edit_data` to poziom grantu, nie rola.** „Może edytować, w tym dane" stoi nad
+`edit` i jest przyjmowane tylko dla stron (ograniczenie bazy odrzuca je gdzie indziej).
+To stała zgoda na republikacje tej osoby albo tej grupy. Tylko właściciel albo Owner
+lub Admin, jako oni sami, nadaje je lub podnosi, po potwierdzeniu, na co pozwala.
+Każdy, kto może edytować, je obniża. Jest czytane jako poziom grantu (`grant_level`),
+nigdy przez `resolve_access`, i żaden zakres roli go nie implikuje.
+
+**Własność się przekazuje, nigdy nie przejmuje.** Właściciel, albo Owner lub Admin dla
+dowolnej strony, przekazuje ją aktywnemu członkowi jako on sam; grant na edycję tego
+nie dopuszcza. Zmiana unieważnia każdą zgodę, obniża granty `edit_data` do `edit`
+i wyłącza auto-zgodę. Przejęcie strony bez właściciela przez uczynienie jej prywatną
+to ten sam akt i ta sama reguła.
+
+**Poszerzanie jest strzeżone.** Przed ogólnymi trasami udostępniania stoi strażnik dla
+stron czytających dane: szersza widoczność, nowy grant albo wyższy poziom to decyzja
+właściciela, albo Ownera lub Admina w jego imieniu, gdy dane są potwierdzone. Każdy inny
+z `edit` dostaje [prośbę](artifacts.md#share-requests) zamiast odmowy. Zawężanie jest
+otwarte dla każdego edytora, a strona, która nie czyta danych, zachowuje ogólne
+reguły. Admini działają bezpośrednio, zamiast składać prośbę. Trzy uprawnienia, których
+używa strona, to `artifacts:view`, `artifacts:edit` i, dla tabel, `tables:view`; Owner,
+Admin, Builder i Operator mają pierwsze i ostatnie w zakresie `ALL`, dlatego są częścią
+odbiorców każdej strony.
 
 ## Gdzie stoją bramki { #where-the-gates-go }
 
@@ -549,6 +621,9 @@ ignorujący te API nic na tym nie zyskuje.
   poszerza; nigdy nie zawęża.**
 - `require(...)` trafia na routy **kolekcyjne**. Cokolwiek działa na jednym
   wierszu, oddaje decyzję serwisowi, który woła `resolve_access`.
+- Strona czytająca dane tabel jest czytana z dostępem swojego **właściciela** i
+  udostępniana tylko za jego zgodą; jej poszerzanie należy do właściciela, a każdy
+  inny składa prośbę.
 - Powierzchnia, przed którą nikt nie stoi, działa jako **ten, kto ją
   opublikował**, z odwrotem do `viewer`, gdy ta osoba odeszła albo została
   dezaktywowana.

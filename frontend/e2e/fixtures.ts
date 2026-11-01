@@ -26,6 +26,9 @@ export const test = base.extend<{ apiFailures: string[]; releaseMetadata: void }
       await page.route("**/api/releases/current", (route) =>
         route.fulfill({ json: { release: null } }),
       );
+      await page.route("**/api/releases/latest", (route) =>
+        route.fulfill({ json: { latest: null } }),
+      );
       await use();
     },
     { auto: true },

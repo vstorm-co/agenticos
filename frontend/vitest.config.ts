@@ -57,6 +57,17 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        // The workflow editor's client-side validation mirror (#1787): pure TS
+        // over the in-memory graph, held to the gate the way the agents
+        // components above are.
+        "src/components/workflows/validation/**/*.{ts,tsx}",
+        // The workflow editor's canvas (#1787): the `@xyflow/react` shell, its
+        // node/edge components, the graph<->flow adapter and the keyboard
+        // shortcuts, held to the gate as a unit.
+        "src/components/workflows/canvas/**/*.{ts,tsx}",
+        // The workflow editor's node palette (#1787): the library, drag/click
+        // add, scope filtering and its store/drag seams, held to the gate.
+        "src/components/workflows/palette/**/*.{ts,tsx}",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
@@ -69,6 +80,12 @@ export default defineConfig({
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
+        // The tables card (#1783).
+        "src/components/dashboard/widgets/tables-widget.tsx",
+        // The approval outcomes card.
+        "src/components/dashboard/widgets/approval-outcomes.tsx",
+        // The workflow logs card.
+        "src/components/dashboard/widgets/workflow-logs.tsx",
         // The colour pass (2026-10-13): a person's four figures, and the cards
         // that gained faces and readable names.
         "src/components/dashboard/widgets/my-summary.tsx",
@@ -262,6 +279,41 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/tables/**/*.{ts,tsx}",
+        // The workflows visual editor's undo/redo history leaf (#1787).
+        "src/components/workflows/history.ts",
+        // The workflows visual editor's copy/paste clipboard leaf (#1787).
+        "src/components/workflows/clipboard.ts",
+        // The workflow resource pickers (#1787), gated as a unit.
+        "src/components/workflows/pickers/**/*.{ts,tsx}",
+        // The workflows property panel (#1787): the form renderer, `BindingField`
+        // and the validation display, gated as a unit like the pickers above.
+        "src/components/workflows/property-panel/**/*.{ts,tsx}",
+        // The workflow editor's autosave, conflict banner, publish dialog and
+        // version history (#1787), including the autosave hook, held to the gate
+        // as a unit.
+        "src/components/workflows/editor/**/*.{ts,tsx}",
+        // The workflows list-page create dialog (#1787).
+        "src/components/workflows/workflow-create-dialog.tsx",
+        "src/components/workflows/workflow-template-dialog.tsx",
+        // The catalog card, the node look every editor surface shares, and the
+        // run views (#1790).
+        "src/components/workflows/workflow-card.tsx",
+        "src/components/workflows/node-visuals.ts",
+        "src/components/workflows/apps.ts",
+        "src/components/workflows/use-app-connections.ts",
+        "src/components/workflows/node-tile.tsx",
+        "src/components/workflows/runs/**/*.{ts,tsx}",
+        // A workflow's Logs page and a run's per-step lines.
+        "src/components/workflows/logs/**/*.{ts,tsx}",
+        // The editor's Trigger sheet: the live trigger, a webhook's address and
+        // secret, a schedule's next tick (#1792).
+        "src/components/workflows/triggers/**/*.{ts,tsx}",
+        // A step's dialog - its settings between its Input and Output, the step
+        // test and its evals - and the step picker, each held to the gate as a unit.
+        "src/components/workflows/node-editor/**/*.{ts,tsx}",
+        "src/components/workflows/picker/**/*.{ts,tsx}",
+        "src/hooks/use-inline-agent-resources.ts",
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",

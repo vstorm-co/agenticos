@@ -1,5 +1,5 @@
 ---
-source_sha: "4b8832761f4a"
+source_sha: "66957b7e7527"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -137,6 +137,50 @@ Derselbe Agent als Graph: was ihn erreicht und wonach er greift. Ein gestrichelt
 
 ![Visual map](assets/screens/light/agent-map.webp#only-light)
 ![Visual map](assets/screens/dark/agent-map.webp#only-dark)
+
+## Workflows und Tabellen { #workflows-and-tables }
+
+### Workflows { #workflows }
+
+Der Katalog der Automatisierungen, eine Karte pro Workflow: sein Status, wer ihn erreichen kann, ob eine Version live ist und wann er zuletzt bearbeitet wurde, mit seinen Runs, dem Editor und einer Kopie einen Klick entfernt.
+
+> **Screenshot ausstehend — Workflows.**
+
+### Der Workflow-Editor { #the-workflow-editor }
+
+Die Zeichenfläche hat die ganze Breite: der Graph als Karten, die sagen, wofür jeder Schritt eingerichtet ist oder zu welcher Gruppe er gehört, die Einstellungen eines Schritts in einem Dialog darüber und jeder Schritt zum Hinzufügen einen Klick - oder einen Rechtsklick - entfernt. Eine Schleife zeigt, wie viele Schritte ihr Körper enthält.
+
+> **Screenshot ausstehend — Der Workflow-Editor.**
+
+### Der Körper einer Schleife { #a-loops-body }
+
+In einer Schleife, ein Schritt ausgewählt: die Tabelle, in die er schreibt, und ihre Spalten, eine Datensatz-ID aus dem aktuellen Element der Schleife, die Werte, die er schreibt, und seine Policy - drei Versuche und Fehler, die über seinen roten **Error**-Port zu einer Fehlerbehandlung gehen, statt den Run fehlschlagen zu lassen.
+
+> **Screenshot ausstehend — Der Körper einer Schleife.**
+
+### Runs { #runs }
+
+Jeder Run eines Workflows, die neuesten zuerst: ob er den Draft oder die veröffentlichte Version ausgeführt hat, was ihn gestartet hat, wann, wie lange und zu welchen Kosten. **Start a run** testet den Draft mit einem eigenen Input.
+
+> **Screenshot ausstehend — Runs.**
+
+### Ein Run { #a-run }
+
+Ein Run, wie er abgelaufen ist: der Graph, den er ausgeführt hat, jeder Schritt markiert mit dem, was er getan hat, die Ausgabe, mit der er geantwortet hat, und jeder Schritt, den er gemacht hat, Iteration für Iteration.
+
+> **Screenshot ausstehend — Ein Run.**
+
+### Tabellen { #tables }
+
+Typisierte Datensätze, die Ihre Agenten, Workflows und Integrationen lesen und schreiben, eine Karte pro Tabelle mit dem, wer sie erreichen kann, und ihrer Schema-Version.
+
+> **Screenshot ausstehend — Tabellen.**
+
+### Eine Tabelle { #a-table }
+
+Die Datensätze einer Tabelle, nachdem der Run oben jeden niedrigen Wert angehoben hat: Auswahlwerte als farbige Chips und dieselben Datensätze als Kanban-Board oder Liste einen Tab weiter.
+
+> **Screenshot ausstehend — Eine Tabelle.**
 
 ## Knowledge { #knowledge }
 

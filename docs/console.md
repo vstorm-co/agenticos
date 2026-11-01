@@ -41,7 +41,7 @@ When **Approve everything** is unavailable, chat settings distinguish missing ap
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Forty-five cards exist. You will not see all of them: **a card is gated on the
+Forty-nine cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -66,6 +66,18 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 | _(untitled, at the top)_ | The summary, runs over time and how they ended                                                                                                                |
 | **Needs attention**      | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell)                          |
 | **Usage & cost**         | Which agents are used, spend, [voice minutes](#voice-calls), when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
+
+**Approval outcomes** waits in the catalog, for whoever may view workflows. It shows how
+people decided the [approval steps](workflows.md#running-a-workflow) the period's
+workflows asked them. It shows the share approved as proposed, the edits and their
+median change, the time to decide and the five workflows with the most requests. It is
+empty when no request falls in the dashboard's period.
+
+**Workflow logs** waits in the catalog too, for whoever may view workflows. It shows the
+newest lines the [Quick Logs](workflows.md#the-logs-page) of the workflows you may view wrote, real
+runs only, and how many lines the last 24 hours added, errors among them. A line links to
+its run and its workflow's name to that workflow's Logs page. It is empty until a step
+with a Quick Log has run, and it ignores the dashboard's period.
 
 The dashboard opens with **Get started** until each of its steps is done: tell
 agents about yourself, start a conversation, connect a service with your own
@@ -511,6 +523,11 @@ it, and **Full** keeps it whatever the operating system says. While motion is
 reduced there is no glow at all, the strip appears without sliding, and the level
 is a five-step indicator.
 
+**Workflow steps** in the same card chooses how the workflow canvas draws a step:
+**In colour** (the default) draws each step in its family, **Simple** keeps the tiles
+neutral and the minimap grey. It is remembered per browser; the canvas toolbar has
+the same switch. See [How a step is drawn](workflows.md#how-a-step-is-drawn).
+
 ### The Voice card
 
 On the organization's **Members** page, for somebody holding `org:settings`. It
@@ -646,24 +663,26 @@ visited rarely: **Connections** (MCP servers, Channels, Remote agents, Vault, Sa
 **Organization** (Organizations, Groups). A folded group opens by itself on any
 page inside it, and stays the way you left it.
 
-| Area              | It holds                                                                            | Read                                                                         |
-| ----------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **Agents**        | The catalog, the Builder, versions, sharing, testing, activity                      | [Your first agent](first-agent.md)                                           |
-| **Chat**          | Talking to a published agent                                                        | [Surfaces](channels.md)                                                      |
-| **Knowledge**     | Collections, documents, sync sources, ingestion settings                            | [File processing](file-processing.md)                                        |
-| **Skills**        | Written procedures an agent loads on demand                                         | [Skills](skills.md)                                                          |
-| **Context**       | Standing knowledge bound to many agents                                             | [Context files](context.md)                                                  |
-| **Routines**      | Schedules and event triggers                                                        | [Triggers](triggers.md)                                                      |
-| **Runs**          | What ran, what it cost, what it touched, whether it failed                          | [Governance](governance.md#audit)                                            |
-| **Documents**     | Every file agents are keeping for you, what you attached and what they wrote        | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
-| **Sandboxes**     | Where agents run code: hosts, live sessions, policy                                 | [The sandbox](sandbox.md)                                                    |
-| **MCP servers**   | Connections to external tools, personal and organization-wide                       | [MCP](mcp.md)                                                                |
-| **Channels**      | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages                   | [Surfaces](channels.md)                                                      |
-| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to  | [Capabilities](reference/capabilities.md#remote-agents)                      |
-| **Vault**         | Credentials, sealed per organization                                                | [Secrets](secrets.md)                                                        |
-| **Organizations** | Members, roles, invitations                                                         | [Permissions](permissions.md)                                                |
-| **Settings**      | Providers, ingestion defaults, notifications, your own profile                      | [Configuration](configuration.md)                                            |
-| **Admin**         | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md)                                              |
+| Area | It holds | Read |
+|---|---|---|
+| **Agents** | The catalog, the Builder, versions, sharing, testing, activity | [Your first agent](first-agent.md) |
+| **Chat** | Talking to a published agent | [Surfaces](channels.md) |
+| **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
+| **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
+| **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Tables** | Typed records and their columns, seen as a table, a kanban board or a list | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Multi-step automations your agents run, built on a canvas | [Workflows](workflows.md) |
+| **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
+| **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
+| **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
+| **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
+| **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
+| **Channels** | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
+| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
+| **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
+| **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
+| **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |
+| **Admin** | The deployment itself: users, tenants, system, background jobs, deployment settings | [The deployment](deployment.md) |
 
 The **Agents** catalog can be filtered by **category** and **tag** — the editable,
 organization-local labels shown on each agent's card. Each filter is a menu of the
@@ -713,7 +732,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **forty-five widgets** you arrange yourself, saved per
+- The dashboard is **forty-nine widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

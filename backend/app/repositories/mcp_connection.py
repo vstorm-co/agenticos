@@ -8,7 +8,7 @@ put somebody's private token inside a published agent.
 """
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -285,26 +285,38 @@ async def get_org_scoped_portal_by_id(
     return result.scalar_one_or_none()
 
 
-def _portal_poll_query(
-    *, portal_keys: list[str], not_polled_since: datetime
-) -> Select[McpConnection]:
+# A grant is due this much before its interval has run out, so the minute tick that
+# finds a one-minute grant a few seconds short of a full minute still takes it
+# instead of leaving it for the tick after.
+_POLL_SLACK = timedelta(seconds=5)
+
+
+def _portal_poll_query(*, portal_keys: list[str], now: datetime) -> Select[McpConnection]:
+    interval = func.make_interval(0, 0, 0, 0, 0, McpConnection.poll_interval_minutes)
     return select(McpConnection).where(
         McpConnection.purpose == "portal",
         McpConnection.portal_key.in_(portal_keys),
         McpConnection.is_enabled.is_(True),
         McpConnection.oauth_payload.is_not(None),
-        or_(McpConnection.polled_at.is_(None), McpConnection.polled_at <= not_polled_since),
+        or_(
+            McpConnection.polled_at.is_(None),
+            McpConnection.polled_at + interval <= now + _POLL_SLACK,
+        ),
     )
 
 
 async def portal_poll_candidates(
-    db: AsyncSession, *, portal_keys: list[str], not_polled_since: datetime, limit: int
+    db: AsyncSession, *, portal_keys: list[str], now: datetime, limit: int
 ) -> list[UUID]:
-    """Bound discovery without locking credential rows across a batch."""
+    """Bound discovery without locking credential rows across a batch.
+
+    A grant is due when it was never polled or its own `poll_interval_minutes`
+    has passed since `polled_at` - decided per row, in SQL.
+    """
     if not portal_keys:
         return []
     stmt = (
-        _portal_poll_query(portal_keys=portal_keys, not_polled_since=not_polled_since)
+        _portal_poll_query(portal_keys=portal_keys, now=now)
         .with_only_columns(McpConnection.id)
         .order_by(McpConnection.polled_at.asc().nulls_first(), McpConnection.id.asc())
         .limit(limit)
@@ -313,7 +325,7 @@ async def portal_poll_candidates(
 
 
 async def claim_portal_grant_to_poll(
-    db: AsyncSession, *, connection_id: UUID, portal_keys: list[str], not_polled_since: datetime
+    db: AsyncSession, *, connection_id: UUID, portal_keys: list[str], now: datetime
 ) -> McpConnection | None:
     """Own one poll until its cursor and queued fires commit together.
 
@@ -324,7 +336,7 @@ async def claim_portal_grant_to_poll(
     if not await try_hold_name(db, LockScope.PORTAL_POLL, str(connection_id)):
         return None
     stmt = (
-        _portal_poll_query(portal_keys=portal_keys, not_polled_since=not_polled_since)
+        _portal_poll_query(portal_keys=portal_keys, now=now)
         .where(McpConnection.id == connection_id)
         .options(lazyload(McpConnection.user))
         .execution_options(populate_existing=True)

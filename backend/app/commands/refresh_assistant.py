@@ -25,11 +25,27 @@ from app.services.assistant import AssistantService
     is_flag=True,
     help="Replace customized instructions and guide; organization edits are lost",
 )
-def refresh_assistant(org_id: UUID | None, dry_run: bool, replace_edited: bool) -> None:
-    asyncio.run(_run(org_id, dry_run=dry_run, replace_edited=replace_edited))
+@click.option(
+    "--workflow-support",
+    is_flag=True,
+    help="Add workflow guidance and skills without replacing other instructions or pending edits",
+)
+def refresh_assistant(
+    org_id: UUID | None, dry_run: bool, replace_edited: bool, workflow_support: bool = False
+) -> None:
+    asyncio.run(
+        _run(
+            org_id,
+            dry_run=dry_run,
+            replace_edited=replace_edited,
+            **({"workflow_support": True} if workflow_support else {}),
+        )
+    )
 
 
-async def _run(org_id: UUID | None, *, dry_run: bool, replace_edited: bool) -> None:
+async def _run(
+    org_id: UUID | None, *, dry_run: bool, replace_edited: bool, workflow_support: bool = False
+) -> None:
     async with get_db_context() as db:
         organizations = (
             [await organization_repo.get_by_id(db, org_id)]
@@ -55,7 +71,12 @@ async def _run(org_id: UUID | None, *, dry_run: bool, replace_edited: bool) -> N
                     message="Organization has no owner", details={"organization_id": str(target_id)}
                 )
             ctx = AuthContext(user_id=owner_id, organization_id=target_id, role=OrgRoleName.OWNER)
-            result = await service.refresh(ctx, dry_run=dry_run, replace_edited=replace_edited)
+            result = await service.refresh(
+                ctx,
+                dry_run=dry_run,
+                replace_edited=replace_edited,
+                **({"workflow_support_only": True} if workflow_support else {}),
+            )
         click.echo(
             f"{name} ({target_id}): instructions={result.instructions or 'skipped'}, guide={result.guide or 'skipped'}"
         )

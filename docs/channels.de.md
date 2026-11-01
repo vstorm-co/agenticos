@@ -1,5 +1,5 @@
 ---
-source_sha: "5c3c3b1dd419"
+source_sha: "6f4073673532"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2833,6 +2833,16 @@ Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
   `tool_approval`-Override an der Bindung ist, wie Sie es nachfragen lassen.
 
 Der automatische Channel-Kontext enthält Name, Zweck und eine begrenzte sichtbare Mitgliederliste, als Daten statt Instruktionen markiert. Die pro Bindung gewährten Tools erlauben weitere Abfragen und explizite Dateizustellung; das Entziehen eines Tools entfernt nicht den automatischen Kontext.
+
+## Ein Bot, dessen Nachrichten einen Workflow starten { #a-bot-whose-messages-start-a-workflow }
+
+Ein Workflow mit einem Trigger **Channel message** übernimmt die Nachrichten eines
+Bots an Stelle seines Agenten. Ihn erreichen nur die Nachrichten, die der Agent
+beantwortet hätte, und davon nur die, die zum Filter des Triggers passen: Eine
+Nachricht, die einen anderen Agenten per `@handle` nennt, geht weiterhin dorthin,
+und eine, die der Filter auslässt, beantwortet der Agent des Bots wie bisher. Der
+Workflow antwortet mit seinem eigenen Schritt **Send a message** im Thread der
+Nachricht. Siehe [Über eine Kanalnachricht](workflows.md#from-a-channel-message).
 
 ## Auswählen { #choosing }
 

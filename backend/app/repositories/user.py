@@ -36,6 +36,14 @@ async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     return await db.get(User, user_id)
 
 
+async def get_by_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> list[User]:
+    """The users with these ids, in one query; an id with no user is left out."""
+    if not user_ids:
+        return []
+    result = await db.execute(select(User).where(User.id.in_(user_ids)))
+    return list(result.scalars().all())
+
+
 async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
     """Fetch a user row and acquire a SELECT FOR UPDATE lock."""
     result = await db.execute(select(User).where(User.id == user_id).with_for_update())

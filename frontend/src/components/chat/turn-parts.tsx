@@ -19,6 +19,7 @@ import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
@@ -115,6 +116,8 @@ export function TurnParts({
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
+    ) : run.part.type === "workflow_run" && run.part.workflowRun ? (
+      <WorkflowRunCard key={run.part.id} run={run.part.workflowRun} />
     ) : run.part.type === "ask_user" ? (
       <AskUserBlock
         key={run.part.id}
@@ -399,7 +402,7 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user") {
+    if (part.type === "ask_user" || part.type === "workflow_run") {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }

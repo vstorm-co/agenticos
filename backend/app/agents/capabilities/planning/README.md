@@ -1,7 +1,8 @@
 # Planning
 
-A checklist the agent keeps for itself while it works: `write_plan` to lay it out,
-`read_plan` to see the step ids, and granular tools to move steps between statuses.
+A checklist the agent keeps for itself while it works. `write_plan` lays it out
+and immediately returns the assigned step IDs. `read_plan` can inspect them later;
+granular tools move those same steps between statuses.
 Under `enable_subtasks` it also gets dependency-aware planning — `add_subtask`,
 `set_dependency`, `get_available_tasks`, and a `blocked` status a step sits in until
 its prerequisites resolve.
