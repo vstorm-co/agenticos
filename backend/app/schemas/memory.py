@@ -13,23 +13,15 @@ else; what a person may do is suppress one, restore it, or delete it.
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict
 
 from app.schemas.base import BaseSchema
 
 
 class MemoryErasureResult(BaseSchema):
-    """What a "forget everything about me" actually removed.
-
-    Two counts rather than one, because the two halves can fail independently: the
-    notes are rows in this database, the mem0 memories are somebody else's service.
-    A caller that reported one number could not tell somebody their notes are gone
-    but their mem0 memories are not - which is the partial wipe this reports rather
-    than hides.
-    """
+    """What a "forget everything about me" actually removed."""
 
     notes_deleted: int
-    mem0_agents_cleared: int
 
 
 class MemoryNoteRead(BaseSchema):
@@ -58,17 +50,10 @@ class MemoryNoteRead(BaseSchema):
 
 
 class MemoryNoteList(BaseSchema):
-    """A page of somebody's notes, and what the platform could not include.
-
-    `external_stores` is the honest half. An agent bound to mem0 keeps memories
-    in somebody else's service, and this listing does not reach them: showing a
-    page of native notes while calling it a complete inventory would be worse than
-    saying which stores are outside it (#1594).
-    """
+    """A page of somebody's notes."""
 
     items: list[MemoryNoteRead]
     total: int
-    external_stores: list[str] = Field(default_factory=list)
 
 
 class MemoryNoteUpdate(BaseSchema):

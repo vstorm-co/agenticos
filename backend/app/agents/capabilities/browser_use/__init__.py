@@ -300,8 +300,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
 
     `cdp_url` lives in an agent spec, which anyone holding `edit` on that agent
     writes, so it is tenant-controlled: the request is made by this deployment, to
-    an address somebody else named. That is the shape `MEM0_ALLOWED_HOSTS` exists
-    for, and this is the same control - the operator lists the hosts in
+    an address somebody else named, so the operator lists the hosts in
     `BROWSER_CDP_ALLOWED_HOSTS`, and an empty list refuses browser automation
     outright rather than defaulting to something.
 

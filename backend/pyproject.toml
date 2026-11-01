@@ -189,8 +189,6 @@ dependencies = [
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
-    "mem0ai>=2.2.1",
-    "requests>=2.34.2",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
@@ -388,10 +386,6 @@ DEP002 = [
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
     "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
-    # `mem0/client/main.py` imports `requests` and does not declare it, so the SDK
-    # works only while something else happens to pull it in. Declared here so that
-    # accident becomes a dependency (#1470).
-    "requests",
 ]
 
 [tool.ruff]

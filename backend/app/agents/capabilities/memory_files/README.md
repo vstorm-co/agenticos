@@ -98,9 +98,7 @@ shapes because they answer different questions:
   a store nobody can clear is a liability (#788). It is gated per row through
   `resolve_access`, so a grant on that agent widens it.
 
-Both live in `app.services.memory.facade`, and the first reaches mem0 as well
-where an agent binds it: a clear that reported success while mem0 still remembered
-would be a partial wipe wearing a success.
+Both live in `app.services.memory.facade`.
 
 ## What is not wired yet
 

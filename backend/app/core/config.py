@@ -1086,10 +1086,6 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
-    # Without an allowlist a builder who can bind a shared mem0 key could point
-    # `mem0_base_url` at their own server and capture it (docs/secrets.md).
-    MEM0_ALLOWED_HOSTS: list[str] = []
-
     # Hosts a browsing agent may drive a Chromium at. `cdp_url` lives in an agent
     # spec, which anyone holding `edit` on that agent writes - so it is
     # tenant-controlled, and an unbounded one is a request this deployment makes

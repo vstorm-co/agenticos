@@ -43,7 +43,7 @@ somebody. Not worth listing as an ability, nor suggesting as a missing one.
 An exclusion rather than a list of what to show, so a capability added to the
 registry is offered from the day it ships."""
 
-ALTERNATIVES = (frozenset({"memory_files", "memory_mem0"}),)
+ALTERNATIVES: tuple[frozenset[str], ...] = ()
 """Capabilities that are two ways of doing one thing: an agent with either is
 not told it lacks the other."""
 

@@ -61,14 +61,6 @@ class TestWhatItSays:
 
         assert "Chat channel lookup" not in text
 
-    @pytest.mark.parametrize(
-        ("bound", "other"), [("memory_files", "Memory (mem0)"), ("memory_mem0", "**Memory**")]
-    )
-    def test_one_way_of_remembering_is_not_short_of_the_other(self, bound: str, other: str) -> None:
-        _has, missing = _halves(setup_briefing(_spec(bound), agent_id=None))
-
-        assert other not in missing
-
     def test_an_agent_with_everything_is_told_of_no_gap(self) -> None:
         everything = [c.id for c in all_capabilities() if c.selectable]
 

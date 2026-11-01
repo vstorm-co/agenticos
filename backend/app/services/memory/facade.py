@@ -15,50 +15,33 @@ ends up half-done.
 the counterpart to the per-person delete: a store nobody can clear is a liability
 (#788).
 
-Both reach mem0 as well as this database, when an agent binds it. A clear that
-reported success while mem0 still remembered would be a partial wipe wearing a
-success, which is exactly the failure mode this feature exists to avoid - so the
-result carries what each half actually removed.
+Native memory is the only store (mem0 was removed, #2090), so one delete is the
+whole erasure.
 """
 
 import logging
-from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
-from app.agents.capabilities.memory_mem0._client import mem0_forget_agent, mem0_forget_person
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, ExternalServiceError, NotFoundError
-from app.core.memory_keys import INDEX_NAME, is_person_key, person_owner_key
+from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
-from app.core.secret_kinds import ApiKeySecret
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.repositories import agent_repo, memory_repo, organization_repo
 from app.schemas.memory import MemoryErasureResult, MemoryNoteList, MemoryNoteRead
 from app.services.access import AGENT, resolve_access
-from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class _Mem0Target:
-    agent_id: UUID
-    secret_id: UUID
-    base_url: str | None
 
 
 class MemoryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self.secrets = OrganizationSecretService(db)
 
     async def mine(self, ctx: AuthContext, *, skip: int, limit: int) -> MemoryNoteList:
         """What the agents in this organization have written down about the caller.
@@ -205,33 +188,7 @@ class MemoryService:
             )
             for row in rows
         ]
-        external = await self._external_stores(organization_id)
-        return MemoryNoteList(items=items, total=total, external_stores=external)
-
-    async def _external_stores(self, organization_id: UUID) -> list[str]:
-        """Agents whose memories live in a service this listing cannot read.
-
-        The **published** spec where there is one, falling back to the draft for
-        an agent that has never been published. Erasure reads the draft
-        deliberately - deleting a namespace that holds nothing is free - but a
-        disclosure read off the draft says the wrong thing in both directions: an
-        agent whose unpublished edit dropped mem0 is still writing there, and one
-        that only added it in a draft has written nothing yet (#1594 review).
-        """
-        rows = await self.db.execute(
-            select(Agent, AgentVersion.spec)
-            .outerjoin(AgentVersion, Agent.current_version_id == AgentVersion.id)
-            .where(Agent.organization_id == organization_id)
-        )
-        named: set[str] = set()
-        for agent, published in rows.all():
-            spec = published if isinstance(published, dict) else agent.draft_spec
-            if any(
-                binding.get("id") == MEMORY_MEM0_CAPABILITY_ID and binding.get("enabled", True)
-                for binding in _capabilities(spec)
-            ):
-                named.add(agent.name)
-        return sorted(named)
+        return MemoryNoteList(items=items, total=total)
 
     async def _prune_index(self, row: AgentMemoryFile) -> None:
         """Drop the suppressed note's line from the store's `MEMORY.md`.
@@ -292,7 +249,6 @@ class MemoryService:
         notes = await memory_repo.delete_for_person(
             self.db, organization_id=ctx.organization_id, owner_key=owner_key
         )
-        cleared = await self._forget_in_mem0(ctx, owner_key)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -300,9 +256,9 @@ class MemoryService:
             action="memory.person.forgotten",
             target_type="user",
             target_id=str(user_id),
-            details={"notes": notes, "mem0_agents": cleared},
+            details={"notes": notes},
         )
-        return MemoryErasureResult(notes_deleted=notes, mem0_agents_cleared=cleared)
+        return MemoryErasureResult(notes_deleted=notes)
 
     async def clear_agent(self, ctx: AuthContext, agent_id: UUID) -> MemoryErasureResult:
         """Delete every note one agent holds, in every store.
@@ -321,15 +277,6 @@ class MemoryService:
         notes = await memory_repo.delete_all_for_agent(
             self.db, organization_id=ctx.organization_id, agent_id=agent_id
         )
-        targets = await self._mem0_bindings(ctx.organization_id, agent_id=agent_id)
-        for target, secret in await self._mem0_credentials(ctx, targets):
-            await mem0_forget_agent(
-                base_url=target.base_url,
-                api_key=secret.api_key.get_secret_value(),
-                organization_id=ctx.organization_id,
-                agent_id=target.agent_id,
-            )
-        cleared = len({target.agent_id for target in targets})
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -337,84 +284,6 @@ class MemoryService:
             action="memory.agent.cleared",
             target_type="agent",
             target_id=str(agent_id),
-            details={"notes": notes, "mem0_agents": cleared},
+            details={"notes": notes},
         )
-        return MemoryErasureResult(notes_deleted=notes, mem0_agents_cleared=cleared)
-
-    async def _forget_in_mem0(self, ctx: AuthContext, owner_key: str) -> int:
-        """Clear this person's mem0 namespace under every agent that binds mem0.
-
-        The half the database cannot reach. Each agent has its own namespace and
-        may have its own key, so this is one call per binding rather than one for
-        the organization.
-
-        A failure is raised, not swallowed: the person is being told their memory
-        is gone, and finding out later that half of it was not is worse than an
-        error now (#1470).
-        """
-        assert is_person_key(owner_key), "only a person is forgotten this way"
-        targets = await self._mem0_bindings(ctx.organization_id)
-        for target, secret in await self._mem0_credentials(ctx, targets):
-            await mem0_forget_person(
-                base_url=target.base_url,
-                api_key=secret.api_key.get_secret_value(),
-                organization_id=ctx.organization_id,
-                agent_id=target.agent_id,
-                owner_key=owner_key,
-            )
-        return len({target.agent_id for target in targets})
-
-    async def _mem0_bindings(
-        self, organization_id: UUID, *, agent_id: UUID | None = None
-    ) -> list[_Mem0Target]:
-        """Every retained mem0 destination, including pinned and retired versions."""
-        snapshots = await agent_repo.memory_erasure_capabilities(
-            self.db, organization_id=organization_id, agent_id=agent_id
-        )
-        bindings: dict[_Mem0Target, None] = {}
-        for held_id, capabilities in snapshots:
-            for binding in _capabilities({"capabilities": capabilities}):
-                if binding.get("id") == MEMORY_MEM0_CAPABILITY_ID and binding.get("secret_id"):
-                    target = _Mem0Target(
-                        held_id,
-                        UUID(str(binding["secret_id"])),
-                        _mem0_base_url(binding),
-                    )
-                    bindings[target] = None
-        return list(bindings)
-
-    async def _mem0_credentials(
-        self, ctx: AuthContext, targets: list[_Mem0Target]
-    ) -> list[tuple[_Mem0Target, ApiKeySecret]]:
-        if not targets:
-            return []
-        resolved = await self.secrets.resolve_for_bindings(
-            ctx, list(dict.fromkeys(target.secret_id for target in targets))
-        )
-        credentials: list[tuple[_Mem0Target, ApiKeySecret]] = []
-        for target in targets:
-            secret = resolved.get(target.secret_id)
-            if not isinstance(secret, ApiKeySecret):
-                raise ExternalServiceError(
-                    message="External memory could not be erased because its credential is unavailable",
-                    details={"operation": "forget", "agent_id": target.agent_id},
-                )
-            credentials.append((target, secret))
-        return credentials
-
-
-def _capabilities(spec: dict[str, Any]) -> list[dict[str, Any]]:
-    """The capability bindings of a stored spec, tolerant of a shape it does not have."""
-    capabilities = spec.get("capabilities")
-    if not isinstance(capabilities, list):
-        return []
-    return [binding for binding in capabilities if isinstance(binding, dict)]
-
-
-def _mem0_base_url(binding: Mapping[str, object]) -> str | None:
-    """The URL declared by an already selected mem0 binding, if it has one."""
-    config = binding.get("config")
-    if not isinstance(config, dict):
-        return None
-    url = config.get("base_url")
-    return url if isinstance(url, str) else None
+        return MemoryErasureResult(notes_deleted=notes)

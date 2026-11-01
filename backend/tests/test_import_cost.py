@@ -19,8 +19,6 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[1]
 
 DEFERRED = {
-    "mem0": "the mem0 memory capability - pulls in qdrant-client and numpy",
-    "qdrant_client": "mem0's vector client",
     "pymupdf": "parsing a PDF",
     "docx": "parsing a .docx",
     "boto3": "an S3 source",

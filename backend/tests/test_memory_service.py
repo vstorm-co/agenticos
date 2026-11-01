@@ -4,21 +4,17 @@ Erasure is the whole of what a person does to memory directly, so this file is
 almost entirely refusals: who may erase whom, and what a "forgotten" answer is
 allowed to claim.
 
-The claim is the part worth guarding. A person told their memory is gone and
-finding out later that mem0 still remembers has been told something false, so a
-mem0 failure must reach them rather than be logged and counted as success.
+Native memory is the only store, so one delete is the whole erasure (#2090).
 """
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import SecretStr
 
-from app.core.exceptions import AuthorizationError, ExternalServiceError, NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.core.secret_kinds import ApiKeySecret
 from app.services.memory import MemoryService
 
 pytestmark = pytest.mark.anyio
@@ -28,34 +24,20 @@ REPO = "app.repositories.memory"
 ORG = uuid.uuid4()
 PERSON = uuid.uuid4()
 ADMIN = uuid.uuid4()
-SECRET = uuid.uuid4()
 
 
 def _ctx(user_id: uuid.UUID, *, role: OrgRoleName = OrgRoleName.MEMBER) -> AuthContext:
     return AuthContext(user_id=user_id, organization_id=ORG, role=role)
 
 
-def _agent(*, mem0: bool = True, secret_id: uuid.UUID | None = SECRET, base_url=None):
+def _agent():
     agent = MagicMock()
     agent.id = uuid.uuid4()
-    binding = {"id": "memory_mem0" if mem0 else "memory_files", "enabled": True}
-    if secret_id is not None:
-        binding["secret_id"] = str(secret_id)
-    if base_url is not None:
-        binding["config"] = {"base_url": base_url}
-    agent.draft_spec = {"capabilities": [binding]}
     return agent
 
 
-def _service(agents=()) -> MemoryService:
-    db = MagicMock()
-    scalars = MagicMock()
-    scalars.all.return_value = list(agents)
-    result = MagicMock()
-    result.scalars.return_value = scalars
-    result.all.return_value = [(agent.id, agent.draft_spec.get("capabilities")) for agent in agents]
-    db.execute = AsyncMock(return_value=result)
-    return MemoryService(db)
+def _service() -> MemoryService:
+    return MemoryService(MagicMock())
 
 
 class TestForgettingAPerson:
@@ -124,118 +106,6 @@ class TestForgettingAPerson:
         assert audit.await_args.kwargs["details"]["notes"] == 2
 
 
-class TestTheHalfMem0Holds:
-    async def _forget(self, service, *, resolved):
-        with (
-            patch(f"{REPO}.delete_for_person", new=AsyncMock(return_value=0)),
-            patch(f"{FACADE}.record_audit", new=AsyncMock()),
-            patch(f"{FACADE}.mem0_forget_person", new=AsyncMock()) as forget,
-            patch.object(service.secrets, "resolve_for_bindings", AsyncMock(return_value=resolved)),
-        ):
-            return await service.forget_person(_ctx(PERSON), PERSON), forget
-
-    async def test_every_agent_that_binds_mem0_is_reached(self):
-        """Each agent has its own namespace and may have its own key, so this is
-        one call per binding rather than one for the organization."""
-        agents = [_agent(), _agent()]
-        service = _service(agents)
-        secret = ApiKeySecret(api_key=SecretStr("k-1-12345"))
-
-        result, forget = await self._forget(service, resolved={SECRET: secret})
-
-        assert result.mem0_agents_cleared == 2
-        assert forget.await_count == 2
-        assert forget.await_args.kwargs["owner_key"] == person_owner_key(PERSON)
-
-    async def test_an_agent_without_mem0_is_left_alone(self):
-        service = _service([_agent(mem0=False)])
-
-        result, forget = await self._forget(service, resolved={})
-
-        assert (result.mem0_agents_cleared, forget.await_count) == (0, 0)
-
-    async def test_a_binding_with_no_key_is_left_alone(self):
-        """It cannot reach mem0 either, so there is nothing of theirs out there."""
-        service = _service([_agent(secret_id=None)])
-
-        result, forget = await self._forget(service, resolved={})
-
-        assert (result.mem0_agents_cleared, forget.await_count) == (0, 0)
-
-    async def test_an_unavailable_key_refuses_to_claim_external_memory_is_gone(self):
-        service = _service([_agent()])
-        with pytest.raises(ExternalServiceError, match="credential is unavailable"):
-            await self._forget(service, resolved={SECRET: None})
-
-    async def test_a_self_hosted_url_travels_with_the_delete(self):
-        """A memory kept on somebody's own mem0 is not deleted by calling the cloud
-        one, which would report success having removed nothing."""
-        service = _service([_agent(base_url="https://mem0.internal")])
-
-        _result, forget = await self._forget(
-            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}
-        )
-
-        assert forget.await_args.kwargs["base_url"] == "https://mem0.internal"
-
-    async def test_the_url_is_found_past_the_other_capabilities_an_agent_binds(self):
-        """A real spec lists mem0 among a dozen others, so the search for its
-        `base_url` has to walk past them - a scan that stopped at the first
-        binding would send every self-hosted delete to the cloud."""
-        agent = _agent(base_url="https://mem0.internal")
-        agent.draft_spec = {
-            "capabilities": [
-                {"id": "memory_files", "enabled": True},
-                "not a binding at all",
-                *agent.draft_spec["capabilities"],
-            ]
-        }
-        service = _service([agent])
-
-        _result, forget = await self._forget(
-            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}
-        )
-
-        assert forget.await_args.kwargs["base_url"] == "https://mem0.internal"
-
-    async def test_a_binding_with_no_config_sends_no_url(self):
-        service = _service([_agent()])
-
-        _result, forget = await self._forget(
-            service, resolved={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}
-        )
-
-        assert forget.await_args.kwargs["base_url"] is None
-
-    async def test_a_mem0_failure_reaches_the_person_rather_than_the_log(self):
-        """The failure this whole feature exists to avoid is a partial wipe wearing
-        a success: told their memory is gone, somebody stops asking."""
-        service = _service([_agent()])
-        with (
-            patch(f"{REPO}.delete_for_person", new=AsyncMock(return_value=0)),
-            patch(f"{FACADE}.record_audit", new=AsyncMock()),
-            patch(f"{FACADE}.mem0_forget_person", new=AsyncMock(side_effect=RuntimeError("down"))),
-            patch.object(
-                service.secrets,
-                "resolve_for_bindings",
-                AsyncMock(return_value={SECRET: ApiKeySecret(api_key=SecretStr("k-1-12345"))}),
-            ),
-            pytest.raises(RuntimeError),
-        ):
-            await service.forget_person(_ctx(PERSON), PERSON)
-
-    async def test_a_spec_whose_capabilities_are_not_a_list_is_simply_not_a_binding(self):
-        """Stored JSON, so the shape is not guaranteed by anything; a malformed one
-        must not take an erasure down."""
-        agent = _agent()
-        agent.draft_spec = {"capabilities": "everything"}
-        service = _service([agent])
-
-        result, forget = await self._forget(service, resolved={})
-
-        assert (result.mem0_agents_cleared, forget.await_count) == (0, 0)
-
-
 class TestClearingOneAgent:
     async def test_it_deletes_every_note_that_agent_holds(self):
         service = _service()
@@ -291,53 +161,3 @@ class TestClearingOneAgent:
             await service.clear_agent(_ctx(PERSON, role=OrgRoleName.VIEWER), agent.id)
 
         assert access.await_args.args[3] is Perm.AGENTS_EDIT
-
-
-async def test_erasure_reaches_distinct_historical_endpoints_after_the_draft_drops_mem0() -> None:
-    agent = _agent(mem0=False)
-    snapshots = [
-        (agent.id, [{"id": "memory_mem0", "secret_id": str(SECRET), "config": {"base_url": url}}])
-        for url in ["https://old.mem0", "https://current.mem0", "https://old.mem0"]
-    ]
-    service = _service()
-    with (
-        patch(
-            f"{FACADE}.agent_repo.memory_erasure_capabilities", AsyncMock(return_value=snapshots)
-        ),
-        patch(f"{REPO}.delete_for_person", AsyncMock(return_value=1)),
-        patch(f"{FACADE}.record_audit", AsyncMock()),
-        patch.object(
-            service.secrets,
-            "resolve_for_bindings",
-            AsyncMock(return_value={SECRET: ApiKeySecret(api_key="test-api-key")}),
-        ),
-        patch(f"{FACADE}.mem0_forget_person", AsyncMock()) as forget,
-    ):
-        result = await service.forget_person(_ctx(PERSON), PERSON)
-    assert {call.kwargs["base_url"] for call in forget.await_args_list} == {
-        "https://old.mem0",
-        "https://current.mem0",
-    }
-    assert forget.await_count == 2
-    assert result.mem0_agents_cleared == 1
-
-
-async def test_clearing_an_agent_erases_its_external_stores_as_well() -> None:
-    agent = _agent()
-    service = _service([agent])
-    with (
-        patch(f"{FACADE}.agent_repo.get", AsyncMock(return_value=agent)),
-        patch(f"{FACADE}.resolve_access", AsyncMock(return_value=True)),
-        patch(f"{REPO}.delete_all_for_agent", AsyncMock(return_value=7)),
-        patch(f"{FACADE}.record_audit", AsyncMock()),
-        patch.object(
-            service.secrets,
-            "resolve_for_bindings",
-            AsyncMock(return_value={SECRET: ApiKeySecret(api_key="test-api-key")}),
-        ),
-        patch(f"{FACADE}.mem0_forget_agent", AsyncMock()) as forget,
-    ):
-        result = await service.clear_agent(_ctx(PERSON), agent.id)
-    assert result.notes_deleted == 7 and result.mem0_agents_cleared == 1
-    assert forget.await_args.kwargs["organization_id"] == ORG
-    assert forget.await_args.kwargs["agent_id"] == agent.id

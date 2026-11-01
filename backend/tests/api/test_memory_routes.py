@@ -36,7 +36,7 @@ _NOTE = MemoryNoteRead(
     format="md",
     kind="note",
 )
-_PAGE = MemoryNoteList(items=[_NOTE], total=1, external_stores=["Support"])
+_PAGE = MemoryNoteList(items=[_NOTE], total=1)
 
 
 @asynccontextmanager
@@ -62,7 +62,6 @@ async def test_a_member_reads_their_own_store() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["items"][0]["agent_name"] == "Support"
-    assert body["external_stores"] == ["Support"]
 
 
 async def test_the_window_the_caller_asked_for_reaches_the_service() -> None:
@@ -118,10 +117,9 @@ async def test_an_organization_role_is_refused_rather_than_500() -> None:
     assert response.status_code == 403
 
 
-async def test_forgetting_a_person_answers_what_each_half_removed() -> None:
-    """Not 204: the mem0 half is somebody else's service, and a caller has to be
-    able to say which parts of "forgotten" actually happened."""
-    result = MemoryErasureResult(notes_deleted=3, mem0_agents_cleared=1)
+async def test_forgetting_a_person_answers_what_was_removed() -> None:
+    """Not 204: a caller has to be able to say how much was actually erased."""
+    result = MemoryErasureResult(notes_deleted=3)
     with patch(
         "app.services.memory.MemoryService.forget_person", new=AsyncMock(return_value=result)
     ):
@@ -129,13 +127,13 @@ async def test_forgetting_a_person_answers_what_each_half_removed() -> None:
             response = await client.delete(f"{ROOT}/person/{PERSON}")
 
     assert response.status_code == 200
-    assert response.json() == {"notes_deleted": 3, "mem0_agents_cleared": 1}
+    assert response.json() == {"notes_deleted": 3}
 
 
 async def test_clearing_one_agents_store_names_the_agent_in_the_query() -> None:
     """A memory store nobody can clear is a liability (#788)."""
     agent_id = uuid4()
-    clear = AsyncMock(return_value=MemoryErasureResult(notes_deleted=2, mem0_agents_cleared=0))
+    clear = AsyncMock(return_value=MemoryErasureResult(notes_deleted=2))
     with patch("app.services.memory.MemoryService.clear_agent", clear):
         async with _client() as client:
             response = await client.delete(f"{ROOT}?agent_id={agent_id}")

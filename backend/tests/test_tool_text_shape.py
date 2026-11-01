@@ -263,7 +263,7 @@ class TestEveryCapabilityHasContracts:
     `tool_contracts` builds each capability with a stub so the Builder can show
     what the model actually reads, and falls back to the catalog's summary when a
     build returns `None`. A capability whose key is required *unconditionally*
-    returns `None` without one - so `memory_mem0` showed one sentence beside a
+    returns `None` without one - so a keyed capability showed one sentence beside a
     checkbox while the model was reading six, and an author reworded a tool from a
     value that was never sent (#1473).
     """
@@ -272,13 +272,15 @@ class TestEveryCapabilityHasContracts:
         load_builtins()
         contracts = await tool_contracts()
 
-        assert set(contracts["memory_mem0"]) == {"remember", "recall"}
+        assert set(contracts["image_generation"]) == {"generate_image"}
 
     async def test_the_contract_is_what_the_model_reads_not_the_catalog_summary(self) -> None:
         load_builtins()
-        remember = (await tool_contracts())["memory_mem0"]["remember"]
+        remember = (await tool_contracts())["image_generation"]["generate_image"]
         declared = next(
-            tool.description for tool in get("memory_mem0").tools if tool.id == "remember"
+            tool.description
+            for tool in get("image_generation").tools
+            if tool.id == "generate_image"
         )
 
         assert remember.description.startswith("<summary>")
