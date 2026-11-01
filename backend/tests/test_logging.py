@@ -120,6 +120,24 @@ def test_a_value_passed_through_extra_is_escaped_too(root_stream):
     assert record.origin == "https://evil.example\\r\\n2026-01-01 FORGED"
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "path",
+    [
+        "interactions/1565747921553457194/{token}/callback",
+        "webhooks/800/{token}/messages/@original",
+    ],
+)
+def test_a_discord_interaction_token_in_a_url_is_redacted(root_stream, path: str):
+    token = "aW50ZXJhY3Rpb246MTU2NTc0NzkyMTU1MzQ1NzE5NDpHTVdvcmVD"
+    url = f"https://discord.com/api/v10/{path.format(token=token)}"
+
+    redacted = PiiRedactionFilter()._redact(f"Client error '404 Not Found' for url '{url}'")
+
+    assert token not in redacted
+    assert "[TOKEN_REDACTED]" in redacted
+
+
 def test_a_tab_survives_because_it_breaks_no_line(root_stream):
     """Escaping is about what ends a line, not about flattening a message
     somebody wrote deliberately."""

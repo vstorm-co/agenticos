@@ -34,6 +34,14 @@ INBOUND_PATHS: dict[str, str] = {
 }
 
 
+STREAM_ONLY: frozenset[str] = frozenset({"discord"})
+"""Platforms reached only over a connection the deployment holds, never a webhook.
+
+Discord delivers messages, commands and button presses over the bot's Gateway
+connection, so a Discord bot has no inbound address and no webhook mode.
+"""
+
+
 SECRET_MINTED_BY_US: frozenset[str] = frozenset({"telegram"})
 """Platforms we hand a webhook secret to, rather than being handed one.
 

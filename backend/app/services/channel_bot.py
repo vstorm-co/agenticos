@@ -35,7 +35,9 @@ from app.schemas.channel_bot import (
     InheritedSpeechToTextRead,
 )
 from app.services.channels import (
+    INBOUND_PATHS,
     SECRET_MINTED_BY_US,
+    STREAM_ONLY,
     connection_state,
     get_adapter,
     inbound_webhook_url,
@@ -622,6 +624,13 @@ class ChannelBotService:
                 "Say true or false - a null pair is what inherits now",
             )
         update_data = writable(data, over=ChannelBot)
+        if bot.platform in STREAM_ONLY and (
+            update_data.get("webhook_mode") or update_data.get("webhook_secret") is not None
+        ):
+            raise refused_field(
+                "webhook_mode",
+                f"A {bot.platform} bot connects over its own Gateway connection and takes no webhook",
+            )
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
         await self._check_transcription(bot, update_data)
@@ -756,6 +765,11 @@ class ChannelBotService:
         webhook URL from settings, and asks the adapter to register it.
         """
         bot = await self.get(bot_id)
+        if bot.platform not in INBOUND_PATHS:
+            raise BadRequestError(
+                message=f"A {bot.platform} bot has no webhook to register",
+                details={"platform": bot.platform},
+            )
         adapter = get_adapter(bot.platform)
         token = self.get_decrypted_token(bot)
         webhook_url = inbound_webhook_url(bot.platform, bot_id)

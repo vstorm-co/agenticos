@@ -1,6 +1,6 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, Discord. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams";
+export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams" | "discord";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";

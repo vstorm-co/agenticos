@@ -835,8 +835,8 @@ class TestExposureConstraints:
     async def test_a_surface_nothing_serves_is_rejected(self, db):
         """A binding on a platform with no adapter would look correct and route nothing."""
         org = await _org(db)
-        agent, bot = await _agent(db, org), await _bot(db, org, platform="discord")
-        db.add(_exposure(agent, bot, surface="discord"))
+        agent, bot = await _agent(db, org), await _bot(db, org, platform="whatsapp")
+        db.add(_exposure(agent, bot, surface="whatsapp"))
         with pytest.raises(IntegrityError):
             await db.flush()
 

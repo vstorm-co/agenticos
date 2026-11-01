@@ -1,5 +1,5 @@
 ---
-source_sha: "79e2e3f1d2d8"
+source_sha: "3fa7145d9337"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1505,10 +1505,81 @@ grupowych organizacji: odpowiedź z każdego uruchomienia jest wtedy publikowana
 jako nowa wiadomość, pod nazwą triggera. Czat osobisty nigdy nie jest proponowany —
 należy do kogoś.
 
+## Discord { #discord }
+
+Bot Discorda to aplikacja w Discord Developer Portal, z którą wdrożenie rozmawia
+przez własny Gateway i REST API Discorda, bez biblioteki pośrodku (#2079).
+Wiadomości, komendy slash i naciśnięcia przycisków przychodzą jednym połączeniem
+Gateway bota, więc **wdrożenie nie potrzebuje publicznego adresu dla Discorda**, a
+bot Discorda nie ma trybu webhooka.
+
+1. W [Developer Portal](https://discord.com/developers/applications) utwórz
+   aplikację. W sekcji **Bot** zresetuj i skopiuj **token** oraz włącz **Message
+   Content Intent**. Bez niego Discord odrzuca połączenie, a wiersz bota mówi,
+   który przełącznik włączyć. W sekcji **Installation** ustaw **Install Link** na
+   *None*, a potem w sekcji **Bot** wyłącz **Public Bot**. Bota publicznego każdy
+   może dodać do własnego serwera i rozmawiać tam z agentem, więc bot odmawia
+   połączenia, dopóki jest publiczny. Bot, który stał się publiczny w trakcie
+   połączenia, zatrzymuje się, gdy następnym razem zostanie dodany do serwera.
+2. W **OAuth2 → URL Generator** zaznacz scope'y `bot` i `applications.commands`
+   oraz uprawnienia **View Channels**, **Send Messages**, **Send Messages in
+   Threads**, **Create Public Threads**, **Read Message History** i **Attach
+   Files**, a potem otwórz ten URL, żeby dodać bota do serwera. Bez **Attach
+   Files** plik albo wykres wysłany przez agenta zostaje odrzucony, a wraz z nim
+   przepada tekst wysłany razem z nim.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `discord`, z tokenem.
+
+Bot rejestruje swoje komendy, gdy się łączy: `/ask`, `/agents`, `/new`, `/link`,
+`/unlink` i `/help`, a do tego **Ask the agent** w menu *Apps* każdej wiadomości.
+Discord potrafi chwilę zwlekać, zanim pokaże nowe komendy na każdym serwerze.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Wiadomość prywatna | Na każdą wiadomość. Wiadomość prywatna to jedna rozmowa, a `/new` zaczyna ją od nowa |
+| Kanał serwera | Gdy zostanie @wspomniany albo wiadomość na niego odpowiada. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek otwarty przez bota | Na każdą wiadomość w nim |
+| `/ask` | Wszędzie: pytanie, do 2000 znaków, zostaje opublikowane, a odpowiedź trafia do wątku pod nim |
+| *Apps → Ask the agent* | Na każdej wiadomości: agent jest pytany o tę wiadomość, w wątku na niej |
+
+`/agents`, `/link` i pozostałe komendy odpowiadają prywatnie, tylko temu, kto je
+wywołał. `/new` zaczyna od nowa rozmowę w wątku; na kanale serwera, gdzie każda
+wzmianka i tak zaczyna nową, mówi to zamiast tego. Na kanale, gdzie bot nie może otwierać wątków, odpowiedź jest zamiast tego
+odpowiedzią na pytanie, a odpowiedź na nią kontynuuje tę samą rozmowę.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją w
+miarę, jak odpowiedź spływa, przechodząc po 2000 znakach do kolejnych wiadomości.
+Zapisywany jest tylko tekst, który guardraile już sprawdziły, więc zredagowany
+sekret nie pojawia się nawet na moment. Nic, co publikuje bot, nikogo nie
+powiadamia: `@everyone` i wzmianki o rolach w odpowiedzi zostają zwykłym tekstem.
+
+**Zatwierdzenia i pytania to przyciski**, a dla pytania z więcej niż 25 opcjami
+listy wyboru. Pod każdą odpowiedzią są kciuki, a kciuk w dół otwiera formularz
+Discorda z pytaniem, co było nie tak. Na Discordzie pytanie nie dostaje reakcji.
+
+**Kto mówi**, to identyfikator użytkownika Discorda, łączony z członkiem przez
+`/link` jak na każdej platformie. Rozmowa z kanału serwera jest pokazywana w
+konsoli tym, którzy nadal widzą ten kanał, według ról serwera i nadpisań uprawnień
+kanału, bo tym na Discordzie jest bycie na kanale. Wątek prywatny jest tylko na
+zaproszenie, więc jest osobnym pokojem: rozmowa z niego jest pokazywana
+wyłącznie tym, którzy nadal są w tym wątku, a notatki, które agent tam
+prowadzi, nie są wspólne z kanałem.
+
+**Wątek, do którego bota dołączono w trakcie, jest czytany najpierw.** Ostatnie
+wiadomości w nim, z autorem i czasem, oraz pliki, które tam wrzucili ludzie,
+trafiają do agenta przed odpowiedzią, tak jak na Slacku i Mattermoście; pliki
+wrzucone przez samego bota są pomijane. Potrzebne jest **Read Message History**,
+a `read_channel_history` czyta wątek albo kanał tak samo, gdy pozwala na to
+powiązanie.
+
+Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
+których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
+członków kanału, jego szczegółów i wyszukiwania kanałów nie są oferowane na
+Discordzie, a role serwera nie są mapowane na grupy organizacji.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka i strumień eventów Mattermosta chodzą pod
-jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
+Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
@@ -1528,14 +1599,14 @@ Zerwana sesja to co innego: ta jest ponawiana, z odczekaniem pięciu sekund
 podwajanym do minuty, więc serwer położony na godzinę nie jest młócony 720 razy
 przez każdego bota na nim. Sesja, która skończyła się czysto, zaczyna drabinę od
 nowa. Linia logowana przed każdym czekaniem podaje opóźnienie, które za chwilę
-odczeka, a ta sama pętla obsługuje wszystkie trzy platformy, więc polityka nie
+odczeka, a ta sama pętla obsługuje każdą z tych platform, więc polityka nie
 może się między nimi rozjechać.
 
 ---
 
 ## Akceptacje i pytania jako przyciski { #approvals-and-questions-as-buttons }
 
-Run uruchomiony w Slacku, Teams, Telegramie lub Mattermoście może zatrzymać się dla
+Run uruchomiony w Slacku, Teams, Telegramie, Mattermoście lub na Discordzie może zatrzymać się dla
 człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje pytanie
 `ask_user`. Czat dostaje wybory tam, gdzie jest — wiadomość na każdą akceptację z
 **Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.
@@ -2017,7 +2088,7 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
 - **Wybierz, czy wzmianki grupowe uruchamiają run.** W tworzeniu i edycji bota przełącznik *Reaguj na wzmianki grupowe* jest domyślnie wyłączony. Bezpośrednie wywołania nadal działają. Po włączeniu reaguje też na `@all`, `@here` i `@channel` w Mattermoście, natywne wzmianki grupowe Slacka oraz strukturalne wzmianki o kanale lub zespole Teams. Nadal obowiązują tożsamość nadawcy, reguły dostępu i limity. Wzmianki w kodzie i o innych osobach nie wystarczają.
 
-    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama.
+    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama. Discord liczy `@everyone` i `@here` tylko wtedy, gdy nadawca ma prawo ich użyć, czyli gdy Discord rzeczywiście powiadamia kanał.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
 - **Odczyty MCP powiązanego nadawcy podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.

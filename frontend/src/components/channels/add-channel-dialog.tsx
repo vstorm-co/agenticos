@@ -7,6 +7,7 @@ import {
   AnswerStyleFields,
   DEFAULT_ANSWER_STYLE,
   REACTION_PATTERN,
+  reactsOn,
 } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { SlackTransport } from "@/components/channels/slack-transport";
@@ -41,7 +42,13 @@ import { MentionPolicyFields } from "./mention-policy-fields";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
-const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram"];
+const PLATFORMS: readonly ChannelPlatform[] = [
+  "discord",
+  "mattermost",
+  "slack",
+  "teams",
+  "telegram",
+];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
@@ -49,6 +56,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  discord: "Discord",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -57,6 +65,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
   teams: "botTokenHintTeams",
+  discord: "botTokenHintDiscord",
 };
 
 /** An Entra app or tenant id - what the backend accepts for either. */
@@ -177,6 +186,8 @@ export function AddChannelDialog({
     setAppToken("");
     setTeamsAppId("");
     setTeamsTenantId("");
+    // Hidden where the bot cannot react, and a hidden choice would still be sent.
+    if (!reactsOn(next)) setAnswerStyle((style) => ({ ...style, ack_reaction: null }));
     setErrors({});
   }
 
