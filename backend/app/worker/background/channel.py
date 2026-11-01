@@ -34,6 +34,19 @@ async def process_channel_event(incoming: Any) -> None:
         logger.exception("channel_event_processing_failed")
 
 
+async def refusal_before_publishing(incoming: Any) -> str | None:
+    """Why a sender's words may not be posted as the bot yet, or `None`.
+
+    A failure to decide is a refusal: nothing is posted on a guess.
+    """
+    try:
+        async with get_db_context() as db:
+            return await ChannelMessageRouter().refusal_before_publishing(incoming, db)
+    except Exception:
+        logger.exception("channel_preflight_failed")
+        return "That could not be checked just now. Try again in a moment."
+
+
 async def process_channel_press(press: Any) -> None:
     """Decide or answer what a pressed button was offered for (#2064, #2067).
 

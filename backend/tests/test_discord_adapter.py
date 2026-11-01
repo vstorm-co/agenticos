@@ -215,7 +215,9 @@ class TestReading:
         adapter._channels.put(THREAD, _Channel(kind=12, parent_id=CHANNEL, owner_id=USER))
         incoming = adapter.parse_incoming(_message(channel_id=THREAD), BOT)
         assert incoming is not None
-        assert incoming.platform_chat_id == THREAD
+        # Its own channel and its own thread, so a bot brought in partway has a
+        # thread to read the earlier messages of.
+        assert incoming.platform_chat_id == f"{THREAD}:{THREAD}"
         assert memory_room_key("discord", incoming.platform_chat_id, "group") == (
             room_owner_key("discord", THREAD)
         )
@@ -587,6 +589,13 @@ class TestPrompts:
         ]
 
 
+@pytest.fixture(autouse=True)
+def _admitted() -> Iterator[None]:
+    """`/ask` asks the router whether the sender may be published; here they may."""
+    with patch.object(discord, "refusal_before_publishing", AsyncMock(return_value=None)):
+        yield
+
+
 @pytest.fixture
 def spawned() -> Iterator[list[Any]]:
     """What the adapter handed to background work: the message, press or comment routed."""
@@ -725,7 +734,7 @@ class TestInteractions:
         [
             ({"id": CHANNEL, "type": 0}, None),
             ({"id": THREAD, "type": 11, "parent_id": CHANNEL}, f"{CHANNEL}:{THREAD}"),
-            ({"id": THREAD, "type": 12, "parent_id": CHANNEL}, THREAD),
+            ({"id": THREAD, "type": 12, "parent_id": CHANNEL}, f"{THREAD}:{THREAD}"),
         ],
     )
     async def test_new_starts_over_a_thread_and_explains_itself_in_a_channel(
@@ -935,6 +944,9 @@ class _Socket:
 
     async def _iterate(self) -> AsyncIterator[str]:
         for frame in self._frames:
+            # A real socket waits between frames, which is when work spawned by the
+            # last one gets to run.
+            await asyncio.sleep(0)
             yield json.dumps(frame)
         if self.close_code not in (None, 1000):
             raise ConnectionClosedError(Close(self.close_code, ""), None)
@@ -1056,14 +1068,16 @@ class TestGateway:
         }
         known = {"op": 0, "s": 2, "t": "GUILD_CREATE", "d": {"id": GUILD}}
         added = {"op": 0, "s": 3, "t": "GUILD_CREATE", "d": {"id": "g2"}}
-        socket = _Socket([ready, known, added], close_code=None)
+        later = {"op": 0, "s": 4, "t": "TYPING_START", "d": {}}
+        socket = _Socket([ready, known, added, *([later] * 200)], close_code=None)
         with (
             patch.object(discord, "connect", _connect(socket)),
             pytest.raises(ChannelNotConfigured, match="Public Bot"),
         ):
             await adapter._run_stream(BOT, "tok")
         assert [p for _, p, _ in api.calls].count("/applications/@me") == 2
-        assert socket.closed == [1000]
+        # A real socket stops delivering once closed; this one keeps scripted frames.
+        assert socket.closed and set(socket.closed) == {1000}
         assert BOT not in adapter._sessions
 
     async def test_a_private_bot_added_to_a_server_stays_connected(
@@ -1517,3 +1531,119 @@ class TestWhatWasSaidBeforeTheBot:
             await adapter.channel_history(
                 "tok", CHANNEL, api_base_url=None, limit=5, thread_id=THREAD
             )
+
+
+class TestWhatCodexAskedFor:
+    """Behaviour each review round turned up, pinned."""
+
+    def _press(self, prompt: str) -> IncomingPress:
+        return IncomingPress(
+            platform="discord",
+            bot_id=BOT,
+            platform_user_id=USER,
+            platform_chat_id=CHANNEL,
+            value="aos:x",
+            message_id="m1",
+            prompt_text=prompt,
+        )
+
+    async def test_a_long_prompt_is_cut_so_the_choice_stays_on_the_settled_message(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        await adapter.settle_prompt("tok", self._press("q" * 2000), "Approve")
+
+        [(_, _, body)] = [call for call in api.calls if call[0] == "PATCH"]
+        assert len(body["content"]) <= 2000
+        assert body["content"].endswith("**Approve**")
+        assert body["components"] == []
+
+    async def test_an_attachment_download_is_kept_out_of_tracing(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        await adapter.download_attachment(
+            "tok",
+            IncomingAttachment(
+                filename="a.txt",
+                mime_type="text/plain",
+                size=1,
+                handle="https://cdn.discordapp.com/attachments/1/2/a.txt?ex=sig",
+            ),
+        )
+
+        assert api.traced[-1] == ("/attachments/1/2/a.txt", False)
+
+    async def test_a_new_ready_forgets_the_roles_of_the_bot_it_replaces(
+        self, adapter: DiscordAdapter
+    ):
+        adapter._own_roles[BOT] = {"old-bot-role"}
+        session = _Session()
+
+        await adapter._on_dispatch("READY", {"session_id": "s1", "guilds": []}, BOT, "tok", session)
+
+        assert adapter._own_roles[BOT] == set()
+
+    async def test_stopping_a_bot_forgets_its_roles(self, adapter: DiscordAdapter):
+        adapter._own_roles[BOT] = {"role"}
+
+        await adapter.stop_polling(BOT)
+
+        assert BOT not in adapter._own_roles
+
+    async def test_what_a_server_sends_while_it_is_being_checked_is_not_read(
+        self, adapter: DiscordAdapter, spawned: list[Any]
+    ):
+        session = _Session(unchecked={"g2"})
+
+        await adapter._on_dispatch("MESSAGE_CREATE", _message(guild_id="g2"), BOT, "tok", session)
+        await adapter._on_dispatch(
+            "INTERACTION_CREATE", {"guild_id": "g2", "type": 2}, BOT, "tok", session
+        )
+
+        assert spawned == []
+
+    async def test_a_check_that_fails_does_not_stop_the_connection(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer("GET", "/applications/@me", httpx.Response(500, json={}))
+        session = _Session(unchecked={"g2"})
+
+        await adapter._check_public("g2", "tok", session)
+
+        assert session.refusal is None and session.unchecked == set()
+
+    async def test_ask_from_somebody_the_bot_turns_away_posts_nothing(
+        self, adapter: DiscordAdapter, api: _Discord, spawned: list[Any]
+    ):
+        with patch.object(
+            discord, "refusal_before_publishing", AsyncMock(return_value="Not on this bot.")
+        ):
+            await adapter._on_interaction(
+                {
+                    "type": 2,
+                    "id": "i1",
+                    "token": "itok",
+                    "guild_id": GUILD,
+                    "channel": {"id": CHANNEL, "type": 0},
+                    "member": {"user": {"id": USER, "username": "ada"}},
+                    "data": {
+                        "name": "ask",
+                        "type": 1,
+                        "options": [{"value": "buy now: x.example"}],
+                    },
+                },
+                BOT,
+            )
+
+        [body] = api.posted("/interactions/i1/itok/callback")
+        assert body["data"] == {"content": "Not on this bot.", "flags": 64}
+        assert spawned == []
+
+    async def test_a_refusal_found_off_the_receive_loop_closes_a_quiet_connection(
+        self, adapter: DiscordAdapter
+    ):
+        socket = _Socket([], close_code=None)
+
+        with patch.object(discord.random, "random", return_value=0):
+            await adapter._heartbeat(socket, 45, _Session(refusal="Public Bot"))
+
+        assert socket.closed == [1000]

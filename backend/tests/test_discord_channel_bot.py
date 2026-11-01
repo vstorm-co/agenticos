@@ -15,10 +15,13 @@ from click.testing import CliRunner
 from pydantic import ValidationError
 
 from app.commands import channel as channel_commands
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.models.channel_bot import ChannelBot
 from app.schemas.channel_bot import ChannelBotCreate, ChannelBotUpdate
 from app.services.channel_bot import ChannelBotService
+from app.services.channels.base import IncomingMessage
+from app.services.channels.router import ChannelMessageRouter
+from app.worker.background import channel as channel_worker
 
 pytestmark = pytest.mark.anyio
 
@@ -98,3 +101,84 @@ def test_the_cli_says_a_discord_bot_has_no_webhook_rather_than_raising(
     assert "has no webhook to register" in result.output
     assert result.exception is None
     adapter.assert_not_called()
+
+
+class TestPublishingAQuestionAsTheBot:
+    """`/ask` posts what was typed as the bot's own message - so only for somebody it answers."""
+
+    def _incoming(self) -> IncomingMessage:
+        return IncomingMessage(
+            platform="discord",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="u1",
+            platform_chat_id="c1",
+            chat_type="group",
+            text="buy now",
+            addressed=True,
+        )
+
+    def _router(self, bot: MagicMock | None, **steps: AsyncMock) -> ChannelMessageRouter:
+        router = ChannelMessageRouter()
+        router._resolve_identity = steps.get("identity", AsyncMock())  # type: ignore[method-assign]
+        router._sender_is_active_member = steps.get(  # type: ignore[method-assign]
+            "member", AsyncMock(return_value=True)
+        )
+        self._bot = bot
+        return router
+
+    async def _ask(self, router: ChannelMessageRouter) -> str | None:
+        with patch(
+            "app.services.channels.router.channel_bot_repo.get_for_inbound",
+            AsyncMock(return_value=self._bot),
+        ):
+            return await router.refusal_before_publishing(self._incoming(), MagicMock())
+
+    async def test_a_bot_that_is_gone_publishes_nothing(self):
+        assert await self._ask(self._router(None)) == "This bot is not available."
+        assert await self._ask(self._router(MagicMock(is_active=False))) == (
+            "This bot is not available."
+        )
+
+    async def test_the_access_policy_refuses_before_anything_is_posted(self):
+        bot = MagicMock(is_active=True, access_policy={"mode": "whitelist", "whitelist": ["x"]})
+        refusal = await self._ask(self._router(bot))
+        assert refusal == "You are not authorised to use this bot."
+
+    async def test_an_identity_that_is_refused_is_the_refusal(self):
+        bot = MagicMock(is_active=True, access_policy={})
+        router = self._router(
+            bot, identity=AsyncMock(side_effect=AuthorizationError(message="Linked accounts only."))
+        )
+        assert await self._ask(router) == "Linked accounts only."
+
+    async def test_somebody_nobody_linked_is_asked_to_link_first(self):
+        bot = MagicMock(is_active=True, access_policy={"mode": "jwt_linked"})
+        router = self._router(bot, member=AsyncMock(return_value=False))
+        router._invite_to_link = AsyncMock(return_value="Link first.")  # type: ignore[method-assign]
+        assert await self._ask(router) == "Link first."
+
+    async def test_somebody_it_answers_is_let_through(self):
+        assert await self._ask(self._router(MagicMock(is_active=True, access_policy={}))) is None
+
+    async def test_a_failure_to_decide_is_a_refusal_not_a_post(self):
+        @asynccontextmanager
+        async def broken() -> AsyncIterator[MagicMock]:
+            raise RuntimeError("database down")
+            yield MagicMock()
+
+        with patch.object(channel_worker, "get_db_context", broken):
+            refusal = await channel_worker.refusal_before_publishing(self._incoming())
+        assert refusal is not None and "Try again" in refusal
+
+    async def test_the_worker_hands_the_decision_to_the_router(self):
+        @asynccontextmanager
+        async def session() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        with (
+            patch.object(channel_worker, "get_db_context", session),
+            patch.object(
+                ChannelMessageRouter, "refusal_before_publishing", AsyncMock(return_value="no")
+            ),
+        ):
+            assert await channel_worker.refusal_before_publishing(self._incoming()) == "no"

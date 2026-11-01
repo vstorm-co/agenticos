@@ -214,6 +214,14 @@ class IncomingAttachment:
     voice note's length can be recorded with its transcription without
     decoding the audio, which nothing in the image can do."""
 
+    author_id: str | None = None
+    """Who posted it, as the access policy names them, for a file read out of a
+    thread the bot was brought into.
+
+    What lets the router hold a file to the same admission as a message: a
+    participant the bot's policy excludes must not get a file into the prompt
+    that their words could not reach. `None` where the adapter does not say."""
+
 
 @dataclass(frozen=True)
 class OutgoingAttachment:

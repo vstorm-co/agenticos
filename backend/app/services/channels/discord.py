@@ -91,6 +91,7 @@ from app.worker.background.channel import (
     process_channel_event,
     process_channel_press,
     process_feedback_comment,
+    refusal_before_publishing,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,10 @@ class _Session:
     """The servers the bot was in when it identified, and those checked since."""
     refusal: str | None = None
     """Why the connection was closed from this side and must not be reopened."""
+    unchecked: set[str] = field(default_factory=set)
+    """Servers added since identifying whose public-bot check has not answered.
+
+    Nothing they send is read until it does."""
 
 
 @dataclass
@@ -462,7 +467,12 @@ class DiscordAdapter(ChannelAdapter):
         """Take the buttons off the pressed message, leaving what was asked and chosen."""
         if press.message_id is None:
             return
-        shown = f"{press.prompt_text}\n**{text}**" if press.prompt_text else f"**{text}**"
+        chosen = f"**{text}**"[:MESSAGE_LIMIT]
+        # The question is cut to leave room for the choice, never the other way
+        # round: a prompt that fills the message would otherwise lose the one
+        # line that says what was decided.
+        room = MESSAGE_LIMIT - len(chosen) - 1
+        shown = f"{press.prompt_text[: max(room, 0)]}\n{chosen}" if press.prompt_text else chosen
         await self._edit(
             bot_token,
             press.platform_chat_id,
@@ -528,7 +538,10 @@ class DiscordAdapter(ChannelAdapter):
         """Fetch a file from Discord's CDN, which serves it on the signed URL the message carried."""
         if urlparse(attachment.handle).hostname not in _CDN_HOSTS:
             raise ValueError("Not a Discord attachment URL")
-        response = await self._http.get(attachment.handle)
+        # The signed query is the credential, and tracing exports a request's URL
+        # whole: kept out, as the interaction callbacks are.
+        with logfire.suppress_instrumentation():
+            response = await self._http.get(attachment.handle)
         response.raise_for_status()
         return response.content
 
@@ -656,7 +669,8 @@ class DiscordAdapter(ChannelAdapter):
         for message in await self._messages(bot_token, thread_id, limit):
             if (message.get("author") or {}).get("bot"):
                 continue
-            found.extend(_attachments(message))
+            author = (message.get("author") or {}).get("id")
+            found.extend(_attachments(message, by=str(author) if author else None))
         return found
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
@@ -679,6 +693,7 @@ class DiscordAdapter(ChannelAdapter):
                 await task
         # A token may have changed; the next connection identifies afresh.
         self._sessions.pop(bot_id, None)
+        self._own_roles.pop(bot_id, None)
         logger.info("Stopped Discord Gateway for bot %s", bot_id)
 
     async def _supervise(self, bot_id: str, bot_token: str) -> None:
@@ -704,6 +719,21 @@ class DiscordAdapter(ChannelAdapter):
         if await self._is_public(bot_token):
             raise ChannelNotConfigured(message=PUBLIC_BOT, details={"bot_id": bot_id})
         return str(response.json()["url"])
+
+    async def _check_public(self, guild: str, bot_token: str, session: _Session) -> None:
+        """Clear a newly added server for reading, or stop the connection when the bot is public."""
+        try:
+            public = await self._is_public(bot_token)
+        except Exception:
+            # Unknown is not public: the server stays unread until a later
+            # event of it is checked, and the connection is not torn down for a
+            # failed question.
+            logger.warning("discord_public_check_failed", exc_info=True)
+            session.unchecked.discard(guild)
+            return
+        session.unchecked.discard(guild)
+        if public:
+            session.refusal = PUBLIC_BOT
 
     async def _is_public(self, bot_token: str) -> bool:
         """Whether anyone may add this bot to their server - see :data:`PUBLIC_BOT`."""
@@ -762,6 +792,11 @@ class DiscordAdapter(ChannelAdapter):
         """
         await asyncio.sleep(interval * random.random())  # noqa: S311 - jitter, not a secret
         while True:
+            if session.refusal is not None:
+                # Found out off the receive loop, which only looks when an event
+                # arrives: a quiet bot would otherwise stay connected.
+                await socket.close(1000, "refused")
+                return
             if not session.acked:
                 await socket.close(_RESUMABLE_CLOSE, "heartbeat not acknowledged")
                 return
@@ -810,6 +845,9 @@ class DiscordAdapter(ChannelAdapter):
             self._own_ids[bot_id] = str((data.get("user") or {}).get("id") or "")
             self._app_ids[bot_id] = str((data.get("application") or {}).get("id") or "")
             session.guilds = {str(guild.get("id")) for guild in data.get("guilds") or []}
+            # Every server announces itself again after READY, and the roles are
+            # read from those: a replaced token must not keep the old bot's.
+            self._own_roles[bot_id] = set()
             await connection_state.record_up(bot_id)
             spawn(self._register_commands(bot_id, bot_token), name=f"discord-commands:{bot_id}")
         elif event == "RESUMED":
@@ -819,8 +857,9 @@ class DiscordAdapter(ChannelAdapter):
                 self._channels.put(str(channel["id"]), _channel_of(channel))
             # A server the bot was added to since it identified, which the check
             # before connecting never saw - and a resumed connection never repeats
-            # it. Asked here, on the receive loop, so nothing from that server is
-            # read before the answer.
+            # it. Asked off the receive loop, so a slow answer cannot hold later
+            # interactions from every other server past Discord's three seconds;
+            # what that server sends is dropped until it comes.
             own = self._own_ids.get(bot_id)
             self._own_roles.setdefault(bot_id, set()).update(
                 str(role["id"])
@@ -830,8 +869,11 @@ class DiscordAdapter(ChannelAdapter):
             guild = str(data.get("id") or "")
             if guild not in session.guilds:
                 session.guilds.add(guild)
-                if await self._is_public(bot_token):
-                    session.refusal = PUBLIC_BOT
+                session.unchecked.add(guild)
+                spawn(
+                    self._check_public(guild, bot_token, session),
+                    name=f"discord-public-check:{bot_id}",
+                )
         elif event in ("CHANNEL_CREATE", "CHANNEL_UPDATE", "THREAD_CREATE", "THREAD_UPDATE"):
             self._channels.put(str(data["id"]), _channel_of(data))
         elif event == "THREAD_LIST_SYNC":
@@ -841,6 +883,10 @@ class DiscordAdapter(ChannelAdapter):
         # the next frame is not read until this returns: off the receive loop,
         # so one slow call cannot hold a later interaction past the three
         # seconds Discord gives to answer it.
+        elif event in ("MESSAGE_CREATE", "INTERACTION_CREATE") and (
+            str(data.get("guild_id") or "") in session.unchecked
+        ):
+            return
         elif event == "MESSAGE_CREATE":
             spawn(self._on_message(data, bot_id, bot_token), name=f"discord-message:{bot_id}")
         elif event == "INTERACTION_CREATE":
@@ -906,11 +952,12 @@ class DiscordAdapter(ChannelAdapter):
         channel = self._channels.get(channel_id)
         if channel is not None and channel.kind in THREAD_TYPES and channel.parent_id:
             self._threads.put(channel_id, True)
-            # A private thread is invite-only, so it is keyed as a channel of its
-            # own: its room memory and who may read it in the console are then
-            # its members', not everybody's who can see the parent.
+            # A private thread is invite-only, so it is keyed on itself, as channel
+            # and as thread: its room memory and who may read it in the console are
+            # then its members', not everybody's who can see the parent, and a bot
+            # brought in partway still has a thread to read the earlier messages of.
             if channel.kind == PRIVATE_THREAD:
-                return channel_id
+                return f"{channel_id}:{channel_id}"
             return f"{channel.parent_id}:{channel_id}"
         return thread_key(channel_id, thread_id="", message_id=message_id)
 
@@ -1077,6 +1124,28 @@ class DiscordAdapter(ChannelAdapter):
         elif name == ASK:
             options = command.get("options") or []
             question = str(options[0].get("value") or "") if options else ""
+            refusal = await refusal_before_publishing(
+                IncomingMessage(
+                    platform=self.platform,
+                    bot_id=bot_id,
+                    platform_user_id=str(user.get("id") or ""),
+                    platform_chat_id=str(data.get("channel_id") or ""),
+                    chat_type="group" if data.get("guild_id") else "private",
+                    text=question,
+                    raw=data,
+                    platform_username=user.get("username"),
+                    platform_display_name=user.get("global_name"),
+                    message_id=interaction_id,
+                    addressed=True,
+                )
+            )
+            if refusal is not None:
+                # Before anything is posted: the question appears in the channel
+                # only for somebody the bot would answer.
+                await self._answer_interaction(
+                    interaction_id, token, {"type": 4, "data": {"content": refusal, "flags": 64}}
+                )
+                return
             response = await self._call(
                 "POST",
                 f"/interactions/{interaction_id}/{token}/callback?with_response=true",
@@ -1187,8 +1256,11 @@ def _posted_at(timestamp: object) -> datetime | None:
         return None
 
 
-def _attachments(message: dict[str, Any]) -> list[IncomingAttachment]:
-    """The files on a message, typed by `attachment_type` and fetched later from the CDN."""
+def _attachments(message: dict[str, Any], *, by: str | None = None) -> list[IncomingAttachment]:
+    """The files on a message, typed by `attachment_type` and fetched later from the CDN.
+
+    `by` names who posted it when the message was read out of a thread's history.
+    """
     return [
         IncomingAttachment(
             filename=str(item.get("filename") or "file"),
@@ -1197,6 +1269,7 @@ def _attachments(message: dict[str, Any]) -> list[IncomingAttachment]:
             ),
             size=int(item.get("size") or 0),
             handle=str(item.get("url") or ""),
+            author_id=by,
         )
         for item in message.get("attachments") or []
         if item.get("url")
