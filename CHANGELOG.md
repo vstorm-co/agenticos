@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.33.2] - 2026-11-01
+
 ### Security
 
 - Update the desktop app's `tauri-plugin-updater` to 2.14.1, which moves its `zip` dependency from 4.6.1 to 9.2.0 and closes three Dependabot alerts (one critical, one high, one medium). Two low and medium alerts on the mobile app's `rand` 0.7 and `glib` 0.18 remain: both are transitive through Tauri, have no compatible fix yet, and neither is compiled into the iOS or Android builds that ship.
