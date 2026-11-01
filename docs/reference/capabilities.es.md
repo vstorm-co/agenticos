@@ -1,5 +1,5 @@
 ---
-source_sha: "44e061f994b0"
+source_sha: "2efcb82366d0"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -405,7 +405,7 @@ un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, 
 solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
 `context:edit` para toda la organización. La copia nombra el claim del que viene y
 el original conserva su audiencia. Un embed, un run con clave de API y un run
-programado no leen nada; un chat de grupo lee solo sus propios claims.
+programado no leen nada; un chat de grupo lee solo sus propios claims. Corregir un claim que lee todo el proyecto o la organización exige el mismo permiso que compartir hacia allí: leerlo no es autoridad para reescribirlo.
 
 - **Una corrección conserva lo que corrige.** «Desde el lunes Piotr se encarga de
   las facturas» cierra el claim anterior en esa fecha y añade el nuevo; que Anna

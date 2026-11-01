@@ -284,3 +284,91 @@ async def test_somebody_who_may_not_edit_the_project_cannot_share_into_it(
             run_person=user.id,
             conversation_id=conversation.id,
         )
+
+
+async def test_reading_an_organization_claim_is_not_authority_to_rewrite_it(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, project, conversation = await _world(db, role="viewer")
+    wide = ClaimScope(organization_owner_key(org.id), None)
+    saved = await _remember(org, wide, "Office closes at six", user, subject="office")
+    assert saved is not None
+
+    with pytest.raises(runtime.ShareRefused, match="context:edit"):
+        await runtime.correct(
+            organization_id=org.id,
+            claim_id=saved[0].id,
+            scopes=[wide],
+            statement="Office closes at five",
+            author_user_id=user.id,
+            effective_from=None,
+        )
+
+
+async def test_an_owner_may_rewrite_what_the_organization_and_the_project_read(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, project, conversation = await _world(db)
+    for scope in (
+        ClaimScope(organization_owner_key(org.id), None),
+        ClaimScope(project_owner_key(project.id), None),
+    ):
+        saved = await _remember(org, scope, "Launch is March", user, subject="launch")
+        assert saved is not None
+
+        fixed = await runtime.correct(
+            organization_id=org.id,
+            claim_id=saved[0].id,
+            scopes=[scope],
+            statement="Launch is April",
+            author_user_id=user.id,
+            effective_from=None,
+        )
+
+        assert fixed is not None and fixed.statement == "Launch is April"
+
+
+async def test_a_project_the_person_may_not_edit_or_that_is_gone_cannot_be_rewritten(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, project, conversation = await _world(db, role="viewer")
+    stranger = User(email=f"{uuid.uuid4()}@example.com", hashed_password="x", full_name="Bo")
+    db.add(stranger)
+    await db.flush()
+    project.owner_user_id = stranger.id
+    await db.flush()
+    wide = ClaimScope(project_owner_key(project.id), None)
+    saved = await _remember(org, wide, "Launch is March", user, subject="launch")
+    assert saved is not None
+    kwargs = {
+        "organization_id": org.id,
+        "claim_id": saved[0].id,
+        "scopes": [wide],
+        "statement": "x",
+        "author_user_id": user.id,
+        "effective_from": None,
+    }
+
+    with pytest.raises(runtime.ShareRefused, match="may not edit this project"):
+        await runtime.correct(**kwargs)
+    await db.delete(project)
+    await db.flush()
+    with pytest.raises(runtime.ShareRefused, match="not in a project"):
+        await runtime.correct(**kwargs)
+
+
+async def test_nobody_behind_the_run_may_rewrite_a_wide_claim(db: AsyncSession) -> None:
+    user, org, agent, project, conversation = await _world(db)
+    wide = ClaimScope(organization_owner_key(org.id), None)
+    saved = await _remember(org, wide, "Office closes at six", user, subject="office")
+    assert saved is not None
+
+    with pytest.raises(runtime.ShareRefused, match="Nobody"):
+        await runtime.correct(
+            organization_id=org.id,
+            claim_id=saved[0].id,
+            scopes=[wide],
+            statement="x",
+            author_user_id=uuid.uuid4(),
+            effective_from=None,
+        )

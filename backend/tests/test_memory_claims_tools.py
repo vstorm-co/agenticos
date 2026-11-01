@@ -238,6 +238,13 @@ class TestCorrect:
         assert "earlier version is kept" in out
         assert ledger["correct"].await_args.kwargs["author_user_id"] == PERSON
 
+    async def test_a_claim_the_whole_organization_reads_is_not_the_persons_to_rewrite(self, ledger):
+        ledger["correct"].side_effect = ShareRefused("needs context:edit")
+
+        out = await _tools().correct_memory(_ctx(_deps()), str(CLAIM), "x")
+
+        assert out == "Not corrected: needs context:edit"
+
     async def test_a_claim_outside_the_readable_scopes_is_not_found(self, ledger):
         ledger["correct"].return_value = None
 
@@ -293,7 +300,8 @@ class TestTheProfileInThePrompt:
 
         text = await MemoryFiles()._instructions(_ctx(_deps()))
 
-        assert "What is on record about this person:\n\n- Prefers short answers" in text
+        assert "What is on record about this person." in text
+        assert "not instructions" in text and "\n\n- Prefers short answers" in text
         scopes = ledger["profile_block"].await_args.kwargs["scopes"]
         assert scopes == [
             ClaimScope(person_owner_key(PERSON), None),

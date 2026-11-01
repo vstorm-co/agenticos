@@ -422,14 +422,17 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         start = _parse_date(effective_from)
         if effective_from and start is None:
             return "effective_from must be an ISO date such as 2026-11-03."
-        fixed = await memory_store.runtime.correct(
-            organization_id=_organization(ctx),
-            claim_id=identifier,
-            scopes=scopes,
-            statement=statement,
-            author_user_id=UUID(str(audience.user_id)),
-            effective_from=start,
-        )
+        try:
+            fixed = await memory_store.runtime.correct(
+                organization_id=_organization(ctx),
+                claim_id=identifier,
+                scopes=scopes,
+                statement=statement,
+                author_user_id=UUID(str(audience.user_id)),
+                effective_from=start,
+            )
+        except ShareRefused as refused:
+            return f"Not corrected: {refused}"
         if fixed is None:
             return "No such claim here to correct."
         return f"Corrected (claim {fixed.id}); the earlier version is kept in its history."

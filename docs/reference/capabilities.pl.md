@@ -1,5 +1,5 @@
 ---
-source_sha: "44e061f994b0"
+source_sha: "2efcb82366d0"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -398,7 +398,7 @@ nigdy nie zapisuje profilu. Tylko `share_memory` poszerza claim, i to tylko na
 polecenie osoby, która może: `projects:edit` w projekcie albo `context:edit` dla
 całej organizacji. Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
 swoich odbiorców. Embed, run z kluczem API i run z harmonogramu nie czytają
-niczego; czat grupowy czyta tylko własne claimy.
+niczego; czat grupowy czyta tylko własne claimy. Poprawienie claimu, który czyta cały projekt lub organizacja, wymaga tego samego uprawnienia co udostępnienie do niego: odczyt nie jest uprawnieniem do przepisywania.
 
 - **Poprawka zachowuje to, co poprawia.** „Od poniedziałku Piotr przejmuje
   faktury” zamyka wcześniejszy claim w tej dacie i dodaje nowy; to, że Anna

@@ -15,8 +15,14 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.memory_keys import organization_owner_key, project_owner_key
+from app.core.memory_keys import (
+    ORGANIZATION_PREFIX,
+    PROJECT_PREFIX,
+    organization_owner_key,
+    project_owner_key,
+)
 from app.core.permissions import Perm
 from app.db.models.conversation import Conversation
 from app.db.models.memory_claim import MemoryClaim
@@ -118,6 +124,44 @@ async def profile_block(*, organization_id: UUID, scopes: Sequence[ClaimScope]) 
         return _claims.profile_text(rows)
 
 
+class ShareRefused(Exception):
+    """The run's person may not write to that wider scope."""
+
+
+async def _may_write_wide(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    run_person: UUID | None,
+    scope_key: str,
+) -> None:
+    """Refuse unless the run's person may change what the whole project or organization reads.
+
+    A claim in the person's own scope is theirs to write; one in a project or in the
+    organization is read by everybody there, so changing it needs the same authority as
+    sharing into it: `projects:edit` on the project, `context:edit` for the organization.
+    Reading it is no such authority - a viewer can recall an organization claim and may not
+    rewrite it.
+
+    Raises:
+        ShareRefused: Nobody is behind the run, or the person lacks the permission.
+    """
+    if not scope_key.startswith((PROJECT_PREFIX, ORGANIZATION_PREFIX)):
+        return
+    member = await acting_member(db, organization_id, str(run_person) if run_person else None)
+    if member is None:
+        raise ShareRefused("Nobody who may change this is behind the run.")
+    if scope_key.startswith(ORGANIZATION_PREFIX):
+        if not member.has(Perm.CONTEXT_EDIT):
+            raise ShareRefused("Changing what the whole organization reads needs context:edit.")
+        return
+    project = await db.get(Project, UUID(scope_key.removeprefix(PROJECT_PREFIX)))
+    if project is None or project.organization_id != organization_id:
+        raise ShareRefused("This conversation is not in a project.")
+    if not await resolve_access(db, member, project, Perm.PROJECTS_EDIT, resource_type=PROJECT):
+        raise ShareRefused("You may not edit this project.")
+
+
 async def correct(
     *,
     organization_id: UUID,
@@ -127,12 +171,23 @@ async def correct(
     author_user_id: UUID,
     effective_from: datetime | None,
 ) -> ClaimView | None:
-    """A person's correction of a claim in a scope they may read; `None` if there is none."""
+    """A person's correction of a claim in a scope they may read; `None` if there is none.
+
+    Raises:
+        ShareRefused: The claim is one the whole project or organization reads and the
+            person may not change it.
+    """
     async with get_db_context() as db:
         claim = await claim_repo.get(db, organization_id=organization_id, claim_id=claim_id)
         allowed = {(scope.scope_key, scope.agent_id) for scope in scopes}
         if claim is None or (claim.scope_key, claim.agent_id) not in allowed:
             return None
+        await _may_write_wide(
+            db,
+            organization_id=organization_id,
+            run_person=author_user_id,
+            scope_key=claim.scope_key,
+        )
         fixed = await _claims.correct(
             db,
             claim=claim,
@@ -141,10 +196,6 @@ async def correct(
             effective_from=effective_from,
         )
         return _view(fixed)
-
-
-class ShareRefused(Exception):
-    """The run's person may not widen this claim's audience to that scope."""
 
 
 async def share(
@@ -167,25 +218,20 @@ async def share(
         allowed = {(scope.scope_key, scope.agent_id) for scope in scopes}
         if claim is None or (claim.scope_key, claim.agent_id) not in allowed:
             return None
-        member = await acting_member(db, organization_id, str(run_person) if run_person else None)
-        if member is None or run_person is None:
+        if run_person is None:
             raise ShareRefused("Nobody who may share this is behind the run.")
         if to == "organization":
-            if not member.has(Perm.CONTEXT_EDIT):
-                raise ShareRefused("Sharing with the whole organization needs context:edit.")
             target = ClaimScope(organization_owner_key(organization_id), None)
         else:
             project_id = await db.scalar(
                 select(Conversation.project_id).where(Conversation.id == conversation_id)
             )
-            project = await db.get(Project, project_id) if project_id is not None else None
-            if project is None or project.organization_id != organization_id:
+            if project_id is None:
                 raise ShareRefused("This conversation is not in a project.")
-            if not await resolve_access(
-                db, member, project, Perm.PROJECTS_EDIT, resource_type=PROJECT
-            ):
-                raise ShareRefused("You may not edit this project.")
-            target = ClaimScope(project_owner_key(project.id), None)
+            target = ClaimScope(project_owner_key(project_id), None)
+        await _may_write_wide(
+            db, organization_id=organization_id, run_person=run_person, scope_key=target.scope_key
+        )
         shared = await _claims.share(
             db,
             claim=claim,

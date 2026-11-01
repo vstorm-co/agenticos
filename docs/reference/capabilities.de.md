@@ -1,5 +1,5 @@
 ---
-source_sha: "44e061f994b0"
+source_sha: "2efcb82366d0"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -417,7 +417,7 @@ Claim, und nur auf Anweisung einer Person, die das darf: `projects:edit` auf dem
 Projekt oder `context:edit` für die ganze Organisation. Die Kopie nennt den Claim,
 aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit
 API-Key und ein geplanter Run lesen nichts; ein Gruppenchat liest nur seine
-eigenen Claims.
+eigenen Claims. Das Korrigieren eines Claims, den das ganze Projekt oder die ganze Organisation liest, braucht dieselbe Berechtigung wie das Teilen dorthin: Lesen ist keine Befugnis zum Umschreiben.
 
 - **Eine Korrektur behält, was sie korrigiert.** „Ab Montag übernimmt Piotr die
   Rechnungen“ schließt den früheren Claim zu diesem Datum und fügt den neuen
