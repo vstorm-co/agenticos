@@ -495,6 +495,55 @@ export async function removeLocalService(id: string): Promise<LocalService[]> {
   return parseLocalServices(await invokeShell("local_remove_service", { id }));
 }
 
+/** A coding agent installed on this computer, as the app found it (#2576). */
+export interface LocalAgent {
+  id: "claude_code" | "codex";
+  name: string;
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+  /** `null` when the agent is missing or its answer was not understood. */
+  signed_in: boolean | null;
+}
+
+const isStringOrNull = (value: unknown): value is string | null =>
+  value === null || isString(value);
+const isBooleanOrNull = (value: unknown): value is boolean | null =>
+  value === null || isBoolean(value);
+
+function parseLocalAgent(value: unknown): LocalAgent {
+  const fields = record(value, "a local agent");
+  const id = fields.id;
+  if (id !== "claude_code" && id !== "codex") throw new ShellError("malformed", "an agent id");
+  return {
+    id,
+    name: field(fields, "name", isString),
+    installed: field(fields, "installed", isBoolean),
+    path: field(fields, "path", isStringOrNull),
+    version: field(fields, "version", isStringOrNull),
+    signed_in: field(fields, "signed_in", isBooleanOrNull),
+  };
+}
+
+/** The agent returned by a sign-out, or every agent from a status check. */
+export function parseLocalAgents(value: unknown): LocalAgent[] {
+  if (!Array.isArray(value)) throw new ShellError("malformed", "local agents");
+  return value.map(parseLocalAgent);
+}
+
+export async function getLocalAgents(): Promise<LocalAgent[]> {
+  return parseLocalAgents(await invokeShell("local_agents"));
+}
+
+/** Opens the agent's own sign-in in Terminal; the person finishes it there. */
+export async function signInLocalAgent(id: LocalAgent["id"]): Promise<void> {
+  await invokeShell("local_agent_sign_in", { id });
+}
+
+export async function signOutLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {
+  return parseLocalAgent(await invokeShell("local_agent_sign_out", { id }));
+}
+
 /** Native focus policy: a pinned panel stays above other applications. */
 export async function quickAskPinned(): Promise<boolean> {
   const result = await invokeShell("quick_ask_pinned");

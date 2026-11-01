@@ -22,6 +22,7 @@ mod context;
 mod device;
 mod docker_install;
 mod dropped;
+mod local_agents;
 mod local_browser;
 mod local_fs;
 mod local_instances;
@@ -1436,6 +1437,9 @@ pub fn run() {
             local_work::local_revoke,
             local_work::local_files,
             local_work::local_file,
+            local_agents::local_agents,
+            local_agents::local_agent_sign_in,
+            local_agents::local_agent_sign_out,
             local_services::local_services,
             local_services::local_save_service,
             local_services::local_remove_service

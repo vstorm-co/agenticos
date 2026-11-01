@@ -9263,6 +9263,20 @@
         "removeNamed": "Remove {name}",
         "add": "Connect service",
         "confirm": "Confirm in the app…"
+      },
+      "agents": {
+        "title": "Coding agents on this computer",
+        "description": "Claude Code and Codex installed here. Sign-in belongs to each agent: AgenticOS opens its own command in Terminal and never reads or copies its credentials.",
+        "installHint": "{name} is not installed on this computer.",
+        "notInstalled": "Not installed",
+        "signedIn": "Signed in",
+        "signedOut": "Signed out",
+        "unknown": "Status unknown",
+        "signIn": "Sign in",
+        "signInNamed": "Sign in to {name}",
+        "signOut": "Sign out",
+        "signOutNamed": "Sign out of {name}",
+        "terminalNote": "Sign-in opens in Terminal. Come back here when it finishes and the status refreshes."
       }
     },
     "quickAsk": {

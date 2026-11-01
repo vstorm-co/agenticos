@@ -9048,6 +9048,20 @@
         "removeNamed": "Usuń {name}",
         "add": "Połącz usługę",
         "confirm": "Potwierdź w aplikacji…"
+      },
+      "agents": {
+        "title": "Agenty kodujące na tym komputerze",
+        "description": "Claude Code i Codex zainstalowane tutaj. Logowanie należy do każdego agenta: AgenticOS otwiera jego własne polecenie w Terminalu i nigdy nie czyta ani nie kopiuje jego poświadczeń.",
+        "installHint": "{name} nie jest zainstalowany na tym komputerze.",
+        "notInstalled": "Nie zainstalowano",
+        "signedIn": "Zalogowano",
+        "signedOut": "Wylogowano",
+        "unknown": "Stan nieznany",
+        "signIn": "Zaloguj",
+        "signInNamed": "Zaloguj do {name}",
+        "signOut": "Wyloguj",
+        "signOutNamed": "Wyloguj z {name}",
+        "terminalNote": "Logowanie otwiera się w Terminalu. Wróć tutaj po jego zakończeniu, a stan się odświeży."
       }
     },
     "quickAsk": {

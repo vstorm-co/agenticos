@@ -5,7 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { permissionStep } from "../../../../desktop/ui/permissions.js";
 
-const denied = { supported: true, screen_capture: false, accessibility: false };
+const denied = {
+  supported: true,
+  screen_capture: false,
+  accessibility: false,
+  microphone: false,
+};
 const invoke = vi.fn<(command: string, args?: Record<string, string>) => Promise<unknown>>();
 const unsupported = vi.fn();
 
@@ -31,10 +36,20 @@ describe("permissions in the connection wizard", () => {
     await refresh();
     expect(invoke).toHaveBeenCalledExactlyOnceWith("onboarding_permissions");
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
-    expect(screen.getAllByText("Not enabled")).toHaveLength(2);
+    expect(screen.getAllByText("Not enabled")).toHaveLength(3);
   });
 
-  it.each(["screen_capture", "accessibility"])(
+  it("offers the microphone as a prompt, not as a trip to System Settings", async () => {
+    const { root, refresh } = step();
+    await refresh();
+    const button = root.querySelector<HTMLButtonElement>('[data-permission="microphone"] button');
+    expect(button).toHaveTextContent("Allow");
+    expect(root.querySelector('[data-permission="screen_capture"] button')).toHaveTextContent(
+      "Open settings",
+    );
+  });
+
+  it.each(["screen_capture", "accessibility", "microphone"])(
     "requests only %s after its own button is clicked",
     async (permission) => {
       const { root, refresh } = step();
