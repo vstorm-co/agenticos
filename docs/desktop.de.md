@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "fad5dba40fc4"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -40,6 +40,7 @@ Unter **Chat controls → Computer use** bietet **Lokaler Computer** dieser Unte
 Lade das Paket für deinen Computer aus dem [GitHub-Release](https://github.com/vstorm-co/agenticos/releases/latest) herunter. Für die Installation eines Releases brauchst du weder Rust noch Entwicklungswerkzeuge.
 
 - **macOS:** Wähle Apple silicon oder Intel, öffne die `.dmg` und ziehe AgenticOS entlang des Pfeils nach **Applications**. Starte die App aus Applications und wirf das Disk-Image aus.
+- **macOS ohne Warnung:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` lädt das Release herunter, prüft seine SHA-256 gegen die mitveröffentlichte, kopiert die App nach Applications und entfernt von dieser einen App die Download-Markierung. `brew install --cask vstorm-co/agenticos/agenticos` macht dasselbe über [den Tap des Projekts](https://github.com/vstorm-co/homebrew-agenticos). Releases sind nicht von Apple beglaubigt, daher fragt eine im Browser geladene `.dmg` weiterhin nach **Trotzdem öffnen**.
 - **Windows:** Öffne den Installer `setup.exe`. Er verwendet die Systemsprache und installiert für deinen Benutzer ohne Administratorrechte. Starte AgenticOS aus dem Startmenü. Für verwaltete Installationen steht auch `.msi` bereit.
 - **Linux:** Öffne `.deb` oder `.rpm` im Software-Installer deiner Distribution. Für eine portable Installation erlaube das Ausführen der `.AppImage` in ihren Dateieigenschaften und öffne sie.
 
@@ -53,15 +54,16 @@ Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows un
 
 Nach einem Ad-hoc-Update kann macOS erneut Zugriff auf Mikrofon, Bildschirmaufnahme, Bedienungshilfen oder Schlüsselbund verlangen. Geht die Gerätekopplung verloren, verbinde das Gerät erneut. Update-Signaturen prüfen das Paket, bieten aber keine stabile Apple-Signierungsidentität.
 
+Hat der Release-Workflow ein stabiles selbstsigniertes Zertifikat (`scripts/create_macos_signing_cert.sh` erzeugt eines), behält macOS die Berechtigungen für Bildschirmaufnahme und Mikrofon über Updates hinweg, weil sie an die Signaturidentität gebunden sind. Erzeuge es einmal und ersetze es nie: Ein neues Zertifikat fragt jede Person erneut. Selbstsignieren entfernt die Gatekeeper-Warnung nicht; das schaffen nur Developer-ID-Signatur und Beglaubigung.
+
 ## Starten { #running-it }
 
 Vor der lokalen Installation oder Serververbindung bietet der Einrichtungsassistent
-unter macOS optional Bildschirmaufnahme und Bedienungshilfen an. Jede Schaltfläche
+unter macOS optional Bildschirmaufnahme, Bedienungshilfen und Mikrofon an. Jede Schaltfläche
 öffnet die zugehörigen Systemeinstellungen; die Einrichtung nimmt weder den Bildschirm
-auf noch steuert sie den Computer. Beide Berechtigungen lassen sich überspringen. Nach
+auf noch steuert sie den Computer. Alle lassen sich überspringen. Nach
 Rückkehr aus den Systemeinstellungen wird der Status aktualisiert; macOS kann einen App-
-Neustart verlangen. Mikrofon- und Ordnerzugriff werden weiterhin erst bei Nutzung
-angefragt.
+Neustart verlangen. Ordnerzugriff wird weiterhin erst bei Nutzung angefragt. Das Mikrofon fragt macOS mit der üblichen Abfrage; die beiden anderen öffnen die Systemeinstellungen. Das erste Fenster öffnet sich mit 80 % des Bildschirms, zentriert, und merkt sich danach Größe und Position.
 
 Voraussetzungen sind Rust über [rustup](https://rustup.rs) und die Webview der
 Plattform - WebKit auf macOS, WebView2 auf Windows, WebKitGTK auf Linux; Tauris
@@ -469,6 +471,25 @@ seiner eigenen öffentlichen Adresse.
 - `backend/app/services/device_hub/` - die Serverhälfte: Präsenz in Redis, damit
   jeder API-Host und Worker einen Computer erreicht, und `DeviceWorkspace`, der
   Sandbox-Workspace, den die App ausführt.
+
+## Coding-Agenten auf diesem Computer { #coding-agents-on-this-computer }
+
+Ist Claude Code oder Codex hier installiert, zeigt **Settings → Desktop app → Coding agents on this computer** Version und Anmeldestatus jedes Agenten. **Sign in** öffnet die eigene Anmeldung des Agenten im Terminal, **Sign out** führt seine eigene Abmeldung aus. AgenticOS liest oder kopiert nie die Dateien, in denen ein Agent seine Zugangsdaten hält, und der Status aktualisiert sich, wenn du zum Fenster zurückkehrst.
+
+Ein Agent, dessen Capability **Coding agent** auf **Where it runs: On this computer** steht, führt diesen Coding-Agenten im Ordner aus, den du für den Chat gewählt hast, mit der Anmeldung, die er schon hat, sodass kein Schlüssel nötig ist. Der Composer zeigt, welcher Agent wo arbeitet (`Claude Code · agenticos · darf bearbeiten`) oder was fehlt.
+
+- **Vollzugriff auf den Ordner ist nötig.** Der Agent läuft als du, was eine Betriebssystem-Sandbox verhindern würde; der Ordner braucht daher Vollzugriff, und jeder Start fragt in einem nativen Dialog nach Bestätigung. Mit Zugriff auf den ganzen Computer lässt sich kein Agent starten.
+- **Node.js 22 oder neuer.** Die App startet den ACP-Adapter des Agenten (`@agentclientprotocol/claude-agent-acp` oder `codex-acp`, jeweils in fester Version) über `npx`.
+- **Seine Anfragen werden durch den Zugriff der Bindung beantwortet, nicht einzeln erfragt.** Die Freigabe gehört der Capability, einmal pro Aufgabe. Innerhalb einer Aufgabe erlaubt `edit`, was der Agent verlangt, und `read_only` nur Lesen. Der Agent stoppt, wenn die App die Verbindung zum Server verliert.
+- Jede Aufgabe ist eine neue Sitzung, und die Tokens eines Abonnements werden nicht bepreist; die Kosten des Laufs sind daher eine Untergrenze.
+
+## Eigene Skills und Anweisungen { #your-own-skills-and-instructions }
+
+**Chat-Steuerung → Arbeiten auf → Meine Skills und Anweisungen** lässt einen Chat die Skills nutzen, die schon auf diesem Computer liegen, in `~/.agents/skills`, `~/.claude/skills` und `~/.codex/skills`, sowie deine `AGENTS.md`. Für jeden neuen Chat ist es aus und wird je Ordner gewählt.
+
+- **Direkt gelesen.** Nichts wird nach AgenticOS kopiert oder synchronisiert, und die App liest nur die Ordner, die der Chat nennt.
+- **Konflikte.** Ein Skill gleichen Namens in zwei Ordnern wird aus `.agents`, dann `.claude`, dann `.codex` genommen, und das Panel zählt die verdeckten. Zwei Verknüpfungen auf einen Ordner sind ein Skill.
+- **Anweisungen.** Verwendet wird nur `AGENTS.md`. Die neuere von `~/.codex/AGENTS.md` und `~/.claude/AGENTS.md` steht zuletzt in dem, was das Modell liest, mit der `AGENTS.md` des Arbeitsordners darunter. Sie sind als Dateien deines Computers gekennzeichnet und können nicht erweitern, was der Lauf darf.
 
 ## Lokaler Browser, Modelle und MCP { #local-browser-models-and-mcp }
 

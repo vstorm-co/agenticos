@@ -1,5 +1,5 @@
 ---
-source_sha: "ef05ac38d95b"
+source_sha: "5c3c3b1dd419"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1955,6 +1955,8 @@ para mostrar diferencias entre la consola y Mattermost.
     persona hablando sola. Vincularse después es lo que pone el hilo anterior
     delante de alguien, sin relleno hacia atrás: el turno apunta a la cuenta de chat
     y la cuenta gana una persona.
+
+    **La lista de `/chat` omite por defecto los hilos de canales.** `GET /conversations` acepta `hide_channels`, verdadero por defecto, para que la barra lateral no se llene de hilos en los que responde un bot; se siguen abriendo desde su enlace, y `hide_channels=false` los vuelve a listar.
 
     **Hablar es una afirmación; la plataforma decide si sigue siendo cierta.** El
     registro del turno dice quién *habló*, y antes de [#641][641] esa era toda la

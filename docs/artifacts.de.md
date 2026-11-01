@@ -1,5 +1,5 @@
 ---
-source_sha: "616e87592f7b"
+source_sha: "fc017ec17fd8"
 ---
 
 # Apps { #artifacts }
@@ -160,6 +160,7 @@ später auf einen anderen Origin verlegt:
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, als `window.L` - zeichnet auf den [Kartenkacheln](#visuals) des Deployments, wenn es welche hat |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gezeigt und auf Wunsch einzeln gesetzt, eine Karte im Verhältnis 16:9 zur Breite der Seite, eine Linie zwischen ihnen und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps. `lib/agenticos-map-1.js`, das die Pins beim Laden setzt und eine feste Höhe hat, wird für die Seiten, die es nennen, weiter ausgeliefert |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: nummerierte Pins, der Reihe nach gesetzt, eine Linie zwischen ihnen, Pause und Wiederholung und Karten für die Stopps - auf Kartenkacheln, oder ohne sie als Umriss der Stopps |
+| `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js`, `lib/agenticos-worldmap-1.js` | `window.AOWorldMap.draw`: eine Weltkarte als SVG - Länder nach Wert schattiert, Pins und Großkreisrouten - ohne Kachelserver; nach d3 in dieser Reihenfolge laden |
 
 Jeder Name trägt seine Version und wird ein Jahr lang gecacht. Ein Upgrade fügt
 eine neue Datei neben der alten hinzu, sodass eine Seite, die gegen eine Version
@@ -178,6 +179,8 @@ eine Seite mit `read_artifact` ändert. Eine neue Organisation bekommt ihn mit d
 anderen mitgelieferten Skills, eine bestehende über `seed-skills`, und der Tab
 **Page style** der Capability Artifacts im Builder bietet ihn an. Bearbeiten Sie
 den Skill, um Ihre eigene Marke zu beschreiben, und der Agent folgt ihr.
+
+Drei weitere mitgelieferte Skills bauen eine **Präsentation** als App: `presentation-decks` (eine fertige Vorlage mit 16:9-Folienrahmen, Tastatur- und Touch-Navigation, Sprechernotizen auf `n` und einer Folie pro Seite beim PDF-Druck), `deck-storyline` (Publikum, Entscheidung und eine Linie aus Aussagen, bevor eine Folie entsteht) und `deck-review` (Titel, die sich als Argument lesen, eine Aussage pro Folie, jede Zahl belegt, aus der Ferne lesbar). Sie bringen keine Bibliothek und keinen PowerPoint-Export mit.
 
 ## Visuals { #visuals }
 
@@ -236,6 +239,8 @@ Straßen - und ebenso eine Karte, deren Kacheln nicht laden. Der Agent sagt das 
 seiner Antwort: dass kein Kartenserver angebunden ist und dass ein Administrator
 echte Karten mit dieser Einstellung einschaltet. Das Bild einer Karte in
 einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
+
+**Weltkarten brauchen keinen.** Für alles rund um Länder - Kunden nach Land, Standorte, eine Route zwischen zwei Städten - zeichnet `AOWorldMap` eine SVG-Karte aus Ländergrenzen, die das Deployment selbst ausliefert: kein Kachelserver, kein Netz, kein zusätzlicher Container. Der Agent bevorzugt sie; die Kachelkarte bleibt für die Straßenebene.
 
 **Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung
 überhaupt die richtige Antwort ist: Text für eine Tatsache oder einen Rat, eine

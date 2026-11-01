@@ -137,6 +137,7 @@ keeps working if the deployment later moves its content to another origin:
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, as `window.L` - draws on the deployment's [map tiles](#visuals), when it has any |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins shown in order and dropped one by one on request, a map 16:9 of the page's width, a line joining them, and cards for the stops - on map tiles, or as an outline of the stops without them. `lib/agenticos-map-1.js`, which drops the pins on load at one height, stays served for the pages that name it |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: numbered pins dropped in order, a line joining them, pause and replay, and cards for the stops - on map tiles, or as an outline of the stops without them |
+| `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js`, `lib/agenticos-worldmap-1.js` | `window.AOWorldMap.draw`: a world map in SVG - countries shaded by a value, pins and great-circle routes - with no tile server; load them after d3, in this order |
 
 Every name carries its version and is cached for a year. The files answer
 `Access-Control-Allow-Origin: *`, because a module script is fetched in CORS mode
@@ -153,6 +154,8 @@ with `read_artifact`. A new organization gets it with the other bundled skills, 
 existing one through `seed-skills`, and the Apps capability's **Page style**
 tab in the Builder offers it. Edit the skill to describe your own brand, and the
 agent follows it.
+
+Three more bundled skills build a **slide deck** as an app: `presentation-decks` (a ready template with a 16:9 slide frame, keyboard and touch navigation, speaker notes on `n` and one slide per page when printed to PDF), `deck-storyline` (the audience, the decision and a storyline of claims before any slide exists) and `deck-review` (titles that read as the argument, one message per slide, every number traced, readable from a distance). They add no library and no PowerPoint export.
 
 ## Visuals
 
@@ -207,6 +210,8 @@ the line between them, no streets - and so does a map whose tiles do not load.
 The agent says so in its answer: that no map server is connected, and that an
 administrator turns real maps on with this setting.
 A chat app's picture of a map is drawn finished, with every pin in place.
+
+**World maps need none.** For anything about countries - customers by country, offices, a route between two cities - `AOWorldMap` draws a map in SVG from country outlines the deployment serves itself: no tile server, no network and no extra container. The agent prefers it; the tile map stays for street level.
 
 **Choosing the form.** The `visual-design` skill tells the agent when a drawing
 is the right answer at all: text for a fact or advice, a Markdown table for

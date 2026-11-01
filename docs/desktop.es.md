@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "fad5dba40fc4"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -40,6 +40,7 @@ En **Chat controls → Computer use**, selecciona **Local computer** para dar a 
 Descarga el paquete para tu ordenador desde la [versión en GitHub](https://github.com/vstorm-co/agenticos/releases/latest). Instalar una versión no requiere Rust ni herramientas de desarrollo.
 
 - **macOS:** elige Apple silicon o Intel, abre el `.dmg` y arrastra AgenticOS a **Applications** siguiendo la flecha. Inícialo desde Applications y expulsa la imagen de disco.
+- **macOS sin la advertencia:** `curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/install_macos.sh | bash` descarga la versión, comprueba su SHA-256 con el publicado junto a ella, copia la aplicación a Applications y quita la marca de descarga de esa sola aplicación. `brew install --cask vstorm-co/agenticos/agenticos` hace lo mismo mediante [el tap del proyecto](https://github.com/vstorm-co/homebrew-agenticos). Las versiones no están notarizadas por Apple, así que un `.dmg` descargado en el navegador sigue pidiendo **Abrir igualmente**.
 - **Windows:** abre el instalador `setup.exe`. Utiliza el idioma del sistema e instala para tu usuario sin permisos de administrador. Abre AgenticOS desde el menú Inicio. También hay un paquete `.msi` para instalaciones administradas.
 - **Linux:** abre `.deb` o `.rpm` en el instalador de software de tu distribución. Para una instalación portátil, permite ejecutar el `.AppImage` en sus propiedades y ábrelo.
 
@@ -53,14 +54,15 @@ La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windo
 
 Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
 
+Cuando el workflow de versiones tiene un certificado autofirmado estable (`scripts/create_macos_signing_cert.sh` crea uno), macOS conserva los permisos de grabación de pantalla y micrófono entre actualizaciones, porque están ligados a la identidad de firma. Créalo una vez y no lo sustituyas nunca: un certificado nuevo vuelve a preguntar a todos. Autofirmar no elimina la advertencia de Gatekeeper; solo lo hacen la firma Developer ID y la notarización.
+
 ## Ejecutarla { #running-it }
 
 Antes de elegir una instalación local o conectar con un servidor, el asistente inicial
-ofrece permisos opcionales de grabación de pantalla y accesibilidad en macOS. Cada botón
+ofrece permisos opcionales de grabación de pantalla, accesibilidad y micrófono en macOS. Cada botón
 abre los ajustes del sistema correspondientes; la configuración no captura la pantalla
-ni controla el equipo. Se puede continuar sin ambos permisos. Al volver de Ajustes se
-actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso al
-micrófono y las carpetas se solicita al usar esas funciones.
+ni controla el equipo. Se puede continuar sin ninguno. Al volver de Ajustes se
+actualiza su estado; macOS puede requerir reiniciar la aplicación. El acceso a las carpetas se solicita al usarlo. El micrófono lo pide macOS con el aviso habitual; los otros dos abren los ajustes del sistema. La primera ventana se abre al 80 % de la pantalla, centrada, y después recuerda su tamaño y posición.
 
 Hacen falta Rust de [rustup](https://rustup.rs) y el webview de la plataforma -
 WebKit en macOS, WebView2 en Windows, WebKitGTK en Linux; la
@@ -458,6 +460,25 @@ despliegue tiene que coincidir en el esquema - `DESKTOP_DEEP_LINK_SCHEME`,
 - `backend/app/services/device_hub/` - la mitad del servidor: presencia en Redis,
   para que cualquier host de API o worker llegue a un ordenador, y
   `DeviceWorkspace`, el workspace de la sandbox que ejecuta la app.
+
+## Agentes de código en este ordenador { #coding-agents-on-this-computer }
+
+Si Claude Code o Codex está instalado aquí, **Settings → Desktop app → Coding agents on this computer** muestra la versión de cada uno y si ha iniciado sesión. **Sign in** abre el inicio de sesión propio del agente en Terminal y **Sign out** ejecuta su cierre de sesión propio. AgenticOS nunca lee ni copia los archivos donde un agente guarda sus credenciales, y el estado se actualiza al volver a la ventana.
+
+Un agente cuya capacidad **Coding agent** tiene **Where it runs: On this computer** ejecuta ese agente de código en la carpeta que elegiste para el chat, con la sesión que ya tiene, por lo que no hace falta ninguna clave. El compositor muestra qué agente trabajará dónde (`Claude Code · agenticos · puede editar`) o qué falta.
+
+- **Se requiere acceso total a la carpeta.** El agente se ejecuta como tú, algo que un sandbox del sistema operativo impediría; por eso la carpeta necesita acceso total y cada inicio pide confirmación en un cuadro nativo. Con acceso a todo el ordenador no se puede iniciar un agente.
+- **Node.js 22 o posterior.** La aplicación inicia el adaptador ACP del agente (`@agentclientprotocol/claude-agent-acp` o `codex-acp`, cada uno en una versión fijada) mediante `npx`.
+- **Sus peticiones se responden con el acceso de la vinculación, no una a una.** La aprobación es de la capacidad, una vez por tarea. Dentro de una tarea, `edit` permite lo que el agente pide y `read_only` solo lectura. El agente se detiene cuando la aplicación pierde la conexión con el servidor.
+- Cada tarea es una sesión nueva, y los tokens que usa una suscripción no se valoran, por lo que el coste de la ejecución es un mínimo.
+
+## Tus propias skills e instrucciones { #your-own-skills-and-instructions }
+
+**Chat controls → Work on → My skills and instructions** permite que un chat use las skills que ya hay en este ordenador, en `~/.agents/skills`, `~/.claude/skills` y `~/.codex/skills`, y tu `AGENTS.md`. Está desactivado en cada chat nuevo y se elige por carpeta.
+
+- **Se leen en su sitio.** No se copia ni sincroniza nada con AgenticOS, y la aplicación solo lee las carpetas que nombra el chat.
+- **Conflictos.** Una skill con el mismo nombre en dos carpetas se toma de `.agents`, luego `.claude`, luego `.codex`, y el panel cuenta las ocultas. Dos enlaces a una carpeta son una sola skill.
+- **Instrucciones.** Solo se usa `AGENTS.md`. El más reciente de `~/.codex/AGENTS.md` y `~/.claude/AGENTS.md` va al final de lo que lee el modelo, con el `AGENTS.md` de la carpeta de trabajo debajo. Se marcan como archivos de tu ordenador y no pueden ampliar lo que la ejecución puede hacer.
 
 ## Navegador, modelos y MCP locales { #local-browser-models-and-mcp }
 

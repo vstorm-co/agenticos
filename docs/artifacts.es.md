@@ -1,5 +1,5 @@
 ---
-source_sha: "616e87592f7b"
+source_sha: "fc017ec17fd8"
 ---
 
 # Aplicaciones { #artifacts }
@@ -153,6 +153,7 @@ contenido a otro origen:
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, como `window.L` - dibuja sobre las [teselas de mapa](#visuals) del despliegue, cuando las tiene |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: chinchetas numeradas mostradas en orden y que caen una a una cuando se pide, un mapa 16:9 del ancho de la página, una línea entre ellas y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas. `lib/agenticos-map-1.js`, que deja caer las chinchetas al cargar y tiene una sola altura, se sigue sirviendo a las páginas que lo nombran |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: chinchetas numeradas que caen en orden, una línea entre ellas, pausa y repetición, y tarjetas para las paradas - sobre teselas de mapa, o sin ellas como un contorno de las paradas |
+| `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js`, `lib/agenticos-worldmap-1.js` | `window.AOWorldMap.draw`: un mapa del mundo en SVG - países sombreados según un valor, chinchetas y rutas de círculo máximo - sin servidor de teselas; cárgalos después de d3, en este orden |
 
 Cada nombre lleva su versión y se guarda en caché un año. Una actualización añade
 un archivo nuevo junto al antiguo, así que una página publicada con una versión
@@ -171,6 +172,8 @@ página con `read_artifact`. Una organización nueva lo recibe con los demás sk
 incluidos, una existente con `seed-skills`, y la pestaña **Page style** de la
 capability Artifacts en el Builder lo ofrece. Edita el skill para describir tu
 propia marca, y el agent la sigue.
+
+Tres skills incluidos más construyen una **presentación** como app: `presentation-decks` (una plantilla lista con marco de diapositiva 16:9, navegación con teclado y táctil, notas del orador con `n` y una diapositiva por página al imprimir a PDF), `deck-storyline` (el público, la decisión y una línea de afirmaciones antes de que exista ninguna diapositiva) y `deck-review` (títulos que se leen como argumento, un mensaje por diapositiva, cada cifra trazada, legible desde lejos). No añaden ninguna biblioteca ni exportación a PowerPoint.
 
 ## Visuals { #visuals }
 
@@ -227,6 +230,8 @@ hace un mapa cuyas teselas no cargan. El agent lo dice en su respuesta: que no h
 un servidor de mapas conectado y que un administrador activa los mapas reales con
 este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
+
+**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. El agente lo prefiere; el mapa de teselas queda para el nivel de calle.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
 siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
