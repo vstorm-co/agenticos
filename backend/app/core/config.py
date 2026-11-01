@@ -1094,7 +1094,7 @@ class Settings(BaseSettings):
     # service on the deployment's own network that `docs/reference/capabilities.md`
     # tells an operator to run, and accepts a CDP debugger exposed to the
     # internet, which is worse. So the operator names the hosts instead, exactly
-    # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
+    # like any spec-supplied address. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
     # The browser a person signs in to a site with from Settings (#2129). An

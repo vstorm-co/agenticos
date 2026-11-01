@@ -484,24 +484,24 @@ describe("SecretField · narrowing by what a key is for", () => {
     // "any key of this kind" and offered every API key in the vault (#1470).
     const UNCONDITIONAL = {
       ...WEATHER,
-      id: "memory_mem0",
+      id: "llamaparse_like",
       requires_secret: {
         kind: "api_key" as const,
-        description: "The mem0 API key",
+        description: "The LlamaParse API key",
         required_when: null,
-        purpose: "mem0",
+        purpose: "llamaparse",
       },
     };
     serve([
-      { ...API_KEY_SECRET, id: "sec-mem0", name: "mem0 key", purpose: "mem0" },
-      { ...API_KEY_SECRET, id: "sec-llama", name: "LlamaParse", purpose: "llamaparse" },
+      { ...API_KEY_SECRET, id: "sec-mem0", name: "Parse key", purpose: "llamaparse" },
+      { ...API_KEY_SECRET, id: "sec-tavily", name: "Tavily", purpose: "tavily" },
     ]);
-    mount(binding({ id: "memory_mem0" }), { definition: UNCONDITIONAL });
+    mount(binding({ id: "llamaparse_like" }), { definition: UNCONDITIONAL });
 
     await userEvent.click(await screen.findByLabelText("Secret"));
 
-    expect(screen.getByRole("option", { name: /mem0 key/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /Parse key/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
   });
 
   it("keeps offering the keys that never said what they were for", async () => {
@@ -723,7 +723,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
   const VAULT: Secret[] = [
     { ...API_KEY_SECRET, id: "sec-anthropic", name: "Anthropic", purpose: "anthropic" },
     { ...API_KEY_SECRET, id: "sec-openai", name: "OpenAI", purpose: "openai" },
-    { ...API_KEY_SECRET, id: "sec-llama", name: "LlamaParse", purpose: "llamaparse" },
+    { ...API_KEY_SECRET, id: "sec-tavily", name: "Tavily", purpose: "tavily" },
     { ...API_KEY_SECRET, id: "sec-mine", name: "Gateway", purpose: "custom" },
     { ...SIGN_IN, purpose: "openai_codex" },
   ];
@@ -739,7 +739,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
     expect(await screen.findByRole("option", { name: /Anthropic/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Gateway/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /OpenAI/ })).toBeNull();
-    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
     expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();
   });
 
@@ -753,7 +753,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
     expect(screen.getByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Gateway/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Anthropic/ })).toBeNull();
-    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Tavily/ })).toBeNull();
   });
 
   it("keeps the bound key offered after the harness changes", async () => {
@@ -862,7 +862,7 @@ describe("CapabilitySettings coding agent sign-in", () => {
 
     await userEvent.click(await screen.findByLabelText("Key or sign-in"));
 
-    expect(await screen.findByRole("option", { name: /LlamaParse/ })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /Tavily/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeInTheDocument();
     // Publish refuses a ChatGPT sign-in for Claude Code, gateway or not.
     expect(screen.queryByRole("option", { name: /My ChatGPT/ })).toBeNull();

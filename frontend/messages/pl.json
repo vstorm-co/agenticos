@@ -1814,7 +1814,6 @@
       "description": "Co agenci tutaj zapisali o tobie i co możesz z tym zrobić.",
       "nothingYet": "Nic jeszcze nie zapisano",
       "nothingYetWhy": "Agent zapisuje notatkę, gdy nauczy się czegoś, co warto zachować między rozmowami. Pusto tutaj znaczy, że żaden tego nie zrobił.",
-      "externalStores": "Ci agenci trzymają pamięć również w zewnętrznej usłudze, której ta strona nie czyta: {agents}.",
       "writtenBy": "Zapisał {agent} · {when}",
       "anAgent": "agent",
       "suppressed": "Wyłączona",
@@ -6926,12 +6925,11 @@
   "memory": {
     "clearAction": "Wyczyść pamięć",
     "clearBody": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nic ich nie przywróci.",
-    "clearBodyWithMem0": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nie sięga tego, co agent pamięta w mem0 - tam wpisy są przypisane do osób i usuwa się je, zapominając daną osobę.",
     "clearConfirm": "Ten agent straci wszystko, co zapisał. Jego rozmowy zostają nietknięte.",
     "clearTitle": "Wyczyść pamięć tego agenta",
     "clearedToast": "{count, plural, =0 {Nie było nic do wyczyszczenia} one {Usunięto 1 notatkę} few {Usunięto # notatki} many {Usunięto # notatek} other {Usunięto # notatki}}",
     "forgetAction": "Zapomnij wszystko o mnie",
-    "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał - w tym wdrożeniu i w mem0, jeśli agent trzyma tam swoje wspomnienia. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
+    "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał - w tym wdrożeniu. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
     "forgetConfirm": "Każdy agent w tej organizacji zapomni, co o Tobie zanotował. Twoje rozmowy zostają nietknięte.",
     "forgetMemberConfirm": "Każdy agent w tej organizacji zapomni, co zanotował o {name}. Rozmowy tej osoby zostają nietknięte.",
     "forgetNamed": "Zapomnij, co agenci wiedzą o {name}",
@@ -8440,16 +8438,6 @@
       "allow_personal": {
         "title": "Prywatne notatki dla każdej osoby",
         "description": "Czy agent prowadzi prywatne notatki o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn całkowicie, ze względów zgodności lub prywatności; notatki z czatów grupowych zostają."
-      }
-    },
-    "memory_mem0": {
-      "base_url": {
-        "title": "URL własnego mem0",
-        "description": "Bazowy URL samodzielnie hostowanego mem0; pomiń dla chmury mem0."
-      },
-      "allow_personal": {
-        "title": "Prywatna pamięć dla każdej osoby",
-        "description": "Czy agent zapamiętuje prywatnie rzeczy o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn, ze względów zgodności lub prywatności; pamięć czatów grupowych zostaje."
       }
     },
     "planning": {
@@ -11245,13 +11233,6 @@
       "example2": "Prowadzić listę otwartych pytań",
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie pokazuje notatek jednej osoby drugiej. W czacie grupowym notatki należą do czatu."
-    },
-    "memory_mem0": {
-      "name": "Pamięć (mem0)",
-      "does": "Agent zapamiętuje fakty i odnajduje je po znaczeniu; są przechowywane w usłudze mem0.",
-      "example1": "Zapamiętać, że klient woli e-mail od telefonu",
-      "needs": "Konto mem0, w chmurze lub własne, i jego klucz API w vault.",
-      "never": "Nigdy nie pokazuje wspomnień jednej osoby drugiej. W czacie grupowym należą do czatu."
     },
     "planning": {
       "name": "Planowanie",

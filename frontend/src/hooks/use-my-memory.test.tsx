@@ -22,7 +22,6 @@ function wrapper({ children }: { children: ReactNode }) {
 const PAGE = {
   items: [{ id: "n-1", name: "prefs", deactivated_at: null }],
   total: 1,
-  external_stores: [],
 };
 
 beforeEach(() => {

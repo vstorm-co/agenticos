@@ -7,7 +7,7 @@ vi.mock("./api-client", () => ({
   apiClient: { get: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
-const PAGE = { items: [], total: 0, external_stores: [] };
+const PAGE = { items: [], total: 0 };
 
 beforeEach(() => {
   vi.clearAllMocks();

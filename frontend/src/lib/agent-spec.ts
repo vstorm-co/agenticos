@@ -124,11 +124,7 @@ export const SANDBOX_ID = "sandbox";
  * conversations. A schedule or an event reaches them only when it acts as the
  * person who made it, and conversation search never (#2027).
  */
-export const PERSONAL_CAPABILITIES: readonly string[] = [
-  "memory_files",
-  "memory_mem0",
-  "conversation_search",
-];
+export const PERSONAL_CAPABILITIES: readonly string[] = ["memory_files", "conversation_search"];
 
 /**
  * The memory-files capability, whose panel carries one action as well as settings.
@@ -140,13 +136,6 @@ export const PERSONAL_CAPABILITIES: readonly string[] = [
  * the notes.
  */
 export const MEMORY_FILES_ID = "memory_files";
-
-/**
- * The mem0 capability, named here only so the clear action can say what it does
- * not reach: those memories live in mem0's own service, addressed per person,
- * with no way to empty one agent's namespace wholesale.
- */
-export const MEMORY_MEM0_ID = "memory_mem0";
 
 /**
  * The bindings with one capability switched on or off.

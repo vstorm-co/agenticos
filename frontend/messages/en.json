@@ -5609,7 +5609,6 @@
       "description": "What the agents here have written down about you, and what you can do about it.",
       "nothingYet": "Nothing written down yet",
       "nothingYetWhy": "Agents write a note when they learn something worth keeping between conversations. Nothing here means none of them has.",
-      "externalStores": "These agents also keep memories in an external service, which this page cannot read: {agents}.",
       "writtenBy": "Written by {agent} · {when}",
       "anAgent": "an agent",
       "suppressed": "Suppressed",
@@ -8082,12 +8081,11 @@
   "memory": {
     "clearAction": "Clear memory",
     "clearBody": "Deletes every note this agent has written, for every person and every group chat it has talked to. Nothing brings them back.",
-    "clearBodyWithMem0": "Deletes every note this agent has written, for every person and every group chat it has talked to. It does not reach what this agent remembers in mem0 - those are addressed per person, and are removed by forgetting that person.",
     "clearConfirm": "This agent will lose everything it has written down. Its conversations are untouched.",
     "clearTitle": "Clear this agent's memory",
     "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 note deleted} other {# notes deleted}}",
     "forgetAction": "Forget everything about me",
-    "forgetBody": "Every agent in this organization forgets what it has written down about you - in this deployment and in mem0, where an agent keeps its memories there. Your conversations stay; only what agents noted about you goes.",
+    "forgetBody": "Every agent in this organization forgets what it has written down about you - in this deployment. Your conversations stay; only what agents noted about you goes.",
     "forgetConfirm": "Every agent in this organization will forget what it noted about you. Your conversations are untouched.",
     "forgetMemberConfirm": "Every agent in this organization will forget what it noted about {name}. Their conversations are untouched.",
     "forgetNamed": "Forget what agents know about {name}",
@@ -10564,13 +10562,6 @@
       "needs": "Nothing extra.",
       "never": "Never shows one person's notes to another. In a group chat the notes belong to the chat."
     },
-    "memory_mem0": {
-      "name": "Memory (mem0)",
-      "does": "Lets the agent remember facts and recall them by meaning, stored in a mem0 service.",
-      "example1": "Remember that a customer prefers email to phone calls",
-      "needs": "A mem0 account, cloud or self-hosted, and its API key in the vault.",
-      "never": "Never shows one person's memories to another. In a group chat they belong to the chat."
-    },
     "planning": {
       "name": "Planning",
       "does": "Lets the agent write a checklist for a bigger task and tick off each step, so the person sees its progress.",
@@ -10991,16 +10982,6 @@
       "allow_personal": {
         "title": "Keep private notes per person",
         "description": "Whether the agent keeps private notes for each person it talks to, readable only when it is alone with them. Off drops that store entirely, for compliance or privacy; the notes it keeps in group chats stay."
-      }
-    },
-    "memory_mem0": {
-      "base_url": {
-        "title": "Self-hosted mem0 URL",
-        "description": "Base URL of a self-hosted mem0; omit for mem0's managed cloud."
-      },
-      "allow_personal": {
-        "title": "Keep private memories per person",
-        "description": "Whether the agent keeps private memories for each person it talks to, readable only when it is alone with them. Off drops that store, for compliance or privacy; group-chat memory stays."
       }
     },
     "planning": {

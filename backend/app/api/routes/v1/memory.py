@@ -104,9 +104,8 @@ async def inspect_person_memory(
 async def forget_person(user_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
     """Forget everything every agent in this organization knows about one person.
 
-    Answers with what each half removed rather than 204, because the mem0 half is
-    somebody else's service and a caller has to be able to say which parts of
-    "forgotten" actually happened.
+    Answers with what was removed rather than 204, so a caller can say how much
+    of "forgotten" actually happened.
     """
     return await service.forget_person(ctx, user_id)
 

@@ -122,14 +122,6 @@ const MEMORY_FILES: CapabilityCatalogEntry = {
   contracts: [],
 };
 
-const MEMORY_MEM0: CapabilityCatalogEntry = {
-  ...MEMORY_FILES,
-  id: "memory_mem0",
-  name: "Memory (mem0)",
-  description: "Semantic memory kept in a mem0 service rather than here.",
-  tools: [{ id: "recall", name: "recall", description: "Recall facts by meaning." }],
-};
-
 const CONTEXT: CapabilityCatalogEntry = {
   ...CHARTS,
   id: "context",
@@ -223,19 +215,6 @@ describe("the capability workbench", () => {
     await openCapability("Memory files");
 
     expect(screen.getByText("Clear this agent's memory")).toBeInTheDocument();
-  });
-
-  it("says the clear does not reach mem0 when the agent also keeps memories there", async () => {
-    // mem0 addresses memories per person, so nothing can empty one agent's
-    // namespace wholesale - and somebody believing it did would stop looking.
-    renderWorkbench({
-      catalog: [MEMORY_FILES, MEMORY_MEM0],
-      selected: [binding("memory_files"), binding("memory_mem0")],
-    });
-
-    await openCapability("Memory files");
-
-    expect(screen.getByText(/does not reach/)).toBeInTheDocument();
   });
 
   it("offers no clear for a capability that keeps nothing", async () => {

@@ -30,12 +30,6 @@ export interface MemoryNote {
 export interface MemoryPage {
   items: MemoryNote[];
   total: number;
-  /**
-   * Agents whose memories live in somebody else's service (mem0) and are not in
-   * `items`. Named rather than left out: a page of native notes presented as a
-   * complete inventory would be worse than saying what it misses.
-   */
-  external_stores: string[];
 }
 
 const ROOT = "/memory";

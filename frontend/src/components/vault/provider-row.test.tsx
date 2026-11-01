@@ -26,11 +26,10 @@ describe("ProviderRow", () => {
 
   it("draws what a service does where it has no brand mark anywhere", () => {
     // A custom key and the platform's own sandbox service are not brands, and
-    // no icon set carries Daytona or mem0: each wears an icon, not an initial.
+    // no icon set carries Daytona: each wears an icon, not an initial.
     for (const [provider, icon] of [
       ["custom", "lucide-key-round"],
       ["sandboxd", "lucide-box"],
-      ["mem0", "lucide-brain"],
     ] as const) {
       const { container, unmount } = render(<ProviderRow provider={provider} name="Key" />);
       expect(container.querySelector(`svg.${icon}`)).not.toBeNull();

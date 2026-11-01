@@ -4910,7 +4910,6 @@
       "description": "Was die Agents hier über Sie notiert haben und was Sie dagegen tun können.",
       "nothingYet": "Noch nichts notiert",
       "nothingYetWhy": "Agents schreiben eine Notiz, wenn sie etwas erfahren, das zwischen Unterhaltungen aufzubewahren lohnt. Nichts hier heißt, keiner von ihnen hat das getan.",
-      "externalStores": "Diese Agents behalten Erinnerungen außerdem in einem externen Dienst, den diese Seite nicht lesen kann: {agents}.",
       "writtenBy": "Geschrieben von {agent} · {when}",
       "anAgent": "ein Agent",
       "suppressed": "Unterdrückt",
@@ -7961,12 +7960,11 @@
   "memory": {
     "clearAction": "Gedächtnis leeren",
     "clearBody": "Löscht jede Notiz, die dieser Agent geschrieben hat – für jede Person und jede Gruppenunterhaltung, mit der er gesprochen hat. Nichts holt sie zurück.",
-    "clearBodyWithMem0": "Löscht jede Notiz, die dieser Agent geschrieben hat – für jede Person und jede Gruppenunterhaltung, mit der er gesprochen hat. Es reicht nicht an das, was dieser Agent in mem0 behält: Jene sind personenbezogen adressiert und werden entfernt, indem diese Person vergessen wird.",
     "clearConfirm": "Dieser Agent verliert alles, was er sich notiert hat. Seine Unterhaltungen bleiben unberührt.",
     "clearTitle": "Gedächtnis dieses Agents leeren",
     "clearedToast": "{count, plural, =0 {Es gab nichts zu leeren} =1 {1 Notiz gelöscht} other {# Notizen gelöscht}}",
     "forgetAction": "Alles über mich vergessen",
-    "forgetBody": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat – in diesem Deployment und in mem0, sofern ein Agent seine Erinnerungen dort ablegt. Ihre Unterhaltungen bleiben; nur das, was Agents über Sie notiert haben, geht.",
+    "forgetBody": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat – in diesem Deployment. Ihre Unterhaltungen bleiben; nur das, was Agents über Sie notiert haben, geht.",
     "forgetConfirm": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat. Ihre Unterhaltungen bleiben unberührt.",
     "forgetMemberConfirm": "Jeder Agent in dieser Organisation vergisst, was er über {name} notiert hat. Deren Unterhaltungen bleiben unberührt.",
     "forgetNamed": "Vergessen, was Agents über {name} wissen",
@@ -10443,13 +10441,6 @@
       "needs": "Nichts weiter.",
       "never": "Zeigt die Notizen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
     },
-    "memory_mem0": {
-      "name": "Gedächtnis (mem0)",
-      "does": "Der Agent merkt sich Fakten und findet sie nach ihrer Bedeutung wieder, gespeichert in einem mem0-Dienst.",
-      "example1": "Sich merken, dass ein Kunde E-Mail statt Anrufen bevorzugt",
-      "needs": "Ein mem0-Konto, in der Cloud oder selbst gehostet, und sein API-Schlüssel im Vault.",
-      "never": "Zeigt die Erinnerungen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
-    },
     "planning": {
       "name": "Planung",
       "does": "Der Agent schreibt eine Checkliste für eine größere Aufgabe und hakt jeden Schritt ab, damit man den Fortschritt sieht.",
@@ -10870,16 +10861,6 @@
       "allow_personal": {
         "title": "Private Notizen pro Person",
         "description": "Ob der Agent private Notizen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher vollständig, aus Compliance- oder Datenschutzgründen; Notizen aus Gruppenchats bleiben."
-      }
-    },
-    "memory_mem0": {
-      "base_url": {
-        "title": "URL eines eigenen mem0",
-        "description": "Basis-URL eines selbst gehosteten mem0; für die mem0-Cloud weglassen."
-      },
-      "allow_personal": {
-        "title": "Private Erinnerungen pro Person",
-        "description": "Ob der Agent private Erinnerungen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher, aus Compliance- oder Datenschutzgründen; das Gedächtnis aus Gruppenchats bleibt."
       }
     },
     "planning": {

@@ -32,7 +32,7 @@ export function MyMemory() {
   // resolves tells somebody nothing about why (#1594 review).
   if (error || !page) return <ErrorState />;
 
-  if (page.items.length === 0 && page.external_stores.length === 0) {
+  if (page.items.length === 0) {
     return (
       <EmptyState
         className="flex-1"
@@ -45,12 +45,6 @@ export function MyMemory() {
 
   return (
     <div className="space-y-4">
-      {page.external_stores.length > 0 ? (
-        <p className="text-muted-foreground text-xs">
-          {t("externalStores", { agents: page.external_stores.join(", ") })}
-        </p>
-      ) : null}
-
       {page.items.map((note) => (
         <Card key={note.id} data-tour={note === page.items[0] ? "my-memory" : undefined}>
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b px-5 py-4">
