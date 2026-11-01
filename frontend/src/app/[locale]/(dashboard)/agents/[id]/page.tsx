@@ -41,6 +41,7 @@ import {
 } from "@/components/agents/agent-map";
 import { MODE_LABEL } from "@/components/agents/agent-map-nodes";
 import { entryForConnection } from "@/lib/mcp-servers";
+import { openPrimaryConversation } from "@/lib/primary-conversation-api";
 import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-state";
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
@@ -300,6 +301,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const { servers: mcpCatalog, isLoading: catalogLoading, error: catalogError } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
+  const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
@@ -868,6 +870,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
     router.push(ROUTES.CHAT);
   }
 
+  /**
+   * Continue the one private conversation this person has with this agent.
+   *
+   * Unlike "Open in chat" it does not start a thread: it opens the stable one the
+   * server keeps per person and agent, creating it the first time. A failure is
+   * reported, because landing in an empty new chat would read as the history
+   * being gone.
+   */
+  async function continueConversation() {
+    try {
+      const conversationId = await openPrimaryConversation(id);
+      selectAgentForChat(id);
+      openConversation(conversationId);
+      router.push(ROUTES.CHAT);
+    } catch (failure) {
+      toast.error(getErrorMessage(failure, tErrors));
+    }
+  }
+
   async function handleAvatar(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // Cleared before awaiting, so picking the same file twice in a row still
@@ -984,6 +1005,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
               >
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={continueConversation}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <History className="h-4 w-4" />
+                {t("continueConversation")}
               </Button>
               {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
               <PinAgentButton

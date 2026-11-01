@@ -5953,7 +5953,8 @@
       "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working.",
       "ownedByWorkflow": "This agent is configured in a workflow step and versioned with that workflow. Change it there.",
       "openWorkflow": "Open the workflow",
-      "goToModel": "Go to Model"
+      "goToModel": "Go to Model",
+      "continueConversation": "Continue my conversation"
     },
     "auth": {
       "backSign": "Back to sign in",

@@ -2156,7 +2156,8 @@
       "agentNameLabel": "Nazwa",
       "agentNameRequired": "Agent potrzebuje nazwy.",
       "identity": "Nazwa i opis",
-      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej."
+      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
+      "continueConversation": "Kontynuuj moją rozmowę"
     },
     "auth": {
       "backSign": "Wróć do logowania",

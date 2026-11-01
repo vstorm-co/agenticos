@@ -5254,7 +5254,8 @@
       "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter.",
       "ownedByWorkflow": "Dieser Agent ist in einem Workflow-Schritt konfiguriert und wird mit diesem Workflow versioniert. Ändern Sie ihn dort.",
       "openWorkflow": "Workflow öffnen",
-      "goToModel": "Zum Abschnitt Modell"
+      "goToModel": "Zum Abschnitt Modell",
+      "continueConversation": "Meine Unterhaltung fortsetzen"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
