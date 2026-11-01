@@ -5645,7 +5645,10 @@
           "superseded": "Replaced",
           "merged": "Combined",
           "retracted": "Retracted"
-        }
+        },
+        "showing": "Showing {from}–{to} of {total}",
+        "newer": "Newer",
+        "older": "Older"
       }
     },
     "admin": {
@@ -6007,6 +6010,8 @@
       "teamsTenantId": "Tenant ID",
       "teamsTenantIdHint": "The Entra tenant the bot is registered in. Only that tenant's Teams can reach it.",
       "teamsEndpoint": "Messaging endpoint",
+      "smsEndpoint": "Webhook for incoming texts",
+      "smsEndpointHint": "Paste this into the Twilio number's incoming-message setting (A message comes in → Webhook, HTTP POST).",
       "teamsEndpointHint": "Paste this into the Azure Bot's configuration, and turn on its Microsoft Teams channel.",
       "teamsPackageWhy": "Upload the app package to your tenant's Teams app catalog, then add the app to a chat or a team.",
       "teamsPackageDownload": "Download app package",
@@ -8152,14 +8157,14 @@
     "clearBody": "Deletes every note this agent has written, for every person and every group chat it has talked to. Nothing brings them back.",
     "clearConfirm": "This agent will lose everything it has written down. Its conversations are untouched.",
     "clearTitle": "Clear this agent's memory",
-    "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 note deleted} other {# notes deleted}}",
+    "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 item deleted} other {# items deleted}}",
     "forgetAction": "Forget everything about me",
     "forgetBody": "Every agent in this organization forgets what it has written down about you - in this deployment. Your conversations stay; only what agents noted about you goes.",
     "forgetConfirm": "Every agent in this organization will forget what it noted about you. Your conversations are untouched.",
     "forgetMemberConfirm": "Every agent in this organization will forget what it noted about {name}. Their conversations are untouched.",
     "forgetNamed": "Forget what agents know about {name}",
     "forgetTitle": "What agents remember about you",
-    "forgottenToast": "{count, plural, =0 {There was nothing to forget} =1 {1 note forgotten} other {# notes forgotten}}"
+    "forgottenToast": "{count, plural, =0 {There was nothing to forget} =1 {1 item forgotten} other {# items forgotten}}"
   },
   "avatarColor": {
     "auto": "Automatic colour",

@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -1637,9 +1637,29 @@ class ChannelMessageRouter:
             platform_display_name=incoming.platform_display_name,
             user_id=None,
         )
+        if identity.user_id is not None and self._sms_link_lapsed(incoming.platform, identity):
+            # Dropped rather than refused: the person is asked to link again like any
+            # unlinked sender, and a sender who still holds the number can.
+            await channel_identity_repo.update(
+                db, db_identity=identity, update_data={"user_id": None}
+            )
         if identity.user_id is None:
             await self._link_vouched(incoming, bot, db, identity)
         return identity
+
+    @staticmethod
+    def _sms_link_lapsed(platform: str, identity: ChannelIdentity) -> bool:
+        """Whether this phone number was linked longer ago than the deployment trusts it.
+
+        A number is not the person: it can be reassigned or taken over, and a valid Twilio
+        signature authenticates Twilio, not continued ownership. So an SMS link expires
+        (`SMS_LINK_MAX_AGE_DAYS`) and is made again by the person.
+        """
+        limit = settings.SMS_LINK_MAX_AGE_DAYS
+        if platform != "sms" or limit <= 0:
+            return False
+        linked = identity.updated_at or identity.created_at
+        return linked is not None and datetime.now(UTC) - linked > timedelta(days=limit)
 
     async def _link_vouched(
         self,

@@ -1,5 +1,5 @@
 ---
-source_sha: "2efcb82366d0"
+source_sha: "34fdc75cb318"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -414,7 +414,9 @@ wählt:
 Ein automatisches Schreiben bleibt im Scope der Unterhaltung, aus der es stammt,
 und ein Gruppenchat schreibt nie ein Profil. Nur `share_memory` erweitert einen
 Claim, und nur auf Anweisung einer Person, die das darf: `projects:edit` auf dem
-Projekt oder `context:edit` für die ganze Organisation. Die Kopie nennt den Claim,
+Projekt oder `context:edit` für die ganze Organisation. Sie wartet immer darauf, dass eine Person genau diesen Claim und Leserkreis freigibt, gleich welche Freigabe-Einstellungen der Agent hat, damit ein vom Agent gelesener Text ihn nicht zum Teilen überreden kann.
+
+Die Kopie nennt den Claim,
 aus dem sie stammt, das Original behält seinen Leserkreis. Ein Embed, ein Run mit
 API-Key und ein geplanter Run lesen nichts; ein Gruppenchat liest nur seine
 eigenen Claims. Das Korrigieren eines Claims, den das ganze Projekt oder die ganze Organisation liest, braucht dieselbe Berechtigung wie das Teilen dorthin: Lesen ist keine Befugnis zum Umschreiben.

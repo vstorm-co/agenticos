@@ -1,5 +1,5 @@
 ---
-source_sha: "c707a6dabd22"
+source_sha: "d38565e3f34e"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1066,15 +1066,14 @@ przychodzących numeru w konsoli Twilio. Adres, który Twilio podpisuje, jest bu
 który Twilio wywołało, i jego pól, pod tokenem autoryzacji — a wszystko inne dostaje 403, zanim
 cokolwiek zostanie odczytane. Poprawny podpis dowodzi, że żądanie przyszło od Twilio. Nie
 dowodzi, kim jest nadawca: numer jest deklaracją, więc osoba działa z własnymi uprawnieniami
-dopiero po powiązaniu numeru ze swoim kontem jak każdej innej tożsamości kanału.
+dopiero po powiązaniu numeru ze swoim kontem jak każdej innej tożsamości kanału. Powiązanie wygasa po `SMS_LINK_MAX_AGE_DAYS` (domyślnie 90, `0` zostawia je na zawsze), bo numer można przepisać lub przejąć; osoba łączy numer ponownie.
 
 **Co wraca.** Webhook odpowiada od razu, a agent odpowiada przez API Twilio, gdy ma odpowiedź.
 Odpowiedź to zwykły tekst — znaczniki markdown są usuwane, a link wypisany w całości — i jest
 ucinana przy około 1500 znaków z informacją, że reszta jest w AgenticOS, więc jedno pytanie
 kosztuje kilka segmentów, nie kilkanaście. SMS nie umie strumieniować, edytować wiadomości ani
 przycisków, więc zatwierdzenie lub pytanie przychodzi jako ponumerowane linie, a odpowiada się
-SMS-em z numerem. Sama cyfra pasująca do ostatniego pytania wysłanego na ten numer jest
-odpowiedzią, jednorazową i ważną dobę; każdy inny tekst to zwykła wiadomość. Multimedia
+SMS-em z numerem. Sama cyfra pasująca do ostatniego pytania wysłanego na ten numer jest odpowiedzią. Pytanie zostaje otwarte przez dobę albo do nowszego, więc wielokrotny wybór przyjmuje kilka cyfr; każdy inny tekst to zwykła wiadomość. Multimedia
 wysłane SMS-em są ignorowane.
 
 ## Slack { #slack }

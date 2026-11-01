@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -323,7 +324,7 @@ def prompts() -> _Redis:
 
 
 class TestNumberedAnswers:
-    async def test_a_digit_that_fits_answers_once_and_names_the_choice(
+    async def test_a_digit_that_fits_names_the_choice_and_leaves_the_prompt_open(
         self, prompts: _Redis
     ) -> None:
         from app.services.channels import sms_prompts
@@ -331,7 +332,7 @@ class TestNumberedAnswers:
         await sms_prompts.remember("bot", "+1555", ["p:1", "p:2"])
 
         assert await sms_prompts.answer("bot", "+1555", " 2 ") == "p:2"
-        assert await sms_prompts.answer("bot", "+1555", "2") is None, "used once"
+        assert await sms_prompts.answer("bot", "+1555", "1") == "p:1", "a multi-select goes on"
         assert prompts.ttl["channel:sms:prompt:bot:+1555"] == sms_prompts.TTL_SECONDS
 
     @pytest.mark.parametrize("reply", ["3", "0", "12", "yes", "", "1 please"])
@@ -381,6 +382,41 @@ class TestNumberedAnswers:
         assert prompts.data["channel:sms:prompt:bot-1:+15559998888"] == '["p:0", "p:1"]'
         await adapter.aclose()
 
+    def test_a_replacement_token_is_held_to_the_same_shape(self) -> None:
+        from app.core.exceptions import BadRequestError
+        from app.services.channel_bot import ChannelBotService
+
+        ChannelBotService._check_sms_token("sms", TOKEN)
+        ChannelBotService._check_sms_token("telegram", "anything")
+        with pytest.raises(BadRequestError, match="ACCOUNT_SID"):
+            ChannelBotService._check_sms_token("sms", "just-a-token-that-is-long")
+
+    def test_the_bot_says_where_to_paste_its_webhook(self) -> None:
+        from datetime import UTC, datetime
+
+        from app.schemas.channel_bot import ChannelBotRead
+
+        def read(platform: str) -> ChannelBotRead:
+            return ChannelBotRead.model_validate(
+                {
+                    "id": uuid4(),
+                    "organization_id": uuid4(),
+                    "platform": platform,
+                    "name": "Bot",
+                    "is_active": True,
+                    "webhook_mode": True,
+                    "webhook_url": None,
+                    "created_at": datetime.now(UTC),
+                    "access_policy": {},
+                },
+                from_attributes=True,
+            )
+
+        sms, other = read("sms"), read("telegram")
+        assert sms.messaging_endpoint is not None
+        assert sms.messaging_endpoint.endswith(f"/api/v1/sms/{sms.id}/webhook")
+        assert other.messaging_endpoint is None
+
     async def test_a_digit_reply_to_a_prompt_is_a_press_not_a_message(
         self, prompts: _Redis
     ) -> None:
@@ -414,3 +450,62 @@ class TestNumberedAnswers:
             "p:1",
             "+15559998888",
         )
+
+
+class TestALinkedNumberExpires:
+    def _identity(self, days_ago: int) -> SimpleNamespace:
+        from datetime import UTC, datetime, timedelta
+
+        return SimpleNamespace(
+            updated_at=None, created_at=datetime.now(UTC) - timedelta(days=days_ago)
+        )
+
+    def test_only_an_old_sms_link_lapses(self) -> None:
+        from app.services.channels.router import ChannelMessageRouter
+
+        lapsed = ChannelMessageRouter._sms_link_lapsed
+        assert lapsed("sms", self._identity(91))
+        assert not lapsed("sms", self._identity(10))
+        assert not lapsed("telegram", self._identity(900)), "a chat account is not a phone number"
+
+    def test_a_deployment_may_keep_links_for_ever_and_an_unstamped_one_is_not_old(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.channels import router
+        from app.services.channels.router import ChannelMessageRouter
+
+        monkeypatch.setattr(router.settings, "SMS_LINK_MAX_AGE_DAYS", 0)
+        assert not ChannelMessageRouter._sms_link_lapsed("sms", self._identity(5000))
+        monkeypatch.setattr(router.settings, "SMS_LINK_MAX_AGE_DAYS", 90)
+        assert not ChannelMessageRouter._sms_link_lapsed(
+            "sms", SimpleNamespace(updated_at=None, created_at=None)
+        )
+
+    async def test_a_lapsed_number_is_unlinked_before_anything_runs_as_its_old_person(self) -> None:
+        from app.services.channels import router
+        from app.services.channels.router import ChannelMessageRouter
+
+        identity = SimpleNamespace(**vars(self._identity(200)), user_id=uuid4())
+
+        async def unlink(db, *, db_identity, update_data):
+            for key, value in update_data.items():
+                setattr(db_identity, key, value)
+
+        updated = AsyncMock(side_effect=unlink)
+        with (
+            patch.object(
+                router.channel_identity_repo, "get_or_create", new=AsyncMock(return_value=identity)
+            ),
+            patch.object(router.channel_identity_repo, "update", new=updated),
+            patch.object(ChannelMessageRouter, "_link_vouched", new=AsyncMock()) as vouched,
+        ):
+            incoming = SimpleNamespace(
+                platform="sms",
+                platform_user_id="+1",
+                platform_username=None,
+                platform_display_name=None,
+            )
+            await ChannelMessageRouter()._resolve_identity(incoming, MagicMock(), object())  # type: ignore[arg-type]
+
+        assert updated.await_args.kwargs["update_data"] == {"user_id": None}
+        assert identity.user_id is None and vouched.await_count == 1

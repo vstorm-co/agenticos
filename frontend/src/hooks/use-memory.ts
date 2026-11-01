@@ -28,7 +28,10 @@ export function useForgetPersonMemory() {
   return useMutation({
     mutationFn: (userId: string) =>
       apiClient.delete<MemoryErasureResult>(`/memory/person/${userId}`),
-    onSuccess: (result) => toast.success(t("forgottenToast", { count: result.notes_deleted })),
+    onSuccess: (result) =>
+      toast.success(
+        t("forgottenToast", { count: result.notes_deleted + (result.claims_deleted ?? 0) }),
+      ),
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 }
@@ -41,7 +44,10 @@ export function useClearAgentMemory(agentId: string) {
   return useMutation({
     mutationFn: () =>
       apiClient.delete<MemoryErasureResult>(`/memory?agent_id=${encodeURIComponent(agentId)}`),
-    onSuccess: (result) => toast.success(t("clearedToast", { count: result.notes_deleted })),
+    onSuccess: (result) =>
+      toast.success(
+        t("clearedToast", { count: result.notes_deleted + (result.claims_deleted ?? 0) }),
+      ),
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 }

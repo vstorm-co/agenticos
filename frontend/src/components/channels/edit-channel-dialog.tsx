@@ -351,6 +351,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
 
         {bot.platform === "teams" && <TeamsSetup bot={bot} />}
+        {bot.platform === "sms" && <SmsSetup bot={bot} />}
 
         {bot.platform === "slack" &&
           (draft.webhookMode ? (
@@ -503,6 +504,20 @@ function SlackManifest({ botId }: { botId: string }) {
  * A Teams bot, set up in two steps (#1985): its messaging endpoint goes into the
  * Azure Bot resource, and the app package into the tenant's app catalog.
  */
+function SmsSetup({ bot }: { bot: ChannelBot }) {
+  const t = useTranslations("pages.channels");
+  if (!bot.messaging_endpoint) return null;
+  return (
+    <div className="border-border space-y-1 rounded-lg border p-3">
+      <p className="text-sm font-medium">{t("smsEndpoint")}</p>
+      <p className="text-muted-foreground text-xs">{t("smsEndpointHint")}</p>
+      <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+        {bot.messaging_endpoint}
+      </code>
+    </div>
+  );
+}
+
 function TeamsSetup({ bot }: { bot: ChannelBot }) {
   const t = useTranslations("pages.channels");
   const download = useDownloadTeamsPackage();

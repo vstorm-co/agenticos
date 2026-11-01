@@ -209,6 +209,15 @@ class CapabilityToolInfo(BaseModel):
 
     description: str
 
+    always_requires_approval: bool = False
+    """Whether a person must approve every call, whatever the binding says.
+
+    For the rare tool whose effect cannot be undone by the person it borrows authority
+    from - widening who may read something, say - where a model that was talked into
+    calling it by text it read must still be stopped by a human who sees exactly what
+    would be shared. A binding's `approval` and `tool_approval` cannot waive it.
+    """
+
     side_effecting: bool | None = None
     """Whether *this tool* acts on the world, when the capability is not one answer.
 

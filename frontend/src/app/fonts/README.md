@@ -21,14 +21,14 @@ declaration about which weights the face may serve, not a property of the file �
 outside it is clamped, not synthesized. Widening one is a one-line edit to `layout.tsx`,
 with nothing to re-download.
 
-| File | Family | Declared | Axis in the file | Google Fonts version |
-| --- | --- | --- | --- | --- |
-| `bricolage-grotesque-latin.woff2` | Bricolage Grotesque | 700–800 | 200–800 | v9 |
-| `bricolage-grotesque-latin-ext.woff2` | Bricolage Grotesque | 700–800 | 200–800 | v9 |
-| `inter-latin.woff2` | Inter | 400–700 | 100–900 | v20 |
-| `inter-latin-ext.woff2` | Inter | 400–700 | 100–900 | v20 |
-| `geist-mono-latin.woff2` | Geist Mono | 400–500 | 100–900 | v6 |
-| `geist-mono-latin-ext.woff2` | Geist Mono | 400–500 | 100–900 | v6 |
+| File                                  | Family              | Declared | Axis in the file | Google Fonts version |
+| ------------------------------------- | ------------------- | -------- | ---------------- | -------------------- |
+| `bricolage-grotesque-latin.woff2`     | Bricolage Grotesque | 700–800  | 200–800          | v9                   |
+| `bricolage-grotesque-latin-ext.woff2` | Bricolage Grotesque | 700–800  | 200–800          | v9                   |
+| `inter-latin.woff2`                   | Inter               | 400–700  | 100–900          | v20                  |
+| `inter-latin-ext.woff2`               | Inter               | 400–700  | 100–900          | v20                  |
+| `geist-mono-latin.woff2`              | Geist Mono          | 400–500  | 100–900          | v6                   |
+| `geist-mono-latin-ext.woff2`          | Geist Mono          | 400–500  | 100–900          | v6                   |
 
 All three are SIL Open Font License 1.1 — see `OFL.txt`, which carries the copyright
 notice of each.

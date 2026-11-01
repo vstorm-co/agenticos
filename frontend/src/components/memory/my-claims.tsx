@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Pencil, Undo2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { ErrorState } from "@/components/states";
 import { Badge, Button, Input, Textarea } from "@/components/ui";
 import { useMyClaims } from "@/hooks/use-my-claims";
-import type { MemoryClaim } from "@/lib/memory-api";
+import { CLAIMS_PAGE_SIZE, type MemoryClaim } from "@/lib/memory-api";
 
 /**
  * What is on record about you - facts, preferences and decisions - with where each
@@ -21,11 +22,15 @@ import type { MemoryClaim } from "@/lib/memory-api";
 export function MyClaims() {
   const t = useTranslations("pages.memory.claims");
   const format = useFormatter();
-  const { page, isLoading, error, history, setHistory, correct, retract } = useMyClaims();
+  const { page, isLoading, error, history, setHistory, skip, showPage, correct, retract } =
+    useMyClaims();
   const [editing, setEditing] = useState<string | null>(null);
 
-  if (isLoading || error || !page) return null;
-  if (page.items.length === 0 && !history) return null;
+  if (isLoading) return null;
+  // Said, not hidden: the notes below may load fine, and somebody looking to correct
+  // what is on record about them must not read a failed section as an empty one.
+  if (error || !page) return <ErrorState />;
+  if (page.items.length === 0 && !history && skip === 0) return null;
 
   return (
     <section className="space-y-3" data-tour="my-claims">
@@ -51,8 +56,7 @@ export function MyClaims() {
                 claim={claim}
                 onCancel={() => setEditing(null)}
                 onSave={async (statement, from) => {
-                  await correct(claim.id, statement, from);
-                  setEditing(null);
+                  if (await correct(claim.id, statement, from)) setEditing(null);
                 }}
               />
             ) : (
@@ -70,6 +74,35 @@ export function MyClaims() {
           </li>
         ))}
       </ul>
+      {page.total > CLAIMS_PAGE_SIZE ? (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground text-xs">
+            {t("showing", {
+              from: skip + 1,
+              to: Math.min(skip + page.items.length, page.total),
+              total: page.total,
+            })}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={skip === 0}
+              onClick={() => showPage(Math.max(0, skip - CLAIMS_PAGE_SIZE))}
+            >
+              {t("newer")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={skip + page.items.length >= page.total}
+              onClick={() => showPage(skip + CLAIMS_PAGE_SIZE)}
+            >
+              {t("older")}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

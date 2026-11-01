@@ -442,8 +442,15 @@ class ChannelBotService:
             raise refused_field(
                 "webhook_mode", "SMS arrives only by webhook; there is no connection to open"
             )
+        ChannelBotService._check_sms_token(data.platform, data.token)
+
+    @staticmethod
+    def _check_sms_token(platform: str, token: str) -> None:
+        """A replacement token for an SMS bot must still be one that can sign and send."""
+        if platform != "sms":
+            return
         try:
-            split_credentials(data.token)
+            split_credentials(token)
         except ChannelNotConfigured as exc:
             raise refused_field("token", exc.message) from exc
 
@@ -662,6 +669,7 @@ class ChannelBotService:
                 update_data.pop("slack_app_token"), key_version=bot.secret_key_version
             )
         if update_data.get("token") is not None:
+            self._check_sms_token(bot.platform, update_data["token"])
             # Sealed at the row's existing version, beside its other envelopes, and
             # the version column is left alone. Re-sealing the token afresh (at the
             # default v1) and resetting `secret_key_version` to match left the

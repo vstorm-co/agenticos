@@ -323,3 +323,28 @@ class TestTheProfileInThePrompt:
 
     async def test_a_run_with_no_organisation_is_shown_nothing(self, ledger):
         assert await MemoryFiles()._profile_block(_ctx(AgentDeps())) is None
+
+
+class TestSharingNeedsAHuman:
+    """A prompt-injected model must not be able to widen a claim on a person's borrowed authority."""
+
+    def _spec(self, **binding: object):
+        from app.agents.spec import AgentSpec
+
+        return AgentSpec(name="A", capabilities=[{"id": "memory_files", **binding}])
+
+    def test_the_tool_is_gated_whatever_the_binding_says(self):
+        from app.agents.capabilities.approval._policy import approval_required_tools
+
+        for binding in ({}, {"approval": "never"}, {"tool_approval": {"share_memory": "never"}}):
+            gated = approval_required_tools(self._spec(**binding))
+            assert gated == {"share_memory"}, binding
+
+    def test_the_other_memory_tools_stay_as_the_binding_says(self):
+        from app.agents.capabilities.approval._policy import approval_required_tools
+
+        assert approval_required_tools(self._spec(approval="required")) >= {
+            "share_memory",
+            "remember",
+            "recall",
+        }

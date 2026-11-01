@@ -416,6 +416,11 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
+    # How long a phone number stays linked to an account before it has to be linked again.
+    # A number is a claim of identity that outlives the person's hold on it - reassigned,
+    # ported, taken over - so an SMS link lapses (#2082). 0 keeps links for ever.
+    SMS_LINK_MAX_AGE_DAYS: int = 90
+
     # The scheme the desktop shell registers for the sign-in return (#1532).
     #
     # Google's authorization endpoint refuses an embedded user-agent, and the

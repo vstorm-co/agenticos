@@ -369,7 +369,9 @@ Where a claim lives is an access rule, never a label the model picks:
 An automatic write stays in the scope of the conversation it came from, and a
 group chat never writes a profile. Only `share_memory` widens a claim, and only on
 a person who may: `projects:edit` on the project, or `context:edit` for the whole
-organization. The copy names the claim it came from and the original keeps its
+organization. It always waits for a person to approve the exact claim and audience, whatever the agent's approval settings say, so text the agent read cannot talk it into sharing.
+
+The copy names the claim it came from and the original keeps its
 audience. An embed, an API-key run and a scheduled run read nothing; a group chat
 reads only its own claims. Correcting a claim that the whole project or organization reads needs the same permission as sharing into it: reading it is not authority to rewrite it.
 

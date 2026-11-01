@@ -1,5 +1,5 @@
 ---
-source_sha: "c707a6dabd22"
+source_sha: "d38565e3f34e"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1086,7 +1086,7 @@ de Twilio. La dirección que Twilio firma se construye a partir de `PUBLIC_BASE_
 dirección a la que Twilio llamó y de sus campos, con el token de autenticación - y cualquier otra
 recibe un 403 antes de leer una palabra. Una firma válida prueba que la petición vino de Twilio. No
 prueba quién es el remitente: el número es una afirmación, así que una persona actúa con sus propios
-permisos solo cuando ha vinculado ese número a su cuenta como cualquier otra identidad de canal.
+permisos solo cuando ha vinculado ese número a su cuenta como cualquier otra identidad de canal. El vínculo caduca tras `SMS_LINK_MAX_AGE_DAYS` (90 por defecto, `0` lo mantiene siempre), porque un número puede reasignarse o ser tomado; la persona lo vincula de nuevo.
 
 **Qué vuelve.** El webhook responde al instante y el agent contesta por la API de Twilio cuando
 tiene una respuesta. Una respuesta es texto plano - se quitan los marcadores de markdown y un
@@ -1094,8 +1094,7 @@ enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso 
 está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
 transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
 llega como líneas numeradas y se responde enviando el número por SMS. Un solo dígito que encaje con
-la última pregunta enviada a ese número es la respuesta, de un solo uso y válida un día; cualquier
-otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
+la última pregunta enviada a ese número es la respuesta. La pregunta sigue abierta un día o hasta que otra más nueva la sustituya, así que una selección múltiple admite varios dígitos; cualquier otro texto es un mensaje normal. Los archivos enviados por SMS se ignoran.
 
 ## Slack { #slack }
 

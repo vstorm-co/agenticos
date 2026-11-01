@@ -510,3 +510,32 @@ async def test_deleting_an_account_removes_claims_in_every_organization_and_thei
         db, organization_id=org.id, scopes=[ClaimScope(organization_owner_key(org.id), None)]
     )
     assert [claim.id for claim in left] == [bystander.claim.id]
+
+
+async def test_erasing_a_person_removes_a_copy_of_a_copy(db: AsyncSession) -> None:
+    """Personal claim to the project, then the project's copy to the organization."""
+    org, user, finance, _ = await _tenant(db)
+    key = person_owner_key(user.id)
+    source = (await _say(db, org, ClaimScope(key, finance.id), "Is moving", subject="home")).claim
+    first = await claims.share(
+        db, claim=source, to=ClaimScope("project:p1", None), author_user_id=user.id
+    )
+    second = await claims.share(
+        db,
+        claim=first,
+        to=ClaimScope(organization_owner_key(org.id), None),
+        author_user_id=user.id,
+    )
+    assert second.derived_from == [str(first.id)], "the organization copy names only its parent"
+
+    removed = await claim_repo.delete_for_scope(db, organization_id=org.id, scope_key=key)
+
+    assert removed == 3
+    everywhere = await claim_repo.list_in_scopes(
+        db,
+        organization_id=org.id,
+        scopes=[ClaimScope("project:p1", None), ClaimScope(organization_owner_key(org.id), None)],
+        statuses=("current", "disputed", "superseded", "merged", "retracted"),
+    )
+    assert everywhere == []
+    assert await claim_repo.delete_everywhere_about(db, scope_key=key) == 0

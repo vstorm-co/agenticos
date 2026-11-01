@@ -396,8 +396,16 @@ class ChannelBotRead(BaseSchema):
     @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
     @property
     def messaging_endpoint(self) -> str | None:
-        """A Teams bot's messaging endpoint, to paste into its Azure Bot resource (#1985)."""
-        return inbound_webhook_url("teams", self.id) if self.platform == "teams" else None
+        """The address a bot receives on, for the two platforms that are told it by hand.
+
+        A Teams bot's messaging endpoint goes into its Azure Bot resource (#1985); an SMS
+        bot's is pasted into the Twilio number's incoming-message setting (#2082).
+        """
+        return (
+            inbound_webhook_url(self.platform, self.id)
+            if self.platform in ("teams", "sms")
+            else None
+        )
 
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None

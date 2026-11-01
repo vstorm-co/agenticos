@@ -95,6 +95,7 @@ class MemoryFilesConfig(BaseModel):
             id="share_memory",
             description="Share one claim with the project or the whole organization - only when asked.",
             side_effecting=True,
+            always_requires_approval=True,
         ),
     ),
     config_schema=MemoryFilesConfig,

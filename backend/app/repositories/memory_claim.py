@@ -293,6 +293,32 @@ async def scopes_with_changes(db: AsyncSession, *, limit: int) -> list[MemorySco
     return list(result.scalars().all())
 
 
+async def _delete_descendants(
+    db: AsyncSession, ids: list[str], *, organization_id: UUID | None = None
+) -> int:
+    """Delete every claim drawn, however many copies removed, from any of `ids`.
+
+    A claim shared to a project and then from the project to the organization names the
+    project copy, not the original, so one pass removes only the first generation and the
+    personal statement would outlive its erasure in the second. Each pass deletes the
+    claims that name what the last one removed, until a pass removes nothing.
+    """
+    removed = 0
+    frontier = ids
+    while frontier:
+        query = (
+            sa_delete(MemoryClaim)
+            .where(MemoryClaim.derived_from.has_any(_texts(frontier)))
+            .returning(MemoryClaim.id)
+        )
+        if organization_id is not None:
+            query = query.where(MemoryClaim.organization_id == organization_id)
+        deleted = (await db.execute(query)).scalars().all()
+        removed += len(deleted)
+        frontier = [str(identifier) for identifier in deleted]
+    return removed
+
+
 async def delete_for_scope(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> int:
     """Erase one scope's claims, and the copies shared out of it, in one organization."""
     own = (
@@ -307,16 +333,9 @@ async def delete_for_scope(db: AsyncSession, *, organization_id: UUID, scope_key
         .scalars()
         .all()
     )
-    copies = 0
-    if own:
-        shared = await db.execute(
-            sa_delete(MemoryClaim).where(
-                MemoryClaim.organization_id == organization_id,
-                MemoryClaim.scope_key != scope_key,
-                MemoryClaim.derived_from.has_any(_texts([str(identifier) for identifier in own])),
-            )
-        )
-        copies = shared.rowcount or 0  # ty: ignore[unresolved-attribute]
+    copies = await _delete_descendants(
+        db, [str(identifier) for identifier in own], organization_id=organization_id
+    )
     result = await db.execute(
         sa_delete(MemoryClaim).where(
             MemoryClaim.organization_id == organization_id, MemoryClaim.scope_key == scope_key
@@ -344,16 +363,7 @@ async def delete_everywhere_about(db: AsyncSession, *, scope_key: str) -> int:
         .scalars()
         .all()
     )
-    removed = 0
-    if own:
-        ids = [str(identifier) for identifier in own]
-        copies = await db.execute(
-            sa_delete(MemoryClaim).where(
-                MemoryClaim.scope_key != scope_key,
-                MemoryClaim.derived_from.has_any(_texts(ids)),
-            )
-        )
-        removed += copies.rowcount or 0  # ty: ignore[unresolved-attribute]
+    removed = await _delete_descendants(db, [str(identifier) for identifier in own])
     own_removed = await db.execute(sa_delete(MemoryClaim).where(MemoryClaim.scope_key == scope_key))
     removed += own_removed.rowcount or 0  # ty: ignore[unresolved-attribute]
     await db.execute(sa_delete(MemoryScopeState).where(MemoryScopeState.scope_key == scope_key))

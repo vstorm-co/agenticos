@@ -27,10 +27,14 @@ beforeEach(() => {
 describe("the claims API", () => {
   it("reads the live claims, or the history too", async () => {
     await getMyClaims(false);
-    await getMyClaims(true);
+    await getMyClaims(true, 100);
 
-    expect(apiClient.get).toHaveBeenCalledWith("/memory/claims/mine?limit=100&history=false");
-    expect(apiClient.get).toHaveBeenCalledWith("/memory/claims/mine?limit=100&history=true");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=0&history=false",
+    );
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=100&history=true",
+    );
   });
 
   it("posts a correction with its effective date, and a retraction with nothing", async () => {

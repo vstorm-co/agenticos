@@ -89,8 +89,12 @@ export interface MemoryClaimPage {
   total: number;
 }
 
-export async function getMyClaims(history: boolean): Promise<MemoryClaimPage> {
-  return apiClient.get<MemoryClaimPage>(`${ROOT}/claims/mine?limit=100&history=${history}`);
+export const CLAIMS_PAGE_SIZE = 100;
+
+export async function getMyClaims(history: boolean, skip = 0): Promise<MemoryClaimPage> {
+  return apiClient.get<MemoryClaimPage>(
+    `${ROOT}/claims/mine?limit=${CLAIMS_PAGE_SIZE}&skip=${skip}&history=${history}`,
+  );
 }
 
 /** Replace a claim with the person's own words; the old one stays in the history. */

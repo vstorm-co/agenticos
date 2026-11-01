@@ -16,7 +16,10 @@ interface UseMyClaimsResult {
   error: unknown;
   history: boolean;
   setHistory: (history: boolean) => void;
-  correct: (id: string, statement: string, effectiveFrom: string | null) => Promise<void>;
+  skip: number;
+  showPage: (skip: number) => void;
+  /** Resolves true once the correction is saved, false when it was refused. */
+  correct: (id: string, statement: string, effectiveFrom: string | null) => Promise<boolean>;
   retract: (id: string) => Promise<void>;
 }
 
@@ -32,11 +35,17 @@ export function useMyClaims(): UseMyClaimsResult {
   const queryClient = useQueryClient();
   const t = useTranslations("errors");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const [history, setHistory] = useState(false);
+  const [history, setHistoryState] = useState(false);
+  const [skip, showPage] = useState(0);
+  // The history is a different list, so the page does not carry over to it.
+  const setHistory = useCallback((next: boolean) => {
+    setHistoryState(next);
+    showPage(0);
+  }, []);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.memory.claims(activeOrgId ?? "current", history),
-    queryFn: () => getMyClaims(history),
+    queryKey: qk.memory.claims(activeOrgId ?? "current", history, skip),
+    queryFn: () => getMyClaims(history, skip),
   });
 
   const invalidate = () =>
@@ -55,9 +64,16 @@ export function useMyClaims(): UseMyClaimsResult {
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
 
+  // Awaited, so the editor closes on a saved correction and stays open - with the
+  // person's words in it - on a refused one. `onError` has already said why.
   const correct = useCallback(
     async (id: string, statement: string, effectiveFrom: string | null) => {
-      correction.mutate({ id, statement, effectiveFrom });
+      try {
+        await correction.mutateAsync({ id, statement, effectiveFrom });
+        return true;
+      } catch {
+        return false;
+      }
     },
     [correction],
   );
@@ -69,5 +85,5 @@ export function useMyClaims(): UseMyClaimsResult {
     [retraction],
   );
 
-  return { page: data, isLoading, error, history, setHistory, correct, retract };
+  return { page: data, isLoading, error, history, setHistory, skip, showPage, correct, retract };
 }

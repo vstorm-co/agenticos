@@ -1,5 +1,5 @@
 ---
-source_sha: "2efcb82366d0"
+source_sha: "34fdc75cb318"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -396,7 +396,9 @@ Gdzie claim żyje, to reguła dostępu, nigdy etykieta wybierana przez model:
 Zapis automatyczny zostaje w zakresie rozmowy, z której pochodzi, a czat grupowy
 nigdy nie zapisuje profilu. Tylko `share_memory` poszerza claim, i to tylko na
 polecenie osoby, która może: `projects:edit` w projekcie albo `context:edit` dla
-całej organizacji. Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
+całej organizacji. Zawsze czeka, aż osoba zatwierdzi dokładnie ten claim i odbiorców, niezależnie od ustawień zatwierdzeń agenta, więc tekst przeczytany przez agenta nie może go skłonić do udostępnienia.
+
+Kopia wskazuje claim, z którego powstała, a oryginał zachowuje
 swoich odbiorców. Embed, run z kluczem API i run z harmonogramu nie czytają
 niczego; czat grupowy czyta tylko własne claimy. Poprawienie claimu, który czyta cały projekt lub organizacja, wymaga tego samego uprawnienia co udostępnienie do niego: odczyt nie jest uprawnieniem do przepisywania.
 

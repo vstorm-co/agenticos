@@ -1,5 +1,5 @@
 ---
-source_sha: "2efcb82366d0"
+source_sha: "34fdc75cb318"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -403,7 +403,9 @@ modelo:
 Una escritura automática se queda en el scope de la conversación de la que vino, y
 un chat de grupo nunca escribe un perfil. Solo `share_memory` amplía un claim, y
 solo por orden de una persona que pueda: `projects:edit` en el proyecto, o
-`context:edit` para toda la organización. La copia nombra el claim del que viene y
+`context:edit` para toda la organización. Siempre espera a que una persona apruebe exactamente ese claim y esa audiencia, sean cuales sean los ajustes de aprobación del agent, así que un texto leído por el agent no puede convencerlo de compartir.
+
+La copia nombra el claim del que viene y
 el original conserva su audiencia. Un embed, un run con clave de API y un run
 programado no leen nada; un chat de grupo lee solo sus propios claims. Corregir un claim que lee todo el proyecto o la organización exige el mismo permiso que compartir hacia allí: leerlo no es autoridad para reescribirlo.
 

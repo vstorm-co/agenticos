@@ -51,6 +51,16 @@ describe("useForgetPersonMemory", () => {
     expect(String(toastSuccess.mock.calls[0]?.[0])).toContain("4");
   });
 
+  it("counts the claims erased with the notes, so a person with only claims is not told nothing happened", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({ notes_deleted: 0, claims_deleted: 3 });
+    const { result } = renderHook(() => useForgetPersonMemory(), { wrapper });
+
+    result.current.mutate("u-1");
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(String(toastSuccess.mock.calls[0]?.[0])).toContain("3");
+  });
+
   it("shows the server's refusal rather than swallowing it", async () => {
     vi.mocked(apiClient.delete).mockRejectedValue(new Error("nope"));
     const { result } = renderHook(() => useForgetPersonMemory(), { wrapper });

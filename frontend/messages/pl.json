@@ -1850,7 +1850,10 @@
           "superseded": "Zastąpione",
           "merged": "Połączone",
           "retracted": "Wycofane"
-        }
+        },
+        "showing": "Pokazano {from}–{to} z {total}",
+        "newer": "Nowsze",
+        "older": "Starsze"
       }
     },
     "admin": {
@@ -2210,6 +2213,8 @@
       "teamsTenantId": "Identyfikator dzierżawy",
       "teamsTenantIdHint": "Dzierżawa Entra, w której zarejestrowano bota. Tylko Teams tej dzierżawy może do niego pisać.",
       "teamsEndpoint": "Punkt końcowy wiadomości",
+      "smsEndpoint": "Webhook dla przychodzących SMS-ów",
+      "smsEndpointHint": "Wklej to w ustawieniu wiadomości przychodzących numeru Twilio (A message comes in → Webhook, HTTP POST).",
       "teamsEndpointHint": "Wklej go w konfiguracji Azure Bot i włącz w nim kanał Microsoft Teams.",
       "teamsPackageWhy": "Prześlij pakiet aplikacji do katalogu aplikacji Teams w swojej dzierżawie, a potem dodaj aplikację do czatu lub zespołu.",
       "teamsPackageDownload": "Pobierz pakiet aplikacji",
@@ -6996,14 +7001,14 @@
     "clearBody": "Usuwa każdą notatkę, którą zapisał ten agent, dla każdej osoby i każdego czatu grupowego, z którym rozmawiał. Nic ich nie przywróci.",
     "clearConfirm": "Ten agent straci wszystko, co zapisał. Jego rozmowy zostają nietknięte.",
     "clearTitle": "Wyczyść pamięć tego agenta",
-    "clearedToast": "{count, plural, =0 {Nie było nic do wyczyszczenia} one {Usunięto 1 notatkę} few {Usunięto # notatki} many {Usunięto # notatek} other {Usunięto # notatki}}",
+    "clearedToast": "{count, plural, =0 {Nie było nic do wyczyszczenia} one {Usunięto 1 wpis} few {Usunięto # wpisy} many {Usunięto # wpisów} other {Usunięto # wpisu}}",
     "forgetAction": "Zapomnij wszystko o mnie",
     "forgetBody": "Każdy agent w tej organizacji zapomina, co o Tobie zapisał - w tym wdrożeniu. Twoje rozmowy zostają; znika tylko to, co agenci o Tobie zanotowali.",
     "forgetConfirm": "Każdy agent w tej organizacji zapomni, co o Tobie zanotował. Twoje rozmowy zostają nietknięte.",
     "forgetMemberConfirm": "Każdy agent w tej organizacji zapomni, co zanotował o {name}. Rozmowy tej osoby zostają nietknięte.",
     "forgetNamed": "Zapomnij, co agenci wiedzą o {name}",
     "forgetTitle": "Co agenci o Tobie pamiętają",
-    "forgottenToast": "{count, plural, =0 {Nie było nic do zapomnienia} one {Zapomniano 1 notatkę} few {Zapomniano # notatki} many {Zapomniano # notatek} other {Zapomniano # notatki}}"
+    "forgottenToast": "{count, plural, =0 {Nie było nic do zapomnienia} one {Zapomniano 1 wpis} few {Zapomniano # wpisy} many {Zapomniano # wpisów} other {Zapomniano # wpisu}}"
   },
   "avatarColor": {
     "auto": "Kolor automatyczny",

@@ -38,24 +38,31 @@ function claim(overrides: Partial<MemoryClaim> = {}): MemoryClaim {
 const correct = vi.fn();
 const retract = vi.fn();
 const setHistory = vi.fn();
+const showPage = vi.fn();
 
 function mount({
   items = [claim()],
   history = false,
   isLoading = false,
   error = undefined,
+  total = undefined,
+  skip = 0,
 }: {
   items?: MemoryClaim[];
+  total?: number;
+  skip?: number;
   history?: boolean;
   isLoading?: boolean;
   error?: unknown;
 } = {}) {
   vi.mocked(useMyClaims).mockReturnValue({
-    page: isLoading || error ? undefined : { items, total: items.length },
+    page: isLoading || error ? undefined : { items, total: total ?? items.length },
     isLoading,
     error,
     history,
     setHistory,
+    skip,
+    showPage,
     correct,
     retract,
   });
@@ -64,14 +71,54 @@ function mount({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  correct.mockResolvedValue(undefined);
+  correct.mockResolvedValue(true);
 });
 
 describe("MyClaims", () => {
-  it("shows nothing while loading, on an error, and when nothing is recorded", () => {
+  it("shows nothing while loading and when nothing is recorded", () => {
     expect(mount({ isLoading: true }).container).toBeEmptyDOMElement();
-    expect(mount({ error: new Error("x") }).container).toBeEmptyDOMElement();
     expect(mount({ items: [] }).container).toBeEmptyDOMElement();
+  });
+
+  it("says so when the claims could not be loaded, rather than reading as empty", () => {
+    const { container } = mount({ error: new Error("x") });
+
+    expect(container).not.toBeEmptyDOMElement();
+    expect(screen.queryByText("title")).not.toBeInTheDocument();
+  });
+
+  it("keeps the editor open, with the person's words, when the correction is refused", async () => {
+    correct.mockResolvedValue(false);
+    mount();
+
+    await userEvent.click(screen.getByRole("button", { name: "correct" }));
+    await userEvent.type(screen.getByLabelText("statement"), "!");
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+
+    expect(screen.getByLabelText("statement")).toHaveValue("Prefers short answers!");
+  });
+
+  it("pages through more claims than one page holds", async () => {
+    mount({ items: [claim()], total: 250, skip: 100 });
+
+    expect(screen.getByText("showing:101|101|250")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "older" }));
+    await userEvent.click(screen.getByRole("button", { name: "newer" }));
+
+    expect(showPage).toHaveBeenNthCalledWith(1, 200);
+    expect(showPage).toHaveBeenNthCalledWith(2, 0);
+  });
+
+  it("cannot go back from the first page", () => {
+    mount({ items: [claim()], total: 250 });
+
+    expect(screen.getByRole("button", { name: "newer" })).toBeDisabled();
+  });
+
+  it("disables going on from the last page", () => {
+    mount({ items: [claim()], total: 101, skip: 100 });
+
+    expect(screen.getByRole("button", { name: "older" })).toBeDisabled();
   });
 
   it("says where each claim lives and where it came from", () => {

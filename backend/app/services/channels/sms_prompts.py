@@ -44,20 +44,17 @@ async def remember(bot_id: str, chat_id: str, values: list[str]) -> None:
 async def answer(bot_id: str, chat_id: str, text: str) -> str | None:
     """The value of the choice a one-digit reply names, or `None` when it names none.
 
-    A reply that answers consumes the prompt, so a duplicate delivery of the same text is
-    not a second decision.
+    Not consumed by answering: a multi-select question takes several replies and a Done, and
+    the router decides when a prompt is settled - a second decision on an approval is refused
+    there, so a repeated delivery of the same digit does no harm. The next prompt sent to the
+    number replaces this one, and a day ends it.
     """
     digits = text.strip()
     if _redis is None or len(digits) != 1 or not digits.isdigit() or digits == "0":
         return None
-    key = _key(bot_id, chat_id)
-    stored = await _redis.get(key)
+    stored = await _redis.get(_key(bot_id, chat_id))
     if stored is None:
         return None
     values: list[str] = json.loads(stored)
     index = int(digits) - 1
-    if index >= len(values):
-        return None
-    if await _redis.getdel(key) is None:
-        return None
-    return values[index]
+    return values[index] if index < len(values) else None

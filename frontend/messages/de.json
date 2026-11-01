@@ -4946,7 +4946,10 @@
           "superseded": "Ersetzt",
           "merged": "Zusammengeführt",
           "retracted": "Zurückgezogen"
-        }
+        },
+        "showing": "{from}–{to} von {total}",
+        "newer": "Neuer",
+        "older": "Älter"
       }
     },
     "admin": {
@@ -5308,6 +5311,8 @@
       "teamsTenantId": "Mandanten-ID",
       "teamsTenantIdHint": "Der Entra-Mandant, in dem der Bot registriert ist. Nur dessen Teams erreicht ihn.",
       "teamsEndpoint": "Messaging-Endpunkt",
+      "smsEndpoint": "Webhook für eingehende SMS",
+      "smsEndpointHint": "Fügen Sie dies in die Einstellung für eingehende Nachrichten der Twilio-Nummer ein (A message comes in → Webhook, HTTP POST).",
       "teamsEndpointHint": "Fügen Sie ihn in der Konfiguration des Azure Bots ein und aktivieren Sie dort den Microsoft-Teams-Kanal.",
       "teamsPackageWhy": "Laden Sie das App-Paket in den Teams-App-Katalog Ihres Mandanten hoch und fügen Sie die App dann einem Chat oder Team hinzu.",
       "teamsPackageDownload": "App-Paket herunterladen",
@@ -8031,14 +8036,14 @@
     "clearBody": "Löscht jede Notiz, die dieser Agent geschrieben hat – für jede Person und jede Gruppenunterhaltung, mit der er gesprochen hat. Nichts holt sie zurück.",
     "clearConfirm": "Dieser Agent verliert alles, was er sich notiert hat. Seine Unterhaltungen bleiben unberührt.",
     "clearTitle": "Gedächtnis dieses Agents leeren",
-    "clearedToast": "{count, plural, =0 {Es gab nichts zu leeren} =1 {1 Notiz gelöscht} other {# Notizen gelöscht}}",
+    "clearedToast": "{count, plural, =0 {Es gab nichts zu leeren} =1 {1 Eintrag gelöscht} other {# Einträge gelöscht}}",
     "forgetAction": "Alles über mich vergessen",
     "forgetBody": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat – in diesem Deployment. Ihre Unterhaltungen bleiben; nur das, was Agents über Sie notiert haben, geht.",
     "forgetConfirm": "Jeder Agent in dieser Organisation vergisst, was er über Sie notiert hat. Ihre Unterhaltungen bleiben unberührt.",
     "forgetMemberConfirm": "Jeder Agent in dieser Organisation vergisst, was er über {name} notiert hat. Deren Unterhaltungen bleiben unberührt.",
     "forgetNamed": "Vergessen, was Agents über {name} wissen",
     "forgetTitle": "Was Agents über Sie behalten",
-    "forgottenToast": "{count, plural, =0 {Es gab nichts zu vergessen} =1 {1 Notiz vergessen} other {# Notizen vergessen}}"
+    "forgottenToast": "{count, plural, =0 {Es gab nichts zu vergessen} =1 {1 Eintrag vergessen} other {# Einträge vergessen}}"
   },
   "avatarColor": {
     "auto": "Automatische Farbe",

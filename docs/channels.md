@@ -1030,7 +1030,7 @@ of the address Twilio called and its fields, under the auth token - and anything
 a 403 before a word of it is read. A valid signature proves the request came from Twilio.
 It does not prove who the sender is: the number is a claim, so a person acts with their
 own permissions only once they have linked that number to their account like any other
-channel identity.
+channel identity. The link lapses after `SMS_LINK_MAX_AGE_DAYS` (90 by default, `0` keeps it for ever), because a number can be reassigned or taken over; the person links again.
 
 **What comes back.** The webhook answers at once and the agent replies through Twilio's
 API when it has an answer. A reply is plain text - markdown markers are removed and a link
@@ -1038,7 +1038,7 @@ is written out in full - and is cut at about 1,500 characters with a note that t
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
 message or press a button, so an approval or a question arrives as numbered lines and is
 answered by texting the number. A lone digit that fits the last prompt sent to that number
-is the answer, used once and good for a day; any other text is an ordinary message. Media
+is the answer. The prompt stays open for a day or until a newer one replaces it, so a multi-select takes several digits; any other text is an ordinary message. Media
 sent by text is ignored.
 
 ## Slack
