@@ -955,6 +955,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
+  // Optional too: the section renders only where something is on record about the person.
+  { id: "my-claims", page: SETTINGS_DETAIL, target: "my-claims", optional: true },
   // Optional for the same reason: the list renders only once a sign-in is kept.
   // Optional: offered only where the deployment names a browser to sign in with.
   { id: "sign-in-to-site", page: SETTINGS_DETAIL, target: "sign-in-to-site", optional: true },

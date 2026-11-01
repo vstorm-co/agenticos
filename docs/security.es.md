@@ -1,5 +1,5 @@
 ---
-source_sha: "1f62c132040f"
+source_sha: "71f0ab393cac"
 ---
 
 # Seguridad { #security }
@@ -137,6 +137,8 @@ agent del que depende el equipo.
 | `embed_visitors` | Sin tocar | No | Un visitante es una clave de navegador, nunca una cuenta — aquí no hay nada sobre una persona con login |
 
 !!! warning "Lo que el borrado no alcanza — y lo dice la documentación, no el despliegue al descubrirlo"
+
+    **Recuerdos en una integración de mem0 eliminada.** Un despliegue que usaba mem0 (eliminado en #2090) sigue teniendo esos recuerdos en el servicio mem0. La actualización quitó los vínculos y las credenciales que llegaban a él, así que olvidar a una persona o vaciar un agent aquí ya no los toca; bórralos en el propio mem0.
 
     **Las copias de seguridad.** Un borrado quita filas de la base de datos viva.
     El calendario de copias que ejecute un despliegue las conserva hasta su

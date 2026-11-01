@@ -674,7 +674,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           className="space-y-6 data-[state=inactive]:hidden"
         >
           {org && <OrgProactivity org={org} />}
-          {org && <OrgSystemAgents />}
+          {org && <OrgSystemAgents org={org} />}
         </TabsContent>
         <TabsContent
           value="voice"

@@ -1,5 +1,5 @@
 ---
-source_sha: "1f62c132040f"
+source_sha: "71f0ab393cac"
 ---
 
 # Bezpieczeństwo { #security }
@@ -132,6 +132,8 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | `embed_visitors` | Nietykane | Nie | Odwiedzający to klucz przeglądarki, nigdy konto — nie ma tu nic o osobie z loginem |
 
 !!! warning "Czego usunięcie nie dosięga — i mówią to dokumenty, a nie wdrożenie po fakcie"
+
+    **Wspomnienia w usuniętej integracji mem0.** Wdrożenie, które używało mem0 (usuniętego w #2090), nadal ma te wspomnienia w usłudze mem0. Aktualizacja usunęła powiązania i poświadczenia, które do niej docierały, więc zapomnienie osoby lub wyczyszczenie agenta tutaj już ich nie dotyka; usuń je w samym mem0.
 
     **Kopie zapasowe.** Usunięcie kasuje wiersze z żywej bazy. Harmonogram kopii,
     który uruchamia wdrożenie, trzyma je do swojej rotacji i żadne usunięcie na

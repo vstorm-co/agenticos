@@ -402,3 +402,79 @@ async def test_the_job_reads_one_run_in_its_own_session(
         await memory_tasks.extract_memory(ExtractMemory(organization_id=org_id, run_id=run_id)) == 3
     )
     read.assert_awaited_once_with(db, org_id, run_id)
+
+
+async def test_a_chat_read_after_its_person_was_forgotten_records_nothing(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.audit import record_audit
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    run.ended_at = datetime(2020, 1, 1, tzinfo=UTC)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    think = _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    await record_audit(
+        db,
+        actor_user_id=user.id,
+        organization_id=org.id,
+        action="memory.person.forgotten",
+        target_type="user",
+        target_id=str(user.id),
+        details={},
+    )
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+    assert not think.await_count, "no model is paid to read what must not be kept"
+
+
+async def test_a_chat_read_after_its_agent_was_cleared_records_nothing(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.audit import record_audit
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    run.ended_at = datetime(2020, 1, 1, tzinfo=UTC)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+    _think(monkeypatch, [extraction._Extracted(statement="Prefers short answers")])
+    await record_audit(
+        db,
+        actor_user_id=user.id,
+        organization_id=org.id,
+        action="memory.agent.cleared",
+        target_type="agent",
+        target_id=str(agent.id),
+        details={},
+    )
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+
+
+async def test_an_erasure_that_lands_while_the_model_is_answering_still_wins(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.audit import record_audit
+
+    user, org, agent, version, model, ctx = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    run.ended_at = datetime(2020, 1, 1, tzinfo=UTC)
+    await _transcript(db, conversation, run, [("user", "I prefer short answers")])
+
+    async def forgotten_meanwhile(*args, **kwargs):
+        await record_audit(
+            db,
+            actor_user_id=user.id,
+            organization_id=org.id,
+            action="memory.person.forgotten",
+            target_type="user",
+            target_id=str(user.id),
+            details={},
+        )
+        return extraction._Extraction(claims=[extraction._Extracted(statement="Prefers short")])
+
+    monkeypatch.setattr(_thinker.ProactiveThinker, "think", forgotten_meanwhile)
+    # The first check is before the call, and sees nothing yet.
+    assert await extraction.extract(db, org.id, run.id) == 0
+    claims = (await db.execute(select(MemoryClaim))).scalars().all()
+    assert claims == []

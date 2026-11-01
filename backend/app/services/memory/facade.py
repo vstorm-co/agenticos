@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
@@ -129,7 +129,7 @@ class MemoryService:
         self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
     ) -> MemoryClaimRead:
         """Replace one of the caller's claims with their own words, keeping its history."""
-        row = await self._own_claim(ctx, claim_id)
+        row = await self._own_live_claim(ctx, claim_id)
         fixed = await _claims.correct(
             self.db,
             claim=row,
@@ -152,7 +152,7 @@ class MemoryService:
 
     async def retract_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimRead:
         """Take one of the caller's claims out of use; sources and history stay."""
-        row = await self._own_claim(ctx, claim_id)
+        row = await self._own_live_claim(ctx, claim_id)
         await _claims.retract(self.db, claim=row)
         await record_audit(
             self.db,
@@ -165,6 +165,24 @@ class MemoryService:
         )
         names = await self._agent_names({row.agent_id} if row.agent_id else set())
         return _claim_read(row, names)
+
+    async def _own_live_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaim:
+        """One of the caller's claims that is still in use, for a change.
+
+        History is read-only: retracting a superseded claim would rewrite when it stopped
+        holding, and correcting one would supersede the unrelated current claim on the
+        same subject.
+
+        Raises:
+            ConflictError: The claim is in the history.
+        """
+        row = await self._own_claim(ctx, claim_id)
+        if row.status not in _LIVE_STATUSES:
+            raise ConflictError(
+                message="That claim is in the history and cannot be changed",
+                details={"claim_id": claim_id, "status": row.status},
+            )
+        return row
 
     async def _own_claim(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaim:
         """One claim, only if it is in the caller's own scope - a miss is a 404, never a 403."""

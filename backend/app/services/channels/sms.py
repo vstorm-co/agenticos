@@ -20,9 +20,9 @@ linked that number to their account through the ordinary channel link.
 **Outbound** is one REST call per message. An answer is cut to what one SMS thread
 carries and says where the rest is, rather than arriving as a dozen segments.
 
-SMS cannot stream, edit or press a button, so the adapter takes the defaults: one
-finished message, and a decision in the console the text points at. A numbered reply
-to an approval is the router's concern, not this transport's.
+SMS cannot stream or edit a message, so an answer is one finished message. It cannot press
+a button either, so a prompt is sent as numbered lines and the webhook turns a lone digit
+that fits back into the press it stands for (`sms_prompts`).
 """
 
 import base64
@@ -39,6 +39,7 @@ from app.services.channels import sms_prompts
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingMessage,
+    IncomingPress,
     OutgoingMessage,
     PromptMessage,
 )
@@ -153,6 +154,14 @@ class SmsAdapter(ChannelAdapter):
                 text=f"{prompt.text}\n" + "\n".join(lines) + "\nReply with the number.",
             ),
         )
+
+    async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
+        """The prompt is decided: a later digit from this number is a message again.
+
+        Not called for a choice in a multi-select that is still open, which is why the
+        mapping outlives the first reply.
+        """
+        await sms_prompts.forget(press.bot_id, press.platform_chat_id)
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """SMS only ever arrives by webhook; there is nothing to poll."""

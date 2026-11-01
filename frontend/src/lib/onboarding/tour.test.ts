@@ -263,6 +263,7 @@ describe("stepsForPage", () => {
       "settings-tabs",
       "settings-appearance",
       "my-memory",
+      "my-claims",
       "sign-in-to-site",
       "my-sign-ins",
       "settings-api-usage",

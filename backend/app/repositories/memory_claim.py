@@ -372,10 +372,31 @@ async def delete_everywhere_about(db: AsyncSession, *, scope_key: str) -> int:
 
 
 async def delete_for_agent(db: AsyncSession, *, organization_id: UUID, agent_id: UUID) -> int:
+    """Erase what one agent holds, and every copy shared out of it however far.
+
+    A claim of the agent's that was shared to a project or the organization lives on there
+    with no agent of its own, naming its source in `derived_from`; deleting only the agent's
+    rows would report the agent cleared while the shared copy stayed readable.
+    """
+    own = (
+        (
+            await db.execute(
+                select(MemoryClaim.id).where(
+                    MemoryClaim.organization_id == organization_id,
+                    MemoryClaim.agent_id == agent_id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    copies = await _delete_descendants(
+        db, [str(identifier) for identifier in own], organization_id=organization_id
+    )
     result = await db.execute(
         sa_delete(MemoryClaim).where(
             MemoryClaim.organization_id == organization_id, MemoryClaim.agent_id == agent_id
         )
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return (result.rowcount or 0) + copies  # ty: ignore[unresolved-attribute]

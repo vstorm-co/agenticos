@@ -4533,6 +4533,10 @@
         "title": "Was Agents über Sie behalten",
         "body": "Agents machen sich Notizen zwischen Unterhaltungen. Das sind Ihre: Lesen Sie, was geschrieben wurde, halten Sie eine Notiz von der Verwendung ab, ohne sie zu vernichten, oder löschen Sie sie ganz. Eine Notiz in einem externen Gedächtnisdienst wird hier benannt, aber nicht angezeigt."
       },
+      "my-claims": {
+        "title": "Was über Sie festgehalten ist",
+        "body": "Neben Notizen halten Agents Fakten, Vorlieben und Entscheidungen mit ihrer Herkunft fest. Korrigieren Sie einen Eintrag mit eigenen Worten ab einem Datum, die alte Fassung bleibt im Verlauf; oder nehmen Sie ihn außer Gebrauch."
+      },
       "orgs-new": {
         "title": "Ihre Organisationen",
         "body": "Alles gehört zu einer Organisation. Erstellen Sie eine oder wechseln Sie zwischen denen, in denen Sie Mitglied sind - jede hält ihre Agents, Schlüssel und ihr Wissen getrennt."

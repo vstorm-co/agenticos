@@ -35,7 +35,7 @@ from app.repositories import (
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
-from app.services.channels import get_adapter, membership
+from app.services.channels import get_adapter, membership, sms_prompts
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
@@ -1715,11 +1715,42 @@ class ChannelMessageRouter:
                 platform_chat_id=incoming.platform_chat_id,
                 conversation_id=(await self._first_conversation(incoming, bot, identity, db)),
             )
+        elif await self._owner_changed(session, incoming, identity, db):
+            # The number was linked to somebody else: what the old holder said, and above
+            # all the web conversation a private chat now continues, is not the new
+            # holder's. A fresh start, and whatever was waiting on an answer goes with it.
+            await sms_prompts.forget(str(bot.id), incoming.platform_chat_id)
+            session = await channel_session_repo.update(
+                db,
+                db_session=session,
+                update_data={
+                    "identity_id": identity.id,
+                    "conversation_id": await self._first_conversation(incoming, bot, identity, db),
+                },
+            )
         # Records that this chat had a turn, which is what "report usage every n
         # messages" counts. Here rather than after the answer, because a turn that
         # failed still happened - a counter that only advanced on success would
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
+
+    @staticmethod
+    async def _owner_changed(
+        session: ChannelSession,
+        incoming: IncomingMessage,
+        identity: ChannelIdentity,
+        db: AsyncSession,
+    ) -> bool:
+        """Whether this private chat's conversation belongs to somebody other than who is now linked.
+
+        A phone number can be re-linked to another member; the chat's session is keyed on
+        the number, so it would otherwise carry the previous holder's history into the new
+        holder's runs. Only a private chat is checked: a room's conversation is the room's.
+        """
+        if incoming.chat_type != "private" or identity.user_id is None:
+            return False
+        owner = await conversation_repo.get_owner(db, session.conversation_id)
+        return owner is not None and owner != identity.user_id
 
     @staticmethod
     async def _first_conversation(

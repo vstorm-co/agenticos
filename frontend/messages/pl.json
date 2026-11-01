@@ -6106,6 +6106,10 @@
         "title": "Co agenci pamiętają o tobie",
         "body": "Agenci trzymają notatki między rozmowami. To są twoje: przeczytaj, co zapisano, przestań używać notatki bez jej niszczenia albo usuń ją zupełnie. Notatka w zewnętrznej usłudze pamięci jest tu nazwana, ale nie pokazana."
       },
+      "my-claims": {
+        "title": "Co jest o Tobie zapisane",
+        "body": "Obok notatek agenci zapisują fakty, preferencje i decyzje razem ze źródłem. Popraw wpis własnymi słowami od wybranej daty, a stara wersja zostanie w historii; albo przestań go używać."
+      },
       "orgs-new": {
         "title": "Twoje organizacje",
         "body": "Wszystko jest przypisane do organizacji. Utwórz jedną albo przełączaj się między tymi, do których należysz - każda trzyma swoich agentów, klucze i wiedzę osobno."

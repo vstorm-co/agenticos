@@ -12,11 +12,13 @@ from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter, inbound_webhook_url, sms_prompts
 from app.services.channels.base import IncomingPress
 from app.services.channels.sms import SIGNATURE_HEADER, SIGNED_URL_HEADER, split_credentials
+from app.services.channels.sms_links import link_has_lapsed
 from app.worker.background.channel import process_channel_event, process_channel_press
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
 
 _EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response/>'
 
@@ -51,6 +53,12 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
         return Response(content=_EMPTY_TWIML, media_type="text/xml")
     # A lone digit that fits what was last asked of this number is the answer to it.
     chosen = await sms_prompts.answer(str(bot_id), incoming.platform_chat_id, incoming.text)
+    if chosen is not None and await link_has_lapsed(incoming.platform_user_id):
+        # Not a press: a prompt sent just before the link lapsed would otherwise stay
+        # answerable, approvals included, for as long as the prompt lives. As a message it
+        # goes through the router, which unlinks the number and asks to link again.
+        await sms_prompts.forget(str(bot_id), incoming.platform_chat_id)
+        chosen = None
     if chosen is not None:
         press = IncomingPress(
             platform="sms",

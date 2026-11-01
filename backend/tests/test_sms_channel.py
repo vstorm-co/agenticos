@@ -312,6 +312,9 @@ class _Redis:
     async def getdel(self, key: str) -> str | None:
         return self.data.pop(key, None)
 
+    async def delete(self, key: str) -> int:
+        return int(self.data.pop(key, None) is not None)
+
 
 @pytest.fixture
 def prompts() -> _Redis:
@@ -433,6 +436,9 @@ class TestNumberedAnswers:
                 "app.api.routes.v1.sms_webhook.spawn",
                 side_effect=lambda coro, name: (spawned.append(name), coro.close()),
             ),
+            patch(
+                "app.api.routes.v1.sms_webhook.link_has_lapsed", new=AsyncMock(return_value=False)
+            ),
             patch("app.api.routes.v1.sms_webhook.process_channel_press", new=pressed),
             patch("app.api.routes.v1.sms_webhook.process_channel_event", new=MagicMock()),
         ):
@@ -509,3 +515,172 @@ class TestALinkedNumberExpires:
 
         assert updated.await_args.kwargs["update_data"] == {"user_id": None}
         assert identity.user_id is None and vouched.await_count == 1
+
+
+class TestAChangedOwnerStartsAgain:
+    async def test_a_private_chat_whose_conversation_belongs_to_somebody_else_is_rotated(
+        self,
+    ) -> None:
+        from app.services.channels import router
+        from app.services.channels.router import ChannelMessageRouter
+
+        old, new = uuid4(), uuid4()
+        incoming = SimpleNamespace(chat_type="private")
+        identity = SimpleNamespace(user_id=new)
+        with patch.object(router.conversation_repo, "get_owner", new=AsyncMock(return_value=old)):
+            assert await ChannelMessageRouter._owner_changed(
+                SimpleNamespace(conversation_id=uuid4()),
+                incoming,
+                identity,
+                object(),  # type: ignore[arg-type]
+            )
+        with patch.object(router.conversation_repo, "get_owner", new=AsyncMock(return_value=new)):
+            assert not await ChannelMessageRouter._owner_changed(
+                SimpleNamespace(conversation_id=uuid4()),
+                incoming,
+                identity,
+                object(),  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize(
+        ("chat_type", "user"), [("group", uuid4()), ("private", None)], ids=["a-room", "unlinked"]
+    )
+    async def test_a_room_and_an_unlinked_sender_are_never_rotated(self, chat_type, user) -> None:
+        from app.services.channels.router import ChannelMessageRouter
+
+        assert not await ChannelMessageRouter._owner_changed(
+            SimpleNamespace(conversation_id=uuid4()),
+            SimpleNamespace(chat_type=chat_type),
+            SimpleNamespace(user_id=user),
+            object(),  # type: ignore[arg-type]
+        )
+
+    async def test_a_session_of_a_missing_conversation_is_left_alone(self) -> None:
+        from app.services.channels import router
+        from app.services.channels.router import ChannelMessageRouter
+
+        with patch.object(router.conversation_repo, "get_owner", new=AsyncMock(return_value=None)):
+            assert not await ChannelMessageRouter._owner_changed(
+                SimpleNamespace(conversation_id=uuid4()),
+                SimpleNamespace(chat_type="private"),
+                SimpleNamespace(user_id=uuid4()),
+                object(),  # type: ignore[arg-type]
+            )
+
+    async def test_the_session_is_moved_to_a_fresh_conversation_and_pending_prompts_go(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import router, sms_prompts
+        from app.services.channels.router import ChannelMessageRouter
+
+        bot = SimpleNamespace(id=uuid4(), organization_id=uuid4())
+        incoming = SimpleNamespace(platform_chat_id="+1555", chat_type="private", platform="sms")
+        identity = SimpleNamespace(id=uuid4(), user_id=uuid4())
+        session = SimpleNamespace(conversation_id=uuid4())
+        fresh = uuid4()
+        await sms_prompts.remember(str(bot.id), "+1555", ["p:1"])
+        updated = AsyncMock(return_value="rotated")
+        with (
+            patch.object(
+                router.channel_session_repo,
+                "get_by_bot_and_chat",
+                new=AsyncMock(return_value=session),
+            ),
+            patch.object(ChannelMessageRouter, "_owner_changed", new=AsyncMock(return_value=True)),
+            patch.object(
+                ChannelMessageRouter, "_first_conversation", new=AsyncMock(return_value=fresh)
+            ),
+            patch.object(router.channel_session_repo, "update", new=updated),
+            patch.object(
+                router.channel_session_repo, "touch", new=AsyncMock(side_effect=lambda db, s: s)
+            ),
+        ):
+            result = await ChannelMessageRouter()._resolve_session(
+                incoming, bot, identity, object()
+            )  # type: ignore[arg-type]
+
+        assert result == "rotated"
+        assert updated.await_args.kwargs["update_data"] == {
+            "identity_id": identity.id,
+            "conversation_id": fresh,
+        }
+        assert await sms_prompts.answer(str(bot.id), "+1555", "1") is None
+
+
+class TestASettledPromptIsForgotten:
+    async def test_settling_ends_it_and_a_later_digit_is_a_message_again(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+        from app.services.channels.base import IncomingPress
+
+        await sms_prompts.remember("bot", "+1555", ["p:1"])
+        press = IncomingPress(
+            platform="sms",
+            bot_id="bot",
+            platform_user_id="+1555",
+            platform_chat_id="+1555",
+            value="p:1",
+        )
+
+        await SmsAdapter().settle_prompt(TOKEN, press, "Approved")
+
+        assert await sms_prompts.answer("bot", "+1555", "1") is None
+
+    async def test_forgetting_with_nowhere_to_keep_prompts_is_harmless(self) -> None:
+        from app.services.channels import sms_prompts
+
+        sms_prompts.configure(None)
+        await sms_prompts.forget("bot", "+1555")
+
+    async def test_a_digit_after_the_link_lapsed_is_a_message_not_a_press(
+        self, prompts: _Redis
+    ) -> None:
+        from app.services.channels import sms_prompts
+
+        bot = MagicMock(id=uuid4(), platform="sms")
+        await sms_prompts.remember(str(bot.id), "+15559998888", ["p:0"])
+        params = {"From": "+15559998888", "Body": "1", "MessageSid": "SM9"}
+        spawned: list[str] = []
+        with (
+            patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
+            patch(
+                "app.api.routes.v1.sms_webhook.link_has_lapsed", new=AsyncMock(return_value=True)
+            ),
+            patch(
+                "app.api.routes.v1.sms_webhook.spawn",
+                side_effect=lambda coro, name: (spawned.append(name), coro.close()),
+            ),
+            patch("app.api.routes.v1.sms_webhook.process_channel_press", new=MagicMock()),
+            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=MagicMock()),
+        ):
+            async with _client(bot) as client:
+                response = await client.post(
+                    f"{settings.API_V1_STR}/sms/{bot.id}/webhook",
+                    content=urlencode(params),
+                    headers=_signed(bot.id, params),
+                )
+
+        assert response.status_code == 200 and spawned == [f"sms_event:{bot.id}"]
+        assert await sms_prompts.answer(str(bot.id), "+15559998888", "1") is None
+
+    async def test_the_lapse_check_reads_the_numbers_identity(self) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from app.services.channels import sms_links
+
+        @asynccontextmanager
+        async def session():
+            yield object()
+
+        old = SimpleNamespace(updated_at=None, created_at=datetime.now(UTC) - timedelta(days=500))
+        for found, expected in ((old, True), (None, False)):
+            with (
+                patch.object(sms_links, "get_db_context", session),
+                patch.object(
+                    sms_links.channel_identity_repo,
+                    "get_by_platform_user",
+                    new=AsyncMock(return_value=found),
+                ),
+            ):
+                assert await sms_links.link_has_lapsed("+1555") is expected

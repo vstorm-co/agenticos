@@ -7,14 +7,11 @@ own: the key is the caller, never a parameter.
 
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.db.models.primary_conversation import PrimaryConversation
-from app.repositories import agent_repo, conversation_repo
+from app.repositories import agent_repo, conversation_repo, primary_conversation_repo
 from app.services.access import AGENT, resolve_access
 
 
@@ -53,12 +50,9 @@ class PrimaryConversationService:
         For a caller that has already decided the person may talk to the agent - a linked
         channel identity the router admitted - and so asks no permission question here.
         """
-        key = (
-            PrimaryConversation.organization_id == organization_id,
-            PrimaryConversation.user_id == user_id,
-            PrimaryConversation.agent_id == agent_id,
+        existing = await primary_conversation_repo.get_conversation_id(
+            self.db, organization_id=organization_id, user_id=user_id, agent_id=agent_id
         )
-        existing = await self.db.scalar(select(PrimaryConversation.conversation_id).where(*key))
         if existing is not None:
             return existing
         if title is None:
@@ -70,21 +64,13 @@ class PrimaryConversationService:
         conversation = await conversation_repo.create_conversation(
             self.db, organization_id=organization_id, user_id=user_id, title=title
         )
-        # Two tabs opening it together both reach here: the primary key picks one
-        # winner, and the loser reads the winner's row and drops its own.
-        await self.db.execute(
-            pg_insert(PrimaryConversation)
-            .values(
-                organization_id=organization_id,
-                user_id=user_id,
-                agent_id=agent_id,
-                conversation_id=conversation.id,
-            )
-            .on_conflict_do_nothing()
+        winner = await primary_conversation_repo.claim(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            agent_id=agent_id,
+            conversation_id=conversation.id,
         )
-        winner = await self.db.scalar(select(PrimaryConversation.conversation_id).where(*key))
-        assert winner is not None, "the insert or a concurrent one left a row"
         if winner != conversation.id:
-            await self.db.delete(conversation)
-            await self.db.flush()
+            await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return winner

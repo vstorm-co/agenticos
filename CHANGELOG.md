@@ -977,7 +977,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Removed
 
-- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`.
+- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
 
 ### Changed
 

@@ -11,9 +11,11 @@ import { Badge, Button, Input, Label, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
+import { useTenantId } from "@/hooks/use-organizations";
 import { useSystemAgents } from "@/hooks/use-system-agents";
 import { submitFailure } from "@/lib/api-error";
 import type { SystemAgent } from "@/lib/system-agents-api";
+import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
 
 const MODEL_FIELD = "model_profile_id";
@@ -29,10 +31,14 @@ const BUDGET_FIELD = "monthly_budget_usd";
  * the proactivity setting above, shown with its history; memory maintenance is
  * configured here, on a model somebody chose and inside a budget of its own.
  */
-export function OrgSystemAgents() {
+export function OrgSystemAgents({ org }: { org: Organization }) {
   const t = useTranslations("teams.systemAgents");
   const { can } = usePermissions();
-  const allowed = can(Perm.budgetsManage);
+  const tenantId = useTenantId();
+  // The roles are the active organization's: this page can be opened for another one the
+  // person belongs to, and showing - or changing - the active organization's model and
+  // budget under that other name would be a settings page lying about whose it is.
+  const allowed = can(Perm.budgetsManage) && tenantId === org.id;
   const { roles } = useSystemAgents(allowed);
   if (!allowed || !roles) return null;
   return (

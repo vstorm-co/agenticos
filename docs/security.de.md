@@ -1,5 +1,5 @@
 ---
-source_sha: "1f62c132040f"
+source_sha: "71f0ab393cac"
 ---
 
 # Sicherheit { #security }
@@ -141,6 +141,8 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | `embed_visitors` | Unberührt | Nein | Ein Besucher ist ein Browser-Schlüssel, nie ein Konto — hier steht nichts über eine Person mit Login |
 
 !!! warning "Was die Löschung nicht erreicht — und die Doku sagt es, statt dass ein Deployment es herausfindet"
+
+    **Erinnerungen in einer entfernten mem0-Integration.** Ein Deployment, das mem0 nutzte (in #2090 entfernt), hat diese Erinnerungen weiterhin im mem0-Dienst. Das Upgrade hat die Bindungen und die Zugangsdaten entfernt, die ihn erreichten, deshalb berührt das Vergessen einer Person oder das Leeren eines Agents hier sie nicht mehr; löschen Sie sie in mem0 selbst.
 
     **Backups.** Eine Löschung entfernt Zeilen aus der laufenden Datenbank. Der
     Backup-Zeitplan eines Deployments behält sie bis zu seiner Rotation, und

@@ -539,3 +539,26 @@ async def test_erasing_a_person_removes_a_copy_of_a_copy(db: AsyncSession) -> No
     )
     assert everywhere == []
     assert await claim_repo.delete_everywhere_about(db, scope_key=key) == 0
+
+
+async def test_clearing_an_agent_removes_its_shared_copies_too(db: AsyncSession) -> None:
+    org, user, finance, support = await _tenant(db)
+    key = person_owner_key(user.id)
+    source = (await _say(db, org, ClaimScope(key, finance.id), "Acme is due", subject="acme")).claim
+    await claims.share(
+        db,
+        claim=source,
+        to=ClaimScope(organization_owner_key(org.id), None),
+        author_user_id=user.id,
+    )
+    other = await _say(db, org, ClaimScope(key, support.id), "Prefers email", subject="channel")
+
+    removed = await claim_repo.delete_for_agent(db, organization_id=org.id, agent_id=finance.id)
+
+    assert removed == 2
+    left = await claim_repo.list_in_scopes(
+        db,
+        organization_id=org.id,
+        scopes=[ClaimScope(key, support.id), ClaimScope(organization_owner_key(org.id), None)],
+    )
+    assert [claim.id for claim in left] == [other.claim.id]

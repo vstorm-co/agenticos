@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
@@ -116,3 +116,38 @@ async def distinct_checkpoint_organization_ids(db: AsyncSession) -> list[UUID | 
     walked."""
     result = await db.execute(select(AppAdminAuditCheckpoint.organization_id).distinct())
     return list(result.scalars().all())
+
+
+async def memory_erased_since(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
+    since: datetime,
+) -> bool:
+    """Whether this person's memory, or this agent's, was erased after `since`.
+
+    An erasure writes the trail as it commits, so this is the cutoff a queued read of an
+    older conversation must respect: the transcript outlives the erasure, and reading it
+    again would put back what the person was just told is gone.
+    """
+    found = await db.scalar(
+        select(AppAdminAuditLog.id)
+        .where(
+            AppAdminAuditLog.organization_id == organization_id,
+            AppAdminAuditLog.created_at > since,
+            or_(
+                and_(
+                    AppAdminAuditLog.action == "memory.person.forgotten",
+                    AppAdminAuditLog.target_id == str(user_id),
+                ),
+                and_(
+                    AppAdminAuditLog.action == "memory.agent.cleared",
+                    AppAdminAuditLog.target_id == str(agent_id),
+                ),
+            ),
+        )
+        .limit(1)
+    )
+    return found is not None

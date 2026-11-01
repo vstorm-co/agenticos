@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrgSystemAgents } from "./org-system-agents";
 import type { SystemAgent } from "@/lib/system-agents-api";
+import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
 
 const state = vi.hoisted(() => ({
+  tenantId: "o1" as string | null,
   held: [] as string[],
   roles: undefined as unknown,
   mutateAsync: vi.fn(),
@@ -20,6 +22,7 @@ vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (permission: Permission) => state.held.includes(permission) }),
   useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => state.tenantId }));
 vi.mock("@/hooks/use-system-agents", () => ({
   useSystemAgents: () => ({
     roles: state.roles,
@@ -78,8 +81,11 @@ const briefing = agent({
   managed_in: "proactivity",
 });
 
+const ORG = { id: "o1", name: "Acme" } as Organization;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  state.tenantId = "o1";
   state.held = [Perm.budgetsManage];
   state.roles = [briefing, agent()];
   state.isPending = false;
@@ -89,14 +95,20 @@ beforeEach(() => {
 describe("OrgSystemAgents", () => {
   it("is for budget managers, and waits for the roles", () => {
     state.held = [];
-    expect(render(<OrgSystemAgents />).container).toBeEmptyDOMElement();
+    expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
     state.held = [Perm.budgetsManage];
     state.roles = undefined;
-    expect(render(<OrgSystemAgents />).container).toBeEmptyDOMElement();
+    expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
+  });
+
+  it("is the active organization's: another one's page shows nothing of it", () => {
+    state.tenantId = "other";
+
+    expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
   });
 
   it("shows the briefing as the proactivity setting, with no form of its own", () => {
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
 
     const card = screen.getByTestId("system-agent-daily_briefing");
     expect(card).toHaveTextContent("managedIn:Sonnet");
@@ -106,7 +118,7 @@ describe("OrgSystemAgents", () => {
 
   it("says when the briefing has no model yet, and when it is off", () => {
     state.roles = [{ ...briefing, enabled: false, model_label: null }, agent()];
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
 
     const card = screen.getByTestId("system-agent-daily_briefing");
     expect(card).toHaveTextContent("managedInNoModel");
@@ -139,7 +151,7 @@ describe("OrgSystemAgents", () => {
         ],
       }),
     ];
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
 
     const card = screen.getByTestId("system-agent-memory_maintenance");
     expect(card).toHaveTextContent("spentOf:$1.5|$5");
@@ -150,7 +162,7 @@ describe("OrgSystemAgents", () => {
   });
 
   it("refuses to turn on without a model and a budget that is not a number", async () => {
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
@@ -164,7 +176,7 @@ describe("OrgSystemAgents", () => {
   });
 
   it("saves the switch, the model and the budget together", async () => {
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
@@ -184,7 +196,7 @@ describe("OrgSystemAgents", () => {
       briefing,
       agent({ enabled: true, model_profile_id: "model-1", monthly_budget_usd: "5" }),
     ];
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
@@ -199,7 +211,7 @@ describe("OrgSystemAgents", () => {
   });
 
   it("holds the save while a model is being created", async () => {
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
     await userEvent.type(screen.getByLabelText("budget"), "1");
     const save = screen.getByRole("button", { name: "save" });
 
@@ -216,7 +228,7 @@ describe("OrgSystemAgents", () => {
         details: { fields: { model_profile_id: "That model is not one of this organization's" } },
       }),
     );
-    render(<OrgSystemAgents />);
+    render(<OrgSystemAgents org={ORG} />);
     await userEvent.type(screen.getByLabelText("budget"), "1");
     await userEvent.click(screen.getByRole("button", { name: "save" }));
 

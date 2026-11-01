@@ -4655,6 +4655,10 @@
         "title": "What agents remember about you",
         "body": "Agents keep notes between conversations. This is yours: read what was written, stop a note being used without destroying it, or delete it outright. A note in an external memory service is named here but not shown."
       },
+      "my-claims": {
+        "title": "What is on record about you",
+        "body": "Beside notes, agents record facts, preferences and decisions with where each came from. Correct one in your own words, from a date, and the old version stays in the history; or take it out of use."
+      },
       "orgs-new": {
         "title": "Your organizations",
         "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to - each keeps its own agents, keys and knowledge apart."

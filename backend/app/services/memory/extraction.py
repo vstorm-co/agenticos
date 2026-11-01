@@ -31,7 +31,13 @@ from app.agents.audience import RunAudience
 from app.agents.memory_scope import claim_write_scope
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
-from app.repositories import agent_repo, agent_run_repo, conversation_repo, system_agent_repo
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    audit_log_repo,
+    conversation_repo,
+    system_agent_repo,
+)
 from app.services.access import member_context
 from app.services.background_jobs import enqueue
 from app.services.memory import _claims
@@ -126,6 +132,23 @@ async def queue_extraction(db: AsyncSession, run: AgentRun, spec: dict[str, obje
     return job is not None
 
 
+async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
+    """Whether the person's memory or this agent's was erased after this run ended.
+
+    The transcript outlives an erasure, so without this a read queued before it - or one
+    waiting on its model call - would record again what the person was told is gone.
+    """
+    assert run.user_id is not None
+    since = run.ended_at or run.started_at
+    return since is not None and await audit_log_repo.memory_erased_since(
+        db,
+        organization_id=run.organization_id,
+        user_id=run.user_id,
+        agent_id=run.agent_id,
+        since=since,
+    )
+
+
 async def extract(db: AsyncSession, organization_id: UUID, run_id: UUID) -> int:
     """Read one run's turns and record what is worth keeping. Returns how many were recorded.
 
@@ -147,7 +170,7 @@ async def extract(db: AsyncSession, organization_id: UUID, run_id: UUID) -> int:
     if binding is None or not _allows_personal(binding):
         return 0
     ctx = await member_context(db, organization_id=organization_id, user_id=run.user_id)
-    if ctx is None:
+    if ctx is None or await _erased_since(db, run):
         return 0
     messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60)
     turns = [f"{m.role}: {m.content.strip()}" for m in messages if m.role in ("user", "assistant")]
@@ -161,7 +184,8 @@ async def extract(db: AsyncSession, organization_id: UUID, run_id: UUID) -> int:
         instructions=_INSTRUCTIONS,
         prompt=f"Conversation:\n\n{transcript}",
     )
-    if found is None:
+    # Again after the model call: the person may have erased their memory while it ran.
+    if found is None or await _erased_since(db, run):
         return 0
     audience = RunAudience(user_id=run.user_id)
     recorded = 0

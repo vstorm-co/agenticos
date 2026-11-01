@@ -41,6 +41,12 @@ async def remember(bot_id: str, chat_id: str, values: list[str]) -> None:
     await _redis.set(_key(bot_id, chat_id), json.dumps(values), ttl=TTL_SECONDS)
 
 
+async def forget(bot_id: str, chat_id: str) -> None:
+    """Drop what is pending for this number - the prompt is settled or its owner changed."""
+    if _redis is not None:
+        await _redis.delete(_key(bot_id, chat_id))
+
+
 async def answer(bot_id: str, chat_id: str, text: str) -> str | None:
     """The value of the choice a one-digit reply names, or `None` when it names none.
 

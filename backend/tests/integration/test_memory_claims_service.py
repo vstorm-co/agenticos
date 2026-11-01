@@ -142,3 +142,20 @@ async def test_a_person_corrects_and_retracts_through_the_service_and_it_is_audi
         await service.correct_claim(stranger, claim.id, MemoryClaimCorrect(statement="x"))
     with pytest.raises(NotFoundError):
         await service.retract_claim(stranger, claim.id)
+
+
+async def test_the_history_is_read_only(db: AsyncSession) -> None:
+    from app.core.exceptions import ConflictError
+
+    user, org, agent, ctx, stranger = await _setup(db)
+    key = person_owner_key(user.id)
+    old = await _say(db, org, key, agent, "Anna handles invoices", "owner")
+    await claims.correct(db, claim=old, statement="Piotr handles invoices", author_user_id=user.id)
+    service = MemoryService(db)
+
+    with pytest.raises(ConflictError, match="history"):
+        await service.retract_claim(ctx, old.id)
+    with pytest.raises(ConflictError):
+        await service.correct_claim(ctx, old.id, MemoryClaimCorrect(statement="Marta"))
+    live = await service.my_claims(ctx, skip=0, limit=10, history=False)
+    assert [item.statement for item in live.items] == ["Piotr handles invoices"]
