@@ -272,9 +272,10 @@ fn read(args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
 }
 
 /// The newer of the two global `AGENTS.md` files, `~/.codex` or `~/.claude`.
-fn global_instructions(home: &Path) -> Option<(Source, String)> {
+fn global_instructions(home: &Path, enabled: &[Source]) -> Option<(Source, String)> {
     let newest = [Source::Codex, Source::Claude]
         .into_iter()
+        .filter(|source| enabled.contains(source))
         .filter_map(|source| {
             let path = home.join(source.directory()).join("AGENTS.md");
             let modified = std::fs::metadata(&path).ok()?.modified().ok()?;
@@ -293,7 +294,7 @@ fn global_instructions(home: &Path) -> Option<(Source, String)> {
 }
 
 async fn instructions(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {
-    let global = global_instructions(&home()?);
+    let global = global_instructions(&home()?, &sources(args)?);
     // Only a folder the person granted, read through the same confinement as any file.
     let folder = match args.get("root").and_then(Value::as_str) {
         Some(root) => {
@@ -469,17 +470,17 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(home.join(".claude/AGENTS.md"), "claude rules").unwrap();
         assert_eq!(
-            global_instructions(&home),
+            global_instructions(&home, &ALL),
             Some((Source::Claude, "claude rules".into()))
         );
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(home.join(".codex/AGENTS.md"), "newer codex rules").unwrap();
         assert_eq!(
-            global_instructions(&home),
+            global_instructions(&home, &ALL),
             Some((Source::Codex, "newer codex rules".into()))
         );
         std::fs::write(home.join(".codex/AGENTS.md"), "   \n").unwrap();
-        assert_eq!(global_instructions(&home), None);
+        assert_eq!(global_instructions(&home, &ALL), None);
         std::fs::remove_dir_all(home).unwrap();
     }
 
@@ -492,12 +493,31 @@ mod tests {
         std::fs::write(&rules, "my rules").unwrap();
         let link = home.join(".claude/AGENTS.md");
         std::os::unix::fs::symlink(&rules, &link).unwrap();
-        assert_eq!(global_instructions(&home), Some((Source::Claude, "my rules".into())));
+        assert_eq!(
+            global_instructions(&home, &ALL),
+            Some((Source::Claude, "my rules".into()))
+        );
         std::fs::remove_file(&link).unwrap();
         let secret = home.join("id_rsa");
         std::fs::write(&secret, "private").unwrap();
         std::os::unix::fs::symlink(&secret, &link).unwrap();
-        assert_eq!(global_instructions(&home), None);
+        assert_eq!(global_instructions(&home, &ALL), None);
+        std::fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn a_global_instruction_file_is_read_only_for_a_source_the_chat_enabled() {
+        let home = home();
+        std::fs::create_dir_all(home.join(".codex")).unwrap();
+        std::fs::create_dir_all(home.join(".claude")).unwrap();
+        std::fs::write(home.join(".codex/AGENTS.md"), "codex rules").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::fs::write(home.join(".claude/AGENTS.md"), "claude rules").unwrap();
+        assert_eq!(
+            global_instructions(&home, &[Source::Codex]),
+            Some((Source::Codex, "codex rules".into()))
+        );
+        assert_eq!(global_instructions(&home, &[Source::Agents]), None);
         std::fs::remove_dir_all(home).unwrap();
     }
 

@@ -307,9 +307,13 @@ class Conversation:
                 await self._handle(message)
             elif message.get("id") == identifier:
                 if "error" in message:
+                    # The adapter's own words can carry a local path or a configuration
+                    # value, and this reaches the model and the saved chat: say what
+                    # kind of failure it was, and keep the rest out.
                     detail = message["error"]
-                    text = detail.get("message") if isinstance(detail, dict) else None
-                    raise AcpError(str(text or "The agent refused the request."))
+                    code = detail.get("code") if isinstance(detail, dict) else None
+                    shown = f" (code {code})" if isinstance(code, int) else ""
+                    raise AcpError(f"The agent refused the request{shown}.")
                 return message.get("result")
 
     async def cancel(self, session_id: str) -> None:

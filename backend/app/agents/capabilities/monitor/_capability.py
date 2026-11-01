@@ -99,6 +99,6 @@ class Monitor(AbstractCapability[AgentDepsT]):
         try:
             return await handler()
         finally:
-            if ctx.workspace.attached and self.manager.running:
+            if ctx.workspace.attached and self.manager.watches:
                 with anyio.CancelScope(shield=True):
                     await self.manager.stop_all(ctx.workspace)

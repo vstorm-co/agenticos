@@ -93,7 +93,7 @@ async def local_skills_context(
     listing = await _hub.call(session_id, "local.skills", {"sources": chosen}, timeout=CALL_SECONDS)
     try:
         skills = _Skills.model_validate(listing).skills
-        instructions = await _instructions(session_id, folder)
+        instructions = await _instructions(session_id, folder, chosen)
     except ValidationError as exc:
         raise DeviceCallFailed(
             message="The computer described its skills in an unknown shape"
@@ -130,8 +130,12 @@ async def local_skills_context(
     return LocalContext(toolset=toolset, briefing=_briefing(skills, instructions))
 
 
-async def _instructions(session_id: UUID, folder: str | None) -> _Instructions:
-    args: dict[str, Any] = {} if folder is None else {"root": folder}
+async def _instructions(
+    session_id: UUID, folder: str | None, sources: Sequence[Source]
+) -> _Instructions:
+    args: dict[str, Any] = {"sources": list(sources)}
+    if folder is not None:
+        args["root"] = folder
     try:
         answer = await _hub.call(session_id, "local.instructions", args, timeout=CALL_SECONDS)
     except DeviceCallFailed as exc:

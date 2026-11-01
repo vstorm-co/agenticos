@@ -46,7 +46,7 @@ def parse_match(match: str | None) -> tuple[str, ...]:
     """
     if not match:
         return ()
-    return tuple(word.casefold() for word in match.split("|") if word.strip())
+    return tuple(word.strip().casefold() for word in match.split("|") if word.strip())
 
 
 @dataclass
@@ -89,6 +89,11 @@ class MonitorManager:
         self._watches: dict[str, Watch] = {}
 
     @property
+    def folder(self) -> str:
+        """Where this run's watches keep their logs and exit codes."""
+        return f"/tmp/agenticos-monitor-{self._run}"  # noqa: S108
+
+    @property
     def watches(self) -> list[Watch]:
         return list(self._watches.values())
 
@@ -111,7 +116,7 @@ class MonitorManager:
         if len(self.running) >= MAX_WATCHES:
             raise ValueError(f"At most {MAX_WATCHES} watches run at once; stop one first.")
         watch_id = uuid.uuid4().hex[:8]
-        folder = f"/tmp/agenticos-monitor-{self._run}"  # noqa: S108
+        folder = self.folder
         log, status = f"{folder}/{watch_id}.log", f"{folder}/{watch_id}.exit"
         inner = f"{command}\necho $? > {shlex.quote(status)}"
         line = (
@@ -213,5 +218,19 @@ class MonitorManager:
         return watch
 
     async def stop_all(self, workspace: Any) -> None:
+        """Stop every watch, then remove what they wrote - finished ones included.
+
+        Command output can hold anything the command printed, and the workspace may
+        outlive the run, so the logs go with the run.
+        """
         for watch in self.running:
             await self.stop(workspace, watch.id)
+        if not self._watches:
+            return
+        try:
+            await workspace.run(  # noqa: S604
+                f"rm -rf -- {shlex.quote(self.folder)}", shell=True, timeout=STOP_SECONDS
+            )
+        except WorkspaceError as failed:
+            logger.warning("Watch logs could not be removed: %s", failed)
+        self._watches.clear()

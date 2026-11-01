@@ -237,9 +237,12 @@ async def _nothing(items: list[Any]) -> None:
     return None
 
 
-async def test_an_error_answer_stops_the_task_with_the_agents_words() -> None:
-    with pytest.raises(acp.AcpError, match="nope"):
+async def test_an_error_answer_stops_the_task_without_echoing_the_adapters_words() -> None:
+    """What the adapter said can hold a path or a setting, and this reaches the model."""
+    with pytest.raises(acp.AcpError) as raised:
         await _run(ScriptedAgent(fail_on="session/new"))
+
+    assert "nope" not in str(raised.value) and "refused the request" in str(raised.value)
 
 
 async def test_an_error_without_a_message_still_says_something() -> None:

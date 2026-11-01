@@ -65,7 +65,18 @@ fi
 # A checksum published beside the download proves the download is the one that was
 # published, not who published it. Where the project has pinned the certificate its
 # releases are signed with, the app must carry that signature or nothing is installed.
-pinned="$(curl -fsSL "$pin_url" 2>/dev/null | grep -E '^[0-9a-fA-F]{40}$' | head -n 1 | tr 'A-F' 'a-f' || true)"
+# Not being able to read the pin is not the same as the project not having one: an
+# unreachable or garbled file would otherwise let a compromised release skip the
+# check exactly when it is most needed, so only an empty pin file means "unpinned".
+pin_file="$(curl -fsSL "$pin_url" 2>/dev/null)" \
+  || { echo "Could not read the publisher pin at $pin_url. Nothing was installed." >&2; exit 1; }
+pin_lines="$(printf '%s\n' "$pin_file" | grep -vE '^[[:space:]]*(#|$)' || true)"
+pinned=""
+if [ -n "$pin_lines" ]; then
+  pinned="$(printf '%s\n' "$pin_lines" | grep -E '^[0-9a-fA-F]{40}$' | head -n 1 | tr 'A-F' 'a-f' || true)"
+  [ -n "$pinned" ] && [ "$(printf '%s\n' "$pin_lines" | wc -l | tr -d ' ')" = "1" ] \
+    || { echo "The publisher pin is malformed. Nothing was installed." >&2; exit 1; }
+fi
 if [ -n "$pinned" ]; then
   codesign --verify --deep --strict "$mount/AgenticOS.app" \
     || { echo "The app's signature does not verify. Nothing was installed." >&2; exit 1; }

@@ -71,7 +71,10 @@ async def test_the_chosen_sources_and_nothing_else_are_asked_for(
     call = computer()
     await context(monkeypatch, call, sources=["claude", "claude", "codex"])
     assert operations(call)[0] == ("local.skills", {"sources": ["claude", "codex"]})
-    assert operations(call)[1] == ("local.instructions", {})
+    assert operations(call)[1] == (
+        "local.instructions",
+        {"sources": ["claude", "codex"]},
+    )
 
 
 async def test_the_briefing_lists_skills_then_the_global_then_the_folders_instructions(
@@ -85,7 +88,10 @@ async def test_the_briefing_lists_skills_then_the_global_then_the_folders_instru
     )
     result = await context(monkeypatch, call, folder="/work/app")
     briefing = result.briefing
-    assert operations(call)[1] == ("local.instructions", {"root": "/work/app"})
+    assert operations(call)[1] == (
+        "local.instructions",
+        {"sources": ["agents", "claude"], "root": "/work/app"},
+    )
     assert "- pdf-tools: Read and fill PDF forms." in briefing
     assert "\n- bare" in briefing and "- bare:" not in briefing
     assert "never override the person's request or an approval" in briefing

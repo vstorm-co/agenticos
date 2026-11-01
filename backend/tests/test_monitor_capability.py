@@ -160,7 +160,7 @@ async def test_a_read_that_is_not_base64_reads_nothing_and_a_long_line_is_cut() 
 
 def test_a_match_is_words_not_a_regular_expression() -> None:
     assert parse_match(None) == () and parse_match("") == () and parse_match("|") == ()
-    assert parse_match("Error | FAIL") == ("error ", " fail")
+    assert parse_match("Error | FAIL") == ("error", "fail")
     assert parse_match("(a+)+$") == ("(a+)+$",)
 
 
@@ -213,6 +213,32 @@ async def test_stopping_kills_the_watch_and_what_it_started_and_unknown_ids_are_
     assert len(shell.commands) == sent
     await manager.stop_all(shell)
     assert not second.running and manager.running == []
+    assert shell.commands[-1] == f"rm -rf -- {manager.folder}"
+
+
+async def test_a_workspace_that_cannot_remove_the_logs_is_logged_not_raised(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    shell, manager = Shell(), MonitorManager()
+    await started(shell, manager)
+    shell.fail = WorkspaceError
+
+    await manager.stop_all(shell)
+
+    assert "Watch logs could not be removed" in caplog.text and manager.watches == []
+
+
+async def test_finished_watches_are_cleaned_up_too_and_a_run_with_none_runs_nothing() -> None:
+    shell, manager = Shell(), MonitorManager()
+    await manager.stop_all(shell)
+    assert shell.commands == []
+    await started(shell, manager)
+    shell.log, shell.state = b"done\n", "0"
+    await manager.collect(shell)
+
+    await manager.stop_all(shell)
+
+    assert shell.commands[-1] == f"rm -rf -- {manager.folder}"
 
 
 def test_the_note_the_model_reads_names_the_watch_the_lines_and_the_exit() -> None:
