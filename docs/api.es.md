@@ -1,5 +1,5 @@
 ---
-source_sha: "118cac574f64"
+source_sha: "f186947f1867"
 ---
 
 # La API HTTP { #the-http-api }
@@ -17,11 +17,11 @@ publica su propia lista de rutas.
 
 Tres formas de entrar, para tres llamantes distintos.
 
-| | Cabecera | Para |
-|---|---|---|
-| **Clave de API de la organización** | `Authorization: Bearer aos_…` | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
-| **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token |
-| **Cookie de sesión** | la pone la consola | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript |
+|                                     | Cabecera                               | Para                                                                                                                                         |
+| ----------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Clave de API de la organización** | `Authorization: Bearer aos_…`          | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
+| **JWT**                             | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token                                                     |
+| **Cookie de sesión**                | la pone la consola                     | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript                                                                           |
 
 ### Claves de API de la organización { #organization-api-keys }
 
@@ -29,15 +29,15 @@ Una clave la emite un miembro, en una organización, desde **Settings → API**
 (o con `POST /api/v1/api-keys` desde una sesión iniciada). Lleva la autoridad de
 ese miembro, limitada dos veces:
 
-- **A los permisos con los que se emitió.** Elige una plantilla — *Read-only*,
-  *Knowledge ingest*, *Full access* — o marca permisos del
+- **A los permisos con los que se emitió.** Elige una plantilla — _Read-only_,
+  _Knowledge ingest_, _Full access_ — o marca permisos del
   [catálogo](permissions.md). Solo puedes conceder lo que tienes.
 - **A lo que el emisor puede hacer ahora.** Cada petición vuelve a leer la
   membresía del emisor, así que degradarlo limita al instante cada una de sus
   claves. Sacarlo de la organización, o que se vaya, revoca todas las claves que
   emitió y todas las apps que conectó - para siempre, así que volver a invitarlo no
   reactiva ninguna. Un
-  permiso concedido sobre un recurso amplía lo que una *persona* puede hacer con
+  permiso concedido sobre un recurso amplía lo que una _persona_ puede hacer con
   una fila; nunca amplía una clave más allá de sus permisos.
 
 La clave se muestra **una vez**, en la respuesta que la crea. Solo se guarda su
@@ -128,7 +128,6 @@ run cuando `AGENT_ID` está definido, y revoca la clave al salir.
 BASE=http://localhost:8000 EMAIL=you@example.com PASSWORD=... bash docs/examples/public-api.sh
 ```
 
-
 ### Sesiones y revocación { #sessions-and-revocation }
 
 Un access token JWT queda ligado a la sesión que abrió su inicio de sesión — el id
@@ -185,6 +184,9 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 La respuesta trae el id del run, la salida, el estado, los tokens y el coste.
 `environment_id` en el cuerpo elige [qué entorno](environments.md) responde.
+Un agent con un [formato de respuesta](concepts.md#spec) responde con un objeto: está en
+`structured`, ya validado contra el `output_schema` del agent, y `output` muestra
+el mismo objeto como un bloque JSON.
 `"draft": true` ejecuta en su lugar el borrador sin publicar, como el panel de
 pruebas del Builder: un run de prueba, para una clave cuyo emisor puede editar el
 agent, rechazado con el motivo cuando el borrador no se publicaría, y nunca con
@@ -291,6 +293,220 @@ La respuesta también trae `categories` y
 `tags`: cada etiqueta distinta en los agents que podrías listar, sea cual sea el
 filtro y la página — las opciones que ofrece un menú de filtro. Un agent privado que
 no puedes ver no aporta ninguna.
+
+## Ejecutar un workflow { #running-a-workflow }
+
+Las claves de API de la organización pueden iniciar runs y leer su estado, grafo,
+pasos, archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`,
+leer también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva
+el límite de permisos admitido y comprueba la clave y el emisor antes de cada paso,
+incluso tras una aprobación o espera. Revocar, caducar o eliminar la clave detiene
+trabajo nuevo con `PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
+Los runs iniciados con clave no acceden al estado personal del emisor. Editar un
+workflow sigue requiriendo una sesión.
+
+Las claves API pueden consultar ejecuciones de origen público, incluidas las
+iniciadas con claves. Las ejecuciones personales iniciadas por miembros devuelven
+`404`, también para grafo, pasos, eventos, archivos, reintentos y cancelaciones.
+Una clave no puede importar archivos de esas ejecuciones.
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
+```
+
+Esto inicia un run de la versión publicada del workflow y responde `201` de
+inmediato; los nodos se ejecutan en segundo plano. `"mode": "test"` ejecuta en
+su lugar el borrador actual, desde cualquier trigger, y exige `workflows:edit`.
+`deadline_seconds` (hasta
+treinta días) fija un plazo que se comprueba cada vez que un nodo va a
+despacharse: el primer nodo pendiente tras cumplirse hace fallar el run con
+`DEADLINE_EXCEEDED`, mientras que un nodo ya en ejecución, o un run que espera
+una aprobación, no se interrumpe por ello. La ruta tiene un límite por llamante como
+la de runs de agents, y responde `429` con `Retry-After` al superarlo.
+
+`input` es lo que el trigger [`core.input`](reference/workflow-nodes.md#core-input)
+del grafo pasa adelante, como mucho `WORKFLOW_RUN_MAX_INPUT_BYTES` en JSON (`413`
+si lo supera). Aquí solo se inicia una versión que empieza por ese trigger o sin
+ninguno: cualquier otra responde `409 WORKFLOW_TRIGGER_MISMATCH`, porque la inicia un
+webhook, una programación, un mensaje del chat o un registro de tabla.
+
+`GET /api/v1/workflow-runs/{id}` devuelve el estado del run, `spent_cost`,
+`error` y, cuando su nodo [`core.output`](reference/workflow-nodes.md#core-output) ya se ha ejecutado, su `output`, y `POST /api/v1/workflow-runs/{id}/cancel` lo detiene. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` devuelve el flujo de eventos
+del run del más antiguo al más reciente, con un `next_cursor` que se devuelve
+como `after`: se mantiene igual mientras no exista nada más nuevo, así que
+consultar con él sigue un run en curso. Quién puede hacer cada cosa está en
+[Permisos](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` enumera cada paso que dio el run,
+iteraciones de bucle incluidas, cada uno con su `scope_path`, estado, intentos,
+coste y el error tipado con el que falló por última vez, y `GET
+/api/v1/workflow-runs/{id}/graph` devuelve el grafo que ejecuta el run: el de su
+versión o la instantánea del draft de un run de prueba.
+
+### Leer el log de un workflow { #reading-a-workflows-log }
+
+Las líneas que escribieron los [Quick Logs](workflows.md#the-logs-page) de un workflow
+se pueden leer desde fuera de la consola - con un script, una hoja de cálculo o una
+herramienta de paneles como Grafana o Metabase - con una clave de API de la organización
+que tenga `workflows:view`.
+
+Una clave lee las líneas de los runs de origen público, incluidos los iniciados por
+claves: los iniciados por cualquier clave de la organización, desde fuera (webhook,
+formulario, mensaje de canal, Gmail, Outlook, GitHub) y cualquier run de una cadena que
+uno de ellos empezó. No están las líneas de los runs que inició un miembro, un horario,
+un registro de tabla, un chat, un agente o una app, así que el log de un workflow
+programado sale vacío con una clave y sus cuentas difieren de las de la consola. Un
+workflow de otra organización, o uno que el miembro de la clave no puede ver, responde
+`404`; una clave sin `workflows:view` es rechazada.
+
+```bash
+# Las líneas más recientes, de 100 en 100 (lo máximo de una página); los runs de prueba quedan fuera
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs?outcome=error&from=2026-10-01T00:00:00Z&limit=100" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+
+# Cuántas líneas dejó cada día, por resultado, en los últimos 30 días de Varsovia
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflows/{id}/logs` lista de la más reciente a la más antigua - por
+`created_at` y luego por `seq`, la posición que ocupó una línea en el log al escribirse.
+Se acota con `node_instance_id` (un paso), `outcome` (un puerto o `error`; repítelo para coincidir con cualquiera de varios, y una
+línea que salió por varios puertos coincide con cada uno), `run` (un id de run o sus primeros 4 o más caracteres), `q` (texto en el mensaje) y la ventana de
+tiempo `from` (inclusive) y `to` (exclusivo); `include_test=true` añade las líneas que
+escribieron los runs de prueba.
+
+`skip` y `limit` paginan - `limit` como mucho 100 - y
+`total` cuenta todas las líneas que coinciden, así que un cliente pagina hasta que `skip`
+lo alcanza.
+
+`GET /api/v1/workflows/{id}/logs/summary` es el dato que quiere un gráfico: para los
+últimos `days` días (7, 30 o 90, hoy incluido) responde una entrada por día, la más
+antigua primero, con la cuenta de cada resultado; un día sin líneas también aparece.
+`tz`, un nombre IANA, fija de quién son los días que se cuentan, UTC por defecto; los
+demás filtros son los del listado. Para llevarlo a una herramienta de paneles, apunta una
+fuente de datos JSON a la ruta, envía la clave como cabecera bearer y lee `by_day`.
+
+```bash
+# Errores y timeouts por día durante un mes: una fuente JSON para un panel de dashboard
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&outcome=error&outcome=timeout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflow-runs/{id}/logs` lista las líneas de un run, la más antigua primero
+por `seq` (`limit` hasta 500), y `GET /api/v1/workflow-logs` las líneas más recientes de
+todos los workflows que la clave puede ver, cada una con el nombre de su workflow, y
+cuántas líneas dejó cada resultado en las últimas 24 horas. Las reglas de alerta sobre un
+log no forman parte de la API pública.
+
+### Exportar e importar un workflow { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) devuelve el borrador como un
+archivo portable: `name`, `description`, `tags`, `settings`, `graph` y
+`unresolved`, el paso y el campo de cada recurso fijado que dejó fuera. No lleva
+ningún id de este despliegue ni ningún valor de secreto.
+`POST /api/v1/workflows/import` (`workflows:create`) toma ese archivo y responde
+`201` con el borrador nuevo `workflow` y sus `unresolved`; un grafo que no se puede
+leer, o que nombra un paso que este despliegue no tiene, es un `400` y no crea nada.
+
+### Seguir un run por un WebSocket { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` se autentica como el socket del
+chat, con el token de acceso como subprotocolo `access_token.<token>`. Envía
+`{"type": "start", "workflow_id": ..., "input": {...}}` para iniciar un run, o
+`{"type": "attach", "run_id": ..., "after": <cursor>}` para seguir uno. El servidor
+envía `{"type": "run", "run": {...}}` cuando empieza a seguirlo y otra vez cuando el
+run termina, y `{"type": "event", "event": {...}, "cursor": ...}` por cada evento
+intermedio. Un frame rechazado recibe `{"type": "error", "code": ..., "message":
+...}`, y una sesión revocada cierra el socket con `4001`. Un socket sigue un run; un
+frame nuevo sustituye el run que seguía. Un frame `start` gasta la misma cuota por
+minuto que `POST /workflow-runs`, y pasada esta recibe `RATE_LIMIT_EXCEEDED`.
+
+### Webhooks y programaciones { #workflow-webhooks-and-schedules }
+
+Los ID de entregas de webhook y GitHub sobreviven a la retención del contenido como registros mínimos pertenecientes a la exposición y organización. Un duplicado sigue devolviendo el UUID original tras borrar el contenido; el estado y la respuesta anterior pueden dejar de estar disponibles. Eliminar la exposición u organización termina la deduplicación. La migración `0230_webhook_delivery_tombstones.py` no recupera registros ya borrados; al revertirla se eliminan registros huérfanos antes de restaurar la clave externa con borrado en cascada.
+
+Publicar disparadores automáticos y cambiar su autoridad de ejecución requiere una sesión de miembro (`403` para claves API de organización). Las claves pueden publicar workflows manuales, iniciar ejecuciones dentro de sus ámbitos y pausar exposiciones, pero no activarlas, rotar secretos/enlaces de formularios, cambiar programaciones ni elegir una nueva identidad para el workflow de errores. Estas operaciones conservan la autoridad de un usuario para eventos futuros.
+
+Los formularios públicos aplican el límite de bytes de entrada al leer el flujo de la solicitud, antes de analizar JSON o buscar el token. Los cuerpos demasiado grandes, declarados o enviados por fragmentos, devuelven `413`; JSON mal formado y campos no válidos devuelven `422`. Cada entrada de `details.problems` de un `422` es `{field, message, type}`, donde `type` es el tipo de error propio del validador (`missing`, `int_type`, `extra_forbidden`, ...), de modo que un formulario puede decir, respuesta por respuesta, qué necesitaba.
+
+Un workflow cuyo nodo trigger es un webhook o una programación recibe su exposure al
+publicarse esa versión, y la respuesta de la publicación la lleva como `exposure`. El
+secreto de firma de un webhook está en el `webhook_secret` de la publicación que lo
+enciende por primera vez, y en ningún otro sitio. `GET /api/v1/workflows/{id}/exposure`
+la vuelve a leer, o devuelve `null` para un workflow que empieza de otra forma. `PATCH
+.../exposures/{exposure_id}` con `{"is_active": false}` la pausa, y `POST
+.../exposures/{exposure_id}/rotate-secret` sustituye el secreto de un webhook y
+devuelve el nuevo una vez. Ambos requieren `workflows:edit` y `workflows:run` sobre el
+workflow. La `webhook_url` de un webhook es la dirección a la que entrega el remitente:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+Responde `202` con `{"run_id": ..., "duplicate": false}` en cuanto el run queda
+admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
+`"duplicate": true` con el id del primer run. Una firma que no se verifica es un
+`403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
+webhook pausado o desconocido un `404`.
+
+Un grafo con un paso [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+responde en cambio con el estado, las cabeceras y el cuerpo JSON de ese paso, y un
+reintento de la entrega recibe la misma respuesta. La petición la espera como mucho
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS` y luego responde `202` como arriba; un
+run que falla, se cancela o agota su presupuesto antes de responder es un `500`
+`WORKFLOW_WEBHOOK_UNANSWERED` que nombra el run.
+
+Antes de publicar, `POST /api/v1/workflows/{id}/webhook-test` (`workflows:edit`)
+abre una URL de prueba para el borrador, devuelta como `url` con el `test_token` dentro y
+abierta para una llamada durante dos minutos. La llamada no necesita firma, recibe
+`{"captured": true}` y no inicia ningún run. `GET .../webhook-test/{token}` lee
+`state` (`listening`, `caught` o `expired`) y la `delivery` recibida.
+
+## Trabajar con tablas { #working-with-tables }
+
+Los `values` de un registro van por id de columna; `GET /api/v1/tables/{id}` lista las
+columnas. Toda escritura acepta un `Idempotency-Key`: un reintento con la misma clave y
+el mismo cuerpo responde con el resultado de la primera escritura e
+`Idempotent-Replayed: true` en lugar de escribir otra vez, y la misma clave con otro
+cuerpo es `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` cambia algunas celdas y necesita la `expected_revision`
+que leíste por última vez; una desfasada es `409 REVISION_CONFLICT`. `PUT
+.../records/by-external-id/{external_id}` crea el registro o lo actualiza, con
+`expected_revision` obligatoria cuando ya existe. `POST .../records/query` filtra, busca y
+ordena página a página, y `POST .../records/count` indica cuántos registros coinciden
+con los mismos filtros y la misma búsqueda, hasta 100.000.
+
+Un workflow cuyo nodo trigger es **Table record** se ejecuta, una vez publicado,
+por los registros de su tabla que se añaden, cambian o borran - según nombre su trigger. `GET .../triggers` enumera los workflows
+que empiezan por una tabla, `PATCH .../triggers/{trigger_id}` con `{"is_active": false}`
+pausa uno, y `GET .../triggers/{trigger_id}/admissions` lista lo que decidió sobre
+cada registro. Consulta [Triggers](virtual-tables.md#triggers).
+
 ## Agents por A2A { #agents-over-a2a }
 
 Un agent que su organización sirve por A2A responde JSON-RPC en
@@ -339,7 +555,7 @@ de la API en `$BASE`. Crea la clave en **Settings → API** con los permisos que
 nombra el ejemplo; la consola la muestra una vez.
 
 **Sube un documento a una base de conocimiento y búscalo** — una clave con
-`collections:view` y `collections:edit` (la plantilla *Knowledge ingest*). La
+`collections:view` y `collections:edit` (la plantilla _Knowledge ingest_). La
 ingesta corre en segundo plano, así que una búsqueda justo después de subirlo puede
 no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado, y
 `GET /api/v1/kb/$KB_ID/ingestion` responde `complete` cuando ya no se procesa ninguno.
@@ -459,33 +675,33 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 
 **El cliente envía** frames JSON, y a través del relay también audio binario:
 
-| Frame | Campos | Cuándo |
-|---|---|---|
-| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
-| `approval` | `id`, `decision` (`approve` o `deny`) | Al decidir una aprobación que la llamada está esperando |
-| `mute` | `muted` | El relay: el micrófono silenciado |
-| `played` | `bytes` | El relay: cuánto audio del agent se ha reproducido |
-| `end` | - | Colgar |
-| *binario* | PCM de 16 bits a la frecuencia de entrada del modelo | El relay: el audio de quien llama |
+| Frame      | Campos                                                                                                                                    | Cuándo                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `start`    | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho                      |
+| `approval` | `id`, `decision` (`approve` o `deny`)                                                                                                     | Al decidir una aprobación que la llamada está esperando |
+| `mute`     | `muted`                                                                                                                                   | El relay: el micrófono silenciado                       |
+| `played`   | `bytes`                                                                                                                                   | El relay: cuánto audio del agent se ha reproducido      |
+| `end`      | -                                                                                                                                         | Colgar                                                  |
+| _binario_  | PCM de 16 bits a la frecuencia de entrada del modelo                                                                                      | El relay: el audio de quien llama                       |
 
 **El servidor envía:**
 
-| Frame | Campos | Significa |
-|---|---|---|
-| `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
-| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
-| `caption` | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final` | Un subtítulo en vivo |
-| `turn_saved` | `message` | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id` |
-| `tool` | `name`, `status` (`running` o `done`) | Una herramienta que está ejecutando el agent |
-| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Una aprobación para la persona de la llamada: los argumentos exactos y lo que se le oyó decir |
-| `approval_unavailable` | `tool`, `args` | Una llamada a herramienta que quien llama no puede aprobar por voz |
-| `approval_settled` | `id`, `outcome` (`approved`, `denied` o `expired`) | Cómo terminó una aprobación |
-| `notice` | `kind`, `message` (opcional) | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza |
-| `limit` | `seconds_left` | El tiempo de la llamada casi se ha agotado |
-| `clear_playback` | - | El relay: descartar el audio del agent en cola |
-| `ended` | `reason`, `message` | La llamada ha terminado |
-| *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
+| Frame                  | Campos                                                                                                                                | Significa                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `answer`               | `sdp`                                                                                                                                 | WebRTC: la respuesta del provider para la conexión peer del navegador                                          |
+| `ready`                | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token`         | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
+| `state`                | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent                                                                      |
+| `caption`              | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final`            | Un subtítulo en vivo                                                                                           |
+| `turn_saved`           | `message`                                                                                                                             | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id`   |
+| `tool`                 | `name`, `status` (`running` o `done`)                                                                                                 | Una herramienta que está ejecutando el agent                                                                   |
+| `approval_required`    | `id`, `tool`, `args`, `said`, `timeout_seconds`                                                                                       | Una aprobación para la persona de la llamada: los argumentos exactos y lo que se le oyó decir                  |
+| `approval_unavailable` | `tool`, `args`                                                                                                                        | Una llamada a herramienta que quien llama no puede aprobar por voz                                             |
+| `approval_settled`     | `id`, `outcome` (`approved`, `denied` o `expired`)                                                                                    | Cómo terminó una aprobación                                                                                    |
+| `notice`               | `kind`, `message` (opcional)                                                                                                          | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza                                  |
+| `limit`                | `seconds_left`                                                                                                                        | El tiempo de la llamada casi se ha agotado                                                                     |
+| `clear_playback`       | -                                                                                                                                     | El relay: descartar el audio del agent en cola                                                                 |
+| `ended`                | `reason`, `message`                                                                                                                   | La llamada ha terminado                                                                                        |
+| _binario_              | PCM de 16 bits a la frecuencia de salida del modelo                                                                                   | El relay: el audio del agent                                                                                   |
 
 **A un visitante de un widget o de una página alojada se le dice menos.** Su
 `ready` no incluye `run_id`; `cap_seconds` es el límite de la llamada - la
@@ -528,13 +744,13 @@ otro agent. Ningún frame lleva nunca una credencial del provider.
 
 La acompañan cinco rutas HTTP:
 
-| Ruta | Control | Responde |
-|---|---|---|
-| `GET /api/v1/agents/{agent_id}/voice` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga |
-| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona |
-| `GET /api/v1/providers/realtime-models` | `agents:view` | El catálogo en tiempo real del que elige la sección Voice |
-| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
-| `GET /api/v1/runs?modality=voice` | `runs:view` | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas |
+| Ruta                                           | Control                                                                | Responde                                                                                                                                                                                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/v1/agents/{agent_id}/voice`          | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario  | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga                                                                                                                                |
+| `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona                                                                                  |
+| `GET /api/v1/providers/realtime-models`        | `agents:view`                                                          | El catálogo en tiempo real del que elige la sección Voice                                                                                                                                                                                        |
+| `GET /api/v1/voice/usage?start=…&end=…`        | `runs:view`                                                            | Segundos de llamada y llamadas de las llamadas iniciadas en `start` o después y antes de `end`, por agent (las llamadas de un agent eliminado como una sola fila sin id ni nombre). Un `end` que no sea posterior a `start` se rechaza con `422` |
+| `GET /api/v1/runs?modality=voice`              | `runs:view`                                                            | Solo llamadas (`text` para solo runs escritos); una llamada que se reconectó es una fila que lleva `voice_chain`, con todas las conexiones sumadas                                                                                               |
 
 Una aprobación que pertenece a una llamada en curso se decide en la llamada:
 `POST /api/v1/approvals/{id}` la rechaza con `400`.
@@ -603,14 +819,14 @@ ruta, el run asíncrono.
 
 ## Convenciones { #conventions }
 
-| | |
-|---|---|
-| Prefijo | `/api/v1` |
-| Crear | `POST`, `201` |
-| Actualización parcial | `PATCH` |
-| Borrar | `DELETE`, `204`, sin cuerpo |
-| Paginación | parámetros de consulta `skip` (≥ 0) y `limit` (1–100); las respuestas de lista llevan `items` y `total` |
-| Rutas | kebab-case |
+|                       |                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| Prefijo               | `/api/v1`                                                                                               |
+| Crear                 | `POST`, `201`                                                                                           |
+| Actualización parcial | `PATCH`                                                                                                 |
+| Borrar                | `DELETE`, `204`, sin cuerpo                                                                             |
+| Paginación            | parámetros de consulta `skip` (≥ 0) y `limit` (1–100); las respuestas de lista llevan `items` y `total` |
+| Rutas                 | kebab-case                                                                                              |
 
 ## Estabilidad, con franqueza { #stability-honestly }
 

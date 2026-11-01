@@ -224,7 +224,9 @@ def build_knowledge_toolset(
             # scope, never widened.
             try:
                 units = await organizational_units_in_scope(
-                    ctx.deps.kb_collection_names, ctx.deps.organization_id
+                    ctx.deps.kb_collection_names,
+                    ctx.deps.organization_id,
+                    kb_vector_scopes=ctx.deps.kb_vector_scopes,
                 )
             except Exception:
                 logger.exception("knowledge_facet_lookup_failed")
@@ -255,6 +257,9 @@ def build_knowledge_toolset(
                 # Resolved server-side from the agent's bound collections. The
                 # model chooses *what* to search, never *where*.
                 kb_collection_names=ctx.deps.kb_collection_names,
+                # The bound base behind each name, so a same-named base of the
+                # organization is never searched in its place (#2537).
+                kb_vector_scopes=ctx.deps.kb_vector_scopes,
                 top_k=top_k or default_top_k,
                 # Builds the security-bearing tenant scope, so a shared collection
                 # name returns and embeds only this organization's chunks (#913).

@@ -552,7 +552,9 @@ describe("a system agent's Toolbox", () => {
     await mount();
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
-    fireEvent.click(screen.getByRole("switch", { name: "Give this agent Knowledge search" }));
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Give this agent Knowledge search", hidden: true }),
+    );
     const panel = await openPanel("Knowledge search");
     fireEvent.change(within(panel).getByRole("spinbutton", { name: "Max steps" }), {
       target: { value: "4" },
@@ -564,7 +566,9 @@ describe("a system agent's Toolbox", () => {
       max_steps: 4,
     });
 
-    fireEvent.click(screen.getByRole("switch", { name: "Give this agent Knowledge search" }));
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Give this agent Knowledge search", hidden: true }),
+    );
     await settle();
     expect(saveDraft).toHaveBeenLastCalledWith({ ...CLEAN_DRAFT, max_steps: 4 });
   });
@@ -580,7 +584,9 @@ describe("a system agent's Toolbox", () => {
     const panel = await openPanel("Knowledge search");
     await settle();
 
-    expect(screen.getByRole("switch", { name: "Give this agent Knowledge search" })).toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "Give this agent Knowledge search", hidden: true }),
+    ).toBeChecked();
     expect(within(panel).getByRole("spinbutton", { name: "Max steps" })).toHaveValue(2);
     expect(saveDraft).not.toHaveBeenCalled();
   });
@@ -614,6 +620,8 @@ describe("a system agent's Toolbox", () => {
       within(context).getByText(/Only what is shared with the whole organization is offered/),
     ).toBeInTheDocument();
 
+    // The panel is a dialog: it keeps the page out of reach until it is closed.
+    await userEvent.keyboard("{Escape}");
     const skills = await openPanel("Skills");
     expect(within(skills).getByText("rubric-writing")).toBeInTheDocument();
     expect(within(skills).queryByText("team-style")).toBeNull();

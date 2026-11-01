@@ -1,0 +1,38 @@
+"""`human.approval` - registration and nothing else. See `_handler.py` and `README.md`."""
+
+from app.workflows._registry import register
+from app.workflows.contracts.definition import NodeDefinition
+from app.workflows.nodes.human_approval._handler import (
+    STATIC_PORTS,
+    HumanApprovalConfig,
+    HumanApprovalInput,
+    HumanApprovalOutput,
+    check_resources,
+    handle,
+    ports_for,
+    routes,
+)
+
+__all__ = ["HumanApprovalConfig", "HumanApprovalInput", "HumanApprovalOutput"]
+
+register(
+    NodeDefinition(
+        id="human.approval",
+        version=1,
+        name="Ask for approval",
+        category="people",
+        description="Wait until a person approves or rejects, then go on by their answer.",
+        kind="control",
+        config_schema=HumanApprovalConfig,
+        input_schema=HumanApprovalInput,
+        output_schema=HumanApprovalOutput,
+        ports=STATIC_PORTS,
+        ports_for=ports_for,
+        effect_kind="write",
+        retry_guarantee="idempotent",
+        handler=handle,
+        routes=routes,
+        exclusive_branches=True,
+        resource_check=check_resources,
+    )
+)

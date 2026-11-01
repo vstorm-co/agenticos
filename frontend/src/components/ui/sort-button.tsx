@@ -47,7 +47,7 @@ export function SortButton({ active, direction, onClick, children }: SortButtonP
       onClick={onClick}
       title={label}
       className={cn(
-        "hover:text-foreground inline-flex items-center gap-1 text-left uppercase transition-colors",
+        "hover:text-foreground touch:min-h-11 inline-flex min-h-7 touch-manipulation items-center gap-1 rounded text-left transition-colors",
         active && "text-foreground",
       )}
     >

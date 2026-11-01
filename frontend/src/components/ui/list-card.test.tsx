@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { BookOpen } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ListCard, ListCardEmpty } from "./list-card";
+import { ListCard, ListCardEmpty, ListCardFootRow } from "./list-card";
 
 describe("ListCard", () => {
   it("keeps a grid toolbar and its loading state without nesting another surface", () => {
@@ -157,4 +157,20 @@ describe("ListCardEmpty", () => {
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+});
+
+it("keeps pagination outside the table scrollport at the panel bottom", () => {
+  const { container } = render(
+    <ListCard fill namedByPage title="Users" counted="9 users" contentClassName="p-0">
+      <div role="table">rows</div>
+      <ListCardFootRow>
+        <button>Next page</button>
+      </ListCardFootRow>
+    </ListCard>,
+  );
+  const footer = screen.getByRole("button", { name: "Next page" }).parentElement;
+  expect(footer).toHaveClass("sticky", "bottom-0", "mt-auto", "shrink-0", "bg-card");
+  expect(footer?.parentElement).toHaveClass("flex", "flex-col", "min-h-0", "flex-1");
+  expect(screen.getByRole("table").contains(footer)).toBe(false);
+  expect(container.firstElementChild).toHaveClass("flex-1");
 });

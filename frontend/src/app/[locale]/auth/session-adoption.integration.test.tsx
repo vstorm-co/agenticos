@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CallbackPage from "./callback/page";
 import MagicLinkPage from "./magic-link/page";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { apiClient } from "@/lib/api-client";
+import { invokeShell } from "@/lib/desktop/shell";
 import { rememberReturnTo } from "@/lib/oauth-return";
 import { useAuthStore, useConversationStore } from "@/stores";
 
@@ -28,6 +29,10 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn() } };
 });
+vi.mock("@/lib/desktop/shell", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: vi.fn(),
+}));
 vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
@@ -66,7 +71,49 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 
+afterEach(() => {
+  delete window.__AGENTICOS_SHELL__;
+});
+
 describe("the OAuth callback", () => {
+  it("takes an app-held proof and forwards it only in the exchange body", async () => {
+    const verifier = "v".repeat(96);
+    window.__AGENTICOS_SHELL__ = {
+      platform: "ios",
+      version: "1.31.0",
+      window: "main",
+      vibrancy: false,
+    };
+    searchParams.set("code", "native-one-time");
+    vi.mocked(invokeShell).mockResolvedValue(verifier);
+    vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });
+    mountOver(<CallbackPage />);
+    await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-new"));
+    expect(invokeShell).toHaveBeenCalledExactlyOnceWith("oauth_verifier", {
+      code: "native-one-time",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/oauth-callback", {
+      code: "native-one-time",
+      code_verifier: verifier,
+    });
+    expect(replace.mock.calls.every(([url]) => !String(url).includes(verifier))).toBe(true);
+  });
+
+  it("refuses an app callback without its retained proof", async () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "android",
+      version: "1.31.0",
+      window: "main",
+      vibrancy: false,
+    };
+    searchParams.set("code", "native-missing-proof");
+    vi.mocked(invokeShell).mockResolvedValue(null);
+    mountOver(<CallbackPage />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?error=oauth_failed"));
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
   it("empties the previous account before adopting the one it exchanged", async () => {
     searchParams.set("code", "one-time");
     vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });

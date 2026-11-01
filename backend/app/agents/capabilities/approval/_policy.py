@@ -9,7 +9,7 @@ and gets a different answer.
 
 from pydantic import BaseModel
 
-from app.agents.capabilities import CapabilityDef, CapabilityToolInfo
+from app.agents.capabilities import ApprovalDescriber, CapabilityDef, CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.exceptions import BadRequestError
@@ -72,6 +72,42 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
             if tool_needs_approval(tool=tool, binding=binding)
         )
     return frozenset(required)
+
+
+def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:
+    """The describer for every tool in a spec that has one, by the name the model calls.
+
+    Keyed like :func:`approval_required_tools` and for the same reason: the gate
+    sees the effective name, while a capability declares its describer against the
+    stable id - so a renamed `update_record` is still described.
+    """
+    describers: dict[str, ApprovalDescriber] = {}
+    for binding in spec.capabilities:
+        if not binding.enabled:
+            continue
+        definition = get_capability(binding.id)
+        if not definition.describers:
+            continue
+        for tool in definition.effective_tools(binding.tool_overrides):
+            if (describe := definition.describers.get(tool.id)) is not None:
+                describers[tool.name] = describe
+    return describers
+
+
+def approval_tool_ids(spec: AgentSpec) -> dict[str, str]:
+    """Every capability tool in a spec, from the name the model calls to its stable id.
+
+    What an approval carries beside the name, so a surface that words a parked call
+    by tool - the card's sentence, the queue's - still finds the words for a tool a
+    binding renamed. Every enabled binding's tools rather than only the gated ones,
+    because `ApprovalMode.ASK_ALL` gates the rest too.
+    """
+    return {
+        tool.name: tool.id
+        for binding in spec.capabilities
+        if binding.enabled
+        for tool in get_capability(binding.id).effective_tools(binding.tool_overrides)
+    }
 
 
 def ungateable_tool_problems(

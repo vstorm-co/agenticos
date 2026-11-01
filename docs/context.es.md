@@ -1,5 +1,5 @@
 ---
-source_sha: "9279bd26378f"
+source_sha: "6ed5be54f7ae"
 ---
 
 # Archivos de contexto { #context-files }
@@ -20,16 +20,18 @@ Es la respuesta a un problema con el que toda empresa se topa en su tercer agent
 — los mismos tres párrafos pegados en tres juegos de instrucciones, y luego
 editados en uno solo de ellos.
 
+En Agent Builder, **Context → New context file** crea un archivo directamente en el panel de capacidades, lo vincula al borrador actual y activa Context. Después puedes elegir cómo lo usa ese agente. La publicación sigue siendo un paso separado. La creación requiere permisos para editar el agente y los archivos de contexto.
+
 ## Dónde queda, entre los skills y el conocimiento { #where-it-sits-between-skills-and-knowledge }
 
 Tres cosas ponen texto delante de un modelo, y elegir mal es la causa habitual de
 un agent que o ignora lo que se le dijo o no lee nada en absoluto.
 
-| | Contiene | El modelo lo ve |
-|---|---|---|
-| **Archivo de contexto** | Hechos permanentes, pequeños y estables — un glosario, una guía de tono, un organigrama | Siempre, o bajo demanda — tú eliges |
-| **[Skill](skills.md)** | Un procedimiento para un tipo de tarea — cómo tratar una petición de reembolso | Cuando el modelo decide que esa tarea es lo que está ocurriendo |
-| **[Colección de conocimiento](file-processing.md)** | Un corpus demasiado grande para leerlo — cada documento de política, cada ticket | Solo los fragmentos que devuelve una búsqueda |
+|                                                     | Contiene                                                                                | El modelo lo ve                                                 |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **Archivo de contexto**                             | Hechos permanentes, pequeños y estables — un glosario, una guía de tono, un organigrama | Siempre, o bajo demanda — tú eliges                             |
+| **[Skill](skills.md)**                              | Un procedimiento para un tipo de tarea — cómo tratar una petición de reembolso          | Cuando el modelo decide que esa tarea es lo que está ocurriendo |
+| **[Colección de conocimiento](file-processing.md)** | Un corpus demasiado grande para leerlo — cada documento de política, cada ticket        | Solo los fragmentos que devuelve una búsqueda                   |
 
 La regla práctica: **si es corto y siempre relevante, es un archivo de contexto.
 Si es largo, es conocimiento. Si es un procedimiento, es un skill.**

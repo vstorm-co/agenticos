@@ -47,6 +47,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     dictation_max_seconds: 300,
     chat_may_waive_approvals: false,
     ai_assistance_enabled: true,
+    public_live_data: false,
     created_at: "2026-08-01T00:00:00Z",
     updated_at: null,
     ...overrides,

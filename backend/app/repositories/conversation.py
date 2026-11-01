@@ -51,14 +51,14 @@ _MESSAGE_FILE_COLUMNS = (
 async def agents_in_conversations(
     db: AsyncSession, conversation_ids: list[UUID]
 ) -> dict[UUID, list[Agent]]:
-    """Which agents each of these conversations was with, oldest turn first.
+    """Which agents each conversation was with, most recently used first.
 
     One query for the whole page rather than one per row: a conversation list is
     fifty rows, and the alternative is fifty round trips to render a chip.
 
     An agent appears once however many times it answered - the list says who took
-    part, not how often. Ordering by the first evidence of it answering makes that
-    order stable across refreshes, which a set could not promise.
+    part, not how often. Ordering by its latest message or top-level run moves a
+    reused agent back to the front; agent ids break ties across refreshes.
 
     **Two sources, and the second is why history works at all.** The message is the
     accurate one: `messages.agent_id` says which agent produced *that answer*, which
@@ -102,21 +102,21 @@ async def agents_in_conversations(
             AgentRun.parent_run_id.is_(None),
         ),
     ).subquery()
-    first = func.min(evidence.c.at).label("first")
-    firsts = (
-        select(evidence.c.conversation_id, evidence.c.agent_id, first)
+    latest = func.max(evidence.c.at).label("latest")
+    latest_use = (
+        select(evidence.c.conversation_id, evidence.c.agent_id, latest)
         .where(evidence.c.conversation_id.is_not(None))
         .group_by(evidence.c.conversation_id, evidence.c.agent_id)
         .subquery()
     )
     result = await db.execute(
-        select(firsts.c.conversation_id, Agent)
-        .join(Agent, Agent.id == firsts.c.agent_id)
+        select(latest_use.c.conversation_id, Agent)
+        .join(Agent, Agent.id == latest_use.c.agent_id)
         .options(
             load_only(Agent.id, Agent.slug, Agent.name, Agent.avatar_url, Agent.avatar_color),
             raiseload("*"),
         )
-        .order_by(firsts.c.conversation_id, firsts.c.first, Agent.id)
+        .order_by(latest_use.c.conversation_id, latest_use.c.latest.desc(), Agent.id)
     )
     found: dict[UUID, list[Agent]] = {}
     for conversation_id, agent in result.all():
@@ -250,7 +250,7 @@ def _list_filters(
     of conversations the caller's own scope already narrowed, so it matches
     nothing rather than confirming the agent exists.
     """
-    filters: list[ColumnElement[bool]] = []
+    filters: list[ColumnElement[bool]] = [Conversation.origin.is_distinct_from("workflow")]
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
     if hide_api:
@@ -861,6 +861,42 @@ async def create_conversation(
     return conversation
 
 
+async def ensure_workflow_conversation(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    organization_id: UUID,
+    workflow_id: UUID,
+    source_conversation_id: UUID | None,
+    project_id: UUID | None,
+) -> Conversation | None:
+    """Create a server-addressed internal thread once, without changing an existing row."""
+    await db.execute(
+        pg_insert(Conversation)
+        .values(
+            id=conversation_id,
+            organization_id=organization_id,
+            user_id=None,
+            origin="workflow",
+            workflow_id=workflow_id,
+            source_conversation_id=source_conversation_id,
+            project_id=project_id,
+        )
+        .on_conflict_do_nothing(index_elements=[Conversation.id])
+    )
+    await db.flush()
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.organization_id == organization_id,
+            Conversation.workflow_id == workflow_id,
+            Conversation.origin == "workflow",
+            Conversation.user_id.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def update_conversation(
     db: AsyncSession,
     *,
@@ -1075,6 +1111,11 @@ async def get_messages_by_conversation(
     before: UUID | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
+
+    `latest` selects the newest page, still returned oldest first; `before` selects
+    messages older than that message of this conversation (a conversation-scoped
+    ordinal cursor). Combine both to page backwards without concurrent appends
+    shifting offsets. The default is ascending offset pagination.
 
     Ordered by `ordinal` rather than `created_at`: one turn writes the question
     and the answer in a single transaction, and `func.now()` gives both the same

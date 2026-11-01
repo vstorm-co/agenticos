@@ -1,5 +1,5 @@
 ---
-source_sha: "2c6dbdb89849"
+source_sha: "6b5734e8d7df"
 ---
 
 # Skills { #skills }
@@ -25,8 +25,8 @@ flowchart LR
     E --> Z2
 ```
 
-Veinte skills cuestan aproximadamente veinte *descripciones* en lugar de veinte
-*procedimientos*.
+Veinte skills cuestan aproximadamente veinte _descripciones_ en lugar de veinte
+_procedimientos_.
 
 !!! note "Descubrir es barato, no gratis"
 
@@ -50,6 +50,8 @@ request, sin ingeniero.
     [colección de conocimiento](file-processing.md) es un corpus demasiado
     grande para leerlo, al que se llega por búsqueda.
 
+En Agent Builder, **Skills → New skill** permite escribir un skill sin salir del panel de capacidades. Al guardar se crea la entrada de biblioteca, se vincula al borrador actual y se activa la capacidad Skills. La publicación sigue siendo un paso separado. La acción requiere permisos para editar tanto el agente como los skills.
+
 ## La forma { #the-shape }
 
 ```markdown
@@ -70,6 +72,7 @@ lleva el skill. `GET /api/v1/skills` devuelve ese comienzo como `excerpt`; el
 cuerpo en sí se carga al abrir el skill.
 
 ## Decide without asking
+
 ...
 ```
 
@@ -97,11 +100,11 @@ A través de la [capability `skills`](reference/capabilities.md#skills). Cada sk
 que recibe un agent se convierte en una **capability propia**, listada para el
 modelo con su nombre y su descripción y abierta cuando hace falta:
 
-| Cómo | Qué hace |
-|---|---|
+| Cómo                        | Qué hace                                                               |
+| --------------------------- | ---------------------------------------------------------------------- |
 | El catálogo de capabilities | Nombres y descripciones de una línea de todo lo vinculado a este agent |
-| `load_capability` | El cuerpo completo de un skill, traído a la conversación |
-| `read_skill_resource` | Un archivo al lado de un skill |
+| `load_capability`           | El cuerpo completo de un skill, traído a la conversación               |
+| `read_skill_resource`       | Un archivo al lado de un skill                                         |
 
 `load_capability` es la herramienta del propio framework de agents, no una que
 publique esta plataforma, así que un spec no la concede ni la renombra. Sí puede
@@ -190,7 +193,7 @@ parche en un sitio al que nunca estuvo destinado.
 
 Dos cosas se rechazan en lugar de adivinarse: un directorio que el agent creó
 sin ningún `SKILL.md` dentro, y uno cuyo frontmatter destrozó. Y un recurso
-*borrado* deliberadamente no es un cambio, porque un archivo que el modelo nunca
+_borrado_ deliberadamente no es un cambio, porque un archivo que el modelo nunca
 tocó y uno que quiso borrar dejan la misma ausencia.
 
 Tres turnos de una conversación refinando el mismo skill dejan **una** propuesta,
@@ -201,7 +204,6 @@ almacenados: nombre de 1 a 64 caracteres y descripción de hasta 500. Una
 propuesta fuera de estos límites se omite con una advertencia; sus archivos
 originales permanecen intactos. Un savepoint aísla la escritura para que una
 propuesta rechazada no impida guardar el estado y el coste del turno.
-
 
 Un cambio registra la versión del skill para la que se escribió: en un run, la
 versión que ese run recibió, y un turno posterior que reescribe el cambio
@@ -238,7 +240,7 @@ cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
 eligen — llegan solos, una vez, al crear la organización.
 
 **Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
-se edita, se deshabilita o se borra. Nada devuelve uno borrado.
+se edita o se borra. Nada devuelve uno borrado.
 
 Esto es un cambio. El listado se rellenaba solo — copiaba dentro cualquier nombre
 incluido que la organización no tuviera, cada vez que alguien abría la página —,
@@ -344,13 +346,13 @@ pequeña promesa que hace el [catálogo MCP](mcp.md#the-catalog): alguien lo mir
 Responden a preguntas distintas, y la diferencia importa cuando un agent recibe
 la equivocada.
 
-|  | Skills | [Conocimiento](file-processing.md) |
-|---|---|---|
-| Contiene | Procedimiento — cómo hacemos esto | Documentos — lo que sabemos |
-| Lo escribe | Una persona, deliberadamente | Se ingiere en bloque |
-| Se recupera por | El modelo eligiendo un nombre | Búsqueda semántica sobre fragmentos |
-| Cita | Nada; *es* la instrucción | El pasaje y su fuente |
-| Escala | Decenas | Miles de documentos |
+|                 | Skills                            | [Conocimiento](file-processing.md)  |
+| --------------- | --------------------------------- | ----------------------------------- |
+| Contiene        | Procedimiento — cómo hacemos esto | Documentos — lo que sabemos         |
+| Lo escribe      | Una persona, deliberadamente      | Se ingiere en bloque                |
+| Se recupera por | El modelo eligiendo un nombre     | Búsqueda semántica sobre fragmentos |
+| Cita            | Nada; _es_ la instrucción         | El pasaje y su fuente               |
+| Escala          | Decenas                           | Miles de documentos                 |
 
 !!! example "Cuál es cuál"
 
@@ -396,17 +398,19 @@ La alternativa es peor de dos maneras concretas:
 - Todo contexto sin sujeto — una clave de API, un widget embebido, un mensaje de
   canal — es rechazado por `resolve_access` por diseño, así que una comprobación
   por runner despojaría de todos sus skills precisamente a esas superficies.
-- Donde *sí* hay un sujeto, una misma versión publicada le daría a un miembro
+- Donde _sí_ hay un sujeto, una misma versión publicada le daría a un miembro
   —cuyo rol solo alcanza los skills compartidos— instrucciones más pobres que las
   que le da a un builder, con la diferencia visible en ninguna parte.
 
-Un skill borrado o deshabilitado después de publicar se omite con un aviso en
-lugar de hacer fallar el run. El agent es menos capaz, no está roto.
+Los skills no tienen un interruptor de activación propio: un agente puede usar
+los skills que tiene vinculados. Elimina el vínculo y publica el agente para
+dejar de usar ese skill. Un skill borrado después de publicar se omite con un
+aviso en lugar de interrumpir el run.
 
 ## Recapitulación { #recap }
 
 - Un skill es **procedimiento**, escrito por una persona, y solo se carga cuando
-  el modelo decide que su *description* es relevante — descubrir cuesta una línea
+  el modelo decide que su _description_ es relevante — descubrir cuesta una línea
   por skill, y el cuerpo no cuesta nada hasta que se abre.
 - En un workspace un skill también son **archivos**, que es lo que hace
   ejecutables sus scripts.

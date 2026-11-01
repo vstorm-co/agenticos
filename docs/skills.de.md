@@ -1,5 +1,5 @@
 ---
-source_sha: "2c6dbdb89849"
+source_sha: "6b5734e8d7df"
 ---
 
 # Skills { #skills }
@@ -25,8 +25,8 @@ flowchart LR
     E --> Z2
 ```
 
-Zwanzig Skills kosten ungefähr zwanzig *Beschreibungen* statt zwanzig
-*Verfahren*.
+Zwanzig Skills kosten ungefähr zwanzig _Beschreibungen_ statt zwanzig
+_Verfahren_.
 
 !!! note "Discovery ist günstig, nicht kostenlos"
 
@@ -50,6 +50,8 @@ kein Pull Request, kein Entwickler.
     [Knowledge-Collection](file-processing.md) ist ein Korpus, der zu groß zum
     Lesen ist und über Suche erreicht wird.
 
+Im Agent Builder öffnet **Skills → New skill** die Erstellung direkt im Fähigkeitspanel. Beim Speichern entsteht ein Bibliothekseintrag, der dem aktuellen Entwurf zugeordnet wird; zugleich wird die Fähigkeit Skills aktiviert. Das Veröffentlichen bleibt ein eigener Schritt. Die Aktion erfordert Bearbeitungsrechte für den Agenten und Skills.
+
 ## Die Form { #the-shape }
 
 ```markdown
@@ -70,6 +72,7 @@ mitbringt. `GET /api/v1/skills` liefert diesen Anfang als `excerpt`; den Inhalt
 selbst lädt erst das Öffnen des Skills.
 
 ## Decide without asking
+
 ...
 ```
 
@@ -97,11 +100,11 @@ wählt über `description`, nie über die Kategorie.
 ein Agent bekommt, wird zu einer **eigenen Capability** — dem Modell mit Name und
 Beschreibung aufgelistet und bei Bedarf geöffnet:
 
-| Wie | Was es tut |
-|---|---|
+| Wie                    | Was es tut                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------- |
 | Der Capability-Katalog | Namen und einzeilige Beschreibungen von allem, was an diesen Agent gebunden ist |
-| `load_capability` | Der vollständige Textkörper eines Skills, in die Unterhaltung geholt |
-| `read_skill_resource` | Eine Datei neben einem Skill |
+| `load_capability`      | Der vollständige Textkörper eines Skills, in die Unterhaltung geholt            |
+| `read_skill_resource`  | Eine Datei neben einem Skill                                                    |
 
 `load_capability` ist das Tool des Agent-Frameworks selbst und keines, das diese
 Plattform veröffentlicht — ein Spec kann es also weder gewähren noch umbenennen.
@@ -195,7 +198,7 @@ Patch dort anzuwenden, wohin er nie gehörte.
 
 Zwei Dinge werden abgelehnt statt geraten: ein vom Agent angelegtes Verzeichnis
 ohne `SKILL.md` darin, und eines, dessen Frontmatter er verstümmelt hat. Und eine
-*gelöschte* Ressource ist bewusst keine Änderung, denn eine Datei, die das Modell
+_gelöschte_ Ressource ist bewusst keine Änderung, denn eine Datei, die das Modell
 nie angefasst hat, und eine, die es löschen wollte, hinterlassen dieselbe
 Abwesenheit.
 
@@ -207,7 +210,6 @@ Skills: 1–64 Zeichen für den Namen und höchstens 500 für die Beschreibung.
 Änderungen außerhalb dieser Grenzen werden mit einer Warnung übersprungen;
 die ursprünglichen Dateien bleiben erhalten. Ein Savepoint schützt den Lauf:
 ein abgelehnter Vorschlag verhindert weder Status- noch Kostenaufzeichnung.
-
 
 Eine Änderung hält fest, für welche Version des Skills sie geschrieben wurde:
 bei einem Run die Version, die dieser Run bekommen hat, und ein späterer Turn,
@@ -246,7 +248,7 @@ Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — s
 kommen an, einmal, beim Anlegen.
 
 **Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
-Zeile: bearbeiten, deaktivieren oder löschen. Nichts holt einen gelöschten
+Zeile: bearbeiten oder löschen. Nichts holt einen gelöschten
 zurück.
 
 Das ist eine Änderung. Die Liste füllte sich früher selbst auf — sie kopierte
@@ -357,13 +359,13 @@ hat es sich angesehen.
 Sie beantworten verschiedene Fragen, und der Unterschied zählt, wenn ein Agent
 das Falsche bekommt.
 
-|  | Skills | [Knowledge](file-processing.md) |
-|---|---|---|
-| Enthält | Verfahren — wie wir das machen | Dokumente — was wir wissen |
-| Geschrieben von | Einem Menschen, absichtlich | In großer Zahl eingelesen |
-| Gefunden über | Das Modell, das einen Namen wählt | Semantische Suche über Chunks |
-| Zitiert | Nichts; er *ist* die Anweisung | Die Passage und ihre Quelle |
-| Größenordnung | Zehner | Tausende von Dokumenten |
+|                 | Skills                            | [Knowledge](file-processing.md) |
+| --------------- | --------------------------------- | ------------------------------- |
+| Enthält         | Verfahren — wie wir das machen    | Dokumente — was wir wissen      |
+| Geschrieben von | Einem Menschen, absichtlich       | In großer Zahl eingelesen       |
+| Gefunden über   | Das Modell, das einen Namen wählt | Semantische Suche über Chunks   |
+| Zitiert         | Nichts; er _ist_ die Anweisung    | Die Passage und ihre Quelle     |
+| Größenordnung   | Zehner                            | Tausende von Dokumenten         |
 
 !!! example "Was ist was"
 
@@ -409,18 +411,19 @@ Die Alternative ist auf zwei konkrete Weisen schlechter:
 - Jeder Kontext ohne Subjekt — ein API-Key, ein eingebettetes Widget, eine
   Kanalnachricht — wird von `resolve_access` konstruktionsbedingt abgelehnt, eine
   Prüfung pro Runner würde also genau diesen Oberflächen jeden Skill entziehen.
-- Wo es *doch* ein Subjekt gibt, würde ein und dieselbe veröffentlichte Version
+- Wo es _doch_ ein Subjekt gibt, würde ein und dieselbe veröffentlichte Version
   einem Mitglied — dessen Rolle nur geteilte Skills erreicht — dünnere Anweisungen
   geben als einer bauenden Person, und der Unterschied wäre nirgends sichtbar.
 
-Ein nach dem Veröffentlichen gelöschter oder deaktivierter Skill wird mit einer
-Warnung übersprungen, statt den Run scheitern zu lassen. Der Agent kann weniger,
-er ist nicht kaputt.
+Skills haben keinen eigenen Aktivierungsschalter: Ein Agent kann seine gebundenen
+Skills verwenden. Entfernen Sie die Bindung und veröffentlichen Sie den Agenten,
+um einen Skill nicht mehr zu verwenden. Ein nach der Veröffentlichung gelöschter
+Skill wird mit einer Warnung übersprungen, ohne den Run abzubrechen.
 
 ## Zusammenfassung { #recap }
 
 - Ein Skill ist ein **Verfahren**, von einem Menschen geschrieben, und wird nur
-  geladen, wenn das Modell entscheidet, dass seine *description* relevant ist —
+  geladen, wenn das Modell entscheidet, dass seine _description_ relevant ist —
   Discovery kostet eine Zeile pro Skill, und der Textkörper kostet nichts, bis er
   geöffnet wird.
 - In einem Workspace ist ein Skill auch **Dateien**, und das macht seine Skripte

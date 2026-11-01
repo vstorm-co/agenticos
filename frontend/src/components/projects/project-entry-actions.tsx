@@ -61,7 +61,7 @@ export function ProjectEntryActions({
           <button
             type="button"
             aria-label={t("actions", { name })}
-            className="text-muted-foreground hover:text-foreground rounded-md p-1.5"
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 touch:size-11 flex size-7 items-center justify-center rounded-md focus-visible:outline-offset-[-2px]"
           >
             <MoreHorizontal className="h-4 w-4" aria-hidden />
           </button>

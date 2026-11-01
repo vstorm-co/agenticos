@@ -15,6 +15,8 @@ It is the answer to a problem every company hits at its third agent — the same
 three paragraphs pasted into three sets of instructions, and then edited in one
 of them.
 
+In the Agent Builder, **Context → New context file** creates a file directly in the capability panel and attaches it to the current draft, enabling Context. You can then choose how that agent uses it. Publishing remains a separate step. Creation requires permission to edit both the agent and context files.
+
 ## Where it sits between skills and knowledge
 
 Three things put text in front of a model, and choosing wrongly is the usual

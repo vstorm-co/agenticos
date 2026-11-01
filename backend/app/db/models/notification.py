@@ -54,6 +54,14 @@ class NotificationEventType(enum.StrEnum):
     EVAL_SUITE_FAILED = "eval_suite_failed"
     PROMOTION_OVERRIDDEN = "promotion_overridden"
     SHARED_CHANGE_APPLIED = "shared_change_applied"
+    # Written by a workflow's `notification.send` step. Its audience is the step's
+    # own recipient list, already checked against the workflow's reach, rather
+    # than a setting on an agent (#1789).
+    WORKFLOW_NOTIFICATION = "workflow_notification"
+    # A page changed hands: told to its old and its new owner (#1974).
+    ARTIFACT_OWNER_CHANGED = "artifact_owner_changed"
+    # Somebody asked a page's owner to share it, or to confirm a version (#1974).
+    ARTIFACT_SHARE_REQUESTED = "artifact_share_requested"
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
@@ -61,19 +69,23 @@ class NotificationEventType(enum.StrEnum):
     EVAL_SUITE_REEVALUATED = "eval_suite_reevaluated"
     EVAL_RUN_FINISHED = "eval_run_finished"
     CASE_GENERATION_FINISHED = "case_generation_finished"
+    # A workflow's log crossed an alert rule's threshold in its window.
+    WORKFLOW_LOG_ALERT = "workflow_log_alert"
 
 
 class NotificationChannel(enum.StrEnum):
     """A channel a notification reaches a recipient through.
 
-    `notification_preferences.channel` (Decision 4) holds both values, since a
+    `notification_preferences.channel` (Decision 4) holds every value, since a
     person can turn each off independently. `notification_deliveries.channel`
-    (Decision 3) only ever holds `EMAIL` - in-app has no delivery row, because
-    the :class:`Notification` row itself is the in-app delivery.
+    (Decision 3) holds `EMAIL` and `PUSH` - in-app has no delivery row, because
+    the :class:`Notification` row itself is the in-app delivery. `PUSH` is Web
+    Push to every browser the person subscribed (#2097).
     """
 
     IN_APP = "in_app"
     EMAIL = "email"
+    PUSH = "push"
 
 
 class Notification(Base, TimestampMixin):
@@ -155,7 +167,11 @@ class Notification(Base, TimestampMixin):
             "'announcement', 'artifact_version_published', 'resource_shared', "
             "'budget_warning', 'mcp_server_down', 'mcp_server_recovered', "
             "'background_task_paused', 'eval_suite_failed', 'promotion_overridden', "
-            "'shared_change_applied', 'capability_requested', 'suggestion', 'finding', 'improvement_finished', 'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished')",
+            "'shared_change_applied', 'workflow_notification', "
+            "'artifact_owner_changed', 'artifact_share_requested', "
+            "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
+            "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
+            "'workflow_log_alert')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

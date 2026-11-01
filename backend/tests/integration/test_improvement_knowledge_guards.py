@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, ConcurrentChangeError, PaymentRequiredError
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
+from app.db.vector_tables import VectorScope
 from app.repositories import authoring_repo, improvement_repo, knowledge_gap_repo
 from app.schemas.improvement import KnowledgeCheckConsent
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
@@ -99,10 +100,10 @@ async def test_retrieval_is_unavailable_without_this_tenants_usable_embedding_bo
         key_source=EmbeddingKeySource.KEYLESS,
         base_url="https://example.invalid/v1",
         provider="openai",
-        vector_tenant=ctx.organization_id,
+        vector_scope=VectorScope(tenant=ctx.organization_id),
     )
     if boundary == "other_tenant":
-        resolved = replace(resolved, vector_tenant=uuid4())
+        resolved = replace(resolved, vector_scope=VectorScope(tenant=uuid4()))
     if boundary == "no_key":
         resolved = replace(resolved, key_source=EmbeddingKeySource.NONE_CHOSEN)
     with patch(

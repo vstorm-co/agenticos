@@ -1,5 +1,5 @@
 ---
-source_sha: "31af61187b6b"
+source_sha: "efcb7fe03f88"
 ---
 
 # Glosario { #glossary }
@@ -123,6 +123,7 @@ se describe en [Capabilities](capabilities.md).
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
+| Computer use | `computer_use` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
 | Follow-ups | `follow_ups` |
@@ -146,3 +147,5 @@ se describe en [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
+| Tables | `virtual_tables` |
+| Workflows | `workflows` |

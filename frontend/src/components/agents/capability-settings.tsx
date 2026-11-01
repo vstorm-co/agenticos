@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight, ShieldAlert } from "lucide-react";
+import { ChevronRight, ShieldAlert, SlidersHorizontal, Wrench } from "lucide-react";
 
 import { CODING_AGENT_ID, capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
@@ -456,8 +456,16 @@ export function CapabilityDetail({
         <Tabs defaultValue={resources ? "resources" : "settings"}>
           <TabsList>
             {resources && <TabsTrigger value="resources">{resources.label}</TabsTrigger>}
-            <TabsTrigger value="settings">{t("capabilitySettingsTab")}</TabsTrigger>
-            {tools && <TabsTrigger value="tools">{t("capabilityToolsTab")}</TabsTrigger>}
+            <TabsTrigger value="settings">
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              {t("capabilitySettingsTab")}
+            </TabsTrigger>
+            {tools && (
+              <TabsTrigger value="tools">
+                <Wrench className="h-4 w-4" aria-hidden />
+                {t("capabilityToolsTab")}
+              </TabsTrigger>
+            )}
           </TabsList>
           {resources && (
             <TabsContent value="resources" className="mt-4">

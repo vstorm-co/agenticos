@@ -43,6 +43,7 @@ from app.services.channels.base import (
     IncomingAttachment,
     OutgoingAttachment,
 )
+from app.services.device_hub import DeviceWorkspace
 from app.services.file_upload import FileUploadService
 from app.services.skill_workspace import RESERVED_SKILL_PREFIXES
 
@@ -471,6 +472,10 @@ async def workspace_snapshot(workspace: Workspace) -> set[str] | None:
     nothing. A remote host reached over HTTP is exactly what supplies a transient
     one.
     """
+    if isinstance(workspace.backend, DeviceWorkspace) and workspace.backend.whole_computer:
+        # A home directory is not an output folder. Never crawl or upload its
+        # contents implicitly when the person grants access to their computer.
+        return None
     try:
         return await _workspace_paths(workspace)
     except Exception:
@@ -495,7 +500,11 @@ async def _workspace_paths(workspace: Workspace) -> set[str]:
     Raises:
         RuntimeError: The `find` failed - the callers turn that into "no snapshot".
     """
-    if isinstance(workspace.backend, SupportsCommands):
+    # The person's computer prompts for every full-access shell command. A
+    # platform-owned snapshot must use its file API, never ask to run `find`.
+    if isinstance(workspace.backend, SupportsCommands) and not isinstance(
+        workspace.backend, DeviceWorkspace
+    ):
         result = await workspace.run(["find", ".", "-type", "f"])
         if result.exit_code != 0:
             raise RuntimeError(f"listing the workspace exited {result.exit_code}")

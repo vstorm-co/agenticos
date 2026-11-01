@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 
 import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
+import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
 import { ImproveContextButton } from "@/components/authoring/improve-skill-button";
 import { displayName } from "@/components/context/file-name";
@@ -19,6 +20,7 @@ interface ContextEditorProps {
   isSaving: boolean;
   onSave: (edit: ContextEdit) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
 /**
@@ -39,7 +41,14 @@ interface ContextEditorProps {
  * whether to warn about the blast radius, and reseeding it mid-edit would
  * discard somebody's typing.
  */
-export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: ContextEditorProps) {
+export function ContextEditor({
+  file,
+  canEdit,
+  isSaving,
+  onSave,
+  onCancel,
+  onDelete,
+}: ContextEditorProps) {
   const t = useTranslations("context");
   const [description, setDescription] = useState(file.description ?? "");
   const [content, setContent] = useState(file.content);
@@ -90,14 +99,18 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
       )}
 
       <DialogFooter>
-        <ShareResourceButton
-          resourceType="context"
-          resourceId={file.id}
-          name={file.name}
-          canManage={canEdit}
-          className="sm:mr-auto"
-        />
-        {canEdit && <ImproveContextButton contextId={file.id} unsaved={changed} />}
+        <div className="flex items-center gap-2 sm:mr-auto">
+          <ShareResourceButton
+            resourceType="context"
+            resourceId={file.id}
+            name={file.name}
+            canManage={canEdit}
+          />
+          {canEdit && <ImproveContextButton contextId={file.id} unsaved={changed} />}
+          {canEdit && onDelete && (
+            <ResourceActions name={file.name} onDelete={onDelete} disabled={isSaving} />
+          )}
+        </div>
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel") : t("close")}
         </Button>
@@ -109,7 +122,8 @@ export function ContextEditor({ file, canEdit, isSaving, onSave, onCancel }: Con
                 content,
               })
             }
-            disabled={!changed || isSaving}
+            loading={isSaving}
+            disabled={!changed}
           >
             {t("save")}
           </Button>

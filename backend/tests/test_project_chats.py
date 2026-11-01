@@ -32,6 +32,7 @@ def _chat(*, project_id: UUID | None = None, user_id: UUID = OWNER) -> SimpleNam
         organization_id=ORG,
         project_id=project_id,
         is_archived=False,
+        origin=None,
         messages=[],
     )
 

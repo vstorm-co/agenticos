@@ -30,7 +30,7 @@ boundaries that matter are the ones a request crosses on its way to the data.
 | Browser ↔ realtime provider (a [voice call](voice.md) over WebRTC) | The caller's microphone audio and the agent's spoken answer | No — the browser holds no provider credential: the server answers its SDP offer, an offer opening a data channel is refused, and no client secret is ever minted. Tools, approvals and transcripts run on the server's sideband |
 | Worker → connectors (Google Drive, S3, …) | Credentials unsealed from the vault, fetched documents | No — a connector credential is a vault secret referenced by id |
 | A visual or an app → the console | A request to open a link, or to send a follow-up message as the person | No — the page is model-written script that may have read hostile input. A link opens and a follow-up is sent only after a person reads it and clicks, in the console's own DOM; a follow-up with no user interaction behind it is dropped |
-| Worker → public websites (the `web` connector) | GET requests for pages, sitemaps and robots.txt; no credential | No — the start URL is typed by a tenant and every link after it is chosen by the site, so each request and redirect is SSRF-checked and dialled at the checked address (`app/core/pinned_http.py`), and stays on one host |
+| Worker → public websites (the `web` connector) | GET requests for pages, sitemaps and robots.txt; no credential | No — the start URL is typed by a tenant and every link after it is chosen by the site, so each request and redirect is SSRF-checked and dialled at the checked address (`app/core/pinned_http.py`), and stays on one host. A start URL on a host the operator listed in `OUTBOUND_PRIVATE_ALLOWLIST` may reach that listed host; a public start URL never can |
 
 Authority inside a tenant is never a role name on a route: it is a membership row
 plus the permission catalog (`app/core/permissions.py`), resolved per resource.
@@ -162,6 +162,109 @@ colleague's entire conversation history is legitimate about twice a year and
 serious every time — and `DELETE /admin/users/{id}`, where a reason is optional
 because an offboarding usually has nothing to explain.
 
+## A page's data and its address { #a-pages-data-and-its-address }
+
+A [published page](artifacts.md#live-data) can read table data. That is the one
+place where a member's data reaches other members by an agent's work, so the
+controls are listed here rather than only as matrix rows.
+
+**The delegated read.** Every viewer of a bound page reads the same records, through
+the page's frozen page queries, **with the page owner's access**. That is a
+deliberate delegation of the owner's table access to the page's audience. Its
+controls:
+
+- The data is shared only by the owner's [consent](artifacts.md#consent-the-owner-decides-who-reads-the-data),
+  made per version, after reading the queries in words and every linked table they
+  reach, and bound to the owner's membership and to a fingerprint of what was shown.
+  A republish that reads anything different waits for it. Any editor may withdraw it,
+  which also lowers every `edit_data` grant on the page to `edit`.
+- The owner is rechecked on every serve: an active member, with `read` on every table
+  the queries reach. An owner who loses access, or leaves, darkens the page's data.
+- A query is resolved to ids at publish and compared on every load with the tables as
+  they are: a column whose meaning changed or that was archived, an archived table, or a
+  linked table labelled by another column, serves nothing until the page is published again.
+- Widening who opens such a page is the owner's, or an Owner's or Admin's for them; an
+  editor, or an agent through `share_artifact`, can only file a request. Admins are trusted
+  and act directly; the controls are aimed at agents, impersonation and outsiders.
+- Auto-consent and `edit_data` are the two standing consents. Auto-consent is turned on only
+  by the owner, as themselves. `edit_data` is granted by the owner or an Owner or Admin, as
+  themselves. Both follow a popup whose text is recorded in the audit entry.
+
+**The content address.** A member's page loads from `/artifact-content/<token>`. The
+token is signed, names one version and carries an audience, `member` or `public`; the
+route accepts both. Every content response's `frame-ancestors` includes the console, because the
+console frames the page for a member and for a public link's own page (`/a/<key>`), which
+lives there. The embed document's origin and a link's listed embed sites are added only for an embeddable page: one with a
+public link and no password. Only a `member` token can carry data. When the console asks
+for data on load, that token also says so, and the route reads the bindings for the viewer
+it names, as they are served now: the member is looked up again, must still be allowed the
+page, and gets data only for the version they are served. Thumbnails, cards and history
+versions get none. A `public` token can carry data too, under [the gates below](#public-data);
+it is never trusted past the link it names.
+
+### The public address { #public-data }
+
+A public token carries `pk`, a hash of the link's
+key, which the content route must find to be the link's current key on every load: a replaced
+or removed key is a 404 whatever the token's remaining lifetime. It carries `pw`, a digest of the
+link's password hash (none without a password), and `inj`, true only when the page's data gate
+held when it was minted.
+
+Data is written into the page only while the key, the password
+state, the expiry, the served version, the organization's `public_live_data` switch, the page's public
+data consent, the members' consent and the owner all hold, checked afresh on every load before
+any read or any cache. A failing load renders every binding `unavailable` with no reason. The
+public wrapper and the embed never ask for data and have no refresh. See
+[live data on a public link](artifacts.md#live-data-on-a-public-link).
+
+**The URL is a bearer credential.** For its lifetime - five minutes by default
+(`ARTIFACT_VIEW_TTL_SECONDS`), at most ten loads a minute per address - anyone who
+holds the address of a member's page that was minted for data loads it with that
+viewer's injected records, from anywhere, and the response is never cached. It is
+therefore kept out of logs and the rate limit counts it by its digest. Do not paste
+such an address into a ticket or a chat. A public address's records are the ones its link
+may show now, and it stops carrying any when its key is replaced, its password changes or the
+consent is withdrawn.
+
+**Not an action.** `share_artifact` shares nothing. It files a request for the owner,
+who answers in the console, signed in as themselves; so a page that has been talked
+into asking cannot widen itself.
+
+**Not logged.** A record's values never reach logs, traces or audit entries: the audit
+trail holds the fingerprint, the version, who consented and what text they confirmed,
+never a row or a filter value.
+
+## A page that starts workflows { #a-page-that-starts-workflows }
+
+A page's script is untrusted: it is written by a model that may have read something
+hostile. [Actions](artifacts.md#actions) let it ask for a workflow to run, so what it
+can do is bounded by controls the page cannot change:
+
+- **An allowlist the publisher reviewed.** A page declares at most five workflows, each
+  bound in the agent's Workflows capability, live, started by hand and runnable by the
+  person behind the publishing run. A run with nobody behind it cannot declare or change
+  them. A restore checks them again.
+- **The page's wording decides nothing.** The label is plain text without hidden
+  characters; the console titles its dialog with the workflow's own name and quotes the
+  label.
+- **A person confirms every run.** The dialog shows every input value as text, with
+  invisible characters written out; Run is disabled for half a second and never focused;
+  one question is open at a time, and three declines stop the questions until the page
+  is reopened.
+- **The request is checked twice.** The console accepts a message only from the page's own
+  frame under that load's nonce, and only for an action the server listed for this viewer
+  and the served version; it checks the input against the workflow's fields before it
+  asks. The start route repeats the checks: the version must be the one served, the
+  workflow declared and runnable by the caller now, the session not impersonated.
+- **Only the page viewer can ask.** The address carries an `acts` claim, set only for the
+  console's viewer. Public links, embeds, previews and thumbnails reject the call and
+  carry no actions.
+- **The run is the person's.** Their permissions, budget and rate limit (10 runs a minute
+  by default), recorded with the `app` trigger and audited without its input.
+- **The page learns little.** A run's status, answer text, structured answer without file
+  references and the first line of an error, at most 200 characters, only for a run
+  that page started for that person.
+
 ## Controls matrix
 
 One row per control, the mechanism that satisfies it, and the test that holds it
@@ -172,9 +275,11 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Control | Mechanism | Held by |
 |---|---|---|
 | Tenant isolation, even when the caller owns the row | `resolve_access` refuses a resource whose `organization_id` differs before the ownership check (`app/services/access.py`) | `test_resource_access.py::TestTenantBoundary`, `test_conversation_tenant_isolation.py`, `test_platform_flows.py` |
+| Same-named knowledge bases keep their chunks apart | Every chunk on the shared `rag_<name>` table records its tenant and the knowledge base it was ingested for; every vector read, count, replace and delete takes the base's `vector_scope` (`app/services/rag/vectorstore.py`). Chunks from before the upgrade that `0180_stamp_rag_rows_by_base` could not attribute to one base keep the tenant rule | `integration/test_rag_vector_scope_per_base.py`, `integration/test_rag_ingest_tenant_scope.py` |
 | Permission on every collection route | `require(*perms)` route dependency on listing, creating and catalog routes (`app/api/deps.py`), catalog in `app/core/permissions.py` | `test_platform_routes.py::TestEachRouteDemandsItsOwnPermission` |
 | Per-resource routes authorize in the service, not on the route | A route acting on one agent, skill or collection carries no `require()` gate — a role gate would refuse a grant-holder before the grant applied — and calls `resolve_access` instead (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (every route is gated or service-decided) |
 | A grant widens access without promoting the member | Per-resource `resolve_access` takes `max(role scope, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
+| A page starts a workflow only as the person who confirms it | The publish allowlist (`app/services/artifact_actions.py`), the viewer's own list, the console's origin and nonce checks and confirmation dialog (`frontend/src/hooks/use-artifact-actions.ts`), the `acts` claim that only the viewer's address carries (`app/core/security.py`), and a start route that runs the workflow as the caller and refuses another version or an impersonated session. See [a page that starts workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
 | A channel mention runs as the sender, not the bot | A linked, active sender's own `AuthContext` is used (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Authentication · HIPAA §164.312(d) · SOC 2 CC6
@@ -230,7 +335,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 |---|---|---|
 | No plaintext secret in any API response or audit entry | `SealedStr`/`CredentialStr` mask every repr; hints are last-4 only (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (sweeps the whole OpenAPI surface), `test_capability_secrets.py::TestInjection` |
 | Logs are not part of that guarantee | A malformed MCP OAuth token response reaches the logs through a Pydantic `ValidationError` that echoes its input — a known gap, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documents that the token lands in `caplog`) |
-| Signed links in access logs | The redaction filter covers uvicorn's access and error logs as well as the application's (`app/core/logging.py`), so a signed `?token=` - an embed socket's, a generated-media link's - is written redacted there; the shipped `nginx/nginx.conf` logs paths without their query string; Traefik's access log (`traefik/traefik.yml`), any other reverse proxy's and the frontend server's are outside the application, record those query tokens in clear, and should be kept and shared as a log holding live short-lived credentials | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
+| Signed links in access logs | The application redacts credential-bearing paths and query values, including uvicorn access and error logs. The bundled Nginx and Traefik configurations omit the request path, query and Referer from access logs. Operators using other proxies must configure equivalent protection. | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | No provider credential reaches a voice call's browser | The server answers the SDP offer and holds the sideband; an offer with a data channel is refused; client secrets are never minted; the key is unsealed for a call, and for a hang-up only through `OrganizationSecretService.voice_call_key`, whose plaintext goes to the provider's hang-up endpoint and nowhere else (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | A credential is bound to its organization at rest | Per-owner HKDF envelope (`app/core/vault.py`); scope is connector and API credentials — see "What is encrypted where" for the bearer tokens it does not cover | `test_secret_tenant_isolation.py`, `test_vault.py` |
 
@@ -241,8 +346,15 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | TLS to PostgreSQL and Redis | `POSTGRES_SSLMODE`, `REDIS_SSL` (`app/core/config.py`); `doctor` reports Postgres's live state from `pg_stat_ssl` | Postgres, on a live connection: `test_store_tls.py`; Redis, at URL construction and in `doctor`: `test_config.py`, `test_doctor_sandbox.py` |
 | Framing and MIME headers on every response; CSP on all but the API-reference endpoints | `SecurityHeadersMiddleware` (`app/core/middleware.py`), whose `exclude_paths` drop CSP — not framing or MIME — for OpenAPI, Swagger and ReDoc; plus the frontend's per-deployment CSP (`frontend/src/middleware.ts`), whose `script-src` carries a per-request nonce and `'strict-dynamic'` rather than `'unsafe-inline'` | `test_security_headers.py`, incl. `test_an_excluded_path_keeps_its_framing_but_drops_the_csp`; `csp.test.ts`, `middleware.test.ts` |
 | HTTPS and HSTS | Terminated at the reverse proxy — the bundled `nginx/nginx.conf` sets HSTS; the app does not, by design | Deployment concern; see the hardening checklist |
-| Agent-authored pages cannot reach the console | A published [app](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'`, no remote source but the deployment's own library path, and `frame-ancestors` naming only the console (and, for an embeddable public page, the embed document and its listed sites); a link in the page opens only after a person confirms its address, and a follow-up it asks for is sent only after a person reads it and clicks *Send*; the one image exception is the deployment's own tile path, which takes three checked numbers and fetches the tile from the server `VISUAL_MAP_TILES` names, so a page never reaches that server; optionally from its own registrable domain (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `test_map_tiles.py`, `test_tile_proxy.py`, `artifacts.test.tsx`, `visual-frame.test.tsx`, `visual-panel.test.tsx`, `csp.test.ts` |
-| Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget, hosted pages, public app links and their signed content addresses, and the signed links to generated media a hosted page's visitor is handed, counted per link (`app/services/rate_limit.py`); per-sender limits on channel bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; the channel-bot limit is implemented but thinly tested |
+| A private address is refused unless the operator listed it | Workflow HTTP steps, the `git` and `web` connectors, the A2A client and the MCP OAuth flow resolve every name, check every answer and dial the address they checked. The `s3` connector's endpoint and an MCP connection's own URL are checked when they are saved and resolved again when they are used, so no address is pinned for them, and a listed name that does not resolve yet can still be saved ([the edges that remain](mcp.md#every-url-in-that-flow-is-checked-not-just-the-one-you-typed)). `OUTBOUND_PRIVATE_ALLOWLIST` (empty by default) admits named private hosts and networks, but only for a request chain whose first URL needs it, so a public site's redirect, OAuth metadata, A2A card or crawl cannot aim a request at a listed host. Loopback, link-local, multicast and cloud metadata addresses stay refused whatever is listed, a name with one unlisted private answer is refused, and startup refuses an entry that reaches those addresses or names the database, Redis or the API itself, by name or address. Every account of every organization reaches every port on an admitted host, so a listed service must check its own credential, and a URL bound from a public trigger or an agent's tool arguments can name any listed host | `test_private_allowlist.py`, `test_workflow_http_private_allowlist.py`, `test_ssrf.py`, `test_pinned_http.py`, `test_config.py`, `test_doctor_private_network.py` |
+| Agent-authored pages cannot reach the console | A published [app](artifacts.md) is served from a cookieless route behind a short-lived signed token, under `Content-Security-Policy: sandbox` with no `allow-same-origin` - an opaque origin - and no `allow-popups`, plus `connect-src 'none'`, no remote source but the deployment's own library path, and `frame-ancestors` naming only the console (and, for an embeddable public page, the embed document and its listed sites); a link in the page opens only after a person confirms its address, and a follow-up it asks for is sent only after a person reads it and clicks *Send*; the one image exception is the deployment's own tile path, which takes three checked numbers and fetches the tile from the server `VISUAL_MAP_TILES` names, so a page never reaches that server; optionally from its own registrable domain (`ARTIFACT_ORIGIN`); a public address carries the page's records only [as below](#public-data), and a member's carries the page's records only as [the section below](#a-pages-data-and-its-address) describes; a refresh is fetched by the console from a data route behind the viewer's own session and posted to the page, with a nonce that matches each reply to its page load (correlation, not access control) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `test_map_tiles.py`, `test_tile_proxy.py`, `artifacts.test.tsx`, `visual-frame.test.tsx`, `visual-panel.test.tsx`, `csp.test.ts`, `test_artifact_data.py`, `test_artifact_bindings.py` |
+| Rate limits on public surfaces | Redis-backed limits on the run API, the embed widget, hosted pages, public app links and their signed content addresses, and a page's live data route and its injected loads - 30 loads a minute per viewer, one in flight per viewer and a per-process cap; requests to share a page - 10 an hour per person per organization (`app/services/rate_limit.py`); with Redis down the rate limit's floor and the in-flight limit count per API worker, and the per-process cap still bounds each worker; per-sender limits on channel bots (`app/services/channels/router.py`) Signed links to generated media given to hosted-page visitors are also limited per link. | `test_rate_limited_surfaces.py`, `test_artifact_data.py`; the channel-bot limit is implemented but thinly tested |
+| Data on a public link needs the organization and the owner | Anonymous visitors of a link or an embed are served a page's records only while the organization's `public_live_data` switch (off by default, changed by an Owner or Admin as themselves, audited) and the page's public consent (the owner's or an Owner's or Admin's, as themselves, bound to the query fingerprint and a digest of the audience) hold, plus the members' consent and the owner's access; each load re-checks the link's key (`pk`), expiry, password digest (`pw`) and served version before the cache; the consent is cleared by the link going off, a password removed, a new embedding site, a new owner, a withdrawn member consent and an archive; no agent tool reaches the switch or the consent | `test_artifact_public_data.py`, `test_artifact_public_serving.py`, `test_artifact_routes.py`, `test_services_organizations.py` |
+| Public data is read in a bounded, in-process cache | Reads for a public page are kept 30 s in the API process's memory, never in Redis, within `ARTIFACT_PUBLIC_DATA_CACHE_BYTES`; only a load that has to read from the tables counts once against `RATE_LIMIT_ARTIFACT_PUBLIC_DATA_PER_MINUTE` per page; an unavailable read is never kept | `test_artifact_public_serving.py`, `test_artifact_public_data.py` |
+| A bound page's data is read on the owner's authority, and shared only by the owner | Every viewer is served the page's records through its page queries, read with the page **owner's** access and never stored in the page. The owner must be an active member reading every table the query reaches, on every load (`creator_gone`, `creator_lost_access`); the publisher is held to the same at publish; a column or table that changed since publish serves nothing (`source_changed`). The records reach anyone beyond the owner and the roles that read every table only while the owner's per-version consent holds; the audience is never served an unconsented version | `test_artifact_consent.py`, `test_artifact_consent_actions.py`, `test_artifact_bindings.py`, `test_artifact_service.py`, `test_artifact_data.py` |
+| Consent is the owner's own act | Confirming data, turning auto-consent on, granting `edit_data` and handing a page over are made signed in as the person, never while impersonating and never by an agent tool; an Owner or Admin may confirm for the owner and is audited as doing so; the confirmation carries the fingerprint of what the person was shown and is refused if the queries moved | `test_artifact_consent_actions.py`, `test_artifact_consent.py` |
+| Widening a bound page is guarded | A wider visibility, a new grant or a higher level on a page that reads data needs the owner (or an Owner or Admin) and a consent that holds; any other editor's attempt, and a `share_artifact` call, is filed as a request and applies nothing | `test_sharing.py`, `test_artifact_service.py`, `test_artifacts_capability.py` |
+| A run with no person behind it binds and starts nothing | A page binding can be published only by a run acting for a member: the signed-in member (web chat, HTTP API), a linked channel sender or a schedule's creator. A widget, embed or hosted-page visitor, an unlinked channel sender, an agent event trigger's delivery (GitHub, email, webhook relay) and a workflow run admitted by a public door do not count. The public doors are a webhook, a public form, a channel message, a Gmail message and a GitHub event. The origin follows the chain: a called workflow, a table- or failure-triggered run under a public run, a retry of any of them, and a table-triggered run fired by a record that a run with no member behind it wrote all run with no person. `run_workflow` and saved-view tools refuse there | `test_artifact_bindings.py`, `test_workflow_calls.py`, `test_table_triggers.py` |
 | A leaked embed link bounds what calls can cost | Voice call starts are limited per address, per link and per `jwt` subject, at most `VOICE_MAX_CALLS_PER_EMBED` calls are open on one embed, and each is bounded by the call cap and the budget (`app/services/rate_limit.py`, `app/services/voice/starter.py`) | `test_rate_limit.py`, `test_voice_starter.py`, `tests/integration/test_voice_call_slot.py` |
 | A dictation costs at most its longest length | Only 16 kHz mono 16-bit PCM WAV by default: parsed strictly, its samples counted and refused over `dictation_max_seconds` before the provider is called, and sent behind a header the server builds (`app/services/ml/pcm_wav.py`, `MLService.transcribe_dictation`). WebM, Ogg and MP4 only once an app admin turns `dictation_compressed_audio` on, behind a dialog naming the risk | `test_pcm_wav.py`, `test_ml_service.py`, `dictation-audio-card.integration.test.tsx` |
 
@@ -290,6 +402,7 @@ nobody can support.
 | `content-at-rest` | §164.312(a)(2)(iv) | **The operator's.** Postgres data, the media volume and the sandbox workspace root are encrypted by a volume or a disk, not by this application |
 | `local-model` | §164.312(e)(1) | Every model profile served from your own network. The **hostname** is parsed - a private address, `localhost`, a bare `ollama`/`litellm`/`vllm`, or a `.internal`/`.local`/`.svc` name - so `https://ollama.vendor.example` is not local, and one with no `base_url` is the vendor's public API by definition |
 | `traces-local` | §164.312(e)(1) | `LOGFIRE_TOKEN` unset, **and** no published agent or named environment carrying a tracing token of its own - each attaches an exporter, and `observability.content` defaults to `full` |
+| `private-network` | §164.312(e)(1) | `OUTBOUND_PRIVATE_ALLOWLIST` and `MCP_ALLOWED_HOSTS` both empty. Met when they are, so no workflow HTTP step, git, web or S3 source, A2A call or MCP connection can reach a private address. With entries in either it is attested and the sheet names each list with its entries and its reach: every member of every organization can reach those hosts, and that each checks its own credential is the operator's to evidence |
 | `sso` | §164.312(d) | `OIDC_ISSUER`, configured by discovery alone - the issuer is the only URL, and the authorization, token and JWKS endpoints come from its `.well-known/openid-configuration` - or `KERBEROS_ENABLED`, sign-in with the domain's own ticket. Neither set, the control is unmet and the sheet says so: with `LDAP_URL` alone it says the passwords are the directory's but typed here with no single sign-on, and otherwise that people sign in with passwords this deployment stores. Multi-factor authentication is the identity provider's, and the sheet does not claim it either way |
 | `signup` | §164.312(a)(1) | `invite_only` or `closed` |
 | `audit-retention` | §164.312(b) | An audit floor of at least 2190 days - §164.316(b)(2)'s six years |

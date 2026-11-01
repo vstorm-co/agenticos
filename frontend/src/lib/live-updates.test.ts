@@ -58,6 +58,8 @@ describe("staleQueries", () => {
     expect(staleQueries(change("context"))).toEqual([qk.context.all(), qk.sharing.all()]);
     expect(staleQueries(change("knowledge_base"))).toEqual([qk.kb.all(), qk.sharing.all()]);
     expect(staleQueries(change("artifact"))).toEqual([qk.artifacts.all(), qk.sharing.all()]);
+    expect(staleQueries(change("table"))).toEqual([qk.tables.all(), qk.sharing.all()]);
+    expect(staleQueries(change("workflow"))).toEqual([qk.workflows.all(), qk.sharing.all()]);
     expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
       qk.mcpConnections.all(),

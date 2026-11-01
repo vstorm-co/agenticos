@@ -149,8 +149,10 @@ export function RunTable({
             </Badge>
           )}
           {/* On a phone the row is this cell and the cost: who ran and when,
-              folded under the status rather than six columns swiped sideways. */}
-          <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs sm:hidden">
+              folded under the status rather than six columns swiped sideways.
+              Bounded by the screen, or a long agent name widens the column and
+              pushes the cost off its edge - a table cell grows to its content. */}
+          <span className="text-muted-foreground flex max-w-[calc(100vw-10rem)] min-w-0 items-center gap-1.5 text-xs sm:hidden">
             {agentLabel(run)}
             {run.started_at !== null && (
               <span className="shrink-0 whitespace-nowrap">

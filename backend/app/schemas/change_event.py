@@ -13,6 +13,8 @@ ChangeResource = Literal[
     "context",
     "knowledge_base",
     "artifact",
+    "table",
+    "workflow",
     "member",
     "invitation",
     "group",

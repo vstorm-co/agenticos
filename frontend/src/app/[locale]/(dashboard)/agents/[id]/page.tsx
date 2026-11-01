@@ -1,12 +1,17 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  SlidersHorizontal,
+  Wrench,
+  ShieldCheck,
   Archive,
   ArchiveRestore,
   Copy,
+  Database,
   Download,
   FlaskConical,
   History,
@@ -19,11 +24,14 @@ import {
   Trash2,
   TrendingUp,
   Upload,
+  Workflow,
   Radio,
+  SearchX,
   UserPlus,
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ImprovementHistory } from "@/components/improvement/improvement-history";
 import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
@@ -46,6 +54,7 @@ import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
 import { usableForAgents } from "@/lib/model-profiles";
+import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AssistantStrip } from "@/components/authoring/assistant-strip";
@@ -82,6 +91,7 @@ import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishRefusal } from "@/components/agents/publish-refusal";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
@@ -137,6 +147,8 @@ import {
   MarkdownModeToggle,
   type MarkdownMode,
   Textarea,
+  Alert,
+  AlertDescription,
 } from "@/components/ui";
 import {
   useAgent,
@@ -248,6 +260,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
   const tGaps = useTranslations("knowledgeGaps");
+  const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   // A link from an eval run lands on the tab it names: its Evals, the History
   // comparing the two versions it measured, or Build with the publish asked for.
@@ -354,6 +367,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [gapTopic, gapTopicView] = useUrlOverlay("topic");
   const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
+  // The Model card, which "No model selected" takes its reader to (#2483).
+  // From another tab the card mounts a render after the tab changes, so the
+  // scroll waits for the card to attach rather than for the tab.
+  const modelCard = useRef<HTMLDivElement | null>(null);
+  const revealModel = useRef(false);
+  const attachModelCard = useCallback((node: HTMLDivElement | null) => {
+    modelCard.current = node;
+    if (node && revealModel.current) {
+      revealModel.current = false;
+      node.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+    }
+  }, []);
+  const goToModel = () => {
+    if (tab === "build" && modelCard.current) {
+      modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+      return;
+    }
+    revealModel.current = true;
+    setTab("build");
+  };
   // Set by the first publish only: the moment an agent can be reached is the
   // moment to say where it can be reached from, which people did not find on
   // their own (#2131).
@@ -401,9 +434,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   }
 
   // This caller on this agent, not their role: a grant widens what the role
-  // allows, and a role that may edit agents may still not reach this one.
-  const canEdit = agent?.can_edit === true;
-  const canPublish = agent?.can_publish === true;
+  // allows, and a role that may edit agents may still not reach this one. A
+  // workflow step's own agent is changed in that step, so nothing here edits it.
+  const ownedByWorkflow = agent?.workflow_id ?? null;
+  const canEdit = agent?.can_edit === true && ownedByWorkflow === null;
+  const canPublish = agent?.can_publish === true && ownedByWorkflow === null;
   // Duplicating creates an agent, which only the role allows - a grant on this
   // one never does.
   const canDuplicate = can(Perm.agentsEdit);
@@ -458,6 +493,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // An editor who could test it but for reading runs sees why they cannot.
   const testNeedsRunsView = !canViewRuns && couldStartEvals && runsADataset && canEdit;
   const [testingDraft, setTestingDraft] = useState(false);
+  const resourceCreation = useResourceCreation({
+    mayCreateSkill: canEdit && can(Perm.skillsEdit),
+    mayCreateContext: canEdit && can(Perm.contextEdit),
+    setSpec,
+  });
   useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
@@ -949,7 +989,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
       ? chosenOnly(skills, skillCount, spec.skill_ids)
       : sharedWithOrganization(skills, skillCount, spec.skill_ids);
   const resources: AgentResources = {
-    contextFiles: offeredContext.items,
+    contextFiles: mergeResourceChoices(offeredContext.items, resourceCreation.context),
+    onCreateContext: resourceCreation.createContext,
     contextTotal: offeredContext.total,
     contextIds: spec.context_ids,
     onContextToggle: (fileId: string) => setContext(toggleId(spec.context_ids, fileId)),
@@ -957,7 +998,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     collectionIds: spec.collection_ids,
     onCollectionToggle: (collectionId: string) =>
       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-    skills: offeredSkills.items,
+    skills: mergeResourceChoices(offeredSkills.items, resourceCreation.skills),
+    onCreateSkill: resourceCreation.createSkill,
     skillTotal: offeredSkills.total,
     skillIds: spec.skill_ids,
     onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
@@ -1147,15 +1189,28 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 </Button>
               )}
               {!isSystem && (
-                <Button
-                  variant="outline"
-                  onClick={openInChat}
-                  disabled={!isPublished}
-                  title={isPublished ? undefined : t("publishAgentChatWith")}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  {t("openChat")}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={openInChat}
+                    disabled={!isPublished}
+                    title={isPublished ? undefined : t("publishAgentChatWith")}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    {t("openChat")}
+                  </Button>
+                  {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+                  <PinAgentButton
+                    agent={{
+                      id,
+                      name: agent.name,
+                      slug: agent.slug,
+                      hasAvatar: agent.has_avatar ?? false,
+                      colorSlot: agent.avatar_color ?? null,
+                    }}
+                    disabled={!isPublished}
+                  />
+                </>
               )}
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
@@ -1494,12 +1549,30 @@ export default function AgentBuilderPage({ params }: PageProps) {
             canEdit={canEdit}
             onFix={handleFix}
             fixing={fixing}
+            isModelProblem={(problem) =>
+              configProblems.some(
+                (found) => found.field === "model_profile_id" && found.message === problem,
+              )
+            }
+            onGoToModel={goToModel}
           />
         )}
 
         {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+        {ownedByWorkflow !== null && (
+          <Alert>
+            <Workflow className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">{t("ownedByWorkflow")}</span>
+              <Button asChild size="sm" variant="outline">
+                <Link href={ROUTES.WORKFLOW_DETAIL(ownedByWorkflow)}>{t("openWorkflow")}</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Above the tabs, whatever tab is open: a reference to something deleted
           is refused at publish, and the panel that would have listed it belongs
           to a capability the agent may not even have switched on. */}
@@ -1539,36 +1612,49 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
+              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             {!isSystem && (
               <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+                <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("mcpServers")}
               </TabsTrigger>
             )}
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
+              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             {!isSystem && (
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
+                <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("availability")}
               </TabsTrigger>
             )}
             {!isSystem && (canViewRuns || tab === "evals") && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
+                <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {t("evals")}
               </TabsTrigger>
             )}
             {canViewRuns && !isSystem && (
               <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+                <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
                 {tGaps("tab")}
               </TabsTrigger>
             )}
-            {isJudge && <TabsTrigger value="datasets">{t("judgeDatasets")}</TabsTrigger>}
+            {isJudge && (
+              <TabsTrigger value="datasets">
+                <Database className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("judgeDatasets")}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="history" data-tour="agent-tab-history">
+              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
@@ -1638,7 +1724,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card data-tour="agent-model">
+            <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
               <CardHeader>
                 <CardTitle>{t("model")}</CardTitle>
                 <CardDescription>{t("howAgentAsksIts")}</CardDescription>
@@ -1685,19 +1771,35 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
 
             {!isSystem && (
-              <VoiceCard
-                value={spec.speech_to_text}
-                onChange={(speech_to_text) => update({ speech_to_text })}
-                conversation={{
-                  agentId: id,
-                  value: spec.voice,
-                  onChange: (voice) => update({ voice }),
-                  hasGuardrails: spec.capabilities.some(
-                    (binding) => binding.id === "guardrails" && binding.enabled !== false,
-                  ),
-                }}
-                disabled={!canEdit}
-              />
+              <>
+                <Card data-tour="agent-answer-format">
+                  <CardHeader>
+                    <CardTitle>{tAnswer("title")}</CardTitle>
+                    <CardDescription>{tAnswer("description")}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AnswerFormatForm
+                      value={spec.output_schema ?? null}
+                      onChange={(output_schema) => update({ output_schema })}
+                      disabled={!canEdit}
+                    />
+                  </CardContent>
+                </Card>
+
+                <VoiceCard
+                  value={spec.speech_to_text}
+                  onChange={(speech_to_text) => update({ speech_to_text })}
+                  conversation={{
+                    agentId: id,
+                    value: spec.voice,
+                    onChange: (voice) => update({ voice }),
+                    hasGuardrails: spec.capabilities.some(
+                      (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                    ),
+                  }}
+                  disabled={!canEdit}
+                />
+              </>
             )}
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
@@ -2132,6 +2234,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           )}
         </Tabs>
       </div>
+      {resourceCreation.dialogs}
       {testing && canEdit && !isSystem && (
         <TestPanel
           agentId={id}

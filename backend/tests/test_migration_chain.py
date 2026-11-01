@@ -40,7 +40,7 @@ def test_the_chain_has_exactly_one_head() -> None:
     )
 
 
-def test_no_two_migrations_claim_the_same_parent() -> None:
+def test_no_unmerged_migrations_claim_the_same_parent() -> None:
     """The same defect one step earlier, and it names both files.
 
     One head is what breaks the upgrade, so the test above is the one that
@@ -76,6 +76,18 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
             "0183_proposal_revision",
             "0187_job_api_key",
         ],
+        "0178_project_workspace_moves": [
+            "0179_channel_history_version",
+            "0215_main_128_merge",
+        ],
+        "0180_remove_skill_enabled": [
+            "0175_outlook_event_source",
+            "0182_assistant_template_stamp",
+        ],
+        "0183_channel_prompt_defaults": [
+            "0184_diagnostics_identity",
+            "0243_merge_channel_workflows",
+        ],
     }, f"unexpected revisions sharing a parent: {forked}"
     chain = _chain()
     improvement_merge = chain.get_revision("0188_self_improvement_merge")
@@ -90,6 +102,25 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
         "0214_profile_key_column_again",
         "0178_project_workspace_moves",
     )
+    final_merge = chain.get_revision("0248_merge_self_improvement")
+    assert final_merge is not None and final_merge.down_revision == (
+        "0215_main_128_merge",
+        "0247_merge_deployment_workflows",
+    )
+    # Released histories must not be rewritten: an explicit merge may join them.
+    chain = _chain()
+    merged_ancestors = [
+        {ancestor.revision for ancestor in chain.iterate_revisions(revision.revision, "base")}
+        for revision in chain.walk_revisions()
+        if isinstance(revision.down_revision, tuple) and len(revision.down_revision) > 1
+    ]
+    forked = {
+        parent: sorted(children)
+        for parent, children in parents.items()
+        if len(children) > 1
+        and not any(set(children) <= ancestors for ancestors in merged_ancestors)
+    }
+    assert not forked, f"unmerged revisions sharing a parent: {forked}"
 
 
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never

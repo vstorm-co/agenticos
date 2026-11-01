@@ -347,7 +347,7 @@ async def _a_run_that_searched(engine) -> tuple[async_sessionmaker, AgentRun, Pr
         run, _ = await _turn(setup, ctx, await _agent(setup, ctx))
         run.user_id = (await _user(setup)).id
         await setup.commit()
-    log = KnowledgeSearchLog(agent_id=run.agent_id, collections={kb.collection_name: kb.id})
+    log = KnowledgeSearchLog(agent_id=run.agent_id, collections={kb.collection_name: (kb.id,)})
     log.record("parking", [kb.collection_name], [])
     prepared = PreparedRun(
         run=run,

@@ -1,5 +1,5 @@
 ---
-source_sha: "25d309992393"
+source_sha: "2391388a2aed"
 ---
 
 # Über einen Host hinaus skalieren { #scale-beyond-one-host }
@@ -18,15 +18,15 @@ Deployment aus.
 
 ## Was Zustand hält und was nicht { #what-holds-state-and-what-does-not }
 
-| Teil | Was er hält | Wie er wächst |
-|---|---|---|
-| API (`app`) | Nichts Eigenes. Sitzungen, Anwesenheit, laufende Chat-Turns und der Live-Update-Feed liegen in Postgres und Redis | Mehr uvicorn-Worker, dann mehr Hosts hinter einem Load Balancer |
-| Worker | Nichts. Jobs, Leases und Zeitpläne sind Zeilen in Postgres | Mehr Prozesse, auf beliebigen Hosts, mit den Pools auf sie verteilt |
-| Konsole (`frontend`) | Das Branding, das sie fünf Minuten lang cacht | Mehr Instanzen |
-| Postgres | Alles Dauerhafte: Organisationen, Agenten, Unterhaltungen, Vektoren, die Job-Warteschlange | Eine größere Instanz oder eine verwaltete |
-| Redis (Valkey) | Ein Cache und seine Pub/Sub-Kanäle, nach einem Neustart neu aufgebaut | Eine Instanz, die sich alle Hosts teilen |
-| Hochgeladene Dateien | Ein Volume auf dem Host oder ein Bucket | Ein Bucket, sobald mehr als ein Host sie liest oder schreibt |
-| Sandbox-Dienst | Die Sandboxes, in denen Agenten Befehle ausführen | Ein eigener Host, siehe [Agent-Arbeitsbereiche](configuration.md#running-the-service-on-another-host) |
+| Teil                 | Was er hält                                                                                                       | Wie er wächst                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| API (`app`)          | Nichts Eigenes. Sitzungen, Anwesenheit, laufende Chat-Turns und der Live-Update-Feed liegen in Postgres und Redis | Mehr uvicorn-Worker, dann mehr Hosts hinter einem Load Balancer                                       |
+| Worker               | Nichts. Jobs, Leases und Zeitpläne sind Zeilen in Postgres                                                        | Mehr Prozesse, auf beliebigen Hosts, mit den Pools auf sie verteilt                                   |
+| Konsole (`frontend`) | Das Branding, das sie fünf Minuten lang cacht                                                                     | Mehr Instanzen                                                                                        |
+| Postgres             | Alles Dauerhafte: Organisationen, Agenten, Unterhaltungen, Vektoren, die Job-Warteschlange                        | Eine größere Instanz oder eine verwaltete                                                             |
+| Redis (Valkey)       | Ein Cache und seine Pub/Sub-Kanäle, nach einem Neustart neu aufgebaut                                             | Eine Instanz, die sich alle Hosts teilen                                                              |
+| Hochgeladene Dateien | Ein Volume auf dem Host oder ein Bucket                                                                           | Ein Bucket, sobald mehr als ein Host sie liest oder schreibt                                          |
+| Sandbox-Dienst       | Die Sandboxes, in denen Agenten Befehle ausführen                                                                 | Ein eigener Host, siehe [Agent-Arbeitsbereiche](configuration.md#running-the-service-on-another-host) |
 
 ## Eine Datenbank pro Deployment { #one-database-per-deployment }
 
@@ -149,7 +149,7 @@ Warum die Warteschlange aus Zeilen in Postgres besteht, gemessen an neun anderen
 Engines, steht im [Benchmark der Hintergrund-Jobs](task-queue-benchmark.md).
 
 Die Pools trennen, wenn Parsen mit Agenten-Läufen konkurriert.
-`WORKER_POOLS=agent,eval,system` auf einer Gruppe von Prozessen und
+`WORKER_POOLS=agent,eval,system,workflow` auf einer Gruppe von Prozessen und
 `WORKER_POOLS=ingest` auf Hosts mit Speicherreserve verhindern, dass ein großer
 Upload eine Routine verzögert. Die Health-Probe und `agenticos cmd doctor`
 melden einen Pool, den kein lebender Worker bedient. Die Einstellungen unter

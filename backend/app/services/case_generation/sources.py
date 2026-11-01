@@ -263,7 +263,7 @@ class SourceGatherer:
             # `indexed_in` reads documents through their collection, so one is set.
             kb = by_id[cast(UUID, document.knowledge_base_id)]
             chunks = await self.vector_store.get_document_chunks(
-                kb.collection_name, document.vector_document_id, kb.vector_tenant
+                kb.collection_name, document.vector_document_id, kb.vector_scope
             )
             for chunk in spread([c for c in chunks if c.content.strip()], PASSAGES_PER_DOCUMENT):
                 material.passages.append(

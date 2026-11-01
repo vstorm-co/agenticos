@@ -1,5 +1,6 @@
 """Each platform MCP tool is exactly one public API call, made as the caller (#2058)."""
 
+import json
 import uuid
 from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -298,6 +299,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
             "agent_id": str(AGENT),
             "prompt": "Summarise the week's AI news in English.",
             "cron_expression": "0 7 * * 1",
+            "time_zone": "Europe/Warsaw",
             "name": "Weekly AI news",
         },
         (
@@ -310,6 +312,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                     "name": "Weekly AI news",
                     "schedule_kind": "cron",
                     "cron_expression": "0 7 * * 1",
+                    "time_zone": "Europe/Warsaw",
                 }
             },
         ),
@@ -368,6 +371,15 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ),
     ),
     (
+        "update_routine",
+        {"agent_id": str(AGENT), "routine_id": str(RUN), "time_zone": "Asia/Tokyo"},
+        (
+            "PATCH",
+            f"/agents/{AGENT}/triggers/{RUN}",
+            {"json": {"time_zone": "Asia/Tokyo"}},
+        ),
+    ),
+    (
         "run_routine_now",
         {"agent_id": str(AGENT), "routine_id": str(RUN)},
         ("POST", f"/agents/{AGENT}/triggers/{RUN}/run", {}),
@@ -414,6 +426,61 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ),
     ),
 ]
+
+
+CALLS.extend(
+    [
+        (
+            "run_workflow",
+            {"workflow_id": str(AGENT)},
+            (
+                "POST",
+                "/workflow-runs",
+                {
+                    "json": {
+                        "workflow_id": str(AGENT),
+                        "mode": "real",
+                        "input": {},
+                        "entry_node_id": None,
+                    }
+                },
+            ),
+        ),
+        (
+            "get_virtual_table_record",
+            {"table_id": str(KB), "record_id": str(RUN)},
+            ("GET", f"/tables/{KB}/records/{RUN}", {}),
+        ),
+        (
+            "virtual_table_record_exists",
+            {"table_id": str(KB), "external_id": "crm/1"},
+            ("GET", f"/tables/{KB}/records/exists", {"params": {"external_id": "crm/1"}}),
+        ),
+        (
+            "upsert_virtual_table_record",
+            {
+                "table_id": str(KB),
+                "external_id": "crm/account.1",
+                "record": {"values": {}, "expected_revision": 3},
+            },
+            (
+                "PUT",
+                f"/tables/{KB}/records/by-external-id/crm%2Faccount%2E1",
+                {"json": {"values": {}, "expected_revision": 3}},
+            ),
+        ),
+        (
+            "delete_virtual_table_record",
+            {"table_id": str(KB), "record_id": str(RUN), "expected_revision": 2},
+            ("DELETE", f"/tables/{KB}/records/{RUN}", {"params": {"expected_revision": 2}}),
+        ),
+        (
+            "list_virtual_table_views",
+            {"table_id": str(KB)},
+            ("GET", f"/tables/{KB}/views", {"params": {"limit": 50, "skip": 0}}),
+        ),
+    ]
+)
 
 
 @pytest.mark.parametrize(("tool", "arguments", "call"), CALLS)
@@ -687,7 +754,7 @@ class TestTheInProcessCall:
                 },
             )
 
-        with pytest.raises(ToolError, match="403 AUTHORIZATION_ERROR: Insufficient permissions"):
+        with pytest.raises(ToolError, match="Insufficient permissions"):
             await _api(handler).request("POST", "/agents", json={})
 
     @pytest.mark.parametrize(("status", "code"), [(404, "NOT_FOUND"), (422, "VALIDATION_ERROR")])
@@ -704,15 +771,20 @@ class TestTheInProcessCall:
         with pytest.raises(ToolError) as refused:
             await _api(handler).request("GET", "/agents/x/improvements")
 
-        assert str(refused.value).startswith(f"{status} {code}: Agent not found. ")
-        assert "it is not an empty result, so never report it as none" in str(refused.value)
-        assert "list_agents" in str(refused.value)
+        error = json.loads(str(refused.value))["error"]
+        assert (error["status"], error["code"], error["message"]) == (
+            status,
+            code,
+            "Agent not found",
+        )
+        assert "it is not an empty result, so never report it as none" in error["hint"]
+        assert "list_agents" in error["hint"]
 
     async def test_an_unexpected_error_body_still_says_something(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(502, json=["not", "an", "envelope"])
 
-        with pytest.raises(ToolError, match="502 ERROR: The request was refused"):
+        with pytest.raises(ToolError, match="The platform request failed"):
             await _api(handler).request("GET", "/agents")
 
     async def test_no_content_is_none(self) -> None:
@@ -1013,3 +1085,102 @@ async def test_project_discovery_preserves_empty_pages(server: FastMCP, api: Mag
         "items": [],
         "total": 0,
     }
+
+
+async def test_create_project_configures_only_the_shared_workspace(api: MagicMock) -> None:
+    tool = next(tool for tool in platform_tools(api) if tool.name == "create_project")
+    await tool.function(name="Local coding", backend="service", sandbox_connection_id=KB)
+    payload = api.request.call_args.kwargs["json"]
+    assert payload["backend"] == "service"
+    assert payload["sandbox_connection_id"] == str(KB)
+    assert "local" not in payload and "folder" not in payload
+    assert tool.writes
+    assert "cannot select a native folder" in tool.function.__doc__
+
+
+async def test_table_deletion_reports_success_only_after_confirmed_204(api):
+    tool = next(tool for tool in platform_tools(api) if tool.name == "delete_virtual_table_record")
+    api.request.return_value = None
+    assert await tool.function(KB, RUN, 2) == {"deleted": True}
+    api.request.return_value = {"error": "revision conflict"}
+    assert await tool.function(KB, RUN, 2) == {"error": "revision conflict"}
+
+
+@pytest.mark.security
+async def test_a_workflow_agent_cannot_start_a_new_root_through_platform_mcp(api):
+    from app.core.permissions import AuthContext
+    from app.services.workflow_execution import context
+
+    dispatch = context.DispatchContext(
+        organization_id=uuid.UUID(ORG),
+        workflow_run_id=RUN,
+        node_run_id=uuid.uuid4(),
+        node_instance_id=uuid.uuid4(),
+        attempt_no=1,
+        auth=AuthContext(user_id=AGENT, organization_id=uuid.UUID(ORG), role="owner"),
+        resumed_agent_run_id=None,
+    )
+    tool = next(tool for tool in platform_tools(api) if tool.name == "run_workflow")
+    api.refuse.return_value = {"error": "use workflow.run"}
+    with context.dispatching_as(dispatch):
+        assert await tool.function(AGENT) == {"error": "use workflow.run"}
+    api.request.assert_not_awaited()
+    api.refuse.assert_called_once()
+
+
+@pytest.mark.security
+def test_workflow_and_table_mcp_writes_wait_for_approval():
+    tools = {tool.name: tool for tool in platform_tool_catalog()}
+    assert all(
+        tools[name].writes
+        for name in ["run_workflow", "upsert_virtual_table_record", "delete_virtual_table_record"]
+    )
+    assert not tools["get_virtual_table_record"].writes
+
+
+async def test_domain_errors_retain_safe_fields_in_the_recorded_tool_answer():
+    from app.services.platform_mcp import _tool_error
+
+    api = PlatformApi(MagicMock(), token=lambda: "test", on_refusal=_tool_error)
+    api._transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            422,
+            json={
+                "error": {
+                    "code": "INVALID_SCHEMA",
+                    "message": "Invalid column",
+                    "details": {
+                        "fields": [{"field": "columns.0.default", "message": "Needs a default"}]
+                    },
+                }
+            },
+        )
+    )
+    from app.services.platform_mcp import _with_domain_errors
+
+    async def call():
+        return await api.request("POST", "/tables")
+
+    result = await _with_domain_errors(call)()
+    assert result.is_error
+    assert result.structured_content["error"]["code"] == "INVALID_SCHEMA"
+    assert (
+        result.structured_content["error"]["details"]["fields"][0]["field"] == "columns.0.default"
+    )
+
+
+async def test_unexpected_platform_failures_stay_masked():
+    from fastmcp import Client
+
+    from app.services.platform_mcp import _with_domain_errors
+
+    server = FastMCP("test", mask_error_details=True)
+
+    async def broken() -> dict[str, object]:
+        raise RuntimeError("confidential internal detail")
+
+    server.tool(_with_domain_errors(broken))
+    async with Client(server) as client:
+        result = await client.call_tool("broken", {}, raise_on_error=False)
+    assert result.is_error
+    assert "confidential" not in str(result.content)

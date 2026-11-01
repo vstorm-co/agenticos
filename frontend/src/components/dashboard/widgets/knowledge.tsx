@@ -53,7 +53,7 @@ export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidge
           description={t("empty.description")}
         />
       ) : (
-        <div className="grid flex-1 grid-cols-3 content-start gap-4">
+        <div className="grid flex-1 grid-cols-1 content-center gap-4 @min-[18rem]/widget:grid-cols-3">
           <Figure label={t("collections")} value={kbs.length.toLocaleString(locale)} />
           <Figure
             label={t("documents")}

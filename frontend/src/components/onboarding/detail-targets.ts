@@ -10,6 +10,7 @@ import { ROUTES } from "@/lib/constants";
 import { PAGE_SIZE } from "@/components/ui";
 import {
   AGENT_BUILDER,
+  ARTIFACT_DETAIL,
   DATASET_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
@@ -19,6 +20,9 @@ import {
   ORG_RETENTION,
   ORG_ROLES,
   SETTINGS_DETAIL,
+  TABLE_DETAIL,
+  WORKFLOW_LOGS_DETAIL,
+  WORKFLOW_RUNS_DETAIL,
   WORKSPACE_DETAIL,
   PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
@@ -193,14 +197,21 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
         pending: enabled && !!activeOrgId && groups.isPending,
         href: groupId ? ROUTES.GROUP_DETAIL(groupId) : null,
       },
-      // Two "?"-only sections with nothing to fetch. Settings resolves to its own
+      // Six "?"-only sections with nothing to fetch. Settings resolves to its own
       // first page for the rare navigation into it, but its stop is really shown in
       // place on whichever settings page the reader opened help from. A workspace
-      // has no seeded example to open — it is a person's own agent output — so it
-      // never resolves an href and is not walked into from the list; the entry
-      // exists only so the engine treats it as a detail it need not navigate to.
+      // has no seeded example to open — it is a person's own agent output — and
+      // neither has a table, a workflow or a project, so none resolves an href and none is walked into
+      // from its list - nor an artifact's page, which is the viewer's own page, not a
+      // row to open; the entry exists only so the engine treats it as a detail it
+      // need not navigate to. Without it the engine reads the pseudo-page as a
+      // route and pushes to it.
       [SETTINGS_DETAIL]: { pending: false, href: ROUTES.SETTINGS_PROFILE },
       [WORKSPACE_DETAIL]: { pending: false, href: null },
+      [TABLE_DETAIL]: { pending: false, href: null },
+      [WORKFLOW_RUNS_DETAIL]: { pending: false, href: null },
+      [WORKFLOW_LOGS_DETAIL]: { pending: false, href: null },
+      [ARTIFACT_DETAIL]: { pending: false, href: null },
       [PROJECT_DETAIL]: { pending: false, href: null },
     }),
     [

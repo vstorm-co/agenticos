@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 
 import { CollectionPicker } from "@/components/agents/collection-picker";
-import { ContextGallery } from "@/components/agents/context-gallery";
-import { SkillGallery } from "@/components/agents/skill-gallery";
+import { ContextGallery, type ContextChoice } from "@/components/agents/context-gallery";
+import { SkillGallery, type SkillChoice } from "@/components/agents/skill-gallery";
 import {
   SystemAgentKnowledge,
   type SystemAgentSearch,
@@ -20,7 +20,6 @@ import {
 } from "@/lib/agent-spec";
 import { takesSkillsOffOnly } from "@/lib/system-agents";
 import type { KnowledgeBase } from "@/types";
-import type { ContextFileSummary, SkillSummary } from "@/types/providers";
 import type { ContextSettings } from "@/lib/context-settings";
 import { useTranslations } from "next-intl";
 
@@ -34,14 +33,16 @@ import { useTranslations } from "next-intl";
  * lot instead of twelve.
  */
 export interface AgentResources {
-  contextFiles: ContextFileSummary[];
+  contextFiles: ContextChoice[];
+  onCreateContext?: () => void;
   contextTotal: number;
   contextIds: string[];
   onContextToggle: (fileId: string) => void;
   collections: KnowledgeBase[];
   collectionIds: string[];
   onCollectionToggle: (collectionId: string) => void;
-  skills: SkillSummary[];
+  skills: SkillChoice[];
+  onCreateSkill?: () => void;
   skillTotal: number;
   skillIds: string[];
   onSkillToggle: (skillId: string) => void;
@@ -118,6 +119,7 @@ export function CapabilityResources({
         warning={contextWarning(t, enabled, resources, fileSettings)}
       >
         <ContextGallery
+          onCreate={resources.onCreateContext}
           files={resources.contextFiles}
           total={resources.contextTotal}
           selectedIds={resources.contextIds}
@@ -172,6 +174,7 @@ export function CapabilityResources({
         warning={enabled || resources.skillIds.length === 0 ? null : t("skillsOffButBound")}
       >
         <SkillGallery
+          onCreate={resources.onCreateSkill}
           skills={resources.skills}
           total={resources.skillTotal}
           selectedIds={resources.skillIds}

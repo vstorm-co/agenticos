@@ -1,5 +1,5 @@
 ---
-source_sha: "9279bd26378f"
+source_sha: "6ed5be54f7ae"
 ---
 
 # Context-Dateien { #context-files }
@@ -20,17 +20,19 @@ Sie ist die Antwort auf ein Problem, das jedes Unternehmen bei seinem dritten
 Agent trifft — dieselben drei Absätze, in drei Sätze von Instruktionen kopiert
 und dann in einem davon bearbeitet.
 
+Im Agent Builder erstellt **Context → New context file** eine Datei direkt im Fähigkeitspanel, ordnet sie dem aktuellen Entwurf zu und aktiviert Context. Anschließend lässt sich festlegen, wie dieser Agent die Datei nutzt. Das Veröffentlichen bleibt ein eigener Schritt. Zum Erstellen sind Bearbeitungsrechte für den Agenten und Kontextdateien erforderlich.
+
 ## Wo sie zwischen Skills und Wissen sitzt { #where-it-sits-between-skills-and-knowledge }
 
 Drei Dinge legen einem Modell Text vor, und die falsche Wahl ist die übliche
 Ursache für einen Agent, der entweder ignoriert, was man ihm gesagt hat, oder
 überhaupt nichts liest.
 
-| | Sie hält | Das Modell sieht es |
-|---|---|---|
-| **Context-Datei** | Stehende Fakten, klein und stabil — ein Glossar, ein Tonfall-Leitfaden, ein Organigramm | Immer oder auf Anforderung — Sie entscheiden |
-| **[Skill](skills.md)** | Ein Vorgehen für eine Art von Aufgabe — wie eine Rückerstattungsanfrage behandelt wird | Wenn das Modell entscheidet, dass genau diese Aufgabe gerade ansteht |
-| **[Wissens-Collection](file-processing.md)** | Ein Korpus, der zu groß zum Lesen ist — jedes Richtliniendokument, jedes Ticket | Nur die Chunks, die eine Suche zurückgibt |
+|                                              | Sie hält                                                                                | Das Modell sieht es                                                  |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Context-Datei**                            | Stehende Fakten, klein und stabil — ein Glossar, ein Tonfall-Leitfaden, ein Organigramm | Immer oder auf Anforderung — Sie entscheiden                         |
+| **[Skill](skills.md)**                       | Ein Vorgehen für eine Art von Aufgabe — wie eine Rückerstattungsanfrage behandelt wird  | Wenn das Modell entscheidet, dass genau diese Aufgabe gerade ansteht |
+| **[Wissens-Collection](file-processing.md)** | Ein Korpus, der zu groß zum Lesen ist — jedes Richtliniendokument, jedes Ticket         | Nur die Chunks, die eine Suche zurückgibt                            |
 
 Die Faustregel: **Wenn es kurz und immer relevant ist, ist es eine Context-Datei.
 Wenn es lang ist, ist es Wissen. Wenn es ein Vorgehen ist, ist es ein Skill.**

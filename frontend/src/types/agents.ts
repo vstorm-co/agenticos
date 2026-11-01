@@ -419,6 +419,12 @@ export interface AgentSpec {
   external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /**
+   * The JSON Schema of the agent's answer, when it answers with data rather than
+   * prose - an object of this shape, validated before the run ends. Null or
+   * absent is a free-text answer.
+   */
+  output_schema?: Record<string, unknown> | null;
   /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
   loop_guard?: LoopGuardSpec;
   /** Second models that review the run while it goes; defaulted to none server side. */
@@ -479,6 +485,11 @@ export interface Agent {
    * console lists it apart.
    */
   kind?: AgentKind;
+  /**
+   * The workflow whose step configures this agent, when one does. Such an agent
+   * is changed in that step - versioned with the workflow - never here.
+   */
+  workflow_id?: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
@@ -546,6 +557,8 @@ export interface Agent {
    * profile has been deleted. Listing only.
    */
   published_model?: PublishedModel | null;
+  /** Enabled bindings from the frozen version; absent on older servers. */
+  published_capabilities?: string[] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
   created_at?: string;
@@ -843,6 +856,8 @@ export interface JsonSchemaProperty {
    * side outlives the value it was written for without anyone noticing.
    */
   "x-enum-labels"?: Record<string, string>;
+  /** Help for the selected option, kept out of the menu label. */
+  "x-enum-descriptions"?: Record<string, string>;
   /**
    * Whether this string is paragraphs rather than a value.
    *
@@ -871,6 +886,18 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
+   * A description shown on hover over the label instead of under the field:
+   * set by a form for one that only says the label again.
+   */
+  "x-hint"?: string;
+  /**
+   * Values a field suggests without restricting itself to them.
+   *
+   * The open counterpart of `enum`: the backend validates a plain string, so the
+   * form offers these and still accepts anything else. `x-enum-labels` names them.
+   */
+  "x-suggestions"?: string[];
+  /**
    * Whether this field is folded under "Advanced settings" (#2070).
    *
    * A capability marks limits, cache lifetimes, prompts and tuning this way
@@ -883,7 +910,7 @@ export interface JsonSchemaProperty {
    * `model-profile` is one of the organization's model profiles, chosen from
    * the same picker the Builder uses for the agent's own model.
    */
-  "x-widget"?: "model-profile";
+  "x-widget"?: "model-profile" | "browser-connection" | "computer-environment";
   /**
    * The choices an enum offers for each value of another field of the form -
    * the coding agent's models, which depend on its harness. A choice the other
@@ -900,14 +927,16 @@ export interface JsonSchemaProperty {
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */
-  items?: { type?: string };
+  items?: { type?: string; enum?: unknown[] };
   /** A `Literal | None` arrives as branches, one carrying the values. */
   anyOf?: {
     type?: string;
     enum?: unknown[];
     format?: string;
-    items?: { type?: string };
+    items?: { type?: string; enum?: unknown[] };
     "x-enum-labels"?: Record<string, string>;
+    /** Help for the selected option, kept out of the menu label. */
+    "x-enum-descriptions"?: Record<string, string>;
   }[];
 }
 

@@ -14,7 +14,8 @@ export interface AvatarColorPickerProps {
   className?: string;
 }
 
-const SWATCH = "h-7 w-7 rounded-full border border-border/60 transition-shadow outline-none";
+const SWATCH =
+  "h-7 w-7 touch:h-11 touch:w-11 touch-manipulation rounded-full border border-border/60 transition-shadow outline-none";
 const SELECTED = "ring-ring ring-offset-background ring-2 ring-offset-2";
 
 /**

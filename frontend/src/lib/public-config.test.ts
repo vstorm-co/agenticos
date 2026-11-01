@@ -140,3 +140,10 @@ describe("readPublicConfig", () => {
     expect(readPublicConfig({}).oidcIcon).toBeNull();
   });
 });
+
+it("defaults to the hosted diagnostics collector and supports explicit opt-out", () => {
+  expect(readPublicConfig({}).diagnosticsUrl).toBe("https://analytics-agenticos.testapp.ovh");
+  for (const value of ["false", "0", " OFF ", "no"]) {
+    expect(readPublicConfig({ DIAGNOSTICS_ENABLED: value }).diagnosticsUrl).toBeUndefined();
+  }
+});

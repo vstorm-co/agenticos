@@ -178,3 +178,10 @@ async def test_the_detail_route_is_app_admin_only() -> None:
 
     assert response.status_code == 403
     svc.get_organization_detail.assert_not_awaited()
+
+
+async def test_organization_avatar_is_app_admin_only(service: AsyncMock) -> None:
+    async with _client(is_app_admin=False, service=service) as client:
+        response = await client.get(f"{ENDPOINT}/{uuid4()}/avatar")
+    assert response.status_code == 403
+    service.organization_avatar_path.assert_not_awaited()

@@ -6,7 +6,9 @@ applies is decided by *whose* address it is:
 * `app.core.sanitize.validate_webhook_url` - a callback somebody else handed us.
   A private address there is an SSRF attempt, so private, reserved, loopback and
   link-local are refused and the host must resolve to a public IP. The one
-  exemption is an MCP connection's host on `MCP_ALLOWED_HOSTS`.
+  exemption is an MCP connection's host on the MCP allowlist (`MCP_ALLOWED_HOSTS`
+  plus `OUTBOUND_PRIVATE_ALLOWLIST`); a listed host is resolved too and every
+  answer checked, and only one admitted by name that does not resolve yet is accepted.
 * `app.services.model_profile.validate_endpoint_url` - a model endpoint. Local
   models are first-class, so a private address is frequently the entire point.
 * This module - a service the organization runs itself: a `sandboxd` host, a

@@ -12,6 +12,22 @@ import { useAuthStore } from "@/stores";
 
 import { locales, type Locale } from "./locales";
 
+/** Deliberate language choices shared between windows of this origin. */
+export const ACCOUNT_LOCALE_STORAGE_KEY = "account-locale";
+
+/** Read only the language, and only for the account already signed in here. */
+export function sharedAccountLocale(raw: string | null, userId: string): Locale | null {
+  try {
+    const value: unknown = JSON.parse(raw ?? "null");
+    if (!value || typeof value !== "object" || !("userId" in value) || value.userId !== userId)
+      return null;
+    const locale = "locale" in value ? value.locale : null;
+    return locales.find((supported) => supported === locale) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The platform's own tool, by the exact name a run gives it: its server is
  * always attached as `agenticos` (`PLATFORM_MCP_NAME`). Matched whole, because
@@ -23,7 +39,19 @@ const SET_MY_LANGUAGE = "agenticos_set_my_language";
 /** Record `locale` as the signed-in account's choice, in this tab. */
 export function adoptAccountLocale(locale: Locale): void {
   const { user, setUser } = useAuthStore.getState();
-  if (user && user.locale !== locale) setUser({ ...user, locale });
+  if (!user || user.locale === locale) return;
+  setUser({ ...user, locale });
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      ACCOUNT_LOCALE_STORAGE_KEY,
+      JSON.stringify({ userId: user.id, locale }),
+    );
+  } catch (error) {
+    if (!(error instanceof DOMException)) throw error;
+    // i18n-exempt: developer diagnostic; account preferences are still saved by the caller.
+    console.warn("Could not share the account language with other windows.", error);
+  }
 }
 
 /**

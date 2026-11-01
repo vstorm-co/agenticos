@@ -11,6 +11,7 @@ person an AI Architect run acts for. How a refusal is answered is a parameter:
 the server sends an MCP client a tool error carrying the API's own reason.
 """
 
+import json as json_module
 from collections.abc import Callable
 from typing import Any
 
@@ -69,13 +70,17 @@ class PlatformApi:
         body = response.json()
         if response.is_error:
             error = body.get("error", {}) if isinstance(body, dict) else {}
-            reason = (
-                f"{response.status_code} {error.get('code', 'ERROR')}: "
-                f"{error.get('message', 'The request was refused')}"
-            )
-            if response.status_code in (404, 422):
-                reason = f"{reason}. {_NOT_EMPTY}"
-            return self._on_refusal(reason)
+            if response.status_code < 500:
+                detail: dict[str, Any] = {
+                    "status": response.status_code,
+                    "code": error.get("code", "ERROR"),
+                    "message": error.get("message", "The request was refused"),
+                    "details": error.get("details", {}),
+                }
+                if response.status_code in (404, 422):
+                    detail["hint"] = _NOT_EMPTY
+                return self._on_refusal(json_module.dumps({"error": detail}))
+            return self._on_refusal("The platform request failed; check its server log")
         return body
 
     def refuse(self, message: str) -> Any:

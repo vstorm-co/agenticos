@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortButton } from "@/components/ui/sort-button";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,8 @@ const hideBelowClass = {
 interface DataTableProps<T> {
   columns: Column<T>[];
   rows: T[] | undefined;
+  /** An action row directly after the records, inside the same scroll container. */
+  afterRows?: ReactNode;
   getRowKey: (row: T, index: number) => string;
   loading?: boolean;
   /** Shown when not loading and rows is empty. */
@@ -99,7 +101,20 @@ interface DataTableProps<T> {
   onSort?: (sort: TableSort) => void;
   /** Where client-side sorting starts. Ignored when `onSort` is given. */
   defaultSort?: TableSort;
+  /**
+   * The height of every row, in pixels, to draw only the rows in view - for a
+   * list of thousands, where a row per record would be a DOM the browser cannot
+   * scroll. Needs `fillHeight`, since the rows in view are the scroll
+   * container's. A row that grows past it only shifts the window by a few rows,
+   * which the rows drawn either side of the viewport absorb.
+   */
+  rowHeight?: number;
+  /** Called as the scroll nears the last row, to load the next page into `rows`. */
+  onEndReached?: () => void;
 }
+
+/** Rows drawn beyond each edge of the viewport, so a fast scroll never shows a gap. */
+const OVERSCAN = 8;
 
 const alignClass = { left: "text-left", right: "text-right", center: "text-center" } as const;
 
@@ -125,6 +140,7 @@ function compare(a: string | number | null, b: string | number | null, dir: "asc
 export function DataTable<T>({
   columns,
   rows,
+  afterRows,
   getRowKey,
   loading,
   empty,
@@ -137,6 +153,8 @@ export function DataTable<T>({
   sort,
   onSort,
   defaultSort,
+  rowHeight,
+  onEndReached,
 }: DataTableProps<T>) {
   const t = useTranslations("ui");
   const [clientSort, setClientSort] = useState<TableSort | null>(defaultSort ?? null);
@@ -164,6 +182,31 @@ export function DataTable<T>({
     return result;
   }, [rows, columns, serverSorted, clientSort]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewport, setViewport] = useState(0);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!rowHeight || !element) return;
+    const observer = new ResizeObserver(() => setViewport(element.clientHeight));
+    observer.observe(element);
+    setViewport(element.clientHeight);
+    return () => observer.disconnect();
+  }, [rowHeight]);
+
+  const total = visible?.length ?? 0;
+  const first = rowHeight ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN) : 0;
+  const last = rowHeight
+    ? Math.min(total, Math.ceil((scrollTop + viewport) / rowHeight) + OVERSCAN)
+    : total;
+  const drawn = rowHeight ? visible?.slice(first, last) : visible;
+
+  const onScroll = (element: HTMLDivElement) => {
+    if (rowHeight) setScrollTop(element.scrollTop);
+    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (onEndReached && remaining < (rowHeight ?? 48) * OVERSCAN) onEndReached();
+  };
+
   // A failure wins over emptiness, because a failed request has no rows either
   // and would otherwise be drawn as a collection with nothing in it.
   const showError = !loading && error != null;
@@ -178,12 +221,14 @@ export function DataTable<T>({
       )}
     >
       <div
+        ref={scrollRef}
+        onScroll={(event) => onScroll(event.currentTarget)}
         className={cn(
-          "scrollbar-thin overflow-x-auto",
+          "scrollbar-thin overflow-x-auto overscroll-x-contain",
           fillHeight && "min-h-0 flex-1 overflow-y-auto",
         )}
       >
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-sm" aria-busy={loading || undefined}>
           {/* No column headings over no rows: an empty table read as a grid
               with a hole in it, the empty state boxed again inside it. */}
           <thead className={cn(fillHeight && "bg-card sticky top-0 z-10", showEmpty && "hidden")}>
@@ -201,7 +246,7 @@ export function DataTable<T>({
                     className={cn(
                       // One line: a two-word heading wrapped to two rows made every
                       // header taller than the rows under it.
-                      "text-muted-foreground px-4 py-2.5 font-mono text-xs font-medium tracking-wider whitespace-nowrap uppercase",
+                      "text-foreground/85 px-3 py-3 text-[13px] font-semibold whitespace-nowrap sm:px-4",
                       alignClass[col.align ?? "left"],
                       col.hideBelow && hideBelowClass[col.hideBelow],
                       col.className,
@@ -242,18 +287,35 @@ export function DataTable<T>({
                 </tr>
               ))}
 
+            {!loading && first > 0 && (
+              <tr aria-hidden="true" style={{ height: first * (rowHeight as number) }} />
+            )}
             {!loading &&
-              visible?.map((row, i) => (
+              drawn?.map((row, offset) => (
                 <tr
-                  key={getRowKey(row, i)}
+                  key={getRowKey(row, first + offset)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (event) => {
+                          // A control inside the row keeps its own keyboard action.
+                          if (event.target !== event.currentTarget) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onRowClick(row);
+                          }
+                        }
+                      : undefined
+                  }
                   // `aria-selected` as well as the tint, because "which row is
                   // open" is an answer a screen reader needs too, and a colour
                   // is not one.
                   aria-selected={isRowActive ? isRowActive(row) : undefined}
                   className={cn(
                     "border-border/60 border-b transition-colors last:border-0",
-                    onRowClick && "hover:bg-accent cursor-pointer",
+                    onRowClick &&
+                      "hover:bg-accent focus-visible:bg-accent focus-visible:outline-ring cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2",
                     // A tint alone reads as hover - they were the same colour,
                     // and a reader who has moved the mouse cannot tell which row
                     // the panel beside them is showing. The rule down the left
@@ -266,7 +328,8 @@ export function DataTable<T>({
                     <td
                       key={col.key}
                       className={cn(
-                        "text-foreground px-4 py-3",
+                        "text-foreground px-3 py-3 sm:px-4",
+                        col.align === "right" && "tabular-nums",
                         alignClass[col.align ?? "left"],
                         col.hideBelow && hideBelowClass[col.hideBelow],
                         col.className,
@@ -277,23 +340,33 @@ export function DataTable<T>({
                   ))}
                 </tr>
               ))}
+            {!loading && last < total && (
+              <tr aria-hidden="true" style={{ height: (total - last) * (rowHeight as number) }} />
+            )}
+            {!loading && !showError && afterRows && (
+              <tr>
+                <td colSpan={columns.length} className="p-0">
+                  {afterRows}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
+
+        {showError && (
+          <div className="text-destructive px-4 py-12 text-center text-sm" role="alert">
+            {error}
+          </div>
+        )}
+
+        {showEmpty && (
+          // The table is the frame: an empty state that brings its own border and
+          // fill is drawn without them here.
+          <div className="text-muted-foreground px-4 py-12 text-center text-sm [&>*]:border-0 [&>*]:bg-transparent">
+            {empty ?? t("noResults")}
+          </div>
+        )}
       </div>
-
-      {showError && (
-        <div className="text-destructive px-4 py-12 text-center text-sm" role="alert">
-          {error}
-        </div>
-      )}
-
-      {showEmpty && (
-        // The table is the frame: an empty state that brings its own border and
-        // fill is drawn without them here.
-        <div className="text-muted-foreground px-4 py-12 text-center text-sm [&>*]:border-0 [&>*]:bg-transparent">
-          {empty ?? t("noResults")}
-        </div>
-      )}
     </div>
   );
 }

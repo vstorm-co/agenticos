@@ -53,7 +53,12 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
-from app.core.sanitize import PinnedAddress, UrlRefusedError, resolve_pinned_url
+from app.core.sanitize import (
+    PinnedAddress,
+    UrlRefusedError,
+    deployment_allowlist,
+    resolve_pinned_url,
+)
 from app.core.secret_kinds import GitTokenSecret, SecretKind, StorableSecret
 from app.services.rag.connectors import (
     BaseSyncConnector,
@@ -272,7 +277,12 @@ class GitConnector(BaseSyncConnector):
                 message=str(error["msg"]).removeprefix("Value error, "), field=field
             )
         try:
-            await asyncio.to_thread(resolve_pinned_url, parsed.repository_url, frozenset({"https"}))
+            await asyncio.to_thread(
+                resolve_pinned_url,
+                parsed.repository_url,
+                frozenset({"https"}),
+                private_allowlist=deployment_allowlist(),
+            )
         except UrlRefusedError as exc:
             return ConfigRefusal(message=str(exc), field="repository_url")
         return None
@@ -576,7 +586,10 @@ class GitConnector(BaseSyncConnector):
         ]
         try:
             pinned = await asyncio.to_thread(
-                resolve_pinned_url, parsed.repository_url, frozenset({"https"})
+                resolve_pinned_url,
+                parsed.repository_url,
+                frozenset({"https"}),
+                private_allowlist=deployment_allowlist(),
             )
         except UrlRefusedError as exc:
             # Our sentence, and it names the host rather than the URL, so it may

@@ -311,12 +311,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={
-              !name.trim() ||
-              create.isPending ||
-              createSystem.isPending ||
-              (making === "agent" && catalogFetching)
-            }
+            loading={create.isPending || createSystem.isPending}
+            disabled={!name.trim() || (making === "agent" && catalogFetching)}
           >
             {t("create")}
           </Button>

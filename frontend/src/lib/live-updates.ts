@@ -26,6 +26,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   context: () => [qk.context.all(), qk.sharing.all()],
   knowledge_base: () => [qk.kb.all(), qk.sharing.all()],
   artifact: () => [qk.artifacts.all(), qk.sharing.all()],
+  table: () => [qk.tables.all(), qk.sharing.all()],
+  workflow: () => [qk.workflows.all(), qk.sharing.all()],
   member: (orgId) => [
     qk.organizations.members(orgId),
     qk.organizations.groups(orgId),

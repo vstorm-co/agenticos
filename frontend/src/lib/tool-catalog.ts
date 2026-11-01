@@ -64,6 +64,7 @@ export type ToolRenderer =
   | "generated-image"
   | "generated-speech"
   | "generated-video"
+  | "desktop-screenshot"
   | "web-search"
   | "rag"
   | "run-python"
@@ -94,6 +95,19 @@ export interface ToolVerbs {
   done: string;
 }
 
+/**
+ * Which `chat.tools` sentence names a parked call, and the `context` names it needs.
+ *
+ * `needs` is checked before the sentence is drawn, so a context missing one of them -
+ * a describer that could name the table and not the view - falls back to the plain
+ * card rather than to a sentence with a hole in it. A table write names its table and
+ * never its record: a record's label is a cell's text, stored on the approval row.
+ */
+export interface ApprovalSummary {
+  key: string;
+  needs: readonly string[];
+}
+
 export interface ToolEntry {
   kind: StepKind;
   render: ToolRenderer;
@@ -112,6 +126,13 @@ export interface ToolEntry {
   displayNameKey?: string;
   /** Set instead of `captionKey` when the label is a verb plus the call's subject. */
   verbs?: ToolVerbs;
+  /**
+   * The sentence an approval card leads with when the call was parked with a
+   * `context` - the ids in its arguments as names, resolved by the tool's describer
+   * on the backend (`ApprovalDescriber`). Absent for a tool nobody describes, and
+   * never shown instead of the arguments: those are what runs.
+   */
+  approvalSummary?: ApprovalSummary;
   /**
    * Open this step when it finishes in front of somebody.
    *
@@ -181,6 +202,26 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "readingArtifact",
     displayNameKey: "readArtifact",
   },
+  list_artifacts: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingArtifacts",
+    displayNameKey: "listArtifacts",
+  },
+  // The picture goes to the model; the step shows the written report beside it.
+  preview_artifact: {
+    kind: "read",
+    render: "generic",
+    captionKey: "previewingArtifact",
+    displayNameKey: "previewArtifact",
+  },
+  // Files a request the owner answers in the Share dialog; nothing is shared by the call.
+  share_artifact: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sharingArtifact",
+    displayNameKey: "shareArtifact",
+  },
 
   // visuals - the drawing is its own panel under the message, drawn while it is
   // written; the step stays a line, since opening it would print the drawing's
@@ -224,6 +265,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "openingPage",
     displayNameKey: "openPage",
   },
+  browser_new_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "openingPage",
+    displayNameKey: "openPage",
+  },
+  browser_tabs: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_switch_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_close_tab: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
   browser_read: {
     kind: "web",
     render: "generic",
@@ -259,6 +324,37 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "goingBack",
     displayNameKey: "goBack",
+  },
+
+  // computer_use - a desktop worked through screenshots. Like `browse_web`, the live
+  // view is the browse panel, fed by frames rather than by these calls; what comes
+  // back to the model is a screenshot plus a line, so the generic renderer serves.
+  computer_screenshot: {
+    kind: "web",
+    render: "generic",
+    captionKey: "lookingAtScreen",
+    displayNameKey: "takeScreenshot",
+  },
+  computer_act: {
+    kind: "web",
+    render: "generic",
+    captionKey: "usingComputer",
+    displayNameKey: "useComputer",
+  },
+  computer_apps: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingApps",
+    displayNameKey: "listApps",
+  },
+  // The screenshot kept for the user rather than looked at: the picture is the answer.
+  computer_save_screenshot: {
+    kind: "image",
+    render: "desktop-screenshot",
+    captionKey: "savingScreenshot",
+    displayNameKey: "savedScreenshot",
+    opensWhenDone: true,
+    opensOnSight: true,
   },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
@@ -399,6 +495,46 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "searchingDocuments",
     displayNameKey: "knowledgeBaseSearch",
   },
+
+  // virtual_tables - reads are lookups, writes are edits; `delete_record` is `edit`
+  // because `StepKind` has no delete, the same choice `delete_memory` makes.
+  list_tables: { kind: "list", render: "generic", captionKey: "tablesListing" },
+  table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
+  describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
+  list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
+  create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
+  record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
+  list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },
+  get_record: { kind: "read", render: "generic", captionKey: "recordsReading" },
+  create_record: {
+    kind: "write",
+    render: "generic",
+    captionKey: "recordsCreating",
+    approvalSummary: { key: "approveCreateRecord", needs: ["table"] },
+  },
+  upsert_record: {
+    kind: "write",
+    render: "generic",
+    captionKey: "recordsUpserting",
+    approvalSummary: { key: "approveUpsertRecord", needs: ["table"] },
+  },
+  update_record: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "recordsUpdating",
+    approvalSummary: { key: "approveUpdateRecord", needs: ["table"] },
+  },
+  delete_record: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "recordsDeleting",
+    approvalSummary: { key: "approveDeleteRecord", needs: ["table"] },
+  },
+
+  // workflows - starting one is a write: it sets a process going.
+  list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
+  run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
+  get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
 
   // follow_ups - next steps, drawn as buttons under the answer (#2301).
   suggest_next_steps: {

@@ -22,6 +22,7 @@ const KNOWN_SURFACES = new Set([
   "teams",
   "schedule",
   "eval",
+  "workflow",
   "follow_ups",
   "proactive",
 ]);

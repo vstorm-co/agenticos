@@ -134,6 +134,50 @@ The same agent as a graph: what reaches it, and what it reaches for. A dashed bo
 ![Visual map](assets/screens/light/agent-map.webp#only-light)
 ![Visual map](assets/screens/dark/agent-map.webp#only-dark)
 
+## Workflows and tables
+
+### Workflows
+
+The catalog of automations, one card each: its status, who may reach it, whether a version is live and when it was last edited, with its runs, the editor and a copy a click away.
+
+> **Screenshot pending — Workflows.**
+
+### The workflow editor
+
+The canvas has the whole width: the graph as cards that say what each step is set to do or which group it belongs to, a step's settings in a dialog over it, and every step to add one click - or one right click - away. A loop shows how many steps its body holds.
+
+> **Screenshot pending — The workflow editor.**
+
+### A loop's body
+
+Inside a loop, one step selected: the table it writes and its columns, a record id read from the loop's current item, the values it writes, and its policy - three tries, and failures routed out of its red **Error** port to an error handler instead of failing the run.
+
+> **Screenshot pending — A loop's body.**
+
+### Runs
+
+Every run of one workflow, newest first: whether it ran the draft or the published version, what started it, when, for how long and at what cost. **Start a run** tests the draft with an input of your own.
+
+> **Screenshot pending — Runs.**
+
+### A run
+
+One run, as it happened: the graph it executed with each step marked by what it did, the output it answered with, and every step it took, iteration by iteration.
+
+> **Screenshot pending — A run.**
+
+### Tables
+
+Typed records your agents, workflows and integrations read and write, one card per table with who may reach it and its schema version.
+
+> **Screenshot pending — Tables.**
+
+### A table
+
+The records of one table, after the run above raised every low score: select values as coloured chips, and the same records as a kanban board or a list a tab away.
+
+> **Screenshot pending — A table.**
+
 ## Knowledge
 
 ### Knowledge bases

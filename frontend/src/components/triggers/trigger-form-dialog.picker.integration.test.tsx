@@ -38,6 +38,7 @@ function agent(id: string, name: string, status = "published", can_run = true) {
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions") return { permissions: [] };
     if (path === "/agents") {
       return {
         items: [

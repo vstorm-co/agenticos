@@ -1,5 +1,5 @@
 ---
-source_sha: "a2d3374dd0ae"
+source_sha: "759491a1f3dc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -7,6 +7,12 @@ source_sha: "a2d3374dd0ae"
 Ten dokument opisuje, jak traktowane są pliki w dwóch kontekstach: uploady
 plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
+Usunięcie bazy odłącza i dezaktywuje źródła synchronizacji, których celem była ta baza.
+Zachowują konfigurację konektora, ale przed kolejną synchronizacją wymagają jawnego
+przypisania; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy
+zachowuje jej źródła, bo wiersz celu pozostaje. Ingest z CLI odrzuca nazwę zarezerwowaną
+przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
+
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
 
 ## Uploady plików w czacie { #chat-file-uploads }
@@ -135,6 +141,36 @@ wciąż wie o pliku. Obraz jest w tej historii tylko nazwany, nie wysyłany pono
 agent, który musi znów na niego spojrzeć, prosi o niego albo otwiera go z
 `uploads/`, jeśli ma workspace.
 
+**Plik z tury, która się przerwała, wraca w następnej.** Plik jest przypięty do
+wiadomości, z którą przyszedł, zanim run się zacznie, więc nie da się go załączyć
+ponownie. Jeśli run odpowiadający na tę wiadomość skończył się bez ukończenia —
+błędem, anulowaniem albo zatrzymaniem przez budżet lub strażnika pętli — następna
+tura tego samego agenta dla tej osoby w tej rozmowie zapisuje plik z powrotem w
+`uploads/` (z wyciągniętym tekstem tam, gdzie workspace nie umie przeczytać
+oryginału, a sam tekst, jeśli tylko jego brakuje), zanim pierwszy raz użyje
+workspace'u: od razu dla workspace'u zapisanego, przy pierwszym użyciu dla
+sandboxa. Run dostaje polecenie, by wylistować `uploads/`, zanim powie, że pliku
+brakuje, a jeśli pliku nadal nie ma — by powiedział, że nie dało się go przywrócić.
+
+Wracają tylko własne pliki tej osoby, tylko z przerwanych tur tego agenta, najwyżej
+50 najnowszych, i tylko do chwili, gdy ten agent ukończy dla tej samej osoby turę,
+która zaczęła się po zakończeniu przerwanej i faktycznie wykonała przygotowanie załączników w workspace.
+Ukończona tura bez workspace’u lub bez użycia sandboxa nie zamyka tego okresu. Tura uruchomiona kluczem API, dla
+gościa widgetu albo zwolniona z akceptacji przez kogoś innego tego okresu nie
+kończy. Plik usunięty później zostaje usunięty.
+
+Niektóre pliki nie wracają: pliki tury zablokowanej przez guardrail, bo guardrail
+wejścia odrzucił to, co niosła; pliki promptu, którego run nigdy się nie otworzył —
+nie należy on do żadnego agenta; pliki z tury uruchomionej kluczem API albo dla
+gościa widgetu.
+
+Gdy agent ma guardrail wejścia, każdy plik jest też sprawdzany, zanim wróci, na
+tym, co guardrail by z niego przeczytał: nazwie, ścieżce i pierwszych liniach. Tura
+może się zatrzymać, zanim guardrail przeczyta jej wejście, na przykład na budżecie,
+więc plik odrzucony przez guardrail nie jest zapisywany, a log podaje tylko jego
+identyfikator. Gdy odrzucone są wszystkie pliki, run nie dostaje informacji, że
+któryś może wrócić. Bez guardraila wejścia nic się nie zmienia.
+
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego
 PDF-a, `.docx` i arkusza, przy założeniu, że shell nie ma biblioteki do żadnego
@@ -183,6 +219,11 @@ porażkę jako problem z poleceniem, które właśnie napisała, i próbowała d
 `ls`, potem `curl` na URI `data:`, potem trzy obejścia zaproponowane
 człowiekowi, przez dwie tury. Teraz jedno zdanie mówi, że workspace jest
 niedostępny i że kolejna próba zawiedzie tak samo.
+
+**Tura zablokowana przez guardrail wejścia nic nie zapisuje.** Odwołanie i jego
+nagłówek są sprawdzane przez krawędź wejścia agenta, zanim plik zostanie zapisany,
+więc plik z zablokowanej tury nigdy nie trafia do `uploads/` i późniejsza tura nie
+może go otworzyć. Zobacz [Zabezpieczenia](reference/capabilities.md#guardrails).
 
 Referencja jest tym, co model faktycznie czyta:
 
@@ -304,6 +345,19 @@ w [konfiguracji](configuration.md#uploaded-files-at-rest).
 
 `agenticos cmd doctor` wypisuje, którego backendu używa działające wdrożenie
 i czy szyfrowanie jest włączone.
+
+### Załączniki poczty w workflow { #mail-attachments-in-a-workflow }
+
+[Workflow](workflows.md#from-an-email) uruchomiony wiadomością z Gmaila lub Outlooka
+zapisuje jej załączniki jako pliki tego runa, wewnątrz runa, a nigdy w pollu, który
+czytał skrzynkę. Obowiązuje je lista dozwolonych typów plików i limit rozmiaru
+uploadu czatu: z załączników podanych przez skrzynkę brane jest pod uwagę tylko
+pierwsze 10 na wiadomość, oraz 25 MiB na wiadomość. Pominięty załącznik jest
+wypisany z powodem, a testowy run niczego nie pobiera.
+
+Plik HTML w workflow, na przykład zapisaną stronę albo załącznik, czyta
+[`html.parse`](reference/workflow-nodes.md#html-parse), a nie `text.extract`, który
+czyta dokumenty i oddałby znaczniki jako tekst.
 
 ### Model ChatFile { #chatfile-model }
 
@@ -581,6 +635,20 @@ poświadczenie
 rozwiązuje więc własną konfigurację każdej organizacji, spadając na kolekcję
 o zasięgu app, ale nigdy na kolekcję trzeciego tenanta.
 
+Rozwiązaniem zapasowym jest wyłącznie baza o zasięgu app: baza osobista poza
+jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
+([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
+więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie - najstarszej
+bazy organizacji o tej nazwie - i tylko ta baza je wyświetla i uruchamia. Każdy
+route API, który kieruje źródło do kolekcji, sprawdza prawo zapisu do tej bazy, a
+dodanie źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400.
+
+Gdy osobista baza członka jest starsza niż baza organizacji o tej samej nazwie,
+synchronizacje organizacji o tej nazwie trafiają więc do bazy osobistej, a baza
+organizacji nie przyjmuje źródła: utwórz ją pod własną nazwą.
+
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 
     Rozwiązywanie per organizacja jest bezpieczne tylko dlatego, że wszystkie
@@ -787,7 +855,22 @@ przestają być wyszukiwalne, zamiast zalegać w tabeli, której nic nie listuje
 (#1361). Wyszukiwanie czyta nieobecną tabelę jako pustą, a kolejny upload tworzy
 ją na nowo. Tabela jest oszczędzana tylko wtedy, gdy siostrzana baza wciąż trzyma
 tę samą nazwę, bo przestrzeń nazw wektorów nie jest unikalna per tenant
-i usunięcie zabrałoby także jej chunki (#913).
+i usunięcie zabrałoby także jej chunki (#913). Wtedy znikają tylko wiersze dokumentów
+i pliki usuwanej bazy, a jej chunki są usuwane z zachowanej tabeli, jak dla usuniętej
+bazy poniżej. Nieprzypisane wiersze dokumentów organizacji tej bazy (uploady z czasu,
+zanim dokumenty zaczęły zapisywać swoją bazę) też znikają, razem z plikami i chunkami,
+chyba że inna baza tej organizacji ma tę nazwę i nadal je listuje. Usunięcie kolekcji
+kasowało wcześniej każdy wiersz dokumentu pod tą nazwą, także innej organizacji
+(#2560).
+
+`rag-drop <name>` przechodzi przez ten sam teardown. Wcześniej usuwał tabelę wektorów
+bezpośrednio, bez sprawdzenia referencji, blokady ani rezerwacji, i zostawiał wiersze
+dokumentów, więc mógł zniszczyć tabelę, której nadal używała inna baza. Teraz czyści
+jedyną bazę, która ma tę nazwę, albo usuwa nazwę bez żadnej bazy (wypełnioną przez
+`rag-ingest`) razem z jej wierszami dokumentów. Gdy nazwę ma kilka baz, odmawia i
+wypisuje ich identyfikatory; `--knowledge-base <id>` wskazuje bazę do wyczyszczenia,
+a tabela zostaje dla pozostałych. Tabelę i pliki usuwa worker po commicie polecenia
+(#2560).
 
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś
 w tabelę śledzącą; teraz domyślną jest `default`. Baza wiedzy utworzona pod starą
@@ -874,6 +957,49 @@ filtr nie wyciągnie wiersza spoza zakresu. Kolekcja app-scoped, obejmująca ca�
 wdrożenie, dopasowywana jest po *braku ostemplowanego tenanta*, a nie po równości,
 której każda organizacja by nie spełniła — i to właśnie pozwala wszystkim czytać
 wspólną bazę, nie czytając siebie nawzajem.
+
+**Filtr nie sięgnie też innej bazy wiedzy o tej samej nazwie.** Sam tenant nie
+rozróżnia każdej pary: baza o zasięgu app i baza osobista poza jakąkolwiek organizacją
+nie mają go wcale, a baza organizacji i osobista baza członka w tej organizacji mają
+tę samą organizację. Dlatego każdy chunk zapisuje także bazę wiedzy, dla której został
+zaindeksowany, a wyszukiwanie, licznik wektorów, wyszukiwanie przy zastępowaniu i
+usuwanie czytają wyłącznie chunki danej bazy; usunięcie dokumentu usuwa też jego
+własne chunki, które nie zapisują bazy. Chunk zapisany, zanim chunki zaczęły
+zapisywać swoją bazę, i nieprzypisany przez aktualizację, pasuje jak dotąd po swoim
+tenancie — z wyjątkiem bazy osobistej poza jakąkolwiek organizacją, której
+wyszukiwanie i licznik nie biorą żadnego z nich ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Usunięcie bazy wiedzy, której nazwę kolekcji wciąż ma inna baza, zostawia wspólną
+tabelę, a zadanie porządkowe zakolejkowane razem z usunięciem usuwa chunki przypisane
+do usuniętej bazy. Usunięcie organizacji i usunięcie konta robią to samo dla baz,
+które usuwają, i tak samo usunięcie kolekcji (`DELETE /rag/collections/{name}`),
+które kasuje też tylko wiersze dokumentów tej bazy; dla zachowanej domyślnej bazy
+usuwa tylko chunki usuniętych dokumentów, więc upload wykonany po usunięciu zachowuje
+swoje, a chunk bez wiersza dokumentu zostaje
+([#2560](https://github.com/vstorm-co/agenticos/issues/2560)).
+
+Usunięcie bazy wiedzy (`DELETE /kb/{id}`), gdy inna baza ma tę samą nazwę, usuwa też
+nieprzypisane wiersze dokumentów jej organizacji, razem z ich plikami i chunkami,
+chyba że inna baza tej organizacji ma tę nazwę i nadal je listuje - ta sama zasada
+co przy usuwaniu kolekcji ([#2560](https://github.com/vstorm-co/agenticos/issues/2560)). W pozostałych przypadkach nieprzypisane chunki
+zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal są
+listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
+
+Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
+usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza bazy, która koliduje
+z blokadą usunięcia, w transakcji wstawiającej chunki: zapis, który przychodzi drugi, nie
+znajduje bazy, niczego nie zapisuje i kończy się błędem na etapie indeksowania, a
+zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
+porządkowanie usuwa potem jego chunki
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem
+kończy się błędem i niczego nie zapisuje
+([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
+a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
+nazwie przeszukuje ich połączony zakres, pomijając inne bazy o tej samej nazwie.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

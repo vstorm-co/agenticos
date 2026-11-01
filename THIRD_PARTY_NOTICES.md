@@ -23,14 +23,14 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 99 | 241 |
-| Apache-2.0 | 67 | 24 |
+| MIT | 102 | 252 |
+| Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 23 | 4 |
-| ISC | 3 | 16 |
+| ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
+| MPL-2.0 | 5 | 0 |
 | Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
-| MPL-2.0 | 3 | 0 |
 | PSF-2.0 | 3 | 0 |
 | 0BSD | 1 | 1 |
 | AGPL-3.0-only | 1 | 0 |
@@ -49,7 +49,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-219 distributions.
+228 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -86,6 +86,7 @@ names no author is in the evidence column below.
 | charset-normalizer | 3.5.2 | MIT | https://charset-normalizer.readthedocs.io/ | License field |
 | click | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
 | cohere | 7.3.0 | MIT | https://github.com/cohere-ai/cohere-python | License field |
+| connectrpc | 0.12.1 | Apache-2.0 | https://github.com/connectrpc/connect-py | License-Expression |
 | croniter | 6.2.4 | MIT | https://github.com/pallets-eco/croniter | License-Expression |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ | License-Expression |
 | cyclopts | 5.3.1 | Apache-2.0 | https://github.com/BrianPugh/cyclopts | License-Expression |
@@ -102,6 +103,8 @@ names no author is in the evidence column below.
 | distro | 1.9.0 | Apache-2.0 | https://github.com/python-distro/distro | License field |
 | dnspython | 2.9.0 | ISC | https://github.com/rthalley/dnspython.git | License-Expression; no licence file, attributed to Bob Halley |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
+| e2b | 2.59.0 | MIT | https://github.com/e2b-dev/e2b/tree/main/packages/python-sdk | License-Expression; no licence file, attributed to e2b |
+| e2b-dockerfile-utils | 0.1.1 | Apache-2.0 | https://github.com/e2b-dev/e2b/tree/main/packages/dockerfile-utils-python | License-Expression |
 | email-validator | 2.3.0 | Unlicense | https://github.com/JoshData/python-email-validator | License field |
 | et-xmlfile | 2.0.0 | MIT | https://foss.heptapod.net/openpyxl/et_xmlfile | License field |
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
@@ -126,6 +129,7 @@ names no author is in the evidence column below.
 | h2 | 4.4.1 | MIT | https://github.com/python-hyper/h2/ | License-Expression |
 | hf-xet | 1.4.3 | Apache-2.0 | https://github.com/huggingface/xet-core.git | License-Expression |
 | hpack | 4.2.0 | MIT | https://github.com/python-hyper/hpack/ | License-Expression |
+| http-ece | 1.2.1 | MIT | https://github.com/martinthomson/encrypted-content-encoding | License field; no licence file, attributed to Martin Thomson |
 | httpcore | 1.0.9 | BSD-3-Clause | https://github.com/encode/httpcore | License-Expression |
 | httpcore2 | 2.16.0 | BSD-3-Clause | https://github.com/pydantic/httpx2/blob/main/src/httpcore2 | License-Expression |
 | httptools | 0.9.0 | MIT | https://github.com/MagicStack/httptools | License-Expression |
@@ -196,14 +200,17 @@ names no author is in the evidence column below.
 | primp | 2.0.1 | MIT | https://github.com/deedy5/primp | License field; no licence file, attributed to deedy5 |
 | propcache | 0.5.4 | Apache-2.0 | https://github.com/aio-libs/propcache | License field |
 | protobuf | 6.33.6 | BSD-3-Clause | https://developers.google.com/protocol-buffers/ | License field |
+| protobuf-py | 0.6.0 | Apache-2.0 | https://github.com/bufbuild/protobuf-py | License-Expression |
+| protobuf-py-ext | 0.6.0 | Apache-2.0 | https://github.com/bufbuild/protobuf-py | override: protobuf-py-ext 0.6.0 (pulled in by e2b, for E2B sandboxes) is the native half of protobuf-py and ships no licence metadata of its own; its Project-URLs name github.com/bufbuild/protobuf-py, whose LICENSE is Apache-2.0, and protobuf-py 0.6.0 from the same source declares License-Expression: Apache-2.0 and ships that LICENSE.; no licence file, attributed to Buf Technologies, Inc. |
 | psutil | 7.2.2 | BSD-3-Clause | https://github.com/giampaolo/psutil | License field |
 | psycopg2-binary | 2.9.13 | LGPL-3.0-or-later | https://psycopg.org/ | licence file text; review accepted |
 | py-key-value-aio | 0.4.6 | Apache-2.0 | https://pypi.org/project/py-key-value-aio/0.4.6/ | License-Expression |
-| pyasn1 | 0.6.4 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
+| py-vapid | 1.9.6 | MPL-2.0 | https://github.com/mozilla-services/vapid | License field; review accepted |
+| pyasn1 | 0.6.5 | BSD-2-Clause | https://github.com/pyasn1/pyasn1 | License field |
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.12 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.14.1 | MIT | https://github.com/pydantic/pydantic | License-Expression |
-| pydantic-ai-backend | 0.2.37 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
+| pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.61.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.61.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
@@ -217,6 +224,7 @@ names no author is in the evidence column below.
 | pyjwt | 2.15.1 | MIT | https://github.com/jpadilla/pyjwt | License-Expression |
 | pymupdf | 1.28.2 | AGPL-3.0-only | https://github.com/pymupdf/pymupdf | licence file text; review accepted |
 | pyperclip | 1.11.0 | BSD-3-Clause | https://github.com/asweigart/pyperclip | licence file text |
+| pyqwest | 0.12.0 | MIT | https://github.com/curioswitch/pyqwest.git | classifier |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 | https://github.com/dateutil/dateutil | licence file text |
 | python-docx | 1.2.0 | MIT | https://github.com/python-openxml/python-docx | License field |
 | python-dotenv | 1.2.4 | BSD-3-Clause | https://github.com/theskumar/python-dotenv | License field |
@@ -225,6 +233,7 @@ names no author is in the evidence column below.
 | python-pptx | 1.0.2 | MIT | https://github.com/scanny/python-pptx | License field |
 | python-socketio | 5.17.0 | MIT | https://code.miguelgrinberg.com/miguelgrinberg/python-socketio | License field |
 | pytz | 2026.5 | MIT | https://github.com/stub42/pytz.git | License field |
+| pywebpush | 2.5.0 | MPL-2.0 | https://github.com/web-push-libs/pywebpush | License-Expression; review accepted |
 | pyyaml | 6.0.3 | MIT | https://github.com/yaml/pyyaml | License field |
 | qdrant-client | 1.20.0 | Apache-2.0 | https://github.com/qdrant/qdrant-client | License field |
 | rank-bm25 | 0.2.2 | Apache-2.0 | https://github.com/dorianbrown/rank_bm25 | License field |
@@ -275,7 +284,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-292 distributions.
+308 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -322,6 +331,7 @@ names no author is in the evidence column below.
 | @radix-ui/react-collection | 1.1.15 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-compose-refs | 1.1.5 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-context | 1.2.2 | MIT | https://github.com/radix-ui/primitives | package.json license |
+| @radix-ui/react-context-menu | 2.3.7 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-dialog | 1.1.23 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-direction | 1.1.4 | MIT | https://github.com/radix-ui/primitives | package.json license |
 | @radix-ui/react-dismissable-layer | 1.1.19 | MIT | https://github.com/radix-ui/primitives | package.json license |
@@ -367,13 +377,17 @@ names no author is in the evidence column below.
 | @tanstack/react-query | 5.102.8 | MIT | https://github.com/TanStack/query | package.json license |
 | @types/d3-array | 3.2.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-color | 3.1.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-drag | 3.0.7 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-ease | 3.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-interpolate | 3.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-path | 3.1.1 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-scale | 4.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-selection | 3.0.12 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-shape | 3.1.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-time | 3.0.4 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/d3-timer | 3.0.2 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-transition | 3.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
+| @types/d3-zoom | 3.0.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/debug | 4.1.13 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/estree | 1.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @types/estree-jsx | 1.0.5 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
@@ -387,6 +401,8 @@ names no author is in the evidence column below.
 | @types/use-sync-external-store | 0.0.6 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped | package.json license |
 | @ungap/structured-clone | 1.3.3 | ISC | https://github.com/ungap/structured-clone | package.json license |
 | @vercel/otel | 2.1.3 | MIT | https://github.com/vercel/otel | package.json license |
+| @xyflow/react | 12.11.6 | MIT | https://github.com/xyflow/xyflow | package.json license |
+| @xyflow/system | 0.0.82 | MIT | https://github.com/xyflow/xyflow | package.json license |
 | aria-hidden | 1.2.6 | MIT | https://github.com/theKashey/aria-hidden | package.json license |
 | bail | 2.0.2 | MIT | https://github.com/wooorm/bail | package.json license |
 | baseline-browser-mapping | 2.11.10 | Apache-2.0 | https://github.com/web-platform-dx/baseline-browser-mapping | package.json license |
@@ -400,6 +416,7 @@ names no author is in the evidence column below.
 | character-reference-invalid | 2.0.1 | MIT | https://github.com/wooorm/character-reference-invalid | package.json license |
 | cjs-module-lexer | 2.2.0 | MIT | https://github.com/nodejs/cjs-module-lexer | package.json license |
 | class-variance-authority | 0.7.1 | Apache-2.0 | https://github.com/joe-bell/cva | package.json license |
+| classcat | 5.0.5 | MIT | https://github.com/jorgebucaran/classcat | package.json license |
 | client-only | 0.0.1 | MIT | https://reactjs.org/ | package.json license; no licence file, attributed to Meta Platforms, Inc. and affiliates |
 | clsx | 2.1.1 | MIT | https://github.com/lukeed/clsx | package.json license |
 | cmdk | 1.1.1 | MIT | https://github.com/pacocoursey/cmdk | package.json license |
@@ -407,15 +424,20 @@ names no author is in the evidence column below.
 | csstype | 3.2.3 | MIT | https://github.com/frenic/csstype | package.json license |
 | d3-array | 3.2.4 | ISC | https://github.com/d3/d3-array | package.json license |
 | d3-color | 3.1.0 | ISC | https://github.com/d3/d3-color | package.json license |
+| d3-dispatch | 3.0.1 | ISC | https://github.com/d3/d3-dispatch | package.json license |
+| d3-drag | 3.0.0 | ISC | https://github.com/d3/d3-drag | package.json license |
 | d3-ease | 3.0.1 | BSD-3-Clause | https://github.com/d3/d3-ease | package.json license |
 | d3-format | 3.1.2 | ISC | https://github.com/d3/d3-format | package.json license |
 | d3-interpolate | 3.0.1 | ISC | https://github.com/d3/d3-interpolate | package.json license |
 | d3-path | 3.1.0 | ISC | https://github.com/d3/d3-path | package.json license |
 | d3-scale | 4.0.2 | ISC | https://github.com/d3/d3-scale | package.json license |
+| d3-selection | 3.0.0 | ISC | https://github.com/d3/d3-selection | package.json license |
 | d3-shape | 3.2.0 | ISC | https://github.com/d3/d3-shape | package.json license |
 | d3-time | 3.1.0 | ISC | https://github.com/d3/d3-time | package.json license |
 | d3-time-format | 4.1.0 | ISC | https://github.com/d3/d3-time-format | package.json license |
 | d3-timer | 3.0.1 | ISC | https://github.com/d3/d3-timer | package.json license |
+| d3-transition | 3.0.1 | ISC | https://github.com/d3/d3-transition | package.json license |
+| d3-zoom | 3.0.0 | ISC | https://github.com/d3/d3-zoom | package.json license |
 | debug | 4.4.3 | MIT | https://github.com/debug-js/debug | package.json license |
 | decimal.js-light | 2.5.1 | MIT | https://github.com/MikeMcl/decimal.js-light | package.json license |
 | decode-named-character-reference | 1.3.0 | MIT | https://github.com/wooorm/decode-named-character-reference | package.json license |
@@ -560,6 +582,7 @@ names no author is in the evidence column below.
 | unist-util-stringify-position | 4.0.0 | MIT | https://github.com/syntax-tree/unist-util-stringify-position | package.json license |
 | unist-util-visit | 5.1.0 | MIT | https://github.com/syntax-tree/unist-util-visit | package.json license |
 | unist-util-visit-parents | 6.0.2 | MIT | https://github.com/syntax-tree/unist-util-visit-parents | package.json license |
+| uqr | 0.1.3 | MIT | https://github.com/unjs/uqr | package.json license |
 | use-callback-ref | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref/ | package.json license |
 | use-intl | 4.14.5 | MIT | https://github.com/amannn/next-intl | package.json license |
 | use-sidecar | 1.1.3 | MIT | https://github.com/theKashey/use-sidecar | package.json license |
@@ -569,6 +592,8 @@ names no author is in the evidence column below.
 | victory-vendor | 37.3.6 | MIT AND ISC | https://github.com/FormidableLabs/victory | package.json license; no licence file, attributed to Formidable |
 | voice-glow | 0.2.0 | MIT | https://github.com/Jakubantalik/Libraries.dev | package.json license |
 | yaml | 2.9.1 | ISC | github:eemeli/yaml | package.json license |
+| zod | 4.6.7 | MIT | https://github.com/colinhacks/zod | package.json license |
+| zustand | 4.5.7 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zustand | 5.0.15 | MIT | https://github.com/pmndrs/zustand | package.json license |
 | zwitch | 2.0.4 | MIT | https://github.com/wooorm/zwitch | package.json license |
 
@@ -605,5 +630,5 @@ and data files.
 | valkey/valkey | 8-alpine | service image, deployment | BSD-3-Clause | https://github.com/valkey-io/valkey | accepted | Keep the copyright notice with copies. Not redistributed by this project. | Pulled by the operator from Docker Hub; named here with its source. Replaced redis:7-alpine in #1603: Redis is RSALv2 or SSPL-1.0 from 7.4.0, neither OSI-approved, and the default compose path should not start a non-open component without saying so. Valkey is the Linux Foundation fork of Redis 7.2 under BSD-3-Clause. |
 | traefik | v3.7 | service image, deployment (optional reverse proxy) | MIT | https://github.com/traefik/traefik | accepted | Keep the copyright notice. Not redistributed by this project. | Pulled by the operator; named here with its source. |
 | pgsty/minio (Docker image) | RELEASE.2026-08-04T00-00-00Z | service image, deployment (optional object store) | AGPL-3.0-or-later | https://github.com/pgsty/minio | accepted | Network copyleft: a modified MinIO offered over a network owes its users the modified source (s.13). | Pulled by the operator from Docker Hub and run unmodified beside the deployment, behind the `objectstore` compose profile; nothing here is built from or linked against it. It is a separate service this project speaks S3 to, not a component of either published image, and a deployment on AWS S3 or another compatible store runs none of it. Named here because the compose file offers it (#1423). |
-| ghcr.io/vstorm-co/sandboxd | 0.2.37 | service image, deployment (optional agent sandbox) | MIT (pydantic-ai-backend, Vstorm) | https://github.com/vstorm-co/pydantic-ai-backend | accepted | Keep the copyright notice. | Published by Vstorm under MIT; the image is built from that repository. |
+| ghcr.io/vstorm-co/sandboxd | 0.2.39 | service image, deployment (optional agent sandbox) | MIT (pydantic-ai-backend, Vstorm) | https://github.com/vstorm-co/pydantic-ai-backend | accepted | Keep the copyright notice. | Published by Vstorm under MIT; the image is built from that repository. |
 | Sandbox runtime `workbench` (built by sandboxd from backend/app/core/catalog/sandbox_runtimes.json) | python:3.12-slim plus the listed apt, npm and PyPI packages, resolved at build time | runtime image built at the deployment | Mixed: Node.js (MIT), LibreOffice (MPL-2.0), poppler-utils (GPL-2.0 or GPL-3.0), uv (Apache-2.0 OR MIT), and PyPI packages under their own licences. Not pinned, so not enumerated here. | backend/app/core/catalog/sandbox_runtimes.json | deployment-review | Built and run inside the deployment, never redistributed by this project; GPL tools are used as separate processes. A deployment that redistributes the built image owes the GPL and LGPL source offers for it. | deployment-time review |

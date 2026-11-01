@@ -175,8 +175,9 @@ async def record_audit(
     never achieved silence - `flush` leaves the session needing a rollback, so
     the request's commit raised `PendingRollbackError` and 500'd anyway.
 
-    `actor_user_id` is `None` for the one caller that has no actor: the approval
-    expiry sweep, which records that *nobody* decided. It is required rather than
+    `actor_user_id` is `None` for the callers that have no actor: the approval
+    expiry sweep, which records that *nobody* decided, and the stop of an agent run
+    a workflow run's end leaves parked. It is required rather than
     defaulted, so passing no actor stays a deliberate act at each call site
     instead of the thing that happens when an argument is forgotten.
 

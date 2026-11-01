@@ -7,8 +7,11 @@ import {
   cn,
   EMAIL_RE,
   formatBytes,
+  formatCostUsd,
+  formatRunCostUsd,
   formatDate,
   formatDateTime,
+  formatElapsed,
   formatRunDuration,
   getPasswordStrength,
   isAppAdmin,
@@ -214,6 +217,15 @@ describe("formatDateTime", () => {
   });
 });
 
+describe("formatElapsed", () => {
+  it("reads a span of milliseconds, and refuses one that is not a span", () => {
+    expect(formatElapsed(850)).toBe("850 ms");
+    expect(formatElapsed(75_000)).toBe("1 min 15 s");
+    expect(formatElapsed(-1)).toBe("-");
+    expect(formatElapsed(Number.NaN)).toBe("-");
+  });
+});
+
 describe("formatRunDuration", () => {
   it("reports sub-second runs in milliseconds and longer ones in seconds", () => {
     expect(formatRunDuration("2026-08-04T09:00:00.000Z", "2026-08-04T09:00:00.850Z", "en")).toBe(
@@ -229,6 +241,16 @@ describe("formatRunDuration", () => {
     const took = ["2026-08-04T09:00:00Z", "2026-08-04T09:00:02.400Z"] as const;
     expect(formatRunDuration(...took, "en")).toBe("2.4 s");
     expect(formatRunDuration(...took, "pl")).toBe("2,4 s");
+  });
+
+  it("reads a long run in minutes, hours and days rather than thousands of seconds", () => {
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-04T09:01:05Z", "en")).toBe(
+      "1 min 5 s",
+    );
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-05T07:14:41Z", "en")).toBe(
+      "22 h 14 min",
+    );
+    expect(formatRunDuration("2026-08-04T09:00:00Z", "2026-08-06T12:00:00Z", "en")).toBe("2 d 3 h");
   });
 
   it("admits it does not know a duration when the run has not finished", () => {
@@ -291,5 +313,28 @@ describe("pushUrlParam", () => {
     expect(window.history.length).toBe(length + 1);
     expect(window.location.search).toBe("?tab=evals&case=c1");
     expect(window.history.state).toEqual({ __urlOverlay: "case" });
+  });
+});
+
+describe("formatCostUsd", () => {
+  it("shows four places, and says so when a real cost is below them", () => {
+    expect(formatCostUsd(0.0123)).toBe("$0.0123");
+    expect(formatCostUsd(9e-6)).toBe("<$0.0001");
+    expect(formatCostUsd(0.0001)).toBe("$0.0001");
+  });
+
+  it("keeps an exact zero as zero", () => {
+    expect(formatCostUsd(0)).toBe("$0.0000");
+  });
+});
+
+describe("formatRunCostUsd", () => {
+  it("marks a partial cost with a plus, and leaves a complete one alone", () => {
+    expect(formatRunCostUsd(0.0123, true)).toBe("$0.0123+");
+    expect(formatRunCostUsd(0.0123, false)).toBe("$0.0123");
+  });
+
+  it("does not put a plus on a cost already shown as a bound", () => {
+    expect(formatRunCostUsd(9e-6, true)).toBe("<$0.0001");
   });
 });

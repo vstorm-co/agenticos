@@ -1914,13 +1914,12 @@ surface, so a difference between the console and Mattermost remains visible.
   rewritten one step at a time instead, and each step is posted only after it
   has been checked.
 - **Every binding carries its own extra instructions**, added to the agent's on
-  that surface alone. A new one opens holding what that client actually renders:
-  Slack draws no Markdown and writes a link as `<url|text>`, Mattermost renders
-  headings and tables, Telegram rejects a message whose `*` is unclosed — plus
-  how to give a link there, led with an emoji when it is an action or a
-  destination. It is the binding's text from then on: change it, add to it, or
-  clear it. It shapes how an answer is delivered and can never replace what the
-  agent is for — that belongs to the published version.
+  that surface alone. Current formatting defaults come from the deployment:
+  Slack writes links as `<url|text>`, Mattermost renders headings and tables,
+  and Telegram rejects messages with unclosed formatting. A new binding stores
+  no copy of those defaults. Add, edit or clear custom instructions without
+  freezing the platform guidance at the version installed that day. This
+  shapes delivery; the agent's purpose belongs to its published version.
 - **A bot answers as soon as it is registered.** A polling bot - Telegram
   long-polling, Slack Socket Mode, a Mattermost event stream - is reached over a
   connection the API process holds, and that connection is opened when the row
@@ -1952,7 +1951,18 @@ surface, so a difference between the console and Mattermost remains visible.
     Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
-- **All MCP calls require approval in chat apps, including reads and organization or platform connections.** A linked account identifies whose connection is used; it does not grant automatic permission to publish personal results to a conversation. The same rule applies to delegated agents and resumed calls.
+- **Linked senders' MCP reads use the binding's approval policy; writes still require approval.** Read-only tools do not ask solely because a run is in a chat app. Tools without a `readOnlyHint: true` still ask, and an explicit `all` policy includes reads. This applies to personal, organization and platform connections, delegates and resumed calls. Personal connections still belong to the current sender, never the publisher or another participant.
+
+Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
+
+Editable channel names, topics, purposes and author labels pass the configured input checks before reaching the model. Redacted values replace the originals; blocked reference values are withheld while an otherwise allowed question can continue. Fixed envelope syntax, platform identifiers and chat-type enums are not screened as question text.
+
+Author reference data is supplied separately from the current message, so input guardrails screen the actual question. Unlinked channel participants still need approval for every MCP call, including organization reads.
+
+Both explicit `@slug` invocations and default replies receive the saved conversation history together with the initial channel thread context.
+
+Published Apps can be revised from another conversation without the original sandbox. Use `read_artifact` to recover the stored source and `publish_artifact` with the same name and edits or replacement content. The app keeps its link and version history. Viewing an app does not grant editing access; the existing permission checks still apply.
+
 - **The agent is told where it is answering and whose account is available.** Runtime guidance identifies the communicator and deployment console, explains that tools use a managed workspace, and distinguishes organization MCP connections from personal services. Personal services require both a linked sender identity and that person's authorized connection. Linking uses plain `link` in a direct message; the private connection URL never belongs in a channel. The agent reports actual tool results and gives one concrete next step when authentication or a capability is missing.
 - **A redelivered message is answered once.** Every platform delivers
   at-least-once: the webhook routes answer 200 before any work so a slow handler
@@ -2500,6 +2510,10 @@ Five tools change that, and each is granted **per binding**, under
 
 Use a direct message containing plain `link` (without a slash) to connect an account. Open the private connection link while signed in to AgenticOS, then return to the channel. When earlier thread files require linking, the bot explains this without downloading them and retries after connection. Channel pictures use twice the CSS resolution; very wide horizontal Mermaid flowcharts receive a vertical layout for the PNG only.
 
+Images requested through `generate_image` are attached to replies on all four chat platforms, alongside the existing chart and diagram support. Stored images are read within the run's organization, limited to 8 MiB and 16 megapixels, and converted to PNG; missing, invalid or oversized images produce a delivery notice. Teams additionally fits inline pictures to its own limits. Creating an ordinary workspace file still does not send it: that requires `send_channel_file`. Thread context preserves the original message timestamps; relative times refer to those timestamps, not to when the agent joins the thread.
+
+Only files recorded as generated by the run's own tools are attached. A tool name or result text cannot authorize access to another conversation's media. Rejecting image generation approval does not trigger a missing-image notice. Existing threads refresh text once without downloading earlier attachments again.
+
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
 said in this channel"* has a different answer on the internal one and the
@@ -2525,6 +2539,16 @@ Three things worth knowing before granting them:
   you make it ask.
 
 Automatic channel context includes the name, purpose and a bounded visible roster, marked as data rather than instructions. These per-binding tools grant additional lookups and explicit file delivery; clearing a tool grant does not remove the automatic context.
+
+## A bot whose messages start a workflow { #a-bot-whose-messages-start-a-workflow }
+
+A workflow with a **Channel message** trigger takes a bot's messages in its agent's
+place. Only the messages the agent would have answered reach it, and of those only
+the ones that fit the trigger's filter: a message naming another agent by `@handle`
+still goes there, and one the filter leaves is answered by the bot's agent as
+before. The workflow answers with its own **Send a message** step, into the thread
+the message came from. See
+[From a channel message](workflows.md#from-a-channel-message).
 
 ## Choosing
 
@@ -2569,3 +2593,9 @@ flowchart TD
   the transport, so it is attached only where a sink exists.
 
 A channel post containing only the bot mention or whitespace is ignored after mention removal, before claiming delivery or starting a run. This avoids sending an empty user message to model APIs that drop it and then reject the preceding assistant answer as prefill. A post containing only attachments still follows the attachment pipeline.
+
+## Current channel defaults
+
+Channel formatting and conversation guidance come from the current deployment on every run. A binding prompt stores only custom additions. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
+
+Downgrading restores the preceding release’s stored channel defaults while preserving custom additions, including bindings created after the upgrade. Other surfaces remain unchanged.

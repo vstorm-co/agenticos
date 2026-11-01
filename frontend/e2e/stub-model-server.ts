@@ -25,8 +25,9 @@ import { createServer } from "node:http";
  *   accepted is the provider's business, and asserting on it here would be
  *   asserting on this file.
  * - **Call tools on its own initiative.** It answers in one turn unless the
- *   instructions it was sent ask for a delegation, which `delegation.spec.ts`
- *   needs and no other spec asks for - see `DELEGATE`. A stub that decided by
+ *   request asks for a delegation, which `delegation.spec.ts` needs - see
+ *   `DELEGATE` - or names a tool call outright, which
+ *   `artifact-live-data.spec.ts` needs - see `CALL_TOOL`. A stub that decided by
  *   itself which tools to call would be a stub that decides what the agent does,
  *   and the tool paths have their own specs.
  * - **Generate text.** It echoes the token it was told to say, which is the
@@ -37,6 +38,13 @@ import { createServer } from "node:http";
 
 /** Deliberately not 3000 or 8000: the frontend and the API own those. */
 const PORT = Number(process.env.E2E_STUB_MODEL_PORT ?? 4010);
+
+/**
+ * Where it listens. Loopback unless told otherwise: an API in a container cannot
+ * reach the host's `127.0.0.1`, so a run against one binds `0.0.0.0` and names
+ * the host's address in the model profile instead.
+ */
+const BIND = process.env.E2E_STUB_MODEL_BIND ?? "127.0.0.1";
 
 /**
  * What the caller asked to be said back.
@@ -83,6 +91,25 @@ const TASK_TOOL = "task";
  * spec is checking.
  */
 const DELEGATED_TASK = "Say your line.";
+
+/**
+ * A tool call the request spells out in full: `CALL-TOOL:<tool>:<arguments>`,
+ * the arguments as base64url JSON.
+ *
+ * `DELEGATE`'s sibling, for a tool whose arguments are the spec's to choose - a
+ * page and the views it binds, which only the spec knows the ids of. The stub
+ * decides nothing: it decodes what it was given and calls the tool it was named,
+ * under the same two guards as a delegation (`toolCallFor`). base64url because
+ * the arguments are JSON holding HTML, and a prompt that carried them raw would
+ * be one quote away from a directive this pattern no longer matches.
+ */
+const CALL_TOOL = /\bCALL-TOOL:([A-Za-z0-9_]+):([A-Za-z0-9_-]+)/;
+
+/** One tool call this stub answers with: the tool, and its arguments as JSON text. */
+interface ToolCall {
+  name: string;
+  arguments: string;
+}
 
 interface ChatMessage {
   role?: string;
@@ -205,10 +232,46 @@ function replyFor(body: ChatRequest): string {
  *   never delegates however its prompt reads.
  */
 function delegateFor(body: ChatRequest): string | null {
-  if ((body.messages ?? []).some((message) => message.role === "tool")) return null;
+  if (toolAnswered(body)) return null;
   const named = DELEGATE.exec(allText(body))?.[1];
   if (named === undefined) return null;
-  return (body.tools ?? []).some((tool) => tool.function?.name === TASK_TOOL) ? named : null;
+  return offers(body, TASK_TOOL) ? named : null;
+}
+
+/** A tool has answered in this turn, so the next reply is prose and nothing loops. */
+function toolAnswered(body: ChatRequest): boolean {
+  return (body.messages ?? []).some((message) => message.role === "tool");
+}
+
+/** The request offers this tool, so the capability behind it was bound. */
+function offers(body: ChatRequest, name: string): boolean {
+  return (body.tools ?? []).some((tool) => tool.function?.name === name);
+}
+
+/**
+ * The tool call a `CALL-TOOL` directive asks for, or `null`.
+ *
+ * The same two guards as `delegateFor`, for the same reasons: the named tool has
+ * to be on the request, so a capability that was never bound fails as a missing
+ * tool call rather than a model calling a tool it does not have; and no tool has
+ * answered yet, so the second request of the turn - which carries the result - is
+ * answered in prose. Arguments that do not decode to a JSON object are not a
+ * directive: the stub calls nothing rather than invent arguments.
+ */
+function toolCallFor(body: ChatRequest): ToolCall | null {
+  if (toolAnswered(body)) return null;
+  const match = CALL_TOOL.exec(allText(body));
+  if (match === null) return null;
+  const [, name = "", encoded = ""] = match;
+  if (!offers(body, name)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+  return { name, arguments: JSON.stringify(parsed) };
 }
 
 /**
@@ -227,7 +290,7 @@ function usageFor(prompt: string, answer: string): Record<string, number> {
 /** Fixed, because a chunk id that moved would be the only unstable thing here. */
 const COMPLETION_ID = "chatcmpl-e2e-stub";
 const CREATED = 1_700_000_000;
-/** One delegation per turn, so one id is enough and a fixed one reads plainly. */
+/** One tool call per turn, so one id is enough and a fixed one reads plainly. */
 const TOOL_CALL_ID = "call-e2e-task";
 
 function completion(model: string, answer: string, usage: Record<string, number>): string {
@@ -247,19 +310,23 @@ function completion(model: string, answer: string, usage: Record<string, number>
   });
 }
 
-/** The `task` arguments, as the library's own tool signature names them. */
-function taskArguments(subagent: string): string {
-  return JSON.stringify({ subagent_type: subagent, description: DELEGATED_TASK });
-}
-
 /**
- * A turn that delegates instead of answering.
+ * A delegation, as a call to `task` with the arguments the library's own tool
+ * signature names.
  *
  * `mode` is deliberately not sent. The platform replaces it on the way through
  * with the one the agent's author configured, and a stub that named a mode would
  * hide the turn where that replacement stopped happening.
  */
-function delegation(model: string, subagent: string, usage: Record<string, number>): string {
+function delegationCall(subagent: string): ToolCall {
+  return {
+    name: TASK_TOOL,
+    arguments: JSON.stringify({ subagent_type: subagent, description: DELEGATED_TASK }),
+  };
+}
+
+/** A turn that calls a tool instead of answering. */
+function toolCallCompletion(model: string, call: ToolCall, usage: Record<string, number>): string {
   return JSON.stringify({
     id: COMPLETION_ID,
     object: "chat.completion",
@@ -275,7 +342,7 @@ function delegation(model: string, subagent: string, usage: Record<string, numbe
             {
               id: TOOL_CALL_ID,
               type: "function",
-              function: { name: TASK_TOOL, arguments: taskArguments(subagent) },
+              function: { name: call.name, arguments: call.arguments },
             },
           ],
         },
@@ -318,14 +385,14 @@ function* streamChunks(model: string, answer: string, usage: Record<string, numb
 }
 
 /**
- * The delegating turn, streamed.
+ * The tool-calling turn, streamed.
  *
  * The arguments arrive in a chunk of their own after the one that names the tool,
  * which is how a provider sends them and therefore the shape worth exercising: an
  * SDK that only assembled a tool call from a single frame would pass a
  * one-chunk stub and fail against OpenAI.
  */
-function* delegationChunks(model: string, subagent: string, usage: Record<string, number>) {
+function* toolCallChunks(model: string, call: ToolCall, usage: Record<string, number>) {
   yield chunk(model, [
     {
       index: 0,
@@ -336,7 +403,7 @@ function* delegationChunks(model: string, subagent: string, usage: Record<string
             index: 0,
             id: TOOL_CALL_ID,
             type: "function",
-            function: { name: TASK_TOOL, arguments: "" },
+            function: { name: call.name, arguments: "" },
           },
         ],
       },
@@ -346,7 +413,7 @@ function* delegationChunks(model: string, subagent: string, usage: Record<string
   yield chunk(model, [
     {
       index: 0,
-      delta: { tool_calls: [{ index: 0, function: { arguments: taskArguments(subagent) } }] },
+      delta: { tool_calls: [{ index: 0, function: { arguments: call.arguments } }] },
       finish_reason: null,
     },
   ]);
@@ -396,10 +463,11 @@ const server = createServer((request, response) => {
 
     const model = body.model ?? "gpt-4.1-mini";
     const subagent = delegateFor(body);
-    // Empty on a delegating turn, which is what a provider sends beside a tool
-    // call: the parent has not said anything yet, and inventing prose for it
+    const call = subagent === null ? toolCallFor(body) : delegationCall(subagent);
+    // Empty on a tool-calling turn, which is what a provider sends beside a tool
+    // call: the agent has not said anything yet, and inventing prose for it
     // would put words in the transcript the agent never generated.
-    const answer = subagent === null ? (improvementReply(body) ?? replyFor(body)) : "";
+    const answer = call === null ? (improvementReply(body) ?? replyFor(body)) : "";
     const usage = usageFor(allText(body), answer);
 
     if (body.stream === true) {
@@ -409,9 +477,7 @@ const server = createServer((request, response) => {
         connection: "keep-alive",
       });
       const frames =
-        subagent === null
-          ? streamChunks(model, answer, usage)
-          : delegationChunks(model, subagent, usage);
+        call === null ? streamChunks(model, answer, usage) : toolCallChunks(model, call, usage);
       for (const frame of frames) response.write(frame);
       response.end();
       return;
@@ -420,13 +486,13 @@ const server = createServer((request, response) => {
     response
       .writeHead(200, { "content-type": "application/json" })
       .end(
-        subagent === null ? completion(model, answer, usage) : delegation(model, subagent, usage),
+        call === null ? completion(model, answer, usage) : toolCallCompletion(model, call, usage),
       );
   });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, BIND, () => {
   // Playwright waits on /health rather than on this line, but a server that
   // says nothing is one nobody can tell apart from a port already taken.
-  console.log(`stub model server listening on http://127.0.0.1:${PORT}`);
+  console.log(`stub model server listening on http://${BIND}:${PORT}`);
 });

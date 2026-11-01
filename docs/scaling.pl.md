@@ -1,5 +1,5 @@
 ---
-source_sha: "25d309992393"
+source_sha: "2391388a2aed"
 ---
 
 # Skalowanie poza jeden host { #scale-beyond-one-host }
@@ -18,15 +18,15 @@ dowolnym wdrożeniu.
 
 ## Co trzyma stan, a co nie { #what-holds-state-and-what-does-not }
 
-| Część | Co przechowuje | Jak rośnie |
-|---|---|---|
-| API (`app`) | Nic własnego. Sesje, obecność, trwające tury czatu i strumień zmian na żywo są w Postgresie i Redisie | Więcej workerów uvicorn, potem więcej hostów za load balancerem |
-| Worker | Nic. Zadania, dzierżawy i harmonogramy to wiersze w Postgresie | Więcej procesów, na dowolnych hostach, z pulami podzielonymi między nie |
-| Konsola (`frontend`) | Branding, który trzyma w cache przez pięć minut | Więcej instancji |
-| Postgres | Wszystko trwałe: organizacje, agenci, rozmowy, wektory, kolejka zadań | Większa instancja albo zarządzana |
-| Redis (Valkey) | Cache i jego kanały pub/sub, odbudowywane po restarcie | Jedna instancja wspólna dla wszystkich hostów |
-| Przesłane pliki | Wolumen na hoście albo bucket | Bucket, gdy czyta je lub zapisuje więcej niż jeden host |
-| Usługa sandboxów | Sandboksy, w których agenci uruchamiają polecenia | Własny host, zobacz [Przestrzenie robocze agentów](configuration.md#running-the-service-on-another-host) |
+| Część                | Co przechowuje                                                                                        | Jak rośnie                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| API (`app`)          | Nic własnego. Sesje, obecność, trwające tury czatu i strumień zmian na żywo są w Postgresie i Redisie | Więcej workerów uvicorn, potem więcej hostów za load balancerem                                          |
+| Worker               | Nic. Zadania, dzierżawy i harmonogramy to wiersze w Postgresie                                        | Więcej procesów, na dowolnych hostach, z pulami podzielonymi między nie                                  |
+| Konsola (`frontend`) | Branding, który trzyma w cache przez pięć minut                                                       | Więcej instancji                                                                                         |
+| Postgres             | Wszystko trwałe: organizacje, agenci, rozmowy, wektory, kolejka zadań                                 | Większa instancja albo zarządzana                                                                        |
+| Redis (Valkey)       | Cache i jego kanały pub/sub, odbudowywane po restarcie                                                | Jedna instancja wspólna dla wszystkich hostów                                                            |
+| Przesłane pliki      | Wolumen na hoście albo bucket                                                                         | Bucket, gdy czyta je lub zapisuje więcej niż jeden host                                                  |
+| Usługa sandboxów     | Sandboksy, w których agenci uruchamiają polecenia                                                     | Własny host, zobacz [Przestrzenie robocze agentów](configuration.md#running-the-service-on-another-host) |
 
 ## Jedna baza na wdrożenie { #one-database-per-deployment }
 
@@ -144,7 +144,7 @@ Dlaczego kolejka to wiersze w Postgresie, zmierzone na tle dziewięciu innych
 silników, opisuje [benchmark zadań w tle](task-queue-benchmark.md).
 
 Rozdziel pule, gdy parsowanie konkuruje z uruchomieniami agentów.
-`WORKER_POOLS=agent,eval,system` na jednych procesach i `WORKER_POOLS=ingest` na
+`WORKER_POOLS=agent,eval,system,workflow` na jednych procesach i `WORKER_POOLS=ingest` na
 hostach z zapasem pamięci sprawiają, że duży upload nie opóźnia rutyny. Sonda
 zdrowia i `agenticos cmd doctor` zgłaszają pulę, której nie obsługuje żaden żywy
 worker. Ustawienia z sekcji

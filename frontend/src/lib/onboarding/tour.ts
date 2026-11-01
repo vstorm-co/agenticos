@@ -83,6 +83,25 @@ export const GROUP_DETAIL = "group-detail";
  */
 export const WORKSPACE_DETAIL = "workspace-detail";
 
+/** A table's detail view, `/tables/<id>`, collapsed to one identity the same way. */
+export const TABLE_DETAIL = "table-detail";
+
+/**
+ * One workflow's runs, `/workflows/<id>/runs`, collapsed the same way. Not
+ * `/workflows/runs` - every workflow's runs - which is a page of its own.
+ */
+export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
+
+/** One workflow's log, `/workflows/<id>/logs`: "?"-only and shown in place, like its runs. */
+export const WORKFLOW_LOGS_DETAIL = "workflow-logs-detail";
+
+/**
+ * An artifact's page, `/apps/<id>`, collapsed to one identity. It is the
+ * viewer, outside the dashboard layout: its strip carries its own "?" and the
+ * walk is mounted in the viewer's layout, "?"-only and shown in place.
+ */
+export const ARTIFACT_DETAIL = "artifact-detail";
+
 /**
  * One project, `/projects/<id>`. Like a Documents folder there is no seeded
  * example to open, so its stop is "?"-only help shown on a project of the
@@ -709,6 +728,45 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.datasetsEdit,
     optional: true,
   },
+  // Workflows — the visual editor's list. Same shape as Agents: a create button
+  // the launch pass points at (create-gated), and the status list the "?" adds
+  // (view-gated). The create control opens the blank/template dialog.
+  {
+    id: "workflows-new",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-new",
+    permission: Perm.workflowsCreate,
+    inTour: true,
+  },
+  {
+    id: "workflows-list",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-list",
+    permission: Perm.workflowsView,
+  },
+  // Every workflow's runs, filtered on the server: one describing stop on the list.
+  {
+    id: "workflows-runs",
+    page: ROUTES.WORKFLOW_ALL_RUNS,
+    target: "workflows-runs",
+    permission: Perm.workflowsView,
+  },
+  // One workflow's runs, `/workflows/<id>/runs`: "?"-only and shown in place, like
+  // a table - there is no seeded workflow to open from the list. Ungated: anyone
+  // who reached the page may see a workflow, which is all both stops need.
+  { id: "workflow-stats", page: WORKFLOW_RUNS_DETAIL, target: "workflow-stats" },
+  { id: "workflow-run-history", page: WORKFLOW_RUNS_DETAIL, target: "workflow-run-history" },
+  // One workflow's log, `/workflows/<id>/logs`: the lines its steps' quick logs wrote.
+  { id: "workflow-logs", page: WORKFLOW_LOGS_DETAIL, target: "workflow-logs" },
+  // The alert rules under it: drawn for anyone who may view the workflow, anchored on
+  // the card's header, and optional while the page is still loading its workflow.
+  {
+    id: "workflow-log-alerts",
+    page: WORKFLOW_LOGS_DETAIL,
+    target: "workflow-log-alerts",
+    permission: Perm.workflowsView,
+    optional: true,
+  },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -723,6 +781,63 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "artifacts-groups",
     page: ROUTES.ARTIFACTS,
     target: "group-filter",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  // One page, `/apps/<id>`: "?"-only and shown in place, from the "?" in its
+  // strip. The anchors sit in the strip, never in a dialog or a menu: the walk
+  // opens a tab, not a dialog, so a stop cannot reveal what a click would. The
+  // first, on the strip's own header, is always there, so "?" never closes without
+  // showing anything; the rest are `optional` - the consent warning is drawn only
+  // while a version waits for consent, the Requests button and the data-change
+  // notice only while one waits, and the owner menu only for who may change the owner.
+  {
+    id: "artifact-strip",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-strip",
+    permission: Perm.artifactsView,
+  },
+  {
+    id: "artifact-consent",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-consent",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-public-data",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-public-data",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-requests",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-requests",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-review",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-review",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  // Only for a page that declares actions the viewer may run: the menu is drawn
+  // then and not otherwise.
+  {
+    id: "artifact-actions",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-actions",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-change-owner",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-change-owner",
     permission: Perm.artifactsView,
     optional: true,
   },
@@ -903,6 +1018,40 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.datasetsView,
   },
 
+  {
+    id: "tables-catalog",
+    page: ROUTES.TABLES,
+    target: "tables-catalog",
+    permission: Perm.tablesView,
+    inTour: true,
+  },
+  {
+    id: "tables-new",
+    page: ROUTES.TABLES,
+    target: "tables-new",
+    permission: Perm.tablesCreate,
+    inTour: true,
+  },
+  // The table detail, `/tables/<id>`. "?"-only and shown in place: it is in no
+  // section flow, so the walk never opens a table from the catalog - there is no
+  // seeded example to open, the same as `workspaces-detail` - and a "?" pressed on
+  // a table spotlights that table's own controls. `table-columns`
+  // is `optional`, not permission-gated: the button it anchors on renders from
+  // `table.can_edit`, a per-row boolean no static `Permission` can express (see
+  // `docs/virtual-tables.md#who-can-do-what`), so a role-level gate here would
+  // either hide the step from an editor or wait four seconds for a viewer whose
+  // refusal never mounted it.
+  {
+    id: "table-columns",
+    page: TABLE_DETAIL,
+    target: "table-columns",
+    optional: true,
+  },
+  // Ungated: any member who can open the table can read its triggers, and the
+  // sheet itself hides the controls from one who cannot edit them.
+  { id: "table-triggers", page: TABLE_DETAIL, target: "table-triggers" },
+  { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
   // The organization detail, entered from the workspaces list. Two routes, one
@@ -931,6 +1080,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.budgetsManage,
     anyPermission: [Perm.connectionsManage],
     optional: true,
+  },
+  {
+    id: "org-public-live-data",
+    page: ORG_MEMBERS,
+    target: "org-public-live-data",
+    activate: "org-tab-governance",
+    permission: Perm.orgSettings,
   },
   // Activate each settings tab before locating its card. Gated like
   // the card, which is hidden from anybody who may not change settings.
@@ -1069,6 +1225,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.projectsView,
   },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
 
   // Other vendors' agents, reached over A2A (#2092). The list is what the page
   // is for; registering is `agents:edit`, which the button carries.
@@ -1175,6 +1332,10 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
+/** `/workflows/<id>/runs` - three segments, so every workflow's `/workflows/runs` is not one. */
+const WORKFLOW_RUNS_PATH = /^\/workflows\/[^/]+\/runs$/;
+const WORKFLOW_LOGS_PATH = /^\/workflows\/[^/]+\/logs$/;
+
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
   if (/^\/agents\/[^/]+\/improve\/new(\/|$)/.test(path)) return IMPROVEMENT_START;
@@ -1194,6 +1355,10 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;
+  if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
+  if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
+  if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
+  if (WORKFLOW_LOGS_PATH.test(path)) return WORKFLOW_LOGS_DETAIL;
   return path;
 }
 

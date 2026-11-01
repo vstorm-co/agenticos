@@ -22,6 +22,8 @@ from app.api.routes.v1._sharing_loaders import (
     load_project,
     load_secret,
     load_skill,
+    load_table,
+    load_workflow,
 )
 from app.api.routes.v1.sharing import (
     agent_sharing_router,
@@ -33,6 +35,8 @@ from app.api.routes.v1.sharing import (
     project_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
+    table_sharing_router,
+    workflow_sharing_router,
 )
 from app.core.exceptions import NotFoundError
 from app.services.access import AGENT, COLLECTION, SECRET, SKILL
@@ -44,6 +48,8 @@ ROUTERS = (
     ("skills", skill_sharing_router),
     ("context", context_sharing_router),
     ("secrets", secret_sharing_router),
+    ("tables", table_sharing_router),
+    ("workflows", workflow_sharing_router),
     ("artifacts", artifact_sharing_router),
     ("datasets", dataset_sharing_router),
     ("mcp-connections", mcp_connection_sharing_router),
@@ -56,8 +62,9 @@ LOADERS = (
     ("skill", load_skill, "Skill not found", "skill_id"),
     ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
-    ("artifact", load_artifact, "App not found", "artifact_id"),
     ("dataset", load_dataset, "Dataset not found", "dataset_id"),
+    ("table", load_table, "Table not found", "table_id"),
+    ("workflow", load_workflow, "Workflow not found", "workflow_id"),
     ("mcp_connection", load_mcp_connection, "MCP connection not found", "connection_id"),
     ("project", load_project, "Project not found", "project_id"),
 )
@@ -100,7 +107,7 @@ class TestResourceLoaders:
         resource_id = uuid.uuid4()
 
         with pytest.raises(NotFoundError) as refused:
-            await loader(db, resource_id, uuid.uuid4())
+            await loader(db, resource_id, MagicMock(organization_id=uuid.uuid4()))
 
         assert refused.value.message == message
         assert refused.value.details == {detail_key: str(resource_id)}
@@ -113,7 +120,7 @@ class TestResourceLoaders:
         resource_id = uuid.uuid4()
 
         with pytest.raises(NotFoundError) as refused:
-            await loader(db, resource_id, uuid.uuid4())
+            await loader(db, resource_id, MagicMock(organization_id=uuid.uuid4()))
 
         assert refused.value.message == message
         assert refused.value.details == {detail_key: str(resource_id)}
@@ -125,10 +132,24 @@ class TestResourceLoaders:
     ):
         organization_id = uuid.uuid4()
         # `scope` is read by the MCP server's loader alone; an organization's.
-        row = MagicMock(organization_id=organization_id, scope="org")
+        row = MagicMock(organization_id=organization_id, archived_at=None, scope="org")
         db = MagicMock(get=AsyncMock(return_value=row))
 
-        assert await loader(db, uuid.uuid4(), organization_id) is row
+        assert await loader(db, uuid.uuid4(), MagicMock(organization_id=organization_id)) is row
+
+    @pytest.mark.anyio
+    async def test_the_artifact_loader_is_the_service_s_rule_not_one_of_its_own(self):
+        """Who finds an archived page is decided in `ArtifactService.load`, beside `read`."""
+        ctx, db, row = MagicMock(), MagicMock(), MagicMock()
+        resource_id = uuid.uuid4()
+
+        with patch(
+            "app.api.routes.v1._sharing_loaders.ArtifactService.load",
+            new=AsyncMock(return_value=row),
+        ) as load:
+            assert await load_artifact(db, resource_id, ctx) is row
+
+        load.assert_awaited_once_with(ctx, resource_id)
 
     @pytest.mark.anyio
     async def test_a_member_s_own_mcp_connection_is_nobody_else_s_to_share(self):
@@ -138,7 +159,7 @@ class TestResourceLoaders:
         db = MagicMock(get=AsyncMock(return_value=row))
 
         with pytest.raises(NotFoundError):
-            await load_mcp_connection(db, uuid.uuid4(), organization_id)
+            await load_mcp_connection(db, uuid.uuid4(), MagicMock(organization_id=organization_id))
 
 
 class TestHandlerBehaviour:

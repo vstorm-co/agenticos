@@ -1,5 +1,5 @@
 ---
-source_sha: "5767ea2be981"
+source_sha: "c099c87e9633"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -13,14 +13,14 @@ Playwright. Paketmanager und Runner: **bun**.
 
 ## Wo was liegt { #where-things-live }
 
-| Pfad | |
-|---|---|
-| `src/app/[locale]/(dashboard)/…` | Das Produkt. Routen tragen ein **Locale-Präfix** |
-| `src/app/api/…` | Route Handler, die zum Backend weiterleiten |
-| `src/lib/` | Typisierte API-Clients, `query-keys.ts` und die Registries weiter unten |
-| `src/hooks/` | Einer pro Ressource — `use-agents`, `use-permissions`, … |
-| `src/stores/` | Zustand, einer pro Anliegen |
-| `src/components/<domain>/` | UI nach Domäne; Primitive in `ui/`, Leer- und Fehlerzustände in `states/` |
+| Pfad                             |                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| `src/app/[locale]/(dashboard)/…` | Das Produkt. Routen tragen ein **Locale-Präfix**                          |
+| `src/app/api/…`                  | Route Handler, die zum Backend weiterleiten                               |
+| `src/lib/`                       | Typisierte API-Clients, `query-keys.ts` und die Registries weiter unten   |
+| `src/hooks/`                     | Einer pro Ressource — `use-agents`, `use-permissions`, …                  |
+| `src/stores/`                    | Zustand, einer pro Anliegen                                               |
+| `src/components/<domain>/`       | UI nach Domäne; Primitive in `ui/`, Leer- und Fehlerzustände in `states/` |
 
 Server Components sind der Default. `"use client"` ist für State, Effects und
 Handler da, nicht für die Gewohnheit.
@@ -37,6 +37,8 @@ Personen und Organisationen verwenden `EntityAvatar`: Fotos werden kreisförmig
 zugeschnitten; Initialen auf einer stabilen Farbe dienen als Ersatz. Agenten
 behalten ihre generierten Gesichter. Katalogbeschreibungen belegen zwei Zeilen;
 beim Öffnen eines Eintrags erscheint die vollständige Beschreibung.
+
+Asynchrone Aktionen verwenden `Button loading`, damit Beschriftung und Abmessungen erhalten bleiben und wiederholtes Absenden verhindert wird. Dieser Zustand endet erst nach allen Schritten, einschließlich Uploads. Linkbasierte Schaltflächen behalten ein einzelnes Kind und blockieren die Aktivierung, solange sie nicht verfügbar sind. Steuerelemente teilen einen einheitlichen Tastaturfokus und kompakte Desktop-Größen; bei ausreichend Platz sind Touch-Ziele 44px groß. Overlays animieren von ihrem Anker aus; Tooltips umbrechen innerhalb des Fensters. Kalenderüberschriften folgen der Konsolensprache, und Fortschrittsanzeigen melden tatsächlichen Wert und Höchstwert an assistive Technologien. Animationen beachten die Motion-Einstellung der Person.
 
 ## Der Browser ruft nie das Backend auf { #the-browser-never-calls-the-backend }
 
@@ -101,8 +103,8 @@ Zwei Fallen, die hier beide schon ausgeliefert wurden:
   strikt überragt. Ein fest verdrahtetes "jede Rolle außer owner" ist das, was
   einem Admin die Option Admin anbot und nach dem Eintippen der E-Mail-Adresse
   mit 403 antwortete.
-- **Eine Seite, die eine Organisation in ihrer URL nennt, *ist* diese
-  Organisation.** Der API-Client stempelt `X-Organization-Id` aus der *aktiven*
+- **Eine Seite, die eine Organisation in ihrer URL nennt, _ist_ diese
+  Organisation.** Der API-Client stempelt `X-Organization-Id` aus der _aktiven_
   Organisation, also entscheidet eine Seite, die auf der Organisation in ihrem
   Pfad handelt und dabei die Permissions der aktiven liest, über die Mitglieder
   von Acme nach Ihrer Rolle in Globex. Die Übernahme wohnt in `ActiveOrgGuard`,
@@ -143,12 +145,12 @@ rendert eine fehlende Übersetzung Englisch statt des Keys.
 Jede davon ist eine Tabelle, die mehrere Teile der UI lesen. Der Tabelle etwas
 hinzuzufügen ist die ganze Änderung; eine zweite Quelle hinzuzufügen ist der Bug.
 
-| | Hält | Hinzufügen über |
-|---|---|---|
-| `lib/tool-catalog.ts` | Icon, laufende Beschriftung, fertigen Namen und Renderer für jedes Tool, das das Backend registriert | Eine Zeile, die auf der Tool-id der Capability sitzt. Ein Backend-Test vergleicht beide in beide Richtungen |
-| `lib/brand-glyphs.generated.ts` | Jedes Dienst-, Connector- und Provider-Zeichen, als rohe Pfaddaten | Eine Zeile in `scripts/gen-brand-icons.ts`, dann `bun run gen:brand-icons`. Nie ein Import aus einem Icon-Paket |
-| `lib/dashboard/registry.ts` | Die Dashboard-Widgets und die Permission, an der jedes gemessen wird | Fünf Änderungen, unten auf der Seite aufgeführt |
-| `lib/dialog-sizes.ts` | Ein Breiten-Token und ein Form-Token pro Dialog | Ein Token wählen, nie eine maßgeschneiderte Höhe |
+|                                 | Hält                                                                                                 | Hinzufügen über                                                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `lib/tool-catalog.ts`           | Icon, laufende Beschriftung, fertigen Namen und Renderer für jedes Tool, das das Backend registriert | Eine Zeile, die auf der Tool-id der Capability sitzt. Ein Backend-Test vergleicht beide in beide Richtungen     |
+| `lib/brand-glyphs.generated.ts` | Jedes Dienst-, Connector- und Provider-Zeichen, als rohe Pfaddaten                                   | Eine Zeile in `scripts/gen-brand-icons.ts`, dann `bun run gen:brand-icons`. Nie ein Import aus einem Icon-Paket |
+| `lib/dashboard/registry.ts`     | Die Dashboard-Widgets und die Permission, an der jedes gemessen wird                                 | Fünf Änderungen, unten auf der Seite aufgeführt                                                                 |
+| `lib/dialog-sizes.ts`           | Ein Breiten-Token und ein Form-Token pro Dialog                                                      | Ein Token wählen, nie eine maßgeschneiderte Höhe                                                                |
 
 ## Zwei Dinge, die eine neue Oberfläche schuldet { #two-things-a-new-surface-owes }
 
@@ -216,7 +218,6 @@ Assertions lesen.
 
 [Das Backend →](architecture.md) · [Ein Feature hinzufügen →](adding_features.md) ·
 [Testen →](testing.md)
-
 
 ## Tests in der Konsole { #evals-in-the-console }
 

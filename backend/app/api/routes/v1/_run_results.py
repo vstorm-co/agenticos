@@ -21,6 +21,7 @@ async def run_result(
         # a run it did not start in a conversation can continue the thread.
         conversation_id=run.conversation_id,
         output=segment.output,
+        structured=segment.structured,
         status=run.status,
         cost_usd=run.cost_usd,
         cost_is_partial=run.cost_is_partial,

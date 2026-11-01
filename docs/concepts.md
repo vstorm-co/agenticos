@@ -41,6 +41,15 @@ The spec keeps two rules, and they are what make it useful.
     New fields get defaults, so an agent published today still loads after an
     upgrade. Removing or renaming a field is a migration, not an edit.
 
+!!! info "An answer can be data"
+
+    By default an agent answers in prose. Set **Answer format** to structured
+    data, or `output_schema` in the spec, and it answers with an object of named
+    fields instead: the model is asked for that shape, and an answer that breaks
+    it is sent back to be fixed before the run ends. The API returns the object
+    as `structured`, the chat and the channels show it as a JSON block, and an
+    `agent.run` step hands it on.
+
 !!! info "A template is a spec somebody already wrote"
 
     The [agent templates](first-agent.md#3-build-the-agent) that ship with the
@@ -203,6 +212,11 @@ matters in my inbox* the default cannot do — on these terms:
   through your API key or by an administrator impersonating you.
 - **The record says so.** The run names the trigger that fired it, and every audit
   entry the fire records carries `via_trigger` with the member it acted as.
+- **It may work on the creator's own computer.** With Run as me on, the creator
+  can point the trigger at a folder on their computer, under **Work on**; each
+  fire then works there through the [desktop app](desktop.md#work-on-this-computer).
+  Turning Run as me off clears it, and a fire that does not act as its creator is
+  refused the computer.
 
 The rule decides how you design an agent that runs on a trigger:
 
@@ -267,7 +281,7 @@ Any trigger can also be **run now**: one extra fire on demand that leaves its
 cadence untouched.
 
 It is *accepted* rather than awaited. The request answers as soon as the fire is
-handed to the worker as its own flow run — the same durable door a scheduled or
+queued as a job for the worker — the same durable door a scheduled or
 delivered fire goes through — and the run appears in the trigger's run-log
 conversation as it happens.
 

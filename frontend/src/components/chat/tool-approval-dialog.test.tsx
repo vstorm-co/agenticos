@@ -116,6 +116,107 @@ describe("the tool approval dialog", () => {
     expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
+  it("says why the agent asks before what it would run", async () => {
+    mount([
+      action("a-1", {
+        tool_name: "update_record",
+        args: { table_id: "t-1", reason: "So the order shows as shipped." },
+      }),
+    ]);
+
+    expect(screen.getByText("So the order shows as shipped.")).toBeVisible();
+    // The reason is the sentence on top, not one more row.
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.queryByText("Reason")).toBeNull();
+    // Once as the call's one telling argument, once in the details.
+    expect(screen.getAllByText("t-1")).toHaveLength(2);
+  });
+
+  it("says what the call will do in names, under the reason and over the ids", async () => {
+    mount([
+      action("a-1", {
+        tool_name: "update_record",
+        args: { table_id: "t-1", reason: "So the order shows as shipped." },
+        capability_tool_id: "update_record",
+        context: { table: "E2E Live Tickets" },
+      }),
+    ]);
+
+    const sentence = screen.getByText("Change a record in E2E Live Tickets");
+    expect(sentence).toBeVisible();
+    // After the agent's own reason, and the ids it names are still there below.
+    expect(
+      screen.getByText("So the order shows as shipped.").compareDocumentPosition(sentence),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText("t-1")).toBeVisible();
+  });
+
+  it("names the table a record is written to, never the record", () => {
+    mount([
+      action("a-1", {
+        tool_name: "delete_record",
+        args: { table_id: "t-1", record_id: "r-1", expected_revision: 2 },
+        capability_tool_id: "delete_record",
+        context: { table: "Orders" },
+      }),
+      action("a-2", {
+        tool_name: "create_record",
+        args: { table_id: "t-1", values: { Quantity: 2 } },
+        capability_tool_id: "create_record",
+        context: { table: "Orders" },
+      }),
+    ]);
+
+    expect(screen.getByText("Delete a record from Orders")).toBeVisible();
+    expect(screen.getByText("Add a record to Orders")).toBeVisible();
+  });
+
+  it("finds the sentence for a renamed tool by its stable id, not its name", () => {
+    mount([
+      action("a-1", {
+        tool_name: "change_order",
+        args: { table_id: "t-1" },
+        capability_tool_id: "update_record",
+        context: { table: "Orders" },
+      }),
+      // The name of a described tool, with no stable id: an MCP server's tool under
+      // "ask about everything" is not the capability's tool and gets no sentence.
+      action("a-2", {
+        tool_name: "update_record",
+        args: { table_id: "t-2" },
+        context: { table: "Archive" },
+      }),
+    ]);
+
+    expect(screen.getByText("Change a record in Orders")).toBeVisible();
+    expect(screen.queryByText(/Archive/)).toBeNull();
+  });
+
+  it("draws the plain card when the call came with no names, or not the ones it needs", async () => {
+    mount([
+      action("a-1", {
+        tool_name: "update_record",
+        args: { table_id: "t-1" },
+        capability_tool_id: "update_record",
+      }),
+      action("a-2", {
+        tool_name: "update_record",
+        args: { table_id: "t-2" },
+        capability_tool_id: "update_record",
+        context: { view: "Orders" },
+      }),
+      action("a-3", { context: { recipient: "Ops" } }),
+    ]);
+
+    expect(screen.queryByText(/Change a record/)).toBeNull();
+    for (const details of screen.getAllByRole("button", { name: "Details" })) {
+      await userEvent.click(details);
+    }
+    expect(screen.getAllByText("t-1")).toHaveLength(2);
+    expect(screen.getAllByText("t-2")).toHaveLength(2);
+  });
+
   it("approves every call it is showing", async () => {
     const onDecisions = mount([action("a-1"), action("a-2")]);
 

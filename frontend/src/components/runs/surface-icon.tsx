@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Mic,
   Network,
+  Workflow,
   Sparkles,
   Zap,
 } from "lucide-react";
@@ -49,6 +50,9 @@ const MARKS = {
   schedule: CalendarClock,
   trigger: Zap,
   eval: FlaskConical,
+  // A workflow's `agent.run` step - the workflows module's own mark, so a run a
+  // graph asked for is recognisable as one.
+  workflow: Workflow,
   proactive: BellRing,
 } as const;
 
@@ -66,6 +70,7 @@ const LABEL_KEYS = {
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
   eval: "surfaceEval",
+  workflow: "surfaceWorkflow",
   proactive: "surfaceProactive",
 } as const;
 

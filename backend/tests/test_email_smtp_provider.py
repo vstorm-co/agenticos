@@ -133,6 +133,8 @@ async def test_configured_credentials_are_passed_through(monkeypatch):
 
     assert sent["username"] == "me"
     assert sent["password"] == "pw"
+    assert sent["validate_certs"] is True
+    assert sent["timeout"] == 30
 
 
 async def test_the_message_carries_its_optional_headers(monkeypatch):
@@ -169,4 +171,17 @@ async def test_a_send_failure_is_reported_not_raised(monkeypatch):
 
     assert result.accepted is False
     assert result.provider_message_id == ""
-    assert "connection refused" in (result.error or "")
+    assert result.error == "SMTP delivery failed"
+
+
+async def test_server_error_text_never_exposes_credentials(monkeypatch, caplog):
+    async def fail(msg, **kwargs):
+        raise aiosmtplib.SMTPAuthenticationError(535, "smtp-password was refused")
+
+    monkeypatch.setattr(aiosmtplib, "send", fail)
+    result = await SMTPProvider(
+        host="mail", port=587, username="me", password="smtp-password"
+    ).send(_message())
+    assert result.error == "SMTP delivery failed"
+    assert "smtp-password" not in caplog.text
+    assert "smtp-password" not in repr(result)

@@ -48,6 +48,7 @@ class TestEveryMemberIsAssignedBySomething:
             "teams",
             "schedule",
             "eval",
+            "workflow",
             "proactive",
             "follow_ups",
         }

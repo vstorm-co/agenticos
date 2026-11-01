@@ -71,12 +71,17 @@ it.each(["context", "skill", "secret"] as const)(
       kind === "context" ? <ContextPage /> : kind === "skill" ? <SkillsPage /> : <VaultPage />,
       { wrapper },
     );
-    expect(
-      await screen.findByRole("button", { name: "Delete Granted resource" }),
-    ).toBeInTheDocument();
     if (kind !== "secret") {
-      await userEvent.click(screen.getByText("Granted resource"));
+      await userEvent.click(await screen.findByText("Granted resource"));
       expect(await screen.findByRole("button", { name: /^Save/ })).toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole("button", { name: "More actions for Granted resource" }),
+      );
+      expect(await screen.findByRole("menuitem", { name: /Delete/ })).toBeInTheDocument();
+    } else {
+      expect(
+        await screen.findByRole("button", { name: "Delete Granted resource" }),
+      ).toBeInTheDocument();
     }
   },
 );

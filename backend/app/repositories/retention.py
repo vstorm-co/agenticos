@@ -22,15 +22,14 @@ from uuid import UUID
 from sqlalchemy import (
     CursorResult,
     DateTime,
-    case,
+    and_,
     delete,
     func,
-    literal,
+    or_,
     select,
     type_coerce,
     update,
 )
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,12 +40,18 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.generated_media import GeneratedMedia
 from app.db.models.improvement import ImprovementRun
-from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.organization import Organization
 from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.virtual_table import (
+    VirtualTableOutbox,
+    VirtualTableReceipt,
+    VirtualTableRecordHistory,
+)
+from app.db.vector_tables import VectorScope
 
 #: The statuses a retention sweep may retire.
 #:
@@ -410,15 +415,16 @@ async def delete_artifacts(
 
 async def expiring_documents(
     db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
-) -> list[tuple[UUID, str, str | None, str | None, UUID | None]]:
-    """Uploaded documents past their window: id, collection, vector id, file, tenant.
+) -> list[tuple[UUID, str, str | None, str | None, VectorScope]]:
+    """Uploaded documents past their window: id, collection, vector id, file, scope.
 
-    **The tenant comes off the knowledge base, not off the document.** A
-    collection name is not unique across organizations, so the runtime table is
-    shared and each row carries the tag its chunks were stamped with at ingest
-    (#1684) - which is the base's organization, and `None` for an app-scoped one.
-    Sweeping with this organization's id instead would match nothing for an
-    app-scoped base and leave content searchable with its row gone.
+    **The scope comes off the knowledge base, not off the document.** A
+    collection name is not unique, so the runtime table is shared and each row
+    carries the tags its chunks were stamped with at ingest: the base's tenant -
+    its organization, `None` for an app-scoped one (#1684) - and the base itself
+    (#2537). Sweeping with this organization's id instead would match nothing for
+    an app-scoped base and leave content searchable with its row gone. A document
+    with no base, or whose base is gone, is deployment-wide with no base.
 
     **`source_path IS NULL` is the whole of the synchronization answer.** A
     document a connector put there is that source's to remove - purging it here
@@ -438,10 +444,7 @@ async def expiring_documents(
             RAGDocument.collection_name,
             RAGDocument.vector_document_id,
             RAGDocument.storage_path,
-            case(
-                (KnowledgeBase.scope == KBScope.APP.value, literal(None, PG_UUID(as_uuid=True))),
-                else_=KnowledgeBase.organization_id,
-            ),
+            KnowledgeBase,
         )
         .outerjoin(KnowledgeBase, KnowledgeBase.id == RAGDocument.knowledge_base_id)
         .where(
@@ -454,7 +457,16 @@ async def expiring_documents(
         .limit(limit)
         .with_for_update(of=RAGDocument, skip_locked=True)
     )
-    return [(row[0], row[1], row[2], row[3], row[4]) for row in rows.all()]
+    return [
+        (
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            VectorScope(tenant=None) if row[4] is None else row[4].vector_scope,
+        )
+        for row in rows.all()
+    ]
 
 
 async def delete_documents(db: AsyncSession, *, document_ids: list[UUID]) -> int:
@@ -478,3 +490,101 @@ async def set_retention(
     await db.flush()
     await db.refresh(organization)
     return organization
+
+
+async def delete_table_receipts(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest idempotency receipts created before `cutoff`.
+
+    A receipt holds a whole copy of a record and answers a retry only while its key
+    can plausibly still be retried, so what leaves here is the copy and the promise.
+    """
+    expiring = (
+        select(VirtualTableReceipt.id)
+        .where(
+            VirtualTableReceipt.organization_id == organization_id,
+            VirtualTableReceipt.created_at < cutoff,
+        )
+        .order_by(VirtualTableReceipt.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(VirtualTableReceipt).where(VirtualTableReceipt.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def delete_table_outbox(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    cutoff: datetime,
+    undispatched_cutoff: datetime,
+    limit: int,
+) -> int:
+    """Drop the oldest outbox rows: dispatched before `cutoff`, or never dispatched and
+    older than `undispatched_cutoff`.
+
+    The second half is a dead-letter cutoff, not a claim the event was delivered: no
+    consumer of this outbox exists yet (#1785), so nothing sets `dispatched_at`, and
+    without it an undispatched row would sit here for as long as the record that created
+    it did not - one permanent row per create, for an event nobody will ever collect.
+    `undispatched_cutoff` is ordinarily far later than `cutoff`, so this reaches an
+    undispatched row only long after a dispatched one of the same age would already be
+    gone; sorting by `created_at` (rather than `dispatched_at`, which an undispatched row
+    has none of) still takes the oldest of whichever kind a batch happens to find.
+    """
+    expiring = (
+        select(VirtualTableOutbox.id)
+        .where(
+            VirtualTableOutbox.organization_id == organization_id,
+            or_(
+                and_(
+                    VirtualTableOutbox.dispatched_at.is_not(None),
+                    VirtualTableOutbox.dispatched_at < cutoff,
+                ),
+                and_(
+                    VirtualTableOutbox.dispatched_at.is_(None),
+                    VirtualTableOutbox.created_at < undispatched_cutoff,
+                ),
+            ),
+        )
+        .order_by(VirtualTableOutbox.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(VirtualTableOutbox).where(VirtualTableOutbox.id.in_(expiring))),
+    )
+    return result.rowcount or 0
+
+
+async def delete_table_history(
+    db: AsyncSession, *, organization_id: UUID, cutoff: datetime, limit: int
+) -> int:
+    """Drop the oldest record history written before `cutoff`.
+
+    By the change's own date, for a live record and a deleted one alike: a delete
+    leaves its history behind on purpose, and this is what eventually removes it.
+    """
+    expiring = (
+        select(VirtualTableRecordHistory.id)
+        .where(
+            VirtualTableRecordHistory.organization_id == organization_id,
+            VirtualTableRecordHistory.created_at < cutoff,
+        )
+        .order_by(VirtualTableRecordHistory.created_at)
+        .limit(limit)
+        .scalar_subquery()
+    )
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            delete(VirtualTableRecordHistory).where(VirtualTableRecordHistory.id.in_(expiring))
+        ),
+    )
+    return result.rowcount or 0

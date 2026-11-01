@@ -326,6 +326,24 @@ class ApprovalRead(BaseSchema):
     )
     tool_id: str
     tool_args: dict[str, Any]
+    capability_tool_id: str | None = Field(
+        default=None,
+        description=(
+            "The stable id the capability declares the tool under. `tool_id` is the "
+            "name the model called, which a binding may have renamed; a client that "
+            "words the call by tool looks it up by this. Null for a tool no "
+            "capability owns, such as an MCP server's"
+        ),
+    )
+    context: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "The ids in `tool_args` as names the run's person may see, e.g. "
+            '`{"view": "Closed tickets", "table": "Support"}`, for a sentence above '
+            "the arguments. Null when the tool has no describer or describing it "
+            "failed; the arguments are what runs either way"
+        ),
+    )
     triggered_by_user_id: UUID | None = Field(
         default=None,
         description=(

@@ -52,6 +52,7 @@ from app.core.vault import VaultScope, unseal
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
@@ -117,6 +118,7 @@ from app.services.rag.documents import LiteParseParser
 from app.services.rag_document import RAGDocumentService
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
+from app.worker.jobs import CLEANUP_EXTERNAL_STATE, BasePurge
 from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
@@ -931,6 +933,60 @@ class TestTenantIsolation:
         assert theirs.json()["error"]["message"] == invented.json()["error"]["message"]
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
         assert await db.get(RAGDocument, rag_estate.other_document.id) is not None
+
+    @pytest.mark.security
+    async def test_dropping_a_shared_name_leaves_the_other_organizations_documents(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """Two organizations' bases share one collection name (#913); dropping
+        one's collection deletes only that base's documents (#2560).
+
+        The drop deleted every `rag_documents` row under the name, with no
+        base or organization predicate, and queued the other organization's
+        stored files for unlinking with its own. The shared table stays for
+        the base that still holds the name; the dropped base's chunks in it
+        are handed to the cleanup by the base's id instead.
+        """
+        home, other = rag_estate.home, rag_estate.other
+        ours_kb = await _kb_row(db, tenant=home, collection_name="shared_name")
+        theirs_kb = await _kb_row(db, tenant=other, collection_name="shared_name")
+        documents = {}
+        for tenant, kb in ((home, ours_kb), (other, theirs_kb)):
+            doc = RAGDocument(
+                id=uuid.uuid4(),
+                organization_id=tenant.organization.id,
+                knowledge_base_id=kb.id,
+                collection_name="shared_name",
+                filename=f"{kb.id}.txt",
+                filesize=12,
+                filetype="txt",
+                status=DocumentStatus.DONE,
+                storage_path=f"rag/shared_name/{kb.id}.txt",
+                vector_document_id=str(uuid.uuid4()),
+            )
+            db.add(doc)
+            documents[kb.id] = doc.id
+        await db.flush()
+
+        response = await rag_api(home.ctx).delete(_rag("/collections/shared_name"))
+
+        assert response.status_code == 204
+        db.expunge_all()
+        assert await db.get(RAGDocument, documents[ours_kb.id]) is None
+        assert await db.get(KnowledgeBase, ours_kb.id) is None
+        assert await db.get(RAGDocument, documents[theirs_kb.id]) is not None
+        assert await db.get(KnowledgeBase, theirs_kb.id) is not None
+        jobs = (
+            await db.execute(
+                select(BackgroundJob).where(BackgroundJob.kind == CLEANUP_EXTERNAL_STATE.kind)
+            )
+        ).scalars()
+        [cleanup] = [CLEANUP_EXTERNAL_STATE.load(job.payload) for job in jobs]
+        assert cleanup.storage_paths == [f"rag/shared_name/{ours_kb.id}.txt"]
+        assert cleanup.collections == []
+        assert cleanup.base_purges == [
+            BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
+        ]
 
     async def test_a_search_naming_one_unreachable_collection_is_refused_entirely(
         self, rag_api: RagClient, rag_estate: RagEstate
@@ -2948,6 +3004,54 @@ class TestDecidingAnApproval:
             await approvals.decide(tenant.ctx, approval.id, approved=True)
 
         assert (await db.get(ToolApproval, approval.id)).status == ApprovalStatus.REJECTED.value
+
+    async def test_the_names_a_call_was_asked_with_are_kept_on_its_row(self, db) -> None:
+        """The queue reads what the describer resolved at park time, beside the arguments."""
+        tenant = await _tenant(db, name="Named")
+        agent = await _agent_row(
+            db,
+            organization_id=tenant.organization.id,
+            owner_user_id=tenant.user.id,
+            slug="support",
+        )
+        run = await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=Decimal("0"),
+            started_at=datetime.now(UTC),
+        )
+        approvals = ApprovalService(db)
+        table_id = str(uuid.uuid4())
+        named = await approvals.request(
+            approval_id=uuid.uuid4(),
+            organization_id=tenant.organization.id,
+            run_id=run.id,
+            agent_id=agent.id,
+            tool_id="change_ticket",
+            tool_args={"table_id": table_id},
+            capability_tool_id="update_record",
+            context={"table": "Support"},
+        )
+        await approvals.request(
+            approval_id=uuid.uuid4(),
+            organization_id=tenant.organization.id,
+            run_id=run.id,
+            agent_id=agent.id,
+            tool_id="send_email",
+            tool_args={},
+        )
+
+        queue, _total = await approvals.list_approvals(tenant.ctx)
+
+        assert {row.tool_id: (row.capability_tool_id, row.context) for row in queue} == {
+            # Renamed by its binding, so the queue words it by the stable id.
+            "change_ticket": ("update_record", {"table": "Support"}),
+            "send_email": (None, None),
+        }
+        stored = await db.get(ToolApproval, named.id)
+        assert stored.tool_args == {"table_id": table_id}
+        assert stored.capability_tool_id == "update_record"
 
 
 # -- money --------------------------------------------------------------------

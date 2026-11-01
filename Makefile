@@ -1,4 +1,4 @@
-.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -242,6 +242,7 @@ install:
 	fi
 	cd frontend && bun install --frozen-lockfile
 	cd desktop && bun install --frozen-lockfile
+	cd mobile && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
@@ -315,8 +316,8 @@ lint: lint-backend lint-frontend lint-spelling lint-precommit
 # outside `backend/` and so is a fourth path rather than a second invocation; its
 # relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check . ../scripts
-	uv run --directory backend ruff format . ../scripts --check
+	uv run --directory backend ruff check . ../scripts ../deploy/updater
+	uv run --directory backend ruff format . ../scripts ../deploy/updater --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
@@ -408,8 +409,8 @@ lint-precommit:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format . ../scripts
-	uv run --directory backend ruff check . ../scripts --fix
+	uv run --directory backend ruff format . ../scripts ../deploy/updater
+	uv run --directory backend ruff check . ../scripts ../deploy/updater --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
@@ -429,6 +430,32 @@ format:
 COV_REPORT ?= term-missing
 PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
 
+# The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
+# rather than the development one. The integration reset TRUNCATEs the tables
+# before every test, each TRUNCATE creates new relation files, and Postgres fsyncs
+# them - ~7 ms apiece on WSL2 or a Docker volume, which made a full run take hours
+# where CI takes minutes. That container has fsync off and a RAM data directory,
+# and it is nobody's data, so the suite cannot hurt a database with your work in it.
+#
+# `TEST_DB_PORT` moves it off :5433. `TEST_DB=external` skips the container and
+# uses the database `POSTGRES_*` / `backend/.env` already name, which is what CI
+# does (it has a service container and sets `CI=true`).
+TEST_DB_PORT ?= 5433
+ifeq ($(CI),true)
+TEST_DB ?= external
+endif
+TEST_DB ?= throwaway
+ifeq ($(filter $(TEST_DB),throwaway external),)
+$(error TEST_DB must be 'throwaway' or 'external', not '$(TEST_DB)')
+endif
+ifeq ($(TEST_DB),throwaway)
+TEST_DB_START := $(MAKE) --no-print-directory docker-test-db
+TEST_DB_ENV := env POSTGRES_HOST=localhost POSTGRES_PORT=$(TEST_DB_PORT) POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres
+else
+TEST_DB_START :=
+TEST_DB_ENV :=
+endif
+
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
 # import-bound (every worker imports the app once) and gains little past four
@@ -437,22 +464,26 @@ PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import
 # per-worker data, so the 100% gate holds unchanged. A scoped `pytest <file>`
 # stays serial: worker startup is not worth paying for one file.
 test:
+	$(TEST_DB_START)
 	@status=0; \
-	uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
 	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
 	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
 	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
-	uv run --directory backend pytest tests/ -q --no-cov -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -q --no-cov -n auto --maxprocesses 4
 
-# Integration tests only. These talk to a real database; start it with `make docker-db`.
+# Integration tests only. These talk to a real database: the throwaway one above.
 test-integration:
-	uv run --directory backend pytest tests/integration -v --no-cov -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/integration -v --no-cov -n auto --maxprocesses 4
 
 test-cov:
-	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
 # Just the refusal tests, by the `security` marker. This is a report, not a gate:
@@ -460,7 +491,8 @@ test-cov:
 # 100% bar, and `-p no:randomly` so the printed list is stable to read and diff.
 # The CI security-report step runs this same selection with `--collect-only`.
 test-security:
-	uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
 
 # The list of refusal tests written to backend/security-tests.txt, and appended to
 # the CI job summary when one is present. Collection only - no database, no run -
@@ -487,7 +519,8 @@ security-report:
 # `REUSE_COVERAGE=1` reports the data `make test` just measured instead of running
 # the suite again, which is what CI does: two full runs no longer fit its job.
 coverage-all:
-	$(if $(REUSE_COVERAGE),,uv run --directory backend pytest tests/ -q --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4)
+	$(TEST_DB_START)
+	$(if $(REUSE_COVERAGE),,$(TEST_DB_ENV) uv run --directory backend pytest tests/ -q --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4)
 	uv run --directory backend coverage report --fail-under=0
 
 test-frontend:
@@ -503,8 +536,8 @@ build-frontend:
 	cd frontend && bun run build
 
 # The desktop shell is a window around a deployment's console, not a build of
-# the frontend: `desktop/ui` is the one page it carries itself, so none of these
-# needs `frontend/`. Rust comes from rustup; the Tauri CLI is pinned in
+# the frontend: `desktop/ui` is the one page it carries itself, and the only file
+# it reads from `frontend/` is blobby's cast. Rust comes from rustup; the Tauri CLI is pinned in
 # `desktop/package.json`. `desktop-check` is not in `lint` or `check`, because CI
 # has no Rust toolchain yet and `tests/test_ci_parity.py` would refuse the
 # difference (docs/desktop.md).
@@ -515,8 +548,22 @@ desktop-build:
 	cd desktop && bun run build
 
 desktop-check:
-	cd desktop && bun test
+	cd desktop/core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
+
+# The phone app (#2097): the same kind of shell for iOS and Android, sharing
+# the desktop's sign-in rules through `desktop/core`. Each target needs that
+# platform's toolchain - Xcode for iOS; the Android SDK, NDK and a JDK for
+# Android - and an emulator, a simulator or a phone. Like `desktop-check`, it
+# is not in `lint` or `check`: CI has no mobile toolchain yet.
+mobile-android:
+	cd mobile && bun run android
+
+mobile-ios:
+	cd mobile && bun run ios
+
+mobile-check:
+	cd mobile/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
 # deployment installs - rather than whatever this machine happens to have in its
@@ -700,18 +747,20 @@ load-test:
 #     backend: `make dev && make platform-bootstrap && make test-e2e`.
 #   - the image build, publish and Trivy scan, which `images.yml` runs on a push
 #     to `main` and on a `v*` tag.
-#   - `test-migrations`. CI cycles the chain against a throwaway database; here
-#     `alembic downgrade base` points at whatever `backend/.env` says, which on a
-#     laptop is the database with your own work in it.
+#   - `test-migrations`. CI cycles the chain against its service database;
+#     locally it runs against a database of its own on the throwaway Postgres,
+#     but it is slow and rarely needed, so `check` leaves it to a hand run.
 CHECK_DB_PORT ?= 5432
+# Where `test` reached its database: the throwaway one, or the one `CHECK_DB_PORT` names.
+INTEGRATION_DB_PORT = $(if $(TEST_DB_START),$(TEST_DB_PORT),$(CHECK_DB_PORT))
 
 check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
-	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(INTEGRATION_DB_PORT)), 1).close()' 2>/dev/null; then \
 		echo ""; \
-		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so tests/integration skipped itself"; \
-		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
+		echo "⚠  No database on 127.0.0.1:$(INTEGRATION_DB_PORT), so tests/integration skipped itself"; \
+		echo "   — and CI's test job has one, so it did not. '$(if $(TEST_DB_START),make docker-test-db,make docker-db)' closes that gap."; \
 	fi
 
 # === Documentation ===
@@ -766,10 +815,24 @@ presentation:
 
 # Migrations against a real database, forwards and back. The only way to know a
 # backfill or a check constraint actually works.
+#
+# Locally this starts the throwaway test Postgres and cycles the chain in a
+# database it drops and creates first (`MIGRATIONS_TEST_DB`), so `downgrade base`
+# can never empty a database with your work in it. With `TEST_DB=external` (CI)
+# it runs against the database `POSTGRES_*` / `backend/.env` name, as before.
+MIGRATIONS_TEST_DB ?= agenticos_migrations_test
 test-migrations:
+ifeq ($(TEST_DB),throwaway)
+	$(TEST_DB_START)
+	docker compose -p agenticos-test -f docker-compose.test.yml exec -T db psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS $(MIGRATIONS_TEST_DB) WITH (FORCE)' -c 'CREATE DATABASE $(MIGRATIONS_TEST_DB)'
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+else
 	uv run --directory backend alembic upgrade head
 	uv run --directory backend alembic downgrade base
 	uv run --directory backend alembic upgrade head
+endif
 	@echo "Migration chain applies and rolls back cleanly."
 
 # Do the models and the migrations still agree? `alembic check` autogenerates
@@ -908,6 +971,16 @@ docker-db:
 docker-db-stop:
 	docker compose stop db
 
+# The suite's throwaway Postgres (see TEST_DB_PORT). `up --wait` returns once the
+# healthcheck passes and is a no-op when it is already running.
+docker-test-db:
+	@command -v docker >/dev/null || { echo "make test needs Docker for its test Postgres, or TEST_DB=external"; exit 1; }
+	docker compose -p agenticos-test -f docker-compose.test.yml up -d --wait
+	@echo "Test PostgreSQL (fsync off, in memory) on localhost:$(TEST_DB_PORT)"
+
+docker-test-db-down:
+	docker compose -p agenticos-test -f docker-compose.test.yml down -v
+
 docker-minio:
 	docker compose --profile objectstore up -d minio
 	@echo ""
@@ -975,7 +1048,10 @@ help:
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
 	@echo "  make desktop-dev   Open the desktop shell against a console you name"
 	@echo "  make desktop-build Package the desktop shell for this machine"
-	@echo "  make desktop-check bun test, rustfmt, clippy and the shell's Rust tests"
+	@echo "  make desktop-check rustfmt, clippy and the shell's Rust tests"
+	@echo "  make mobile-android Run the phone app on an Android emulator or phone"
+	@echo "  make mobile-ios    Run the phone app on an iOS simulator or phone"
+	@echo "  make mobile-check  rustfmt, clippy and the phone app's Rust tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"

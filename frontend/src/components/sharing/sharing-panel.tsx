@@ -27,6 +27,13 @@ interface SharingPanelProps {
    * permission it is depends on the resource type.
    */
   canManage: boolean;
+  /**
+   * Whether the caller may give "including data", a page's level above edit: the
+   * server's answer for the page, so it is offered only to its owner or an Owner or Admin.
+   */
+  mayGrantEditData?: boolean;
+  /** A page's data has no owner consent that would let it be shared; see `useSharing`. */
+  onConsentRequired?: () => void;
 }
 
 /**
@@ -84,13 +91,23 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
  * generates the same endpoints per type, and a second copy of this panel would
  * drift from the first the day either one is fixed.
  */
-export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
+export function SharingPanel({
+  resourceType,
+  resourceId,
+  canManage,
+  mayGrantEditData = false,
+  onConsentRequired,
+}: SharingPanelProps) {
   const t = useTranslations("sharing");
   const ts = useTranslations("states");
   const activeOrgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const { members } = useMembers(activeOrgId);
   const { groups } = useGroups(activeOrgId);
-  const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
+  const { sharing, isLoading, share, revoke, setVisibility } = useSharing(
+    resourceType,
+    resourceId,
+    { onConsentRequired },
+  );
 
   if (isLoading || !sharing)
     return (
@@ -135,6 +152,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
       {canManage && (
         <AddShare
           resourceType={resourceType}
+          mayGrantEditData={mayGrantEditData}
           members={memberCandidates}
           groups={groupCandidates}
           pending={share.isPending}
@@ -165,6 +183,10 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
               key={grant.id}
               resourceType={resourceType}
               grant={grant}
+              mayGrantEditData={mayGrantEditData}
+              fullName={
+                members.find((member) => member.user_id === grant.subject_user_id)?.full_name
+              }
               groupIcon={groups.find((group) => group.id === grant.subject_group_id)?.icon ?? null}
               canManage={canManage}
               revoking={revoke.isPending}

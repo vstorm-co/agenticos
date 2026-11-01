@@ -1,5 +1,6 @@
 """SMTP email provider using aiosmtplib."""
 
+import asyncio
 import logging
 import uuid
 from email.mime.multipart import MIMEMultipart
@@ -70,15 +71,18 @@ class SMTPProvider:
 
         implicit_tls = self.use_tls and self._implicit_tls()
         try:
-            await aiosmtplib.send(
-                msg,
-                hostname=self.host,
-                port=self.port,
-                username=self.username or None,
-                password=self.password or None,
-                use_tls=implicit_tls,
-                start_tls=self.use_tls and not implicit_tls,
-            )
+            async with asyncio.timeout(30):
+                await aiosmtplib.send(
+                    msg,
+                    hostname=self.host,
+                    port=self.port,
+                    username=self.username or None,
+                    password=self.password or None,
+                    use_tls=implicit_tls,
+                    start_tls=self.use_tls and not implicit_tls,
+                    timeout=30,
+                    validate_certs=True,
+                )
             msg_id = f"smtp_{uuid.uuid4()}"
             logger.info(
                 "smtp_email_sent",
@@ -89,9 +93,9 @@ class SMTPProvider:
                 },
             )
             return SendResult(provider_message_id=msg_id, accepted=True)
-        except Exception as exc:
+        except (aiosmtplib.SMTPException, OSError, TimeoutError) as exc:
             logger.error(
                 "smtp_email_failed",
-                extra={"error": str(exc), "to": message.to},
+                extra={"error_kind": type(exc).__name__, "to": message.to},
             )
-            return SendResult(provider_message_id="", accepted=False, error=str(exc))
+            return SendResult(provider_message_id="", accepted=False, error="SMTP delivery failed")

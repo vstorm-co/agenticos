@@ -20,6 +20,8 @@ function mount({
       canEdit={canEdit}
       onFix={onFix}
       fixing={fixing}
+      isModelProblem={() => false}
+      onGoToModel={vi.fn()}
     />,
   );
   return onFix;

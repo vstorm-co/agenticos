@@ -19,10 +19,21 @@ interface PublishRefusalProps {
   /** Applies the fix to the draft, saves it and checks it again. Never publishes. */
   onFix: (fix: SpecFix) => void;
   fixing: boolean;
+  /** Whether a problem is the missing model, which has a card to jump to. */
+  isModelProblem: (problem: string) => boolean;
+  onGoToModel: () => void;
 }
 
 /** Why the draft cannot be published, and the one-click fixes the server offered for it. */
-export function PublishRefusal({ problems, fixes, canEdit, onFix, fixing }: PublishRefusalProps) {
+export function PublishRefusal({
+  problems,
+  fixes,
+  canEdit,
+  onFix,
+  fixing,
+  isModelProblem,
+  onGoToModel,
+}: PublishRefusalProps) {
   const t = useTranslations("pages.agents");
   const offered = canEdit ? fixes : [];
 
@@ -35,7 +46,14 @@ export function PublishRefusal({ problems, fixes, canEdit, onFix, fixing }: Publ
         </p>
         <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
           {problems.map((problem) => (
-            <li key={problem}>{problem}</li>
+            <li key={problem}>
+              {problem}
+              {isModelProblem(problem) && (
+                <Button variant="link" size="sm" className="ml-2 h-auto p-0" onClick={onGoToModel}>
+                  {t("goToModel")}
+                </Button>
+              )}
+            </li>
           ))}
         </ul>
         {offered.length > 0 && (

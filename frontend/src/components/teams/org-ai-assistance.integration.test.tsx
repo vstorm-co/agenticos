@@ -43,6 +43,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     monthly_budget_usd: null,
     chat_may_waive_approvals: false,
     ai_assistance_enabled: true,
+    public_live_data: false,
     speech_to_text_provider: null,
     speech_to_text_model: null,
     speech_to_text_secret_id: null,

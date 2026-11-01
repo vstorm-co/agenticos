@@ -87,6 +87,7 @@ PLATFORM_MODULES = (
     "app/services/skills.py",
     "app/db/models/agent_environment.py",
     "app/schemas/agent_environment.py",
+    "app/services/text_similarity.py",
     "app/repositories/agent_environment.py",
     "app/db/models/intercepted_tool_call.py",
     "app/repositories/intercepted_tool_call.py",
@@ -126,6 +127,11 @@ PLATFORM_MODULES = (
     "app/repositories/case_score.py",
     "app/schemas/scoring.py",
     "app/repositories/_visibility.py",
+    "app/db/models/workflow_log_alert.py",
+    "app/repositories/workflow_log_alert.py",
+    "app/schemas/workflow_log_alert.py",
+    "app/services/workflow_log_alerts.py",
+    "app/api/routes/v1/workflow_log_alerts.py",
 )
 
 

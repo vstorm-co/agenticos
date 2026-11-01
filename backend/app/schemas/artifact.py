@@ -1,14 +1,540 @@
 """Schemas for published artifacts."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, Field
+from pydantic import (
+    AfterValidator,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    StringConstraints,
+    Tag,
+    TypeAdapter,
+)
 
 from app.schemas.base import BaseSchema
+from app.schemas.virtual_table import (
+    MAX_FILTERS,
+    Aggregate,
+    ColumnTypeName,
+    FilterOp,
+    FilterValue,
+    RecordFilter,
+    RecordSort,
+    SortDirection,
+)
+from app.schemas.workflow_log_entry import LOG_SUMMARY_DAYS
 
 ArtifactMediaTypeLiteral = Literal["text/html", "text/markdown"]
+ConsentStateLiteral = Literal["not_needed", "pending", "consented", "declined", "withdrawn"]
+
+
+class BindingFilter(BaseModel):
+    """One condition of a page query as the model writes it, before resolution."""
+
+    # Not `BaseSchema`: a filter's operand is a cell value, kept exactly as sent.
+    model_config = ConfigDict(extra="forbid")
+
+    column: str = Field(description="The column's id or label")
+    op: FilterOp
+    value: FilterValue = Field(
+        default=None,
+        description=(
+            "A value of the column's type; a list for `in`; true or false for `is_null`. "
+            "A choice by its label"
+        ),
+    )
+
+
+class BindingSort(BaseSchema):
+    """A page query's order as the model writes it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    by: str = Field(description="`created_at`, `updated_at`, or a column's id or label")
+    direction: SortDirection = "asc"
+
+
+class BindingRequest(BaseSchema):
+    """A page query as the model asks for it, before resolution.
+
+    The table is named by `view` or by `table`, never both. A view's filters and
+    sort are copied into the query when it is published: editing the view later
+    changes nothing on the page.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["table"] = Field(default="table", description="Reads records of a table")
+    view: UUID | str | None = Field(
+        default=None, description="A saved view's id from `list_views`, or its exact name"
+    )
+    table: UUID | str | None = Field(
+        default=None, description="A table's id from `list_tables`, or its exact name"
+    )
+    fields: dict[str, str] = Field(
+        description="Field name to the table column it reads, given as a column id or a label"
+    )
+    filters: list[BindingFilter] = Field(default_factory=list, max_length=MAX_FILTERS)
+    sort: BindingSort | None = None
+    limit: int | None = Field(default=None, ge=1)
+
+
+LOG_LINES_MAX = 500
+"""The most lines one binding serves."""
+
+
+def _log_days(value: int) -> int:
+    if value not in LOG_SUMMARY_DAYS:
+        raise ValueError(f"One of {', '.join(map(str, LOG_SUMMARY_DAYS))}")
+    return value
+
+
+LogDays = Annotated[
+    int, AfterValidator(_log_days), Field(json_schema_extra={"enum": list(LOG_SUMMARY_DAYS)})
+]
+"""A window the log's counts can cover, in days: one of `LOG_SUMMARY_DAYS`."""
+
+
+class WorkflowLogRequest(BaseSchema):
+    """A page query over a workflow's log as the model asks for it, before resolution.
+
+    Read with the same filters and limits as `GET /workflows/{id}/logs` and `.../logs/summary`:
+    either the newest `lines`, or the lines counted `per_day`, never both. The workflow and
+    the step are resolved to ids at publish and frozen with the filters.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["workflow_log"]
+    workflow: UUID | str = Field(
+        description="A workflow's id, or its exact name, that the page's owner may view"
+    )
+    step: UUID | str | None = Field(
+        default=None,
+        description="Only this step's lines: a step's id, or its label in the workflow's graph",
+    )
+    outcomes: list[Annotated[str, StringConstraints(max_length=256)]] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Only lines that left by one of these - a port, or `error`; empty for all",
+    )
+    run: str | None = Field(
+        default=None,
+        description="Only this run's lines: a run id, or the 4 or more characters it starts with",
+    )
+    include_test: bool = Field(default=False, description="Lines written by test runs as well")
+    lines: int | None = Field(
+        default=None,
+        ge=1,
+        description="Serve the newest N lines, newest first. At most `LOG_LINES_MAX` (500)",
+    )
+    per_day: bool = Field(
+        default=False,
+        description="Serve the count of lines per day and outcome instead of lines",
+    )
+    days: LogDays | None = Field(
+        default=None, description="With `per_day`: how many days back, today included"
+    )
+    tz: str | None = Field(
+        default=None,
+        max_length=64,
+        description="With `per_day`: the IANA time zone whose days are counted; UTC when unset",
+    )
+
+
+def _request_kind(value: Any) -> str:
+    """A binding with no `kind` reads a table: what every stored one and older call says."""
+    if isinstance(value, dict):
+        return str(value.get("kind", "table"))
+    return str(getattr(value, "kind", "table"))
+
+
+AnyBindingRequest = Annotated[
+    Annotated[BindingRequest, Tag("table")] | Annotated[WorkflowLogRequest, Tag("workflow_log")],
+    Discriminator(_request_kind),
+]
+"""A page query as the model sends it: a table, or a workflow's log."""
+
+
+class BindingReach(BaseSchema):
+    """Everything a page query reaches, as the tables stood when it was resolved.
+
+    What a page load compares with the tables now: a column whose revision moved or
+    that was archived, an archived table, or a linked table now labelling its records
+    by another column, and the binding is served nothing until it is published again.
+    """
+
+    tables: dict[UUID, dict[UUID, int]] = Field(
+        description=(
+            "Every table reached - the query's own and each linked one - to the revision "
+            "of each column reached there"
+        )
+    )
+    named_by: dict[UUID, UUID | None] = Field(
+        default_factory=dict,
+        description=(
+            "For each linked table a link field of the page labels records from, the "
+            "column it labels them by; null for one with no text column"
+        ),
+    )
+
+
+class ArtifactBinding(BaseSchema):
+    """A page query as a version stores it, every name resolved to an id.
+
+    Read with the page owner's access on every load, the same records for everyone
+    who opens the page.
+    """
+
+    # Never written: a stored table binding has no `kind`, so a version published before
+    # there was a second kind keeps its bytes, its fingerprint and its owner's consent.
+    kind: Literal["table"] = Field(default="table", exclude=True)
+    name: str
+    table_id: UUID
+    filters: list[RecordFilter] = Field(default_factory=list)
+    sort: RecordSort = Field(default_factory=RecordSort)
+    limit: int
+    fields: dict[str, UUID]
+    reach: BindingReach
+
+
+class WorkflowLogBinding(BaseSchema):
+    """A page query over a workflow's log as a version stores it: ids, frozen at publish.
+
+    Read with the page owner's access to the workflow on every load, the same lines for
+    everyone who opens the page. It has no columns, so it has no drift: it is served while
+    the owner may view the workflow and the step still exists.
+    """
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    name: str
+    workflow_id: UUID
+    node_instance_id: UUID | None = None
+    outcomes: list[str] = Field(default_factory=list)
+    run: str | None = None
+    include_test: bool = False
+    lines: int | None = Field(default=None, description="The newest N lines; null with `per_day`")
+    days: LogDays | None = Field(
+        default=None, description="Per-day counts over this many days; null with `lines`"
+    )
+    tz: str | None = None
+
+
+AnyBinding = Annotated[
+    Annotated[ArtifactBinding, Tag("table")] | Annotated[WorkflowLogBinding, Tag("workflow_log")],
+    Discriminator(_request_kind),
+]
+"""A binding as a version stores it."""
+
+StoredBinding = ArtifactBinding | WorkflowLogBinding
+_STORED = TypeAdapter(AnyBinding)
+
+
+def stored_binding(raw: object) -> StoredBinding:
+    """A version's stored binding, validated: one with no `kind` is a table's."""
+    return _STORED.validate_python(raw)
+
+
+class ActionRequest(BaseSchema):
+    """A workflow a page may start, as the model asks for it, before resolution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    workflow: UUID | str = Field(description="A workflow's id, or its exact name")
+    label: str | None = Field(
+        default=None, description="What the page's button is called; the workflow's name when empty"
+    )
+
+
+class ArtifactAction(BaseSchema):
+    """A workflow a version declares, as the version stores it."""
+
+    workflow_id: UUID
+    label: str
+
+
+class ArtifactActionField(BaseSchema):
+    """One value an action's workflow asks for, as its Manual or API trigger declares it."""
+
+    name: str
+    label: str | None = None
+    type: str
+    required: bool
+    description: str | None = None
+    options: list[str] = Field(default_factory=list)
+
+
+class ArtifactActionView(BaseSchema):
+    """A declared action the viewer may run now, as the console offers it."""
+
+    workflow_id: UUID
+    name: str = Field(description="The workflow's own name, never the page's wording")
+    label: str = Field(description="What the page calls it, as stored; page copy, not a name")
+    fields: list[ArtifactActionField] = Field(description="What the run asks for")
+
+
+class ArtifactActionRunCreate(BaseSchema):
+    """What a viewer starts an action with."""
+
+    input: dict[str, Any] = Field(default_factory=dict, description="The workflow's declared input")
+
+
+class ArtifactActionRunStarted(BaseSchema):
+    """A run an action started."""
+
+    run_id: UUID
+    status: str
+
+
+class ArtifactActionRun(BaseSchema):
+    """How a run a page started stands, as the page may read it: its answer and no more."""
+
+    status: str
+    finished: bool
+    paused: bool = Field(description="Waiting for an approval or for someone to look at it")
+    run_path: str | None = Field(
+        description="Where the console shows the run, set while it is `paused`"
+    )
+    output_text: str | None = None
+    output_structured: dict[str, Any] | None = None
+    error_message: str | None = None
+
+
+class ActionDisclosure(BaseSchema):
+    """A declared action in words, for the publishing agent to check what it declared."""
+
+    workflow: str = Field(description="The workflow's name")
+    label: str = Field(description="What the page calls it")
+
+
+class ArtifactBindingRead(BaseSchema):
+    """A binding as an API client sees it: its table and its field names, no column ids."""
+
+    kind: Literal["table"] = "table"
+    name: str
+    table_id: UUID
+    fields: list[str]
+
+
+class WorkflowLogBindingRead(BaseSchema):
+    """A workflow-log binding as an API client sees it: its workflow and what it serves."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    name: str
+    workflow_id: UUID
+    mode: Literal["lines", "per_day"]
+
+
+class DisclosedDerivation(BaseSchema):
+    """Where a worked-out column's values come from, so the console can say it in its own words."""
+
+    kind: Literal["formula", "lookup", "rollup", "link"]
+    inputs: list[str] = Field(
+        default_factory=list, description="A formula's input columns, by label"
+    )
+    table: str | None = Field(
+        default=None, description="The linked table a link, lookup or rollup reads"
+    )
+    column: str | None = Field(
+        default=None,
+        description=(
+            "The column it reads there, by label: a link's label column (none: the record "
+            "ids), a lookup's or a rollup's target (none for a count)"
+        ),
+    )
+    aggregate: Aggregate | None = Field(default=None, description="A rollup's aggregate")
+
+
+class DisclosedFilter(BaseSchema):
+    """One condition of a page query, as its parts."""
+
+    column: str = Field(description="The column's label")
+    op: FilterOp
+    value: FilterValue = Field(
+        default=None,
+        description=(
+            "The operand with a choice shown by its label; `true` for `is_null` means the "
+            "cell is empty"
+        ),
+    )
+
+
+class DisclosedSort(BaseSchema):
+    """The order of a page query, as its parts."""
+
+    record_time: Literal["created_at", "updated_at"] | None = Field(
+        default=None, description="Set when it orders by when a record was created or changed"
+    )
+    column: str | None = Field(default=None, description="The column's label, otherwise")
+    derived: DisclosedDerivation | None = None
+    direction: SortDirection
+
+
+class DisclosedField(BaseSchema):
+    """One field of a page query, as its parts."""
+
+    name: str = Field(description="The name the page reads it by")
+    column: str = Field(description="The column's label")
+    type: ColumnTypeName
+    derived: DisclosedDerivation | None = None
+
+
+class BindingParts(BaseSchema):
+    """A page query as structured parts, for the console to put into words of its own.
+
+    The same facts as :class:`BindingDisclosure`, which is built from them.
+    """
+
+    kind: Literal["table"] = "table"
+    table: str
+    filters: list[DisclosedFilter]
+    sort: DisclosedSort
+    limit: int
+    fields: list[DisclosedField]
+    linked: list[str] = Field(
+        description="The other tables the query reaches through its links, by name"
+    )
+
+
+class BindingDisclosure(BaseSchema):
+    """A page query in words: what everyone who opens the page reads through it."""
+
+    kind: Literal["table"] = "table"
+    table: str = Field(description="The table's name")
+    filters: list[str] = Field(description="Each condition a record meets, all of them together")
+    sort: str = Field(description="The order the records come in")
+    limit: int = Field(description="The most records served")
+    fields: dict[str, str] = Field(
+        description=(
+            "Each field and what it reads: `Status (single_select)`, or for a worked-out "
+            "column what it is worked out from, as `Pay band: formula over Salary, Level`"
+        )
+    )
+
+
+class WorkflowLogParts(BaseSchema):
+    """A workflow-log query as structured parts, for the console to put into words of its own."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    workflow: str = Field(description="The workflow's name as its owner reads it now")
+    step: str | None = Field(default=None, description="The step's label; null for every step")
+    outcomes: list[str] = Field(description="The outcomes a line left by; empty for any")
+    run: str | None = None
+    include_test: bool
+    mode: Literal["lines", "per_day"]
+    lines: int | None = Field(default=None, description="With `lines`: the newest N served")
+    days: int | None = Field(default=None, description="With `per_day`: the days counted")
+    tz: str | None = Field(default=None, description="With `per_day`: the time zone of the days")
+
+
+class WorkflowLogDisclosure(BaseSchema):
+    """A workflow-log query in words: what everyone who opens the page reads through it."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    workflow: str = Field(description="The workflow's name")
+    filters: list[str] = Field(description="Each condition a line meets, all of them together")
+    reads: str = Field(description="What is served: the newest N lines, or counts per day")
+
+
+class BoundField(BaseSchema):
+    """What one field of a binding reads now: its column's current label and type."""
+
+    label: str = Field(description="The column's label now; the field name for a missing column")
+    type: ColumnTypeName = Field(description="The column's type now; `text` for a missing column")
+    options: list[str] | None = Field(
+        default=None, description="A select column's live choices, by label"
+    )
+    state: Literal["ok", "archived", "missing"] = Field(
+        description="`archived` or `missing` when the column no longer serves values"
+    )
+
+
+class BindingData(BaseSchema):
+    """One binding's records for a page load, its page query read with the owner's access."""
+
+    kind: Literal["table"] = "table"
+    status: Literal["ok", "unavailable"]
+    reason: str | None = Field(
+        default=None,
+        description=(
+            "Why the binding is unavailable. Only for a viewer who may edit the page, but "
+            "`awaiting_consent` - the owner hasn't confirmed sharing it - and `not_current` "
+            "- a newer version is served - for everyone"
+        ),
+    )
+    changed: str | None = Field(
+        default=None,
+        description=(
+            "With `source_changed`: the column, by its current label, or the table that "
+            "changed since the page was published. Only for a viewer who may edit the page"
+        ),
+    )
+    truncated: bool = Field(description="Whether a limit left records out")
+    limit: Literal["records", "bytes"] | None = Field(
+        default=None, description="Which limit left records out"
+    )
+    count: int = Field(description="How many records are served, not how many the query matches")
+    fields: dict[str, BoundField]
+    # Any: a cell is a string, number, boolean, list or link list, by its column's type.
+    records: list[dict[str, Any]] = Field(
+        description="Each record as its `id` and every named field, `null` when empty"
+    )
+
+
+class LogDay(BaseSchema):
+    """One day of a workflow-log binding's per-day counts."""
+
+    day: str = Field(description="The day, `YYYY-MM-DD`, in the binding's time zone")
+    counts: dict[str, int] = Field(description="Lines that day by outcome; absent when none")
+
+
+class WorkflowLogData(BaseSchema):
+    """One workflow-log binding for a page load: its lines, or its counts per day."""
+
+    kind: Literal["workflow_log"] = "workflow_log"
+    status: Literal["ok", "unavailable"]
+    reason: str | None = Field(
+        default=None,
+        description="Why it is unavailable, told as a table binding's reason is",
+    )
+    changed: str | None = None
+    truncated: bool = Field(description="Whether a limit left lines out")
+    limit: Literal["records", "bytes"] | None = None
+    count: int = Field(description="With lines: how many are served; with `days`: the days")
+    # Any: a line's values are strings, numbers and null, kept as the log holds them.
+    records: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="With `lines`: `{id, created_at, step, outcome, status, message, run_id}`",
+    )
+    days: list[LogDay] | None = Field(
+        default=None, description="With `per_day`: every day of the window, oldest first"
+    )
+    total: int | None = Field(default=None, description="With `per_day`: lines counted")
+    window_days: int | None = None
+    tz: str | None = None
+
+
+AnyBindingData = BindingData | WorkflowLogData
+"""One binding's data for a page load, by its kind."""
+
+
+class ArtifactData(BaseSchema):
+    """A page version's live data: every binding's page query, read with the owner's access."""
+
+    bindings: dict[str, AnyBindingData]
+    current: bool = Field(
+        description=(
+            "Whether the version asked about is still the app's current one. "
+            "False once a newer version was published: every binding is then unavailable, "
+            "and the viewer moves to the current version"
+        )
+    )
+    read_at: datetime
 
 
 class ArtifactVersionRead(BaseSchema):
@@ -18,6 +544,17 @@ class ArtifactVersionRead(BaseSchema):
     size_bytes: int
     run_id: UUID | None = Field(
         default=None, description="The run that published it, while that run is still kept"
+    )
+    restored_from: int | None = Field(
+        default=None,
+        description="The number of the version restored to make this one; null for a publish",
+    )
+    consent_state: ConsentStateLiteral = Field(
+        description=(
+            "Where its data stands with the page's owner: `not_needed` (it reads none), "
+            "`pending`, `consented`, `declined`, or `withdrawn` for a consent that no longer "
+            "holds - taken back by an editor, or given by an owner the page no longer has"
+        )
     )
     created_at: datetime
 
@@ -51,6 +588,16 @@ class ArtifactRead(BaseSchema):
     )
     published_at: datetime
     current_version: ArtifactVersionRead | None = None
+    live: bool = Field(
+        default=False, description="Whether the current version reads live data through bindings"
+    )
+    archived_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When it was archived, or null. An archived page serves nothing - no view, data, "
+            "public link or embed - until someone who may edit it restores it"
+        ),
+    )
     created_at: datetime
     updated_at: datetime | None = None
     shared_groups: list[str] = Field(
@@ -83,8 +630,110 @@ class ArtifactPublicLinkRead(BaseSchema):
     )
 
 
+class ArtifactConsentRead(BaseSchema):
+    """Where the latest version's data stands with the page's owner, for a caller served it."""
+
+    version: int = Field(description="The latest version's number")
+    state: ConsentStateLiteral = Field(description="Its state, as on `ArtifactVersionRead`")
+    fingerprint: str | None = Field(
+        default=None,
+        description="The digest of its page queries; what confirming it sends back",
+    )
+    automatic: bool = Field(description="Whether it was consented without anyone confirming")
+    grown: list[str] = Field(
+        default_factory=list,
+        description=(
+            "For an automatic consent, what it reaches that the version served before it "
+            "did not - `+Deals` for a table, `+Salary` for a column. Only for a caller who "
+            "may confirm"
+        ),
+    )
+    via: str | None = Field(
+        default=None,
+        description=(
+            "For an automatic consent given by an `edit_data` grant, the name of the editor "
+            "whose grant it was. Only for a caller who may confirm"
+        ),
+    )
+    audience_version: int | None = Field(
+        default=None,
+        description=(
+            "The version everyone else who opens the page is served; null when nothing of it "
+            "is available to them yet"
+        ),
+    )
+    shared: bool = Field(
+        description="Whether the audience is served that version's data now: its consent holds"
+    )
+    owner_name: str | None = Field(default=None, description="Who owns the page's data")
+    withdrawn_at: datetime | None = Field(
+        default=None,
+        description="When an editor last withdrew consent; every consent before it is void",
+    )
+    auto_consent: bool = Field(
+        description="Whether the owner's own republishes are consented without asking"
+    )
+    may_confirm: bool = Field(
+        description="Whether the caller may confirm a version's data: its owner, or an admin"
+    )
+    may_withdraw: bool = Field(description="Whether the caller may withdraw consent: any editor")
+    may_enable_auto_consent: bool = Field(description="Only the owner, as themselves")
+    may_disable_auto_consent: bool = Field(description="The owner, or an admin")
+
+
+PublicDataNotHolding = Literal[
+    "switch_off",
+    "no_served_version",
+    "queries_changed",
+    "owner_gone",
+    "owner_membership_changed",
+    "member_consent_missing",
+    "link_expired",
+]
+
+
+class ArtifactPublicDataRead(BaseSchema):
+    """Where the owner's consent to show the page's data to anyone with its link stands.
+
+    Only for a caller who may edit the page. Names no row: a consent is to page queries.
+    """
+
+    switch_on: bool = Field(
+        description="Whether the organization lets a page's data reach anonymous visitors"
+    )
+    consented: bool = Field(
+        description="Whether the owner confirmed it, and it has not been voided"
+    )
+    fingerprint: str | None = Field(
+        default=None, description="The digest of the page queries the consent was given to"
+    )
+    version: int | None = Field(
+        default=None, description="The version the public link serves: pinned, else the audience's"
+    )
+    by_name: str | None = Field(default=None, description="Who confirmed it")
+    at: datetime | None = Field(default=None, description="When it was confirmed")
+    holds: bool = Field(
+        description=(
+            "Whether the public link shows the data now: the switch is on and the consent is "
+            "to the served version's queries, under the owner, with their consent holding"
+        )
+    )
+    not_holding: PublicDataNotHolding | None = Field(
+        default=None,
+        description=(
+            "Why a consented page's data is not shown now, in the order the gates are taken; "
+            "none when it holds or nothing is consented"
+        ),
+    )
+
+
 class ArtifactDetail(ArtifactRead):
-    """One artifact as its own page reads it, with what the caller may do to it."""
+    """One artifact as its own page reads it, with what the caller may do to it.
+
+    `current_version` is the version the caller is served: the latest for its owner,
+    its editors and the roles that read every table, the newest consented one for
+    everyone else - null when none is available to them yet.
+    """
 
     can_edit: bool = Field(
         description=(
@@ -92,10 +741,49 @@ class ArtifactDetail(ArtifactRead):
             "scope and any grant on this artifact, decided by the server"
         )
     )
+    may_change_owner: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may hand the page to another member: its owner, or an Owner "
+            "or Admin, each signed in as themselves - decided by the server"
+        ),
+    )
+    may_grant_edit_data: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may give someone the `edit_data` level on this page: its "
+            "owner, or an Owner or Admin, each signed in as themselves - decided by the server"
+        ),
+    )
+    may_confirm_public_data: bool = Field(
+        default=False,
+        description=(
+            "Whether the caller may confirm the page's data for anyone with its link: its "
+            "owner, or an Owner or Admin, each signed in as themselves - decided by the server"
+        ),
+    )
     following: bool = Field(
         description="Whether the caller is told in their inbox when a new version is published"
     )
     public_link: ArtifactPublicLinkRead
+    public_data: ArtifactPublicDataRead | None = Field(
+        default=None,
+        description="Where the page's public data consent stands. Only for a caller who may edit it",
+    )
+    bindings: list[ArtifactBindingRead | WorkflowLogBindingRead] = Field(
+        default_factory=list,
+        description=(
+            "The current version's bindings: each one's table and field names. Only for a "
+            "caller who may edit it; empty otherwise"
+        ),
+    )
+    consent: ArtifactConsentRead | None = Field(
+        default=None,
+        description=(
+            "Where the latest version's data stands. Only for a caller served the latest "
+            "version, and only when it reads data"
+        ),
+    )
 
 
 class ArtifactList(BaseSchema):
@@ -154,12 +842,147 @@ class ArtifactPublicLinkUpdate(BaseSchema):
     )
 
 
+class ArtifactConsentCreate(BaseSchema):
+    """Confirm a version's data: the digest of the page queries the person was shown."""
+
+    fingerprint: str = Field(min_length=64, max_length=64)
+
+
+class ArtifactPublicDataCreate(BaseSchema):
+    """Confirm the page's data for anyone with its link: the digest of the page queries the
+    person was shown, and that they confirmed what the screen says."""
+
+    fingerprint: str = Field(min_length=64, max_length=64)
+    audience_digest: str = Field(
+        min_length=64,
+        max_length=64,
+        description="The digest of who the link reaches, as the disclosure showed it",
+    )
+    confirmed: bool = Field(description="Must be true: the person confirmed the screen")
+
+
+class ArtifactOwnerUpdate(BaseSchema):
+    """Hand a page to another member of its organization."""
+
+    user_id: UUID = Field(description="The member who becomes the page's owner")
+
+
+class ArtifactAutoConsentUpdate(BaseSchema):
+    """Turn "don't ask for consent on republish" on or off."""
+
+    enabled: bool
+    confirmed: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Turning it on: the version of the text the person confirmed, as the console "
+            "names it. Recorded in the audit entry"
+        ),
+    )
+
+
+class ArtifactDisclosure(BaseSchema):
+    """What confirming a version shares, and with whom - shown before it is confirmed."""
+
+    version: int
+    fingerprint: str | None = None
+    bindings: dict[str, BindingDisclosure | WorkflowLogDisclosure] = Field(
+        description="Each binding's page query in words, as its owner reads the tables now"
+    )
+    parts: dict[str, BindingParts | WorkflowLogParts] = Field(
+        description="The same queries as structured parts, for the console to word itself"
+    )
+    tables: list[str] = Field(description="Every table the queries read, linked ones included")
+    visibility: str
+    people: list[str] = Field(
+        default_factory=list, description="The addresses of the people the page is shared with"
+    )
+    groups: list[str] = Field(
+        default_factory=list, description="The names of the groups the page is shared with"
+    )
+    roles: list[str] = Field(
+        description="The roles that open every page, whatever its visibility and grants"
+    )
+    problem: str | None = Field(
+        default=None,
+        description="Why it cannot be confirmed now: its owner left, or can't read a table",
+    )
+
+
+class ArtifactPublicDataDisclosure(BaseSchema):
+    """What confirming a page's data for anyone with its link shares, and with whom."""
+
+    switch_on: bool = Field(
+        description="Whether the organization lets a page's data reach anonymous visitors"
+    )
+    link_on: bool = Field(description="Whether the page has a public link")
+    password_protected: bool
+    expires_at: datetime | None = None
+    embed_origins: list[str] = Field(
+        description="Every site that may frame the public page, as `https://host` origins"
+    )
+    version: int | None = Field(
+        default=None, description="The version the link serves: pinned, else the audience's"
+    )
+    fingerprint: str | None = Field(
+        default=None, description="Its page queries' digest; what confirming sends back"
+    )
+    audience_digest: str = Field(
+        description="Digest of the embedding sites, the password and the link being on; "
+        "what confirming sends back, so it binds the audience that was shown"
+    )
+    member_consent: bool = Field(
+        description="Whether that version's consent from the owner holds; confirming needs it"
+    )
+    data: ArtifactDisclosure | None = Field(
+        default=None,
+        description="That version's page queries in words, as for the members' consent",
+    )
+    confirmable: bool = Field(description="Whether confirming would be accepted now")
+    problem: str | None = Field(
+        default=None, description="Why confirming would be refused now; none when it would not"
+    )
+
+
 class ArtifactView(BaseSchema):
     """Where a frame loads one version from, and until when that address holds."""
 
     url: str = Field(description="Signed, short-lived; served under a sandbox policy")
     expires_at: datetime
     version: ArtifactVersionRead
+    nonce: str = Field(description="What the page and the console match their messages on")
+    live: bool = Field(description="Whether the page asks the console for its bindings' data")
+    injected: bool = Field(
+        default=False,
+        description=(
+            "Whether the page is served with its bindings' data written in, so the console "
+            "need not read it for the first load. Only when the caller asked for data"
+        ),
+    )
+    awaiting_consent: bool = Field(
+        default=False,
+        description=(
+            "Whether the version this viewer is served reads data its owner has not "
+            "confirmed sharing with them, so every binding is empty for them"
+        ),
+    )
+    bindings: int = Field(
+        default=0, description="How many bindings the version has, whoever is asking"
+    )
+    actions_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether this address belongs to the page viewer, whose frame may start the "
+            "actions listed. False for history, thumbnails, public links, embeds and previews"
+        ),
+    )
+    actions: list[ArtifactActionView] = Field(
+        default_factory=list,
+        description=(
+            "The workflows the version declares that this viewer may run now. One they may "
+            "not is left out, not named. Only for the version served to them"
+        ),
+    )
 
 
 class PublicArtifactRead(BaseSchema):

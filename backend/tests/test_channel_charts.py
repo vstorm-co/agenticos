@@ -243,13 +243,25 @@ class TestTheReplyAChannelTurnBuilds:
     @pytest.mark.parametrize("path", ["answer", "answer_default"])
     @pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
     @pytest.mark.parametrize("rendered", [None, b"png"])
+    @pytest.mark.parametrize("kind", ["visual", "photo"])
     async def test_visual_rendering_outcomes_reach_every_channel(
-        self, path: str, platform: str, rendered: bytes | None
+        self, path: str, platform: str, rendered: bytes | None, kind: str
     ) -> None:
         async def execute(
-            *args: object, tool_calls: list[RecordedToolCall], **kwargs: object
+            *args: object,
+            tool_calls: list[RecordedToolCall],
+            generated_files: set[str],
+            **kwargs: object,
         ) -> tuple[str, MagicMock]:
-            tool_calls.append(_call("Drew 'Flow' as visual `v`.", name="draw"))
+            generated_files.add("photo.png")
+            tool_calls.append(
+                _call("Drew 'Flow' as visual `v`.", name="draw")
+                if kind == "visual"
+                else _call(
+                    '{"kind":"generated_image","filename":"photo.png","media_type":"image/png","prompt":"photo"}',
+                    name="generate_image",
+                )
+            )
             return "The diagram is ready.", MagicMock()
 
         with (
@@ -259,6 +271,10 @@ class TestTheReplyAChannelTurnBuilds:
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
             patch(
                 "app.services.channels.mentions.visual_render.picture_of_turn",
+                new=AsyncMock(return_value=rendered),
+            ),
+            patch(
+                "app.services.channels.mentions._generated_picture",
                 new=AsyncMock(return_value=rendered),
             ),
         ):

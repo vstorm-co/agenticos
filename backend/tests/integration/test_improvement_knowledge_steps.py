@@ -30,6 +30,7 @@ from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.rag_document import RAGDocument
+from app.db.vector_tables import VectorScope
 from app.repositories import dataset_repo, improvement_repo, knowledge_gap_repo
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.improvement import (
@@ -83,7 +84,7 @@ def _providers(db, ctx, *, fail_draft=False):
         key_source=EmbeddingKeySource.ORGANIZATION,
         base_url="https://api.openai.com/v1",
         provider="openai",
-        vector_tenant=ctx.organization_id,
+        vector_scope=VectorScope(tenant=ctx.organization_id),
     )
     model = Helpers(db)
     if fail_draft:

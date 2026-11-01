@@ -225,15 +225,6 @@ describe("AgentCard", () => {
     expect(screen.getByText("No description.")).toBeInTheDocument();
   });
 
-  it("names the surfaces an agent answers on, and passes an unknown one through", () => {
-    // A new platform must not vanish from the card between a backend release and
-    // a frontend one.
-    mount({ channels: ["slack", "discord"] });
-
-    expect(screen.getByText("Slack")).toBeInTheDocument();
-    expect(screen.getByText("discord")).toBeInTheDocument();
-  });
-
   it("says when an agent was last edited, and says so when it never was", () => {
     mount({ updated_at: null });
 
@@ -301,14 +292,6 @@ describe("AgentCard", () => {
     );
   });
 
-  it("shows the agent's categories and tags as chips", () => {
-    mount({ categories: ["sales"], tags: ["urgent", "beta"] });
-
-    expect(screen.getByText("sales")).toBeInTheDocument();
-    expect(screen.getByText("urgent")).toBeInTheDocument();
-    expect(screen.getByText("beta")).toBeInTheDocument();
-  });
-
   it("draws no metadata chips when a listing carries none", () => {
     // The fields are optional in the type; the card reads them as `?? []`.
     mount({});
@@ -367,4 +350,20 @@ describe("AgentCard", () => {
     fireEvent.mouseLeave(card);
     expect(container.querySelector(".bg-card")).toBe(card);
   });
+});
+
+it("shows the edit date directly while keeping access and actions available", () => {
+  mount({ channels: ["slack"], categories: ["Sales"] });
+  expect(screen.queryByText("Details")).toBeNull();
+  expect(screen.getByText("never edited")).toBeVisible();
+  expect(screen.getByText("Private")).toBeVisible();
+  expect(screen.getByRole("button", { name: "More actions for Support" })).toBeVisible();
+});
+
+it("marks archived agents without washing out their portrait", () => {
+  mount({ status: "archived" });
+  expect(screen.getByRole("link", { name: "Open Support" }).parentElement).not.toHaveClass(
+    "opacity-70",
+  );
+  expect(screen.getByText("archived")).toBeVisible();
 });

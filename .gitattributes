@@ -1,0 +1,2 @@
+# A signed fixture is byte-exact; Windows checkout must not convert its LF to CRLF.
+desktop/src-tauri/tests/fixtures/updater/payload.txt -text

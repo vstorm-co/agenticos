@@ -88,8 +88,13 @@ headers, defined in `frontend/src/lib/csp.ts` and
 `frontend/src/lib/security-headers.ts`, both asserted by tests. The policy is
 `default-src 'self'` with a `connect-src` naming exactly this origin,
 `PUBLIC_API_URL` and `PUBLIC_WS_URL`, `img-src` allowing `data:` for the brand
-glyphs and avatars, `frame-src 'self' blob:` for document previews, `object-src
-'none'`, `base-uri 'self'` and `frame-ancestors 'none'`.
+glyphs and avatars, `frame-src` allowing `'self'` and `blob:` for document
+previews plus the artifact content route
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`), `object-src
+'none'`, `base-uri 'self'` and `frame-ancestors 'none'`. The content route is
+named by its path, not its origin, so a frame can load a published page and
+nothing else the API serves; see
+[How the page is isolated](artifacts.md#how-the-page-is-isolated).
 
 `script-src` carries no `'unsafe-inline'`. The middleware mints a per-request
 nonce, writes `'nonce-…' 'strict-dynamic'` into the directive, and Next stamps

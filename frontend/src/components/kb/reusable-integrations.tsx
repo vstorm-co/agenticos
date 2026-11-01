@@ -1,5 +1,6 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
 import { Copy, Plug, Trash2 } from "lucide-react";
 
@@ -92,13 +93,13 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
   };
 
   return (
-    <section className="border-border bg-card flex min-h-64 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border">
-      <div className="border-border flex min-h-28 flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row">
+    <section className="border-border bg-card flex min-w-0 flex-col overflow-hidden rounded-xl border">
+      <div className="border-border flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
-          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-relaxed">
-            {t("configuredOnceUsedAs")}
-          </p>
+          <div className="flex items-center gap-1">
+            <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
+            <ContextHelp>{t("configuredOnceUsedAs")}</ContextHelp>
+          </div>
         </div>
         {connectors.length > 0 && (
           <Button
@@ -128,11 +129,16 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
           ))}
         </div>
       ) : integrations.length === 0 ? (
-        <p className="text-muted-foreground flex flex-1 items-center justify-center px-5 py-12 text-center text-sm">
-          {t(connectors.length > 0 ? "nothingHereYetAdd" : "noConnectorsAvailable")}
-        </p>
+        <div className="flex items-start gap-3 px-5 py-6">
+          <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <Plug className="size-5" aria-hidden />
+          </span>
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
+            {t(connectors.length > 0 ? "nothingHereYetAdd" : "noConnectorsAvailable")}
+          </p>
+        </div>
       ) : (
-        <ul className="divide-border flex-1 divide-y">
+        <ul className="divide-border divide-y">
           {integrations.map((source) => (
             <IntegrationRow
               key={source.id}
@@ -185,7 +191,7 @@ function IntegrationRow({
       <ConnectorIcon type={source.connector_type} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
-        <p className="text-muted-foreground mt-0.5 font-mono text-xs tracking-wider uppercase">
+        <p className="text-muted-foreground mt-0.5 text-xs">
           {source.connector_type}
           {source.schedule_minutes
             ? ` · ${t("everyMinutes", { minutes: source.schedule_minutes })}`

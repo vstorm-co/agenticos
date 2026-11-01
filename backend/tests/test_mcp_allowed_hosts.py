@@ -1,10 +1,17 @@
 """`MCP_ALLOWED_HOSTS`: the operator's way past the SSRF guard, for a connection's own address.
 
+It is the MCP-only sibling of `OUTBOUND_PRIVATE_ALLOWLIST`: the MCP paths read both,
+through one parser, so it takes the same entry forms (a host, a `.suffix`, an address
+or a CIDR range). Nothing else reads it.
+
 A server on the deployment's own network - a compose service such as
 `postgres-mcp` - resolves to a private address, and `validate_mcp_url` refuses
-it with no way past. The setting lists hosts an operator vouched for. A listed
-host skips the private-address check and is never resolved. It still has to
-pass the form checks: an http(s) scheme, a hostname, no userinfo and a valid port.
+it with no way past. The setting lists hosts an operator vouched for. A host
+admitted by name may answer a private address; one admitted only through a network
+must answer inside it. Both are resolved and every answer checked, a loopback or
+metadata one is refused whatever the list says, and a host admitted by name that does
+not resolve yet is accepted. It still has to pass the form checks: an http(s) scheme,
+a hostname, no userinfo and a valid port.
 
 The exemption reaches only a caller that asks for it (`honour_allowlist=True`).
 OAuth asks only for a connection whose own host is listed: its discovery,
@@ -17,6 +24,7 @@ records each name it was asked, so a test can tell "accepted" apart from
 """
 
 import logging
+import socket
 from collections.abc import Awaitable, Callable
 
 import httpx2
@@ -24,9 +32,15 @@ import pytest
 from mcp.shared.auth import OAuthMetadata
 
 from app.agents import mcp_oauth
-from app.agents.mcp import trusted_hosts_for, validate_mcp_url
+from app.agents.mcp import validate_mcp_url
 from app.core.config import settings
-from app.core.sanitize import SSRFBlockedError, UrlRefusedError
+from app.core.sanitize import (
+    PrivateAllowlistEntryError,
+    SSRFBlockedError,
+    UrlRefusedError,
+    allowlist_for,
+    mcp_allowlist,
+)
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -47,19 +61,52 @@ def asked(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 
 class TestAListedHost:
-    """What the list opens: one host, named exactly, with no DNS asked."""
+    """What the list opens: one host, named exactly, to a private answer."""
 
     @pytest.mark.parametrize("url", ["http://postgres-mcp:8000/mcp", "https://postgres-mcp/mcp"])
     async def test_an_allowlisted_private_host_is_accepted(
         self, monkeypatch: pytest.MonkeyPatch, asked: list[str], url: str
     ) -> None:
-        """The case the setting exists for. It is not resolved either: a
-        compose service that has not started yet, or a name only the worker's
-        network resolves, must not block saving the connection."""
+        """The case the setting exists for: the name resolves to a private address."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp"])
 
         assert await validate_mcp_url(url, honour_allowlist=True) == url
-        assert asked == []
+        assert asked == ["postgres-mcp"]
+
+    async def test_a_listed_host_that_does_not_resolve_yet_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A compose service that has not started yet, or a name only the
+        worker's network resolves, must not block saving the connection (#840)."""
+
+        def unresolvable(host: str, port: int, **_kwargs: object) -> list[tuple]:
+            raise socket.gaierror("no such name")
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", unresolvable)
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["postgres-mcp", ".corp.example"])
+
+        for url in ("http://postgres-mcp:8000/mcp", "http://a.corp.example/mcp"):
+            assert await validate_mcp_url(url, honour_allowlist=True) == url
+        with pytest.raises(SSRFBlockedError):
+            await validate_mcp_url("http://other-mcp:8000/mcp", honour_allowlist=True)
+
+    @pytest.mark.parametrize("answer", ["127.0.0.1", "169.254.169.254", "::1"])
+    @pytest.mark.parametrize("entry", ["postgres-mcp", ".corp.example"])
+    async def test_a_listed_name_answering_loopback_or_metadata_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, entry: str, answer: str
+    ) -> None:
+        """A member can point a name under a listed suffix anywhere, so a
+        listed name never reaches an address no list may open."""
+
+        def resolves(host: str, port: int, **_kwargs: object) -> list[tuple]:
+            return [(2, 1, 6, "", (answer, port))]
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", resolves)
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", [entry])
+        host = "postgres-mcp" if entry == "postgres-mcp" else "a.corp.example"
+
+        with pytest.raises(SSRFBlockedError):
+            await validate_mcp_url(f"http://{host}/mcp", honour_allowlist=True)
 
     async def test_an_accepted_listed_url_is_not_logged(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -95,7 +142,7 @@ class TestAListedHost:
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", [entry])
 
         assert await validate_mcp_url(url, honour_allowlist=True) == url
-        assert asked == []
+        assert asked == ["postgres-mcp"]
 
     async def test_an_entry_is_trimmed_and_a_blank_one_ignored(
         self, monkeypatch: pytest.MonkeyPatch
@@ -216,9 +263,6 @@ class TestWhatTheListDoesNotOpen:
     @pytest.mark.parametrize(
         "host",
         [
-            # A trailing dot is not folded: an absolute and a relative name can
-            # resolve differently through `resolv.conf` search domains.
-            "postgres-mcp.",
             # A listed name as a prefix, or inside a longer label, is not that name.
             "postgres-mcp.attacker.test",
             "x-postgres-mcp",
@@ -242,33 +286,60 @@ class TestWhatTheListDoesNotOpen:
         assert asked == [host]
 
     @pytest.mark.parametrize(
-        ("entry", "url"),
-        [
-            ("*", "http://postgres-mcp:8000/mcp"),
-            ("*-mcp", "http://postgres-mcp:8000/mcp"),
-            ("postgres-mc?", "http://postgres-mcp:8000/mcp"),
-            # The certificate spelling of "every name under this one" is a name here too.
-            ("*.postgres-mcp", "http://sub.postgres-mcp:8000/mcp"),
-            (".*", "http://postgres-mcp:8000/mcp"),
-            ("10.0.0.0/8", "http://10.0.0.5:8000/mcp"),
-            # A leading dot is the cookie and NO_PROXY spelling of "this domain and
-            # everything under it". Here it is a name, so it opens neither.
-            (".postgres-mcp", "http://sub.postgres-mcp:8000/mcp"),
-            (".postgres-mcp", "http://postgres-mcp:8000/mcp"),
-            # An absolute entry is not its relative name: no dot is folded off either side.
-            ("postgres-mcp.", "http://postgres-mcp:8000/mcp"),
-        ],
+        "entry",
+        ["*", "*-mcp", "postgres-mc?", "*.postgres-mcp", ".*"],
     )
     async def test_an_entry_is_a_name_not_a_pattern(
-        self, monkeypatch: pytest.MonkeyPatch, entry: str, url: str
+        self, monkeypatch: pytest.MonkeyPatch, entry: str
     ) -> None:
-        """A glob or a range would open far more than the operator meant, the
-        metadata address included. An entry that looks like one matches only
-        a host spelled exactly that way, which none is."""
+        """A glob would open far more than the operator meant, the metadata
+        address included. Boot refuses one; a list that got past it anyway is
+        refused by the parser rather than read as a pattern."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", [entry])
 
+        with pytest.raises(PrivateAllowlistEntryError):
+            await validate_mcp_url("http://postgres-mcp:8000/mcp", honour_allowlist=True)
+
+    async def test_a_leading_dot_entry_is_a_suffix(
+        self, monkeypatch: pytest.MonkeyPatch, asked: list[str]
+    ) -> None:
+        """A leading dot is the cookie and NO_PROXY spelling of "everything under
+        this domain", and is read that way: the subdomain is admitted, the apex
+        is another host and goes through the normal check."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", [".postgres-mcp"])
+        url = "http://sub.postgres-mcp:8000/mcp"
+
+        assert await validate_mcp_url(url, honour_allowlist=True) == url
+        assert asked == ["sub.postgres-mcp"]
         with pytest.raises(SSRFBlockedError):
-            await validate_mcp_url(url, honour_allowlist=True)
+            await validate_mcp_url("http://postgres-mcp:8000/mcp", honour_allowlist=True)
+
+    async def test_a_cidr_entry_admits_an_address_inside_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A range is a network: an address inside it passes, one outside it
+        goes through the normal check."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["10.0.0.0/8"])
+        url = "http://10.0.0.5:8000/mcp"
+
+        assert await validate_mcp_url(url, honour_allowlist=True) == url
+        with pytest.raises(SSRFBlockedError):
+            await validate_mcp_url("http://192.168.1.5:8000/mcp", honour_allowlist=True)
+
+    @pytest.mark.parametrize(
+        ("entry", "url"),
+        [
+            ("postgres-mcp.", "http://postgres-mcp:8000/mcp"),
+            ("postgres-mcp", "http://postgres-mcp.:8000/mcp"),
+        ],
+    )
+    async def test_an_absolute_name_is_its_relative_name(
+        self, monkeypatch: pytest.MonkeyPatch, entry: str, url: str
+    ) -> None:
+        """One trailing dot is folded off either side."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", [entry])
+
+        assert await validate_mcp_url(url, honour_allowlist=True) == url
 
     async def test_an_unparsable_url_at_a_listed_host_is_a_form_refusal(
         self, monkeypatch: pytest.MonkeyPatch
@@ -276,21 +347,20 @@ class TestWhatTheListDoesNotOpen:
         """`_checked_url` turns only `UrlRefusedError` into a 400, so the list is
         looked up after the URL is parsed by the guard, never by parsing it
         first somewhere the guard's refusal does not reach."""
-        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["::1"])
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["fd00::1"])
 
         with pytest.raises(UrlRefusedError, match="could not be parsed"):
-            await validate_mcp_url("http://[::1/mcp", honour_allowlist=True)
+            await validate_mcp_url("http://[fd00::1/mcp", honour_allowlist=True)
 
-    async def test_an_ipv6_entry_is_compared_as_written(
+    async def test_an_ipv6_entry_matches_however_it_is_written(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`fd00:0::1` and `fd00::1` are one address but two spellings, and
-        the match is textual: a mismatch falls through to the normal check,
-        which is the fail-closed direction."""
+        """`fd00:0::1` and `fd00::1` are one address in two spellings, and an IP
+        entry is a one-address network, so either spelling matches."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["fd00:0::1"])
+        url = "http://[fd00::1]:8000/mcp"
 
-        with pytest.raises(SSRFBlockedError):
-            await validate_mcp_url("http://[fd00::1]:8000/mcp", honour_allowlist=True)
+        assert await validate_mcp_url(url, honour_allowlist=True) == url
 
     @pytest.mark.parametrize("url", ["http://postgres-mcp:8000/mcp", "http://10.0.0.5:8000/mcp"])
     async def test_without_the_flag_the_list_is_not_read(
@@ -403,7 +473,8 @@ class TestOAuthFromAListedHost:
         servers.serve(monkeypatch)
 
         server = await mcp_oauth.discover(self._SERVER)
-        assert server.trusted_hosts == {"mcp.internal"}
+        assert server.private_allowlist.admits_name("mcp.internal")
+        assert not server.private_allowlist.admits_name("other.internal")
         assert server.authorization_endpoint == "http://mcp.internal:8000/authorize"
 
         assert await mcp_oauth.register_client(server, "https://app.example.com/cb") == (
@@ -500,7 +571,7 @@ class TestOAuthFromAListedHost:
         server = await mcp_oauth.discover(server_url)
         await _exchange(server.token_endpoint, server_url=server_url)
 
-        assert server.trusted_hosts == {"täst.internal", "xn--tst-qla.internal"}
+        assert server.private_allowlist.admits_name("xn--tst-qla.internal")
         assert "xn--tst-qla.internal" in asked
         assert ("xn--tst-qla.internal:8000", "/token") in servers.seen
 
@@ -516,7 +587,7 @@ class TestOAuthFromAListedHost:
         guard that checks the URL next writes the refusal."""
         monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", ["mcp.internal"])
 
-        assert trusted_hosts_for(server_url) == frozenset()
+        assert not allowlist_for(server_url, mcp_allowlist())
 
     async def test_a_host_taken_off_the_list_is_no_longer_refreshed_at(
         self, monkeypatch: pytest.MonkeyPatch
@@ -607,7 +678,7 @@ class TestOAuthFromAPublicServer:
                     "registration_endpoint": "http://mcp.internal:8000/register",
                 }
             ),
-            trusted_hosts=trusted_hosts_for(self._SERVER),
+            private_allowlist=allowlist_for(self._SERVER, mcp_allowlist()),
         )
 
         with pytest.raises(mcp_oauth.OAuthError, match="blocked address"):

@@ -2,6 +2,7 @@
 
 import { clearCopies } from "@/lib/unsaved-copies";
 
+import { wipeDeviceCache } from "@/lib/offline/device-cache";
 import { useAgentSelectionStore } from "./agent-selection-store";
 import { useBrowserPanelStore } from "./browser-panel-store";
 import { useChatStore } from "./chat-store";
@@ -10,8 +11,10 @@ import { useFilePreviewStore } from "./file-preview-store";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
 import { useSourcesPanelStore } from "./sources-panel-store";
+import { useTableViewStore } from "./table-view-store";
 import { resetVisualState } from "./visual-stream-store";
 import { useUnsavedChangesStore } from "./unsaved-changes-store";
+import { useWorkOnStore } from "./work-on-store";
 import { useWorkingStore } from "./working-store";
 
 /**
@@ -29,6 +32,7 @@ import { useWorkingStore } from "./working-store";
  */
 export function resetTenantState(): void {
   useConversationStore.getState().reset();
+  useWorkOnStore.getState().resetDraft();
   useChatStore.getState().clearMessages();
   useChatStore.getState().setStreaming(false);
   useWorkingStore.getState().reset();
@@ -52,12 +56,18 @@ export function resetTenantState(): void {
   // it, an offer minted from this org's caches having no meaning in the next.
   useOnboardingStore.getState().close();
   useOnboardingStore.getState().dismissOffer();
+  // A conflict banner names a record id and holds its values, both of another
+  // tenant's table once the switch has happened.
+  useTableViewStore.getState().reset();
   // Visuals' pictures and saved apps are keyed by the provider's call id, which
   // another tenant's thread may reuse.
   resetVisualState();
   // Unsaved edits kept in this browser are the organization's content too.
   clearCopies();
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  // And the copy on the disk: the apps keep the tenant's recent conversations
+  // and outbox sealed on the device, for one tenant at a time (#2097).
+  wipeDeviceCache();
 }
 
 /**

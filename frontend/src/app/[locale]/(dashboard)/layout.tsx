@@ -1,10 +1,16 @@
+import { DiagnosticsPresence } from "@/components/layout/diagnostics-presence";
+import { ReleaseNotes } from "@/components/layout/release-notes";
 import { Suspense } from "react";
 
 import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
 import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
+import { DesktopBridge } from "@/components/desktop/desktop-bridge";
+import { MobileBridge } from "@/components/mobile/mobile-bridge";
+import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
+import { MainViewport } from "@/components/layout/main-viewport";
 import { AccountLocale } from "@/components/layout/account-locale";
 import { AccountTimeZone } from "@/components/layout/account-time-zone";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -13,6 +19,8 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
+import { InstallPrompt } from "@/components/layout/install-prompt";
+import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
@@ -27,13 +35,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
+      <ReleaseNotes />
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
       <AccountTimeZone />
+      <DiagnosticsPresence />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
       {/* Asks before leaving drops a change somebody has not saved. */}
       <UnsavedChangesGuard />
+      {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}
+      <DesktopBridge />
+      {/* Inside the phone app: live activities on the lock screen, and their buttons. */}
+      <MobileBridge />
+      {/* A phone pulls the page down to read it again. */}
+      <PullToRefresh />
       {/* It reads the search params, which a prerendered page only has in the browser. */}
       <Suspense fallback={null}>
         <NavigationProgress />
@@ -44,12 +60,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <OnScreenKeyboard />
         {/* As tall as what can be seen, keyboard and address bar included -
             see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
-        <div className="flex h-[var(--app-height,100dvh)] flex-col">
+        {/* Less the phone app's status bar, which `body` leaves room for
+            (`desktop.css`); zero everywhere else. */}
+        <div className="flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}
           <MobileHeader />
           <ImpersonationBanner />
+          <OfflineBanner />
+          <InstallPrompt />
           {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list
             moves under it. */}
@@ -79,19 +99,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Measured at 0px below the last card, at every width, in Chromium
                 151 and WebKit 26.5. The room under a page is declared once, on
                 `PageTransition`'s unconstrained branch, where it paints (#933). */}
-            <main
-              id="main"
-              tabIndex={-1}
-              className="relative flex min-h-0 flex-1 flex-col overflow-auto px-3 pt-4 sm:px-6 sm:pt-8"
-            >
+            <MainViewport>
               {/* Inside `main` rather than around the whole shell: a
-                  maintenance window still leaves the navigation and the account
-                  menu, because the administrator who has to end it reaches the
-                  settings page through them. */}
+                    maintenance window still leaves the navigation and the account
+                    menu, because the administrator who has to end it reaches the
+                    settings page through them. */}
               <DeploymentGate>
                 <PageTransition>{children}</PageTransition>
               </DeploymentGate>
-            </main>
+            </MainViewport>
           </div>
           {/* The one navigation on a phone too: the drawer holds every section,
               where a bottom bar repeated five of them and took a strip of the

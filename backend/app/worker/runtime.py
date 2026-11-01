@@ -36,6 +36,7 @@ from pydantic import JsonValue
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.update_gate import draining
 from app.repositories import background_job as job_repo
 from app.repositories import background_task_kind as kind_repo
 from app.repositories import background_worker as worker_repo
@@ -191,6 +192,8 @@ class Worker:
             task.add_done_callback(self._finished)
 
     async def _claim(self, pool: Pool) -> ClaimedJob | None:
+        if draining():
+            return None
         async with self.sessions() as db:
             return await job_repo.claim(
                 db, pool=pool.value, worker_id=self.settings.worker_id, lease=self.settings.lease
@@ -322,6 +325,9 @@ class Worker:
 
     async def _count_death(self, db: AsyncSession, kind: str, organization_id: UUID | None) -> None:
         """Count a death in the job's own scope: its organization's, or the kind's if it has none."""
+        task = self.tasks.get(kind)
+        if task is not None and not task.counts_deaths:
+            return
         deaths = await kind_repo.record_death(db, kind, organization_id)
         if deaths < self.settings.breaker_deaths:
             return

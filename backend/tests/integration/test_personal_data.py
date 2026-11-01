@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -31,7 +32,7 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message, ToolCall
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.notification import (
@@ -42,6 +43,7 @@ from app.db.models.notification import (
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthClient, OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.user import User
 from app.repositories import (
     agent_run_repo,
     case_score_repo,
@@ -1105,3 +1107,87 @@ class TestDeletingYourOwnChatHistory:
             await ConversationService(db).delete_conversation(
                 conversation_id, organization_id=organization.id, user_id=mine.id
             )
+
+
+@pytest.mark.security
+async def test_channel_authors_are_erased_without_copying_labels_into_message_bodies(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.conversation import MessageRead
+
+    going = await _person(db, "channel-author-gone@example.com")
+    staying = await _person(db, "channel-author-kept@example.com")
+    going_id = going.id
+    organization, _ = await _org_and_agent(db)
+    own_identity = await _identity_for(db, going.id, platform_user_id="U-GONE")
+    own_identity.platform_display_name = "Deleted Person"
+    other_identity = await _identity_for(db, staying.id, platform_user_id="U-STAYS")
+    other_identity.platform_display_name = "Remaining Person"
+    chat = await conversation_repo.create_conversation(
+        db, organization_id=organization.id, user_id=staying.id
+    )
+    own = await conversation_repo.create_message(
+        db,
+        conversation_id=chat.id,
+        role="user",
+        content="My actual text.",
+        channel_identity_id=own_identity.id,
+    )
+    other = await conversation_repo.create_message(
+        db,
+        conversation_id=chat.id,
+        role="user",
+        content="A colleague's text.",
+        channel_identity_id=other_identity.id,
+    )
+    import json
+
+    from pydantic_ai import Agent
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from app.agents.manifest import RecordingModel, RunRecorder, as_payload
+    from app.services.channels.formatting import ChannelReference, channel_author_references
+    from app.services.message_history import CHANNEL_AUTHOR_ID
+
+    await db.commit()
+    conversations = ConversationService(db)
+    history = await conversations.model_history(chat.id, limit=20)
+    assert history[0].metadata[CHANNEL_AUTHOR_ID] == str(own_identity.id)
+    assert "U-GONE" not in str(history) and "Deleted Person" not in str(history)
+    recorder = RunRecorder()
+    seen = []
+
+    def respond(messages, info):
+        seen.append(messages)
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    agent = Agent(
+        RecordingModel(FunctionModel(respond), recorder),
+        capabilities=[
+            ChannelReference("", authors_by_timestamp=channel_author_references(history))
+        ],
+    )
+    await agent.run("Who said what?", message_history=history)
+    assert "U-GONE" in str(seen) and "Deleted Person" in str(seen)
+    assert "U-STAYS" in str(seen) and "Remaining Person" in str(seen)
+    assert own.content == "My actual text."
+    assert MessageRead.model_validate(own).model_dump(mode="json")["content"] == "My actual text."
+    for private in ["U-GONE", "Deleted Person", "U-STAYS", "Remaining Person"]:
+        assert private not in json.dumps(as_payload(recorder), default=str)
+
+    await UserService(db).delete(going_id)
+    await db.commit()
+    await db.refresh(own)
+    await db.refresh(other)
+    assert own.channel_identity_id is None
+    assert own.content == "My actual text."
+    seen.clear()
+    # A parked history can still carry an opaque identity reference. A new
+    # dispatch cannot turn a deleted row back into personal platform labels.
+    await agent.run("Continue", message_history=history)
+    assert "U-GONE" not in str(seen) and "Deleted Person" not in str(seen)
+    assert "U-STAYS" in str(seen) and "Remaining Person" in str(seen)
+    assert other.content == "A colleague's text."
+    assert await db.get(User, going_id) is None
+    assert await db.get(Conversation, chat.id) is not None

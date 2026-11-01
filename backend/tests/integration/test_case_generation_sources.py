@@ -13,8 +13,6 @@ The claims a mocked session cannot make:
   by name.
 """
 
-import uuid
-
 import pytest
 
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -22,6 +20,7 @@ from app.core.permissions import OrgRoleName
 from app.db.models.case_generation import CaseOrigin
 from app.db.models.rag_document import DocumentStatus
 from app.db.models.skill import Skill
+from app.db.vector_tables import VectorScope
 from app.services.case_generation.sources import PASSAGES_PER_DOCUMENT, SourceGatherer
 from app.services.rag.models import DocumentChunk
 from tests.integration import case_generation_world as world
@@ -36,13 +35,13 @@ class _Chunks:
 
     def __init__(self, chunks: dict[str, list[str]]) -> None:
         self.chunks = chunks
-        self.tenants: list[uuid.UUID | None] = []
+        self.tenants: list[VectorScope] = []
 
     async def get_document_chunks(
-        self, collection_name: str, document_id: str, tenant: uuid.UUID | None = None
+        self, collection_name: str, document_id: str, scope: VectorScope
     ) -> list[DocumentChunk]:
         del collection_name
-        self.tenants.append(tenant)
+        self.tenants.append(scope)
         return [
             DocumentChunk(content=text, page_num=index, chunk_num=index)
             for index, text in enumerate(self.chunks.get(document_id, []), start=1)
@@ -105,6 +104,9 @@ async def test_the_agent_is_described_by_its_published_spec_and_its_own_tool_nam
         ("search_handbook", False),
         ("publish_artifact", True),
         ("read_artifact", False),
+        ("list_artifacts", False),
+        ("preview_artifact", False),
+        ("share_artifact", True),
     ]
     (skill,) = material.agent.skills
     assert skill.name == "refunds"
@@ -211,7 +213,7 @@ async def test_knowledge_passages_come_from_readable_collections_spread_and_reda
     assert material.passages[-1].text == "Last."
     assert all(_KEY not in p.text for p in material.passages)
     assert material.excluded_collections == 1
-    assert store.tenants == [readable.vector_tenant]
+    assert store.tenants == [readable.vector_scope]
     del owner
 
 

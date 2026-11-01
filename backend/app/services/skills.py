@@ -73,7 +73,6 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         name=skill.name,
         description=skill.description,
         category=skill.category,
-        enabled=skill.enabled,
         visibility=skill.visibility,
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
@@ -324,7 +323,7 @@ class SkillService:
         *,
         projected: Mapping[UUID, SkillBody] | None = None,
     ) -> list[Skill]:
-        """The enabled skills an agent is bound to.
+        """The skills an agent is bound to.
 
         Scoped to the run's organization and **not** to the runner's own access,
         which is deliberate and is the same rule delegates and collections follow:
@@ -341,7 +340,7 @@ class SkillService:
         same published version than a builder does, with the difference visible
         nowhere.
 
-        A skill deleted or disabled after publish is skipped rather than failing
+        A skill deleted after publish is skipped rather than failing
         the run: the agent is less capable, not broken. Named in the log with the
         organization, because from inside one tenant a row that was deleted and a
         row that belongs to another tenant leave the same absence - and the second
@@ -370,7 +369,6 @@ class SkillService:
                     description=body.description,
                     content=body.content,
                     resources=[],
-                    enabled=True,
                     version=1,
                     visibility=Visibility.PRIVATE.value,
                     owner_user_id=ctx.user_id,
@@ -378,9 +376,9 @@ class SkillService:
                 if body is not None
                 else found.get(skill_id)
             )
-            if skill is None or not skill.enabled:
+            if skill is None:
                 logger.warning(
-                    "Agent references skill %s which is disabled, deleted, or not org %s's",
+                    "Agent references skill %s which is deleted or not org %s's",
                     skill_id,
                     ctx.organization_id,
                 )
@@ -537,6 +535,32 @@ class SkillService:
                 and the copy - the listing's top-up, racing a seed.
         """
         bundled, existing = await self._library_pair(ctx, key)
+        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+
+    async def refresh_gallery(
+        self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False
+    ) -> LibraryRefresh:
+        """Refresh a gallery copy using the same edit protection as seeded skills."""
+        bundled = skill_library.gallery_get(key)
+        if bundled is None:
+            raise NotFoundError(message="No such gallery skill", details={"key": key})
+        existing = await skill_repo.get_by_name(
+            self.db, bundled.name, organization_id=ctx.organization_id
+        )
+        if existing is not None:
+            await self.get(ctx, existing.id, perm=Perm.SKILLS_EDIT)
+        if dry_run:
+            return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+
+    async def _refresh_bundled(
+        self,
+        ctx: AuthContext,
+        bundled: skill_library.LibrarySkill,
+        existing: Skill | None,
+        *,
+        replace_edited: bool,
+    ) -> LibraryRefresh:
         if existing is not None:
             # Locked and re-read before deciding: an edit a member commits between
             # the lookup and the overwrite would otherwise be judged on the copy as

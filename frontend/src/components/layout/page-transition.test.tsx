@@ -27,6 +27,22 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/chat")).toContain("min-h-0");
   });
 
+  it("constrains the workflow editor, whose palette and panel scroll in their own panes", () => {
+    expect(rootClasses("/en/workflows/wf-1")).toContain("min-h-0");
+    expect(rootClasses("/en/workflows/wf-1")).not.toContain(PAGE_CLEARANCE);
+    // Its runs are an ordinary page, and so is the list.
+    expect(rootClasses("/en/workflows/wf-1/runs")).not.toContain("min-h-0");
+    expect(rootClasses("/en/workflows")).not.toContain("min-h-0");
+  });
+
+  it.each(["/workflows/runs", "/pl/workflows/wf-1/runs", "/en/workflows/wf-1/runs/run-1"])(
+    "keeps workflow run content clear of floating controls: %s",
+    (path) => {
+      expect(rootClasses(path)).toContain(PAGE_CLEARANCE);
+      expect(rootClasses(path)).not.toContain("min-h-0");
+    },
+  );
+
   it("leaves long pages unconstrained so the room under them lands after the content", () => {
     expect(rootClasses("/en/agents")).not.toContain("min-h-0");
   });
@@ -41,10 +57,11 @@ describe("the page transition wrapper", () => {
   });
 
   it("counts the safe-area inset rather than assuming it away", () => {
-    // The mobile tab bar is `min-h-[56px]` plus `env(safe-area-inset-bottom)`,
-    // and `viewportFit: "cover"` makes that inset 34px on a modern iPhone - so
-    // a flat 80px leaves the last 10px of the page under the bar.
-    expect(PAGE_CLEARANCE).toContain("env(safe-area-inset-bottom)");
+    // The mobile tab bar is `min-h-[56px]` plus the safe area (`--safe-bottom`,
+    // the system's or the Android app's measured one), and `viewportFit:
+    // "cover"` makes that inset 34px on a modern iPhone - so a flat 80px leaves
+    // the last 10px of the page under the bar.
+    expect(PAGE_CLEARANCE).toContain("var(--safe-bottom)");
   });
 
   it("leaves the chat without it, so the composer sits on the bottom edge", () => {
@@ -74,4 +91,10 @@ describe("the page transition wrapper", () => {
     // And it gets the room, which the prefix match would have taken away.
     expect(rootClasses("/en/runsomething")).toContain(PAGE_CLEARANCE);
   });
+});
+
+it("bounds paged admin lists without constraining organization detail pages", () => {
+  expect(rootClasses("/en/admin/users")).toContain("min-h-0");
+  expect(rootClasses("/pl/admin/organizations")).toContain("min-h-0");
+  expect(rootClasses("/en/admin/organizations/org-id")).not.toContain("min-h-0");
 });

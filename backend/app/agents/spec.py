@@ -21,6 +21,7 @@ edit.
 scope is rejected when saved, so a broken agent never reaches a conversation.
 """
 
+import json
 import logging
 from collections import Counter
 from enum import StrEnum
@@ -28,6 +29,8 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import yaml
+from jsonschema import exceptions as jsonschema_errors
+from jsonschema import validators
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -123,6 +126,8 @@ _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
+_TABLES_CAPABILITY = "virtual_tables"
+_WITHDRAWN_TABLE_TOOLS = frozenset({"share_view"})
 _BROWSER = "browser_use"
 _FOLDED_BROWSER = "browser_choice"
 _FOLDED_BROWSER_TOOL = ("browse_page", "browse_web")
@@ -318,6 +323,33 @@ class CapabilityBindingSpec(BaseModel):
                 ", ".join(sorted(withdrawn)),
             )
             migrated[key] = kept
+        return migrated
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_the_withdrawn_share_view(cls, data: Any) -> Any:
+        """Let a tables binding that gated or renamed `share_view` load without it.
+
+        `share_view` let an agent share a person's private view so a page bound to
+        it served others; a page now reads its own query with its owner's access, so
+        no view is shared for it and the tool is gone. It never reached a release, so
+        no stored spec version names it and none is migrated: this only keeps a spec
+        saved while it existed publishable, the way the skills tools version 12
+        withdrew are dropped, rather than refused as an unknown tool at publish.
+        """
+        if not isinstance(data, dict) or data.get("id") != _TABLES_CAPABILITY:
+            return data
+        migrated = dict(data)
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if not isinstance(stated, dict) or not _WITHDRAWN_TABLE_TOOLS & stated.keys():
+                continue
+            logger.warning("Dropping `%s` for share_view, which no longer exists.", key)
+            migrated[key] = {
+                tool_id: value
+                for tool_id, value in stated.items()
+                if tool_id not in _WITHDRAWN_TABLE_TOOLS
+            }
         return migrated
 
     @model_validator(mode="before")
@@ -1329,6 +1361,36 @@ def _with_thinking_binding(data: Any, effort: Any) -> Any:
     return {**data, "capabilities": capabilities}
 
 
+MAX_OUTPUT_SCHEMA_BYTES = 16_384
+"""How large an answer's JSON Schema may be, as compact JSON. It is sent to the
+model with every request, so a bigger one costs every run and rarely helps."""
+
+
+def checked_output_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    """`schema` if it can shape an answer: a valid JSON Schema for one object.
+
+    An object because the model hands a structured answer back as the arguments
+    of one call, and arguments are an object; a bare string or list has a field
+    of its own to go in. Shared by `AgentSpec.output_schema` and the `agent.run`
+    step's override, so both refuse the same things with the same words.
+
+    Raises:
+        ValueError: Not a JSON Schema, not an object's, or over
+            `MAX_OUTPUT_SCHEMA_BYTES`.
+    """
+    if schema is None:
+        return None
+    try:
+        validators.validator_for(schema).check_schema(schema)
+    except jsonschema_errors.SchemaError as exc:
+        raise ValueError(f"This is not a valid JSON Schema: {exc.message}") from exc
+    if schema.get("type") != "object":
+        raise ValueError('A structured answer is an object: the schema needs "type": "object"')
+    if len(json.dumps(schema, separators=(",", ":"))) > MAX_OUTPUT_SCHEMA_BYTES:
+        raise ValueError(f"The schema is over {MAX_OUTPUT_SCHEMA_BYTES} bytes as JSON")
+    return schema
+
+
 class PromptVariableSpec(BaseModel):
     """A custom variable: a name the instructions may write as `{{name}}`, and its text.
 
@@ -1477,6 +1539,17 @@ class AgentSpec(BaseModel):
         ),
     )
 
+    output_schema: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The JSON Schema of the agent's answer, when it answers with data "
+            "rather than prose. The model is asked for an object of this shape "
+            "and its answer is validated against it before the run ends, on every "
+            "surface: the API returns it as `structured`, the chat shows it, and "
+            "an `agent.run` step hands it on. Null is a free-text answer."
+        ),
+    )
+
     loop_guard: LoopGuardSpec = Field(
         default_factory=LoopGuardSpec,
         description=(
@@ -1531,6 +1604,8 @@ class AgentSpec(BaseModel):
         default=None,
         description="Hold voice conversations: the realtime model, its key, the voice and limits. Null: no calls",
     )
+
+    _output_schema = field_validator("output_schema")(checked_output_schema)
 
     @property
     def trace_content(self) -> TraceContent:

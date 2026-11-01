@@ -1,5 +1,5 @@
 ---
-source_sha: "c75bda4ec41d"
+source_sha: "3af0fc95407e"
 ---
 
 # Dodaj zadanie w tle { #add-a-background-task }
@@ -47,12 +47,13 @@ która o nie poprosiła, mogła stracić dostęp.
 
 Pulę wybierz według tego, co zadanie zużywa:
 
-| Pula | Do czego | Jak się wykonuje |
-|---|---|---|
-| `agent` | Runy agentów i odpalenia triggerów: długie, czekają na modele | W pętli workera, `WORKER_AGENT_CONCURRENCY` naraz |
-| `eval` | Eval runy: godziny na datasecie, każdy trzyma swój slot przez cały czas | W pętli workera, `WORKER_EVAL_CONCURRENCY` naraz |
-| `ingest` | Parsowanie i embeddingi: dużo CPU i pamięci | Jedno zadanie na proces potomny, w limicie `WORKER_INGEST_MEMORY_MB` |
-| `system` | Sprzątanie, porządki, raporty: krótkie | W pętli workera, `WORKER_SYSTEM_CONCURRENCY` naraz |
+| Pula       | Do czego                                                                | Jak się wykonuje                                                     |
+| ---------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `agent`    | Runy agentów i odpalenia triggerów: długie, czekają na modele           | W pętli workera, `WORKER_AGENT_CONCURRENCY` naraz                    |
+| `workflow` | Węzły workflowów: kroki HTTP, plikowe i sandboxu, głównie czekające     | W pętli workera, `WORKER_WORKFLOW_CONCURRENCY` naraz                 |
+| `eval`     | Eval runy: godziny na datasecie, każdy trzyma swój slot przez cały czas | W pętli workera, `WORKER_EVAL_CONCURRENCY` naraz                     |
+| `ingest`   | Parsowanie i embeddingi: dużo CPU i pamięci                             | Jedno zadanie na proces potomny, w limicie `WORKER_INGEST_MEMORY_MB` |
+| `system`   | Sprzątanie, porządki, raporty: krótkie                                  | W pętli workera, `WORKER_SYSTEM_CONCURRENCY` naraz                   |
 
 ### 2. Napisz handler i go podłącz { #2-write-the-handler-and-bind-it }
 

@@ -10,7 +10,6 @@ import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
 import { FETCHED_DETAIL_PAGES, useDetailTargets } from "@/components/onboarding/detail-targets";
 import {
-  activateTab,
   createTourDriver,
   isTypingTarget,
   keepClearOf,
@@ -24,6 +23,7 @@ import { useOnboardingTour } from "@/hooks";
 import type { Locale } from "@/i18n";
 import { useSaveAgentContext } from "@/hooks/use-account-profile";
 import { useChooseLocale } from "@/hooks/use-choose-locale";
+import { activateTab } from "@/lib/activate-tab";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { flowForPage } from "@/lib/onboarding/flows";

@@ -39,7 +39,6 @@ from typing import Any
 
 from pydantic_ai.messages import (
     ModelMessage,
-    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
@@ -49,6 +48,9 @@ from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
+
+from app.agents.channel_reference import recorded_channel_messages
+from app.agents.ephemeral_media import dump_messages
 
 # What a model setting may be, when it is written down. Everything else on
 # `ModelSettings` - `extra_headers`, `extra_body` - is provider passthrough, and
@@ -171,7 +173,7 @@ class RunRecorder:
         self.system_prompts = _system_prompts(messages) or self.system_prompts
         self.tools = _tools(parameters)
         self.settings = _settings(model_settings)
-        self.messages = ModelMessagesTypeAdapter.dump_python(messages, mode="json")
+        self.messages = dump_messages(recorded_channel_messages(messages))
 
     def observe_response(
         self, response: ModelResponse, *, started: datetime, elapsed_ms: int, messages: int

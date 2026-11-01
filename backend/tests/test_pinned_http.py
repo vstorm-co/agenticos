@@ -14,7 +14,7 @@ import httpx2
 import pytest
 
 from app.core.pinned_http import PinnedAsyncClient, PinnedTransport
-from app.core.sanitize import SSRFBlockedError
+from app.core.sanitize import SSRFBlockedError, parse_private_allowlist
 
 pytestmark = pytest.mark.anyio
 
@@ -162,48 +162,65 @@ class TestARefusalReachesNoSocket:
         assert wire.sent == []
 
 
-class TestATrustedHost:
-    """`trusted_hosts`, which only the MCP OAuth flow for a listed host passes."""
+class TestAListedHost:
+    """`private_allowlist`, which the callers whose first URL a member chose pass."""
 
-    async def test_a_trusted_host_is_dialled_at_its_private_address(self, monkeypatch):
+    async def test_the_client_dials_a_listed_private_address_with_the_name_in_host_and_sni(
+        self, monkeypatch
+    ):
         asked = _answers(monkeypatch, ["10.0.0.9"])
         wire = _Wire(_ok)
 
         async with PinnedAsyncClient(
-            timeout=httpx2.Timeout(5.0), transport=wire, trusted_hosts=frozenset({"mcp.internal"})
+            timeout=httpx2.Timeout(5.0),
+            transport=wire,
+            private_allowlist=parse_private_allowlist(["mcp.internal"]),
         ) as client:
-            await client.get("http://mcp.internal:8000/token")
+            await client.get("https://mcp.internal:8000/token")
 
         assert asked == ["mcp.internal"]
         assert [request.url.host for request in wire.sent] == ["10.0.0.9"]
         assert wire.sent[0].headers["host"] == "mcp.internal:8000"
+        assert wire.sent[0].extensions["sni_hostname"] == "mcp.internal"
 
-    async def test_trust_in_one_host_is_no_trust_in_another(self, monkeypatch):
+    async def test_the_client_without_a_list_refuses_it(self, monkeypatch):
+        _answers(monkeypatch, ["10.0.0.9"])
+        wire = _Wire(_ok)
+
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
+            with pytest.raises(SSRFBlockedError):
+                await client.get("http://mcp.internal:8000/token")
+
+        assert wire.sent == []
+
+    async def test_a_list_admits_one_host_and_no_other(self, monkeypatch):
         _answers(monkeypatch, ["10.0.0.9"])
         wire = _Wire(_ok)
 
         async with PinnedAsyncClient(
-            timeout=httpx2.Timeout(5.0), transport=wire, trusted_hosts=frozenset({"mcp.internal"})
+            timeout=httpx2.Timeout(5.0),
+            transport=wire,
+            private_allowlist=parse_private_allowlist(["mcp.internal"]),
         ) as client:
             with pytest.raises(SSRFBlockedError):
                 await client.get("http://other.internal:8000/token")
 
         assert wire.sent == []
 
-    async def test_a_proxy_mount_is_given_the_same_trust(self, monkeypatch):
-        """Each mount checks its own requests, so a mount built without the set
+    async def test_a_proxy_mount_is_given_the_same_list(self, monkeypatch):
+        """Each mount checks its own requests, so a mount built without the list
         would refuse the listed host on exactly the deployments with a proxy."""
         monkeypatch.setenv("HTTP_PROXY", "http://proxy.internal:3128")
-        trusted = frozenset({"mcp.internal"})
+        listed = parse_private_allowlist(["mcp.internal"])
 
-        client = PinnedAsyncClient(timeout=httpx2.Timeout(5.0), trusted_hosts=trusted)
+        client = PinnedAsyncClient(timeout=httpx2.Timeout(5.0), private_allowlist=listed)
         try:
             mounted = [t for t in client._mounts.values() if isinstance(t, PinnedTransport)]
         finally:
             await client.aclose()
 
         assert mounted
-        assert all(transport._trusted_hosts == trusted for transport in mounted)
+        assert all(transport._private_allowlist == listed for transport in mounted)
 
 
 class TestRedirectsKeepTheLogicalUrl:

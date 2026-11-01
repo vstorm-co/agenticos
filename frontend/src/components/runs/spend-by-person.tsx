@@ -75,6 +75,7 @@ export function SpendByPerson({ from, to }: { from: string; to: string }) {
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (person) => <span className="font-mono text-xs tabular-nums">{person.runs}</span>,

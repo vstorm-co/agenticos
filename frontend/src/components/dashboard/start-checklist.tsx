@@ -207,6 +207,7 @@ function Checklist({
   className?: string;
 }) {
   const t = useTranslations("dashboard.startChecklist");
+  const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(() => readDismissed(orgId));
   const personal = usePersonalSteps();
   const steps = [...personal.steps, ...more];
@@ -270,7 +271,7 @@ function Checklist({
 
         {later.length > 0 && (
           <ol className="-mt-1 space-y-0.5">
-            {later.map((step) => {
+            {(expanded ? later : later.slice(0, 2)).map((step) => {
               const Icon = ICONS[step.id];
               return (
                 <li key={step.id}>
@@ -291,6 +292,18 @@ function Checklist({
               );
             })}
           </ol>
+        )}
+
+        {later.length > 2 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="self-start"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {t(expanded ? "showLess" : "showAll", { count: later.length })}
+          </Button>
         )}
 
         {done.length > 0 && (

@@ -7,7 +7,8 @@ import { toast } from "sonner";
 
 import { OnboardingTour } from "./onboarding-tour";
 import { RestartTourButton } from "./restart-tour-button";
-import { activateTab, pulse, waitForElement } from "@/components/onboarding/spotlight";
+import { pulse, waitForElement } from "@/components/onboarding/spotlight";
+import { activateTab } from "@/lib/activate-tab";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
@@ -47,13 +48,13 @@ const spotlight = vi.hoisted(() => ({ highlight: vi.fn(), destroy: vi.fn() }));
 vi.mock("@/components/onboarding/spotlight", () => ({
   createTourDriver: () => ({ highlight: spotlight.highlight, destroy: spotlight.destroy }),
   waitForElement: vi.fn(async () => ({}) as Element),
-  activateTab: vi.fn(),
   pulse: vi.fn(async () => {}),
   isTypingTarget: vi.fn(() => false),
   revealDisclosures: vi.fn(),
   keepClearOf: vi.fn(),
   prefersReducedMotion: () => false,
 }));
+vi.mock("@/lib/activate-tab", () => ({ activateTab: vi.fn() }));
 // The light the reader sees. `focus` records what it was pointed at and resolves
 // at once, unless a test holds it to prove what waits for the light to land.
 const light = vi.hoisted(() => ({
@@ -409,6 +410,29 @@ describe("OnboardingTour", () => {
     await waitFor(() =>
       expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain("/agents"),
     );
+  });
+});
+
+describe("the tables walk", () => {
+  it("'?' on a table shows that table's controls where the reader is, with their copy", async () => {
+    // With no detail target for the table pseudo-page, the engine read it as a
+    // route and pushed to `table-detail`, which loaded a table of that id.
+    servePermissions(OWNER);
+    nav.pathname = "/tables/t-1";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Its columns"));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("'?' on the catalog captions its stops with their copy, not their keys", async () => {
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.TABLES;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Your tables"));
   });
 });
 

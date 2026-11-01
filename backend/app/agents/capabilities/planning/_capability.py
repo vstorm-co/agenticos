@@ -40,6 +40,10 @@ does them; a second copy here would be one more thing to keep in step.
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic_ai import RunContext
+from pydantic_ai.capabilities.abstract import ValidatedToolArgs
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning
 
 from app.agents.capabilities._registry import CapabilityToolInfo
@@ -78,7 +82,7 @@ WRITE_PLAN_TEXT = ToolText(
         "work, then again as you start and finish steps."
     ),
     returns=(
-        "`Plan updated:` with the number of steps and the plan as it now stands. "
+        "`Plan updated:` with the number of steps, the plan and the IDs for granular edits. "
         "A plan it will not accept is not written at all: `Plan not updated:` "
         "names what was wrong -- a duplicate step id, a status or a link that "
         "needs subtasks enabled, a step marked blocked that depends on nothing -- "
@@ -250,6 +254,29 @@ def _guidance(*, subtasks: bool) -> str:
     return " ".join(parts)
 
 
+class IdentifiedPlanning[DepsT](Planning[DepsT]):
+    """Keep library mutations intact while returning the IDs granular edits need."""
+
+    async def after_tool_execute(
+        self,
+        ctx: RunContext[DepsT],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: ValidatedToolArgs,
+        result: object,
+    ) -> object:
+        if (
+            tool_def.name != "write_plan"
+            or not isinstance(result, str)
+            or not result.startswith("Plan updated:")
+        ):
+            return result
+        items = await self.resolve_store(ctx).get_items()
+        ids = "\n".join(f"[{item.id}] {item.content}" for item in items)
+        return f"{result}\n\nStep IDs for granular edits:\n{ids}"
+
+
 def build_planning(
     *,
     enable_subtasks: bool,
@@ -269,7 +296,7 @@ def build_planning(
     park; `None` lets the library keep a fresh in-memory plan per run, which is the
     right default for a build with no run behind it.
     """
-    return Planning(
+    return IdentifiedPlanning(
         enable_subtasks=enable_subtasks,
         cache_ttl=cache_ttl,
         store=store,

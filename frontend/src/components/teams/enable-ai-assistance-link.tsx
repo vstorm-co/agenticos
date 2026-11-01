@@ -32,12 +32,9 @@ export function EnableAiAssistanceLink({
   anchor?: string;
   children: ReactNode;
 }) {
+  const href = aiAssistanceHref(orgId, anchor);
   return (
-    <Link
-      href={aiAssistanceHref(orgId, anchor)}
-      onClick={() => void pointAt(anchor)}
-      className="font-medium underline"
-    >
+    <Link href={href} onClick={() => void pointAt(anchor, href)} className="font-medium underline">
       {children}
     </Link>
   );

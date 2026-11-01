@@ -55,6 +55,8 @@ from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
+    choosable_for_others,
+    is_sign_in,
     provider_catalog,
     usable_for_agents,
     validate_endpoint_url,
@@ -1040,6 +1042,71 @@ class TestAProfileWithoutAKey:
             await ModelProfileService(_db()).delete_profile(ctx, profile.id)
 
         delete.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        ("provider", "model", "secret", "sign_in", "choosable"),
+        [
+            pytest.param("openai", "gpt-4.1", True, False, True, id="keyed-chat"),
+            pytest.param("openai_codex", "gpt-5.4", True, True, False, id="chatgpt-sign-in"),
+            pytest.param("openai", "gpt-4.1", False, False, False, id="keyless"),
+            pytest.param("openai", "gpt-4o-mini-tts", True, False, False, id="text-to-speech"),
+        ],
+    )
+    def test_the_platform_never_chooses_a_chatgpt_sign_in_for_somebody(
+        self, provider, model, secret, sign_in, choosable
+    ):
+        """One rule for a new agent's only model and the assistant's first publish (#2535)."""
+        profile = _profile(_ctx(), model=model, provider=provider)
+        if not secret:
+            profile.secret_id = None
+        assert is_sign_in(profile) is sign_in
+        assert choosable_for_others(profile, {profile.id: profile}) is choosable
+
+
+class TestAChainThatReachesASignIn:
+    """A run that can reach one person's ChatGPT subscription is nobody else's to give (#2545)."""
+
+    def test_a_sign_in_is_told_from_a_key(self):
+        ctx = _ctx()
+        assert is_sign_in(_profile(ctx, provider="openai_codex", model="gpt-5.4"))
+        assert not is_sign_in(_profile(ctx))
+        assert not is_sign_in(_profile(ctx, provider="not-a-provider"))
+
+    @pytest.mark.parametrize("position", range(MAX_FALLBACK_DEPTH))
+    def test_a_sign_in_anywhere_a_run_falls_back_to_counts(self, position):
+        ctx = _ctx()
+        sign_in = _profile(ctx, provider="openai_codex", model="gpt-5.4")
+        keyed = [_profile(ctx) for _ in range(MAX_FALLBACK_DEPTH - 1)]
+        chain = [*keyed[:position], sign_in, *keyed[position:]]
+        profile = _profile(ctx, fallbacks=[fallback.id for fallback in chain])
+        by_id = {p.id: p for p in [profile, *chain]}
+
+        assert not choosable_for_others(profile, by_id)
+
+    def test_one_past_the_depth_a_run_tries_does_not(self):
+        """The runner stops at `MAX_FALLBACK_DEPTH`, so a sign-in behind it is never reached."""
+        ctx = _ctx()
+        keyed = [_profile(ctx) for _ in range(MAX_FALLBACK_DEPTH)]
+        sign_in = _profile(ctx, provider="openai_codex", model="gpt-5.4")
+        profile = _profile(ctx, fallbacks=[fallback.id for fallback in [*keyed, sign_in]])
+        by_id = {p.id: p for p in [profile, *keyed, sign_in]}
+
+        assert choosable_for_others(profile, by_id)
+
+    def test_a_fallback_the_organization_does_not_have_does_not(self):
+        """Deleted, or another organization's: a run skips it, so it is not a fallback."""
+        ctx = _ctx()
+        elsewhere = _profile(ctx, provider="openai_codex", model="gpt-5.4")
+        profile = _profile(ctx, fallbacks=[elsewhere.id])
+
+        assert choosable_for_others(profile, {profile.id: profile})
+
+    def test_a_keyed_chain_does_not(self):
+        ctx = _ctx()
+        keyed = _profile(ctx)
+        profile = _profile(ctx, fallbacks=[keyed.id])
+
+        assert choosable_for_others(profile, {profile.id: profile, keyed.id: keyed})
 
 
 class TestProfileListing:

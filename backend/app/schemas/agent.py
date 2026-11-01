@@ -144,6 +144,13 @@ class AgentRead(BaseSchema):
             "chat, channels or delegation."
         ),
     )
+    workflow_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The workflow whose step configures this agent, when one does. Such an "
+            "agent is changed in that step, never here, and is not in the catalog."
+        ),
+    )
     a2a_enabled: bool = Field(
         default=False,
         description=(
@@ -253,6 +260,10 @@ class AgentRead(BaseSchema):
             "but publishes none. Hides controls; every publish endpoint re-checks "
             "server-side."
         ),
+    )
+    published_capabilities: list[str] | None = Field(
+        default=None,
+        description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
     )
     published_model: PublishedModel | None = Field(
         default=None,
@@ -851,6 +862,14 @@ class ParkedCall(BaseSchema):
     )
     tool_name: str
     tool_args: dict[str, Any] = Field(default_factory=dict)
+    capability_tool_id: str | None = Field(
+        default=None,
+        description="The tool's stable id, as `ApprovalRead.capability_tool_id` carries it.",
+    )
+    context: dict[str, str] | None = Field(
+        default=None,
+        description="The arguments' ids as names, as `ApprovalRead.context` carries them.",
+    )
     account: str | None = Field(
         default=None,
         description="Which account of an MCP service the call acts as, where that is a question.",
@@ -919,6 +938,14 @@ class AgentRunResult(BaseSchema):
         ),
     )
     output: str
+    structured: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The answer as an object, for an agent with an `output_schema`: it fits "
+            "that schema, and `output` shows the same object as a JSON block. Null "
+            "for a free-text answer, and for a run that parked or stopped"
+        ),
+    )
     status: str
     cost_usd: Decimal
     cost_is_partial: bool = Field(
@@ -1034,11 +1061,12 @@ class TemplateInstallRequest(BaseSchema):
 class TemplateInstallResult(BaseSchema):
     """What was created, and what the person still has to do.
 
-    An installed template is a **draft**: it names no model, because this
-    platform has no organization-wide default on purpose, and it may name no
-    collection. Both are decisions the spec refuses to make on somebody's
-    behalf, so the result carries them back rather than publishing something
-    that would answer its first question from nowhere.
+    An installed template is a **draft**. It names no model, because this
+    platform has no organization-wide default on purpose, unless the
+    organization has exactly one model an agent can run on and the draft starts
+    on that (#2483). It may name no collection, which is never chosen for
+    anybody. So the result carries back what is still to attach rather than
+    publishing something that would answer its first question from nowhere.
     """
 
     agent_id: UUID

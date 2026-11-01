@@ -31,6 +31,10 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
   channels: Perm.channelsManage,
   routines: Perm.agentsView,
   knowledge: Perm.collectionsView,
+  tables: Perm.tablesView,
+  workflows: Perm.workflowsView,
+  "approval-outcomes": Perm.workflowsView,
+  "workflow-logs": Perm.workflowsView,
   platform: "app_admin",
   health: "app_admin",
   "background-jobs": "app_admin",
@@ -82,8 +86,8 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all fifty-two widgets", () => {
-    expect(WIDGET_IDS).toHaveLength(53);
+  it("holds all fifty-seven widgets", () => {
+    expect(WIDGET_IDS).toHaveLength(57);
   });
 
   it.each(WIDGET_IDS)("%s has a title and a description under its own id", (id) => {

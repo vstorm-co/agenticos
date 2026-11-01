@@ -209,8 +209,10 @@ async def create(
     portal_key: str | None = None,
     delivery_mode: str | None = None,
     runs_as_creator: bool = False,
+    local_target: dict[str, Any] | None = None,
     overlap: str = TriggerOverlap.SKIP.value,
     teams_conversation_id: UUID | None = None,
+    time_zone: str | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         organization_id=organization_id,
@@ -232,8 +234,10 @@ async def create(
         portal_key=portal_key,
         delivery_mode=delivery_mode,
         runs_as_creator=runs_as_creator,
+        local_target=local_target,
         overlap=overlap,
         teams_conversation_id=teams_conversation_id,
+        time_zone=time_zone,
     )
     db.add(trigger)
     await db.flush()

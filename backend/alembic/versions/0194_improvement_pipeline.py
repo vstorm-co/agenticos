@@ -21,6 +21,13 @@ revision: str = "0194_improvement_pipeline"
 down_revision: str | None = "0193_guard_judge_version"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Event types main's own revisions added to these checks. This chain is applied
+# to databases that already hold their rows, so a check written without them
+# would refuse the upgrade.
+_MAIN_EVENTS = (
+    ", 'workflow_notification', 'artifact_owner_changed', "
+    "'artifact_share_requested', 'workflow_log_alert'"
+)
 
 _EVENTS = "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', 'ingestion_completed', 'ingestion_failed', 'usage_report', 'agent_usage_report', 'security_event', 'configuration_changed', 'announcement', 'artifact_version_published', 'resource_shared', 'budget_warning', 'mcp_server_down', 'mcp_server_recovered', 'background_task_paused', 'eval_suite_failed', 'promotion_overridden', 'shared_change_applied', 'capability_requested', 'suggestion', 'finding'"
 
@@ -32,7 +39,7 @@ def checks(*, added: bool) -> None:
         ("notification_preferences", "ck_notification_preferences_event_type"),
     ):
         op.drop_constraint(name, table, type_="check")
-        op.create_check_constraint(name, table, f"event_type IN ({events})")
+        op.create_check_constraint(name, table, f"event_type IN ({events}{_MAIN_EVENTS})")
 
 
 def upgrade() -> None:

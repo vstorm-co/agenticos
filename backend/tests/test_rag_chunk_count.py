@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core import background
+from app.db.vector_tables import VectorScope
 from app.repositories import rag_document_repo
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import (
@@ -177,8 +178,8 @@ class TestDocumentTypeDerivation:
 class TestWhatTheUploadPathRecords:
     async def test_the_worker_writes_the_chunk_count_it_was_given(self):
         document_id = str(uuid.uuid4())
-        # No knowledge base, so the worker resolves this document's vector tenant
-        # to None without a repository lookup (#1684).
+        # No knowledge base, so the worker resolves this document's vector scope
+        # to the deployment-wide tenant without a repository lookup (#1684).
         record = MagicMock(
             organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=None
         )
@@ -221,6 +222,54 @@ class TestWhatTheUploadPathRecords:
             replaced_document_id=None,
             attempt=1,
         )
+
+    @pytest.mark.security
+    async def test_an_upload_is_written_under_the_base_it_is_filed_under(self):
+        """The ingester is bound to the tracked row's own base - its tenant and
+        the base itself - so the chunks are filed under it and no same-named base
+        of the same tenant reads them (#2537)."""
+        kb_id = uuid.uuid4()
+        scope = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=kb_id)
+        record = MagicMock(
+            organization_id=uuid.uuid4(), ingestion_config={}, knowledge_base_id=kb_id
+        )
+        documents = MagicMock(
+            get_document=AsyncMock(return_value=record), complete_ingestion=AsyncMock()
+        )
+        bound: list[object] = []
+
+        @asynccontextmanager
+        async def _worker_db():
+            yield MagicMock()
+
+        @asynccontextmanager
+        async def _pipeline(**kwargs: object) -> AsyncIterator[MagicMock]:
+            bound.append(kwargs["scope"])
+            yield MagicMock(
+                ingest_file=AsyncMock(
+                    return_value=MagicMock(
+                        status=IngestionStatus.DONE,
+                        document_id="vector-doc",
+                        chunk_count=1,
+                        replaced_document_id=None,
+                    )
+                )
+            )
+
+        with (
+            patch("app.worker.tasks.rag_tasks.get_worker_db_context", _worker_db),
+            patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+            patch("app.worker.tasks.rag_tasks.assert_organization_within_budget", new=AsyncMock()),
+            patch(
+                "app.worker.tasks.rag_tasks.knowledge_base_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(vector_scope=scope)),
+            ),
+            patch("app.worker.tasks.rag_tasks._ingestion_service", new=_pipeline),
+            patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
+        ):
+            await _run_ingestion(str(uuid.uuid4()), "docs", "queued/a.md", "a.md", False, 1)
+
+        assert bound == [scope]
 
     @pytest.mark.parametrize("name", ["chunk_count", "replaced_document_id", "attempt"])
     def test_recording_an_ingest_cannot_omit_what_it_must_report(self, name):
@@ -267,7 +316,9 @@ class TestRetiringWhatAReplacementDeleted:
         )
 
         assert result.replaced_document_id == "old-vector-doc"
-        service.store.delete_document.assert_awaited_once_with("docs", "old-vector-doc", None)
+        service.store.delete_document.assert_awaited_once_with(
+            "docs", "old-vector-doc", VectorScope(tenant=None)
+        )
 
     async def test_a_first_ingest_reports_nothing_replaced(self):
         processor = MagicMock(process_file=AsyncMock(return_value=_document(chunks=3)))

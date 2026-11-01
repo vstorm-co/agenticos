@@ -6,7 +6,8 @@ because "who gave whom access to what" is the first question asked after an
 incident and the last thing anyone remembers.
 """
 
-from typing import NamedTuple
+from dataclasses import dataclass
+from typing import NamedTuple, Protocol
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,76 @@ from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.repositories import group_repo, member_repo, resource_grant_repo
 from app.services.access import OwnedResource, ResourceType, resolve_access
 from app.services.notifications import NotificationService
+
+
+@dataclass(frozen=True)
+class ShareChange:
+    """What one sharing call is about to do to a resource: set its visibility, or give one
+    person or one group a level on it."""
+
+    visibility: Visibility | None = None
+    subject_user_id: UUID | None = None
+    subject_group_id: UUID | None = None
+    level: GrantLevel | None = None
+    confirmed: str | None = None
+    """The id of the text the caller confirmed to grant `edit_data`."""
+
+
+@dataclass(frozen=True)
+class Deferred:
+    """A change a guard did not apply, because it filed a request for someone else to
+    decide instead. The route answers with these two."""
+
+    request_id: UUID
+    waiting_for: str | None
+    """Who decides it, by name; `None` when it has nobody left to."""
+
+
+class SharingGuard(Protocol):
+    """What one resource type asks before sharing acts on a row of it.
+
+    The service is generic, so a rule that holds for one type - who may adopt a page
+    nobody owns - is registered by the service that owns the type
+    (:func:`register_sharing_guard`) rather than written in here. A type with no guard
+    behaves exactly as it always has. A guard raises to refuse; it runs after the
+    caller has passed the edit check.
+    """
+
+    async def before_visibility(
+        self,
+        db: AsyncSession,
+        ctx: AuthContext,
+        resource: OwnedResource,
+        visibility: Visibility,
+    ) -> None:
+        """Called before every visibility change."""
+
+    async def before_share(
+        self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, change: ShareChange
+    ) -> Deferred | None:
+        """Called before every change of visibility or grant, after `before_visibility`.
+
+        Returns `None` to let the change be applied, :class:`Deferred` when the guard
+        turned it into a request instead (nothing is applied), or raises to refuse."""
+
+    async def adopt(self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource) -> None:
+        """Make the caller the owner of a row nobody owns, when its visibility is set to
+        private - in place of the generic adoption, which a type that has ownership rules
+        of its own must not get."""
+
+
+_GUARDS: dict[str, SharingGuard] = {}
+
+
+def register_sharing_guard(resource_type: ResourceType, guard: SharingGuard) -> None:
+    """Install `guard` for `resource_type`, replacing any earlier one."""
+    _GUARDS[resource_type.key] = guard
+
+
+def _require_level_for(resource_type: ResourceType, level: GrantLevel) -> None:
+    """`edit_data` is a page's level: nothing else has a data owner to consent for it."""
+    if level is GrantLevel.EDIT_DATA and resource_type.key != "artifact":
+        raise refused_field("level", "This level is for pages only.")
 
 
 class SharingState(NamedTuple):
@@ -40,6 +111,8 @@ _CONSOLE_PATHS = {
     "dataset": "/datasets/{id}",
     "mcp_connection": "/mcp-servers",
     "project": "/projects/{id}",
+    "table": "/tables/{id}",
+    "workflow": "/workflows/{id}",
 }
 """Where the console opens a shared resource of each kind."""
 
@@ -69,6 +142,18 @@ class SharingService:
                 message="You cannot change sharing for this resource",
                 details={"resource_type": resource_type.key, "resource_id": str(resource.id)},
             )
+
+    async def _ask_guard(
+        self,
+        ctx: AuthContext,
+        resource: OwnedResource,
+        resource_type: ResourceType,
+        change: ShareChange,
+    ) -> Deferred | None:
+        guard = _GUARDS.get(resource_type.key)
+        if guard is None:
+            return None
+        return await guard.before_share(self.db, ctx, resource, change)
 
     async def get_sharing(
         self,
@@ -117,8 +202,12 @@ class SharingService:
         resource_type: ResourceType,
         subject_user_id: UUID,
         level: GrantLevel,
-    ) -> ResourceGrant:
+        confirmed: str | None = None,
+    ) -> ResourceGrant | Deferred:
         """Grant a member access to one resource.
+
+        A resource type's guard may file a request instead of granting, and the
+        :class:`Deferred` it returns is passed on with nothing applied.
 
         Raises:
             BadRequestError: If the subject is not a member of this
@@ -126,6 +215,7 @@ class SharingService:
                 grant row pointing at an outsider would be a latent hole.
         """
         await self._require_edit(ctx, resource, resource_type)
+        _require_level_for(resource_type, level)
 
         membership = await member_repo.get(
             self.db, organization_id=ctx.organization_id, user_id=subject_user_id
@@ -135,6 +225,14 @@ class SharingService:
                 message="Cannot share with someone outside this organization",
                 details={"subject_user_id": str(subject_user_id)},
             )
+        deferred = await self._ask_guard(
+            ctx,
+            resource,
+            resource_type,
+            ShareChange(subject_user_id=subject_user_id, level=level, confirmed=confirmed),
+        )
+        if deferred is not None:
+            return deferred
 
         grant = await resource_grant_repo.upsert(
             self.db,
@@ -164,8 +262,11 @@ class SharingService:
         resource_type: ResourceType,
         group_id: UUID,
         level: GrantLevel,
-    ) -> ResourceGrant:
+        confirmed: str | None = None,
+    ) -> ResourceGrant | Deferred:
         """Grant every member of a group access to one resource.
+
+        Like :meth:`share`, a guard may turn it into a request.
 
         The grant reaches whoever is in the group when access is resolved, so
         people joining later reach the resource and people leaving stop - there
@@ -177,6 +278,7 @@ class SharingService:
                 grant naming another tenant's group would be a latent hole.
         """
         await self._require_edit(ctx, resource, resource_type)
+        _require_level_for(resource_type, level)
 
         group = await group_repo.get(
             self.db, organization_id=ctx.organization_id, group_id=group_id
@@ -186,6 +288,14 @@ class SharingService:
                 message="Cannot share with a group outside this organization",
                 details={"subject_group_id": str(group_id)},
             )
+        deferred = await self._ask_guard(
+            ctx,
+            resource,
+            resource_type,
+            ShareChange(subject_group_id=group.id, level=level, confirmed=confirmed),
+        )
+        if deferred is not None:
+            return deferred
 
         grant = await resource_grant_repo.upsert_for_group(
             self.db,
@@ -351,7 +461,7 @@ class SharingService:
         *,
         resource_type: ResourceType,
         visibility: Visibility,
-    ) -> OwnedResource:
+    ) -> OwnedResource | Deferred:
         """Change how widely a resource is exposed inside its organization.
 
         Going private on a row nobody owns makes the caller its owner. "Private"
@@ -370,17 +480,27 @@ class SharingService:
         answer.
         """
         await self._require_edit(ctx, resource, resource_type)
+        guard = _GUARDS.get(resource_type.key)
+        if guard is not None:
+            await guard.before_visibility(self.db, ctx, resource, visibility)
+            deferred = await guard.before_share(
+                self.db, ctx, resource, ShareChange(visibility=visibility)
+            )
+            if deferred is not None:
+                return deferred
         # `ctx.user_id` is not None past `_require_edit`: `resolve_access`
         # refuses a subject-less context outright, so there is always somebody
         # to become the owner here.
         adopted = visibility is Visibility.PRIVATE and resource.owner_user_id is None
-        if adopted:
+        if adopted and guard is not None:
+            await guard.adopt(self.db, ctx, resource)
+        elif adopted:
             resource.owner_user_id = ctx.user_id
         previous = resource.visibility
         resource.visibility = visibility.value
         self.db.add(resource)
         await self.db.flush()
-        if adopted:
+        if adopted and guard is None:
             await record_audit(
                 self.db,
                 actor_user_id=ctx.subject_id,

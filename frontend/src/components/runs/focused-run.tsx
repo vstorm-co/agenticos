@@ -386,7 +386,10 @@ export function FocusedRun({
 
       {/* The one scrolling column. `min-h-0` is what makes it scroll rather than
           push the header off a flex parent that has no room to give. */}
-      <div className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4">
+      <div
+        data-run-scrollport
+        className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4"
+      >
         <TabsContent value="timeline">
           {/* An eval case keeps no conversation: its answer and grade live on
               the eval run, so the timeline says where rather than that nothing

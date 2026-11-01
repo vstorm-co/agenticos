@@ -1,0 +1,13 @@
+# Opt-in overlay after installing deploy/updater outside the application stack.
+# The API never receives the Docker socket. The updater's control file is read-only.
+services:
+  app:
+    environment:
+      UPDATE_AGENT_SOCKET: /run/agenticos-updater/agent.sock
+    volumes:
+      - ${UPDATE_STATE_DIR:?Set UPDATE_STATE_DIR to the updater runtime directory}:/run/agenticos-updater:ro
+  worker:
+    environment:
+      UPDATE_AGENT_SOCKET: /run/agenticos-updater/agent.sock
+    volumes:
+      - ${UPDATE_STATE_DIR:?Set UPDATE_STATE_DIR to the updater runtime directory}:/run/agenticos-updater:ro

@@ -13,8 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
@@ -129,9 +131,9 @@ class RAGDocumentService:
 
         `kb` is the knowledge base the caller was authorized through, and the
         count is that base's rows (`rag_document_repo.in_collection_scope`), the
-        ones the document listing shows for it. `total_vectors` is scoped by the
-        base's vector tenant, which a personal base outside any organization
-        shares with an app-scoped one of the same name.
+        ones the document listing shows for it. `total_vectors` is counted by the
+        caller in the base's own vector scope, so a same-named base of the same
+        tenant is not summed in (#2537).
         """
         counts = await rag_document_repo.ingestion_counts(self.db, scope=CollectionScope.of(kb))
         return RAGCollectionInfo(
@@ -159,6 +161,19 @@ class RAGDocumentService:
                 details={"doc_id": doc_id},
             )
         return doc
+
+    async def hold_ingestion_name(self, collection_name: str) -> None:
+        """Hold a CLI destination through its tracking-row insert, refusing queued drops.
+
+        The teardown uses this lock before reserving a name and deleting its rows.
+        A CLI insert therefore either precedes that delete or observes its tombstone.
+        """
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection_name)
+        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+            raise BadRequestError(
+                message="Collection is being deleted. Try again shortly.",
+                details={"collection": collection_name},
+            )
 
     async def create_document(
         self,
@@ -652,20 +667,20 @@ class RAGDocumentService:
         )
         return updated
 
-    async def _vector_tenant(self, doc: RAGDocument) -> UUID | None:
-        """The tenant this document's chunks are stamped and scoped by (#1684).
+    async def vector_scope(self, doc: RAGDocument) -> VectorScope:
+        """The scope this document's chunks are stamped and read under (#1684, #2537).
 
         Off the knowledge base the document is tracked under, not `organization_id`
         on the row: an app-scoped base's documents carry the uploader's
         organization for billing, but their vectors are deployment-wide and carry
         no tenant, so scoping a read or a delete by the row's organization would
         miss them. A document with no base, or whose base is gone, is
-        deployment-wide (`None`).
+        deployment-wide: no tenant and no base.
         """
         if doc.knowledge_base_id is None:
-            return None
+            return VectorScope(tenant=None)
         kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
-        return kb.vector_tenant if kb is not None else None
+        return kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     async def delete_document(
         self,
@@ -684,10 +699,10 @@ class RAGDocumentService:
         this request's session, so the deferred coroutine may hold it safely.
 
         A single document's cleanup stays in-process, where the bulk teardown paths
-        (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
-        queue theirs as a durable job (#1349): the leak a lost single-document task
-        would strand is one file and one document's vectors, and a durable job per
-        document delete is disproportionate to that.
+        (`_retire_superseded`, `KnowledgeBaseService.delete` and
+        `delete_for_rag_collection`) queue theirs as a durable job (#1349): the leak
+        a lost single-document task would strand is one file and one document's
+        vectors, and a durable job per document delete is disproportionate to that.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -702,11 +717,11 @@ class RAGDocumentService:
         collection_name = doc.collection_name
         vector_document_id = doc.vector_document_id
         storage_path = doc.storage_path
-        # The tenant the chunks were stamped with at ingest - the collection's
-        # own, off its knowledge base - so the vector delete is scoped to them and
-        # cannot reach another org's document in a collection whose name they
-        # share (#1684). Read now, before the row is deleted.
-        tenant = await self._vector_tenant(doc)
+        # The scope the chunks were stamped with at ingest - the knowledge base's
+        # own - so the vector delete is confined to them and cannot reach another
+        # org's or base's document in a collection whose name they share (#1684,
+        # #2537). Read now, before the row is deleted.
+        scope = await self.vector_scope(doc)
         await rag_document_repo.delete(self.db, doc.id)
         await self._content_changed(doc)
 
@@ -715,9 +730,7 @@ class RAGDocumentService:
         if vector_document_id:
             spawn_after_commit(
                 self.db,
-                ingestion_service.remove_document(
-                    collection_name, vector_document_id, tenant=tenant
-                ),
+                ingestion_service.remove_document(collection_name, vector_document_id, scope=scope),
                 name="delete-document-vectors",
             )
         if storage_path:
@@ -827,24 +840,6 @@ class RAGDocumentService:
         await rag_document_repo.delete(self.db, doc.id)
         await self._content_changed(doc)
 
-    async def delete_by_collection(self, collection_name: str) -> None:
-        """Delete a collection's document rows and unlink their stored uploads.
-
-        The bulk row delete used to return only a count, so nothing removed the
-        uploaded files and every one was orphaned on disk when a collection was
-        dropped (#1265). The unlink is a cleanup job queued in this transaction
-        (`queue_external_state_cleanup`), so a rollback keeps the files beside the
-        rows it restores (#1293) and a worker restart mid-drain no longer loses the
-        ones still queued - the job is retried (#1349). Best-effort: the cleanup
-        resolves the storage backend only when it runs, so a misconfigured backend
-        fails the job, not the drop.
-        """
-        storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
-        if storage_paths:
-            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
-
-            await queue_external_state_cleanup(self.db, storage_paths, [])
-
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore
     ) -> RAGParsedContent:
@@ -871,7 +866,7 @@ class RAGDocumentService:
             )
 
         chunks = await vector_store.get_document_chunks(
-            doc.collection_name, doc.vector_document_id, await self._vector_tenant(doc)
+            doc.collection_name, doc.vector_document_id, await self.vector_scope(doc)
         )
 
         pages: list[RAGParsedPage] = []

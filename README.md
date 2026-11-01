@@ -147,9 +147,9 @@ It runs on your own infrastructure with Docker Compose and works with 28 model p
 
 **How AgenticOS fits into a company:** departments such as finance, operations or the board use shared agents in web chat, Slack or a private workspace. Your systems call agents through the API, and events or schedules start them automatically. Every request passes the same controls: roles, budgets, approvals, guardrails and a recorded run. Your data, vectors, code sandboxes, the credential vault and optional local models stay on your infrastructure. Hosted models, SaaS tools and document sources outside are used only when you configure them.
 
-<img src="docs/assets/readme/figures.webp" alt="29 built-in capabilities, switched on per agent; 8 places an agent answers; 28 model providers, hosted, your cloud or local; 5 document sync sources; 4,700+ MCP servers in the gallery; 29 tutorials, each with a check you can run." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 built-in capabilities, switched on per agent; 8 places an agent answers; 28 model providers, hosted, your cloud or local; 5 document sync sources; 4,700+ MCP servers in the gallery; 30 tutorials, each with a check you can run." width="100%">
 
-<p align="center"><sub><b>At a glance:</b> 29 built-in capabilities · 8 places an agent answers · 28 model providers · 5 document sync sources · 4,700+ MCP servers · 29 tutorials.</sub></p>
+<p align="center"><sub><b>At a glance:</b> 29 built-in capabilities · 8 places an agent answers · 28 model providers · 5 document sync sources · 4,700+ MCP servers · 30 tutorials.</sub></p>
 
 ## ✨ What you can do
 
@@ -172,7 +172,7 @@ curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/qu
 
 On Windows, run the same command inside WSL2 with Docker Desktop's WSL2 integration switched on. The installer asks for a model provider and key, your login and an organization name, pulls the published images and starts a deployment with a working agent in it. A host with 4 vCPU and 8 GB of RAM runs it. Then open **http://localhost:3000** and sign in with the login you chose during installation.
 
-**Your first agent:** follow the [document-assistant walkthrough](https://vstorm-co.github.io/agenticos/howto/first-document-agent/) to upload a handbook, ask questions and check answers against cited sources. Then pick a next task from [29 tutorials](https://vstorm-co.github.io/agenticos/use-cases/), each with a sample input and a check you can run.
+**Your first agent:** follow the [document-assistant walkthrough](https://vstorm-co.github.io/agenticos/howto/first-document-agent/) to upload a handbook, ask questions and check answers against cited sources. Then pick a next task from [30 tutorials](https://vstorm-co.github.io/agenticos/use-cases/), each with a sample input and a check you can run.
 
 <details>
 <summary>Inspect the installer or deploy another way</summary>
@@ -302,11 +302,11 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 </details>
 
 <details>
-<summary><b>Looking for a first task</b>: 29 tutorials, each with a check you can run</summary>
+<summary><b>Looking for a first task</b>: 30 tutorials, each with a check you can run</summary>
 
 <br>
 
-<img src="docs/assets/readme/first-tasks.webp" alt="29 tutorials grouped into documents, support, research and analysis, automation, content and productivity, engineering and safety." width="100%">
+<img src="docs/assets/readme/first-tasks.webp" alt="30 tutorials grouped into documents, support, research and analysis, automation, content and productivity, engineering and safety." width="100%">
 
 [All tutorials](https://vstorm-co.github.io/agenticos/use-cases/). 24 have a reference run by the maintainers; they are starting points, not customer results.
 

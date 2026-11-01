@@ -41,12 +41,6 @@ import { ImproveLink } from "@/components/agents/improve-link";
 import type { AgentAttention } from "@/types/stats";
 
 /** Chip labels for the surfaces an agent answers on. Unknown values pass through. */
-const CHANNEL_LABEL: Record<string, string> = {
-  slack: "Slack",
-  telegram: "Telegram",
-  mattermost: "Mattermost",
-};
-
 /**
  * Who can reach this agent, as one chip.
  *
@@ -130,7 +124,6 @@ export function AgentCard({
           className={cn(
             "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
             "hover:border-foreground/25",
-            archived && "opacity-70",
             busy && "pointer-events-none opacity-50",
           )}
         >
@@ -140,26 +133,33 @@ export function AgentCard({
             aria-label={tc("openNamed", { name: agent.name })}
           />
 
-          <div className="pointer-events-none relative mb-3 flex items-start gap-3">
+          <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:flex">
             <AgentAvatar
               agentId={agent.id}
               slug={agent.slug}
               hasAvatar={agent.has_avatar}
               colorSlot={agent.avatar_color}
               size="lg"
+              className="max-sm:size-12"
             />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-foreground truncate font-medium">{agent.name}</p>
-                  <p className="text-muted-foreground truncate font-mono text-xs">@{agent.slug}</p>
+            <div className="contents sm:block sm:min-w-0 sm:flex-1">
+              <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
+                <div className="w-full min-w-0 sm:w-auto">
+                  <h3
+                    className={cn(
+                      "text-foreground line-clamp-2 font-semibold break-words sm:truncate",
+                      archived && "text-muted-foreground",
+                    )}
+                  >
+                    {agent.name}
+                  </h3>
                 </div>
                 <AgentStatusBadge status={agent.status} />
               </div>
-              <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
+              <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
                 {agent.description || t("noDescription")}
               </p>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
                 <AccessChip agent={agent} />
                 {attention && <AttentionBadge agentId={agent.id} attention={attention} />}
                 {isSystemAgent(agent.kind) &&
@@ -174,40 +174,16 @@ export function AgentCard({
                   ) : (
                     <SystemAgentBadge kind={agent.kind} />
                   ))}
-                {(agent.channels ?? []).map((channel) => (
-                  <Badge
-                    key={channel}
-                    variant="outline"
-                    className="text-muted-foreground font-normal"
-                  >
-                    {CHANNEL_LABEL[channel] ?? channel}
-                  </Badge>
-                ))}
-                {(agent.categories ?? []).map((label) => (
-                  <Badge
-                    key={`c:${label}`}
-                    variant="outline"
-                    className="text-muted-foreground font-normal"
-                  >
-                    {label}
-                  </Badge>
-                ))}
-                {(agent.tags ?? []).map((label) => (
-                  <Badge
-                    key={`t:${label}`}
-                    variant="outline"
-                    className="text-muted-foreground font-normal"
-                  >
-                    {label}
-                  </Badge>
-                ))}
               </div>
               {footer !== undefined && <div className="mt-2">{footer}</div>}
             </div>
           </div>
 
-          <div className="relative mt-auto flex items-center justify-between gap-2 border-t pt-3">
-            <span className="text-muted-foreground pointer-events-none text-xs">
+          <div className="relative mt-auto flex items-start justify-between gap-2 border-t pt-3">
+            <span
+              className="text-muted-foreground pointer-events-none py-2 text-xs"
+              title={`@${agent.slug}`}
+            >
               {agent.updated_at
                 ? t("editedWhen", { when: formatDate(agent.updated_at, locale) })
                 : t("neverEdited")}
@@ -230,7 +206,7 @@ export function AgentCard({
                       <button
                         type="button"
                         aria-label={t("moreActionsFor", { name: agent.name })}
-                        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
@@ -313,7 +289,7 @@ function IconAction({
       title={label}
       data-tour="agent-card-edit"
       data-agent-id={agentId}
-      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex h-8 w-8 touch-manipulation items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
     >
       <Icon className="h-4 w-4" />
     </Link>

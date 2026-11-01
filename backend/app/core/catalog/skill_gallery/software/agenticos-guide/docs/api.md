@@ -168,6 +168,9 @@ curl -X POST "$BASE/api/v1/agents/$AGENT_ID/run" \
 
 The response carries the run id, the output, the status, the tokens and the cost.
 `environment_id` in the body picks [which environment](environments.md) answers.
+An agent with an [answer format](concepts.md#spec) answers with an object: it is in
+`structured`, already validated against the agent's `output_schema`, and `output`
+shows the same object as a JSON block.
 `"draft": true` runs the unpublished draft instead, as the Builder's test panel
 does: a test run, for a key whose issuer may edit the agent, refused with the
 reason when the draft would not publish, and never with `Prefer: respond-async`.
@@ -266,6 +269,212 @@ crosses a tenant or a grant boundary.
 The response also carries `categories` and `tags`: every distinct label on the
 agents you could list, whatever the filter and the page — the choices a filter
 menu offers. A private agent you cannot see adds none.
+
+## Running a workflow
+
+Organization API keys may start runs and read their status, graph, steps, files
+and events through `/api/v1/workflow-runs`. Start with `workflows:run`; reading also
+needs `workflows:view`, and draft tests need `workflows:edit`. The worker retains
+the key's admitted scope ceiling and rechecks the key and the issuer on every
+step, including after an approval or wait. Revocation, expiry or deletion stops
+new work with `PRINCIPAL_REVOKED`; it never promotes a continuation to the issuer's
+full role. Key-started runs have no access to the issuer's personal state. Workflow
+authoring remains session-only.
+
+API keys can list and read public-origin runs, including runs started by keys;
+member-started personal runs return `404`, including their graph, steps, events,
+files, retry and cancellation endpoints. A key cannot import files from those runs.
+
+```bash
+curl -X POST "$BASE/api/v1/workflow-runs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "'"$WORKFLOW_ID"'", "input": {"question": "How long do refunds take?"}, "deadline_seconds": 3600}'
+```
+
+This starts a run of the workflow's published version and answers `201` at
+once; the nodes run in the background. `input` is what the graph's
+[`core.input`](reference/workflow-nodes.md#core-input) trigger hands on, at most
+`WORKFLOW_RUN_MAX_INPUT_BYTES` as JSON (`413` past it). Only a version that starts
+from that trigger, or from none, is started here: any other answers `409
+WORKFLOW_TRIGGER_MISMATCH`, because a webhook, a schedule, a chat message or a
+table record starts it. `"mode": "test"` runs the current draft instead, from any
+trigger, and needs `workflows:edit`.
+
+`deadline_seconds` (up to thirty days) sets
+a deadline that is checked each time a node is about to be dispatched: the
+first node due after it passes fails the run with `DEADLINE_EXCEEDED`, while a
+node already running, or a run parked on an approval, is not interrupted by it. The route is rate-limited per caller like the agent run route,
+answering `429` with `Retry-After` past the allowance.
+
+`GET /api/v1/workflow-runs/{id}` returns the run's status, `spent_cost`,
+`error` and, once its [`core.output`](reference/workflow-nodes.md#core-output)
+node has run, its `output`, and `POST /api/v1/workflow-runs/{id}/cancel` stops it. `GET
+/api/v1/workflow-runs/{id}/events?after=<cursor>` returns the run's event stream
+oldest first, with a `next_cursor` to pass back as `after`: it stays the same
+while nothing newer exists, so polling with it tails a live run. Who may do each
+of these is in [Permissions](permissions.md#workflow-runs).
+
+`GET /api/v1/workflow-runs/{id}/nodes` lists every step the run took, loop
+iterations included, each with its `scope_path`, status, tries, cost and the typed
+error it last failed with, and `GET /api/v1/workflow-runs/{id}/graph` returns the
+graph the run executes: its version's, or a test run's draft snapshot.
+
+### Reading a workflow's log { #reading-a-workflows-log }
+
+The lines a workflow's [Quick Logs](workflows.md#the-logs-page) wrote can be read from
+outside the console - by a script, a spreadsheet, or a dashboard tool such as Grafana or
+Metabase - with an organization API key holding `workflows:view`.
+
+A key reads the lines of public-origin runs, including runs started by keys: those
+started by any organization key, those started from outside (a webhook, form, channel
+message, Gmail, Outlook or GitHub event) and any run in a chain one of those started.
+Lines of runs a member, a schedule, a table record, a chat, an agent or an app started
+are not included, so a scheduled workflow's log reads empty through a key and its counts
+differ from the console's. A workflow of another organization, or one the key's member
+may not view, answers `404`; a key without `workflows:view` is refused.
+
+```bash
+# The newest lines, 100 at a time (the most a page holds); test runs are left out
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs?outcome=error&from=2026-10-01T00:00:00Z&limit=100" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+
+# How many lines each day left, by outcome, over the last 30 days in Warsaw's days
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&tz=Europe/Warsaw" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflows/{id}/logs` lists newest first - by `created_at`, then by `seq`,
+the position a line took in the log as it was written. Narrow it with `node_instance_id`
+(one step), `outcome` (a port, or `error`; repeat it to match any of several, and a
+line that left by several ports matches each of them), `run` (a run id, or its first 4 or more
+characters), `q` (text in the message) and the time window `from` (inclusive) and `to`
+(exclusive); `include_test=true` adds the lines test runs wrote. `skip` and `limit` page
+through it - `limit` is at most 100 - and `total` counts every matching line, so a
+client pages until `skip` reaches it.
+
+`GET /api/v1/workflows/{id}/logs/summary` is the data a chart wants: for the last
+`days` days (7, 30 or 90, today included) it answers one entry per day, oldest first,
+with the count each outcome left, and a day with no lines is still present. `tz`, an
+IANA name, sets whose days are counted and is UTC by default; the other filters are the
+list's. To pull it into a dashboard tool, point a JSON data source at the route with the
+key as a bearer header and read `by_day`.
+
+```bash
+# Errors and timeouts per day for a month: one JSON data source for a dashboard panel
+curl "$BASE/api/v1/workflows/$WORKFLOW_ID/logs/summary?days=30&outcome=error&outcome=timeout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID"
+```
+
+`GET /api/v1/workflow-runs/{id}/logs` lists one run's lines oldest first by `seq`
+(`limit` up to 500), and `GET /api/v1/workflow-logs` the newest lines across every
+workflow the key may view, each with its workflow's name, plus how many lines each
+outcome left in the last 24 hours. The alert rules on a log are not part of the public
+API.
+
+### Exporting and importing a workflow { #exporting-and-importing-a-workflow }
+
+`GET /api/v1/workflows/{id}/export` (`workflows:view`) returns the draft as a
+portable file: `name`, `description`, `tags`, `settings`, `graph` and
+`unresolved`, the step and field of every resource pin it left out. It carries no
+id of this deployment and no secret value. `POST /api/v1/workflows/import`
+(`workflows:create`) takes that file and answers `201` with the new draft
+`workflow` and its `unresolved` pins; a graph that does not parse, or names a step
+this deployment does not have, is a `400` and makes nothing.
+
+### Following a run over a WebSocket { #following-a-run-over-a-websocket }
+
+`/api/v1/ws/workflow-runs?organization_id=<org>` authenticates like the chat's
+socket, with the access token as the `access_token.<token>` subprotocol. Send
+`{"type": "start", "workflow_id": ..., "input": {...}}` to start a run, or
+`{"type": "attach", "run_id": ..., "after": <cursor>}` to follow one. The server
+sends `{"type": "run", "run": {...}}` when it starts following and again when the
+run ends, and `{"type": "event", "event": {...}, "cursor": ...}` for every event
+between. A refused frame gets `{"type": "error", "code": ..., "message": ...}`,
+and a revoked session closes the socket with `4001`. One socket follows one run;
+a new frame replaces the run it was following. A `start` frame spends the per-minute
+allowance `POST /workflow-runs` does, and past it gets `RATE_LIMIT_EXCEEDED`.
+
+### Webhooks and schedules { #workflow-webhooks-and-schedules }
+
+Webhook and GitHub delivery IDs survive run-content retention as minimal tombstones owned by the exposure and organization. A duplicate still returns the original run UUID after its content is deleted; its status and previous webhook response may no longer be available. Deleting the exposure or organization ends that deduplication lifetime. Migration `0230_webhook_delivery_tombstones.py` cannot restore claims already deleted by older retention; downgrading removes orphan tombstones before restoring the old cascading foreign key.
+
+Unattended trigger publication and authority changes require a member session (`403` for an organization API key). Keys may publish manual workflows, start runs within their scopes and pause exposures, but cannot enable them, rotate secrets/form links, retime schedules or choose a new error-workflow identity. These operations retain a user's authority for future events.
+
+Public workflow form submissions enforce the workflow input byte limit while reading the request stream, before JSON parsing or token lookup. Oversized declared or chunked bodies return `413`; malformed JSON and invalid submission fields return `422`. Each entry of a `422`'s `details.problems` is `{field, message, type}`, where `type` is the validator's own error type (`missing`, `int_type`, `extra_forbidden`, ...), so a form can say per answer what it needed.
+
+
+A workflow whose trigger node is a webhook or a schedule gets its exposure when
+that version is published, and the publish response carries it as `exposure`. A
+webhook's signing secret is in the publish's `webhook_secret` the first time it is
+switched on, and nowhere else. `GET /api/v1/workflows/{id}/exposure` reads it back,
+or `null` for a workflow that starts another way. `PATCH
+.../exposures/{exposure_id}` with `{"is_active": false}` pauses it, and `POST
+.../exposures/{exposure_id}/rotate-secret` replaces a webhook's secret and returns
+the new one once. Both need `workflows:edit` and `workflows:run` on the workflow. A
+webhook's `webhook_url` is where the sender delivers:
+
+```bash
+BODY='{"lead": 42}'
+SIGNATURE="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)"
+curl -X POST "$WEBHOOK_URL" \
+  -H "X-Signature-256: $SIGNATURE" \
+  -H "X-Delivery-Id: lead-42" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+It answers `202` with `{"run_id": ..., "duplicate": false}` as soon as the run is
+admitted, never waiting for the run itself. A delivery id already admitted answers
+`"duplicate": true` with the first run's id. A signature that does not verify is a
+`403`, a delivery with no id or with a body that is not a JSON object a `400`, and
+a paused or unknown webhook a `404`.
+
+A graph with a [Respond to webhook](reference/workflow-nodes.md#webhook-respond)
+step answers with that step's status, headers and JSON body instead, and a retry
+of the delivery gets the same answer. The request waits for it for up to
+`WORKFLOW_WEBHOOK_RESPONSE_TIMEOUT_SECONDS`, then answers `202` as above; a run
+that fails, is cancelled or runs out of budget before answering is a `500`
+`WORKFLOW_WEBHOOK_UNANSWERED` naming the run.
+
+Before publishing, `POST /api/v1/workflows/{id}/webhook-test` (`workflows:edit`)
+opens a test URL for the draft, returned as `url` with the `test_token` in it and open
+for one call for two minutes. The call needs no signature, is answered
+`{"captured": true}` and starts no run. `GET .../webhook-test/{token}` reads back
+`state` (`listening`, `caught` or `expired`) and the `delivery` it caught.
+
+## Working with tables { #working-with-tables }
+
+A record's `values` are keyed by column id; `GET /api/v1/tables/{id}` lists the
+columns. Every write takes an `Idempotency-Key`: a retry with the same key and body
+answers with the first write's result and `Idempotent-Replayed: true` instead of
+writing again, and the same key with a different body is `422`.
+
+```bash
+curl -X POST "$BASE/api/v1/tables/$TABLE_ID/records" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Organization-Id: $ORG_ID" \
+  -H "Idempotency-Key: lead-ada-2026-09-29" \
+  -H "Content-Type: application/json" \
+  -d '{"external_id": "ada@example.com", "values": {"'"$EMAIL_COLUMN"'": "ada@example.com"}}'
+```
+
+`PATCH .../records/{record_id}` changes some cells and needs the
+`expected_revision` you last read; a stale one is `409 REVISION_CONFLICT`. `PUT
+.../records/by-external-id/{external_id}` creates the record or updates it, with
+`expected_revision` required once it exists. `POST .../records/query` filters,
+searches and sorts one page at a time, and `POST .../records/count` says how many
+records the same filters and search match, up to 100,000.
+
+A workflow whose trigger node is **Table record** runs, once it is published, for
+the records of its table added, changed or deleted - whichever its trigger names. `GET .../triggers` lists the workflows that
+start from a table, `PATCH .../triggers/{trigger_id}` with `{"is_active": false}`
+pauses one, and `GET .../triggers/{trigger_id}/admissions` lists what it decided
+about each record. See [Triggers](virtual-tables.md#triggers).
 ## Agents over A2A
 
 An agent its organization serves over A2A answers JSON-RPC at

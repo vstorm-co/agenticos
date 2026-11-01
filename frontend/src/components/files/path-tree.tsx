@@ -148,7 +148,7 @@ function PathTreeRow<N extends PathTreeNode>({
   | "renderFolderMeta"
   | "rowInteractions"
 >) {
-  const indent = { paddingLeft: `${depth * 0.75 + 0.5}rem` };
+  const indent = { paddingLeft: `${depth * 0.875 + 0.5}rem` };
 
   if (!node.isDir) {
     const isSelected = selectedPath === node.path;
@@ -158,7 +158,7 @@ function PathTreeRow<N extends PathTreeNode>({
         role="treeitem"
         aria-selected={isSelected}
         className={cn(
-          "group/file relative flex items-center rounded-md",
+          "group/file relative flex min-h-9 items-center rounded-lg transition-colors duration-[var(--duration-fast)]",
           isSelected ? "bg-accent" : "hover:bg-accent/60",
         )}
       >
@@ -167,9 +167,9 @@ function PathTreeRow<N extends PathTreeNode>({
           onClick={() => onSelect(node)}
           aria-current={isSelected}
           title={node.path}
-          style={indent}
+          style={{ paddingLeft: `${depth * 0.875 + 1.75}rem` }}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-2 text-left",
+            "touch:min-h-11 flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 pr-2 text-left",
             "focus-visible:outline-offset-[-2px]",
           )}
         >
@@ -187,27 +187,33 @@ function PathTreeRow<N extends PathTreeNode>({
     <li role="treeitem" aria-expanded={isOpen} aria-selected={false}>
       <div
         {...rowInteractions?.(node)}
-        className="group/file hover:bg-accent/60 flex items-center gap-1 rounded-lg"
+        className="group/file hover:bg-accent/60 flex min-h-9 items-center gap-1 rounded-lg transition-colors duration-[var(--duration-fast)]"
       >
         <button
           type="button"
           onClick={() => onToggle(node.path)}
           style={indent}
-          className="hover:bg-accent/60 flex min-w-0 flex-1 items-center gap-1.5 rounded-md py-1.5 pr-2 text-left"
+          className="touch:min-h-11 flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 pr-2 text-left focus-visible:outline-offset-[-2px]"
         >
           <ChevronRight
             className={cn(
-              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+              "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform duration-[var(--duration-fast)]",
               isOpen && "rotate-90",
             )}
             aria-hidden
           />
           {isOpen ? (
-            <FolderOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+            <FolderOpen
+              className="text-foreground/65 fill-foreground/[0.06] size-4 shrink-0"
+              aria-hidden
+            />
           ) : (
-            <Folder className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+            <Folder
+              className="text-foreground/65 fill-foreground/[0.06] size-4 shrink-0"
+              aria-hidden
+            />
           )}
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">{node.label}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{node.label}</span>
         </button>
         {renderFolderMeta?.(node)}
       </div>

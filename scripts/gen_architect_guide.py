@@ -37,6 +37,11 @@ PAGES = (
     "evals.md",
     "datasets.md",
     "knowledge-gaps.md",
+    "workflows.md",
+    "virtual-tables.md",
+    "desktop.md",
+    "mobile.md",
+    "sandbox.md",
 )
 
 

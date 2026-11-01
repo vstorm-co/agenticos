@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { getErrorMessage } from "@/lib/api-error";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { RunFilterBar } from "@/components/runs/run-filter-bar";
+import { ListFilters } from "@/components/ui/list-filters";
+import { activeFilterCount } from "@/lib/runs/filter-params";
 import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -220,8 +222,8 @@ export function RunHistoryTab({
             title - so this card reads as the same container as the vault's or
             the workspaces'. The export sits in the header's right, where every
             list card keeps its primary control. */}
-        <CardHeader className="shrink-0 flex-row items-start justify-between space-y-0 border-b px-5 py-4">
-          <div className="space-y-1">
+        <CardHeader className="shrink-0 flex-col items-start justify-between gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:px-5">
+          <div className="w-full min-w-0 space-y-1 sm:flex-1">
             <CardTitle className="text-sm">{t("runHistory2")}</CardTitle>
             <CardDescription className="text-xs">
               {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}
@@ -265,13 +267,15 @@ export function RunHistoryTab({
               {canView && (
                 <ListCardControlsRow className="shrink-0">
                   {periodControl}
-                  <RunFilterBar
-                    filters={filters}
-                    period={period}
-                    onChange={onFiltersChange}
-                    agentId={agentId}
-                    onAgentChange={changeAgent}
-                  />
+                  <ListFilters active={activeFilterCount(filters) + (agentId === null ? 0 : 1)}>
+                    <RunFilterBar
+                      filters={filters}
+                      period={period}
+                      onChange={onFiltersChange}
+                      agentId={agentId}
+                      onAgentChange={changeAgent}
+                    />
+                  </ListFilters>
                 </ListCardControlsRow>
               )}
               {!canView ? (

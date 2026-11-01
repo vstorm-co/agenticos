@@ -73,14 +73,13 @@ permissions:
 # cold cache is a red build for a reason unrelated to the diff. Measured on run
 # 31116003994, a full matrix on `main`: changes 7s, lint 22s, Security Scan 14s,
 # docs 4m34s, test-frontend 5m08s, test 7m43s, e2e 8m01s (and the image build,
-# since moved to `images.yml`, 2m30s). `test` has since grown past that: running
-# the suite twice, the gated run and `coverage-all`, it took 18 to 23 minutes on
-# `main` in October 2026, 35 to 37 on a milestone branch, and past 60 once that
-# branch's suite took 32 minutes a pass. It runs the suite once now, with
-# `coverage-all` reporting the same data, and has 60. `test-frontend`
-# grew the same way: with a
-# thousand more tests its `next build` finished past 20 minutes on a pull request
-# in October 2026, every test file green. It has 30.
+# since moved to `images.yml`, 2m30s). `test` has since grown past that: it runs
+# the suite twice, the gated run and `coverage-all`, and took 18 to 23 minutes on
+# `main` in October 2026 and 27m29s on a pull request, where its 25 ended it with
+# every step green. The native-client branch's 18,711-test suite reached only
+# 72% at 45 minutes on two workers. Its two passes now get a bounded 90-minute
+# budget and explicitly use the existing four-worker cap on hosted runners.
+# `test-frontend` took 20m07s with its build on 30 October; it gets 45 minutes.
 #
 # `backend/tests/test_ci_workflow.py` asserts that a job added later carries one too,
 # and that none is so generous it bounds nothing.
@@ -237,7 +236,7 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -270,6 +269,7 @@ jobs:
     # On the job rather than repeated under each step, which is how the `e2e` job
     # below already does it. Four identical copies is four places to forget one.
     env:
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -303,8 +303,7 @@ jobs:
         # goes to base and back rather than only forwards.
         #
         # `make check` does not run this, and that omission is deliberate rather
-        # than drift: `downgrade base` here empties a throwaway `test_db`, while
-        # on a laptop it points at whatever `backend/.env` says.
+        # than drift: it is slow and rarely needed, so `check` leaves it to a hand run.
         run: make test-migrations
 
       - name: Verify the models and the migrations still agree
@@ -332,6 +331,17 @@ jobs:
         #
         # `COV_REPORT=xml` is the only difference from what `make test` does on a
         # laptop, and it is for Codecov below rather than for the gate.
+        #
+        # `PYTEST_ADDOPTS` turns the Makefile's `-v` into one line of dots per
+        # worker. With a line per test (about 25,000 of them, a few of them 50 KB
+        # long) the run stopped three times in a row on this suite: both workers
+        # and the step's own output went silent in the same second, no stack
+        # was dumped, and the job ran into its 90-minute limit. The same suite
+        # finished in 14 to 20 minutes with quiet output, and with its output
+        # sent to a file. Failures still print in full with a short summary, and
+        # `faulthandler_timeout` still names a test that hangs.
+        env:
+          PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
 
       - name: Retain backend coverage diagnostics
@@ -381,7 +391,8 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The 11,339-test coverage pass took 19m39s before the production build.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

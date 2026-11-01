@@ -18,6 +18,25 @@ export interface ChatMessageFile {
   file_type: string;
 }
 
+/**
+ * A message typed while the agent was busy or the network was gone, held above
+ * the composer until it can be sent - and, in the apps, kept sealed on the
+ * device so closing the app does not lose it (#2097).
+ */
+export interface QueuedMessage {
+  id: string;
+  content: string;
+  fileIds?: string[];
+  files?: ChatMessageFile[];
+  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
+  mentions?: Mentionable[];
+  /**
+   * Why the server refused it before saving it, when it did: the message is
+   * held, marked, until the person sends it again or drops it.
+   */
+  refused?: string;
+}
+
 /** The earlier message a turn answers, quoted above it. */
 export interface MessageReply {
   messageId: string;
@@ -159,7 +178,18 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer";
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run";
+
+/** A workflow answering a chat turn: which run it is and where it stands. */
+export interface WorkflowRunPart {
+  workflowId: string;
+  /** What the workflow was called when it answered. */
+  workflowName: string | null;
+  /** Null until the socket has admitted the run. */
+  runId: string | null;
+  status: string;
+  error: string | null;
+}
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
@@ -178,6 +208,8 @@ export interface MessagePart {
    * asked it itself, and on every question stored before the field existed.
    */
   askedBy?: string;
+  /** The run, for a "workflow_run" part. */
+  workflowRun?: WorkflowRunPart;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -296,7 +328,8 @@ export type WSEventType =
   | "browser_held"
   | "browser_released"
   | "browser_needs_person"
-  | "browser_pointer";
+  | "browser_pointer"
+  | "browser_control_error";
 
 /**
  * How a browse ended, and all four are ordinary.
@@ -326,12 +359,17 @@ export interface BrowserFrame {
     | "browser_held"
     | "browser_released"
     | "browser_needs_person"
-    | "browser_pointer";
+    | "browser_pointer"
+    | "browser_control_error";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
   step: number;
   url?: string | null;
   title?: string | null;
+  tab_id?: string | null;
+  native_id?: string | null;
+  resumable?: boolean;
+  navigable?: boolean;
   /** On the opening frame: the ceiling, so progress reads as 3/25. */
   max_steps?: number | null;
   /** On the opening frame: the task the model handed over. */
@@ -441,6 +479,19 @@ export interface ActionRequest {
   tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
+  /**
+   * The stable id the capability declares the tool under - `update_record` for a
+   * binding that renamed it `change_order`. The card's sentence is looked up by
+   * this, never by `tool_name`. Null or absent for a tool no capability owns.
+   */
+  capability_tool_id?: string | null;
+  /**
+   * The ids in `args` as names the run's person may see - `{table}` for
+   * `update_record` - for the sentence the card leads with. Null or absent when the
+   * tool has no describer or describing it failed; the card then shows the
+   * arguments alone, as it always did.
+   */
+  context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
 }

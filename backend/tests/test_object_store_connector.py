@@ -25,6 +25,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import BaseModel, Field, SecretStr
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import AwsCredentialsSecret, StorableSecret
 from app.services.rag.connectors import ConnectorConfig, RemoteFile
@@ -243,3 +244,74 @@ class TestTheS3ConnectorStillListsWhatItListed:
 
         client.download_file.assert_called_once_with("acme", "legal/nda.pdf", str(landed))
         assert landed.read_bytes() == b"pdf"
+
+
+class TestTheS3EndpointIsChecked:
+    """A source's own `endpoint_url` meets the address check, on the form and at sync."""
+
+    @pytest.fixture(autouse=True)
+    def _dns(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+        answers: dict[str, str] = {}
+
+        def fake_getaddrinfo(host: str, port: int, **_kwargs: object) -> list[tuple[Any, ...]]:
+            return [(2, 1, 6, "", (answers.get(host, "93.184.216.34"), port))]
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", fake_getaddrinfo)
+        return answers
+
+    @staticmethod
+    def _config(endpoint: str | None) -> ConnectorConfig:
+        return {"bucket": "acme", "endpoint_url": endpoint}
+
+    async def test_a_public_endpoint_and_none_at_all_are_accepted(self) -> None:
+        assert await S3Connector().validate_config(self._config("https://s3.example.com")) is None
+        assert await S3Connector().validate_config(self._config(None)) is None
+        assert await S3Connector().validate_config({"bucket": "acme"}) is None
+
+    async def test_a_private_endpoint_is_refused(self, _dns: dict[str, str]) -> None:
+        _dns["minio"] = "10.0.0.9"
+
+        refusal = await S3Connector().validate_config(self._config("http://minio:9000"))
+
+        assert refusal is not None
+        assert refusal.field == "endpoint_url"
+
+    async def test_a_listed_private_endpoint_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch, _dns: dict[str, str]
+    ) -> None:
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", ["minio"])
+        _dns["minio"] = "10.0.0.9"
+
+        assert await S3Connector().validate_config(self._config("http://minio:9000")) is None
+
+    @pytest.mark.parametrize("address", ["127.0.0.1", "169.254.169.254"])
+    async def test_a_loopback_or_metadata_endpoint_is_refused_even_when_listed(
+        self, monkeypatch: pytest.MonkeyPatch, _dns: dict[str, str], address: str
+    ) -> None:
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", ["minio"])
+        _dns["minio"] = address
+
+        refusal = await S3Connector().validate_config(self._config("http://minio:9000"))
+
+        assert refusal is not None
+        assert refusal.field == "endpoint_url"
+
+    async def test_a_config_the_model_refuses_is_reported_on_its_field(self) -> None:
+        refusal = await S3Connector().validate_config({"bucket": "acme", "prefix": 3})
+
+        assert refusal is not None
+        assert refusal.field == "prefix"
+
+    async def test_building_a_client_checks_the_endpoint_again(self, _dns: dict[str, str]) -> None:
+        _dns["minio"] = "10.0.0.9"
+        credential = TestTheS3ConnectorStillListsWhatItListed._credential()
+
+        with pytest.raises(BadRequestError):
+            S3Connector()._get_s3_client(self._config("http://minio:9000"), credential)
+
+    async def test_building_a_client_for_a_public_endpoint_passes_it_on(self) -> None:
+        credential = TestTheS3ConnectorStillListsWhatItListed._credential()
+
+        client = S3Connector()._get_s3_client(self._config("https://s3.example.com"), credential)
+
+        assert client.meta.endpoint_url == "https://s3.example.com"

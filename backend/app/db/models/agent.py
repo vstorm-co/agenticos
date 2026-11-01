@@ -153,6 +153,15 @@ class Agent(Base, TimestampMixin):
         String(16), nullable=False, default=AgentKind.AGENT.value, server_default="agent"
     )
 
+    # Set on the agent a workflow's `agent.run` step configures in place: the
+    # workflow owns it, so it is kept out of the catalog, reached through the
+    # workflow's access, and gone with the workflow. Both or neither.
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("workflows.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    workflow_node_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     a2a_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
@@ -187,6 +196,17 @@ class Agent(Base, TimestampMixin):
             "system_key",
             unique=True,
             postgresql_where=text("system_key IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "(workflow_id IS NULL) = (workflow_node_id IS NULL)", name="ck_agent_workflow_node"
+        ),
+        # One agent per step: the step finds its own agent by this pair.
+        Index(
+            "uq_agents_workflow_node",
+            "workflow_id",
+            "workflow_node_id",
+            unique=True,
+            postgresql_where="workflow_id IS NOT NULL",
         ),
     )
 

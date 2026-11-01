@@ -52,6 +52,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_approval_mode,
     requested_environment_id,
+    requested_local,
     requested_mentions,
     requested_model_profile_id,
     requested_testing,
@@ -760,6 +761,7 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
+                    local=requested_local(data),
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).
@@ -830,6 +832,8 @@ class AgentSession:
                                 "tool_call_id": parked.tool_call_id,
                                 "tool_name": parked.tool_name,
                                 "args": parked.tool_args,
+                                "capability_tool_id": parked.capability_tool_id,
+                                "context": parked.context,
                                 "account": parked.account,
                             }
                             for parked in turn.parked

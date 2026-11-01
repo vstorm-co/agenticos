@@ -175,6 +175,14 @@ class OrganizationUpdate(BaseSchema):
             "agent it grades. Existing judges keep their model. Needs 'org:settings'."
         ),
     )
+    public_live_data: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a page's data may reach anyone with its public link or on the sites "
+            "that embed it, once the page's owner confirms it. Omit to leave it alone. "
+            "Needs 'org:settings' (Owner or Admin), signed in as themselves."
+        ),
+    )
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
@@ -251,6 +259,13 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     grading_model_profile_id: UUID | None = Field(
         default=None,
         description="The model new judges grade on; null picks one per agent by price",
+    )
+    public_live_data: bool = Field(
+        default=False,
+        description=(
+            "Whether a page's data may reach anonymous visitors of its public link or its "
+            "embeds, where the page's owner has confirmed it"
+        ),
     )
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None

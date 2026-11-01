@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { readSession, useAdoptSession, useAuth, useReauthenticate } from "./use-auth";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { invokeShell } from "@/lib/desktop/shell";
 import { useAuthStore, useConversationStore, useOrgStore } from "@/stores";
 import type { User } from "@/types";
 import type { ReactNode } from "react";
@@ -14,7 +15,18 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn() } };
 });
+vi.mock("@/lib/desktop/shell", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+// Whether this console keeps a copy on the device - the apps do, a tab does not.
+const device = vi.hoisted(() => ({ keepsCopy: false }));
+vi.mock("@/lib/offline/device-cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/offline/device-cache")>()),
+  offlineAvailable: () => device.keepsCopy,
+}));
 
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -72,6 +84,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   // `clearAllMocks` in beforeEach clears calls but does not undo a `spyOn`;
   // without this, a test that spies on `window.location` freezes it for
@@ -154,6 +167,66 @@ describe("checking the session on load", () => {
 
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
     expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+});
+
+describe("checking the session without a network (#2097)", () => {
+  afterEach(() => {
+    device.keepsCopy = false;
+  });
+
+  it("keeps the app signed in as it was, and checks again when the network returns", async () => {
+    device.keepsCopy = true;
+    useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: true });
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().user?.id).toBe("u-1");
+
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Token expired"));
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+  });
+
+  it.each([429, 500, 502, 503])(
+    "keeps the desktop account after a %i and restores it on focus",
+    async (status) => {
+      device.keepsCopy = true;
+      useAuthStore.setState({ user: user(), isAuthenticated: true, isLoading: true });
+      vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(status, "Server unavailable"));
+      renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().user?.id).toBe("u-1");
+      vi.mocked(apiClient.get).mockResolvedValueOnce({ ...user(), access_token: "restored" });
+      act(() => window.dispatchEvent(new Event("focus")));
+      await waitFor(() => expect(useAuthStore.getState().accessToken).toBe("restored"));
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    },
+  );
+
+  it("signs a browser tab out as before, since it keeps nothing to read", async () => {
+    useAuthStore.setState({ user: user(), isAuthenticated: true });
+    vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+  });
+
+  it("does not sign in nobody: with no account kept, a failed check is a signed-out one", async () => {
+    device.keepsCopy = true;
+    vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderHook(() => useAuth(), { wrapper });
+
+    await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 });
 
@@ -483,6 +556,46 @@ describe("signing in", () => {
 });
 
 describe("signing out", () => {
+  it("reports native cleanup failure without claiming success", async () => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "ios",
+      version: "1.31.0",
+      window: "main",
+      vibrancy: false,
+    };
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    vi.mocked(invokeShell).mockRejectedValueOnce(new Error("native unavailable"));
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.mocked(toast.success).mockClear();
+    await act(async () => {
+      await result.current.logout();
+    });
+    expect(toast.error).toHaveBeenCalledWith(
+      "Signed out, but the app could not clear local access.",
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(push).toHaveBeenCalledWith(ROUTES.LOGIN);
+    warning.mockRestore();
+  });
+
+  it.each([
+    ["ios", "clear_push_session"],
+    ["android", "clear_push_session"],
+    ["macos", "device_unlink"],
+  ])("clears native account state on %s", async (platform, command) => {
+    window.__AGENTICOS_SHELL__ = { platform, version: "1.31.0", window: "main", vibrancy: false };
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    await act(async () => {
+      await result.current.logout();
+    });
+    expect(invokeShell).toHaveBeenCalledWith(command);
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(push).toHaveBeenCalledWith(ROUTES.LOGIN);
+  });
+
   it("clears the session, says so, and goes to the login page", async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));

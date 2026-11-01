@@ -351,6 +351,8 @@ const ME_SECTIONS: SectionDef[] = [
       // beside the questions its knowledge could not answer.
       { widget: "authoring-suggestions", span: "s6", rows: "r3" },
       { widget: "knowledge-gaps", span: "s6", rows: "r3" },
+      { widget: "tables", span: "s6", rows: "r3" },
+      { widget: "workflows", span: "s6", rows: "r4" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read. Four rows, so a
       // thumbnail is big enough to tell one drawing from another.

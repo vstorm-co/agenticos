@@ -8,18 +8,34 @@ from dataclasses import dataclass
 from typing import Any, Self, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_, union_all
+from sqlalchemy import (
+    ColumnElement,
+    String,
+    and_,
+    column,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+    table,
+    tuple_,
+    union_all,
+)
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.base import Base
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
+from app.db.vector_tables import VECTOR_TABLE_PREFIX, validate_collection_name
 
 
 @dataclass(frozen=True)
@@ -72,11 +88,12 @@ class CollectionScope:
     @classmethod
     def of(cls, kb: KnowledgeBase) -> Self:
         """The scope of this knowledge base."""
+        vectors = kb.vector_scope
         return cls(
             knowledge_base_id=kb.id,
             collection_name=kb.collection_name,
-            tenant=kb.vector_tenant,
-            takes_unfiled=kb.scope == KBScope.APP.value or kb.vector_tenant is not None,
+            tenant=vectors.tenant,
+            takes_unfiled=vectors.takes_unfiled,
         )
 
 
@@ -100,13 +117,18 @@ def in_collection_scope(scope: CollectionScope) -> ColumnElement[bool]:
     """
     owned: ColumnElement[bool] = RAGDocument.knowledge_base_id == scope.knowledge_base_id
     if scope.takes_unfiled:
-        tag = (
-            RAGDocument.organization_id.is_(None)
-            if scope.tenant is None
-            else RAGDocument.organization_id == scope.tenant
-        )
-        owned = or_(owned, and_(RAGDocument.knowledge_base_id.is_(None), tag))
+        owned = or_(owned, _unfiled_of(scope.tenant))
     return and_(RAGDocument.collection_name == scope.collection_name, owned)
+
+
+def _unfiled_of(tenant: UUID | None) -> ColumnElement[bool]:
+    """The rows filed under no base whose tag is `tenant`'s."""
+    tag = (
+        RAGDocument.organization_id.is_(None)
+        if tenant is None
+        else RAGDocument.organization_id == tenant
+    )
+    return and_(RAGDocument.knowledge_base_id.is_(None), tag)
 
 
 async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
@@ -701,7 +723,11 @@ async def delete_by_collection(db: AsyncSession, collection_name: str) -> list[s
     """Delete a collection's document rows, returning their stored file paths.
 
     Keyed on `collection_name`, so it removes every knowledge base's rows for
-    that physical collection - which is what the collection-drop route means. The
+    that physical collection, in every organization. Only for a name no base
+    other than the one being cleared holds - the last holder's drop, or
+    `rag-drop` of a name no base holds, under the teardown lock - where every
+    row left is one nothing can read once the table is dropped; a base of its
+    own goes by `delete_by_knowledge_base` (#913, #2560). The
     returned `storage_path`s are the uploads the caller still has to unlink; a
     `NULL` one (nothing was stored) is dropped. The bulk delete used to return
     only a rowcount, so the files were orphaned on disk (#1265).
@@ -725,10 +751,104 @@ async def delete_by_knowledge_base(db: AsyncSession, kb_id: UUID) -> list[str]:
     still has to delete from storage - a `NULL` one (nothing was stored) is
     dropped from the list (#1116).
     """
+    return (await delete_by_knowledge_base_with_vectors(db, kb_id)).storage_paths
+
+
+@dataclass(frozen=True)
+class DeletedDocuments:
+    """What a base's deleted document rows leave behind outside the database."""
+
+    storage_paths: list[str]
+    vector_document_ids: list[str]
+
+
+async def delete_by_knowledge_base_with_vectors(db: AsyncSession, kb_id: UUID) -> DeletedDocuments:
+    """`delete_by_knowledge_base`, also returning the deleted rows' vector document ids.
+
+    For a base that is kept: its chunks are removed by these ids rather than by
+    the base's, which a document uploaded after the delete is filed under too
+    (#2560). Taken from the delete itself, so a row updated between a read and
+    the delete cannot be missed. A row whose ingest never completed has none.
+    """
+    return await _delete_returning(db, RAGDocument.knowledge_base_id == kb_id)
+
+
+async def delete_unfiled_with_vectors(db: AsyncSession, scope: CollectionScope) -> DeletedDocuments:
+    """Delete the unfiled rows a base takes under its name - its tenant's.
+
+    For a base cleared while other bases hold the name, none of them taking these
+    rows: left behind, a kept default would go on listing and serving them, and
+    a deleted base's would come back with the tenant's next base on the name
+    (#2560). Only for a scope that `takes_unfiled`; the caller decides that.
+    """
+    return await _delete_returning(
+        db,
+        and_(RAGDocument.collection_name == scope.collection_name, _unfiled_of(scope.tenant)),
+    )
+
+
+async def _delete_returning(db: AsyncSession, where: ColumnElement[bool]) -> DeletedDocuments:
     result = await db.execute(
         sql_delete(RAGDocument)
-        .where(RAGDocument.knowledge_base_id == kb_id)
-        .returning(RAGDocument.storage_path)
+        .where(where)
+        .returning(RAGDocument.storage_path, RAGDocument.vector_document_id)
     )
     await db.flush()
-    return [path for path in result.scalars().all() if path]
+    rows = result.all()
+    return DeletedDocuments(
+        storage_paths=[path for path, _ in rows if path],
+        vector_document_ids=[doc_id for _, doc_id in rows if doc_id],
+    )
+
+
+async def stored_vector_ids_at_clear(
+    db: AsyncSession, kb: KnowledgeBase, *, takes_unfiled: bool = False
+) -> list[str]:
+    """Snapshot all committed vector documents while the caller holds the base FOR UPDATE.
+
+    A vector insert holds KEY SHARE on this base through its commit. Taking the
+    snapshot under the conflicting clear lock therefore includes inserts whose
+    tracking row has not recorded its vector id yet, while excluding later uploads.
+    `takes_unfiled` includes the tenant-only chunks this clear exclusively owns,
+    such as CLI writes into an app-scoped default.
+    """
+    validate_collection_name(kb.collection_name, metadata=Base.metadata)
+    name = f"{VECTOR_TABLE_PREFIX}{kb.collection_name}"
+    if await db.scalar(select(func.to_regclass(f"public.{name}"))) is None:
+        return []
+    document_id = column("parent_doc_id", String)
+    metadata = column("metadata", JSONB)
+    runtime = table(name, document_id, metadata, schema="public")
+    owned = metadata["knowledge_base_id"].astext == str(kb.id)
+    if takes_unfiled:
+        tenant = str(kb.vector_tenant) if kb.vector_tenant is not None else None
+        owned = or_(
+            owned,
+            and_(
+                metadata["knowledge_base_id"].astext.is_(None),
+                metadata["organization_id"].astext == tenant,
+            ),
+        )
+    result = await db.scalars(select(document_id).select_from(runtime).where(owned).distinct())
+    return list(result.all())
+
+
+async def hold_for_vector_write(
+    db: AsyncSession, document_id: UUID, *, collection: str, knowledge_base_id: UUID | None
+) -> bool:
+    """Hold the tracking row through the chunk commit, or refuse a cleared document.
+
+    The base lock alone cannot reject a stale insert after a default was cleared:
+    its base survives. The tracking row does not, and its KEY SHARE conflicts
+    with the clear's delete. Acquire after the base lock, matching teardown order.
+    """
+    result = await db.execute(
+        select(RAGDocument.id)
+        .where(
+            RAGDocument.id == document_id,
+            RAGDocument.collection_name == collection,
+            RAGDocument.knowledge_base_id == knowledge_base_id,
+        )
+        .with_for_update(read=True, key_share=True)
+    )
+    return result.first() is not None

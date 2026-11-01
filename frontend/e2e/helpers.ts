@@ -1,4 +1,11 @@
-import { expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 /**
  * Shared vocabulary for the E2E suite.
@@ -51,6 +58,8 @@ export const SEEDED_SKILL_CONTENT = "## When a customer asks for a refund\n\nChe
 
 /** A knowledge base, so /rag has a row rather than only an empty state. */
 export const SEEDED_KB_NAME = "E2E Handbook";
+export const SEEDED_PROJECT_NAME = "E2E Workspace";
+export const SEEDED_CONTEXT_NAME = "e2e-company-guide.md";
 
 /**
  * The judge every organization is created with: a system agent, seeded by the
@@ -94,6 +103,32 @@ export const RENAMED_TOOL = "search_refund_policy";
  */
 export const COLLEAGUE_EMAIL = "colleague@example.com";
 export const COLLEAGUE_PASSWORD = "ColleaguePassword123!";
+
+/**
+ * A table, a shared view of it and the record the view shows, for the pages
+ * bound to live data.
+ *
+ * Created through the API rather than the Tables editor, which is not what the
+ * live-data spec tests. The table stays `private` to the owner: the colleague
+ * not being able to read it is exactly what the spec's refusal asserts.
+ */
+export const LIVE_TABLE_NAME = "E2E Live Tickets";
+export const LIVE_RECORD_TITLE = "E2E-LIVE-ALPHA";
+/** A record the view's filter leaves out: on a page, it means the table was read, not the view. */
+export const LIVE_CLOSED_RECORD_TITLE = "E2E-LIVE-CLOSED";
+export const LIVE_VIEW_NAME = "E2E open tickets";
+
+/**
+ * The stub model's endpoint, as a model profile names it.
+ *
+ * `E2E_STUB_MODEL_URL` for an API that cannot reach the host's loopback - one in
+ * a container dials `host.docker.internal` instead. `journey.spec.ts` and
+ * `delegation.spec.ts` keep their own constant: both run against the host-uvicorn
+ * topology only.
+ */
+export const STUB_MODEL_ENDPOINT =
+  process.env.E2E_STUB_MODEL_URL ??
+  `http://127.0.0.1:${process.env.E2E_STUB_MODEL_PORT ?? 4010}/v1`;
 
 /**
  * A stored provider credential that is deliberately not a working one.
@@ -176,6 +211,33 @@ export const SEEDED_ORG_MCP_SECRET = "sk-e2eORGmcpnotarealtoken4KQ2";
  */
 export const RENDERED_SECRET = /sk-[A-Za-z0-9]{20,}/;
 
+/**
+ * A new browser context signed in as somebody else, through the login form.
+ *
+ * Its own context, so the session it holds is not the owner's `AUTH_STATE`. The
+ * caller closes it.
+ */
+export async function signInAs(
+  browser: Browser,
+  email: string,
+  password: string,
+): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Login" }).click();
+    await expect(page).toHaveURL(/\/dashboard(\?.*)?$/);
+    await page.close();
+    return context;
+  } catch (error) {
+    await context.close();
+    throw error;
+  }
+}
+
 /** The page's own title, as `PageHeader` renders it. */
 /**
  * The dashboard's heading on the view everybody opens on, their own: a
@@ -254,7 +316,7 @@ export async function submitDialog(
     submit: Locator;
     /** Where the write goes, as a path prefix: `/api/secrets` also matches a PATCH to one. */
     path: string;
-    method?: "POST" | "PATCH";
+    method?: "POST" | "PATCH" | "DELETE";
   },
 ): Promise<void> {
   // Registered before the click, not after: a fast answer can arrive before
@@ -329,7 +391,10 @@ export async function expectNoRenderedSecret(page: Page): Promise<void> {
  * exactly the card roots, since the overlay is a direct child of one.
  */
 export function agentCard(page: Page, text: string): Locator {
-  return page.locator('div:has(> a[href^="/agents/"])').filter({ hasText: text });
+  const cards = page.locator('div:has(> a[href^="/agents/"])');
+  return text.startsWith("@")
+    ? cards.filter({ has: page.getByTitle(text, { exact: true }) })
+    : cards.filter({ hasText: text });
 }
 
 /**
@@ -375,14 +440,15 @@ export function unsaved(page: Page): Locator {
  * There is no Save button - the draft stores itself 1.2s after the last edit -
  * and that is a trap for a spec rather than for a person: anything that reloads
  * the page before the timer fires reloads the draft the edit replaced, and the
- * assertion that follows describes the wrong state. The badge going quiet is the
- * only signal the product gives that the two agree, so it is what this waits on.
+ * assertion that follows describes the wrong state. The badge going quiet is not
+ * enough while it has been replaced by “Saving…”. Wait until both
+ * are absent, so a reload cannot discard an edit queued behind an earlier save.
  */
 export async function saveDraft(page: Page): Promise<void> {
   await expect(
-    unsaved(page),
-    "the Builder still says the draft is unsaved, so nothing below is reading what the API stored",
-  ).toBeHidden();
+    unsaved(page).or(page.getByText(/^saving(?:…|\.\.\.)?$/i)),
+    "the Builder is still dirty or saving; wait until its latest edit is stored",
+  ).toHaveCount(0);
 }
 
 /**
@@ -470,9 +536,9 @@ export function savedModels(page: Page): Locator {
  * only when it is still shut: clicking it twice closes it again.
  *
  * Shared rather than private to `models.spec.ts` because a model is what a spec
- * needs before it can publish anything at all: the seeded draft is created with
- * a name and nothing else, so `No model selected` is the first problem publish
- * reports (#519).
+ * needs before it can publish anything at all: a draft created where the
+ * organization has more than one model starts with none, and `No model
+ * selected` is the first problem publish reports (#519, #2483).
  */
 export async function selectSavedModel(page: Page, label: string): Promise<void> {
   const list = savedModels(page);

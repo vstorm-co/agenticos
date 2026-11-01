@@ -1,5 +1,5 @@
 ---
-source_sha: "9279bd26378f"
+source_sha: "6ed5be54f7ae"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -19,16 +19,18 @@ To odpowiedź na problem, który każda firma napotyka przy swoim trzecim agenci
 te same trzy akapity wklejone do trzech zestawów instrukcji, a potem poprawione
 w jednym z nich.
 
+W kreatorze agenta **Context → New context file** tworzy plik bezpośrednio w panelu zdolności, dołącza go do bieżącego szkicu i włącza Context. Następnie możesz wybrać sposób użycia pliku przez tego agenta. Publikacja pozostaje osobnym krokiem. Tworzenie wymaga uprawnień do edycji agenta i plików contextu.
+
 ## Gdzie leży, między skillami a wiedzą { #where-it-sits-between-skills-and-knowledge }
 
 Trzy rzeczy podają modelowi tekst, a zły wybór między nimi to zwykła przyczyna
 agenta, który albo ignoruje to, co mu powiedziano, albo nie czyta niczego.
 
-| | Co trzyma | Kiedy model to widzi |
-|---|---|---|
-| **Plik kontekstowy** | Stałe fakty, krótkie i niezmienne — słownik, przewodnik po tonie, schemat organizacji | Zawsze albo na żądanie — Ty wybierasz |
-| **[Skill](skills.md)** | Procedurę dla jednego rodzaju zadania — jak obsłużyć wniosek o zwrot | Kiedy model uzna, że dzieje się właśnie to zadanie |
-| **[Kolekcja wiedzy](file-processing.md)** | Korpus zbyt duży, by go przeczytać — każdy dokument polityki, każde zgłoszenie | Tylko te fragmenty, które zwróci wyszukiwanie |
+|                                           | Co trzyma                                                                             | Kiedy model to widzi                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Plik kontekstowy**                      | Stałe fakty, krótkie i niezmienne — słownik, przewodnik po tonie, schemat organizacji | Zawsze albo na żądanie — Ty wybierasz              |
+| **[Skill](skills.md)**                    | Procedurę dla jednego rodzaju zadania — jak obsłużyć wniosek o zwrot                  | Kiedy model uzna, że dzieje się właśnie to zadanie |
+| **[Kolekcja wiedzy](file-processing.md)** | Korpus zbyt duży, by go przeczytać — każdy dokument polityki, każde zgłoszenie        | Tylko te fragmenty, które zwróci wyszukiwanie      |
 
 Zasada praktyczna: **jeśli coś jest krótkie i zawsze istotne, to plik
 kontekstowy. Jeśli jest długie, to wiedza. Jeśli to procedura, to skill.**

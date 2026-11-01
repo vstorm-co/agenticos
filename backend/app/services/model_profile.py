@@ -5,6 +5,7 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import replace
 from urllib.parse import urlparse
 from uuid import UUID
@@ -88,7 +89,7 @@ def _validate_model_id(provider: str, model: str) -> None:
 async def validate_endpoint_url(url: str) -> str:
     """Check a provider `base_url` before the platform will store it.
 
-    Everywhere else - webhooks, an MCP server not on `MCP_ALLOWED_HOSTS` - an
+    Everywhere else - webhooks, an MCP server the MCP allowlist does not admit - an
     internal address is an SSRF attempt and is refused. Here it is frequently
     the entire point: Ollama on `localhost:11434`, a vLLM server on the
     deployment's own network, a LiteLLM proxy beside the API. Local models are a first-class provider, so
@@ -131,9 +132,10 @@ def usable_for_agents(profile: ModelProfile) -> bool:
 
     A chat model (#2487) with something to authenticate with (#2478). Publish
     refuses a profile that fails either half, so anything choosing a model on
-    somebody's behalf - the organization assistant's first publish - takes only
-    the ones this answers true for. It cannot see a fallback chain or whether a
-    ChatGPT sign-in is the caller's; publish checks those.
+    somebody's behalf - the organization assistant's first publish, a new
+    agent's only model (#2483) - takes only the ones this answers true for, and
+    only those `choosable_for_others` also accepts. It cannot see a fallback
+    chain, which publish checks.
     """
     if not model_outputs(profile.provider, profile.model, base_url=profile.base_url).chat:
         return False
@@ -142,6 +144,48 @@ def usable_for_agents(profile: ModelProfile) -> bool:
         secret_id=profile.secret_id,
         base_url=profile.base_url,
         runs_without_key=profile.runs_without_key,
+    )
+
+
+def is_sign_in(profile: ModelProfile) -> bool:
+    """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
+    provider = PROVIDERS.get(profile.provider)
+    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+
+
+def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether the platform may put this profile in an agent nobody chose it for.
+
+    `usable_for_agents`, and no run on it can reach a ChatGPT sign-in, one
+    person's subscription: the profile is not one (#2535), and neither is any
+    of its first `MAX_FALLBACK_DEPTH` fallbacks, all a run tries
+    (`ModelProfileService.resolve`, #2545). A run on a sign-in spends it when
+    the person who started the run may see it in the vault - its owner, anybody
+    it is shared with, and the organization's owners and admins - and is refused
+    otherwise (`_may_spend`). `profiles` is the organization's own, by id, so an
+    id from elsewhere or one since deleted is not a fallback: the run skips both.
+
+    The one rule for every model the platform picks rather than an author: a new
+    agent's only model (#2483) and the organization assistant's publish. An
+    author may still pick such a model deliberately and publish it themselves.
+    """
+    return usable_for_agents(profile) and not reaches_a_sign_in(profile, profiles)
+
+
+def reaches_a_sign_in(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
+    """Whether a run on this profile can spend a ChatGPT sign-in (#2545).
+
+    The profile itself, or one of the first `MAX_FALLBACK_DEPTH` fallbacks - all
+    a run tries (`ModelProfileService.resolve`). `profiles` is the organization's
+    own, by id, so an id from elsewhere or one since deleted is not a fallback:
+    the run skips both. Anything choosing a model on somebody's behalf refuses
+    such a profile, because the run of anybody who may see the sign-in - its
+    owner, whoever it is shared with, the organization's owners and admins -
+    spends that one person's subscription.
+    """
+    return is_sign_in(profile) or any(
+        (fallback := profiles.get(UUID(fallback_id))) is not None and is_sign_in(fallback)
+        for fallback_id in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]
     )
 
 
@@ -649,18 +693,7 @@ class ModelProfileService:
                 caller may not use.
         """
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
-        # Only somebody actually asking: a publisher standing in for a visitor,
-        # and a key's issuer standing behind whoever holds it, are an account to
-        # bill, not the person whose subscription it is. Persisted run contexts
-        # retain a key's scope ceiling even without its live credential object;
-        # losing that object must never turn a key holder into a signed-in person.
-        person = (
-            None
-            if ctx.subject_is_publisher_fallback
-            or ctx.api_key_id is not None
-            or ctx.key_scopes is not None
-            else ctx.user_id
-        )
+        person = sign_in_person(ctx)
         if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
                 message=(
@@ -700,6 +733,35 @@ class ModelProfileService:
         usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], None)]
         return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
 
+    async def profile_for_organization(
+        self, organization_id: UUID, *, profile_id: UUID | None
+    ) -> ModelProfile:
+        """Read the tenant's model identity without opening its credentials.
+
+        A paired-device model uses this identity for attribution while replacing
+        inference; it must not require a usable cloud credential first.
+        """
+        profile = None
+        if profile_id is not None:
+            profile = await credential_repo.get_profile(
+                self.db, profile_id, organization_id=organization_id
+            )
+            if profile is None:
+                raise NotFoundError(
+                    message="Model profile not found", details={"profile_id": str(profile_id)}
+                )
+        else:
+            # No fallback to "the organization's default". A model an agent did
+            # not choose is a model somebody else's change can swap underneath
+            # it - the same spec answering on a different model, at a different
+            # price, because a flag moved on another page. An agent names its
+            # model, and publish validation refuses a spec that does not.
+            raise NotFoundError(
+                message="This agent has no model selected",
+            )
+
+        return profile
+
     async def _resolve_in(
         self,
         organization_id: UUID,
@@ -724,24 +786,7 @@ class ModelProfileService:
             NotFoundError: If the named profile is missing or none was selected.
             BadRequestError: If the profile names a known non-chat model.
         """
-        profile = None
-        if profile_id is not None:
-            profile = await credential_repo.get_profile(
-                self.db, profile_id, organization_id=organization_id
-            )
-            if profile is None:
-                raise NotFoundError(
-                    message="Model profile not found", details={"profile_id": str(profile_id)}
-                )
-        else:
-            # No fallback to "the organization's default". A model an agent did
-            # not choose is a model somebody else's change can swap underneath
-            # it - the same spec answering on a different model, at a different
-            # price, because a flag moved on another page. An agent names its
-            # model, and publish validation refuses a spec that does not.
-            raise NotFoundError(
-                message="This agent has no model selected",
-            )
+        profile = await self.profile_for_organization(organization_id, profile_id=profile_id)
 
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
         if not outputs.chat:
@@ -811,3 +856,23 @@ async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bo
     if not isinstance(source, VaultCodexCredentials):
         return True
     return user_id is not None and await source.visible_to(user_id)
+
+
+def sign_in_person(ctx: AuthContext) -> UUID | None:
+    """The person whose ChatGPT sign-ins this context may reach, or None for nobody.
+
+    Only somebody actually asking: a publisher standing in for a visitor, and a
+    key's issuer standing behind whoever holds it, are an account to bill, not
+    the person whose subscription it is. Persisted run contexts retain a key's
+    scope ceiling even without its live credential object; losing that object
+    must never turn a key holder into a signed-in person. A run asks this
+    (`ModelProfileService.resolve`), and so does publish (#2546): a context that
+    may not spend a sign-in may not point an agent at one either.
+    """
+    if (
+        ctx.subject_is_publisher_fallback
+        or ctx.api_key_id is not None
+        or ctx.key_scopes is not None
+    ):
+        return None
+    return ctx.user_id

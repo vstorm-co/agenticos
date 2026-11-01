@@ -58,8 +58,9 @@ A boolean on the user, entirely outside organizations. Two effects:
    organization, and none of them can express "every organization"
    ([Governance](governance.md#alerts)).
 2. **A bypass in `AuthContext.permissions`**, which returns every permission at
-   `Scope.ALL` - in every organization, including ones where they hold no
-   membership.
+   `Scope.ALL` - in every organization they are a member of. It does not reach
+   one where they hold no membership: the active organization is resolved before
+   any permission is read, and that refuses a non-member, an app admin included.
 
 The bypass is deliberate and the docstring says why: such a person administers
 the deployment and already has database access, so pretending otherwise would be
@@ -266,6 +267,7 @@ who can see it, not what it does.
 | `read` | see the configuration |
 | `use` | also run or attach it |
 | `edit` | also change it |
+| `edit_data` | also change what data the page shows - [pages only](#a-page-that-reads-data) |
 
 In the console this is one dialog, the way a document is shared: the **Share**
 button on an agent, a skill, a knowledge base or a context file - at any time
@@ -281,11 +283,10 @@ or a group, and a group from another organization reaches nobody here even if a
 row named one.
 
 The table is deliberately generic - `resource_type` + `resource_id`, with no
-foreign key to the target - because agents, collections, skills, context files
-and stored keys all share the same rules. The trade-off is that the database
-cannot cascade-delete
-a grant when its target goes away, so services delete grants alongside the
-resource.
+foreign key to the target - because agents, collections, skills, context files,
+[tables](virtual-tables.md), workflows and stored keys all share the same
+rules. The trade-off is that the database cannot cascade-delete a grant when
+its target goes away, so services delete grants alongside the resource.
 
 ## How the layers combine
 
@@ -387,6 +388,72 @@ listing, so the filter fetches them anyway - without that, a Builder's "shared
 with me" would degenerate into "the whole organization minus mine". For kb it
 also excludes personal rows (the caller's by construction) and app-scope rows
 (the deployment's - never shared *with* anybody).
+
+### Workflow runs
+
+A run has no visibility of its own: it inherits its workflow's. Starting one
+takes `workflows:run` on the workflow, and a `test` run of the unpublished draft
+takes `workflows:edit` as well. Reading a run and its events takes
+`workflows:view`, and the unfiltered list shows runs of the workflows the caller
+can see - their own, organization-visible ones and those shared with them. A run
+the caller cannot see answers exactly like a run that does not exist.
+
+**Cancelling is narrower than starting.** The person who started a run may
+cancel it while they may still run the workflow, and anyone who may edit the
+workflow may cancel any of its runs. A Member who can run an organization-visible
+workflow can stop their own runs, not a colleague's; seeing the run without
+either right is refused with `403`.
+
+**A run acts as the person who started it, checked again at every node.** A
+node can be dispatched days after the run began, so each dispatch requires the
+account to still be active, still a member of the organization - an app admin
+included, as on every request - and still allowed `workflows:run` on the
+workflow, and `workflows:edit` as well for a `test` run. When any of that has
+changed, the run
+fails with `PRINCIPAL_REVOKED` before the node's handler runs. A run needs a
+person to act as, so a context with no subject cannot start one.
+
+## A page that reads data { #a-page-that-reads-data }
+
+A published [page bound to table data](artifacts.md#live-data) is the one place a
+person reads a table **on somebody else's authority**. Every viewer is served the
+page's records through its page queries, read with the access of the page's
+**owner**, whatever their own role or grants on the table. So the layers above
+decide who may open the page, and a further set of rules decides who may widen that.
+
+**The owner's access backs every load.** The page's owner must be an active member and
+hold `read` on every table the queries reach, on every serve; otherwise the data is
+`unavailable` (`creator_gone`, `creator_lost_access`). The person publishing is held to
+reading every table too, at publish, so nobody binds what they cannot read.
+
+**Consent shares it.** The owner's agreement to share a version's data is per
+version, given as themselves (not under impersonation, not through an API key, never by an
+agent tool), and stored with the owner's membership. An Owner or Admin - `artifacts:edit`
+at scope `ALL` - may confirm for the owner, audited as such. A grant to edit
+the page is not enough. Any editor may withdraw it, since withdrawing only narrows; it also lowers
+every `edit_data` grant on the page to `edit`.
+
+**`edit_data` is a grant level, not a role.** "Can edit, including data" sits above `edit`
+and is accepted for pages only (a database constraint refuses it elsewhere). It is a
+standing consent to that person's, or that group's, republishes. Only the owner, or an
+Owner or Admin, as themselves, grants or raises it, after confirming what it allows.
+Anyone who can edit lowers it. It is read as a grant level (`grant_level`), never
+through `resolve_access`, and no role scope implies it.
+
+**Ownership is changed, never claimed.** The owner, or an Owner or Admin for any
+page, hands it to an active member as themselves; a grant to edit does not allow it.
+The switch voids every consent, drops `edit_data` grants to `edit` and turns auto-consent
+off. Taking over an owner-less page by making it private is the same act and the same rule.
+
+**Widening is guarded.** In front of the generic sharing routes sits a guard for pages that read
+data: a wider visibility, a new grant or a higher level is the owner's call, or an Owner's
+or Admin's for them, once the data is confirmed. Anyone else with `edit` gets a
+[request](artifacts.md#share-requests) in place of a refusal. Narrowing is open to every
+editor, and a page that reads no data keeps the generic rules. Admins act directly
+rather than file a request. The three permissions a page uses are `artifacts:view`,
+`artifacts:edit` and, for tables, `tables:view`; Owner, Admin, Builder and Operator hold
+the first and the last at scope `ALL`, which is why they are part of every page's
+audience.
 
 ## Where the gates go
 
@@ -552,6 +619,8 @@ these APIs gains nothing.
   never narrows.**
 - `require(...)` goes on **collection** routes. Anything acting on one row hands
   the decision to a service that calls `resolve_access`.
+- A page that reads table data is read with its **owner's** access and shared only by
+  the owner's consent; widening it is the owner's, and anyone else files a request.
 - A surface with nobody in front of it runs as **whoever published it**, falling
   back to `viewer` when that person left or was deactivated.
 

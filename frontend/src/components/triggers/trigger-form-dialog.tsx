@@ -1,5 +1,7 @@
 "use client";
 
+import { EventOptions, eventOptionsValid } from "./event-options";
+import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -41,15 +43,18 @@ import {
 } from "@/components/triggers/cadence-choices";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
+import { LocalTargetField } from "@/components/triggers/local-target-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
 import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useAgentEnvironments, useAgents } from "@/hooks";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore, useAuthStore } from "@/stores";
 import {
   type CronFrequency,
+  defaultTimeZone,
   eventFilterConfig,
   FILTER_KEYS,
   type IntervalUnit,
@@ -59,6 +64,7 @@ import {
   WEEKDAYS,
   weekdayKey,
 } from "@/lib/trigger-format";
+import type { LocalTarget } from "@/lib/desktop/commands";
 import type {
   EventSource,
   ScheduleKind,
@@ -166,12 +172,14 @@ export function TriggerFormDialog({
   onCreated,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
+  const tp = useTranslations("portals");
   const editing = trigger !== null;
 
   // The registry list backs the picker when the caller brought no agent. It is
   // the same cached query every agent surface reads, so on the surfaces that
   // already know whom they are scheduling this costs nothing new.
   const { agents } = useAgents();
+  const { can } = usePermissions();
   const defaultAgentId = useAgentSelectionStore((state) => state.defaultAgentId);
   // Only agents the caller may actually run: a published version to run, and a
   // `can_run` that resolves the caller's role scope plus any run grant. Seeding
@@ -206,6 +214,7 @@ export function TriggerFormDialog({
   const [name, setName] = useState(trigger?.name ?? "");
   const [environmentId, setEnvironmentId] = useState(trigger?.environment_id ?? DEFAULT_ENV);
   const [runsAsCreator, setRunsAsCreator] = useState(trigger?.runs_as_creator ?? false);
+  const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
   // A new trigger is the caller's own; an existing one is whoever made it.
@@ -237,6 +246,12 @@ export function TriggerFormDialog({
   const [cronWeekdays, setCronWeekdays] = useState<number[]>(cronSeed?.weekdays ?? [1]);
   const [cronDayOfMonth, setCronDayOfMonth] = useState(cronSeed?.dayOfMonth ?? "1");
   const [cronAdvanced, setCronAdvanced] = useState(trigger?.cron_expression ?? "0 9 * * *");
+  // The zone the time is read in. A saved row with none was read in UTC and still
+  // is; a new one starts in the maker's own.
+  const accountZone = useAuthStore((state) => state.user?.time_zone);
+  const [timeZone, setTimeZone] = useState(
+    trigger ? (trigger.time_zone ?? "UTC") : defaultTimeZone(accountZone),
+  );
   // Whether the user actually touched a cadence control. Seeding the editor from
   // a non-round interval rounds it (`intervalToUnit`), so comparing a rebuilt
   // cadence to the original would report a change on a prompt-only edit and reset
@@ -265,6 +280,9 @@ export function TriggerFormDialog({
     const value = key ? trigger.event_config[key] : undefined;
     return typeof value === "string" ? value : "";
   };
+  const [extraConfig, setExtraConfig] = useState<Record<string, unknown>>(
+    trigger?.event_config ?? {},
+  );
   const [filterA, setFilterA] = useState(seededFilter(0));
   const [filterB, setFilterB] = useState(seededFilter(1));
   // The event trigger just created, held so the dialog can show its webhook URL
@@ -389,7 +407,7 @@ export function TriggerFormDialog({
   /** The cadence fields a schedule sends - on create, and on a cadence edit. */
   function scheduleCadence(): Pick<
     TriggerCreate,
-    "schedule_kind" | "interval_seconds" | "cron_expression"
+    "schedule_kind" | "interval_seconds" | "cron_expression" | "time_zone"
   > {
     if (scheduleKind === "cron") {
       // "Every N days" is an interval, not cron: `*/N` on day-of-month steps
@@ -402,7 +420,7 @@ export function TriggerFormDialog({
           interval_seconds: unitToSeconds("days", clampInt(cronEveryDays, 1, 31, 1)),
         };
       }
-      return { schedule_kind: "cron", cron_expression: composeCron() };
+      return { schedule_kind: "cron", cron_expression: composeCron(), time_zone: timeZone };
     }
     return {
       schedule_kind: "interval",
@@ -419,6 +437,7 @@ export function TriggerFormDialog({
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
+      ...(runsAsCreator && localTarget ? { local_target: localTarget } : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
     };
     if (type === "schedule") {
@@ -445,6 +464,14 @@ export function TriggerFormDialog({
         const env = environmentId === DEFAULT_ENV ? null : environmentId;
         if (env !== (trigger.environment_id ?? null)) patch.environment_id = env;
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
+        // Turning acting-as-me off clears the folder on the server; say nothing then.
+        const before = trigger.local_target ?? null;
+        if (
+          runsAsCreator &&
+          (localTarget?.folder !== before?.folder || localTarget?.mode !== before?.mode)
+        ) {
+          patch.local_target = localTarget;
+        }
         if (trigger.trigger_type === "schedule" && overlap !== trigger.overlap) {
           patch.overlap = overlap;
         }
@@ -459,15 +486,23 @@ export function TriggerFormDialog({
           Object.assign(patch, scheduleCadence());
         }
         // An event's filter is editable in place (the source and secret are
-        // not); sent only when a value changed, and as `{}` when both were
-        // cleared - which the server reads as "fire on anything signed".
+        // not); sent only when a value changed. The two slots replace their own
+        // keys and nothing else: the server stores the config whole, so sending
+        // only the slots dropped what this form does not show - a Gmail label,
+        // an Outlook folder or shared mailbox - and moved the trigger.
         if (trigger.trigger_type === "event" && trigger.event_source) {
-          const keys = FILTER_KEYS[trigger.event_source] ?? [];
+          const keys: readonly string[] = FILTER_KEYS[trigger.event_source] ?? [];
           const changed = keys.some(
             (key, index) => ([filterA, filterB][index]?.trim() ?? "") !== seededFilter(index),
           );
-          if (changed) {
-            patch.event_config = eventFilterConfig(trigger.event_source, [filterA, filterB]) ?? {};
+          if (changed || JSON.stringify(extraConfig) !== JSON.stringify(trigger.event_config)) {
+            const kept = Object.fromEntries(
+              Object.entries(extraConfig).filter(([key]) => !keys.includes(key)),
+            );
+            patch.event_config = {
+              ...kept,
+              ...eventFilterConfig(trigger.event_source, [filterA, filterB]),
+            };
           }
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
@@ -489,12 +524,20 @@ export function TriggerFormDialog({
 
   // A preset always composes a valid expression; only the raw "advanced" escape
   // hatch can be left empty, so it is the one cron shape worth guarding.
-  const cronValid = cronFreq !== "advanced" || cronAdvanced.trim().length > 0;
+  // The zone is the other half of every cron shape but "every N days", which is
+  // sent as an interval and so has no clock to read.
+  const cronValid =
+    (cronFreq !== "advanced" || cronAdvanced.trim().length > 0) &&
+    (cronFreq === "everyNDays" || isTimeZone(timeZone));
   const scheduleValid = scheduleKind === "cron" ? cronValid : intervalCountValid(intervalCount);
   const taskValid = prompt.trim().length > 0 && effectiveAgentId !== null;
   // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
-  const canSubmit = taskValid && (type !== "schedule" || scheduleValid) && !pending;
+  const canSubmit =
+    taskValid &&
+    (type !== "schedule" || scheduleValid) &&
+    eventOptionsValid(extraConfig) &&
+    !pending;
 
   const steps: WizardStep[] =
     type === "schedule"
@@ -591,6 +634,8 @@ export function TriggerFormDialog({
         onDayOfMonth: onCadence(setCronDayOfMonth),
         advanced: cronAdvanced,
         onAdvanced: onCadence(setCronAdvanced),
+        timeZone,
+        onTimeZone: onCadence(setTimeZone),
       }}
     />
   );
@@ -625,18 +670,26 @@ export function TriggerFormDialog({
             {trigger.trigger_type === "event" &&
               trigger.event_source &&
               (() => {
-                const filters = SOURCE_FILTERS[trigger.event_source];
+                const filters = FILTER_KEYS[trigger.event_source];
                 return filters ? (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField label={t(filters[0])} htmlFor="edit-filter-a">
+                    <FormField
+                      label={tp(FILTER_COPY[filters[0]]!.labelKey)}
+                      htmlFor="edit-filter-a"
+                    >
                       <Input
                         id="edit-filter-a"
+                        readOnly={filters[0] === "site_url" && !can("mcp:manage")}
                         value={filterA}
                         onChange={(event) => setFilterA(event.target.value)}
                         placeholder={t("filterOptional")}
                       />
                     </FormField>
-                    <FormField label={t(filters[1])} htmlFor="edit-filter-b">
+                    <FormField
+                      label={tp(FILTER_COPY[filters[1]]!.labelKey)}
+                      htmlFor="edit-filter-b"
+                      description={t("senderVouchedHint")}
+                    >
                       <Input
                         id="edit-filter-b"
                         value={filterB}
@@ -648,9 +701,20 @@ export function TriggerFormDialog({
                 ) : null;
               })()}
 
-            {trigger.trigger_type === "event" && trigger.can_manage && (
-              <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+            {trigger.trigger_type === "event" && trigger.event_source && (
+              <EventOptions
+                source={trigger.event_source}
+                config={extraConfig}
+                onChange={setExtraConfig}
+                canManageConnections={can("mcp:manage")}
+              />
             )}
+            {trigger.trigger_type === "event" &&
+              trigger.can_manage &&
+              trigger.delivery_mode !== "polling" &&
+              trigger.delivery_mode !== "app_webhook" && (
+                <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+              )}
 
             {namedEnvironments.length > 0 && (
               <EnvironmentField
@@ -668,6 +732,11 @@ export function TriggerFormDialog({
               onChange={setRunsAsCreator}
               type={trigger.trigger_type}
               isCreator={isCreator}
+            />
+            <LocalTargetField
+              value={localTarget}
+              onChange={setLocalTarget}
+              visible={runsAsCreator && isCreator}
             />
           </div>
 
@@ -785,6 +854,11 @@ export function TriggerFormDialog({
                 type={type}
                 isCreator={isCreator}
               />
+              <LocalTargetField
+                value={localTarget}
+                onChange={setLocalTarget}
+                visible={runsAsCreator && isCreator}
+              />
             </div>
           )}
 
@@ -889,6 +963,8 @@ interface CronBuilderState {
   onDayOfMonth: (value: string) => void;
   advanced: string;
   onAdvanced: (value: string) => void;
+  timeZone: string;
+  onTimeZone: (value: string) => void;
 }
 
 interface ScheduleFieldsProps {
@@ -978,6 +1054,8 @@ function CronBuilder({
   onDayOfMonth,
   advanced,
   onAdvanced,
+  timeZone,
+  onTimeZone,
 }: CronBuilderState) {
   const t = useTranslations("triggers");
   return (
@@ -998,15 +1076,22 @@ function CronBuilder({
       </FormField>
 
       {freq === "advanced" ? (
-        <FormField label={t("cronExpression")} htmlFor="cron-advanced" description={t("cronHelp")}>
-          <Input
-            id="cron-advanced"
-            value={advanced}
-            onChange={(event) => onAdvanced(event.target.value)}
-            placeholder="0 9 * * *"
-            className="font-mono"
-          />
-        </FormField>
+        <>
+          <FormField
+            label={t("cronExpression")}
+            htmlFor="cron-advanced"
+            description={t("cronHelp")}
+          >
+            <Input
+              id="cron-advanced"
+              value={advanced}
+              onChange={(event) => onAdvanced(event.target.value)}
+              placeholder="0 9 * * *"
+              className="font-mono"
+            />
+          </FormField>
+          <ZoneField value={timeZone} onChange={onTimeZone} />
+        </>
       ) : (
         <>
           {freq === "everyNDays" && (
@@ -1045,24 +1130,77 @@ function CronBuilder({
 
           {/* An "every N days" cadence is a continuous interval with no time of
               day to anchor to, so it offers no time field. */}
-          {freq !== "everyNDays" && <TimeField value={time} onChange={onTime} />}
+          {freq !== "everyNDays" && (
+            <TimeField value={time} onChange={onTime} zone={timeZone} onZone={onTimeZone} />
+          )}
         </>
       )}
     </div>
   );
 }
 
-function TimeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+/** Every zone this browser knows, for the picker's suggestions and its check. */
+const ZONES = Intl.supportedValuesOf("timeZone");
+
+/** Whether `zone` is one the server will accept - an IANA name, or plain UTC. */
+function isTimeZone(zone: string): boolean {
+  return zone === "UTC" || ZONES.includes(zone);
+}
+
+/** The clock time and the zone it is read in - one is meaningless without the other. */
+function TimeField({
+  value,
+  onChange,
+  zone,
+  onZone,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  zone: string;
+  onZone: (value: string) => void;
+}) {
   const t = useTranslations("triggers");
   return (
-    <FormField label={t("timeLabel")} htmlFor="cron-time">
+    <div className="flex flex-wrap items-start gap-3">
+      <FormField label={t("timeLabel")} htmlFor="cron-time">
+        <Input
+          id="cron-time"
+          type="time"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-36"
+        />
+      </FormField>
+      <div className="min-w-48 flex-1">
+        <ZoneField value={zone} onChange={onZone} />
+      </div>
+    </div>
+  );
+}
+
+/** An IANA zone, typed or picked from the browser's list. */
+function ZoneField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const t = useTranslations("triggers");
+  const valid = isTimeZone(value);
+  return (
+    <FormField label={t("timeZoneLabel")} htmlFor="cron-zone" description={t("timeZoneHelp")}>
       <Input
-        id="cron-time"
-        type="time"
+        id="cron-zone"
+        list="cron-zones"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-36"
+        aria-invalid={!valid}
+        onChange={(event) => onChange(event.target.value.trim())}
       />
+      <datalist id="cron-zones">
+        {ZONES.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      {!valid && (
+        <p className="text-destructive text-xs" role="alert">
+          {t("timeZoneInvalid")}
+        </p>
+      )}
     </FormField>
   );
 }
@@ -1127,7 +1265,12 @@ function CadenceFields({ choice, onChoice, overlap, onOverlap, ...schedule }: Ca
         <WeekdayPills weekdays={cron.weekdays} onToggle={cron.onToggleWeekday} />
       )}
       {(choice === "daily" || choice === "weekdays" || choice === "weekly") && (
-        <TimeField value={cron.time} onChange={cron.onTime} />
+        <TimeField
+          value={cron.time}
+          onChange={cron.onTime}
+          zone={cron.timeZone}
+          onZone={cron.onTimeZone}
+        />
       )}
       {choice === "custom" && <ScheduleFields {...schedule} />}
       <CadenceSummary {...schedule} />
@@ -1161,6 +1304,7 @@ function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: Sch
       <CronSummary
         freq={cron.freq}
         time={cron.time}
+        zone={cron.timeZone}
         everyDays={cron.everyDays}
         weekdays={cron.weekdays}
         dayOfMonth={cron.dayOfMonth}
@@ -1173,12 +1317,14 @@ function CadenceSummary({ scheduleKind, intervalCount, intervalUnit, cron }: Sch
 function CronSummary({
   freq,
   time,
+  zone,
   everyDays,
   weekdays,
   dayOfMonth,
 }: {
   freq: CronFrequency;
   time: string;
+  zone: string;
   everyDays: string;
   weekdays: number[];
   dayOfMonth: string;
@@ -1193,12 +1339,12 @@ function CronSummary({
       .sort((a, b) => a - b)
       .map((value) => t(weekdayKey(value)))
       .join(", ");
-    return <>{t("summaryWeekly", { time, days })}</>;
+    return <>{t("summaryWeekly", { time, zone, days })}</>;
   }
   if (freq === "monthly") {
-    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time })}</>;
+    return <>{t("summaryMonthly", { day: clampInt(dayOfMonth, 1, 31, 1), time, zone })}</>;
   }
-  return <>{t("summaryDaily", { time })}</>;
+  return <>{t("summaryDaily", { time, zone })}</>;
 }
 
 interface EventFieldsProps {
@@ -1217,6 +1363,7 @@ interface EventFieldsProps {
 // filters the server will actually apply.
 const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = {
   gmail: ["subjectContains", "senderContains"],
+  outlook: ["subjectContains", "senderContains"],
 };
 
 /** The sources the picker offers, each with its static label key so the catalog
@@ -1224,7 +1371,12 @@ const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = 
 const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
   { value: "github", labelKey: "sourceGithub" },
   { value: "webhook", labelKey: "sourceWebhook" },
+  { value: "hubspot", labelKey: "sourceHubspot" },
+  { value: "zendesk", labelKey: "sourceZendesk" },
 ];
+
+/** Sources whose signing secret the provider issues: nothing here can mint it. */
+const PROVIDER_SECRETS: ReadonlySet<EventSource> = new Set(["hubspot", "zendesk"]);
 
 /** Where each source's delivery comes from - a static key per source so the
  *  catalog check can see them, rather than one interpolated key it cannot. */
@@ -1234,8 +1386,21 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
       return t("sourceHelpGithub");
     case "gmail":
       return t("sourceHelpGmail");
+    case "outlook":
+      return t("sourceHelpOutlook");
     case "webhook":
       return t("sourceHelpWebhook");
+    case "hubspot":
+      return t("sourceHelpHubspot");
+    case "zendesk":
+      return t("sourceHelpZendesk");
+    // Read from a connected account, so created from a portal card and never
+    // offered in this signed-POST form; named for the type's sake.
+    case "google_drive":
+    case "microsoft_files":
+    case "google_calendar":
+    case "outlook_calendar":
+      return t("sourceHelpPolled");
   }
 }
 
@@ -1251,6 +1416,7 @@ function EventFields({
 }: EventFieldsProps) {
   const t = useTranslations("triggers");
   const filters = SOURCE_FILTERS[eventSource];
+  const issuedByProvider = PROVIDER_SECRETS.has(eventSource);
   return (
     <div className="space-y-3">
       <FormField
@@ -1295,14 +1461,18 @@ function EventFields({
             id="trigger-secret"
             value={secret}
             onChange={(event) => onSecret(event.target.value)}
-            placeholder={t("secretPlaceholder")}
+            placeholder={issuedByProvider ? t("secretPlaceholderProvider") : t("secretPlaceholder")}
             className="flex-1 font-mono"
           />
-          <Button type="button" variant="outline" onClick={() => onSecret(generateSecret())}>
-            {t("generate")}
-          </Button>
+          {!issuedByProvider && (
+            <Button type="button" variant="outline" onClick={() => onSecret(generateSecret())}>
+              {t("generate")}
+            </Button>
+          )}
         </div>
-        <p className="text-muted-foreground text-xs">{t("secretHelp")}</p>
+        <p className="text-muted-foreground text-xs">
+          {issuedByProvider ? t("secretHelpProvider") : t("secretHelp")}
+        </p>
       </div>
       {filters && (
         <>
@@ -1314,7 +1484,11 @@ function EventFields({
               placeholder={t("filterOptional")}
             />
           </FormField>
-          <FormField label={t(filters[1])} htmlFor="trigger-filter-b">
+          <FormField
+            label={t(filters[1])}
+            htmlFor="trigger-filter-b"
+            description={t("senderVouchedHint")}
+          >
             <Input
               id="trigger-filter-b"
               value={filterB}

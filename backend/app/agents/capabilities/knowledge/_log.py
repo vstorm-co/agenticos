@@ -43,20 +43,21 @@ class KnowledgeSearchLog:
 
     Attributes:
         agent_id: The agent the searches are attributed to.
-        collections: The agent's bound collections, vector-store name to
-            knowledge base id. A name outside it is not recorded.
+        collections: The agent's bound collections, vector-store name to the
+            knowledge base ids a search of it reads. A name outside it is not
+            recorded.
         records: What has been searched so far, shared by every view.
         found: Where a run's caller keeps the passages its searches returned, the
             best few of each; `None` keeps none.
     """
 
     agent_id: UUID
-    collections: Mapping[str, UUID]
+    collections: Mapping[str, tuple[UUID, ...]]
     records: list[KnowledgeSearchRecord] = field(default_factory=list)
     found: list[FoundPassage] | None = None
 
     def for_agent(
-        self, agent_id: UUID | None, collections: Mapping[str, UUID]
+        self, agent_id: UUID | None, collections: Mapping[str, tuple[UUID, ...]]
     ) -> KnowledgeSearchLog:
         """A view for a delegate; one with no agent of its own searches as this one."""
         return KnowledgeSearchLog(
@@ -71,7 +72,7 @@ class KnowledgeSearchLog:
     ) -> None:
         """Keep one search and the best similarity among what it returned."""
         knowledge_base_ids = tuple(
-            self.collections[name] for name in collection_names if name in self.collections
+            base_id for name in collection_names for base_id in self.collections.get(name, ())
         )
         if not knowledge_base_ids:
             return

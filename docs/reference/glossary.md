@@ -118,6 +118,7 @@ in [Capabilities](capabilities.md).
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
+| Computer use | `computer_use` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
 | Follow-ups | `follow_ups` |
@@ -141,3 +142,5 @@ in [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
+| Tables | `virtual_tables` |
+| Workflows | `workflows` |

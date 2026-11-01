@@ -85,6 +85,11 @@ export interface McpToolCall {
 export interface McpToolInfo {
   name: string;
   description: string;
+  /**
+   * The JSON Schema of the tool's arguments, when the server's was small enough
+   * to keep. Absent from a list recorded before it was kept.
+   */
+  input_schema?: Record<string, unknown> | null;
   /** The server marks it read-only; anything else is treated as a write. */
   read_only?: boolean;
 }
@@ -232,4 +237,9 @@ export interface McpSignInProbeResult {
  */
 export async function probeMcpSignIn(url: string): Promise<McpSignInProbeResult> {
   return apiClient.post<McpSignInProbeResult>("/me/mcp-connections/probe", { url });
+}
+
+/** Bind the organization's GitHub App installation after verifying its key. */
+export async function connectGithubApp(installationId: string): Promise<void> {
+  await apiClient.post("/mcp-connections/portals/github-app", { installation_id: installationId });
 }

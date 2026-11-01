@@ -3194,7 +3194,7 @@ class ImprovementPipelineService:
             if (
                 resolved is None
                 or resolved.key_source.is_degraded
-                or resolved.vector_tenant != ctx.organization_id
+                or resolved.vector_scope.tenant != ctx.organization_id
             ):
                 return KnowledgeCheckEstimate(
                     total_usd=Decimal(0),

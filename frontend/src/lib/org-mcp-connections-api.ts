@@ -19,6 +19,7 @@ import type {
   McpConnectionRecord,
   McpConnectionTestResult,
   McpToolCall,
+  McpToolInfo,
 } from "./mcp-connections-api";
 
 /**
@@ -40,6 +41,25 @@ export interface OrgMcpConnectionRecord extends McpConnectionRecord {
    * the account can auto-register a webhook, or must be re-authorized first.
    */
   granted_scopes: string[] | null;
+}
+
+/**
+ * An organization server as a workflow editor picks it: what `GET
+ * /workflows/{id}/mcp-connections` returns, which needs the right to edit that
+ * workflow and not `mcp:manage`. Never the URL, the credential, the consent or the last error -
+ * those stay with a manager.
+ */
+export interface UsableMcpConnectionRecord {
+  id: string;
+  name: string;
+  label: string | null;
+  catalog_key: string | null;
+  is_enabled: boolean;
+  /** null = every tool the server offers. */
+  allowed_tools: string[] | null;
+  /** What the last test recorded; null when nothing has tested it, which is not "offers none". */
+  last_tools: McpToolInfo[] | null;
+  last_checked_at: string | null;
 }
 
 interface OrgMcpConnectionList {
@@ -103,4 +123,17 @@ export async function listOrgMcpToolCalls(id: string): Promise<McpToolCall[]> {
 
 export async function testOrgMcpConnection(id: string): Promise<McpConnectionTestResult> {
   return apiClient.post<McpConnectionTestResult>(`${ROOT}/${id}/test`);
+}
+
+/** The minutes a connected mailbox may be left between checks. */
+export const POLL_INTERVAL_MINUTES = [1, 5, 15, 30, 60] as const;
+
+/** Set how often the organization's connected mailbox is checked, for every trigger on it. */
+export async function setPortalPollInterval(
+  connectionId: string,
+  minutes: number,
+): Promise<{ connection_id: string; poll_interval_minutes: number }> {
+  return apiClient.put(`/mcp-connections/portals/${connectionId}/poll-interval`, {
+    poll_interval_minutes: minutes,
+  });
 }

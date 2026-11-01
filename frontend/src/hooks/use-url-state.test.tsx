@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { takeOwnTraversal } from "@/lib/history-entries";
-import { useUrlOverlay, useUrlState } from "./use-url-state";
+import { useUrlList, useUrlOverlay, useUrlState } from "./use-url-state";
 
 /**
  * State mirrored into a query parameter, with the parameter winning on a
@@ -107,6 +107,21 @@ function Overlay() {
   );
 }
 
+function ListProbe() {
+  const [values, setValues] = useUrlList("outcome");
+  return (
+    <div>
+      <output>{values.join("|") || "nothing"}</output>
+      <button type="button" onClick={() => setValues(["a", "b"])}>
+        pick
+      </button>
+      <button type="button" onClick={() => setValues([])}>
+        clear
+      </button>
+    </div>
+  );
+}
+
 describe("useUrlOverlay", () => {
   beforeEach(() => {
     params.delete("case");
@@ -184,5 +199,40 @@ describe("useUrlOverlay", () => {
     expect(screen.getByRole("status")).toHaveTextContent("nothing");
     expect(new URL(window.location.href).searchParams.get("case")).toBeNull();
     go.mockRestore();
+  });
+});
+
+describe("useUrlList", () => {
+  beforeEach(() => {
+    params.delete("outcome");
+    window.history.replaceState({}, "", "/logs");
+  });
+
+  it("opens on every occurrence of the parameter", () => {
+    params.append("outcome", "error");
+    params.append("outcome", "out");
+    render(<ListProbe />);
+    expect(screen.getByRole("status")).toHaveTextContent("error|out");
+  });
+
+  it("rewrites every occurrence in the URL, and clears them", async () => {
+    window.history.replaceState({}, "", "/logs?outcome=old&outcome=older");
+    render(<ListProbe />);
+    await userEvent.click(screen.getByRole("button", { name: "pick" }));
+    expect(screen.getByRole("status")).toHaveTextContent("a|b");
+    expect(new URL(window.location.href).searchParams.getAll("outcome")).toEqual(["a", "b"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "clear" }));
+    expect(screen.getByRole("status")).toHaveTextContent("nothing");
+    expect(new URL(window.location.href).searchParams.getAll("outcome")).toEqual([]);
+  });
+
+  it("lets a navigation's values win over the state", async () => {
+    const { rerender } = render(<ListProbe />);
+    await userEvent.click(screen.getByRole("button", { name: "pick" }));
+    params.append("outcome", "x");
+    params.append("outcome", "y");
+    rerender(<ListProbe />);
+    expect(screen.getByRole("status")).toHaveTextContent("x|y");
   });
 });

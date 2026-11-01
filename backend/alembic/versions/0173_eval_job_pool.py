@@ -20,7 +20,9 @@ from alembic import op
 revision: str = "0173_eval_job_pool"
 down_revision: str | None = "0172_eval_run_suite_check"
 branch_labels: str | Sequence[str] | None = None
-depends_on: str | Sequence[str] | None = None
+# After main's workflow pool, which rewrites the same check: this revision then
+# writes it with every pool, and a queued workflow job is never refused.
+depends_on: str | Sequence[str] | None = "0224_workflow_job_pool"
 
 _CHECK = "background_jobs_pool_check"
 
@@ -31,10 +33,10 @@ def _pools(values: str) -> None:
 
 
 def upgrade() -> None:
-    _pools("'agent', 'eval', 'ingest', 'system'")
+    _pools("'agent', 'eval', 'ingest', 'system', 'workflow'")
     op.execute("UPDATE background_jobs SET pool = 'eval' WHERE kind = 'run-eval'")
 
 
 def downgrade() -> None:
     op.execute("UPDATE background_jobs SET pool = 'agent' WHERE pool = 'eval'")
-    _pools("'agent', 'ingest', 'system'")
+    _pools("'agent', 'ingest', 'system', 'workflow'")

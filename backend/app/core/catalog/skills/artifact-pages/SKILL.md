@@ -1,6 +1,6 @@
 ---
 name: artifact-pages
-description: How to build a page to publish with publish_artifact - the served library set, the house style and its components, icons instead of emoji, two templates, and how to change a page later.
+description: How to build a page to publish with publish_artifact - the mandatory skeleton, the served library set, the house style and every kit class, icons instead of emoji, three templates (one for live data), buttons that start a workflow, and how to change a page later.
 category: design
 ---
 
@@ -12,91 +12,173 @@ detail under it, nothing they have to scroll past to learn whether it matters.
 It should look like a screen of the product it was published from - quiet,
 precise, graphite - not like a landing page.
 
+**Start from a template** (below) rather than an empty file. Every page,
+template or not, follows the skeleton and the structural rules - the publish
+result warns about a page that does not.
+
+## The skeleton - every page, in this order
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weekly sales - 22 Sep 2026</title>
+  <link rel="stylesheet" href="lib/agenticos-3.css">
+  <script src="lib/chart-4.5.1.umd.min.js"></script>
+  <script src="lib/lucide-1.46.0.min.js"></script>
+  <script src="lib/agenticos-3.js"></script>
+</head>
+<body>
+  <main class="ao-page">
+    <header class="ao-header">
+      <div>
+        <div class="ao-eyebrow"><i data-lucide="chart-no-axes-column"></i>Sales</div>
+        <h1>Weekly sales - 22 Sep 2026</h1>
+        <p class="ao-subtitle">Revenue is up for the third week running.</p>
+        <div class="ao-meta">
+          <span><i data-lucide="calendar"></i>15-21 Sep 2026</span>
+          <span><i data-lucide="database"></i>CRM export</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="ao-section">...</section>
+
+    <footer class="ao-footer">...</footer>
+  </main>
+  <script>/* your own script, last */</script>
+</body>
+</html>
+```
+
+- **`<!doctype html>` is the first line.** Without it the browser draws the page
+  in quirks mode and tables come out in a different text size.
+- **The viewport meta**, or a phone shows the page zoomed out.
+- **`lang`** is the reader's language; numbers and dates follow it.
+- **Load order:** the stylesheet, then the libraries the page uses (Chart.js
+  only with a chart), then `lib/agenticos-3.js`, then your own script.
+- **`main.ao-page`** holds everything (`ao-page ao-page-narrow` for something to
+  read rather than scan).
+- **The header is one block.** `header.ao-header` holds one `div` with, in order,
+  the eyebrow, the `h1`, the subtitle and the meta line. Buttons or tabs for the
+  whole page go in a second child, `div.ao-header-actions`. For an icon beside the
+  title, wrap them:
+  `<div class="ao-header-title"><span class="ao-header-icon"><i data-lucide="ticket"></i></span><h1>...</h1></div>`.
+- **The subtitle is the answer** in one sentence. The meta line is short facts -
+  period, source, "Live" - never a sentence.
+
 ## What the page can load
 
 The page runs in an isolated frame with **no network**. It cannot fetch data,
-call an API or load anything from a CDN. Put the data in the page.
+call an API or load anything from a CDN. Data you only need once goes in the
+page; records that should stay current arrive through `agenticos.onData` (see
+"Live data" below).
 
-The deployment serves a small set of files beside the page. Load them by these
-relative addresses - they cost nothing to include and every page gets the same
-version:
+The deployment serves a small set of files beside the page, by these relative
+addresses:
 
 | File | What it gives you |
 |---|---|
-| `lib/agenticos-2.css` | The product's look, light and dark, and the `ao-` components below |
-| `lib/agenticos-2.js` | `window.AO`: chart defaults, number formatting, icons, tabs |
+| `lib/agenticos-3.css` | The product's look, light and dark, and every class below |
+| `lib/agenticos-3.js` | `window.AO`: chart defaults, number formatting, icons, tabs, `AO.onData`, `AO.records` |
 | `lib/lucide-1.46.0.min.js` | Lucide icons, as `window.lucide` |
 | `lib/chart-4.5.1.umd.min.js` | Chart.js 4, as `window.Chart` |
 | `lib/d3-7.9.0.min.js` | d3 7, as `window.d3`, for anything Chart.js cannot draw |
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9, as `window.L`, on the deployment's map tiles when it has any |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: numbered pins in order, pause and replay, stop cards - on map tiles, or as an outline without them |
 
-Load the libraries first, the kit after them, your own script last:
-
-```html
-<link rel="stylesheet" href="lib/agenticos-2.css">
-<script src="lib/chart-4.5.1.umd.min.js"></script>
-<script src="lib/lucide-1.46.0.min.js"></script>
-<script src="lib/agenticos-2.js"></script>
-```
-
 Anything else you need, inline it: your own script, your own styles, images as
 `data:` URIs. Never paste a whole library in when the set has it.
-(`lib/agenticos-1.css` is still served for pages published against it; use 2.)
+`lib/agenticos-2.css`, `lib/agenticos-2.js` and `lib/agenticos-1.css` are still
+served for pages published against them; build new pages on version 3, and load
+the CSS and the JS of the same version.
+
+## Structural rules
+
+- **Only the kit's classes.** Use the classes in the table below, or inline
+  styles and a `<style>` of your own for anything else. A class that is not in
+  the table does nothing, however likely its name sounds.
+- **A table** is `table.ao-table` inside `div.ao-table-wrap`, with the header row
+  in `<thead>` and the rows in `<tbody>` - from script, `table.createTHead()` and
+  `table.createTBody()`, never rows appended straight to the table. Inside a card,
+  use `ao-card ao-card-flush` and put the wrap straight in it.
+- **`ao-num` is for numbers and dates**: on the `th` and every `td` of that
+  column, and nowhere else. A status column is text.
+- **A state is a message, not a gap.** Before data, `div.ao-loading`; for no
+  data or nothing found, `div.ao-empty`. Inside a table wrap they are padded.
+- **Icons are `<i data-lucide="name"></i>`**, never emoji unless the person asked
+  for emoji. An icon added by script later is drawn too; `AO.icons(element)`
+  draws one at once.
+- **Badges for a status word**: `span.ao-badge`, with a tone class only where the
+  tone means something.
+- **Charts** go in `div.ao-chart` (or `ao-chart-sm`, `ao-chart-lg`) around a
+  `canvas`, created with `AO.chart("#id", () => config)`.
 
 ## The house style
 
 - **No accent colour.** No indigo buttons, no blue links, no gradients. The
-  primary is graphite. Green (`.ao-up`, `.ao-badge-success`) and red (`.ao-down`,
-  `.ao-badge-danger`) mean better and worse, amber (`.ao-badge-warning`) means
+  primary is graphite. Green (`ao-up`, `ao-badge-success`) and red (`ao-down`,
+  `ao-badge-danger`) mean better and worse, amber (`ao-badge-warning`) means
   attention - never decoration.
-- **Flat surfaces.** `.ao-card` has a hairline border and no shadow. Do not add
+- **Flat surfaces.** `ao-card` has a hairline border and no shadow. Do not add
   shadows, coloured backgrounds or borders of your own.
 - **Sentence case** everywhere: titles, headers, buttons, table headers. No
   capitals for emphasis and no letter-spaced labels.
-- **Icons, not emoji.** Write `<i data-lucide="star"></i>`; the kit turns it into
-  the icon, sized to the text it sits in. Use one where it helps a label be
-  found - a stat, a section title, a meta line - not on every line. Names are
-  Lucide's (lucide.dev): `calendar`, `database`, `trending-up`, `users`,
-  `wallet`, `git-fork`, `circle-dot`, `git-pull-request`, `download`, `eye`,
-  `triangle-alert`, `circle-check`, `info`, `clock`, `file-text`. **Use emoji
-  only when the person asked for them.**
+- **Icons where they help a label be found** - a stat, a section title, a meta
+  line - not on every line. Names are Lucide's (lucide.dev): `calendar`,
+  `database`, `trending-up`, `users`, `wallet`, `git-fork`, `circle-dot`,
+  `git-pull-request`, `download`, `eye`, `triangle-alert`, `circle-check`,
+  `info`, `clock`, `file-text`, `ticket`, `list`.
 - **Numbers**: never hand-format. `AO.format.number(36924)` writes it the way the
-  page's language does (set `<html lang="pl">` for a Polish reader),
-  `AO.format.compact`, `AO.format.percent(0.411)`, `AO.format.currency(v, "EUR")`,
-  `AO.format.date(iso)`, and `AO.format.delta(v, { percent: true })` for a signed
-  change. Numbers in tables are right-aligned: `class="ao-num"` on the `th` and
-  every `td` of the column.
+  page's language does, `AO.format.compact`, `AO.format.percent(0.411)`,
+  `AO.format.currency(v, "EUR")`, `AO.format.date(iso)`, and
+  `AO.format.delta(v, { percent: true })` for a signed change.
 - **Charts**: the kit gives Chart.js the product's fonts, grid, tooltip and a
-  graphite series palette, and follows light and dark. Create charts with
-  `AO.chart("#id", () => config)` - the function lets it rebuild the chart when
-  the reader switches theme. Do not set colours unless a series means something;
-  when it does, read a token: `AO.color("--ao-series-3")`, `AO.color("--ao-danger")`.
-  Put every canvas in `.ao-chart` (18rem), `.ao-chart-sm` or `.ao-chart-lg`.
+  graphite series palette, and follows light and dark. Do not set colours unless
+  a series means something; when it does, read a token:
+  `AO.color("--ao-series-3")`, `AO.color("--ao-danger")`.
 
 An organization may have edited this skill to describe its own brand. If this
 section names other colours or fonts, follow those.
 
-## The components
+## Every class
+
+This is every class `lib/agenticos-3.css` defines.
 
 | Class | For |
 |---|---|
-| `.ao-page`, `.ao-page-narrow` | The width: a dashboard, or something to read |
-| `.ao-header`, `.ao-eyebrow`, `.ao-subtitle`, `.ao-meta` | Title block: a small label above, one sentence of answer under, then period and source with icons |
-| `.ao-section`, `.ao-section-header`, `.ao-section-title`, `.ao-section-desc` | A titled part of the page |
-| `.ao-grid-2`, `.ao-grid-3`, `.ao-grid-4`, `.ao-grid` | Rows of cards that stack on a phone |
-| `.ao-card`, `.ao-card-header`, `.ao-card-title`, `.ao-card-desc`, `.ao-card-flush` | A surface; flush for a table or list that runs to its edges |
-| `.ao-stat`, `.ao-stat-label`, `.ao-stat-value`, `.ao-stat-foot`, `.ao-delta` | A number with its label, its change and what the change is against |
-| `.ao-table-wrap`, `.ao-table`, `.ao-num`, `.ao-strong` | A table that scrolls sideways on a phone instead of breaking |
-| `.ao-tabs`, `.ao-tab` | A segmented control; `data-ao-tabs` wires it (below) |
-| `.ao-badge` (+ `-success`, `-warning`, `-danger`, `-outline`) | A status word |
-| `.ao-callout` (+ `-warning`, `-danger`, `-success`) | The one thing to know, with an icon first |
-| `.ao-kv` | A `dl` of labels and values |
-| `.ao-progress` | A bar: `<div class="ao-progress"><span style="width: 62%"></span></div>` |
-| `.ao-legend`, `.ao-swatch` | A legend of your own, when the chart's is not enough |
-| `.ao-button`, `.ao-button-primary` | A control on the page (filters, toggles) |
-| `.ao-footer` | Sources, method and when it was made, at the bottom |
-| `.ao-muted`, `.ao-small`, `.ao-mono`, `.ao-truncate`, `.ao-empty` | Text helpers |
+| `ao-page`, `ao-page-narrow` | The width: a dashboard, or something to read |
+| `ao-header`, `ao-eyebrow`, `ao-subtitle`, `ao-meta` | The header: one block of small label, title, one-sentence answer, then facts with icons |
+| `ao-header-title`, `ao-header-icon` | An icon in a box beside the title |
+| `ao-header-actions` | Buttons or tabs for the whole page, to the right of the title block |
+| `ao-section`, `ao-section-header`, `ao-section-title`, `ao-section-desc` | A titled part of the page |
+| `ao-grid-2`, `ao-grid-3`, `ao-grid-4`, `ao-grid` | Rows of cards that stack on a phone |
+| `ao-stack`, `ao-row`, `ao-spacer` | A column with gaps; a wrapping row; the gap that pushes the rest of a row right |
+| `ao-card`, `ao-card-header`, `ao-card-title`, `ao-card-desc`, `ao-card-flush` | A surface; flush for a table or list that runs to its edges |
+| `ao-stat`, `ao-stat-label`, `ao-stat-value`, `ao-stat-foot`, `ao-delta` | A number with its label, its change and what the change is against |
+| `ao-up`, `ao-down` | Better and worse, on a delta or a word |
+| `ao-kpi-label`, `ao-kpi-value` | Older names for `ao-stat-label` and `ao-stat-value` |
+| `ao-table-wrap`, `ao-table`, `ao-num`, `ao-strong` | A table that scrolls sideways on a phone; a number column; the row's name |
+| `ao-tabular` | Digits of equal width outside a table |
+| `ao-caption` | A line above a list: how many there are, what it is filtered by |
+| `ao-note` | A line under a list: that it is cut, or that a filter no longer applies |
+| `ao-list`, `ao-list-item` | Records as rows of a list instead of a table |
+| `ao-loading`, `ao-skeleton` | Before the data: a line with a spinner; a grey bar standing in for text |
+| `ao-empty` | No data, or nothing found |
+| `ao-live` | "Live": a dot saying the records are read when the page is opened |
+| `ao-badge`, `ao-badge-success`, `ao-badge-warning`, `ao-badge-danger`, `ao-badge-info`, `ao-badge-outline` | A status word; `ao-badge-info` is neutral but stands out |
+| `ao-callout`, `ao-callout-warning`, `ao-callout-danger`, `ao-callout-success` | The one thing to know, with an icon first |
+| `ao-kv` | A `dl` of labels and values |
+| `ao-progress` | A bar: `<div class="ao-progress"><span style="width: 62%"></span></div>` |
+| `ao-icon`, `ao-icon-box` | An element sized like an icon; an icon in a small square |
+| `ao-tabs`, `ao-tab` | A segmented control; `data-ao-tabs` wires it (below) |
+| `ao-toolbar`, `ao-input`, `ao-select`, `ao-button`, `ao-button-primary` | Filters and controls above what they act on |
+| `ao-chart`, `ao-chart-sm`, `ao-chart-lg` | A chart's box: 18rem, 12rem, 24rem high |
+| `ao-legend`, `ao-swatch` | A legend of your own, when the chart's is not enough |
+| `ao-footer` | Sources, method and when it was made, at the bottom |
+| `ao-muted`, `ao-small`, `ao-mono`, `ao-truncate`, `ao-link` | Text helpers |
 
 Tabs switch panels without script of your own:
 
@@ -113,22 +195,26 @@ Tabs switch panels without script of your own:
 
 ## Start from a template
 
-Two templates are files of this skill. Load the one that fits and replace its
+Three templates are files of this skill. Read the one that fits and replace its
 data rather than starting from an empty page:
 
 - `templates/dashboard.html` - numbers at a glance: a header, four stats with
   their change, a tabbed chart, a table, a footer.
 - `templates/report.html` - something to read: the answer in a callout, key
   facts, sections, a table, next steps.
+- `templates/live-table.html` - records from a table that stay current: a
+  binding drawn with `AO.records`, with its loading, empty and unavailable states.
 
-Keep the data in one `const data = {...}` at the top of the script, as numbers
-rather than formatted strings, so the next refresh changes one place.
+Keep static data in one `const data = {...}` at the top of the script, as numbers
+rather than formatted strings, so the next refresh changes one place. Data you
+bound to a table does not live there: it comes from `onData`.
 
-## Rules
+## Rules for the content
 
 **The title says what and when.** `Weekly sales - 22 Sep 2026`, not `Report`.
 Under it, one sentence that answers the question - the thing a reader who stops
-there should take away. Say where the numbers came from and when, in `.ao-meta`.
+there should take away. Say where the numbers came from and when, in the meta
+line.
 
 **One page, one question.** A page that answers three questions is three pages.
 Do not show the same number twice: a stat card and a table row with the same
@@ -138,19 +224,156 @@ figure is one of them too many.
 does. A change that is bad when it rises (refunds, errors, cost) is red when it
 rises. With no previous value, show no delta - not "no previous day".
 
-**Write in the reader's language**, and set `lang` on `<html>` to it, so numbers
-and dates follow.
+**Write in the reader's language**, and set `lang` on `<html>` to it.
 
 **Links to other sites work**, but the reader is asked before one opens. Link
 your sources; do not rely on a link for the page to make sense.
 
 **Reuse the name** every time you refresh the same page, so the link people
-bookmarked shows the new version.
+bookmarked shows the new version. `list_artifacts` shows the pages you have.
 
 **Check it on a phone in your head**: the grids stack, tables scroll, nothing is
 wider than the screen.
 
+## Live data
+
+When the page shows records from a Virtual Table, bind it to a query instead of
+copying the records in: pass `bindings` to `publish_artifact` - a table, or a
+saved view whose filters and sort are copied, plus the fields, filters, sort and
+limit you need - then read them in the page. Everyone who opens the page reads
+the same records, with its owner's access.
+For a table of records, let the kit draw it:
+
+```js
+AO.records("#tickets", null, { text });          // a loading line until the data comes
+agenticos.onData(function (data) {
+  AO.records("#tickets", data.tickets, {
+    columns: ["title", "status", "opened"],        // optional: field names, in order
+    badges: { status: { Open: "warning", Closed: "success" } },
+    text,                                          // the states' words, in the page's language
+  });
+});
+```
+
+`AO.records(target, binding, options)` empties `target` and draws the binding
+there: a `thead` from the fields' labels and a `tbody` of the records, numbers
+and dates formatted and right-aligned, a single or multiple choice as badges,
+every value written as text. With no binding it draws `ao-loading`; an
+`unavailable` binding and an empty one draw `ao-empty`; a cut list adds an
+`ao-note`. `options.text` takes `loading`, `unavailable`, `empty`, `truncated`
+(`{count}` is the number shown), `yes` and `no`;
+`options.labels` renames a heading and `options.format` (`{field: (value,
+record) => text}`) writes a column your way. `AO.onData` is the same call as
+`agenticos.onData`.
+
+Drawing something else - stats, a chart, cards - from the records:
+
+- **`onData(render)` is the default.** It runs with the first data and again on
+  every refresh, so draw from scratch each time. `agenticos.data` is a Promise
+  of the first data only.
+- **Draw a loading state first** (`ao-loading` or `ao-skeleton`), then the data.
+- **Draw `unavailable`.** A binding whose `status` is `unavailable` serves this
+  viewer nothing. Show `ao-empty` "No data", not an empty chart.
+- **Show a cut list.** When `truncated` is true, say the list is cut and why:
+  `limit` is `records` or `bytes`. `count` is how many records you got.
+- **Never `innerHTML` with record text.** Use `textContent`; a record is
+  whatever somebody typed.
+- Each record is `{id, <field>: value}`. Each field in `fields` has its `label`,
+  `type`, `options` and `state`.
+- Binding names: lower-case letters, digits and `_`. Field names: words of
+  letters, digits and `_` with single spaces, any case - `Status` and `Created At`
+  work, read as `record["Created At"]`. Both at most 64 characters; at most 5
+  bindings and 50 fields per binding.
+
+A workflow's log is the second thing a page can read live: a binding with
+`"kind": "workflow_log"`, the `workflow` (id or exact name, one bound to this agent), and either `lines`
+(the newest N, at most 500) or `per_day` with `days` (7, 30 or 90) and `tz`;
+optionally `step`, `outcomes`, `run` and `include_test`. Lines arrive as
+`records` (`{id, created_at, step, outcome, status, message, run_id}`), per-day
+counts as `days` (`[{day, counts: {outcome: n}}]`) with `total`, `window_days`
+and `tz`; draw a count per day with `AO.chart`. A page that reads a log cannot
+have a public link.
+
+Data you need once still goes inline.
+
+**Binding data is a decision for the page's owner.** Everyone who can open the page
+reads the records, whatever their own access to the table, so bind only what all of
+them may see - and the check you cannot make is the owner's. The publish result lists
+each query in words; read it, because it is what the owner agrees to. When its
+`consent` is `pending`, tell the person the owner still has to confirm the data in the
+console, and that everyone else sees `audience` until then. A binding whose reason is
+`awaiting_consent` is not a bug in the page. To share the page, call `share_artifact`:
+it only asks, and the owner answers in the console.
+
+## Actions: a button that starts a workflow
+
+A page can start a workflow, never do the work itself. Declare it when you publish: pass
+`actions` to `publish_artifact` - `[{"workflow": <id or exact name>, "label": "Approve"}]`,
+at most 5. Only a workflow from `list_workflows` (bound to you) that starts from a Manual
+or API trigger, and that the person you act for may run, can be one; the result's
+`actions` lists what was declared. A run with no person behind it cannot declare any.
+Omit `actions` to keep the current ones, `[]` to remove them. A Markdown page has none.
+
+In the page, call `AO.run(action, input)` (the same as `agenticos.run`, without the kit). `action` is the
+workflow's id or your label, and `input` is an object of exactly the values its trigger
+declares: `list_workflows` shows the fields, and a missing, extra or wrongly typed value
+is refused. It returns a Promise of the finished run - `{status, output_text,
+output_structured, error_message, paused, run_path}` - and `AO.onRun(fn)` hears each
+change on the way (`fn` also gets `id`, `action` and `finished`).
+
+```js
+var note = document.getElementById("note");
+function words(error) {
+  return error.message === "cancelled" ? "" : "Could not run it: " + error.message;
+}
+button.addEventListener("click", function () {
+  button.disabled = true;
+  note.textContent = "Waiting for you to confirm...";
+  AO.run("Approve", { ticket: input.value }).then(
+    function (run) {
+      if (run.paused) note.textContent = "Waiting on someone; open it from the list above.";
+      else note.textContent = run.status === "succeeded" ? run.output_text : run.error_message || run.status;
+    },
+    function (error) { note.textContent = words(error); }
+  ).finally(function () { button.disabled = false; });
+});
+```
+
+- **Run only from a click or a submit.** Never on load, on a timer or in a loop: the
+  viewer is asked to confirm every run, and a page that asks unprompted is declined,
+  then, after three declines, ignored until it is opened again.
+- **The viewer decides.** A dialog shows the workflow's own name, your label in quotes and
+  every value. The run is theirs - their access, their budget - so say what will happen
+  in plain words next to the button, and do not promise a result.
+- **Show the wait.** The Promise settles when the run finishes, which can take a minute. Disable
+  the button and say so; a run waiting for an approval reports `paused` with a `run_path`
+  and may not finish for hours, so do not block on it. When the console stops following
+  a paused run, the Promise settles with `paused: true` (and `AO.onRun` gets that last
+  state), so re-enable the button in `finally` as above.
+- **Handle every rejection.** The error's `message` is a short code, and `problems`
+  (`[{field, kind}]`) comes with `invalid_input`. `cancelled`: the viewer said no; say
+  nothing alarming, leave the button. `busy`: another question is open; try again once it
+  is closed. `too_many_cancels`: stop offering it. `not_ready`: the page has not finished
+  loading. `unknown_action`, `not_found`, `unavailable`: this viewer cannot run it here;
+  say so. `invalid_input`: fix the field named. `rate_limited`: wait a minute. `failed`:
+  the console lost track of the run. `page_changed`: the page was replaced. A page that
+  cannot ask at all (a public link, an embed, a preview) rejects with `unavailable`.
+- **Outputs are text.** Write `output_text` and `output_structured` with `textContent`,
+  never `innerHTML`. Files are never passed to the page.
+- **Say it is a workflow.** A page showing a button should still read sensibly where it
+  cannot run (no actions for this viewer, or a shared link): hide or disable the
+  button, and keep the numbers.
+
 ## Changing a page you published
+
+A published app's source is stored independently of the conversation's sandbox.
+If the original file is absent in this conversation, call `read_artifact` with
+its existing name. Recover it from the earlier publication result in this
+thread; do not invent a handle or infer that the app is gone from an empty
+workspace. You can use the returned source directly or write it into the current
+workspace for a larger redesign. Republish under the same name to keep one app
+and its link, with earlier versions retained. Respect an edit refusal: access to
+view an app alone is not permission to change it.
 
 Do not rebuild a page to change a word. Call `read_artifact` with its name,
 then `publish_artifact` with the same name and `edits`: each edit replaces text

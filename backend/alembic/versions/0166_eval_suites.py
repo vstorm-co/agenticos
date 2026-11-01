@@ -35,6 +35,13 @@ revision: str = "0166_eval_suites"
 down_revision: str | None = "0165_case_generation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Event types main's own revisions added to these checks. This chain is applied
+# to databases that already hold their rows, so a check written without them
+# would refuse the upgrade.
+_MAIN_EVENTS = (
+    ", 'workflow_notification', 'artifact_owner_changed', "
+    "'artifact_share_requested', 'workflow_log_alert'"
+)
 
 _EVENT_TYPE_VALUES = (
     "'budget_exceeded', 'approval_requested', 'run_completed', 'run_failed', "
@@ -54,7 +61,7 @@ _CONSTRAINTS = (
 def _event_types(values: str) -> None:
     for table, name in _CONSTRAINTS:
         op.drop_constraint(name, table, type_="check")
-        op.create_check_constraint(name, table, f"event_type IN ({values})")
+        op.create_check_constraint(name, table, f"event_type IN ({values}{_MAIN_EVENTS})")
 
 
 def upgrade() -> None:

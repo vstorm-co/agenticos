@@ -24,10 +24,11 @@ each redirect hop - is SSRF-checked *and connected to at the address that
 check approved* (see :func:`_client`), because discovery means the remote
 server, not the user, picks most of the addresses we call.
 
-A flow for a connection whose own host is on `MCP_ALLOWED_HOSTS` may reach the
-listed hosts too, and only those (:func:`app.agents.mcp.trusted_hosts_for`):
-a server on the deployment's network often signs people in itself, so its
-metadata, registration and token endpoints sit on that same host.
+A flow for a connection whose own host needs the MCP allowlist (`MCP_ALLOWED_HOSTS`
+and `OUTBOUND_PRIVATE_ALLOWLIST`) may reach the listed hosts too, and only those
+(:func:`app.core.sanitize.allowlist_for`, the origin rule): a server on the
+deployment's network often signs people in itself, so its metadata, registration
+and token endpoints sit on that same host.
 """
 
 import asyncio
@@ -59,10 +60,17 @@ from mcp.shared.auth import (
 )
 from pydantic import AnyUrl, BaseModel, ValidationError
 
-from app.agents.mcp import CONNECT_TIMEOUT_SECS, trusted_hosts_for
+from app.agents.mcp import CONNECT_TIMEOUT_SECS
 from app.core.config import settings
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError, resolve_pinned_url
+from app.core.sanitize import (
+    NO_PRIVATE_ADDRESSES,
+    PrivateAllowlist,
+    UrlRefusedError,
+    allowlist_for,
+    mcp_allowlist,
+    resolve_pinned_url,
+)
 from app.core.secret_kinds import SealedStr
 
 logger = logging.getLogger(__name__)
@@ -78,6 +86,18 @@ _HTTP_TIMEOUT = httpx2.Timeout(CONNECT_TIMEOUT_SECS, connect=CONNECT_TIMEOUT_SEC
 
 class OAuthError(Exception):
     """A recoverable failure in the OAuth flow (surfaced to the user)."""
+
+
+class OAuthGrantRevoked(OAuthError):
+    """The token endpoint said only a new consent will do: the refresh token is dead.
+
+    RFC 6749 section 5.2 reserves `invalid_grant` for a grant that is "invalid,
+    expired, revoked" - nothing a retry fixes, unlike a timeout or a 5xx. Microsoft
+    also answers a refresh with `interaction_required` (a new MFA or Conditional
+    Access policy the person has to satisfy) and `consent_required`, which a retry
+    fixes no better. Told apart so a caller can stop spending the token and ask
+    for a new consent instead.
+    """
 
 
 def _unusable_url(exc: httpx2.InvalidURL, what: str) -> OAuthError:
@@ -159,7 +179,7 @@ def _validation_detail(exc: ValueError) -> str:
 def _client(
     transport: httpx2.AsyncBaseTransport | None = None,
     *,
-    trusted_hosts: frozenset[str] = frozenset(),
+    private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES,
 ) -> PinnedAsyncClient:
     """The only client this flow talks through.
 
@@ -170,14 +190,22 @@ def _client(
     it again, so a hostile server can answer public to the check and private to
     the request between them (#860).
 
-    `trusted_hosts` is :func:`app.agents.mcp.trusted_hosts_for` of the
-    connection's own URL, and of no URL a server named.
+    `private_allowlist` is :func:`_allowlist_for` of the connection's own URL, and
+    of no URL a server named.
 
     `transport` is for a test that needs to see what would go on the wire.
     """
     return PinnedAsyncClient(
-        timeout=_HTTP_TIMEOUT, transport=transport, trusted_hosts=trusted_hosts
+        timeout=_HTTP_TIMEOUT, transport=transport, private_allowlist=private_allowlist
     )
+
+
+async def _allowlist_for(server_url: str) -> PrivateAllowlist:
+    """The MCP allowlist when the connection at *server_url* needs it, else nothing.
+
+    Off the event loop, because the origin rule may resolve DNS.
+    """
+    return await asyncio.to_thread(allowlist_for, server_url, mcp_allowlist())
 
 
 async def _send(client: PinnedAsyncClient, request: httpx2.Request) -> httpx2.Response:
@@ -264,8 +292,8 @@ class DiscoveredServer:
     resource: str
     scope: str | None
     metadata: OAuthMetadata
-    trusted_hosts: frozenset[str] = frozenset()
-    """The listed hosts this flow may reach - see :func:`app.agents.mcp.trusted_hosts_for`."""
+    private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES
+    """The hosts and networks this flow may reach - see :func:`app.core.sanitize.allowlist_for`."""
 
 
 def client_metadata(redirect_uri: str, scope: str | None) -> OAuthClientMetadata:
@@ -292,8 +320,8 @@ async def discover(server_url: str) -> DiscoveredServer:
     404: the `WWW-Authenticate` hint is the first of three, and the well-known
     URIs after it are derived from the URL an operator typed (#889).
     """
-    trusted = trusted_hosts_for(server_url)
-    async with _client(trusted_hosts=trusted) as client:
+    allowlist = await _allowlist_for(server_url)
+    async with _client(private_allowlist=allowlist) as client:
         # 1. Probe the server unauthenticated to surface the WWW-Authenticate hint.
         www_auth_url: str | None = None
         www_auth_scope: str | None = None
@@ -369,7 +397,11 @@ async def discover(server_url: str) -> DiscoveredServer:
         # it answers loopback, link-local or metadata.
         try:
             await asyncio.to_thread(
-                partial(resolve_pinned_url, str(asm.authorization_endpoint), trusted_hosts=trusted)
+                partial(
+                    resolve_pinned_url,
+                    str(asm.authorization_endpoint),
+                    private_allowlist=allowlist,
+                )
             )
         except UrlRefusedError as exc:
             logger.warning(
@@ -395,7 +427,7 @@ async def discover(server_url: str) -> DiscoveredServer:
             resource=resource_url_from_server_url(server_url),
             scope=scope,
             metadata=asm,
-            trusted_hosts=trusted,
+            private_allowlist=allowlist,
         )
 
 
@@ -412,7 +444,7 @@ async def register_client(server: DiscoveredServer, redirect_uri: str) -> tuple[
         )
     except httpx2.InvalidURL as exc:
         raise _unusable_url(exc, "a registration endpoint") from exc
-    async with _client(trusted_hosts=server.trusted_hosts) as client:
+    async with _client(private_allowlist=server.private_allowlist) as client:
         try:
             info = await handle_registration_response(await _send(client, request))
         except httpx2.HTTPError as exc:
@@ -494,7 +526,9 @@ async def exchange_code(
     }
     if client_secret:
         data["client_secret"] = client_secret
-    return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
+    return await _token_request(
+        token_endpoint, data, private_allowlist=await _allowlist_for(server_url)
+    )
 
 
 async def refresh_tokens(
@@ -503,32 +537,59 @@ async def refresh_tokens(
     client_id: str,
     client_secret: str | None,
     refresh_token: str,
-    resource: str,
+    resource: str | None,
     scope: str | None,
     server_url: str,
 ) -> OAuthToken:
     """Refresh an expired access token using the stored refresh token.
 
-    `server_url` as in :func:`exchange_code`. Read at every refresh, so a host
-    taken off the list stops being reached here too.
+    `resource` is RFC 8707's, which an MCP server's authorization server expects;
+    `None` leaves it out for a provider that refuses it - Microsoft's v2.0
+    endpoint answers a request carrying one with an error. `server_url` as in
+    :func:`exchange_code`. Read at every refresh, so a host taken off the list
+    stops being reached here too.
+
+    Raises:
+        OAuthGrantRevoked: The provider answered `invalid_grant`.
+        OAuthError: Any other failure.
     """
     data = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
         "client_id": client_id,
-        "resource": resource,
     }
+    if resource:
+        data["resource"] = resource
     if client_secret:
         data["client_secret"] = client_secret
     if scope:
         data["scope"] = scope
-    return await _token_request(token_endpoint, data, trusted_hosts=trusted_hosts_for(server_url))
+    return await _token_request(
+        token_endpoint, data, private_allowlist=await _allowlist_for(server_url)
+    )
+
+
+# The token endpoint's answers that only the person signing in again can fix.
+_NEEDS_CONSENT = frozenset({"invalid_grant", "interaction_required", "consent_required"})
+
+
+def _error_code(response: httpx2.Response) -> str | None:
+    """The OAuth `error` code of a refusal, or None when the body names none."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    code = body.get("error") if isinstance(body, dict) else None
+    return code if isinstance(code, str) else None
 
 
 async def _token_request(
-    token_endpoint: str, data: dict[str, str], *, trusted_hosts: frozenset[str] = frozenset()
+    token_endpoint: str,
+    data: dict[str, str],
+    *,
+    private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES,
 ) -> OAuthToken:
-    async with _client(trusted_hosts=trusted_hosts) as client:
+    async with _client(private_allowlist=private_allowlist) as client:
         try:
             request = client.build_request(
                 "POST",
@@ -558,6 +619,10 @@ async def _token_request(
             response.status_code,
             response.text[:200],
         )
+        if _error_code(response) in _NEEDS_CONSENT:
+            raise OAuthGrantRevoked(
+                f"Token endpoint returned {response.status_code}: the grant is no longer valid."
+            )
         raise OAuthError(f"Token endpoint returned {response.status_code}.")
     try:
         return OAuthToken.model_validate_json(response.content)

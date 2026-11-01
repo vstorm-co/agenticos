@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.core.exceptions import AppException
+from app.db.vector_tables import VectorScope
 from app.repositories import eval_run_repo
 from app.schemas.improvement import KnowledgeCheckConsent
 from app.services.agent_runner import AgentRunnerService
@@ -42,7 +43,7 @@ async def _prepared(db, engine, *, model="text-embedding-3-small"):
         key_source=EmbeddingKeySource.KEYLESS,
         base_url="https://example.invalid/v1",
         provider="openai",
-        vector_tenant=ctx.organization_id,
+        vector_scope=VectorScope(tenant=ctx.organization_id),
     )
     pipeline = ImprovementPipelineService(db)
     with patch(

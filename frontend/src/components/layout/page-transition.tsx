@@ -2,6 +2,8 @@
 
 import { usePathname } from "next/navigation";
 
+import { stripLocale } from "@/lib/active-route";
+import { directionFor } from "@/lib/navigation-direction";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
 
@@ -12,9 +14,11 @@ import { cn } from "@/lib/utils";
  * it scrolls instead of the page. Chat needs the constrained chain: a flex
  * item's `min-height: 0` is a floor, not a ceiling, so the chat page setting it
  * on its own root does NOT stop this box's min-content from growing to the
- * transcript's height.
+ * transcript's height. The workflow editor needs it for the same reason: its
+ * palette and property panel scroll inside a workspace that fills the window.
  */
-const OWN_SCROLL_PANE = /\/(?:chat|projects\/[^/]+)(?:\/|$)/;
+const OWN_SCROLL_PANE =
+  /\/(?:chat|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$/;
 
 /**
  * Routes that place their own room under themselves, lower down.
@@ -24,6 +28,8 @@ const OWN_SCROLL_PANE = /\/(?:chat|projects\/[^/]+)(?:\/|$)/;
  *
  * - **`/chat`**, whose composer belongs on that edge. Room beneath a fixed
  *   control is a gap under it, so the page takes none at all.
+ * - **`/workflows/<id>`**, the editor, whose workspace ends at that edge with
+ *   its own margin.
  * - **`/runs`**, whose run detail is `sticky` beside the list. A sticky box is
  *   clamped to its containing block, so padding *below* that block shortens the
  *   scrollport the panel may pin in: 64px of it put the panel's top at -48px at
@@ -31,10 +37,16 @@ const OWN_SCROLL_PANE = /\/(?:chat|projects\/[^/]+)(?:\/|$)/;
  *   the same `PAGE_CLEARANCE` one level in, on the list column, where it lands
  *   under the last row and leaves the row itself ending at the viewport.
  */
-const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)/;
+const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^/]+$/;
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const workflowRunPage = /^\/workflows\/(?:runs|[^/]+\/runs(?:\/[^/]+)?)\/?$/.test(
+    stripLocale(pathname),
+  );
+  // The phone app slides a page in from the side it came from (`desktop.css`);
+  // everywhere else the attribute changes nothing.
+  const direction = directionFor(pathname);
 
   return (
     // Everywhere else the room under a page is declared here, and this is the
@@ -46,10 +58,11 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     // padding here is painted after the last element.
     <div
       key={pathname}
+      data-direction={direction}
       className={cn(
         "page-enter flex flex-1 flex-col",
-        OWN_SCROLL_PANE.test(pathname) && "min-h-0",
-        !OWN_BOTTOM_ROOM.test(pathname) && PAGE_CLEARANCE,
+        OWN_SCROLL_PANE.test(pathname) && !workflowRunPage && "min-h-0",
+        (!OWN_BOTTOM_ROOM.test(pathname) || workflowRunPage) && PAGE_CLEARANCE,
       )}
     >
       {children}

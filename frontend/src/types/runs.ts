@@ -361,6 +361,19 @@ export interface ToolApproval {
   /** Shown in full: approving a tool name without its arguments is a rubber stamp. */
   tool_args: Record<string, unknown>;
   /**
+   * The stable id the capability declares the tool under. `tool_id` is the name the
+   * model called, which a binding may have renamed, so the row's sentence is looked
+   * up by this. Null for a tool no capability owns, and on rows parked before it
+   * was stored.
+   */
+  capability_tool_id?: string | null;
+  /**
+   * The ids in `tool_args` as names, resolved as the run's person when the call was
+   * parked - what the row's sentence is written from. Null for a tool nobody
+   * describes, or a call whose description failed.
+   */
+  context?: Record<string, string> | null;
+  /**
    * Which of a service's accounts the call acts as - a labelled connection, or one of
    * several accounts on one service. Null where there is nothing to tell apart.
    */
@@ -533,6 +546,10 @@ export interface ParkedCall {
   tool_call_id: string | null;
   tool_name: string;
   tool_args: Record<string, unknown>;
+  /** The tool's stable id, as `ToolApproval.capability_tool_id` carries it. */
+  capability_tool_id?: string | null;
+  /** The arguments' ids as names, as `ToolApproval.context` carries them. */
+  context?: Record<string, string> | null;
   account?: string | null;
 }
 

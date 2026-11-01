@@ -410,7 +410,11 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         <Button variant="outline" onClick={() => onOpenChange(false)}>
           {t("cancel")}
         </Button>
-        <Button onClick={submit} disabled={nothingToSave || shortToken || badReaction || isPending}>
+        <Button
+          onClick={submit}
+          loading={isPending}
+          disabled={nothingToSave || shortToken || badReaction}
+        >
           {t("save")}
         </Button>
       </DialogFooter>

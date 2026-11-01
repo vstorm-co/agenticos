@@ -32,6 +32,9 @@ from app.services.skill_library import split_frontmatter
 logger = logging.getLogger(__name__)
 
 TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "agent_templates"
+APP_ENVIRONMENT_GUIDANCE = (
+    (TEMPLATES_ROOT / "general/platform-assistant/APPS.md").read_text().strip()
+)
 
 MANIFEST = "AGENT.md"
 AVATAR = "avatar.png"

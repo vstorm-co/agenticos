@@ -1,5 +1,5 @@
 ---
-source_sha: "6e082228f717"
+source_sha: "7bd15584abde"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -252,6 +252,63 @@ host został postawiony, a nie tego, które założył jakiś skrypt.
     spoza hosta — a to jest właściwość *nieoznaczenia etykietą*, więc przeżywa
     dodanie przez kogoś usługi bez myślenia o proxy.
 
+!!! warning "Niektóre ścieżki żądań i query stringi są poświadczeniami"
+
+    Te segmenty ścieżki otwierają coś każdemu, kto je przeczyta:
+
+    - klucz publicznego linku, w `/a/<key>`, `/api/v1/public/artifacts/<key>` i
+      `/api/v1/artifact-embed/<key>`, dopóki link nie zostanie wymieniony;
+    - podpisany adres treści, `/api/v1/artifact-content/<token>`, przez cały
+      okres swojej ważności;
+    - token udostępnionej rozmowy, w `/shared/<token>` i
+      `/api/v1/conversations/shared/<token>`;
+    - token formularza workflow, w `/f/<token>` i
+      `/api/v1/public/workflow-forms/<token>`;
+    - token testu webhooka, w `/api/v1/workflow-webhook-tests/<token>` i
+      `/api/v1/workflows/<id>/webhook-test/<token>`;
+    - token linku kanału, w `/link/<token>` i
+      `/api/v1/me/channel-link/<token>`;
+    - token zaproszenia, w `/invitations/<token>`,
+      `/api/v1/invitations/<token>` i `/api/v1/invitations/<token>/accept`;
+    - token wznowienia przebiegu workflow, w
+      `/api/v1/workflow-resume/<run_id>/<token>`.
+
+    Tak samo te parametry zapytania:
+
+    - `visitor` i `token` na sockecie widgetu agenta,
+      `/api/v1/embed/<key>/ws`: klucz hostowanej strony, który wznawia
+      rozmowę odwiedzającego, oraz podpisany token odwiedzającego od klienta;
+    - `code` i `state` przy powrocie od dostawcy logowania,
+      `/api/v1/oauth/<provider>/callback`, oraz `code` na konsolowym
+      `/auth/callback`;
+    - `invitation_handle` na `/api/v1/oauth/<provider>/login` i
+      `/api/v1/auth/kerberos/login`, który realizuje zaproszenie, za którym
+      stoi;
+    - `token` na konsolowych `/reset-password`, `/auth/magic-link` i
+      `/auth/email-change` — w linkach, które wysyłają reset hasła, link
+      logowania i zmiana adresu e-mail.
+
+    Żądanie wysłane z jednej z tych stron może nieść jej adres w nagłówku
+    `Referer`. API zastępuje segmenty API i wartości tych parametrów
+    znacznikiem `[REDACTED]` we własnym logu dostępu, w linii uvicorna dla
+    każdego przyjętego WebSocketu, w każdym rekordzie logu i w spanach Logfire,
+    łącznie z wyjściem konsoli, argumentami endpointu i kopią, którą Logfire
+    robi przy starcie spanu. Pozostałe parametry zapytania, takie jak `q`,
+    `skip`, `limit` i identyfikatory, są zachowywane.
+
+    Traefik potrafi zachować, usunąć albo zredagować całe pole, ale nie potrafi
+    przepisać jego części, więc `traefik/traefik.yml` usuwa z logu dostępu
+    Traefika `RequestPath`, który obejmuje też query string. Nginx potrafi
+    przepisać część wartości, ale `nginx/nginx.conf` tak samo usuwa ścieżkę,
+    query string i `Referer`, formatem logu
+    `agenticos_no_path`, który wskazuje każdy blok `server` — dzięki temu lista
+    sekretnych ścieżek jest utrzymywana w jednym miejscu. Oba logi nadal zawierają
+    klienta, status, rozmiar i czas trwania. Log błędów Nginx zapisuje linię
+    żądania i `Referer` nieudanego żądania i żadne ustawienie tego nie zmienia,
+    więc trzymaj log błędów na hoście. Jeśli potrzebujesz ścieżek w logu dostępu,
+    usuń tę regułę pola albo format logu i traktuj log jak sekret: trzymaj go na
+    hoście i nie wysyłaj do usługi logów.
+
 ### Opcja B: Nginx { #option-b-nginx }
 
 Dla hosta, gdzie Nginx już terminuje TLS, albo gdzie proxy w ogóle nie jest w
@@ -266,7 +323,9 @@ make prod-frontend
 `server_name` w każdym bloku to `${DOMAIN:-localhost}`, a Nginx tego nie rozwija —
 wpisz dwie nazwy hostów ręcznie. Certyfikaty są twoje do uzyskania i odnawiania,
 tak samo jak nagłówek `Strict-Transport-Security`, który backend celowo zostawia
-temu, co terminuje TLS.
+temu, co terminuje TLS. Log dostępu w szablonie pomija ścieżkę żądania, query
+string i `Referer`; ostrzeżenie *Niektóre ścieżki żądań i query stringi są
+poświadczeniami* powyżej wyjaśnia dlaczego i co nadal zapisuje log błędów.
 
 !!! warning "`BIND_HOST` jest ustawieniem bezpieczeństwa, a nie wygody"
 
@@ -345,6 +404,22 @@ sprawdza.
 
     **HSTS jest celowo pozostawione proxy**, czyli temu, gdzie terminuje TLS.
     Proxy ustawiające własne CSP powinno być co najmniej tak restrykcyjne jak to.
+
+### Usługi we własnej sieci { #services-on-your-own-network }
+
+Żądanie skonfigurowane przez członka - krok HTTP workflow, źródło Git,
+strony internetowej albo S3, agent A2A czy połączenie MCP - jest odrzucane, gdy jego host
+rozwiązuje się na adres prywatny, więc wiki, serwer Git albo serwer MCP wewnątrz
+Twojej sieci są domyślnie poza zasięgiem. Aby otworzyć któryś z nich, wpisz go do
+`OUTBOUND_PRIVATE_ALLOWLIST` w `backend/.env`, jako host, `.suffix`, adres albo
+zakres CIDR, i zrestartuj API oraz workera. W wierszu tego ustawienia w
+[opisie konfiguracji](configuration.md#project-settings) są dozwolone formy, to,
+co jest odrzucane niezależnie od listy, i to, do czego może wtedy sięgnąć każde
+konto. Wpisuj tylko usługi, które same sprawdzają swoje poświadczenie.
+
+`agenticos cmd doctor` pokazuje listę w wierszu `private network`. Kończy się
+błędem, gdy wpisany zakres obejmuje bazę danych albo Redis, i ostrzega przed
+zakresem szerszym niż /16 (IPv4) albo /48 (IPv6).
 
 ### Włączanie sandboksa { #turning-the-sandbox-on }
 

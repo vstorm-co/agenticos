@@ -2,7 +2,7 @@
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
 There is deliberately no method that returns a plaintext to a caller who could
-keep one. Five methods unseal, and each hands what it opened straight to the thing
+keep one. Narrow runtime readers unseal, and each hands what it opened straight to the thing
 that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
 by the runner; :meth:`OrganizationSecretService.listing_key`, which returns a
 bearer token for one outbound catalog request;
@@ -11,10 +11,11 @@ transcription request names; :meth:`OrganizationSecretService.voice_call_key`,
 which opens the key a voice call was held with only to hang that call up (#54);
 and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
-flow and to nowhere else.
+flow and to nowhere else. `smtp_email_service` opens one permitted SMTP account
+straight into its transport, never returning credentials to an API caller.
 """
 
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,11 +28,14 @@ from app.core.secret_kinds import (
     ApiKeySecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
+    MicrosoftOAuthAppSecret,
     SecretKind,
     SecretValue,
+    SmtpAccountSecret,
     StorableSecret,
     describe_kind,
     seal_secret,
+    unseal_kind,
     unseal_secret,
 )
 from app.core.secret_purposes import CUSTOM
@@ -44,9 +48,12 @@ from app.schemas.secret import SecretSummary, SecretUsage
 from app.services.access import SECRET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.notifications import NotificationService
 
-# The two credentials a connect flow spends: identical fields, separate kinds,
-# because a kind names what a credential is for.
-OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret
+if TYPE_CHECKING:
+    from app.services.email.service import EmailService
+
+# The credentials a connect flow spends: separate kinds even where the fields are
+# identical, because a kind names what a credential is for.
+OAuthAppSecret = GithubOAuthAppSecret | GoogleOAuthAppSecret | MicrosoftOAuthAppSecret
 
 
 class OrganizationSecretService:
@@ -62,14 +69,17 @@ class OrganizationSecretService:
         The shape check is the one that matters: a purpose says which service
         the key is for, and every service knows what a credential for it looks
         like. Storing an AWS pair as an OpenAI key produces a vault entry that
-        reads correctly and fails at the first run.
+        reads correctly and fails at the first run. `custom` is the one that
+        takes any shape: it names no service, so it has no shape to insist on -
+        and it is how a credential for something the catalog does not know, an
+        HTTP API's for one, is stored at all.
         """
         entry = secret_purposes.get(purpose)
         if entry is None:
             raise BadRequestError(
                 message=f"Unknown purpose: {purpose}", details={"purpose": purpose}
             )
-        if entry.kind is not kind:
+        if entry.id != CUSTOM and entry.kind is not kind:
             raise BadRequestError(
                 message=(f"{entry.label} needs a {entry.kind.value} credential, not {kind.value}"),
                 details={"purpose": purpose, "expected_kind": entry.kind.value},
@@ -449,6 +459,50 @@ class OrganizationSecretService:
         # so this is one - the cast says so.
         return cast(ApiKeySecret, value).api_key.get_secret_value()
 
+    async def usable_smtp_account(
+        self, ctx: AuthContext, secret_id: UUID
+    ) -> OrganizationSecret | None:
+        """An SMTP account this principal can use, within the current organization."""
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=ctx.organization_id
+        )
+        if row is None or row.kind != SecretKind.SMTP_ACCOUNT.value:
+            return None
+        if not await resolve_access(self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET):
+            return None
+        return row
+
+    async def smtp_email_service(self, ctx: AuthContext, secret_id: UUID) -> EmailService | None:
+        """Hand a permitted account directly to its SMTP transport; no plaintext leaves it.
+
+        Returns None after deletion, a kind mismatch or revoked access. The host is
+        sealed with the password, so a workflow editor cannot redirect credentials.
+        """
+        from app.services.email.providers.smtp import SMTPProvider
+        from app.services.email.service import EmailService
+
+        row = await self.usable_smtp_account(ctx, secret_id)
+        if row is None:
+            return None
+        account = unseal_kind(
+            row.sealed_secret,
+            model=SmtpAccountSecret,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=row.key_version,
+        )
+        return EmailService(
+            SMTPProvider(
+                host=account.host,
+                port=account.port,
+                username=account.username,
+                password=account.password.get_secret_value(),
+                use_tls=True,
+                tls_mode=account.tls_mode,
+            ),
+            from_email=str(account.from_email),
+            from_name=account.from_name or None,
+        )
+
     async def voice_call_key(self, organization_id: UUID, secret_id: UUID) -> StorableSecret | None:
         """The key a voice call is held with, to hang it up (#54).
 
@@ -477,10 +531,10 @@ class OrganizationSecretService:
         passes it straight to the provider's token endpoint - it is never returned to
         a client, logged, or written to the audit trail.
 
-        One method over two kinds, because the rule is the same for both and it is
-        the rule that matters: `github_oauth_app` connects a repository account,
-        `google_oauth_app` a mailbox, and each organization registers its own client
-        for either. A deployment-wide client read from the environment would be a
+        One method over every such kind, because the rule is the same for each and
+        it is the rule that matters: `github_oauth_app` connects a repository
+        account, `google_oauth_app` and `microsoft_oauth_app` a mailbox, and each
+        organization registers its own client for any of them. A deployment-wide client read from the environment would be a
         second mechanism for a credential at rest, which this repository does not
         have.
 

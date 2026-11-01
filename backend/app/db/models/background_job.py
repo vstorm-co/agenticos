@@ -48,7 +48,7 @@ class BackgroundJob(Base, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(64), nullable=False)
     """Which task this is, as `app/worker/jobs.py` names it."""
     pool: Mapped[str] = mapped_column(String(16), nullable=False)
-    """Which workers run it: `agent`, `ingest` or `system`."""
+    """Which workers run it: `agent`, `ingest`, `system` or `workflow`."""
     priority: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
     """`0` interactive, `1` scheduled, `2` bulk. Lower goes first."""
     status: Mapped[JobStatus] = mapped_column(String(16), nullable=False, server_default="queued")
@@ -88,7 +88,7 @@ class BackgroundJob(Base, TimestampMixin):
     """
 
     __table_args__ = (
-        CheckConstraint("pool IN ('agent', 'eval', 'ingest', 'system')", name="pool"),
+        CheckConstraint("pool IN ('agent', 'eval', 'ingest', 'system', 'workflow')", name="pool"),
         CheckConstraint(
             "status IN ('queued', 'running', 'succeeded', 'dead', 'cancelled')", name="status"
         ),

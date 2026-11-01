@@ -18,7 +18,10 @@ describe("EnableAiAssistanceLink", () => {
     const link = screen.getByRole("link", { name: "Enable" });
     expect(link).toHaveAttribute("href", `/orgs/o1/members?tab=governance#${AI_ASSISTANCE_ANCHOR}`);
     await userEvent.click(link);
-    expect(pointAt).toHaveBeenCalledWith(AI_ASSISTANCE_ANCHOR);
+    expect(pointAt).toHaveBeenCalledWith(
+      AI_ASSISTANCE_ANCHOR,
+      `/orgs/o1/members?tab=governance#${AI_ASSISTANCE_ANCHOR}`,
+    );
   });
 
   it("lands on another setting of the section when named", async () => {
@@ -31,6 +34,9 @@ describe("EnableAiAssistanceLink", () => {
     const link = screen.getByRole("link", { name: "Grading model" });
     expect(link).toHaveAttribute("href", `/orgs/o1/members?tab=governance#${GRADING_MODEL_ANCHOR}`);
     await userEvent.click(link);
-    expect(pointAt).toHaveBeenCalledWith(GRADING_MODEL_ANCHOR);
+    expect(pointAt).toHaveBeenCalledWith(
+      GRADING_MODEL_ANCHOR,
+      `/orgs/o1/members?tab=governance#${GRADING_MODEL_ANCHOR}`,
+    );
   });
 });

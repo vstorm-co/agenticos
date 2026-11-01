@@ -1,5 +1,5 @@
 ---
-source_sha: "2c6dbdb89849"
+source_sha: "6b5734e8d7df"
 ---
 
 # Skille { #skills }
@@ -25,8 +25,8 @@ flowchart LR
     E --> Z2
 ```
 
-Dwadzieścia skilli kosztuje mniej więcej dwadzieścia *opisów* zamiast dwudziestu
-*procedur*.
+Dwadzieścia skilli kosztuje mniej więcej dwadzieścia _opisów_ zamiast dwudziestu
+_procedur_.
 
 !!! note "Wykrywanie jest tanie, ale nie darmowe"
 
@@ -49,6 +49,8 @@ południu. Bez deployu, bez pull requesta, bez inżyniera.
     [Kolekcja wiedzy](file-processing.md) to korpus zbyt duży, żeby go przeczytać,
     dostępny przez wyszukiwanie.
 
+W kreatorze agenta wybierz **Skills → New skill**, aby napisać skill bez opuszczania panelu zdolności. Zapis tworzy wpis w bibliotece, dołącza go do bieżącego szkicu i włącza zdolność Skills. Publikacja pozostaje osobnym krokiem. Akcja wymaga uprawnień do edycji agenta i skilli.
+
 ## Kształt { #the-shape }
 
 ```markdown
@@ -69,6 +71,7 @@ sobą niesie. `GET /api/v1/skills` zwraca ten początek jako `excerpt`; samą tr
 wczytuje dopiero otwarcie skilla.
 
 ## Decide without asking
+
 ...
 ```
 
@@ -95,11 +98,11 @@ Przez [capability `skills`](reference/capabilities.md#skills). Każdy skill, kt�
 agent dostaje, staje się **osobną capability** — wypisaną modelowi z nazwy i opisu,
 a otwieraną na żądanie:
 
-| Jak | Co robi |
-|---|---|
-| Katalog capability | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
-| `load_capability` | Pełna treść jednego skilla, wciągnięta do rozmowy |
-| `read_skill_resource` | Jeden plik obok skilla |
+| Jak                   | Co robi                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| Katalog capability    | Nazwy i jednolinijkowe opisy wszystkiego, co jest podpięte do tego agenta |
+| `load_capability`     | Pełna treść jednego skilla, wciągnięta do rozmowy                         |
+| `read_skill_resource` | Jeden plik obok skilla                                                    |
 
 `load_capability` jest narzędziem samego frameworka agentowego, a nie czymś, co
 publikuje ta platforma — spec go więc nie przyznaje i nie zmienia mu nazwy. Może go
@@ -185,7 +188,7 @@ którego nigdy nie była przeznaczona.
 
 Dwie rzeczy zostają odrzucone, zamiast być zgadywane: katalog utworzony przez
 agenta bez `SKILL.md` w środku oraz taki, któremu agent zepsuł frontmatter. A
-*usunięty* zasób celowo nie jest zmianą, bo plik, którego model nigdy nie
+_usunięty_ zasób celowo nie jest zmianą, bo plik, którego model nigdy nie
 dotknął, i taki, który zamierzał usunąć, zostawiają po sobie ten sam brak.
 
 Trzy tury jednej rozmowy dopracowujące ten sam skill zostawiają **jedną**
@@ -196,7 +199,6 @@ od 1 do 64 znaków i opis do 500 znaków. Zmiana poza limitem jest pomijana z
 ostrzeżeniem; oryginalne pliki pozostają bez zmian. Zapis propozycji używa
 savepointu, więc odrzucona propozycja nie wycofa tury ani nie zablokuje zapisania
 jej statusu i kosztu.
-
 
 Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
 którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply
@@ -233,7 +235,7 @@ nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one 
 prostu przychodzą, raz, przy tworzeniu organizacji.
 
 **I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
-edytować, wyłączyć albo usunąć. Nic nie przywraca usuniętego.
+edytować albo usunąć. Nic nie przywraca usuniętego.
 
 To jest zmiana. Lista wcześniej sama się uzupełniała — dokopiowywała każdą
 dołączoną nazwę, której organizacja nie miała, przy każdym otwarciu strony —
@@ -334,13 +336,13 @@ nie przeczytał. Każdy katalog w `app/core/catalog/skills/` i
 Odpowiadają na różne pytania, a różnica ma znaczenie, kiedy agent dostanie nie
 to, co trzeba.
 
-|  | Skille | [Wiedza](file-processing.md) |
-|---|---|---|
-| Zawiera | Procedurę — jak to robimy | Dokumenty — co wiemy |
-| Pisane przez | Człowieka, świadomie | Wciągane hurtowo |
-| Pobierane przez | Model wybierający nazwę | Wyszukiwanie semantyczne po chunkach |
-| Cytuje | Nic; *jest* instrukcją | Fragment i jego źródło |
-| Skala | Dziesiątki | Tysiące dokumentów |
+|                 | Skille                    | [Wiedza](file-processing.md)         |
+| --------------- | ------------------------- | ------------------------------------ |
+| Zawiera         | Procedurę — jak to robimy | Dokumenty — co wiemy                 |
+| Pisane przez    | Człowieka, świadomie      | Wciągane hurtowo                     |
+| Pobierane przez | Model wybierający nazwę   | Wyszukiwanie semantyczne po chunkach |
+| Cytuje          | Nic; _jest_ instrukcją    | Fragment i jego źródło               |
+| Skala           | Dziesiątki                | Tysiące dokumentów                   |
 
 !!! example "Co jest czym"
 
@@ -385,17 +387,18 @@ Alternatywa jest gorsza na dwa konkretne sposoby:
 - Każdy kontekst bez podmiotu — klucz API, osadzony widget, wiadomość z kanału —
   zostaje z założenia odrzucony przez `resolve_access`, więc sprawdzanie przy
   każdym uruchomieniu zdarłoby każdy skill dokładnie z tych powierzchni.
-- Tam, gdzie podmiot *jest*, jedna opublikowana wersja dawałaby członkowi —
+- Tam, gdzie podmiot _jest_, jedna opublikowana wersja dawałaby członkowi —
   którego rola sięga wyłącznie udostępnionych skilli — chudsze instrukcje niż
   daje budującemu, a różnica nie byłaby widoczna nigdzie.
 
-Skill usunięty albo wyłączony po publikacji jest pomijany z ostrzeżeniem, zamiast
-wywracać run. Agent jest mniej zdolny, nie zepsuty.
+Skille nie mają osobnego przełącznika aktywności: agent może używać przypisanych
+mu skilli. Aby przestał używać skilla, usuń przypisanie i opublikuj agenta. Skill
+usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 
 ## Podsumowanie { #recap }
 
 - Skill to **procedura**, napisana przez człowieka i wczytywana tylko wtedy, gdy
-  model uzna jego *description* za istotny — wykrywanie kosztuje linijkę na
+  model uzna jego _description_ za istotny — wykrywanie kosztuje linijkę na
   skilla, a treść nie kosztuje nic, dopóki nie zostanie otwarta.
 - W workspace'ie skill to także **pliki** i to właśnie czyni jego skrypty
   uruchamialnymi.

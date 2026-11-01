@@ -367,10 +367,12 @@ class _ScriptedConnection(RealtimeConnection):
 
     def __init__(self, calls: Sequence[str]) -> None:
         self._calls = calls
+        self._lifecycle = InferredLifecycle()
         self.results: list[str] = []
         self._send_result, self._result_sent = anyio.create_memory_object_stream[str](10)
 
     async def send(self, content: RealtimeInput) -> None:
+        self._lifecycle.input_sent(content)
         if isinstance(content, ToolResult):
             self.results.append(content.output)
             await self._send_result.send(content.output)
@@ -383,7 +385,7 @@ class _ScriptedConnection(RealtimeConnection):
         await anyio.sleep_forever()
 
     def frames(self) -> AsyncIterator[RealtimeFrame]:
-        return InferredLifecycle().frames(self._events())
+        return self._lifecycle.frames(self._events())
 
 
 class _ScriptedRealtime(RealtimeModel):

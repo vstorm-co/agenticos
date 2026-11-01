@@ -28,6 +28,7 @@ from app.agents.deps import AgentDeps
 from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.vector_tables import VectorScope
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.rag.models import SearchResult
 from app.services.rag.retrieval import RetrievalService
@@ -41,7 +42,7 @@ KB_B = uuid.uuid4()
 
 
 def _log() -> KnowledgeSearchLog:
-    return KnowledgeSearchLog(agent_id=AGENT, collections={"kb_a": KB_A, "kb_b": KB_B})
+    return KnowledgeSearchLog(agent_id=AGENT, collections={"kb_a": (KB_A,), "kb_b": (KB_B,)})
 
 
 def _hit(similarity: float | None, score: float = 0.02) -> SearchResult:
@@ -117,8 +118,8 @@ class TestTheLog:
         delegate = uuid.uuid4()
         delegate_kb = uuid.uuid4()
 
-        log.for_agent(delegate, {"kb_d": delegate_kb}).record("q", ["kb_d"], [])
-        log.for_agent(None, {"kb_a": KB_A}).record("q", ["kb_a"], [])
+        log.for_agent(delegate, {"kb_d": (delegate_kb,)}).record("q", ["kb_d"], [])
+        log.for_agent(None, {"kb_a": (KB_A,)}).record("q", ["kb_a"], [])
 
         assert [(r.agent_id, r.knowledge_base_ids) for r in log.records] == [
             (delegate, (delegate_kb,)),
@@ -322,8 +323,13 @@ class TestTheRunnerWritesTheLog:
 class TestADelegateSearchesUnderItsOwnName:
     async def _resources(self, parent: dict[str, Any], agent_id: uuid.UUID | None) -> Any:
         ctx = _ctx()
-        kb = MagicMock(organization_id=ctx.organization_id, collection_name="kb_d")
         kb_id = uuid.uuid4()
+        kb = MagicMock(
+            id=kb_id,
+            organization_id=ctx.organization_id,
+            collection_name="kb_d",
+            vector_scope=VectorScope(tenant=ctx.organization_id, knowledge_base_id=kb_id),
+        )
         service = AgentRunnerService(MagicMock())
         service.skills = MagicMock(resolve_for_agent=AsyncMock(return_value=[]))
         service.context = MagicMock(resolve_for_agent=AsyncMock(return_value=[]))

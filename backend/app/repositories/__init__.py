@@ -53,6 +53,7 @@ from app.repositories import skill as skill_repo
 from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
+from app.repositories import artifact_share_request as artifact_share_request_repo
 from app.repositories import context as context_repo
 from app.repositories import context_proposal as context_proposal_repo
 from app.repositories import case_score as case_score_repo
@@ -63,6 +64,8 @@ from app.repositories import eval_suite as eval_suite_repo
 from app.repositories import improvement as improvement_repo
 from app.repositories import knowledge_gap as knowledge_gap_repo
 from app.repositories import promotion_gate as promotion_gate_repo
+from app.repositories import virtual_table as virtual_table_repo
+from app.repositories import table_view as table_view_repo
 from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
@@ -164,6 +167,9 @@ __all__ = [
     "improvement_repo",
     "promotion_gate_repo",
     "knowledge_gap_repo",
+    "artifact_share_request_repo",
+    "virtual_table_repo",
+    "table_view_repo",
     "memory_repo",
     "notification_repo",
     "voice_call_repo",

@@ -1,5 +1,5 @@
 ---
-source_sha: "c75bda4ec41d"
+source_sha: "3af0fc95407e"
 ---
 
 # Einen Hintergrund-Task hinzufügen { #add-a-background-task }
@@ -49,12 +49,13 @@ geändert haben, und wer ihn angefordert hat, darf es vielleicht nicht mehr.
 
 Wählen Sie den Pool danach, was der Job verbraucht:
 
-| Pool | Wofür | Wie er läuft |
-|---|---|---|
-| `agent` | Runs von Agents und ausgelöste Trigger: lang, warten auf Modelle | Auf der Loop des Workers, `WORKER_AGENT_CONCURRENCY` gleichzeitig |
-| `eval` | Eval-Runs: Stunden über einem Dataset, jeder hält seinen Slot die ganze Zeit | Auf der Loop des Workers, `WORKER_EVAL_CONCURRENCY` gleichzeitig |
-| `ingest` | Parsen und Embeddings: viel CPU und Speicher | Ein Job pro Kindprozess, unter `WORKER_INGEST_MEMORY_MB` |
-| `system` | Aufräumläufe, Bereinigungen, Berichte: kurz | Auf der Loop des Workers, `WORKER_SYSTEM_CONCURRENCY` gleichzeitig |
+| Pool       | Wofür                                                                        | Wie er läuft                                                        |
+| ---------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `agent`    | Runs von Agents und ausgelöste Trigger: lang, warten auf Modelle             | Auf der Loop des Workers, `WORKER_AGENT_CONCURRENCY` gleichzeitig   |
+| `workflow` | Workflow-Knoten: HTTP-, Datei- und Sandbox-Schritte, meist wartend           | In der Loop des Workers, `WORKER_WORKFLOW_CONCURRENCY` gleichzeitig |
+| `eval`     | Eval-Runs: Stunden über einem Dataset, jeder hält seinen Slot die ganze Zeit | Auf der Loop des Workers, `WORKER_EVAL_CONCURRENCY` gleichzeitig    |
+| `ingest`   | Parsen und Embeddings: viel CPU und Speicher                                 | Ein Job pro Kindprozess, unter `WORKER_INGEST_MEMORY_MB`            |
+| `system`   | Aufräumläufe, Bereinigungen, Berichte: kurz                                  | Auf der Loop des Workers, `WORKER_SYSTEM_CONCURRENCY` gleichzeitig  |
 
 ### 2. Den Handler schreiben und binden { #2-write-the-handler-and-bind-it }
 

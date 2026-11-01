@@ -50,6 +50,7 @@ def production() -> Handlers:
         approval_tasks,
         authoring_tasks,
         case_generation_tasks,
+        diagnostics_tasks,
         eval_suite_tasks,
         eval_tasks,
         generated_media_tasks,
@@ -65,6 +66,7 @@ def production() -> Handlers:
         teardown_tasks,
         trigger_tasks,
         voice_tasks,
+        workflow_tasks,
     )
     from app.worker.tasks.background_tasks import sweep_background_jobs
 
@@ -80,6 +82,7 @@ def production() -> Handlers:
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
+            Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
             Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
@@ -113,10 +116,24 @@ def production() -> Handlers:
             Handler(
                 jobs.GROUP_KNOWLEDGE_GAPS, _each_tick(knowledge_gap_tasks.group_knowledge_gaps)
             ),
+            Handler(jobs.WORKFLOW_DISPATCH_POLL, _each_tick(workflow_tasks.poll_due_dispatches)),
+            Handler(jobs.WORKFLOW_RECONCILE, _each_tick(workflow_tasks.reconcile)),
+            Handler(
+                jobs.WORKFLOW_SCHEDULES_CHECK, _each_tick(workflow_tasks.check_workflow_schedules)
+            ),
+            Handler(
+                jobs.WORKFLOW_TABLE_TRIGGERS, _each_tick(workflow_tasks.consume_table_triggers)
+            ),
+            Handler(jobs.WORKFLOW_LOG_ALERTS, _each_tick(workflow_tasks.check_workflow_log_alerts)),
+            Handler(
+                jobs.WORKFLOW_RUN_RETENTION,
+                _each_tick(workflow_tasks.sweep_workflow_run_retention),
+            ),
             Handler(
                 jobs.SWEEP_GENERATED_MEDIA,
                 _each_tick(generated_media_tasks.sweep_generated_media),
             ),
+            Handler(jobs.SEND_DIAGNOSTICS, diagnostics_tasks.send_diagnostics),
             Handler(jobs.PROACTIVE_SWEEP, proactive_tasks.proactive_sweep),
             Handler(jobs.WATCH_SWEEP, proactive_tasks.watch_sweep),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),

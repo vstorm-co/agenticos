@@ -1,5 +1,5 @@
 ---
-source_sha: "2eca3843f70e"
+source_sha: "7d33b52b8943"
 ---
 
 # Uprawnienia { #permissions }
@@ -62,8 +62,10 @@ Boolean na użytkowniku, całkowicie poza organizacjami. Dwa skutki:
    uprawnień rozwiązuje się względem jednej organizacji, a żaden z nich nie
    umie wyrazić „każdej organizacji” ([Governance](governance.md#alerts)).
 2. **Obejście w `AuthContext.permissions`**, które zwraca każde uprawnienie na
-   `Scope.ALL` — w każdej organizacji, także w tych, w których taka osoba nie ma
-   żadnego członkostwa.
+   `Scope.ALL` — w każdej organizacji, której taka osoba jest członkiem. Nie
+   sięga do organizacji, w której nie ma ona członkostwa: aktywna organizacja jest
+   ustalana, zanim zostanie odczytane jakiekolwiek uprawnienie, a to odmawia
+   każdemu, kto nie jest członkiem — także app adminowi.
 
 Obejście jest celowe, a docstring mówi dlaczego: taka osoba administruje
 wdrożeniem i tak czy inaczej ma dostęp do bazy danych, więc udawanie czegoś
@@ -138,7 +140,7 @@ więcej, niż jego wydający ma teraz.
     który ma klucz, wymaga `secrets:view` na tym kluczu ([Modele](models.md#changing-a-profiles-key-or-endpoint)).
 
 Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytanie,
-na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz *których*
+na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz _których_
 agentów.
 
 Jednym z nich jest `mcp:manage`: serwer MCP organizacji można zawęzić do grup lub
@@ -150,13 +152,13 @@ nim na poziomie `SHARED` widzi serwery organizacji, własne i te jej udostępnio
 
 Uporządkowany jako `NONE < OWN < SHARED < TEAM < ALL`.
 
-| Scope | Sięga |
-|---|---|
-| `NONE` | niczego |
-| `OWN` | wierszy, które należą do tej osoby |
-| `SHARED` | jej własnych, plus wszystkiego widocznego dla organizacji |
-| `TEAM` | jej własnych, plus widocznego dla zespołu i dla organizacji |
-| `ALL` | każdego wiersza w organizacji |
+| Scope    | Sięga                                                       |
+| -------- | ----------------------------------------------------------- |
+| `NONE`   | niczego                                                     |
+| `OWN`    | wierszy, które należą do tej osoby                          |
+| `SHARED` | jej własnych, plus wszystkiego widocznego dla organizacji   |
+| `TEAM`   | jej własnych, plus widocznego dla zespołu i dla organizacji |
+| `ALL`    | każdego wiersza w organizacji                               |
 
 !!! info "Dlaczego operatory porównania są przeciążone"
 
@@ -171,14 +173,14 @@ własnych.
 
 ### Wbudowane role { #the-built-in-roles }
 
-| Rola | Zamysł | Agents | Secrets | Globalne |
-|---|---|---|---|---|
-| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
-| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
-| `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
-| `viewer` | czyta | `view` `SHARED` | żadne | `members:view` |
+| Rola       | Zamysł                                 | Agents                                        | Secrets                       | Globalne                                                                                                                    |
+| ---------- | -------------------------------------- | --------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `owner`    | jest właścicielem organizacji          | wszystko `ALL`                                | `ALL`                         | wszystko, łącznie z `org:delete`                                                                                            |
+| `admin`    | prowadzi ją na co dzień                | wszystko `ALL`                                | `ALL`                         | wszystko **poza** `org:delete`                                                                                              |
+| `builder`  | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | utrzymuje działający system w zdrowiu  | `view`/`run` `ALL`, bez edycji                | `view` `SHARED`               | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view`                         |
+| `member`   | codzienny użytkownik                   | `view`/`run` `SHARED`, `edit` `OWN`           | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view`                                                                              |
+| `viewer`   | czyta                                  | `view` `SHARED`                               | żadne                         | `members:view`                                                                                                              |
 
 Rozróżnienie między `builder` a `admin` jest tym ciekawym: builder widzi całą
 organizację, żeby się od niej uczyć, ale edytuje tylko to, co jego albo co z nim
@@ -196,7 +198,7 @@ się do braku uprawnień, a nie do uprawnień kogoś innego.
 
 ### Kto może przyznać którą rolę { #who-may-hand-out-which-role }
 
-Posiadanie `roles:manage` mówi, że członek może zmieniać role; nie mówi, *które*.
+Posiadanie `roles:manage` mówi, że członek może zmieniać role; nie mówi, _które_.
 `assignable_roles` odpowiada na to z katalogu: rola może przyznać taką, której
 władzę ściśle przewyższa — każde uprawnienie trzymane przez oferowaną rolę,
 trzymane co najmniej tak samo szeroko przez przyznającego, plus coś, co
@@ -226,7 +228,7 @@ trzymała kiedyś dwa pojęcia „którego tenanta”.
 
 Dziś są jednym. `ActiveOrgGuard` dashboardu przyjmuje organizację, którą nazywa
 ścieżka, zanim strona o cokolwiek zapyta, więc to, co wywołujący może tam zrobić,
-jest tym, co może zrobić *tam* (#1032).
+jest tym, co może zrobić _tam_ (#1032).
 
 **Zaproszenie jest linkiem, a wysyłający zawsze dostaje jego kopię.**
 
@@ -247,7 +249,7 @@ odpowiada `assignableRoles` w `frontend/src/lib/assignable-roles.ts`, na katalog
 ról, który `GET /roles/catalog` i tak zwraca wraz z uprawnieniami każdej roli.
 
 To arytmetyka po stronie klienta z tego samego powodu, co po stronie serwera:
-wybór trzymający *listę* oferował każdą rolę poza `owner`, kimkolwiek był
+wybór trzymający _listę_ oferował każdą rolę poza `owner`, kimkolwiek był
 pytający, więc Adminowi oferowano Admina i odrzucano go po wpisaniu adresu e-mail
 (#1028).
 
@@ -274,17 +276,18 @@ odpowiedź, że taki nie istnieje. Szkic i tak nie może zostać uruchomiony i n
 sięga po niego żadna ekspozycja, więc to rozstrzyga, kto go widzi, a nie co
 robi.
 
-| Poziom | Pozwala |
-|---|---|
-| `read` | zobaczyć konfigurację |
-| `use` | dodatkowo uruchomić go albo podpiąć |
-| `edit` | dodatkowo go zmienić |
+| Poziom      | Pozwala                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `read`      | zobaczyć konfigurację                                                                   |
+| `use`       | dodatkowo uruchomić go albo podpiąć                                                     |
+| `edit`      | dodatkowo go zmienić                                                                    |
+| `edit_data` | dodatkowo zmienić dane, które pokazuje strona — [tylko strony](#a-page-that-reads-data) |
 
 W konsoli to jeden dialog, tak jak udostępnia się dokument: przycisk **Share**
 przy agencie, skillu, bazie wiedzy lub pliku kontekstu - w dowolnej chwili po
 utworzeniu, nie tylko przy tworzeniu - dodaje osobę lub grupę na danym poziomie, pokazuje, kto ma dostęp, z
-właścicielem na początku, i ustawia **Dostęp ogólny** - *Tylko osoby z dostępem*
-to `private`, *Wszyscy w organizacji* to `org`.
+właścicielem na początku, i ustawia **Dostęp ogólny** - _Tylko osoby z dostępem_
+to `private`, _Wszyscy w organizacji_ to `org`.
 
 Grant dla grupy sięga do każdego, kto jest w grupie w chwili sprawdzania dostępu,
 więc dołączenie do grupy oznacza zyskanie dostępu, a odejście z niej — jego
@@ -294,8 +297,8 @@ jednego podmiotu, osoby albo grupy, a grupa z innej organizacji nie sięga tutaj
 do nikogo, nawet gdyby jakiś wiersz ją wskazywał.
 
 Tabela jest celowo generyczna — `resource_type` + `resource_id`, bez klucza obcego
-do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu i przechowywane
-klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
+do celu — ponieważ agenci, kolekcje, skille, pliki kontekstu,
+[tabele](virtual-tables.md), workflow i przechowywane klucze dzielą te same reguły. Kosztem jest to, że baza danych nie potrafi
 kaskadowo usunąć grantu, kiedy jego cel znika, więc serwisy usuwają granty razem
 z zasobem.
 
@@ -343,7 +346,7 @@ i tak potrzebuje podmiotu, bo to rola rozstrzyga, do czego agent może sięgną�
 Odpowiedzią jest **ten, kto opublikował powierzchnię**, a wartym poznania
 fragmentem jest zachowanie awaryjne: `viewer`, gdy ta osoba nie jest już
 członkiem, `viewer`, gdy jej konto zostało dezaktywowane, i `viewer`, gdy żaden
-publikujący w ogóle nie został zapisany. Odejście nie może po cichu *poszerzyć*
+publikujący w ogóle nie został zapisany. Odejście nie może po cichu _poszerzyć_
 tego, do czego sięga publiczna powierzchnia, a widget na stronie klienta przeżywa
 osobę, która go tam wkleiła.
 
@@ -402,6 +405,75 @@ swoich grantów przy zwykłym listowaniu, więc filtr i tak je pobiera — bez t
 Dla kb wyklucza dodatkowo wiersze osobiste (z konstrukcji należące do
 wywołującego) i wiersze o zasięgu aplikacji (należące do wdrożenia — nigdy nikomu
 nieudostępniane).
+
+### Runy workflowów { #workflow-runs }
+
+Run nie ma własnej widoczności: dziedziczy ją po swoim workflowie. Uruchomienie
+wymaga `workflows:run` na workflowie, a run w trybie `test`, na
+nieopublikowanym drafcie, wymaga dodatkowo `workflows:edit`. Odczyt runa i jego
+zdarzeń wymaga `workflows:view`, a lista bez filtra pokazuje runy workflowów,
+które wywołujący widzi - własnych, widocznych dla organizacji i udostępnionych
+mu. Run, którego wywołujący nie widzi, odpowiada dokładnie tak, jak run, który
+nie istnieje.
+
+**Anulowanie jest węższe niż uruchomienie.** Osoba, która uruchomiła run, może
+go anulować, dopóki wolno jej uruchamiać ten workflow, a każdy, kto może
+edytować workflow, może anulować każdy jego run. Member, który może uruchomić
+workflow widoczny dla organizacji, zatrzyma swoje runy, ale nie runy kolegi;
+widzenie runa bez żadnego z tych uprawnień kończy się odmową `403`.
+
+**Run działa w imieniu osoby, która go uruchomiła, sprawdzanej ponownie przy
+każdym węźle.** Węzeł może zostać wysłany dni po starcie runa, więc każde
+wysłanie wymaga, by konto nadal było aktywne, nadal było członkiem organizacji -
+także app admin, tak jak przy każdym żądaniu - i nadal miało `workflows:run` na
+workflowie, a przy runie `test` także `workflows:edit`. Gdy
+cokolwiek z tego się zmieniło, run kończy się błędem `PRINCIPAL_REVOKED`, zanim
+handler węzła się uruchomi. Run potrzebuje osoby, w której imieniu działa, więc
+kontekst bez podmiotu nie może go uruchomić.
+
+## Strona, która czyta dane { #a-page-that-reads-data }
+
+Opublikowana [strona powiązana z danymi tabel](artifacts.md#live-data) to jedyne
+miejsce, w którym ktoś czyta tabelę **z cudzego upoważnienia**. Każdy oglądający
+dostaje rekordy strony przez jej zapytania strony, czytane z dostępem **właściciela**
+strony, niezależnie od własnej roli czy grantów na tabeli. Warstwy powyżej decydują
+więc, kto może otworzyć stronę, a dalszy zestaw reguł decyduje, kto może to poszerzyć.
+
+**Dostęp właściciela stoi za każdym załadowaniem.** Właściciel strony musi być aktywnym
+członkiem i mieć `read` na każdej tabeli, do której sięgają zapytania, przy każdym
+serwowaniu; w przeciwnym razie dane są `unavailable` (`creator_gone`,
+`creator_lost_access`). Osoba publikująca też musi czytać każdą tabelę, przy
+publikacji, więc nikt nie wiąże tego, czego nie może przeczytać.
+
+**Zgoda je udostępnia.** Zgoda właściciela na udostępnienie danych wersji jest per
+wersja, wyrażana jako on sam (nie przy impersonacji, nie przez klucz API, nigdy przez
+narzędzie agenta) i zapisana z członkostwem właściciela. Owner albo Admin —
+`artifacts:edit` w zakresie `ALL` — może potwierdzić za właściciela, co trafia do
+audytu jako takie. Grant na edycję strony nie wystarcza. Każdy edytor może zgodę wycofać,
+bo wycofanie tylko zawęża; obniża też każdy grant `edit_data` na stronie do `edit`.
+
+**`edit_data` to poziom grantu, nie rola.** „Może edytować, w tym dane" stoi nad
+`edit` i jest przyjmowane tylko dla stron (ograniczenie bazy odrzuca je gdzie indziej).
+To stała zgoda na republikacje tej osoby albo tej grupy. Tylko właściciel albo Owner
+lub Admin, jako oni sami, nadaje je lub podnosi, po potwierdzeniu, na co pozwala.
+Każdy, kto może edytować, je obniża. Jest czytane jako poziom grantu (`grant_level`),
+nigdy przez `resolve_access`, i żaden zakres roli go nie implikuje.
+
+**Własność się przekazuje, nigdy nie przejmuje.** Właściciel, albo Owner lub Admin dla
+dowolnej strony, przekazuje ją aktywnemu członkowi jako on sam; grant na edycję tego
+nie dopuszcza. Zmiana unieważnia każdą zgodę, obniża granty `edit_data` do `edit`
+i wyłącza auto-zgodę. Przejęcie strony bez właściciela przez uczynienie jej prywatną
+to ten sam akt i ta sama reguła.
+
+**Poszerzanie jest strzeżone.** Przed ogólnymi trasami udostępniania stoi strażnik dla
+stron czytających dane: szersza widoczność, nowy grant albo wyższy poziom to decyzja
+właściciela, albo Ownera lub Admina w jego imieniu, gdy dane są potwierdzone. Każdy inny
+z `edit` dostaje [prośbę](artifacts.md#share-requests) zamiast odmowy. Zawężanie jest
+otwarte dla każdego edytora, a strona, która nie czyta danych, zachowuje ogólne
+reguły. Admini działają bezpośrednio, zamiast składać prośbę. Trzy uprawnienia, których
+używa strona, to `artifacts:view`, `artifacts:edit` i, dla tabel, `tables:view`; Owner,
+Admin, Builder i Operator mają pierwsze i ostatnie w zakresie `ALL`, dlatego są częścią
+odbiorców każdej strony.
 
 ## Gdzie stoją bramki { #where-the-gates-go }
 
@@ -482,7 +554,7 @@ To jest celowe, a alternatywa jest gorsza. Ponowne sprawdzanie per wywołujący
 sprawiłoby, że jeden opublikowany agent działałby dla jednego kolegi, a dla
 drugiego nie, na tej samej wersji, przy czym różnicy nie byłoby widać nigdzie — i
 oznaczałoby, że odpowiedź agenta wsparcia zależy od tego, do których z jego
-delegatów *pytający* akurat dostał grant. Pożyczyć delegata to pożyczyć to, co się
+delegatów _pytający_ akurat dostał grant. Pożyczyć delegata to pożyczyć to, co się
 trzyma, dokładnie tak jak przy podpięciu kolekcji.
 
 !!! note "Odmowa czyta się jako 'Agent not found'"
@@ -531,13 +603,13 @@ zatwierdzeń — wszystkie kluczują po nim.
 
 Powierzchnie otwarte na ludzi, których to wdrożenie nie potrafi nazwać, nie
 używają tego konstruktora. Hostowana strona, widget i kanał prowadzą turę pod tym,
-kto ją *opublikował* — właścicielem embeda albo podpięciem, które umieściło agenta
+kto ją _opublikował_ — właścicielem embeda albo podpięciem, które umieściło agenta
 na bocie — z odwrotem do `viewer`, gdy ta osoba odeszła z organizacji albo jej
 konto zostało dezaktywowane, żeby żadne z tego nie mogło po cichu poszerzyć tego,
 do czego sięga publiczna powierzchnia. Podmiot jest więc prawdziwy i nie jest nim
 osoba, która wpisała wiadomość.
 
-Nadawca z kanału, który *powiązał* konto członka, działa jako ten członek — a ten
+Nadawca z kanału, który _powiązał_ konto członka, działa jako ten członek — a ten
 sam złączony odczyt rozstrzyga, czy nadal nim jest. Dezaktywacja zostawia na
 miejscu i wiersz członkostwa, i powiązanie konta czatowego, więc rola czytana z
 samego członkostwa pozwalała Ownerowi po offboardingu dalej prowadzić tury ze
@@ -557,10 +629,10 @@ wpuściła, stworzonej przez kogoś, kto rolę jednak miał.
 
 ## Co czyta frontend { #what-the-frontend-reads }
 
-| Endpoint | Odpowiada |
-|---|---|
+| Endpoint              | Odpowiada                                                                       |
+| --------------------- | ------------------------------------------------------------------------------- |
 | `GET /me/permissions` | rolą wywołującego, `is_app_admin` oraz każdym uprawnieniem wraz z jego scope'em |
-| `GET /roles/catalog` | całym katalogiem i tym, co pakuje w sobie każda rola |
+| `GET /roles/catalog`  | całym katalogiem i tym, co pakuje w sobie każda rola                            |
 
 Oba są **wygodą dla interfejsu i niczym więcej**. Serwer sprawdza każde
 uprawnienie ponownie na endpoincie, który wykonuje działanie, więc klient
@@ -576,6 +648,9 @@ ignorujący te API nic na tym nie zyskuje.
   poszerza; nigdy nie zawęża.**
 - `require(...)` trafia na routy **kolekcyjne**. Cokolwiek działa na jednym
   wierszu, oddaje decyzję serwisowi, który woła `resolve_access`.
+- Strona czytająca dane tabel jest czytana z dostępem swojego **właściciela** i
+  udostępniana tylko za jego zgodą; jej poszerzanie należy do właściciela, a każdy
+  inny składa prośbę.
 - Powierzchnia, przed którą nikt nie stoi, działa jako **ten, kto ją
   opublikował**, z odwrotem do `viewer`, gdy ta osoba odeszła albo została
   dezaktywowana.

@@ -145,10 +145,11 @@ function upcomingFireMs(trigger: Trigger): number | null {
 }
 
 /**
- * "next Aug 22, 09:00 UTC" for a live schedule whose next fire is still ahead.
+ * "next Aug 22, 09:00 (Europe/Warsaw)" for a live schedule whose next fire is still ahead.
  *
- * In UTC, because the cadence beside it is ("Daily at 09:00 UTC") - a local
- * instant next to a UTC cadence reads as a contradiction two hours wide. The
+ * In the schedule's own zone, because the cadence beside it is ("Daily at 09:00
+ * (Europe/Warsaw)") - an instant in the viewer's zone next to a cadence in another
+ * reads as a contradiction hours wide. The
  * year appears only when the fire is outside the current one: a 999-day
  * interval can put it years out, where "Feb 29" alone names the wrong February.
  */
@@ -156,15 +157,16 @@ function nextFireText(trigger: Trigger, t: Translate, locale: string): string | 
   const upcoming = upcomingFireMs(trigger);
   if (upcoming === null) return null;
   const at = new Date(upcoming);
+  const zone = trigger.time_zone ?? "UTC";
   const shown = at.toLocaleString(locale, {
-    timeZone: "UTC",
+    timeZone: zone,
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     ...(at.getUTCFullYear() === new Date().getUTCFullYear() ? {} : { year: "numeric" as const }),
   });
-  return t("nextFire", { at: shown });
+  return t("nextFire", { at: shown, zone });
 }
 
 /** setTimeout's ceiling; a longer delay wraps and fires at once. */

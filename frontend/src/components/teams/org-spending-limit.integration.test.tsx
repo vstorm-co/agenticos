@@ -40,6 +40,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     stripe_customer_id: null,
     chat_may_waive_approvals: false,
     ai_assistance_enabled: true,
+    public_live_data: false,
     subscription_tier: "free",
     seats_limit: null,
     monthly_budget_usd: null,

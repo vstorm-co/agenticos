@@ -382,6 +382,16 @@ describe("useOrganizations", () => {
     });
   });
 
+  it("sends only the public live data field, and keeps the answer in the list", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ public_live_data: true }));
+
+    await result.current.setPublicLiveData("org-1", true);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { public_live_data: true });
+    await waitFor(() => expect(result.current.orgs[0]?.public_live_data).toBe(true));
+  });
+
   it("sends the voice settings in one PATCH and caches the answer", async () => {
     // One request, because the server validates them together: a provider
     // without its model is refused whole.

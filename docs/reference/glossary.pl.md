@@ -1,5 +1,5 @@
 ---
-source_sha: "31af61187b6b"
+source_sha: "efcb7fe03f88"
 ---
 
 # Słownik { #glossary }
@@ -121,6 +121,7 @@ w [Capabilities](capabilities.md).
 | Obliczenia | `code_execution` |
 | Coding agent | `coding_agent` |
 | Długie rozmowy | `compaction` |
+| Obsługa komputera | `computer_use` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
 | Następne kroki | `follow_ups` |
@@ -144,3 +145,5 @@ w [Capabilities](capabilities.md).
 | Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |
+| Tabele | `virtual_tables` |
+| Workflowy | `workflows` |
