@@ -269,9 +269,7 @@ jobs:
     # On the job rather than repeated under each step, which is how the `e2e` job
     # below already does it. Four identical copies is four places to forget one.
     env:
-      # Cold-import and migration tests also start Python subprocesses. Leave
-      # runner capacity for those children instead of four concurrent parents.
-      PYTEST_XDIST_AUTO_NUM_WORKERS: "2"
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -332,6 +330,17 @@ jobs:
         #
         # `COV_REPORT=xml` is the only difference from what `make test` does on a
         # laptop, and it is for Codecov below rather than for the gate.
+        #
+        # `PYTEST_ADDOPTS` turns the Makefile's `-v` into one line of dots per
+        # worker. With a line per test (about 25,000 of them, a few of them 50 KB
+        # long) the run stopped three times in a row on this suite: both workers
+        # and the step's own output went silent in the same second, no stack
+        # was dumped, and the job ran into its 90-minute limit. The same suite
+        # finished in 14 to 20 minutes with quiet output, and with its output
+        # sent to a file. Failures still print in full with a short summary, and
+        # `faulthandler_timeout` still names a test that hangs.
+        env:
+          PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
 
       - name: Report coverage of template-inherited code
