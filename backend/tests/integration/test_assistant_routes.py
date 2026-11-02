@@ -364,3 +364,48 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
             "estimate_next_improvement_step",
         )
     )
+
+
+@pytest.mark.security
+async def test_the_architect_s_skill_writes_wait_for_a_card_and_its_reads_do_not(
+    db: AsyncSession, served: None
+) -> None:
+    from app.agents.mcp import NEEDS_APPROVAL
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    key, organization = await _owner_key(db, Perm.SKILLS_VIEW, Perm.SKILLS_EDIT)
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=organization.id,
+        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
+        platform_credential=key,
+    )
+    [toolset] = resolved.toolsets
+    tools = await toolset.get_tools(_run_context())
+
+    def held(name: str) -> bool:
+        return tools[f"agenticos_{name}"].tool_def.metadata[NEEDS_APPROVAL]
+
+    assert all(
+        held(name)
+        for name in (
+            "start_skill_improvement",
+            "run_next_skill_improvement_step",
+            "accept_skill_improvement",
+            "end_skill_improvement",
+            "change_skill_version",
+        )
+    )
+    assert not any(
+        held(name)
+        for name in (
+            "get_skill",
+            "list_skill_versions",
+            "get_skill_version",
+            "list_skill_improvements",
+            "get_skill_improvement",
+            "estimate_skill_improvement",
+            "estimate_next_skill_improvement_step",
+        )
+    )
