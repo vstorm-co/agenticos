@@ -10,8 +10,8 @@ made executable.
 Four edges, each configured independently:
 
 - **input** — the user's prompt, before the first model request. A prompt with a
-  picture is screened by its text parts alone (an inline text file as text, a
-  link too, where a redaction blocks), and a redaction rewrites those parts and
+  picture is screened by its text parts alone (an inline text file as text in
+  its declared character set, a link too, where a redaction blocks), and a redaction rewrites those parts and
   keeps the picture (`ScreenedPrompt`, #2566).
 - **output** — the agent's final answer, and everything a streaming surface shows
   on the way to it. `ScreenedStream` holds each text and reasoning part back until

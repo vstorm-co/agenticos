@@ -2637,7 +2637,9 @@ tool results for that. A picture sent inline is not text, so the edge does not r
 it: on a prompt with a picture the edge screens the words alone, never the picture's
 bytes, and a redaction rewrites those words and keeps the picture. A prompt built in
 code may also carry a text file inline, which is
-screened as text, or a link, which is screened too: a redaction cannot be written
+screened as text in the character set its media type declares (UTF-8 when it names
+none); a file that set cannot read, or a redaction it cannot hold, blocks the turn.
+It may also carry a link, which is screened too: a redaction cannot be written
 into a link without breaking it, so a match there blocks. Because the bytes
 no longer decide, the check before the write predicts a turn with a picture as it
 does any other.

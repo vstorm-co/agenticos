@@ -561,6 +561,69 @@ async def test_the_size_limit_counts_every_text_part_together():
         await agent.run([half, TextContent(content=half), PICTURE])
 
 
+async def test_the_size_limit_counts_every_part_of_a_resumed_request_together():
+    """Two prompt parts of one resumed request, each under the limit, are one prompt over it."""
+    half = "a" * 150_000
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _answers("hi"))
+    with pytest.raises(GuardrailBlocked):
+        await agent.run(
+            message_history=_resumed(UserPromptPart(half), UserPromptPart([half, PICTURE]))
+        )
+
+
+WINDOWS_1252 = "text/plain; charset=windows-1252"
+
+
+async def test_an_inline_text_file_is_read_in_its_declared_charset():
+    """Read as UTF-8, the `é` is a replacement character and the keyword slips through."""
+    agent = _agent(GuardrailsConfig(blocked_keywords_in="café"), _answers("hi"))
+    notes = BinaryContent(data="the café".encode("cp1252"), media_type=WINDOWS_1252)
+    with pytest.raises(GuardrailBlocked):
+        await agent.run(["read", notes])
+
+
+async def test_a_redacted_text_file_is_written_back_in_its_declared_charset():
+    seen: list[PromptContent] = []
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompts(seen))
+    notes = BinaryContent(data=f"clé {SECRET}".encode("cp1252"), media_type=WINDOWS_1252)
+    await agent.run(["read", notes])
+    assert seen == [
+        [
+            "read",
+            BinaryContent(
+                data="clé [redacted:anthropic_key]".encode("cp1252"),
+                media_type=WINDOWS_1252,
+            ),
+        ]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("data", "media_type"),
+    [
+        (b"notes", "text/plain; format=flowed; charset=x-no-such-charset"),
+        (b"notes", "text/plain; charset=base64"),
+        (b"notes \xff\xfe", "text/plain"),
+        (b"notes \xff\xfe", 'text/plain; charset="utf-8"'),
+    ],
+)
+async def test_an_inline_text_file_its_charset_cannot_read_blocks(data: bytes, media_type: str):
+    """What the guard cannot read, it cannot vouch for: the turn is refused, saying why."""
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _answers("hi"))
+    with pytest.raises(GuardrailBlocked, match="character set"):
+        await agent.run(["read", BinaryContent(data=data, media_type=media_type)])
+
+
+async def test_a_redaction_its_file_charset_cannot_hold_blocks():
+    def guard(text: str) -> GuardrailResult:
+        return GuardrailResult.replace(text.replace("notes", "nótes"))
+
+    agent: Agent = Agent(model=_answers("hi"), capabilities=[ScreenedPrompt(guard=guard)])
+    notes = BinaryContent(data=b"notes", media_type="text/plain; charset=us-ascii")
+    with pytest.raises(GuardrailBlocked, match="character set"):
+        await agent.run(["read", notes, PICTURE])
+
+
 @pytest.mark.parametrize(
     "media_type",
     ["application/xml", "application/ld+json", "application/x-yaml", "text/csv; charset=utf-8"],

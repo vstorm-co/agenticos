@@ -1,5 +1,5 @@
 ---
-source_sha: "14752c88fa5a"
+source_sha: "6f6309ffc35a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2756,7 +2756,10 @@ jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Obraz wys�
 bezpośrednio nie jest tekstem, więc krawędź go nie czyta: w prompcie z obrazem
 krawędź sprawdza same słowa, nigdy bajty obrazu, a redakcja zmienia te słowa i
 zostawia obraz. Prompt zbudowany w kodzie może też nieść
-plik tekstowy, sprawdzany jako tekst, albo link, który też jest sprawdzany:
+plik tekstowy, sprawdzany jako tekst w kodowaniu znaków, które deklaruje jego
+typ mediów (UTF-8, gdy nie podaje żadnego); plik, którego to kodowanie nie
+odczyta, albo redakcja, której nie zapisze, blokuje turę. Może też nieść
+link, który też jest sprawdzany:
 redakcji nie da się wpisać w link bez jego zepsucia, więc dopasowanie w linku
 blokuje. Ponieważ bajty już nie decydują, sprawdzenie przed
 zapisem przewiduje turę z obrazem tak samo jak każdą inną.

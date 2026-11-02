@@ -552,8 +552,11 @@ class ScreenedPrompt(InputGuardrail[object]):
 
     The harness hands its guard such a prompt as the list's `repr`, a picture's
     bytes included, and cannot write a redaction back over it. Here each text part
-    (a string or a `TextContent`, and a `text/*` or JSON `BinaryContent` decoded)
-    is screened on its own and a redaction written back over that part. A URL is
+    (a string or a `TextContent`, and a `text/*` or JSON `BinaryContent` decoded
+    in the character set it declares, UTF-8 when none) is screened on its own and
+    a redaction written back over that part, in that character set; a file the
+    set cannot read, or a redaction it cannot hold, blocks. Size limits count the
+    whole prompt's text - every prompt part of a resumed request together. A URL is
     screened too, but cannot be rewritten without breaking it, so a redaction
     there blocks. A picture, audio, video or cache marker is not read. A
     plain-text prompt, and a parallel guard, take the harness's path unchanged.
@@ -571,7 +574,8 @@ class ScreenedPrompt(InputGuardrail[object]):
             return await handler(request_context)
         parts, original = _find_prompt_part(ctx, request_context.messages)
         targets = [*parts, *([] if original is None else [original])]
-        if ctx.prompt is not None and _history_prompt_parts(ctx) > 1:
+        resumed = ctx.prompt is not None and _history_prompt_parts(ctx) > 1
+        if resumed:
             # A run resumed from a request: its prompt is every prompt part there.
             targets = _resumed_prompt_parts(ctx.messages)
             sent = {id(part) for message in request_context.messages for part in message.parts}
@@ -583,6 +587,16 @@ class ScreenedPrompt(InputGuardrail[object]):
             return await super().wrap_model_request(
                 ctx, request_context=request_context, handler=handler
             )
+        # The whole prompt first, so a size limit counts all of its text rather
+        # than each part afresh: a resumed request's parts together, and each copy
+        # of any other prompt on its own. The rewrites come from the parts below.
+        prompts = [targets] if resumed else [[target] for target in targets]
+        checked: list[list[str]] = []
+        for prompt in prompts:
+            texts = [text for target in prompt for text in _texts(target.content)]
+            if len(texts) > 1 and texts not in checked:
+                checked.append(texts)
+                await self._cleaned(ctx, "\n".join(texts))
         # Every part screened before any is rewritten, so a block rewrites nothing;
         # a copy with the original's content is screened once.
         screened: list[PromptContent | None] = []
@@ -613,11 +627,6 @@ class ScreenedPrompt(InputGuardrail[object]):
         if isinstance(content, str):
             cleaned = await self._cleaned(ctx, content)
             return None if cleaned == content else cleaned
-        texts = [text for item in content if (text := _text(item)) is not None]
-        if len(texts) > 1:
-            # Together first, so a size limit counts the whole prompt's text,
-            # not each part afresh; each part is then screened for its rewrite.
-            await self._cleaned(ctx, "\n".join(texts))
         result: list[UserContent] = []
         changed = False
         for item in content:
@@ -636,7 +645,7 @@ class ScreenedPrompt(InputGuardrail[object]):
             return item if cleaned == item.content else replace(item, content=cleaned)
         if isinstance(item, BinaryContent) and (text := _text(item)) is not None:
             cleaned = await self._cleaned(ctx, text)
-            return item if cleaned == text else replace(item, data=cleaned.encode())
+            return item if cleaned == text else replace(item, data=_encoded(cleaned, item))
         if isinstance(item, FileUrl) and await self._cleaned(ctx, item.url) != item.url:
             logger.info("Guardrail blocked a run at the input edge: a redaction in a URL")
             raise GuardrailBlocked(edge="input", message=_BLOCK_MESSAGE["input"])
@@ -685,15 +694,51 @@ def _text(item: UserContent) -> str | None:
     if isinstance(item, TextContent):
         return item.content
     if isinstance(item, BinaryContent) and _is_text(item.media_type):
-        return item.data.decode("utf-8", errors="replace")
+        try:
+            return item.data.decode(_charset(item.media_type))
+        except (LookupError, UnicodeDecodeError) as error:
+            # Text the guard cannot read as the model will is text it cannot vouch for.
+            raise _unreadable() from error
     return None
+
+
+def _encoded(text: str, item: BinaryContent) -> bytes:
+    """A redacted inline file's text, in the character set the file declares."""
+    try:
+        return text.encode(_charset(item.media_type))
+    except UnicodeEncodeError as error:
+        raise _unreadable() from error
+
+
+def _charset(media_type: str) -> str:
+    """The character set a text file's media type declares; UTF-8 when it names none."""
+    for parameter in media_type.split(";")[1:]:
+        name, _, value = parameter.partition("=")
+        if name.strip().lower() == "charset":
+            return value.strip().strip('"')
+    return "utf-8"
+
+
+def _unreadable() -> GuardrailBlocked:
+    """The refusal of an inline text file its declared character set cannot carry."""
+    logger.info("Guardrail blocked a run at the input edge: an unreadable inline text file")
+    return GuardrailBlocked(
+        edge="input",
+        message=f"{_BLOCK_MESSAGE['input']} An attached text file could not be read "
+        "in its declared character set.",
+    )
+
+
+def _texts(content: PromptContent) -> list[str]:
+    """The text parts of a prompt, in order."""
+    if isinstance(content, str):
+        return [content]
+    return [text for item in content if (text := _text(item)) is not None]
 
 
 def _text_of(content: PromptContent) -> str:
     """The text parts of a screened prompt, joined, for the redaction's trace span."""
-    if isinstance(content, str):
-        return content
-    return "\n".join(text for item in content if (text := _text(item)) is not None)
+    return "\n".join(_texts(content))
 
 
 def _resumed_prompt_parts(messages: Sequence[ModelMessage]) -> list[UserPromptPart]:
