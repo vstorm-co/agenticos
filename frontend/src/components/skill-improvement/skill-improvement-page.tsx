@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AttemptChanges } from "@/components/improvement/attempt-changes";
 import { AttemptHistory } from "@/components/improvement/attempt-history";
+import { ContinueSession } from "@/components/improvement/continue-session";
 import { ImprovementShell, WorkingNote } from "@/components/improvement/improvement-shell";
 import { type ReadOnlyReason } from "@/components/improvement/read-only";
 import { TriedChanges } from "@/components/improvement/tried-changes";
@@ -17,7 +18,7 @@ import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { isActive, isClosed, stopOf } from "@/lib/improvement-steps";
+import { isActive, isClosed, isReachable, stopOf } from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import { CheckAgents } from "./check-agents";
@@ -134,7 +135,7 @@ function SkillSession({
             ))}
           {step === "changes" &&
             (stopOf(session) === "changes" ? (
-              <section className="space-y-4" data-tour="skill-improvement-changes">
+              <section className="space-y-4">
                 <AttemptHistory session={session} />
                 <h2 className="font-medium">
                   {tImprovement("round", {
@@ -163,8 +164,16 @@ function SkillSession({
             <section className="space-y-4 rounded-xl border p-6">
               <h2 className="font-medium">{t("resultTitle")}</h2>
               {measured}
-              {check?.verdict && !isClosed(session) && (
+              {isReachable(views.accept) ? (
                 <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
+              ) : (
+                readOnly === null && (
+                  <ContinueSession
+                    session={session}
+                    emphasis={{ again: "default", end: "outline" }}
+                    onStarted={followCurrent}
+                  />
+                )
               )}
             </section>
           )}

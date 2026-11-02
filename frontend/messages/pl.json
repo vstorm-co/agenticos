@@ -3178,7 +3178,8 @@
           "result": "Przejrzyj wynik",
           "blocked": "Zablokowane: zakończ i zacznij nową"
         },
-        "skill": "{name} · {line, select, main {main} other {fork „{line}”}}"
+        "skill": "{name} · {kind, select, main {main} other {fork „{line}”}}",
+        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} other {Nie udało się odczytać sesji agentów.}}"
       }
     },
     "edit": {
@@ -14147,9 +14148,6 @@
       "askAdmin": "Poproś administratora o włączenie."
     },
     "skill": {
-      "improve": "Ulepsz z asystentem",
-      "working": "Czytam runy…",
-      "aiOff": "Wsparcie AI jest wyłączone w tej organizacji",
       "check": "Sprawdź w ewaluacji"
     },
     "context": {
@@ -15145,7 +15143,7 @@
     "toAccept": "Zdecyduj, co dalej",
     "acceptClosed": "Ta sesja jest zamknięta. Jej wynik zostaje tu do wglądu.",
     "agents": {
-      "hidden": "{count, plural, =0 {} one {Sprawdzono jeszcze # agenta, którego nie widzisz.} few {Sprawdzono jeszcze # agentów, których nie widzisz.} many {Sprawdzono jeszcze # agentów, których nie widzisz.} other {Sprawdzono jeszcze # agenta, których nie widzisz.}}{unknown, plural, =0 {} one { # z nich nie dało się sprawdzić.} few { # z nich nie dało się sprawdzić.} many { # z nich nie dało się sprawdzić.} other { # z nich nie dało się sprawdzić.}}",
+      "hidden": "{count, plural, =0 {} one {Sprawdzono jeszcze # agenta, którego nie widzisz.} few {Sprawdzono jeszcze # agentów, których nie widzisz.} many {Sprawdzono jeszcze # agentów, których nie widzisz.} other {Sprawdzono jeszcze # agenta, którego nie widzisz.}}{unknown, plural, =0 {} one { # z nich nie dało się sprawdzić.} few { # z nich nie dało się sprawdzić.} many { # z nich nie dało się sprawdzić.} other { # z nich nie dało się sprawdzić.}}",
       "viaSpecialist": "Przez specjalistę {name}",
       "state": {
         "queued": "Czeka",
@@ -15189,7 +15187,7 @@
         "within_noise": "U części agentów zmiana mieści się w szumie testu: różnica może być przypadkiem."
       },
       "forkLineOnly": "Na forku agentów, którzy wypadli gorzej, nie da się przypiąć ani zrobić dla nich kolejnego forka: popraw zmianę dalej albo ją odrzuć.",
-      "acknowledge": "{count, plural, one {Wiem, że # agenta nie dało się sprawdzić} few {Wiem, że # agentów nie dało się sprawdzić} many {Wiem, że # agentów nie dało się sprawdzić} other {Wiem, że # agenta nie dało się sprawdzić}}{names, select, other { ({names})}}, a i tak dostanie zmianę.",
+      "acknowledge": "{count, plural, one {Wiem, że # agenta nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostanie zmianę.} few {Wiem, że # agentów nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.} many {Wiem, że # agentów nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.} other {Wiem, że # agenta nie dało się sprawdzić{named, select, yes { ({names})} other {}}, a i tak dostaną zmianę.}}",
       "apply": "Zastosuj jako następną wersję: {line}",
       "applyAndPin": "Zastosuj i zostaw {names} na obecnej wersji",
       "forkName": "Nazwa nowego forka",
@@ -15199,7 +15197,7 @@
       "title": "Zacznij poprawianie",
       "openSession": "Ta linia ma już otwartą sesję.",
       "continue": "Kontynuuj ją",
-      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, których nie widzisz.}}",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
       "price": "Do pierwszej propozycji kosztuje około {cost}; każda próba około {perRound}, najwyżej {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}.",
       "limit": "Limit wydatków na całą sesję (USD)",
       "unaffordable": "Budget organizacji tego nie pokrywa.",
@@ -15215,12 +15213,12 @@
       "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} other {, # w porządku}}.",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
       "agent": "{name} ({runs})",
-      "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, których nie widzisz}}."
+      "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, którego nie widzisz}}."
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Żadnego agenta tej linii nie da się sprawdzić.} one {Sprawdzimy ją na # agencie: {names}.} few {Sprawdzimy ją na # agentach: {names}.} many {Sprawdzimy ją na # agentach: {names}.} other {Sprawdzimy ją na # agenta: {names}.}}",
       "unchecked": "{name} nie da się sprawdzić: {reason, select, no_questions {nie ma pytań testowych tam, gdzie wczytał skill} no_access {nie możesz go uruchamiać} no_budget {jego budget jest wyczerpany} no_published_version {nie ma opublikowanej wersji} inconclusive {run nie ocenił wszystkich odpowiedzi} other {sprawdzenie się nie powiodło}}.",
-      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, których nie widzisz.}}",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
       "thorough": "Opis się zmienił, a on decyduje, kiedy agenci otwierają skill, więc zadawane są też własne pytania każdego agenta."
     }
   }

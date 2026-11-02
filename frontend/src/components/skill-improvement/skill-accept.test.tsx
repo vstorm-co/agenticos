@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { ReadOnlyProvider } from "@/components/improvement/read-only";
 import { checkAgent, skillCheck, skillSession } from "@/test-utils/skill-improvement";
 import type { SkillCheck } from "@/types/skill-checks";
 import type { SkillImprovement } from "@/types/skill-improvement";
@@ -24,15 +25,26 @@ vi.mock("@/components/improvement/continue-session", () => ({
   ),
 }));
 
-function mount(check: SkillCheck, session: SkillImprovement = skillSession()) {
+function mount(
+  check: SkillCheck,
+  session: SkillImprovement = skillSession(),
+  readOnly: "viewOnly" | null = null,
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const measured = { ...session, check, outcomes: check.outcomes };
   render(<SkillAccept session={measured} check={check} onStarted={vi.fn()} />, {
     wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <ReadOnlyProvider value={readOnly}>{children}</ReadOnlyProvider>
+      </QueryClientProvider>
     ),
   });
 }
+
+const confirm = () =>
+  userEvent.click(
+    screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+  );
 
 const BLOCKED = skillCheck({
   agents: [checkAgent("Support", "better"), checkAgent("Refunds", "worse")],
@@ -51,6 +63,7 @@ describe("SkillAccept", () => {
     mount(skillCheck());
 
     expect(screen.getByText("No agent got worse and at least one got better.")).toBeVisible();
+    await confirm();
     await userEvent.click(
       screen.getByRole("button", { name: "Apply as the next version of main" }),
     );
@@ -71,6 +84,7 @@ describe("SkillAccept", () => {
     expect(screen.queryByRole("button", { name: /next version/ })).toBeNull();
     await userEvent.clear(screen.getByLabelText("Name of the new fork"));
     await userEvent.type(screen.getByLabelText("Name of the new fork"), "Returns");
+    await confirm();
     await userEvent.click(
       screen.getByRole("button", { name: "Make a fork with this change for Support" }),
     );
@@ -85,6 +99,7 @@ describe("SkillAccept", () => {
   it("applies while keeping the agents it made worse on their version", async () => {
     mount(BLOCKED);
 
+    await confirm();
     await userEvent.click(
       screen.getByRole("button", { name: "Apply, and keep Refunds on the version it has" }),
     );
@@ -121,6 +136,8 @@ describe("SkillAccept", () => {
     const apply = screen.getByRole("button", { name: "Apply as the next version of main" });
     expect(apply).toBeDisabled();
     expect(await screen.findByRole("button", { name: "Add test questions" })).toBeVisible();
+    await confirm();
+    expect(apply).toBeDisabled();
     await userEvent.click(screen.getByLabelText(/I know 1 agent could not be checked \(Billing\)/));
     await userEvent.click(apply);
 
@@ -139,10 +156,39 @@ describe("SkillAccept", () => {
     mount(skillCheck({ warnings: ["within_noise"] }));
 
     expect(screen.getByText(/changed within the test's noise/)).toBeVisible();
+    await confirm();
     await userEvent.click(
       screen.getByRole("button", { name: "Apply as the next version of main" }),
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The line moved");
+  });
+
+  it("holds a change until the person confirms they reviewed it", async () => {
+    mount(skillCheck());
+
+    const apply = screen.getByRole("button", { name: "Apply as the next version of main" });
+    expect(apply).toBeDisabled();
+    await confirm();
+    expect(apply).toBeEnabled();
+  });
+
+  it("acknowledges unknown agents it may not name without an empty list", () => {
+    mount(skillCheck({ agents: [checkAgent("Sales", "no_change")], hidden: 1, hidden_unknown: 1 }));
+
+    expect(
+      screen.getByLabelText(
+        "I know 1 agent could not be checked, and it gets the change all the same.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("shows a reader who may not edit the skill the verdict and no decision", () => {
+    mount(BLOCKED, skillSession(), "viewOnly");
+
+    expect(screen.getByText(/got worse/)).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByLabelText("Name of the new fork")).toBeNull();
   });
 });

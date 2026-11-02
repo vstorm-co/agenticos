@@ -3180,7 +3180,8 @@
           "result": "Prüfen Sie das Ergebnis",
           "blocked": "Blockiert: beenden und neu starten"
         },
-        "skill": "{name} · {line, select, main {main} other {Fork „{line}“}}"
+        "skill": "{name} · {kind, select, main {main} other {Fork „{line}“}}",
+        "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}"
       }
     },
     "edit": {
@@ -14045,9 +14046,6 @@
       "askAdmin": "Bitten Sie einen Admin, sie einzuschalten."
     },
     "skill": {
-      "improve": "Mit dem Assistenten verbessern",
-      "working": "Lese die Runs…",
-      "aiOff": "KI-Unterstützung ist für diese Organisation ausgeschaltet",
       "check": "Mit Evals prüfen"
     },
     "context": {
@@ -15087,7 +15085,7 @@
         "within_noise": "Bei einigen Agents liegt die Änderung im Rauschen des Tests: Der Unterschied kann Zufall sein."
       },
       "forkLineOnly": "Auf einem Fork lassen sich die schlechter gewordenen Agents weder festsetzen noch erneut forken: weiter verbessern oder verwerfen.",
-      "acknowledge": "{count, plural, =1 {Ich weiß, dass 1 Agent nicht geprüft werden konnte} other {Ich weiß, dass # Agents nicht geprüft werden konnten}}{names, select, other { ({names})}}, und er bekommt die Änderung trotzdem.",
+      "acknowledge": "{count, plural, =1 {Ich weiß, dass 1 Agent nicht geprüft werden konnte{named, select, yes { ({names})} other {}}, und er bekommt die Änderung trotzdem.} other {Ich weiß, dass # Agents nicht geprüft werden konnten{named, select, yes { ({names})} other {}}, und sie bekommen die Änderung trotzdem.}}",
       "apply": "Als nächste Version von {line} anwenden",
       "applyAndPin": "Anwenden und {names} auf ihrer Version lassen",
       "forkName": "Name des neuen Forks",

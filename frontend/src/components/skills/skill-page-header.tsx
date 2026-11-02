@@ -6,14 +6,17 @@ import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge, Button } from "@/components/ui";
+import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 import type { Skill } from "@/types/providers";
 
 /**
  * A skill's name and what it is for, with main's newest version beside it.
  *
  * Edit opens the same editor the list used to, on the line the page is showing;
- * a reader without edit access gets it read-only as Open.
+ * a reader without edit access gets it read-only as Open. Improve reads the line's
+ * runs, so it is offered to an editor who may also read them.
  */
 export function SkillPageHeader({
   skill,
@@ -29,6 +32,7 @@ export function SkillPageHeader({
   onEdit: () => void;
 }) {
   const t = useTranslations("skills.page");
+  const { can } = usePermissions();
   return (
     <PageHeader
       title={<span className="font-mono">{skill.name}</span>}
@@ -45,7 +49,7 @@ export function SkillPageHeader({
       }
       actions={
         <>
-          {skill.can_edit && (
+          {skill.can_edit && can(Perm.runsView) && (
             <Button variant="outline" asChild data-tour="skill-improve">
               <Link href={improveHref}>
                 <Sparkles className="h-4 w-4" aria-hidden />

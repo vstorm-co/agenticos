@@ -1,14 +1,16 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { checkAgent, skillCheck, skillSession } from "@/test-utils/skill-improvement";
+import type { SkillContinuationEstimate } from "@/types/skill-improvement";
 
 const checkAgentRunning = () => checkAgent("Support", "running");
+const END = "End without changes";
 import { SkillImprovementPage } from "./skill-improvement-page";
 
 const state = vi.hoisted(() => ({
@@ -42,6 +44,21 @@ vi.mock("@/components/improvement/tried-changes", () => ({
   TriedChanges: () => <p>tried changes</p>,
 }));
 vi.mock("./skill-start", () => ({ SkillStart: () => <p>start a session</p> }));
+vi.mock("@/components/improvement/next-step", () => ({
+  NextStep: ({ detail }: { detail?: (quote: SkillContinuationEstimate) => ReactNode }) => (
+    <div>
+      {detail?.({
+        mode: "next_step",
+        number: 1,
+        total_usd: "0.10",
+        budget_usd: "1.00",
+        affordable: true,
+        candidate_hash: "h",
+        check_estimate: { ...skillCheck(), agents: [checkAgent("Support", "queued")] },
+      })}
+    </div>
+  ),
+}));
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
@@ -176,5 +193,68 @@ describe("SkillImprovementPage", () => {
     state.session = skillSession();
     await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
     expect(await screen.findByText("Line: main")).toBeVisible();
+  });
+
+  it("leaves a result with nothing to accept to improve further or end", async () => {
+    state.step = "result";
+    state.session = skillSession({
+      status: "stopped",
+      best_iteration_id: null,
+      check: skillCheck({ verdict: "no_better", outcomes: ["improve_further", "discard"] }),
+      outcomes: ["improve_further", "discard"],
+    });
+    mount();
+
+    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Decide what to do" })).toBeNull();
+    expect(screen.getByRole("button", { name: END })).toBeVisible();
+  });
+
+  it("shows a reader who may not edit the skill an open session with no decision", async () => {
+    state.canEdit = false;
+    state.step = "accept";
+    mount();
+
+    expect(await screen.findByText(/No agent got worse/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add test questions" })).toBeNull();
+  });
+
+  it("leaves a reader who may not edit the skill nothing to continue at the result", async () => {
+    state.canEdit = false;
+    state.step = "result";
+    state.session = skillSession({ status: "stopped", best_iteration_id: null });
+    mount();
+
+    expect(await screen.findByText("How each agent did")).toBeVisible();
+    expect(screen.queryByRole("button", { name: END })).toBeNull();
+  });
+
+  it("names the agents the next check runs on at the Changes stop", async () => {
+    state.session = skillSession({ status: "waiting", stage: "filtering" });
+    mount();
+
+    expect(await screen.findByText("It will be checked on 1 agent: Support.")).toBeVisible();
+  });
+
+  it("says Understand and Changes are still being written while the session runs", async () => {
+    state.session = skillSession({ status: "running", stage: "analyzing", check: null });
+    mount();
+    expect(await screen.findByText(/Reading what went wrong/)).toBeVisible();
+
+    cleanup();
+    state.step = "changes";
+    state.session = skillSession({ status: "running", stage: "drafting", check: null });
+    mount();
+    expect(await screen.findByText(/Writing the changes/)).toBeVisible();
+  });
+
+  it("says when the skill cannot be read", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError(500, "Down", { error: { code: "INTERNAL", message: "Down" } }),
+    );
+    mount();
+
+    expect(await screen.findByText("Down")).toBeVisible();
   });
 });

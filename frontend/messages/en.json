@@ -3180,7 +3180,8 @@
           "result": "Review the result",
           "blocked": "Blocked: end it and start a new one"
         },
-        "skill": "{name} · {line, select, main {main} other {fork “{line}”}}"
+        "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
+        "partial": "{failed, select, skills {Skill sessions could not be read.} other {Agent sessions could not be read.}}"
       }
     },
     "edit": {
@@ -14373,9 +14374,6 @@
       "askAdmin": "Ask an admin to turn it on."
     },
     "skill": {
-      "improve": "Improve with the assistant",
-      "working": "Reading the runs…",
-      "aiOff": "AI assistance is off for this organization",
       "check": "Check with evals"
     },
     "context": {
@@ -15415,7 +15413,7 @@
         "within_noise": "Some agents changed within the test's noise: the difference may be chance."
       },
       "forkLineOnly": "On a fork, the agents that got worse cannot be pinned or forked again: improve it further or discard it.",
-      "acknowledge": "{count, plural, =1 {I know 1 agent could not be checked} other {I know # agents could not be checked}}{names, select, other { ({names})}}, and it gets the change all the same.",
+      "acknowledge": "{count, plural, =1 {I know 1 agent could not be checked{named, select, yes { ({names})} other {}}, and it gets the change all the same.} other {I know # agents could not be checked{named, select, yes { ({names})} other {}}, and they get the change all the same.}}",
       "apply": "Apply as the next version of {line}",
       "applyAndPin": "Apply, and keep {names} on the version it has",
       "forkName": "Name of the new fork",

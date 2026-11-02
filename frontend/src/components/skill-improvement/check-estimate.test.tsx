@@ -42,4 +42,18 @@ describe("CheckEstimate", () => {
     const { container } = render(<CheckEstimate quote={QUOTE} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("says a check failed for an agent the estimate gives no reason for", () => {
+    const quote: SkillContinuationEstimate = {
+      ...QUOTE,
+      check_estimate: {
+        ...skillCheck(),
+        agents: [checkAgent("Billing", "unknown", { unknown_reason: null })],
+        hidden: 0,
+      },
+    };
+    render(<CheckEstimate quote={quote} />);
+
+    expect(screen.getByText("Billing cannot be checked: its check failed.")).toBeVisible();
+  });
 });

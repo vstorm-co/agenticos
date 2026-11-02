@@ -17,7 +17,7 @@ export function CheckEstimate({ quote }: { quote: ContinuationEstimate }) {
   const runs = check.agents.filter((row) => row.state !== "unknown");
   const unchecked = check.agents.filter((row) => row.state === "unknown");
   return (
-    <div className="space-y-1.5 text-sm" data-tour="skill-improvement-check-estimate">
+    <div className="space-y-1.5 text-sm">
       <p>
         {t("agents", {
           count: runs.length,

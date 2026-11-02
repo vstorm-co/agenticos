@@ -110,6 +110,7 @@ describe("ImprovementsWaitingWidget", () => {
     expect(screen.queryByText("Nothing waiting")).not.toBeInTheDocument();
     state.isLoading = false;
     state.error = new Error("Unavailable");
+    skills.error = new Error("Unavailable");
     view.rerender(
       <TooltipProvider>
         <ImprovementsWaitingWidget title="Improvements waiting for you" hint="" period={PERIOD} />
@@ -158,12 +159,44 @@ describe("ImprovementsWaitingWidget", () => {
     );
   });
 
-  it("retries both reads when the skills' fails", async () => {
+  it("keeps the agents' sessions listed when the skills' read fails", async () => {
+    state.sessions = [waiting({})];
     skills.error = new Error("Unavailable");
     widget();
 
-    await userEvent.click(screen.getByRole("button", { name: /try again|retry/i }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("Skill sessions could not be read.");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(state.refetch).toHaveBeenCalled();
     expect(skills.refetch).toHaveBeenCalled();
+  });
+
+  it("says the agents' read failed under the skills' sessions", () => {
+    state.error = new Error("Unavailable");
+    state.sessions = [waiting({})];
+    widget();
+
+    expect(screen.getByText("Nothing waiting")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Agent sessions could not be read.");
+  });
+
+  it("names a fork called main as a fork", () => {
+    skills.sessions = [
+      {
+        id: "k9",
+        skill_id: "sk1",
+        skill_name: "returns-policy",
+        fork_id: "f1",
+        line_name: "main",
+        status: "ready",
+        stage: null,
+        iteration: 1,
+        max_iterations: 3,
+        created_at: "2026-10-28T10:00:00Z",
+      },
+    ];
+    widget();
+
+    expect(screen.getByRole("link", { name: "returns-policy · fork “main”" })).toBeVisible();
   });
 });

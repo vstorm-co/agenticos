@@ -13,6 +13,13 @@ const state = vi.hoisted(() => ({
   tab: null as string | null,
   show: null as string | null,
   push: vi.fn(),
+  runsView: true,
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can: (permission: string) => permission === "runs:view" && state.runsView,
+    isLoading: false,
+  }),
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -169,6 +176,7 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.runsView = true;
   state.tab = null;
   state.show = null;
   skill.canEdit = true;
@@ -363,5 +371,13 @@ describe("SkillPage's Improve", () => {
       "href",
       "/skills/s1/improve/new?fork=f1",
     );
+  });
+
+  it("leaves Improve out for an editor who may not read runs", async () => {
+    state.runsView = false;
+    await mount();
+
+    expect(await screen.findByText("v12 · main")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Improve" })).toBeNull();
   });
 });

@@ -673,12 +673,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "skill-edit", page: SKILL_DETAIL, target: "skill-edit", permission: Perm.skillsView },
-  // Improve is drawn only for an editor of this skill, which a role cannot tell.
+  // Improve is drawn only for an editor of this skill, which a role cannot tell,
+  // who may also read the runs it learns from.
   {
     id: "skill-improve",
     page: SKILL_DETAIL,
     target: "skill-improve",
-    permission: Perm.skillsEdit,
+    permission: Perm.runsView,
     optional: true,
   },
   {
@@ -701,6 +702,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: SKILL_IMPROVEMENT_START,
     target: "skill-improvement-start",
     permission: Perm.skillsEdit,
+    optional: true,
   },
   {
     id: "skill-improvement-steps",

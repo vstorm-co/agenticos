@@ -32,8 +32,8 @@ export function SkillUnderstand({ session }: { session: SkillImprovement }) {
         </p>
       )}
       <ul className="space-y-3">
-        {problems.problems.map((problem) => (
-          <Problem key={problem.title} problem={problem} />
+        {problems.problems.map((problem, index) => (
+          <Problem key={index} problem={problem} />
         ))}
       </ul>
     </section>
