@@ -23,9 +23,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - The message of a turn a guardrail stopped is no longer replayed to the model in later turns' history. Each check reads only what is new in its own turn, so the message of a `guardrail_blocked` run was read back as history on the next turn, with the text that was typed and the head of each attached file (or the whole file for an agent without a workspace). A harmless follow-up could then get refused content past the input check. The history that web chat, the API, channels, the widget, workflows and a voice call's seed build now shows the model a short note in place of that message, whichever check stopped the turn, and a reply that quotes it quotes the note. A stopped turn also no longer keeps what its files added to the prompt. The person's own transcript still shows what they typed. The filter also applies to conversations from before the upgrade: migration `0248_drop_refused_turn_summaries` drops each stored conversation summary that reaches past such a message, so the next turn rebuilds its history from the transcript and pays for one new summary if it needs one; turns beyond the recent window that only the dropped summary recalled are no longer read back. Search over past conversations (`conversation_search`) does not filter these messages yet.
 
+## [1.34.3] - 2026-11-02
+
 ### Fixed
 
 - CI, load tests and dependency freshness checks disable deployment diagnostics so ephemeral test installations and browser activity do not enter the live analytics collector.
+- Parallel integration tests synchronize quota audit pool exhaustion and scope listener probes and connection termination to their own database, avoiding load-dependent pool timeouts and interference between pytest workers.
 
 ## [1.34.2] - 2026-11-01
 
@@ -1689,7 +1692,6 @@ Two things are versioned separately from this file and worth knowing about:
   history and the chat's tool row. The row says which kind of picture it
   was instead.
 
-
 ## [1.30.0] - 2026-10-30
 
 ### Added
@@ -1714,7 +1716,6 @@ Two things are versioned separately from this file and worth knowing about:
   Model** beside it, which opens the Model card on the Build tab.
 
 ### Fixed
-
 
 - Architect highlighting follows locale-cookie redirects and skips controls
   hidden by a responsive stylesheet.
@@ -19653,7 +19654,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.27.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...HEAD
+[1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3
 [1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0
 [1.25.0]: https://github.com/vstorm-co/agenticos/compare/v1.24.0...v1.25.0
