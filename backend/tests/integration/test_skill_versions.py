@@ -6,6 +6,8 @@ skill's history and its agents read - checked here rather than through mocks,
 because numbering, the tenant keys and the cascades are the database's to enforce.
 """
 
+import asyncio
+import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -13,7 +15,7 @@ from typing import Any
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -31,6 +33,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.skill_version import SkillFile, SkillFork, SkillVersion, SkillVersionSource
+from app.repositories import skill_repo, skill_version_repo
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import (
@@ -411,6 +414,67 @@ class TestForks:
         assert [
             item.id for item in (await versions.list_forks(ctx, skill.id, archived=True)).items
         ] == [read.id]
+
+    @pytest.mark.parametrize("change", ["rename", "edit", "archive"])
+    async def test_a_fork_change_takes_the_skill_before_the_fork(
+        self, db: AsyncSession, engine: AsyncEngine, change: str
+    ):
+        """Applying a proposal to a fork locks the skill, then the fork.
+
+        Held here half-way, with the skill locked: a change that locked the fork
+        first would hold it while waiting for the skill, and the apply's turn for
+        the fork would deadlock.
+        """
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        read = await self._fork(db, ctx, skill)
+        await db.commit()
+        changes = {
+            "rename": lambda versions: versions.rename_fork(
+                ctx, skill.id, read.id, SkillForkUpdate(name="eu")
+            ),
+            "edit": lambda versions: versions.edit(
+                ctx,
+                skill.id,
+                SkillVersionCreate(
+                    fork_id=read.id,
+                    base_version_id=read.base.id,
+                    description=skill.description,
+                    content="Returns only.",
+                ),
+            ),
+            "archive": lambda versions: versions.archive_fork(ctx, skill.id, read.id),
+        }
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def change_fork() -> None:
+            async with factory() as session:
+                await changes[change](SkillVersionService(session))
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as applying:
+            try:
+                await skill_repo.lock(applying, skill.id)
+                task = asyncio.create_task(change_fork())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await skill_version_repo.get_fork(
+                    applying,
+                    read.id,
+                    organization_id=ctx.organization_id,
+                    skill_id=skill.id,
+                    lock=True,
+                )
+                await applying.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     async def test_restoring_a_fork_version_stays_on_the_fork(self, db):
         ctx = await _owner(db)
