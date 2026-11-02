@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "451c03b6ffbc"
 ---
 
 # Skills { #skills }
@@ -327,6 +327,14 @@ para editar el agent, el cambio espera en el borrador. Un Builder ya abierto en 
 agent no ve el cambio hasta que se recarga, y guardar antes vuelve a poner el
 vínculo anterior.
 
+**Por detrás de main.** Que main avance no mueve a un agent fijado ni a un fork:
+nada se pone al día solo, porque ponerse al día cuesta una comprobación en los
+agents que mueve. `GET /api/v1/skills/behind-main` lista los agents fijados y los
+forks que main ha dejado atrás, en toda la organización, primero los que están más
+atrás. Un agent fijado cuenta por lo que sirve su entorno por defecto, y un fork
+solo mientras algún agent lo lee. Los skills que no puedes ver se omiten, y los
+agents fijados que no ves se cuentan, sin nombrarlos.
+
 ### Borrar un skill { #deleting-a-skill }
 
 Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borrador
@@ -345,6 +353,7 @@ cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Cambia el nombre de un fork o lo archiva |
 | `GET /api/v1/skills/{id}/agents` | Los agents del skill, la versión que lee cada uno y cuántos están ocultos |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Mueve un agent a main, a una versión de main o a un fork |
+| `GET /api/v1/skills/behind-main` | Los agents fijados y los forks que main ha dejado atrás, en toda la organización |
 
 ## Cómo llegan los skills a una organización { #getting-skills-into-an-organization }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "451c03b6ffbc"
 ---
 
 # Skills { #skills }
@@ -345,6 +345,15 @@ nur zu bearbeiten, wartet die Änderung im Entwurf. Ein bereits auf dem Agent
 geöffneter Builder sieht die Änderung erst nach dem Neuladen, und ein Speichern
 davor stellt die alte Bindung wieder her.
 
+**Hinter main.** Wenn main weitergeht, bewegt das weder einen festgesetzten Agent
+noch einen Fork: Nichts holt von selbst auf, denn Aufholen kostet eine Prüfung auf
+den Agents, die es bewegt. `GET /api/v1/skills/behind-main` listet die festgesetzten
+Agents und die Forks, an denen main vorbeigezogen ist, über die ganze Organisation,
+die am weitesten zurückliegenden zuerst. Ein festgesetzter Agent zählt nach dem, was
+seine Standardumgebung ausliefert, ein Fork nur, solange ein Agent ihn liest.
+Skills, die du nicht sehen darfst, fehlen, und festgesetzte Agents, die du nicht
+siehst, werden gezählt, nicht genannt.
+
 ### Einen Skill löschen { #deleting-a-skill }
 
 Ein Skill, den ein Agent verwendet, lässt sich nicht löschen. Das ist ein Skill,
@@ -364,6 +373,7 @@ den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Benennt einen Fork um oder archiviert ihn |
 | `GET /api/v1/skills/{id}/agents` | Die Agents des Skills, die Version, die jeder liest, und wie viele verborgen sind |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Verschiebt einen Agent auf main, eine Main-Version oder einen Fork |
+| `GET /api/v1/skills/behind-main` | Festgesetzte Agents und Forks, an denen main vorbeigezogen ist, über die ganze Organisation |
 
 ## Skills in eine Organisation bekommen { #getting-skills-into-an-organization }
 

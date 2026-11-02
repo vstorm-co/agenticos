@@ -1,5 +1,5 @@
 ---
-source_sha: "7114c0b3ea9f"
+source_sha: "451c03b6ffbc"
 ---
 
 # Skille { #skills }
@@ -318,6 +318,14 @@ pozostałe niedokończone edycje, które nie wchodzą. Z samym prawem edycji age
 zmiana czeka w wersji roboczej. Builder otwarty już na tym agencie nie widzi zmiany
 do odświeżenia, a zapis przed odświeżeniem przywraca stare wiązanie.
 
+**W tyle za main.** To, że main idzie dalej, nie przesuwa przypiętego agenta ani
+forka: nic nie nadgania samo, bo nadganianie kosztuje sprawdzenie na agentach, które
+przesuwa. `GET /api/v1/skills/behind-main` wypisuje przypiętych agentów i forki, które
+main wyprzedził, w całej organizacji, od najdalej w tyle. Przypięty agent jest
+liczony według tego, co serwuje jego domyślne środowisko, a fork tylko wtedy, gdy
+czyta go jakiś agent. Skille, których nie możesz zobaczyć, są pominięte, a
+przypięci agenci, których nie widzisz, są policzeni, a nie nazwani.
+
 ### Usuwanie skilla { #deleting-a-skill }
 
 Skilla, którego używa agent, nie można usunąć. Chodzi o skill związany przez
@@ -337,6 +345,7 @@ jego wersjami i forkami.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Zmienia nazwę forka albo go archiwizuje |
 | `GET /api/v1/skills/{id}/agents` | Agenci skilla, wersja, którą czyta każdy z nich, i liczba ukrytych |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Przesuwa agenta na main, wersję main albo fork |
+| `GET /api/v1/skills/behind-main` | Przypięci agenci i forki, które main wyprzedził, w całej organizacji |
 
 ## Jak skille trafiają do organizacji { #getting-skills-into-an-organization }
 

@@ -309,6 +309,14 @@ agent only, the change waits in the draft. A Builder already open on the agent d
 not see the change until it is reloaded, and saving it before then puts the old
 binding back.
 
+**Behind main.** Main moving on does not move a pinned agent or a fork: nothing
+catches up by itself, because catching up costs a check on the agents it moves.
+`GET /api/v1/skills/behind-main` lists the pinned agents and the forks that main has
+moved past, across the organization, furthest behind first. A pinned agent is
+listed by what its default environment serves, and a fork only while an agent
+reads it. Skills you cannot view are left out, and pinned agents you cannot see
+are counted, not named.
+
 ### Deleting a skill
 
 A skill that an agent uses cannot be deleted. That is a skill bound by a live
@@ -327,6 +335,7 @@ others. A skill that nobody uses is deleted with its versions and forks.
 | `PATCH /api/v1/skills/{id}/forks/{fork_id}`, `POST …/archive` | Renames a fork, or archives it |
 | `GET /api/v1/skills/{id}/agents` | The skill's agents, the version each reads, and how many are hidden |
 | `PUT /api/v1/skills/{id}/agents/{agent_id}/binding` | Moves an agent to main, a main version or a fork |
+| `GET /api/v1/skills/behind-main` | Pinned agents and forks that main has moved past, across the organization |
 
 ## Getting skills into an organization
 
