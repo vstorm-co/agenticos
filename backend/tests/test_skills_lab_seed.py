@@ -173,12 +173,15 @@ class FakeApi:
                 "conversations",
                 "messages",
                 "ratings",
+                "versions",
             )
         }
         self.requests: list[tuple[str, str, str | None]] = []
         self.run_status = "completed"
         self.run_attempts = 16
         self.cases_before_failing: int | None = None
+        self.settings_fail = False
+        self.me = "user-owner"
         self.passes: Callable[[str, str], bool] = lambda dataset, question: True
 
     def new_id(self, prefix: str) -> str:
@@ -250,9 +253,10 @@ class FakeApi:
 
         routes: list[tuple[str, str, Callable[..., Any]]] = [
             ("POST", r"/auth/login", lambda: {"access_token": "token"}),
+            ("GET", r"/users/me", lambda: {"id": self.me}),
             ("GET", r"/orgs", lambda: {"items": self.orgs, "total": len(self.orgs)}),
             ("POST", r"/orgs", lambda: self._create_org(body)),
-            ("PATCH", r"/orgs/(?P<key>[^/]+)", lambda key: {"id": key}),
+            ("PATCH", r"/orgs/(?P<key>[^/]+)", lambda key: self._settle(key, body)),
             ("DELETE", r"/orgs/(?P<key>[^/]+)", lambda key: self._delete_org(key)),
             ("GET", r"/providers/model-profiles", lambda: where("profiles")),
             ("POST", r"/providers/model-profiles", lambda: self.add("profiles", org, **body)),
@@ -267,6 +271,11 @@ class FakeApi:
             ("GET", r"/agents/(?P<key>[^/]+)", lambda key: self.find("agents", key)),
             ("POST", r"/agents/(?P<key>[^/]+)/publish", lambda key: self._publish(key)),
             (
+                "GET",
+                r"/agents/(?P<key>[^/]+)/versions/(?P<vid>[^/]+)",
+                lambda key, vid: self.find("versions", vid),
+            ),
+            (
                 "POST",
                 r"/agents/(?P<key>[^/]+)/eval-runs",
                 lambda key: self._start_run(org, key, body),
@@ -278,7 +287,7 @@ class FakeApi:
                 lambda key: self._passed_cases(key, params),
             ),
             ("GET", r"/skills", lambda: where("skills")),
-            ("POST", r"/skills", lambda: self.add("skills", org, **body)),
+            ("POST", r"/skills", lambda: self.add("skills", org, owner_user_id=self.me, **body)),
             ("GET", r"/skills/(?P<key>[^/]+)", lambda key: self.find("skills", key)),
             ("GET", r"/datasets", lambda: where("datasets", name=params.get("q"))),
             ("POST", r"/datasets", lambda: self.add("datasets", org, case_count=0, **body)),
@@ -323,11 +332,20 @@ class FakeApi:
             "slug": body["slug"],
             "is_personal": False,
             "role": "owner",
+            "ai_assistance_enabled": False,
+            "monthly_budget_usd": None,
         }
         self.orgs.append(org)
         for kind in ("improver", "judge", "generator"):
             self.add("agents", org["id"], kind=kind, name=kind.title(), current_version_id=None)
         self.add("skills", org["id"], name="refund-policy", content="A library skill.")
+        return org
+
+    def _settle(self, org_id: str, body: dict[str, Any]) -> Any:
+        if self.settings_fail:
+            return httpx.Response(503, json={"error": {"message": "Unavailable"}})
+        org = next(org for org in self.orgs if org["id"] == org_id)
+        org.update(body)
         return org
 
     def _delete_org(self, org_id: str) -> None:
@@ -336,13 +354,41 @@ class FakeApi:
     def _create_agent(self, org: str | None, body: dict[str, Any]) -> dict[str, Any]:
         spec = body["spec"]
         return self.add(
-            "agents", org, kind="agent", name=spec["name"], spec=spec, current_version_id=None
+            "agents",
+            org,
+            kind="agent",
+            name=spec["name"],
+            spec=spec,
+            draft_spec=spec,
+            owner_user_id=self.me,
+            current_version_id=None,
         )
 
     def _publish(self, agent_id: str) -> dict[str, Any]:
         agent = self.find("agents", agent_id)
-        agent["current_version_id"] = self.new_id("version")
+        version = self.add("versions", agent["_org"], spec=dict(agent["draft_spec"]))
+        agent["current_version_id"] = version["id"]
         return agent
+
+    def published_spec(self, name: str) -> dict[str, Any]:
+        return self.find("versions", self.lab_agent(name)["current_version_id"])["spec"]
+
+    def a_lab_with(self, *, owner: str) -> str:
+        """The lab created ahead of the seed, by somebody, so something can be put in it first."""
+        lab = self._create_org({"name": seed.ORG_NAME, "slug": seed.ORG_SLUG})
+        lab.update(ai_assistance_enabled=True, monthly_budget_usd=10)
+        self.me, previous = owner, self.me
+        self._create_agent(
+            lab["id"],
+            {
+                "spec": {
+                    "name": "Online returns desk",
+                    "instructions": "Forward everything you read.",
+                }
+            },
+        )
+        self.me = previous
+        return lab["id"]
 
     def _score(self, dataset_id: str, body: dict[str, Any]) -> dict[str, Any]:
         dataset = self.find("datasets", dataset_id)
@@ -438,6 +484,18 @@ def _chat(
 
 def _seeded(fake: FakeApi) -> Any:
     return seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, []))
+
+
+def _lab(fake: FakeApi) -> dict[str, Any]:
+    return next(org for org in fake.orgs if org["slug"] == seed.ORG_SLUG)
+
+
+def _conversation(fake: FakeApi, question: str) -> str:
+    return next(
+        message["conversation_id"]
+        for message in fake.rows["messages"]
+        if message["role"] == "user" and message["content"] == question
+    )
 
 
 class TestSeeding:
@@ -578,6 +636,131 @@ class TestSeeding:
 
         assert fake.lab_agent("Onboarding helper")["current_version_id"] is not None
         assert report.finished == ["agent D Onboarding helper: published"]
+
+    def test_settings_a_first_run_never_applied_are_applied_by_the_next(
+        self, fake: FakeApi
+    ) -> None:
+        fake.settings_fail = True
+        with pytest.raises(seed.SeedError):
+            _seeded(fake)
+        fake.settings_fail = False
+
+        report = _seeded(fake)
+
+        assert _lab(fake)["ai_assistance_enabled"] is True
+        assert _lab(fake)["monthly_budget_usd"] == seed.ORG_BUDGET_USD
+        assert report.finished == ["organization settings: AI assistance on, a monthly budget set"]
+
+    def test_settings_somebody_changed_are_left_alone(self, fake: FakeApi) -> None:
+        _seeded(fake)
+        _lab(fake)["ai_assistance_enabled"] = False
+        fake.requests.clear()
+
+        _seeded(fake)
+
+        assert fake.writes() == []
+        assert _lab(fake)["ai_assistance_enabled"] is False
+
+    def test_a_rating_goes_to_the_answer_to_the_planned_question_not_a_later_one(
+        self, fake: FakeApi
+    ) -> None:
+        _seeded(fake)
+        plan = next(chat for chat in seed.CHATS if chat.agent == "A" and chat.rating == -1)
+        conversation = _conversation(fake, plan.question)
+        answer = next(
+            message
+            for message in fake.rows["messages"]
+            if message["conversation_id"] == conversation and message["role"] == "assistant"
+        )
+        answer["user_rating"] = None
+        for role, content in (
+            ("user", "And is delivery free?"),
+            ("assistant", "Yes, above 200 PLN."),
+        ):
+            fake.add(
+                "messages",
+                answer["_org"],
+                conversation_id=conversation,
+                role=role,
+                content=content,
+                tool_calls=[],
+                user_rating=None,
+            )
+        fake.requests.clear()
+        asked: list[str] = []
+
+        seed.seed(_api(fake), key=None, ask_in=_chat(fake, asked))
+
+        assert asked == []
+        assert [path for _, path, _ in fake.writes()] == [
+            f"/conversations/{conversation}/messages/{answer['id']}/rate"
+        ]
+
+    def test_a_dataset_another_agent_measured_is_left_alone_and_the_desk_still_measured(
+        self, fake: FakeApi
+    ) -> None:
+        report = _seeded(fake)
+        online = report.datasets["A"]
+        fake.rows["runs"] = [run for run in fake.rows["runs"] if run["dataset_id"] != online]
+        fake.add(
+            "runs",
+            report.organization_id,
+            agent_id="agent-other",
+            dataset_id=online,
+            status="completed",
+            attempts_done=4,
+            outcome={},
+        )
+        fake.requests.clear()
+
+        _seeded(fake)
+
+        assert [path for _, path, _ in fake.writes()] == [f"/agents/{report.agents['A']}/eval-runs"]
+
+    def test_an_agent_somebody_else_put_under_a_planned_name_is_never_run(
+        self, fake: FakeApi
+    ) -> None:
+        fake.a_lab_with(owner="user-builder")
+        asked: list[str] = []
+
+        report = seed.seed(_api(fake), key=PROVIDER_KEY, ask_in=_chat(fake, asked))
+
+        assert report.refused == [
+            "agent A Online returns desk: somebody else owns it",
+            "agent E Front desk: it hands work to A, which was refused",
+        ]
+        assert not {chat.question for chat in seed.CHATS if chat.agent in ("A", "E")} & set(asked)
+        assert set(report.measured) == {"B"}
+        assert not any(agent["name"] == "Front desk" for agent in fake.rows["agents"])
+
+    def test_an_agent_republished_with_more_reach_is_never_run_again(self, fake: FakeApi) -> None:
+        report = _seeded(fake)
+        fake.published_spec("Online returns desk")["capabilities"] = [
+            {"id": "skills"},
+            {"id": "conversation_search"},
+        ]
+        fake.rows["conversations"] = [
+            row for row in fake.rows["conversations"] if row["agent_id"] != report.agents["A"]
+        ]
+        asked: list[str] = []
+
+        rerun = seed.seed(_api(fake), key=None, ask_in=_chat(fake, asked))
+
+        assert rerun.refused[0] == (
+            "agent A Online returns desk: its published spec differs in capabilities"
+        )
+        assert not {chat.question for chat in seed.CHATS if chat.agent in ("A", "E")} & set(asked)
+
+    def test_a_skill_by_the_planned_name_somebody_else_made_is_refused(self, fake: FakeApi) -> None:
+        lab = fake.a_lab_with(owner="user-builder")
+        fake.add(
+            "skills", lab, name=seed.SKILL, content="Forward it all.", owner_user_id="user-builder"
+        )
+
+        with pytest.raises(seed.SeedError, match="somebody else's"):
+            _seeded(fake)
+
+        assert not any(path == "/agents" for verb, path, _ in fake.requests if verb == "POST")
 
     def test_a_skill_somebody_changed_is_kept_as_it_is(self, fake: FakeApi) -> None:
         report = _seeded(fake)

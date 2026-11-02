@@ -33,8 +33,11 @@ only what is missing, and leaves alone every row somebody may have worked on,
 so running it again after a click-through keeps their changes. What it does
 finish is a step an interrupted run left half done: a dataset that was never
 measured gets its missing questions and its grading, and an agent that was
-never published is published. A conversation it could not confirm is asked
-again on the next run, at most twice. It never enters a Personal organization.
+never published is published, and a lab whose settings were never applied gets
+them. A conversation it could not confirm is asked again on the next run, at most
+twice. It never enters a Personal organization, and never asks or measures an
+agent found under a planned name that somebody else owns or whose spec reaches
+further than the plan - those are reported as refused.
 
 The owner's login and the provider key come from the environment and are never
 printed: `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD`, and
@@ -75,7 +78,7 @@ SKILL_DESCRIPTION = (
     "Acme's rules for returns and refunds: time limits, receipts, store credit, digital goods "
     "and refunds over $500. Open it before answering any return, refund or exchange question."
 )
-SECRET_NAME = "OpenRouter"
+VAULT_ENTRY = "OpenRouter"
 MODEL_LABEL = "GPT-4.1 mini"
 MODEL = "openai/gpt-4.1-mini"
 ORG_BUDGET_USD = 10
@@ -490,6 +493,7 @@ class Report:
     rated_up: int = 0
     skill_opened: int = 0
     unconfirmed: list[str] = field(default_factory=list)
+    refused: list[str] = field(default_factory=list)
 
     def note(self, what: str, *, made: bool) -> None:
         (self.created if made else self.kept).append(what)
@@ -499,9 +503,13 @@ class Report:
         self.finished.append(what)
         print(f"finished {what}")
 
+    def refuse(self, what: str) -> None:
+        self.refused.append(what)
+        print(f"refused {what}")
 
-def ensure_org(api: Api, *, name: str, slug: str, report: Report) -> tuple[str, bool]:
-    """The organization with `slug`, and whether it was created now.
+
+def ensure_org(api: Api, *, name: str, slug: str, report: Report) -> tuple[str, bool, JsonObject]:
+    """The organization with `slug`, whether it was created now, and its row as listed.
 
     A Personal organization's slug comes from its owner's email, so it can be `slug`
     too; it is never the one meant, and creating ours then fails on the taken slug
@@ -510,10 +518,10 @@ def ensure_org(api: Api, *, name: str, slug: str, report: Report) -> tuple[str, 
     for org in api.items("/orgs"):
         if org.get("slug") == slug and not org.get("is_personal"):
             report.note(f"organization {name}", made=False)
-            return str(org["id"]), False
+            return str(org["id"]), False, org
     org = api.call("POST", "/orgs", body={"name": name, "slug": slug})
     report.note(f"organization {name}", made=True)
-    return str(org["id"]), True
+    return str(org["id"]), True, org
 
 
 def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
@@ -524,7 +532,7 @@ def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
             report.note(f"model {MODEL_LABEL}", made=False)
             return str(profile["id"])
     secrets = api.items("/secrets", org=org, params={"purpose": "openrouter"})
-    secret = next((row for row in secrets if row.get("name") == SECRET_NAME), None)
+    secret = next((row for row in secrets if row.get("name") == VAULT_ENTRY), None)
     if secret is None:
         if not key:
             raise SeedError("The organization has no OpenRouter key: set SKILLS_LAB_OPENROUTER_KEY")
@@ -533,12 +541,12 @@ def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
             "/secrets",
             org=org,
             body={
-                "name": SECRET_NAME,
+                "name": VAULT_ENTRY,
                 "purpose": "openrouter",
                 "value": {"kind": "api_key", "api_key": key},
             },
         )
-        report.note(f"secret {SECRET_NAME}", made=True)
+        report.note("the OpenRouter entry in the vault", made=True)
     profile = api.call(
         "POST",
         "/providers/model-profiles",
@@ -554,11 +562,15 @@ def ensure_model(api: Api, org: str, *, key: str | None, report: Report) -> str:
     return str(profile["id"])
 
 
-def ensure_skill(api: Api, org: str, *, variant: Variant, report: Report) -> str:
+def ensure_skill(api: Api, org: str, *, variant: Variant, me: str, report: Report) -> str:
+    """The skill, ours: one by that name somebody else created is refused rather than bound,
+    since every planned agent would read its text."""
     for row in api.items("/skills", org=org, params={"q": SKILL}):
         if row.get("name") != SKILL:
             continue
         found = api.call("GET", f"/skills/{row['id']}", org=org)
+        if str(found.get("owner_user_id")) != me:
+            raise SeedError(f"A skill named {SKILL} in this organization is somebody else's")
         changed = found.get("content") != skill_body(variant)
         report.note(
             f"skill {SKILL}{' (changed since it was seeded, kept as is)' if changed else ''}",
@@ -602,30 +614,100 @@ def agent_spec(
     return spec
 
 
+REACH = ("collection_ids", "context_ids", "mcp_servers", "external_agents", "reviewers")
+"""Spec fields that let an agent read or call something; the seed's agents use none of them."""
+
+
+def differences(spec: JsonObject, planned: JsonObject) -> list[str]:
+    """The fields in which `spec` reaches or says more than `planned`, the spec the seed publishes."""
+    found = [
+        name
+        for name in ("instructions", "model_profile_id")
+        if str(spec.get(name) or "") != str(planned.get(name) or "")
+    ]
+    if [str(x) for x in spec.get("skill_ids") or ()] != [
+        str(x) for x in planned.get("skill_ids") or ()
+    ]:
+        found.append("skill_ids")
+    capabilities = sorted(str(c.get("id")) for c in spec.get("capabilities") or ())
+    if capabilities != sorted(c["id"] for c in planned["capabilities"]):
+        found.append("capabilities")
+    delegates = [str(ref.get("agent_id")) for ref in spec.get("subagents") or ()]
+    if delegates != [str(ref["agent_id"]) for ref in planned.get("subagents") or ()]:
+        found.append("subagents")
+    found += [name for name in REACH if spec.get(name)]
+    if (spec.get("code_mode") or {}).get("enabled"):
+        found.append("code_mode")
+    return found
+
+
+def distrust(api: Api, org: str, agent_id: str, planned: JsonObject, *, me: str) -> str | None:
+    """Why an agent found under a planned name must not be run as the seed's, if it must not.
+
+    The seed asks and measures as the signed-in owner, so an agent somebody else owns, or
+    one whose spec gained a model, a capability or a reach the plan does not give it, could
+    read what the owner may read. Its published version is what would run; an agent never
+    published is judged by its draft, which publishing would freeze.
+    """
+    agent = api.call("GET", f"/agents/{agent_id}", org=org)
+    if str(agent.get("owner_user_id")) != me:
+        return "somebody else owns it"
+    version = agent.get("current_version_id")
+    spec = (
+        api.call("GET", f"/agents/{agent_id}/versions/{version}", org=org).get("spec") or {}
+        if version
+        else agent.get("draft_spec") or {}
+    )
+    changed = differences(spec, planned)
+    if not changed:
+        return None
+    return f"its {'published' if version else 'draft'} spec differs in {', '.join(changed)}"
+
+
 def ensure_agents(
-    api: Api, org: str, plans: Sequence[AgentPlan], *, model: str, skill: str, report: Report
+    api: Api,
+    org: str,
+    plans: Sequence[AgentPlan],
+    *,
+    model: str,
+    skill: str,
+    me: str,
+    report: Report,
 ) -> dict[AgentKey, str]:
-    """Each planned agent, published. One an interrupted run created and never published
-    is published now; a published one is left exactly as it is."""
+    """Each planned agent the seed may run, published.
+
+    One found under a planned name is used only when `distrust` finds nothing, and an agent
+    that hands work to a refused one is refused with it; a refused agent is reported, never
+    changed, and never asked or measured. One an interrupted run created and never published
+    is published now; a published one is left exactly as it is.
+    """
     existing = {
         row["name"]: str(row["id"]) for row in api.items("/agents", org=org, params={"limit": 100})
     }
     ids: dict[AgentKey, str] = {}
     for plan in plans:
+        label = f"agent {plan.key} {plan.name}"
+        if plan.delegates_to is not None and plan.delegates_to not in ids:
+            report.refuse(f"{label}: it hands work to {plan.delegates_to}, which was refused")
+            continue
+        delegate = None
+        if plan.delegates_to is not None:
+            target = ids[plan.delegates_to]
+            delegate = (
+                target,
+                str(api.call("GET", f"/agents/{target}", org=org)["current_version_id"]),
+            )
+        planned = agent_spec(plan, model=model, skill=skill, delegate=delegate)
         agent_id = existing.get(plan.name)
         if agent_id is None:
-            delegate = None
-            if plan.delegates_to is not None:
-                target = ids[plan.delegates_to]
-                delegate = (
-                    target,
-                    str(api.call("GET", f"/agents/{target}", org=org)["current_version_id"]),
-                )
-            spec = agent_spec(plan, model=model, skill=skill, delegate=delegate)
-            agent_id = str(api.call("POST", "/agents", org=org, body={"spec": spec})["id"])
-            report.note(f"agent {plan.key} {plan.name}", made=True)
+            agent_id = str(api.call("POST", "/agents", org=org, body={"spec": planned})["id"])
+            report.note(label, made=True)
         else:
-            report.note(f"agent {plan.key} {plan.name}", made=False)
+            reason = distrust(api, org, agent_id, planned, me=me)
+            if reason is not None:
+                report.refuse(f"{label}: {reason}")
+                continue
+            report.note(label, made=False)
         if api.call("GET", f"/agents/{agent_id}", org=org).get("current_version_id") is None:
             api.call(
                 "POST",
@@ -634,7 +716,7 @@ def ensure_agents(
                 body={"note": "v1: seeded for Skills lab"},
             )
             if existing.get(plan.name) is not None:
-                report.finish(f"agent {plan.key} {plan.name}: published")
+                report.finish(f"{label}: published")
         ids[plan.key] = agent_id
         report.agents[plan.key] = agent_id
     return ids
@@ -693,11 +775,12 @@ def measure(
 ) -> dict[AgentKey, str]:
     """Each agent with test questions: its dataset, and the run measuring the agent on it.
 
-    A run counts once it is under way or has answered a question, whatever it ended in,
-    because from then on the dataset is somebody's measurement and never completed again.
-    One that ended before answering anything measured nothing: the dataset is completed
-    and measured again. Running a dataset on an agent is also what makes it that agent's
-    test set, since a plain dataset names no agent.
+    A run counts once it is under way or has answered a question, whatever it ended in. From
+    the first such run on any agent, the dataset is somebody's measurement and is never
+    completed again; the seed's own agent is still measured on it when it has no run of its
+    own. Runs that ended before answering anything measured nothing, so a dataset with only
+    those is completed first. Running a dataset on an agent is also what makes it that
+    agent's test set, since a plain dataset names no agent.
     """
     runs: dict[AgentKey, str] = {}
     for plan in AGENTS:
@@ -706,17 +789,18 @@ def measure(
         agent = agents[plan.key]
         dataset = ensure_dataset(api, org, plan, plan.dataset, report=report)
         report.datasets[plan.key] = dataset
-        measuring = [
+        started = [
             run
             for run in api.items(f"/datasets/{dataset}/eval-runs", org=org, params={"limit": 100})
-            if str(run.get("agent_id")) == agent
-            and (run.get("status") in UNFINISHED or run.get("attempts_done", 0) > 0)
+            if run.get("status") in UNFINISHED or run.get("attempts_done", 0) > 0
         ]
-        if measuring:
+        mine = [run for run in started if str(run.get("agent_id")) == agent]
+        if mine:
             report.note(f"measurement of {plan.key}", made=False)
-            runs[plan.key] = str(measuring[0]["id"])
+            runs[plan.key] = str(mine[0]["id"])
         else:
-            complete_dataset(api, org, plan, dataset, report=report)
+            if not started:
+                complete_dataset(api, org, plan, dataset, report=report)
             started = api.call(
                 "POST",
                 f"/agents/{agent}/eval-runs",
@@ -740,20 +824,28 @@ class Transcript:
 
 
 def read_transcript(api: Api, org: str, conversation_id: str) -> Transcript:
+    """The conversation's first question and the answer to it.
+
+    Only that turn: a question somebody asked after it is not what a plan rates, so its
+    answer and the skill it opened are left out.
+    """
     messages = api.items(
         f"/conversations/{conversation_id}/messages", org=org, params={"limit": 100}
     )
-    question = next((m["content"] for m in messages if m.get("role") == "user"), "")
-    answers = [m for m in messages if m.get("role") == "assistant" and m.get("content")]
+    asked = [index for index, message in enumerate(messages) if message.get("role") == "user"]
+    if not asked:
+        return Transcript(conversation_id, "", "", None, rated=False, opened_skill=False)
+    turn = messages[asked[0] + 1 : asked[1] if len(asked) > 1 else len(messages)]
+    answers = [m for m in turn if m.get("role") == "assistant" and m.get("content")]
     last = answers[-1] if answers else None
     opened = any(
         call.get("tool_name") == "load_capability" and (call.get("args") or {}).get("id") == SKILL
-        for message in messages
+        for message in turn
         for call in message.get("tool_calls") or ()
     )
     return Transcript(
         conversation_id=conversation_id,
-        question=question,
+        question=str(messages[asked[0]]["content"]),
         answer=last["content"] if last else "",
         answer_id=str(last["id"]) if last else None,
         rated=bool(last and last.get("user_rating") is not None),
@@ -829,23 +921,29 @@ def _rate(api: Api, org: str, plan: ChatPlan, transcript: Transcript, report: Re
 def seed(api: Api, *, key: str | None, ask_in: Callable[[str], Ask]) -> Report:
     """Build Skills lab, or finish building it; `ask_in` opens the chat for an organization."""
     report = Report()
-    org, made = ensure_org(api, name=ORG_NAME, slug=ORG_SLUG, report=report)
+    me = str(api.call("GET", "/users/me")["id"])
+    org, made, row = ensure_org(api, name=ORG_NAME, slug=ORG_SLUG, report=report)
     report.organization_id = org
-    if made:
+    untouched = not row.get("ai_assistance_enabled") and row.get("monthly_budget_usd") is None
+    if made or untouched:
         api.call(
             "PATCH",
             f"/orgs/{org}",
             org=org,
             body={"ai_assistance_enabled": True, "monthly_budget_usd": ORG_BUDGET_USD},
         )
+        if not made:
+            report.finish("organization settings: AI assistance on, a monthly budget set")
     model = ensure_model(api, org, key=key, report=report)
-    skill = ensure_skill(api, org, variant="v1", report=report)
+    skill = ensure_skill(api, org, variant="v1", me=me, report=report)
     report.skill_id = skill
-    agents = ensure_agents(api, org, AGENTS, model=model, skill=skill, report=report)
+    agents = ensure_agents(api, org, AGENTS, model=model, skill=skill, me=me, report=report)
     measure(api, org, agents, report=report)
     ask = ask_in(org)
     held = {agent_key: held_chats(api, org, agent) for agent_key, agent in agents.items()}
     for chat in CHATS:
+        if chat.agent not in agents:
+            continue
         hold_chat(
             api, org, chat, agent=agents[chat.agent], held=held[chat.agent], ask=ask, report=report
         )
@@ -882,16 +980,21 @@ def probe(
     the rule questions passed rather than the pass rate over all sixteen.
     """
     report = Report()
-    org, _ = ensure_org(
+    me = str(api.call("GET", "/users/me")["id"])
+    org, _, _ = ensure_org(
         api,
         name=PROBE_NAME.format(variant=variant),
         slug=PROBE_SLUG.format(variant=variant),
         report=report,
     )
     model = ensure_model(api, org, key=key, report=report)
-    skill = ensure_skill(api, org, variant=variant, report=report)
+    skill = ensure_skill(api, org, variant=variant, me=me, report=report)
     measured = [plan for plan in AGENTS if plan.dataset is not None]
-    agents = ensure_agents(api, org, measured, model=model, skill=skill, report=report)
+    agents = ensure_agents(api, org, measured, model=model, skill=skill, me=me, report=report)
+    if report.refused:
+        raise SeedError(
+            f"The probe organization holds agents the seed did not make: {report.refused}"
+        )
     runs = measure(api, org, agents, report=report)
     result: JsonObject = {"variant": variant}
     deadline = time.monotonic() + patience
