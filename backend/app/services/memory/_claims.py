@@ -30,6 +30,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.db.models.memory_claim import MemoryClaim
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
@@ -70,6 +71,17 @@ class Provenance:
     sources: list[MemoryClaim]
     withheld: int
     superseded: MemoryClaim | None
+
+
+def mutable(claim: MemoryClaim) -> bool:
+    """Whether a claim still participates in the present or a scheduled correction.
+
+    An expired predecessor may retain `current` status after a dated correction;
+    status alone must not let a stale id rewrite its successor or republish the past.
+    """
+    return claim.status in ("current", "disputed") and (
+        claim.effective_to is None or claim.effective_to > datetime.now(UTC)
+    )
 
 
 async def remember(
@@ -220,6 +232,10 @@ async def share(
     records `derived_from` the original so the origin is explainable to the people
     who may see it - and only to them (`provenance` filters the ancestry).
     """
+    if (claim.scope_key, claim.agent_id) == (to.scope_key, to.agent_id):
+        raise ConflictError(
+            message="The claim is already in that scope", details={"claim_id": claim.id}
+        )
     result = await remember(
         db,
         organization_id=claim.organization_id,

@@ -38,7 +38,7 @@ def _agent():
 
 
 def _service() -> MemoryService:
-    return MemoryService(MagicMock())
+    return MemoryService(AsyncMock())
 
 
 class TestForgettingAPerson:

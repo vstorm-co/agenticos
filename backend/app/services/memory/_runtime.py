@@ -23,7 +23,7 @@ from app.core.memory_keys import (
     organization_owner_key,
     project_owner_key,
 )
-from app.core.permissions import Perm
+from app.core.permissions import Perm, Scope
 from app.db.models.conversation import Conversation
 from app.db.models.memory_claim import MemoryClaim
 from app.db.models.project import Project
@@ -124,9 +124,6 @@ async def profile_block(*, organization_id: UUID, scopes: Sequence[ClaimScope]) 
         return _claims.profile_text(rows)
 
 
-_LIVE = ("current", "disputed")
-
-
 class ShareRefused(Exception):
     """The run's person may not write to that wider scope."""
 
@@ -155,7 +152,7 @@ async def _may_write_wide(
     if member is None:
         raise ShareRefused("Nobody who may change this is behind the run.")
     if scope_key.startswith(ORGANIZATION_PREFIX):
-        if not member.has(Perm.CONTEXT_EDIT):
+        if member.scope_for(Perm.CONTEXT_EDIT) != Scope.ALL:
             raise ShareRefused("Changing what the whole organization reads needs context:edit.")
         return
     project = await db.get(Project, UUID(scope_key.removeprefix(PROJECT_PREFIX)))
@@ -186,7 +183,7 @@ async def correct(
         if (
             claim is None
             or (claim.scope_key, claim.agent_id) not in allowed
-            or claim.status not in _LIVE
+            or not _claims.mutable(claim)
         ):
             # An id from an earlier `recall` can name a claim since corrected, merged or
             # retracted; correcting it would supersede the current one beside it.
@@ -228,7 +225,7 @@ async def share(
         if (
             claim is None
             or (claim.scope_key, claim.agent_id) not in allowed
-            or claim.status not in _LIVE
+            or not _claims.mutable(claim)
         ):
             return None
         if run_person is None:
@@ -242,6 +239,8 @@ async def share(
             if project_id is None:
                 raise ShareRefused("This conversation is not in a project.")
             target = ClaimScope(project_owner_key(project_id), None)
+        if (claim.scope_key, claim.agent_id) == (target.scope_key, target.agent_id):
+            raise ShareRefused("The claim is already in that scope.")
         await _may_write_wide(
             db, organization_id=organization_id, run_person=run_person, scope_key=target.scope_key
         )

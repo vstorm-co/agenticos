@@ -286,10 +286,12 @@ async def test_somebody_who_may_not_edit_the_project_cannot_share_into_it(
         )
 
 
+@pytest.mark.parametrize("role", ["viewer", "member", "builder"])
 async def test_reading_an_organization_claim_is_not_authority_to_rewrite_it(
     db: AsyncSession,
+    role: str,
 ) -> None:
-    user, org, agent, project, conversation = await _world(db, role="viewer")
+    user, org, agent, project, conversation = await _world(db, role=role)
     wide = ClaimScope(organization_owner_key(org.id), None)
     saved = await _remember(org, wide, "Office closes at six", user, subject="office")
     assert saved is not None
@@ -411,3 +413,56 @@ async def test_an_id_from_an_earlier_recall_cannot_correct_or_share_what_is_no_l
     assert again is None and shared is None
     live = await claim_repo.list_in_scopes(db, organization_id=org.id, scopes=[mine])
     assert [claim.statement for claim in live] == ["Launch is 5 March"]
+
+
+async def test_sharing_to_the_same_scope_cannot_create_self_ancestry(db: AsyncSession) -> None:
+    user, org, agent, project, conversation = await _world(db)
+    wide = ClaimScope(organization_owner_key(org.id), None)
+    saved = await _remember(org, wide, "Office closes at six", user, subject="office")
+    assert saved is not None
+    with pytest.raises(runtime.ShareRefused, match="already"):
+        await runtime.share(
+            organization_id=org.id,
+            claim_id=saved[0].id,
+            scopes=[wide],
+            to="organization",
+            run_person=user.id,
+            conversation_id=conversation.id,
+        )
+    row = await claim_repo.get(db, organization_id=org.id, claim_id=saved[0].id)
+    assert row is not None and row.derived_from == []
+
+
+async def test_an_expired_claim_cannot_replace_or_republish_its_successor(db: AsyncSession) -> None:
+    from datetime import timedelta
+
+    user, org, agent, project, conversation = await _world(db)
+    mine = ClaimScope(person_owner_key(user.id), agent.id)
+    saved = await _remember(org, mine, "Anna handles invoices", user)
+    assert saved is not None
+    row = await claim_repo.get(db, organization_id=org.id, claim_id=saved[0].id)
+    assert row is not None
+    row.effective_to = datetime.now(UTC) - timedelta(days=1)
+    await db.flush()
+    assert (
+        await runtime.correct(
+            organization_id=org.id,
+            claim_id=row.id,
+            scopes=[mine],
+            statement="Piotr handles invoices",
+            author_user_id=user.id,
+            effective_from=None,
+        )
+        is None
+    )
+    assert (
+        await runtime.share(
+            organization_id=org.id,
+            claim_id=row.id,
+            scopes=[mine],
+            to="organization",
+            run_person=user.id,
+            conversation_id=conversation.id,
+        )
+        is None
+    )

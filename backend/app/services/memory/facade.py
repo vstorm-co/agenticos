@@ -30,6 +30,7 @@ from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
@@ -177,7 +178,7 @@ class MemoryService:
             ConflictError: The claim is in the history.
         """
         row = await self._own_claim(ctx, claim_id)
-        if row.status not in _LIVE_STATUSES:
+        if not _claims.mutable(row):
             raise ConflictError(
                 message="That claim is in the history and cannot be changed",
                 details={"claim_id": claim_id, "status": row.status},
@@ -386,6 +387,7 @@ class MemoryService:
         """
         if ctx.user_id != user_id and not ctx.has(Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You may only erase your own memory")
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
         owner_key = person_owner_key(user_id)
         notes = await memory_repo.delete_for_person(
             self.db, organization_id=ctx.organization_id, owner_key=owner_key

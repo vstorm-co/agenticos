@@ -1,23 +1,67 @@
 """The person's own view of the ledger, through the service, against Postgres (#2090)."""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
+from app.db.models.memory_claim import MemoryClaim
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.memory import MemoryClaimCorrect
-from app.services.memory import MemoryService, claims
+from app.services.memory import MemoryService, claims, facade
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+async def test_erasure_waits_for_an_admitted_writer_and_removes_its_claim(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, ctx, _ = await _setup(db)
+    await db.commit()
+    locked, erasing = asyncio.Event(), asyncio.Event()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def erasure_lock(session: AsyncSession, scope: LockScope, subject: uuid.UUID) -> None:
+        erasing.set()
+        await hold_subject(session, scope, subject)
+
+    monkeypatch.setattr(facade, "hold_subject", erasure_lock)
+
+    async def writer() -> None:
+        async with sessions() as session:
+            await hold_subject(session, LockScope.PERSONAL_DATA_PER_USER, user.id)
+            locked.set()
+            await erasing.wait()
+            await claims.remember(
+                session,
+                organization_id=org.id,
+                scope=ClaimScope(person_owner_key(user.id), agent.id),
+                statement="Prefers tea",
+            )
+            await session.commit()
+
+    async def erase() -> None:
+        await locked.wait()
+        async with sessions() as session:
+            result = await MemoryService(session).forget_person(ctx, user.id)
+            await session.commit()
+            assert result.claims_deleted == 1
+
+    async with asyncio.timeout(10), asyncio.TaskGroup() as tasks:
+        tasks.create_task(writer())
+        tasks.create_task(erase())
+    assert await db.scalar(select(func.count()).select_from(MemoryClaim)) == 0
 
 
 async def _setup(db: AsyncSession):
