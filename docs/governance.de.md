@@ -1,5 +1,5 @@
 ---
-source_sha: "00fa27f5b7ce"
+source_sha: "9bc25ea1bf8a"
 ---
 
 # Governance { #governance }
@@ -743,6 +743,30 @@ abwickeln lassen und API sowie Worker gemeinsam aktualisieren, bevor Aufgaben
 weiterlaufen; ein alter Worker erzwingt diese Kontrolle nicht. Ein Downgrade
 entfernt gespeicherte Ausnahmen; Bestätigungsprotokolle und bereits ausgeführte
 Wirkungen bleiben bestehen.
+
+### Antworten fortgesetzter Routinen { #resumed-routine-answers }
+
+Eine nach Bestätigung oder beantworteter Frage abgeschlossene Routine stellt ihre
+Konsolenantwort in derselben Transaktion wie den Endzustand zu. Der gespeicherte
+Auftrag enthält fertigen Text und Kennungen; ein Neustart benötigt keinen neuen
+Modellaufruf. Zustellstatus, Chatnachricht und Abschlussmeldung werden gemeinsam
+gespeichert. Gleichzeitige Versuche und Wiederholungen hängen keine zweite Antwort an. Ein
+autorisiertes Konversationsereignis aktualisiert den offenen Quellchat nach dem
+Commit, ohne ihn zurückzusetzen; ältere Abonnenten behalten ihren Ereigniswortschatz.
+
+Der Worker prüft aktuellen Routinenzustand, Frist, erstellende Person und Ziel.
+Chat-Zustellung prüft aktive Mitgliedschaft, Ausführungsrecht am Agenten und
+aktuelles Schreibrecht im privaten Chat erneut. Archivierte Chats sind für neue
+Nachrichten geschlossen. Bei unerreichbarem Ziel bleibt das Ergebnis in Aktivität
+und die Zustellung wird als nicht verfügbar vermerkt. Datenbankfehler lassen den
+Auftrag für bis zu drei Versuche offen; Administration → Hintergrundaufgaben zeigt
+eine ausgeschöpfte Zustellung. Die Abschlussmeldung verlinkt den Chat nach
+erfolgreicher Zustellung. Die Fortsetzung in externen Kanälen bleibt eigene Abnahmearbeit.
+
+`0268_routine_answer_delivery.py` spielt keine historischen Ergebnisse nach.
+API und Worker gemeinsam aktualisieren. Vor einem Downgrade ausstehende Aufträge
+`deliver-routine-answer` abwickeln oder abbrechen, da er gespeicherte Übergaben
+entfernt; bereits zugestellte Nachrichten bleiben erhalten.
 
 ### Störungsfälle { #routine-failure-incidents }
 

@@ -34,6 +34,7 @@ from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
 from app.db.models.user_slash_command import UserSlashCommand
@@ -461,3 +462,24 @@ def as_rows(items: list[Any], fields: tuple[str, ...]) -> list[dict[str, Any]]:
     right there on the row.
     """
     return [{field: getattr(item, field) for field in fields} for item in items]
+
+
+async def routine_deliveries_of(db: AsyncSession, user_id: UUID) -> list[RoutineDelivery]:
+    return list(
+        await db.scalars(
+            select(RoutineDelivery)
+            .where(RoutineDelivery.owner_user_id == user_id)
+            .order_by(RoutineDelivery.created_at, RoutineDelivery.run_id)
+        )
+    )
+
+
+async def routine_answer_export_size(db: AsyncSession, user_id: UUID) -> int:
+    """Content plus a bounded allowance for each receipt's fixed metadata fields."""
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(RoutineDelivery.answer)), 0)
+            + func.count(RoutineDelivery.run_id) * 1024
+        ).where(RoutineDelivery.owner_user_id == user_id)
+    )
+    return int(size or 0)

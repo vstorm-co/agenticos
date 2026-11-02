@@ -1,6 +1,7 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -145,6 +146,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "RoutineDelivery",
     "DiagnosticsIdentity",
     "Visual",
     "ApiKey",

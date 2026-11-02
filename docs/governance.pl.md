@@ -1,5 +1,5 @@
 ---
-source_sha: "00fa27f5b7ce"
+source_sha: "9bc25ea1bf8a"
 ---
 
 # Governance { #governance }
@@ -690,6 +690,30 @@ się wykonanie bez nadzoru: dotychczasowe działanie może teraz czekać na zatw
 Opróżnij stare workery i zaktualizuj API oraz workery razem przed wznowieniem zadań,
 ponieważ stary worker nie egzekwuje tej kontroli. Downgrade usuwa zapisane wyjątki;
 wpisy audytu zatwierdzeń i wykonane już skutki pozostają.
+
+### Odpowiedzi wznowionych rutyn { #resumed-routine-answers }
+
+Rutyna zakończona po zatwierdzeniu lub odpowiedzi na pytanie kolejkuje odpowiedź
+do konsoli w tej samej transakcji co stan końcowy. Zapis zawiera gotowy tekst i
+identyfikatory, więc restart nie wymaga kolejnego wywołania modelu. Stan dostarczenia,
+wiadomość w czacie i powiadomienie o zakończeniu zapisują się razem; równoległe
+próby i ponowienia nie dopisują drugiej odpowiedzi. Zdarzenie dostępne po kontroli
+uprawnień odświeża otwarty czat źródłowy po zatwierdzeniu transakcji; starsi
+odbiorcy zachowują dotychczasowy zestaw zdarzeń.
+
+Worker sprawdza bieżący stan rutyny, termin, twórcę i odbiorcę. Zapis w czacie
+ponownie sprawdza aktywne członkostwo, prawo uruchamiania agenta i bieżące prawo
+zapisu w prywatnej rozmowie twórcy. Zarchiwizowane rozmowy są zamknięte na nowe
+wiadomości. Niedostępny cel pozostawia wynik w Aktywności i zapisuje niedostarczenie.
+Błąd bazy pozostawia zapis oczekujący na maksymalnie trzy próby zadania;
+Administracja → Zadania w tle pokazuje wyczerpaną próbę dostarczenia. Powiadomienie
+linkuje do czatu po poprawnym dostarczeniu. Kontynuacja w zewnętrznych kanałach
+pozostaje osobnym punktem odbioru.
+
+`0268_routine_answer_delivery.py` nie odtwarza historycznych wyników. Zaktualizuj
+API i workery razem. Przed downgrade opróżnij lub anuluj oczekujące zadania
+`deliver-routine-answer`, ponieważ usuwa ich zapisane przekazania; nie wycofuje
+już dostarczonych wiadomości.
 
 ### Sprawy dotyczące awarii { #routine-failure-incidents }
 

@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.db.session import get_worker_db_context
-from app.worker.jobs import FireTrigger
+from app.worker.jobs import DeliverRoutineAnswer, FireTrigger
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -269,3 +269,22 @@ async def fire_trigger(fire: FireTrigger) -> None:
         await AgentTriggerService(db).fire(
             fire.trigger_id, event_context=fire.event_context, claimed_at=fire.claimed_at
         )
+
+
+async def deliver_routine_answer(payload: DeliverRoutineAnswer) -> None:
+    """A retryable console handoff, without repeating a model or external action."""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.core.exceptions import DatabaseError
+    from app.services.agent_trigger import AgentTriggerService
+
+    try:
+        async with get_worker_db_context() as db:
+            await AgentTriggerService(db).deliver_resumed_answer(
+                payload.organization_id, payload.run_id
+            )
+    except SQLAlchemyError as error:
+        raise DatabaseError(
+            message="The routine answer could not be saved. Retry its delivery.",
+            details={"run_id": payload.run_id},
+        ) from error

@@ -922,6 +922,16 @@ def fired(queued_fires: list[FireTrigger]) -> list[FireTrigger]:
 
 
 @pytest.fixture(autouse=True)
+def discard_mocked_live_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    from collections.abc import Coroutine
+
+    def deferred(_db: object, coro: Coroutine[object, object, object], *, name: str) -> None:
+        coro.close()
+
+    monkeypatch.setattr("app.services.agent_trigger.spawn_after_commit", deferred)
+
+
+@pytest.fixture(autouse=True)
 def routine_notices(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     """The creator's notification that a routine finished, recorded rather than written.
 
@@ -4253,6 +4263,7 @@ class TestDeliveringTheAnswerToItsPerson:
             conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             conversations.get_conversation_by_id = AsyncMock(
                 side_effect=lambda _db, target, **kw: MagicMock(
+                    is_archived=False,
                     id=target,
                     organization_id=trigger.organization_id,
                     user_id=trigger.created_by_user_id,
@@ -4354,6 +4365,7 @@ class TestDeliveringTheAnswerToItsPerson:
             members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
             conversations.get_conversation_by_id = AsyncMock(
                 side_effect=lambda _db, target, **kw: MagicMock(
+                    is_archived=False,
                     id=target,
                     organization_id=trigger.organization_id,
                     user_id=trigger.created_by_user_id,
@@ -4918,7 +4930,9 @@ async def test_a_completed_routine_does_not_post_after_source_chat_access_is_rev
             "app.services.agent_trigger.conversation_repo.get_conversation_by_id",
             new=AsyncMock(
                 return_value=MagicMock(
-                    organization_id=trigger.organization_id, user_id=trigger.created_by_user_id
+                    is_archived=False,
+                    organization_id=trigger.organization_id,
+                    user_id=trigger.created_by_user_id,
                 )
             ),
         ),

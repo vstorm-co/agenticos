@@ -33,7 +33,7 @@ from app.core.exceptions import BadRequestError
 from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
-from app.schemas.personal_data import PersonalDataExport, PersonalDataPurge
+from app.schemas.personal_data import PersonalDataExport, PersonalDataPurge, RoutineAnswerExport
 
 logger = logging.getLogger(__name__)
 
@@ -187,11 +187,15 @@ class PersonalDataService:
 
         conversations = await personal_data_repo.conversations_of(self.db, user_id)
         conversation_ids = [conversation.id for conversation in conversations]
-        await self._refuse_if_too_large(conversation_ids)
+        await self._refuse_if_too_large(conversation_ids, user_id=user_id)
         messages = await personal_data_repo.messages_in(self.db, conversation_ids, user_id=user_id)
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            routine_deliveries=[
+                RoutineAnswerExport.model_validate(receipt)
+                for receipt in await personal_data_repo.routine_deliveries_of(self.db, user_id)
+            ],
             exported_at=datetime.now(UTC),
             profile=profile,
             conversations=personal_data_repo.as_rows(conversations, _CONVERSATION_FIELDS),
@@ -270,7 +274,7 @@ class PersonalDataService:
         )
         return export
 
-    async def _refuse_if_too_large(self, conversation_ids: list[UUID]) -> None:
+    async def _refuse_if_too_large(self, conversation_ids: list[UUID], *, user_id: UUID) -> None:
         """Refuse an export this process would have to hold in memory whole.
 
         The document is assembled and serialized in one response and
@@ -291,6 +295,7 @@ class PersonalDataService:
                 operator can act on it.
         """
         size = await personal_data_repo.export_size(self.db, conversation_ids)
+        size += await personal_data_repo.routine_answer_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(

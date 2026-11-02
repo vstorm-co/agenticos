@@ -1,5 +1,6 @@
 "use client";
 
+import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
 import {
   useEffect,
@@ -394,6 +395,21 @@ export function ChatContainer({
   const handleTurnSaved = useCallback(() => {
     void refreshConversations();
   }, [refreshConversations]);
+
+  useEffect(
+    () =>
+      onRemoteChange((event) => {
+        if (
+          event.resource === "conversation" &&
+          event.id === currentConversationId &&
+          event.id !== null &&
+          event.organization_id === useOrgStore.getState().activeOrgId
+        ) {
+          void rereadConversation(event.id);
+        }
+      }),
+    [currentConversationId, rereadConversation],
+  );
 
   // The socket went away mid-answer. The turn is still being written server-side
   // and the transcript is where it lands, so re-read it - once now, and again

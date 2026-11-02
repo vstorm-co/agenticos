@@ -7763,3 +7763,57 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     assert any(
         isinstance(item, WatchSourceTools) for item in build.call_args.kwargs["extra_toolsets"]
     )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("resumed", [False, True])
+async def test_only_resumed_runs_queue_the_canonical_answer_before_the_terminal_commit(
+    resumed: bool,
+) -> None:
+    from pydantic_ai.tools import DeferredToolResults
+
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    prepared.built.agent.run = AsyncMock(
+        return_value=MagicMock(output="Done once", new_messages=MagicMock(return_value=[]))
+    )
+    order: list[str] = []
+
+    async def finished(*args: object, **kwargs: object) -> object:
+        status = kwargs["status"]
+        assert isinstance(status, RunStatus)
+        prepared.run.status = status.value
+        return prepared.run
+
+    async def recorded(*args: object, **kwargs: object) -> None:
+        order.append("transcript")
+
+    async def queued(*args: object, **kwargs: object) -> None:
+        order.append("handoff")
+
+    async def committed() -> None:
+        order.append("commit")
+
+    service.db.commit = AsyncMock(side_effect=committed)
+    with (
+        patch.object(service, "finish", new=AsyncMock(side_effect=finished)),
+        patch.object(service.transcript, "record", new=AsyncMock(side_effect=recorded)),
+        patch(
+            "app.services.routine_delivery.RoutineDeliveryService.queue",
+            new=AsyncMock(side_effect=queued),
+        ) as queue,
+    ):
+        segment = await service._run(
+            prepared,
+            user_prompt=None,
+            said=None,
+            message_history=None,
+            deferred_tool_results=DeferredToolResults() if resumed else None,
+        )
+    assert segment.output == "Done once"
+    prepared.built.agent.run.assert_awaited_once()
+    if resumed:
+        queue.assert_awaited_once_with(prepared.run, answer="Done once")
+        assert order[-3:] == ["transcript", "handoff", "commit"]
+    else:
+        queue.assert_not_awaited()

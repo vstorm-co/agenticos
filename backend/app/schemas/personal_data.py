@@ -1,9 +1,23 @@
 """What a person's own data looks like on the wire."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class RoutineAnswerExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    run_id: UUID
+    organization_id: UUID
+    trigger_id: UUID
+    answer: str
+    status: Literal["pending", "delivered", "unavailable", "run_log", "no_answer"]
+    conversation_id: UUID | None
+    created_at: datetime
+    updated_at: datetime | None
 
 
 class PersonalDataExport(BaseModel):
@@ -22,6 +36,10 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    routine_deliveries: list[RoutineAnswerExport] = Field(
+        default_factory=list,
+        description="The person's canonical resumed routine answers and their console handoff status.",
+    )
     exported_at: datetime = Field(description="When this document was produced.")
     profile: dict[str, Any] = Field(description="The account itself. Never the password hash.")
     conversations: list[dict[str, Any]] = Field(description="Threads this person started.")

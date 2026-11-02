@@ -491,7 +491,9 @@ class TestRoute:
         await change_events(socket, organization)
 
         socket.accept.assert_awaited_once_with(subprotocol="events")
-        stream.assert_awaited_once_with(socket, organization_id=organization.id, auth_token="token")
+        stream.assert_awaited_once_with(
+            socket, organization_id=organization.id, auth_token="token", conversation_events=False
+        )
 
 
 class TestTheTab:

@@ -1,5 +1,5 @@
 ---
-source_sha: "00fa27f5b7ce"
+source_sha: "9bc25ea1bf8a"
 ---
 
 # Governance { #governance }
@@ -704,6 +704,30 @@ Una acción antes desatendida puede esperar ahora una aprobación. Drena los wor
 antiguos y actualiza API y workers juntos antes de reanudar tareas: un worker
 antiguo no aplica este control. El downgrade elimina excepciones guardadas;
 permanecen los registros de aprobación y los efectos ya ejecutados.
+
+### Respuestas de rutinas reanudadas { #resumed-routine-answers }
+
+Una rutina terminada después de una aprobación o respuesta a una pregunta encola
+su respuesta para la consola en la misma transacción que el estado final. La
+entrega guarda texto final e identificadores; un reinicio no requiere otra llamada
+al modelo. El estado de entrega, mensaje y aviso de finalización se guardan juntos.
+Los intentos simultáneos y reintentos no añaden una segunda respuesta. Un evento
+autorizado actualiza el chat de origen abierto después del commit sin reiniciarlo;
+los suscriptores antiguos conservan su vocabulario de eventos.
+
+El worker comprueba estado actual, plazo, creador y destino. La entrega al chat
+revalida pertenencia activa, permiso para ejecutar el agente y escritura actual en
+la conversación privada del creador. Los chats archivados están cerrados a nuevos
+mensajes. Un destino inaccesible deja el resultado en Actividad y registra la
+entrega no disponible. Un error de base de datos conserva el envío pendiente hasta
+tres intentos; Administración → Tareas en segundo plano muestra una entrega agotada.
+El aviso enlaza al chat después de la entrega correcta. La continuación en canales
+externos sigue como trabajo de aceptación separado.
+
+`0268_routine_answer_delivery.py` no reproduce resultados históricos. Actualiza
+API y workers juntos. Antes de un downgrade, drena o cancela las tareas pendientes
+`deliver-routine-answer`: elimina sus entregas guardadas, pero mantiene mensajes
+ya entregados.
 
 ### Incidentes de ejecución { #routine-failure-incidents }
 

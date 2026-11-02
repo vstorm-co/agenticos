@@ -31,13 +31,15 @@ _NON_TERMINAL_STATUSES = (
 FIRE_LEASE = timedelta(hours=1)
 
 
-async def get(db: AsyncSession, trigger_id: UUID, *, organization_id: UUID) -> AgentTrigger | None:
-    result = await db.execute(
-        select(AgentTrigger).where(
-            AgentTrigger.id == trigger_id,
-            AgentTrigger.organization_id == organization_id,
-        )
+async def get(
+    db: AsyncSession, trigger_id: UUID, *, organization_id: UUID, for_update: bool = False
+) -> AgentTrigger | None:
+    statement = select(AgentTrigger).where(
+        AgentTrigger.id == trigger_id, AgentTrigger.organization_id == organization_id
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

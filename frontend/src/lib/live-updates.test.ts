@@ -27,6 +27,7 @@ describe("staleQueries", () => {
     ]);
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
     expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
+    expect(staleQueries(change("conversation"))).toEqual([qk.conversations.all()]);
     expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
   });
 

@@ -69,6 +69,7 @@ def production() -> Handlers:
         [
             *ingest().values(),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
+            Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),

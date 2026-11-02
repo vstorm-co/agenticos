@@ -42,7 +42,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.permissions import Scope as PermScope
 from app.db.models.agent_run import AgentRun
@@ -448,6 +448,27 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
     """
     if event.organization_id != ctx.organization_id:
         return False
+    if event.resource == "conversation":
+        if (
+            event.id is None
+            or ctx.user_id is None
+            or ctx.api_key_id is not None
+            or ctx.key_scopes is not None
+        ):
+            return False
+        from app.services.conversation import ConversationService
+
+        try:
+            await ConversationService(db).get_conversation(
+                event.id,
+                organization_id=ctx.organization_id,
+                user_id=ctx.user_id,
+                ctx=ctx,
+                include_favourite=False,
+            )
+        except NotFoundError, AuthorizationError:
+            return False
+        return True
     if event.resource == "invitation":
         return ctx.has(Perm.MEMBERS_MANAGE)
     if event.resource in ("member", "group"):
@@ -522,7 +543,13 @@ async def _until_disconnect(websocket: WebSocket, cancel: anyio.CancelScope) -> 
     cancel.cancel()
 
 
-async def stream_changes(websocket: WebSocket, *, organization_id: UUID, auth_token: str) -> None:
+async def stream_changes(
+    websocket: WebSocket,
+    *,
+    organization_id: UUID,
+    auth_token: str,
+    conversation_events: bool = False,
+) -> None:
     """Forward the organization's changes to an accepted socket until it closes.
 
     Closes with 4403 the first time the holder's access is found gone - a revoked
@@ -539,6 +566,8 @@ async def stream_changes(websocket: WebSocket, *, organization_id: UUID, auth_to
     ):
         tasks.start_soon(_until_disconnect, websocket, tasks.cancel_scope)
         async for event in events:
+            if event.resource == "conversation" and not conversation_events:
+                continue
             # Shielded from the disconnect (#2241): cancelled mid-query, asyncpg's
             # connection was cancelled while it closed too, and the pool handed
             # the dead connection to the next request on this worker, a 500. The

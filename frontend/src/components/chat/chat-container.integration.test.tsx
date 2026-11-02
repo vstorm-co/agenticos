@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { announceChange } from "@/lib/live-updates";
+import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
 import { apiClient } from "@/lib/api-client";
@@ -1489,4 +1491,52 @@ it("loads earlier messages from the transcript control without losing the curren
   expect(await screen.findByText("Earlier page")).toBeVisible();
   expect(screen.getByText("Current page")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument();
+});
+
+describe("routine answers arriving in the open source conversation", () => {
+  it("rereads a matching private delivery in place and deduplicates repeated announcements", async () => {
+    const original = {
+      id: "before-routine",
+      role: "assistant",
+      content: "Already here",
+      conversation_id: "source-chat",
+      created_at: "2026-11-02T10:00:00Z",
+    };
+    useConversationStore.getState().setCurrentConversationId("source-chat");
+    useConversationStore.getState().setCurrentMessages([original] as never);
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path.startsWith("/conversations/source-chat/messages")
+        ? Promise.resolve({
+            items: [
+              original,
+              { ...original, id: "routine-result", content: "Approved routine result" },
+            ],
+            total: 2,
+            cost: null,
+          })
+        : fallback(path),
+    );
+    mount();
+    await screen.findByText("Already here");
+    const delivered: ChangeEvent = {
+      organization_id: "org-1",
+      resource: "conversation",
+      id: "source-chat",
+      action: "updated",
+      surface: "run",
+      actor_user_id: "u-1",
+      actor_name: null,
+      origin_tab: null,
+    };
+    await act(async () => announceChange({ ...delivered, id: "another-chat" }));
+    expect(screen.queryByText("Approved routine result")).not.toBeInTheDocument();
+    await act(async () => announceChange({ ...delivered, organization_id: "other-org" }));
+    expect(screen.queryByText("Approved routine result")).not.toBeInTheDocument();
+    await act(async () => announceChange(delivered));
+    expect(await screen.findByText("Approved routine result")).toBeVisible();
+    await act(async () => announceChange(delivered));
+    await waitFor(() => expect(screen.getAllByText("Approved routine result")).toHaveLength(1));
+    expect(useConversationStore.getState().currentConversationId).toBe("source-chat");
+  });
 });

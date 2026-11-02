@@ -115,6 +115,11 @@ class FireTrigger(Payload):
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
 
+class DeliverRoutineAnswer(Payload):
+    organization_id: UUID
+    run_id: UUID
+
+
 class RunAgent(Payload):
     """An asynchronous `POST /agents/{id}/run`: who asked, and what they sent."""
 
@@ -335,6 +340,14 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+DELIVER_ROUTINE_ANSWER = Task(
+    kind="deliver-routine-answer",
+    payload_type=DeliverRoutineAnswer,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
 # One attempt: a run a worker died under has already spent, and a second would
 # run the agent again - its model calls and its tools' side effects with it. The
 # caller reads `failed` and decides; that is what idempotency keys are for.
@@ -489,6 +502,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,

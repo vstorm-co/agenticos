@@ -649,6 +649,30 @@ Drain old workers and upgrade the API and workers together before resuming dutie
 as an old worker does not enforce this gate. Downgrade removes stored exceptions;
 existing approval audit rows and already performed effects remain.
 
+### Resumed routine answers { #resumed-routine-answers }
+
+A routine that completes after approval or an answered question queues its
+console answer in the same transaction as its terminal state. The handoff stores
+the final text and identifiers, so a restart never needs another model call.
+The receipt, chat message and completion notice settle in one transaction;
+concurrent attempts and retries cannot append a second answer. An authorized
+conversation event refreshes an open source chat in place after commit; legacy
+event subscribers keep their prior vocabulary.
+
+The worker checks the routine's current state, deadline, creator and destination.
+Chat delivery also rechecks active membership, agent run access and current write
+access to the creator's private conversation. Archived conversations are closed
+to new messages. An unavailable destination retains the result in Activity and
+records unavailable delivery. Database failures leave the receipt pending for up
+to three job attempts; Admin → Background jobs shows an exhausted handoff. A
+completion notice links to a chat only after successful delivery. External-channel
+continuation remains separate acceptance work.
+
+`0268_routine_answer_delivery.py` creates no historical replays. Upgrade API and
+workers together. Drain or cancel pending `deliver-routine-answer` jobs before a
+downgrade, which removes their stored handoffs; it does not recall messages
+already delivered.
+
 ### Failure incidents { #routine-failure-incidents }
 
 A failed routine run, unavailable watch source or missing console destination

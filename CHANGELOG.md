@@ -29,6 +29,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Resumed routine answers use durable, retryable console delivery with one
+  receipt per run. Restarts and concurrent retries cannot duplicate messages
+  or repeat model calls. Archived chats and lost current access block delivery.
+
 - Routine and watch failures share a recoverable owner incident. Continuing
   errors stay quiet, retries cannot undo decisions, and terminal callbacks cover
   resumed runs. Current source readings and delivery recover their own blockers;

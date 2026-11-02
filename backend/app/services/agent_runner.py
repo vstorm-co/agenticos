@@ -6883,6 +6883,10 @@ class AgentRunnerService:
                             prepared.built.reminder_state.snapshot(),
                         )
                     await self.keep_plan(prepared, status=status)
+                if deferred_tool_results is not None:
+                    from app.services.routine_delivery import RoutineDeliveryService
+
+                    await RoutineDeliveryService(self.db).queue(prepared.run, answer=output)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:
