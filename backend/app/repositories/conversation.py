@@ -1273,7 +1273,7 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
 
 
 async def refused_runs(db: AsyncSession, run_ids: Collection[UUID]) -> set[UUID]:
-    """Which of these runs a guardrail refused - the turns a history must not replay (#2578)."""
+    """Which of these runs a guardrail stopped - the turns a history must not replay (#2578)."""
     if not run_ids:
         return set()
     result = await db.execute(

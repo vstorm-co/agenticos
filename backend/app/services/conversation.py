@@ -101,7 +101,7 @@ def _as_history(
     so a follow-up about the file reaches a model that knows it is there. A
     person's turn reads as `spoken` says where it says anything - who said it
     and what it answers - see `ConversationService._spoken`. A prompt whose run
-    is in `refused` - the runs a guardrail refused - reads as `REFUSED_TURN`,
+    is in `refused` - the runs a guardrail stopped - reads as `REFUSED_TURN`,
     with nothing its files added (#2578).
     """
     spoken = spoken or {}

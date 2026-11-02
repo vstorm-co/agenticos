@@ -12,9 +12,12 @@ This clears `summary_messages` and `summary_ordinal` on every conversation whose
 summary reaches past a refused prompt: a user message, at or before
 `summary_ordinal`, whose run ended `guardrail_blocked`. The next turn rebuilds
 the history from the transcript, where the filter applies, and buys a new
-summary if it needs one. A summary written after this change cannot hold refused
-text - a blocked run stores none, and a later run is handed the filtered
-history - so nothing has to happen again.
+summary if it needs one; turns past the transcript window that only the summary
+still recalled are not read back. A summary written after this change does not
+hold refused text - a blocked run stores none, and a later run is handed the
+filtered history - so this runs once. Two edges it does not reach: a turn that
+started in the moment another was still being screened, and a run parked on an
+approval before the upgrade, which resumes with the history it was parked with.
 
 The downgrade does nothing: the cleared summaries are not kept anywhere, and a
 conversation without one is the state every thread starts in.
