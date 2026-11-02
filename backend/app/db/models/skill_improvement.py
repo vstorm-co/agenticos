@@ -257,7 +257,11 @@ class SkillImprovementIteration(Base):
     holdout: Mapped[dict[str, JsonValue] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
-    skill_check_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    skill_check_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_checks.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     check_verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     verdict: Mapped[str | None] = mapped_column(String(16), nullable=True)
     cost_usd: Mapped[Decimal] = mapped_column(

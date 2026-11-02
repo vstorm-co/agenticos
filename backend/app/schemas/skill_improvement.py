@@ -21,6 +21,7 @@ from app.db.models.improvement import (
     ImprovementVerdict,
     StopReason,
 )
+from app.db.models.skill_check import CheckMode, CheckOutcome
 from app.db.models.skill_improvement import SkillImprovementOutcome
 from app.schemas.authoring import EvidenceQuote
 from app.schemas.base import BaseSchema
@@ -31,6 +32,14 @@ from app.schemas.improvement import (
     NextStepBlocked,
     TryAgainBlocked,
 )
+from app.schemas.skill_check import (
+    AgentRef,
+    SkillCheckApply,
+    SkillCheckEstimate,
+    SkillCheckFork,
+    SkillCheckRead,
+)
+from app.schemas.skill_version import SkillForkRead
 
 
 class SkillLine(BaseSchema):
@@ -165,6 +174,15 @@ class SkillImprovementRead(BaseSchema):
     applied_version_id: UUID | None
     agents: int = 0
     hidden_agents: int = 0
+    check: SkillCheckRead | None = Field(
+        default=None,
+        description="The current attempt's check across the line's agents, once it started",
+    )
+    outcomes: list[CheckOutcome] = Field(
+        default_factory=list,
+        description="What a person may do with the result now: the check's outcomes while "
+        "the session waits on it, Try again included as `improve_further`",
+    )
     iterations: list[SkillImprovementIterationRead] = Field(default_factory=list)
     timeline: list[ImprovementEvent] = Field(default_factory=list)
 
@@ -220,16 +238,55 @@ class SkillImprovementProblems(BaseSchema):
     usage_unknown: int
 
 
-class SkillContinuationEstimate(ContinuationEstimate):
-    """The next step's price; for a check, what it costs across the line's agents."""
-
-
-class SkillContinuationConsent(ContinuationConsent):
-    mode: Literal["quick", "thorough"] | None = Field(
+class SkillContinue(BaseSchema):
+    mode: CheckMode | None = Field(
         default=None,
         description="For a check: quick (the default) or thorough. A changed description "
         "is always checked thoroughly",
     )
+
+
+class SkillContinuationEstimate(ContinuationEstimate):
+    """The next step's price; for a check, what it costs across the line's agents."""
+
+    check_estimate: SkillCheckEstimate | None = Field(
+        default=None,
+        description="For the check: each agent it runs, and the ones it cannot, before it starts",
+    )
+
+
+class SkillContinuationConsent(ContinuationConsent):
+    mode: CheckMode | None = Field(
+        default=None,
+        description="For a check: quick (the default) or thorough. A changed description "
+        "is always checked thoroughly",
+    )
+
+
+class SkillImprovementApply(SkillCheckApply):
+    confirmed: Literal[True]
+
+
+class SkillImprovementFork(SkillCheckFork):
+    confirmed: Literal[True]
+
+
+class SkillImprovementApplied(BaseSchema):
+    """What applying made: the line's new version, and the agents kept where they were."""
+
+    session: SkillImprovementRead
+    version_id: UUID
+    version: int
+    pinned: list[AgentRef]
+
+
+class SkillImprovementForked(BaseSchema):
+    """The fork the change became, and the agents it helped that moved onto it."""
+
+    session: SkillImprovementRead
+    fork: SkillForkRead
+    moved: list[AgentRef]
+    draft_only: list[AgentRef]
 
 
 class SkillProblem(BaseModel):

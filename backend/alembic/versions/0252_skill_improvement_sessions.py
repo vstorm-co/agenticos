@@ -243,6 +243,12 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
+            ["skill_check_id"],
+            ["skill_checks.id"],
+            name=op.f("skill_improvement_iterations_skill_check_id_fkey"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
             name=op.f("skill_improvement_iterations_organization_id_fkey"),

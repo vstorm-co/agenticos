@@ -12,8 +12,13 @@ from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementS
 from app.schemas.skill_improvement import (
     SkillContinuationConsent,
     SkillContinuationEstimate,
+    SkillContinue,
+    SkillImprovementApplied,
+    SkillImprovementApply,
     SkillImprovementAwaiting,
     SkillImprovementEstimate,
+    SkillImprovementFork,
+    SkillImprovementForked,
     SkillImprovementProblems,
     SkillImprovementRead,
     SkillImprovementStart,
@@ -130,10 +135,15 @@ async def choose_skill_improvement_changes(
 
 @router.post("/{run_id}/continue/estimate", response_model=SkillContinuationEstimate)
 async def estimate_skill_improvement_continuation(
-    skill_id: UUID, run_id: UUID, service: SkillImprovementSvc, ctx: Auth
+    skill_id: UUID,
+    run_id: UUID,
+    service: SkillImprovementSvc,
+    ctx: Auth,
+    data: SkillContinue | None = None,
 ) -> Any:
-    """The price of the step a person may take now: a proposal, or Try again."""
-    return await service.estimate_continuation(ctx, skill_id, run_id)
+    """The price of the step a person may take now: a proposal after Understand, the check
+    of the chosen changes across the line's agents after Changes, or Try again."""
+    return await service.estimate_continuation(ctx, skill_id, run_id, data or SkillContinue())
 
 
 @router.post("/{run_id}/continue", response_model=SkillImprovementRead)
@@ -174,3 +184,36 @@ async def discard_skill_improvement(
 ) -> Any:
     """End the session without applying anything: its creator or an organization admin."""
     return await service.discard(ctx, skill_id, run_id, data)
+
+
+@router.post("/{run_id}/apply", response_model=SkillImprovementApplied)
+async def apply_skill_improvement(
+    skill_id: UUID,
+    run_id: UUID,
+    data: SkillImprovementApply,
+    service: SkillImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Make the checked text the line's newest version.
+
+    A result with a worse agent applies only with `pin_worse`, which keeps each such agent
+    on the version it reads now, as a new published version; that needs `agents:publish`
+    on each. Agents that could not be checked need `acknowledge_unknown`. 409 while the
+    check runs or once the result was decided.
+    """
+    return await service.apply(ctx, skill_id, run_id, data)
+
+
+@router.post("/{run_id}/fork", response_model=SkillImprovementForked)
+async def fork_skill_improvement(
+    skill_id: UUID,
+    run_id: UUID,
+    data: SkillImprovementFork,
+    service: SkillImprovementSvc,
+    ctx: Auth,
+) -> Any:
+    """Make the checked text a new fork for the agents it helped; main stays as it is.
+
+    Only a session on main forks. 409 while the check runs or once the result was decided.
+    """
+    return await service.fork(ctx, skill_id, run_id, data)

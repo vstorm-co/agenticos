@@ -34,7 +34,15 @@ _HASH = "a" * 64
         ("GET", f"{_ONE}/changes", "changes", None),
         ("PUT", f"{_ONE}/changes/{_HUNK}", "edit_change", {"edited_text": "Reworded"}),
         ("PUT", f"{_ONE}/selection", "choose_changes", {"hunk_ids": [str(_HUNK)]}),
+        ("POST", f"{_ONE}/continue/estimate", "estimate_continuation", {"mode": "thorough"}),
         ("POST", f"{_ONE}/continue/estimate", "estimate_continuation", None),
+        (
+            "POST",
+            f"{_ONE}/apply",
+            "apply",
+            {"confirmed": True, "pin_worse": True, "acknowledge_unknown": True},
+        ),
+        ("POST", f"{_ONE}/fork", "fork", {"confirmed": True, "name": "Returns"}),
         (
             "POST",
             f"{_ONE}/continue",

@@ -10,6 +10,7 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -29,17 +30,34 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
+from app.db.models.skill_check import CheckMode, CheckOutcome, CheckSource, CheckStatus, SkillCheck
 from app.db.models.skill_improvement import SkillImprovementRun
-from app.repositories import authoring_repo, skill_improvement_repo, skill_version_repo
+from app.repositories import (
+    authoring_repo,
+    skill_check_repo,
+    skill_improvement_repo,
+    skill_version_repo,
+)
 from app.schemas.authoring import AuthoringEstimate, InstructionChange
 from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementSelection
 from app.schemas.skill import SkillUpdate
+from app.schemas.skill_check import (
+    CandidateText,
+    LineRef,
+    SkillCheckEstimate,
+    SkillCheckRead,
+    SkillCheckStart,
+)
 from app.schemas.skill_improvement import (
     SkillContinuationConsent,
+    SkillContinue,
+    SkillImprovementApply,
+    SkillImprovementFork,
     SkillImprovementRead,
     SkillImprovementStart,
     SkillImprovementTarget,
 )
+from app.schemas.skill_version import SkillForkRead, VersionNumberRef, VersionRef
 from app.services import authoring_hunks
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, PackedRun
@@ -161,7 +179,7 @@ async def _propose(
 ) -> None:
     """Take the next step, and answer its proposal with these edits."""
     service = SkillImprovementService(db)
-    quote = await service.estimate_continuation(ctx, run.skill_id, run.id)
+    quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
     await service.continue_run(
         ctx,
         run.skill_id,
@@ -479,7 +497,7 @@ class TestSteps:
         await _propose(db, ctx, run, [])
         service = SkillImprovementService(db)
 
-        quote = await service.estimate_continuation(ctx, skill.id, run.id)
+        quote = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
         read = await service.continue_run(
             ctx,
             skill.id,
@@ -506,9 +524,9 @@ class TestSteps:
         service = SkillImprovementService(db)
         started = await service.start(ctx, skill.id, _start())
         with pytest.raises(BadRequestError):
-            await service.estimate_continuation(ctx, skill.id, started.id)
+            await service.estimate_continuation(ctx, skill.id, started.id, SkillContinue())
         run = await _at_understand(db, ctx, await _skill_on_main(db, ctx))
-        quote = await service.estimate_continuation(ctx, run.skill_id, run.id)
+        quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
 
         def consent(**values: Any) -> SkillContinuationConsent:
             return SkillContinuationConsent(
@@ -544,7 +562,7 @@ class TestSteps:
         )
 
         with pytest.raises(BadRequestError):
-            await service.estimate_continuation(ctx, skill.id, run.id)
+            await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
 
 
 class TestStops:
@@ -598,7 +616,7 @@ class TestStops:
         skill = await _skill_on_main(db, ctx)
         run = await _at_understand(db, ctx, skill)
         service = SkillImprovementService(db)
-        quote = await service.estimate_continuation(ctx, skill.id, run.id)
+        quote = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
         await service.continue_run(
             ctx,
             skill.id,
@@ -947,7 +965,7 @@ class TestTheLinesEvidence:
 
 async def _continue(db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun) -> None:
     service = SkillImprovementService(db)
-    quote = await service.estimate_continuation(ctx, run.skill_id, run.id)
+    quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
     await service.continue_run(
         ctx,
         run.skill_id,
@@ -959,3 +977,388 @@ async def _continue(db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun
             budget_usd=run.budget_usd,
         ),
     )
+
+
+class FakeChecks:
+    """Stands in for the multi-agent check: writes its rows, and decides as told."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+        self.calls: list[tuple[str, Any]] = []
+        self.price = Decimal("0.30")
+        self.refuse: Exception | None = None
+
+    def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
+        return SkillCheckEstimate(
+            line=LineRef(fork_id=data.fork_id, name="main"),
+            base_version=VersionRef(id=uuid.uuid4(), number=1, fork_id=data.fork_id),
+            mode=data.mode,
+            description_changed=False,
+            agents=[],
+            hidden=0,
+            expected_usd=self.price / 3,
+            at_most_usd=self.price,
+            org_remaining_usd=None,
+            affordable=True,
+        )
+
+    async def estimate(self, ctx, skill_id, data):
+        self.calls.append(("estimate", data))
+        return self._estimate(data)
+
+    async def start(self, ctx, skill_id, data, *, source=None):
+        if self.refuse is not None:
+            raise self.refuse
+        self.calls.append(("start", (data, source)))
+        assert data.candidate is not None
+        skill = await self.db.get(Skill, skill_id)
+        assert skill is not None and skill.latest_version_id is not None
+        check = await skill_check_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            check=SkillCheck(
+                skill_id=skill_id,
+                fork_id=data.fork_id,
+                base_version_id=skill.latest_version_id,
+                candidate_description=data.candidate.description,
+                candidate_content=data.candidate.content,
+                candidate_hash="c" * 64,
+                description_changed=False,
+                mode=data.mode.value,
+                source=source.value,
+                status=CheckStatus.RUNNING.value,
+                expected_usd=self.price / 3,
+                at_most_usd=self.price,
+            ),
+        )
+        return SimpleNamespace(id=check.id)
+
+    async def read(self, ctx, skill_id, check_id):
+        check = await skill_check_repo.get(self.db, check_id, organization_id=ctx.organization_id)
+        assert check is not None
+        return SkillCheckRead(
+            **self._estimate(SkillCheckStart(candidate=_TEXT)).model_dump(),
+            id=check.id,
+            skill_id=skill_id,
+            status=check.status,
+            verdict=check.verdict,
+            outcomes=[CheckOutcome.APPLY, CheckOutcome.DISCARD] if check.verdict else [],
+            created_at=check.created_at,
+        )
+
+    async def apply(self, ctx, skill_id, check_id, data):
+        self.calls.append(("apply", data))
+        pinned = [SimpleNamespace(id=uuid.uuid4(), name="Clerk")] if data.pin_worse else []
+        return SimpleNamespace(version=SimpleNamespace(id=uuid.uuid4(), number=4), pinned=pinned)
+
+    async def fork(self, ctx, skill_id, check_id, data):
+        self.calls.append(("fork", data))
+        latest = VersionNumberRef(id=uuid.uuid4(), number=1)
+        return SimpleNamespace(
+            fork=SkillForkRead.model_construct(id=uuid.uuid4(), name=data.name, latest=latest),
+            moved=[],
+            draft_only=[],
+        )
+
+    async def cancel(self, ctx, skill_id, check_id):
+        self.calls.append(("cancel", check_id))
+        check = await self.db.get(SkillCheck, check_id)
+        assert check is not None
+        check.status = CheckStatus.CANCELLED.value
+        await self.db.flush()
+
+    async def discard(self, ctx, skill_id, check_id):
+        self.calls.append(("discard", check_id))
+
+
+_TEXT = CandidateText(description="How refunds work.", content="x")
+
+
+async def _at_changes(
+    db: AsyncSession, ctx: AuthContext, changes: list[dict[str, Any]] | None = None
+) -> SkillImprovementRun:
+    run = await _at_understand(db, ctx, await _skill_on_main(db, ctx))
+    await _propose(
+        db, ctx, run, changes or [_body_edit("Refunds take 14 days.", "Refunds take 30 days.")]
+    )
+    return await _row(db, SkillImprovementRead.model_validate(run))
+
+
+def _checked(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> FakeChecks:
+    fake = FakeChecks(db)
+    monkeypatch.setattr(SkillImprovementService, "checks", fake, raising=False)
+    original = SkillImprovementService.__init__
+
+    def init(self, session):
+        original(self, session)
+        self.checks = fake
+
+    monkeypatch.setattr(SkillImprovementService, "__init__", init)
+    return fake
+
+
+async def _check_now(
+    db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun, **consent: Any
+) -> SkillImprovementRead:
+    service = SkillImprovementService(db)
+    quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+    return await service.continue_run(
+        ctx,
+        run.skill_id,
+        run.id,
+        SkillContinuationConsent(
+            **{
+                "confirmed": True,
+                "estimate_usd": quote.total_usd,
+                "candidate_hash": quote.candidate_hash,
+                "budget_usd": run.budget_usd,
+                **consent,
+            }
+        ),
+    )
+
+
+async def _settle(db: AsyncSession, run: SkillImprovementRun, **values: Any) -> SkillImprovementRun:
+    iteration = await skill_improvement_repo.get_iteration(
+        db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+    )
+    assert iteration is not None and iteration.skill_check_id is not None
+    check = await db.get(SkillCheck, iteration.skill_check_id)
+    assert check is not None
+    for key, value in values.items():
+        setattr(check, key, value)
+    await db.flush()
+    await SkillImprovementService(db).advance(run.id, run.organization_id)
+    return await _row(db, SkillImprovementRead.model_validate(run))
+
+
+class TestCheckAndResult:
+    async def test_the_check_is_priced_across_the_line_and_started_on_the_chosen_text(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(
+            ctx, run.skill_id, run.id, SkillContinue(mode=CheckMode.THOROUGH)
+        )
+        read = await _check_now(db, ctx, run, mode="thorough")
+
+        assert (quote.mode, quote.total_usd) == ("next_step", fake.price)
+        assert quote.check_estimate is not None and quote.check_estimate.mode == "thorough"
+        [(_, (started, source))] = [call for call in fake.calls if call[0] == "start"]
+        assert started.candidate.content.startswith("Refunds take 30 days.")
+        assert (started.mode, source) == (CheckMode.THOROUGH, CheckSource.SESSION)
+        assert (read.status, read.stage) == ("running", "evaluating")
+        assert read.check is not None and read.check.status == "running"
+        assert read.outcomes == []
+
+    async def test_a_check_still_running_leaves_the_session_working(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+
+        run = await _settle(db, run)
+
+        assert (run.status, run.stage) == ("running", "evaluating")
+
+    @pytest.mark.parametrize(
+        ("verdict", "status", "stop", "measured"),
+        [
+            ("passed", "ready", None, "better"),
+            ("needs_ack", "ready", None, "better"),
+            ("blocked", "ready", None, "regression"),
+            ("no_better", "stopped", "no_change", "no_change"),
+        ],
+    )
+    async def test_a_finished_check_becomes_the_attempts_result(
+        self, db, evidence, monkeypatch, verdict, status, stop, measured
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+
+        run = await _settle(db, run, status="done", verdict=verdict)
+        read = await SkillImprovementService(db).read(ctx, run.skill_id, run.id)
+
+        assert (run.status, run.stop_reason) == (status, stop)
+        [attempt] = read.iterations
+        assert (attempt.check_verdict, attempt.verdict) == (verdict, measured)
+        assert read.outcomes == (
+            [CheckOutcome.APPLY, CheckOutcome.DISCARD] if status == "ready" else []
+        )
+
+    async def test_a_check_cancelled_elsewhere_fails_the_step(self, db, evidence, monkeypatch):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+
+        run = await _settle(db, run, status="cancelled")
+
+        assert (run.status, run.stage, run.stop_reason) == ("failed", "evaluating", "eval")
+
+    async def test_a_check_no_agent_can_take_is_refused_and_leaves_the_session_at_changes(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        fake.refuse = BadRequestError(message="No agent of this line can be checked")
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+
+        with pytest.raises(BadRequestError):
+            await _check_now(db, ctx, run)
+
+    async def test_changes_that_no_longer_apply_together_are_chosen_again(
+        self, db, evidence, monkeypatch
+    ):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(
+            db,
+            ctx,
+            [
+                _body_edit("Refunds take 14 days.", "Refunds take 30 days."),
+                _body_edit("Refunds take 14 days.", "Refunds take 60 days."),
+            ],
+        )
+        iteration = await skill_improvement_repo.get_iteration(
+            db, organization_id=ctx.organization_id, run_id=run.id, number=1
+        )
+        assert iteration is not None
+        await skill_improvement_repo.update_iteration(
+            db,
+            iteration=iteration,
+            values={
+                "included_hunk_ids": [*iteration.included_hunk_ids, *iteration.dropped_hunk_ids]
+            },
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).estimate_continuation(
+                ctx, run.skill_id, run.id, SkillContinue()
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "hunk_ids"
+
+
+class TestOutcomes:
+    async def test_apply_makes_a_version_and_accepts_the_session(self, db, evidence, monkeypatch):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="blocked")
+        service = SkillImprovementService(db)
+
+        applied = await service.apply(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(confirmed=True, pin_worse=True, acknowledge_unknown=True),
+        )
+
+        assert (applied.session.status, applied.session.outcome) == ("accepted", "applied_pinned")
+        assert applied.version == 4 and applied.session.applied_version_id == applied.version_id
+        [(_, sent)] = [call for call in fake.calls if call[0] == "apply"]
+        assert sent.pin_worse and sent.acknowledge_unknown
+        with pytest.raises(ConcurrentChangeError):
+            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+
+    async def test_apply_without_a_worse_agent_is_a_plain_apply(self, db, evidence, monkeypatch):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+
+        applied = await SkillImprovementService(db).apply(
+            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True)
+        )
+
+        assert applied.session.outcome == "applied" and applied.pinned == []
+
+    async def test_fork_for_the_agents_it_helped_accepts_the_session(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="blocked")
+
+        forked = await SkillImprovementService(db).fork(
+            ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+        )
+
+        assert (forked.session.status, forked.session.outcome) == ("accepted", "forked")
+        assert forked.session.applied_version_id == forked.fork.latest.id
+        assert [call[1].name for call in fake.calls if call[0] == "fork"] == ["Returns"]
+
+    async def test_an_outcome_before_the_result_is_refused(self, db, evidence, monkeypatch):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+
+        with pytest.raises(ConcurrentChangeError):
+            await SkillImprovementService(db).fork(
+                ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+            )
+
+    async def test_cancelling_during_the_check_cancels_it_and_discarding_a_result_discards_it(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        service = SkillImprovementService(db)
+
+        await service.cancel(ctx, run.skill_id, run.id)
+        other = await _at_changes(db, ctx)
+        await _check_now(db, ctx, other)
+        other = await _settle(db, other, status="done", verdict="passed")
+        await service.discard(ctx, other.skill_id, other.id, ImprovementDiscard(confirmed=True))
+        decided = await _at_changes(db, ctx)
+        await _check_now(db, ctx, decided)
+        decided = await _settle(db, decided, status="done", verdict="passed")
+        await _settle(db, decided, status="applied")
+        await service.discard(ctx, decided.skill_id, decided.id, ImprovementDiscard(confirmed=True))
+        await service.discard(ctx, run.skill_id, run.id, ImprovementDiscard(confirmed=True))
+
+        assert [name for name, _ in fake.calls if name in {"cancel", "discard"}] == [
+            "cancel",
+            "discard",
+        ]
+
+    async def test_try_again_after_a_result_starts_a_new_attempt(self, db, evidence, monkeypatch):
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="blocked")
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+        read = await service.continue_run(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=run.budget_usd,
+                note="Keep main's other rules",
+            ),
+        )
+
+        assert (quote.mode, read.iteration, read.stage) == ("next_round", 2, "proposing")
+        assert read.check is None

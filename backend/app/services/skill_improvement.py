@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -48,10 +49,17 @@ from app.db.models.authoring import (
     HunkKind,
     SpecProposalHunk,
 )
-from app.db.models.improvement import DroppedHunk, StopReason
+from app.db.models.improvement import DroppedHunk, ImprovementVerdict, StopReason
 from app.db.models.improvement import ImprovementStage as Stage
 from app.db.models.improvement import ImprovementStatus as Status
 from app.db.models.skill import Skill
+from app.db.models.skill_check import (
+    CheckMode,
+    CheckSource,
+    CheckStatus,
+    CheckVerdict,
+    SkillCheck,
+)
 from app.db.models.skill_improvement import (
     SkillImprovementIteration,
     SkillImprovementOutcome,
@@ -63,6 +71,7 @@ from app.repositories import (
     agent_run_repo,
     authoring_repo,
     organization_repo,
+    skill_check_repo,
     skill_improvement_repo,
     skill_repo,
     skill_version_repo,
@@ -75,12 +84,18 @@ from app.schemas.improvement import (
     ImprovementEvent,
     ImprovementSelection,
 )
+from app.schemas.skill_check import CandidateText, SkillCheckApply, SkillCheckFork, SkillCheckStart
 from app.schemas.skill_improvement import (
     ProblemAgent,
     SkillContinuationConsent,
     SkillContinuationEstimate,
+    SkillContinue,
+    SkillImprovementApplied,
+    SkillImprovementApply,
     SkillImprovementAwaiting,
     SkillImprovementEstimate,
+    SkillImprovementFork,
+    SkillImprovementForked,
     SkillImprovementIterationRead,
     SkillImprovementProblems,
     SkillImprovementRead,
@@ -99,6 +114,7 @@ from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
 from app.services.skill_agents import SkillAgentService
+from app.services.skill_check import SkillCheckService
 from app.services.skill_versions import SkillVersionService
 from app.worker.jobs import ADVANCE_SKILL_IMPROVEMENT, AdvanceSkillImprovement
 
@@ -107,6 +123,14 @@ logger = logging.getLogger(__name__)
 _AWAITING_PERSON = (Status.WAITING.value, Status.READY.value)
 _LINE_VERSIONS = 500
 """Versions of one line the evidence is read for; a line holds far fewer."""
+
+_VERDICTS = {
+    CheckVerdict.PASSED: ImprovementVerdict.BETTER,
+    CheckVerdict.NEEDS_ACK: ImprovementVerdict.BETTER,
+    CheckVerdict.BLOCKED: ImprovementVerdict.REGRESSION,
+    CheckVerdict.NO_BETTER: ImprovementVerdict.NO_CHANGE,
+}
+"""A check's verdict in an agent session's words, so one wizard reads both."""
 
 
 @dataclass(frozen=True)
@@ -210,6 +234,7 @@ class SkillImprovementService:
         self.versions = SkillVersionService(db)
         self.skill_agents = SkillAgentService(db)
         self.authoring = AuthoringService(db)
+        self.checks = SkillCheckService(db)
 
     async def estimate(
         self, ctx: AuthContext, skill_id: UUID, target: SkillImprovementTarget
@@ -494,12 +519,12 @@ class SkillImprovementService:
         return await self._read(ctx, run, line)
 
     async def estimate_continuation(
-        self, ctx: AuthContext, skill_id: UUID, run_id: UUID
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: SkillContinue
     ) -> SkillContinuationEstimate:
-        """The price of the step a person may take now: a proposal after Understand, or Try
-        again after a stop or a result."""
+        """The price of the step a person may take now: a proposal after Understand, the
+        check of the chosen changes after Changes, or Try again after a stop or a result."""
         line, run = await self._editable_row(ctx, skill_id, run_id)
-        return await self._continuation(ctx, line, run)
+        return await self._continuation(ctx, line, run, mode=data.mode)
 
     async def continue_run(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
@@ -511,7 +536,7 @@ class SkillImprovementService:
             PaymentRequiredError: The spending limit does not cover the step.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
-        quote = await self._continuation(ctx, line, run)
+        quote = await self._continuation(ctx, line, run, mode=consent.mode)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
             raise ConcurrentChangeError(
                 message="The step's price changed since it was quoted; review it again",
@@ -544,10 +569,68 @@ class SkillImprovementService:
         elif consent.note is not None:
             raise refused_field("note", "A note goes with Try again only")
         await skill_improvement_repo.update_run(self.db, run=run, values=values)
-        await self._move(
-            run, rules.Transition(Status.RUNNING, Stage.PROPOSING), actor_user_id=ctx.subject_id
-        )
+        if quote.check_estimate is not None:
+            await self._start_check(ctx, run, line, consent.mode)
+        else:
+            await self._move(
+                run, rules.Transition(Status.RUNNING, Stage.PROPOSING), actor_user_id=ctx.subject_id
+            )
         return await self._read(ctx, run, line)
+
+    async def apply(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: SkillImprovementApply
+    ) -> SkillImprovementApplied:
+        """Make the checked text the line's newest version, keeping the agents it made worse
+        on theirs with `pin_worse`; the session is accepted in the same transaction."""
+        line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        check_id = await self._decidable(run)
+        applied = await self.checks.apply(
+            ctx,
+            skill_id,
+            check_id,
+            SkillCheckApply(
+                acknowledge_unknown=data.acknowledge_unknown,
+                pin_worse=data.pin_worse,
+                note=data.note,
+            ),
+        )
+        outcome = (
+            SkillImprovementOutcome.APPLIED_PINNED
+            if applied.pinned
+            else SkillImprovementOutcome.APPLIED
+        )
+        await self._decide(ctx, run, outcome, applied.version.id)
+        return SkillImprovementApplied(
+            session=await self._read(ctx, run, line),
+            version_id=applied.version.id,
+            version=applied.version.number,
+            pinned=applied.pinned,
+        )
+
+    async def fork(
+        self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: SkillImprovementFork
+    ) -> SkillImprovementForked:
+        """Make the checked text a fork for the agents it helped; main stays as it is."""
+        line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        check_id = await self._decidable(run)
+        forked = await self.checks.fork(
+            ctx,
+            skill_id,
+            check_id,
+            SkillCheckFork(name=data.name, acknowledge_unknown=data.acknowledge_unknown),
+        )
+        await self._decide(
+            ctx,
+            run,
+            SkillImprovementOutcome.FORKED,
+            None if forked.fork.latest is None else forked.fork.latest.id,
+        )
+        return SkillImprovementForked(
+            session=await self._read(ctx, run, line),
+            fork=forked.fork,
+            moved=forked.moved,
+            draft_only=forked.draft_only,
+        )
 
     async def retry(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         """Run a failed step again, within the session's spending limit."""
@@ -580,6 +663,9 @@ class SkillImprovementService:
         await self._move(
             run, rules.Transition(Status.CANCELLED, stage), actor_user_id=ctx.subject_id
         )
+        check = await self._check(run)
+        if check is not None and check.status == CheckStatus.RUNNING.value:
+            await self.checks.cancel(ctx, skill_id, check.id)
         return await self._read(ctx, run, line)
 
     async def discard(
@@ -592,6 +678,9 @@ class SkillImprovementService:
                 message="Only whoever started the session, or an organization admin, discards it"
             )
         stage = None if run.stage is None else Stage(run.stage)
+        check = await self._check(run)
+        if check is not None and check.status == CheckStatus.DONE.value:
+            await self.checks.discard(ctx, skill_id, check.id)
         await skill_improvement_repo.update_run(
             self.db, run=run, values={"outcome": SkillImprovementOutcome.DISCARDED.value}
         )
@@ -680,6 +769,8 @@ class SkillImprovementService:
             await self._propose(ctx, run, line)
         elif stage == Stage.FILTERING:
             await self._filter(ctx, run)
+        else:
+            await self._judge(run)
 
     async def _analyze(self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine) -> None:
         pack = await self._evidence(ctx, line, run.window_days)
@@ -795,6 +886,125 @@ class SkillImprovementService:
         await self._remeasure(ctx, run, iteration)
         await self._move(run, rules.after_filtering(kept=len(kept)))
 
+    async def _start_check(
+        self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine, mode: CheckMode | None
+    ) -> None:
+        iteration = await self._iteration(run)
+        check = await self.checks.start(
+            ctx,
+            run.skill_id,
+            await self._check_start(ctx, run, line, iteration, mode),
+            source=CheckSource.SESSION,
+        )
+        await skill_improvement_repo.update_iteration(
+            self.db, iteration=iteration, values={"skill_check_id": check.id}
+        )
+        await self._move(
+            run, rules.Transition(Status.RUNNING, Stage.EVALUATING), actor_user_id=ctx.subject_id
+        )
+
+    async def _check_start(
+        self,
+        ctx: AuthContext,
+        run: SkillImprovementRun,
+        line: SessionLine,
+        iteration: SkillImprovementIteration,
+        mode: CheckMode | None,
+    ) -> SkillCheckStart:
+        text = candidate_text(await self.base_of(run), await self._chosen(ctx, iteration))
+        if text is None:
+            raise refused_field(
+                "hunk_ids", "The chosen changes no longer apply together; choose them again"
+            )
+        description, content = text
+        return SkillCheckStart(
+            fork_id=line.fork_id,
+            candidate=CandidateText(description=description, content=content),
+            mode=mode or CheckMode.QUICK,
+        )
+
+    async def _judge(self, run: SkillImprovementRun) -> None:
+        """Carry the attempt's check into its result once every agent of the line is in."""
+        iteration = await self._iteration(run)
+        check = await self._check(run)
+        assert check is not None, "an attempt is evaluated by its check"
+        if check.status == CheckStatus.RUNNING.value:
+            return
+        cost = await skill_improvement_repo.check_cost(
+            self.db, check.id, organization_id=run.organization_id
+        )
+        if check.verdict is None:
+            await skill_improvement_repo.update_iteration(
+                self.db,
+                iteration=iteration,
+                values={
+                    "check_verdict": "failed",
+                    "verdict": ImprovementVerdict.INCONCLUSIVE.value,
+                    "cost_usd": cost,
+                    "ended_at": datetime.now(UTC),
+                },
+            )
+            await self._move(
+                run, rules.Transition(Status.FAILED, Stage.EVALUATING, StopReason.EVAL)
+            )
+            return
+        verdict = CheckVerdict(check.verdict)
+        await skill_improvement_repo.update_iteration(
+            self.db,
+            iteration=iteration,
+            values={
+                "check_verdict": verdict.value,
+                "verdict": _VERDICTS[verdict].value,
+                "cost_usd": cost,
+                "ended_at": datetime.now(UTC),
+            },
+        )
+        if verdict is CheckVerdict.NO_BETTER:
+            await self._move(
+                run, rules.Transition(Status.STOPPED, Stage.JUDGING, StopReason.NO_CHANGE)
+            )
+            return
+        await skill_improvement_repo.update_run(
+            self.db, run=run, values={"best_iteration_id": iteration.id}
+        )
+        await self._move(run, rules.Transition(Status.READY, Stage.JUDGING))
+
+    async def _check(self, run: SkillImprovementRun) -> SkillCheck | None:
+        """The current attempt's check, once it started."""
+        iteration = await self._iteration(run)
+        if iteration.skill_check_id is None:
+            return None
+        return await skill_check_repo.get(
+            self.db, iteration.skill_check_id, organization_id=run.organization_id
+        )
+
+    async def _decidable(self, run: SkillImprovementRun) -> UUID:
+        """The check a person decides on: the result the session waits with."""
+        if run.status != Status.READY:
+            raise ConcurrentChangeError(
+                message="The session has no result to decide on now",
+                details={"status": run.status},
+            )
+        check = await self._check(run)
+        assert check is not None, "a session waits with a result only after its check"
+        return check.id
+
+    async def _decide(
+        self,
+        ctx: AuthContext,
+        run: SkillImprovementRun,
+        outcome: SkillImprovementOutcome,
+        version_id: UUID | None,
+    ) -> None:
+        await skill_improvement_repo.update_run(
+            self.db,
+            run=run,
+            values={"outcome": outcome.value, "applied_version_id": version_id},
+        )
+        await self._move(
+            run, rules.Transition(Status.ACCEPTED, Stage.JUDGING), actor_user_id=ctx.subject_id
+        )
+
     async def _remeasure(
         self, ctx: AuthContext, run: SkillImprovementRun, iteration: SkillImprovementIteration
     ) -> None:
@@ -823,10 +1033,38 @@ class SkillImprovementService:
         return [hunk for hunk in hunks if hunk.id in wanted]
 
     async def _continuation(
-        self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun
+        self,
+        ctx: AuthContext,
+        line: SessionLine,
+        run: SkillImprovementRun,
+        *,
+        mode: CheckMode | None,
     ) -> SkillContinuationEstimate:
+        spent = await skill_improvement_repo.spent(
+            self.db, run.id, organization_id=ctx.organization_id
+        )
+        if run.status == Status.WAITING and run.stage == Stage.FILTERING:
+            iteration = await self._iteration(run)
+            check = await self.checks.estimate(
+                ctx, run.skill_id, await self._check_start(ctx, run, line, iteration, mode)
+            )
+            assert iteration.candidate_hash is not None, "a candidate that applies has a hash"
+            return SkillContinuationEstimate(
+                mode="next_step",
+                number=run.iteration,
+                total_usd=check.at_most_usd,
+                expected_usd=check.expected_usd,
+                budget_usd=run.budget_usd,
+                affordable=check.affordable
+                and rules.affordable(
+                    spent=spent, step_estimate=check.at_most_usd, budget=run.budget_usd
+                ),
+                candidate_hash=iteration.candidate_hash,
+                check_estimate=check,
+            )
+        step: Literal["next_step", "next_round"]
         if run.status == Status.WAITING and run.stage == Stage.CLASSIFYING:
-            mode, number = "next_step", run.iteration
+            step, number = "next_step", run.iteration
         elif run.status in (Status.READY, Status.STOPPED) and run.stage not in (
             None,
             Stage.ANALYZING,
@@ -837,7 +1075,7 @@ class SkillImprovementService:
                     message="The session has used all its attempts",
                     details={"max_iterations": run.max_iterations},
                 )
-            mode, number = "next_round", run.iteration + 1
+            step, number = "next_round", run.iteration + 1
         else:
             raise BadRequestError(
                 message="The session has no step for a person to take now",
@@ -845,11 +1083,8 @@ class SkillImprovementService:
             )
         pack = await self._evidence(ctx, line, run.window_days)
         price = (await self.authoring.estimate_pack(ctx, pack)).estimate_usd
-        spent = await skill_improvement_repo.spent(
-            self.db, run.id, organization_id=ctx.organization_id
-        )
         return SkillContinuationEstimate(
-            mode=mode,
+            mode=step,
             number=number,
             total_usd=price,
             expected_usd=price,
@@ -891,6 +1126,11 @@ class SkillImprovementService:
         )
         result.can_discard = self._may_discard(ctx, run)
         result.timeline = await self._timeline(ctx, run)
+        check = await self._check(run)
+        if check is not None:
+            result.check = await self.checks.read(ctx, run.skill_id, check.id)
+            if run.status == Status.READY:
+                result.outcomes = result.check.outcomes
         return result
 
     async def _timeline(self, ctx: AuthContext, run: SkillImprovementRun) -> list[ImprovementEvent]:

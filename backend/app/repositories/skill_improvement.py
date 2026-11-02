@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.authoring import AuthoringRequest
+from app.db.models.eval_run import EvalRunCase
 from app.db.models.improvement import ACTIVE_STATUSES, ImprovementStatus
+from app.db.models.skill_check import SkillCheckAgent
 from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
 
 _ACTIVE = tuple(status.value for status in ACTIVE_STATUSES)
@@ -227,6 +229,31 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
         )
     )
     return Decimal(requests or 0) + Decimal(checks or 0)
+
+
+async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID) -> Decimal:
+    """What a check's eval runs cost, across every agent and stage it ran."""
+    runs = (
+        select(SkillCheckAgent.skill_set_run_id.label("run_id"))
+        .where(
+            SkillCheckAgent.check_id == check_id,
+            SkillCheckAgent.organization_id == organization_id,
+        )
+        .union_all(
+            select(SkillCheckAgent.dataset_run_id).where(
+                SkillCheckAgent.check_id == check_id,
+                SkillCheckAgent.organization_id == organization_id,
+            )
+        )
+        .subquery()
+    )
+    total = await db.scalar(
+        select(func.coalesce(func.sum(EvalRunCase.cost_usd), 0)).where(
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.eval_run_id.in_(select(runs.c.run_id)),
+        )
+    )
+    return Decimal(total or 0)
 
 
 async def timeline(
