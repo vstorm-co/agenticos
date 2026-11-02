@@ -201,6 +201,8 @@ export interface ImprovementEvidenceItem {
   topic_id?: string | null;
   /** Set when its topic is covered now: nothing is left to draft for it. */
   knowledge_added?: KnowledgeAdded | null;
+  /** The skills its run used, by any agent. */
+  skills?: { skill_id: string; name: string }[];
 }
 export interface ImprovementEvidence {
   items: ImprovementEvidenceItem[];

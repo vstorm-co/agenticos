@@ -14819,7 +14819,8 @@
       "behind": "Dieser Agent liegt {count, plural, =1 {1 Version} other {# Versionen}} hinter Main.",
       "updatePinned": "Auf v{version} aktualisieren",
       "catchUp": "Fork auf Main bringen"
-    }
+    },
+    "usedSkill": "Hat Skill {name} genutzt"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

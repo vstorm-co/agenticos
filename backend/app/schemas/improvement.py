@@ -405,6 +405,13 @@ class EvidenceGrade(BaseSchema):
     reason: str
 
 
+class EvidenceSkill(BaseSchema):
+    """A skill one example's run used."""
+
+    skill_id: UUID
+    name: str
+
+
 class ImprovementEvidenceItem(BaseSchema):
     run_id: UUID
     conversation_id: UUID | None
@@ -428,6 +435,9 @@ class ImprovementEvidenceItem(BaseSchema):
         default=None,
         description="For an answer missing knowledge, the document added since to its topic: "
         "nothing is left to draft for it",
+    )
+    skills: list[EvidenceSkill] = Field(
+        default_factory=list, description="The skills its run used, by any agent"
     )
 
 

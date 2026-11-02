@@ -14921,7 +14921,8 @@
       "behind": "Ten agent jest {count, plural, one {1 wersję} few {# wersje} many {# wersji} other {# wersji}} za main.",
       "updatePinned": "Zaktualizuj do v{version}",
       "catchUp": "Dogoń main w forku"
-    }
+    },
+    "usedSkill": "Użył skilla {name}"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

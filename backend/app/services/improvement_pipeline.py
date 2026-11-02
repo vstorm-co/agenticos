@@ -76,6 +76,8 @@ from app.repositories import (
     knowledge_base_repo,
     knowledge_gap_repo,
     organization_repo,
+    skill_repo,
+    skill_usage_repo,
     user_repo,
 )
 from app.repositories import (
@@ -102,6 +104,7 @@ from app.schemas.improvement import (
     ContinuationConsent,
     ContinuationEstimate,
     EvidenceGrade,
+    EvidenceSkill,
     ImprovementAwaiting,
     ImprovementContinue,
     ImprovementDiscard,
@@ -744,6 +747,7 @@ class ImprovementPipelineService:
         covering = await knowledge_gap_repo.covering_documents(
             self.db, list(set(topics.values())), organization_id=ctx.organization_id
         )
+        skills_of = await self._skills_of_runs(ctx, [item.run_id for item in pack.runs])
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
             cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
@@ -793,6 +797,7 @@ class ImprovementPipelineService:
                     and cause.branch == "missing_knowledge"
                     and added.document.knowledge_base_id is not None
                     else None,
+                    skills=skills_of.get(item.run_id, []),
                 )
             )
         return ImprovementEvidence(
@@ -857,6 +862,22 @@ class ImprovementPipelineService:
             raise NotFoundError(message="Improvement session not found")
         agent = await self.registry.get(ctx, row.agent_id)
         return await ImprovementSkillService(self.db).seed(ctx, agent, row.id, skill_id)
+
+    async def _skills_of_runs(
+        self, ctx: AuthContext, run_ids: list[UUID]
+    ) -> dict[UUID, list[EvidenceSkill]]:
+        """The skills each run used, named, for the examples Understand shows."""
+        used = await skill_usage_repo.skills_in_runs(
+            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+        named = await skill_repo.get_many(self.db, list(used), organization_id=ctx.organization_id)
+        found: dict[UUID, list[EvidenceSkill]] = {}
+        for skill in sorted(named.values(), key=lambda skill: skill.name):
+            for run_id in used[skill.id]:
+                found.setdefault(run_id, []).append(
+                    EvidenceSkill(skill_id=skill.id, name=skill.name)
+                )
+        return found
 
     @staticmethod
     def _require_runs(ctx: AuthContext) -> None:

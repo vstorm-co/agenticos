@@ -15147,7 +15147,8 @@
       "behind": "This agent is {count, plural, =1 {1 version} other {# versions}} behind main.",
       "updatePinned": "Update to v{version}",
       "catchUp": "Catch up the fork"
-    }
+    },
+    "usedSkill": "Used skill {name}"
   },
   "unsaved": {
     "title": "You have unsaved changes",
