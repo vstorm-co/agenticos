@@ -97,7 +97,10 @@ class TestObserve:
 
     def test_a_nested_argument_is_read_too(self) -> None:
         log = _log()
-        log.observe("edit_file", {"edits": [{"path": "/workspace/skills/shipping/SKILL.md"}]})
+        log.observe(
+            "edit_file",
+            {"edits": [{"path": "/workspace/skills/shipping/SKILL.md", "line": 3}], "dry": False},
+        )
         [record] = log.records()
         assert record.skill_id == SHIPPING
 
