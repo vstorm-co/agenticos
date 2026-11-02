@@ -5380,11 +5380,11 @@
       },
       "skill-agents": {
         "title": "Wer diesen Skill nutzt",
-        "body": "Jeder Agent, der den Skill nutzt, mit der Version, die er bekommt: main folgt jeder neuen Version, fixiert bleibt auf einer älteren, und ein Fork hat eigene Änderungen."
+        "body": "Jeder Agent, der den Skill nutzt, mit der Version, die er bekommt: main folgt jeder neuen Version, festgesetzt bleibt auf einer älteren, und ein Fork hat eigene Änderungen."
       },
       "skill-lines": {
         "title": "Eine Linie nach der anderen",
-        "body": "Zeigen Sie die Agents auf main, die fixierten oder einen Fork. Ein gewählter Fork gilt auch für Verlauf und Bearbeiten."
+        "body": "Zeigen Sie die Agents auf main, die festgesetzten oder einen Fork. Ein gewählter Fork gilt auch für Verlauf und Bearbeiten."
       },
       "skill-change-version": {
         "title": "Einen Agent auf eine andere Version setzen",
@@ -8241,14 +8241,14 @@
       "deleteDescription": "Agents, die diesen Skill nutzen, finden ihn nicht mehr. Seine Versionen gehen mit ihm.",
       "state": {
         "main": "v{number} · main",
-        "pinned": "v{number} · fixiert{behind, plural, =0 {} other { · # hinter main}}",
+        "pinned": "v{number} · festgesetzt{behind, plural, =0 {} other { · # hinter main}}",
         "fork": "Fork „{name}“ · ab v{base}{changes, plural, =0 { · noch keine Änderungen} =1 { · 1 Änderung} other { · # Änderungen}}{behind, plural, =0 {} other { · # hinter main}}"
       },
       "show": {
         "label": "Welche Agents angezeigt werden",
         "all": "Alle ({count})",
         "main": "Main ({count})",
-        "pinned": "Fixiert ({count})",
+        "pinned": "Festgesetzt ({count})",
         "fork": "Fork „{name}“ ({count})"
       },
       "agentsTable": {
@@ -8269,8 +8269,8 @@
         "now": "Jetzt: {binding}",
         "legend": "Zu nutzende Version",
         "followMain": "Main, neueste: folgt jeder neuen Version",
-        "pin": "Eine main-Version fixieren: bleibt darauf, wenn main weitergeht",
-        "pinVersion": "Zu fixierende Version",
+        "pin": "Auf eine main-Version festsetzen: bleibt darauf, wenn main weitergeht",
+        "pinVersion": "Version zum Festsetzen",
         "versionOption": "v{number}",
         "fork": "Fork „{name}“, neueste",
         "unchecked": "Diese Version wurde auf {name} nicht geprüft. Seine Antworten können sich ändern.",
@@ -8295,7 +8295,7 @@
         "restore": "Wiederherstellen",
         "restoreVersion": "v{number} wiederherstellen",
         "restoreTitle": "v{number} wiederherstellen?",
-        "restoreMain": "v{number} kommt als neueste Version auf main zurück. Agents, die main folgen, erhalten sie sofort; fixierte Agents und Forks behalten ihre Version.",
+        "restoreMain": "v{number} kommt als neueste Version auf main zurück. Agents, die main folgen, erhalten sie sofort; festgesetzte Agents und Forks behalten ihre Version.",
         "restoreFork": "v{number} kommt als neueste Version von Fork „{name}“ zurück. Die Agents des Forks erhalten sie sofort.",
         "restored": "v{number} ist als v{made} zurück.",
         "number": "v{number}",
@@ -8337,7 +8337,7 @@
         "saved": "Als v{number} gespeichert.",
         "forkTitle": "{skill} · Fork „{name}“",
         "nameHowModelRefers": "Unter diesem Namen spricht das Modell den Skill an.",
-        "warnMain": "Speichern erzeugt v{number} auf main. {count, plural, =0 {Noch folgt kein Agent main.} =1 {1 Agent, der main folgt, erhält sie sofort.} other {# Agents, die main folgen, erhalten sie sofort.}} Fixierte Agents und Forks behalten ihre Version.",
+        "warnMain": "Speichern erzeugt v{number} auf main. {count, plural, =0 {Noch folgt kein Agent main.} =1 {1 Agent, der main folgt, erhält sie sofort.} other {# Agents, die main folgen, erhalten sie sofort.}} Festgesetzte Agents und Forks behalten ihre Version.",
         "warnFork": "Speichern erzeugt v{number} von Fork „{name}“. {count, plural, =0 {Noch nutzt kein Agent den Fork.} =1 {Sein 1 Agent erhält sie sofort.} other {Seine # Agents erhalten sie sofort.}}",
         "lineMoved": "Seit Sie dies geöffnet haben, hat jemand eine neuere Version gespeichert. Ihr Text ist noch hier: kopieren Sie ihn, schließen Sie und öffnen Sie die neueste Version, um ihn dort einzufügen.",
         "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet.",

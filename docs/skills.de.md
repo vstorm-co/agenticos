@@ -361,18 +361,18 @@ hat es sich angesehen.
 **Agents** listet jeden Agent, der den Skill nutzt, mit der Version, die er bekommt:
 
 - `v12 · main` - der Agent folgt main und bekommt jede neue Version sofort.
-- `v9 · fixiert · 3 hinter main` - der Agent bleibt auf einer älteren main-Version.
+- `v9 · festgesetzt · 3 hinter main` - der Agent bleibt auf einer älteren main-Version.
 - `Fork „Returns“ · ab v7 · 2 Änderungen` - der Agent nutzt einen Fork: eine Linie
   von Versionen mit eigenen Änderungen, gestartet von einer main-Version.
 
 Eine Umgebung, die eine andere Version ausliefert, steht unter dem Agent. Ein Agent,
 der den Skill nur in seinem Entwurf bindet, ist mit **Nur im Entwurf** markiert und
 zählt zu keiner Linie. Agents, die Sie nicht sehen, werden gezählt, nicht genannt.
-Die Chips über der Tabelle zeigen alle, die Agents auf main, die fixierten oder
+Die Chips über der Tabelle zeigen alle, die Agents auf main, die festgesetzten oder
 einen Fork. Ein dort gewählter Fork ist auch die Linie, die der Verlauf zeigt und in
 die Bearbeiten speichert.
 
-**Version ändern** setzt einen Agent auf main, auf eine fixierte main-Version oder
+**Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version oder
 auf einen Fork. Es veröffentlicht eine neue Version des Agents aus seiner
 veröffentlichten Version, in der sich nur die Bindung dieses Skills ändert, und
 macht dieselbe Änderung im Entwurf des Agents. Andere unfertige Änderungen im
@@ -396,7 +396,7 @@ Version, bei der er begann, und die Agents bei der Version, die sie nutzen.
 Abschnitte, die kein Agent nutzt, werden zu einer Zeile zusammengefaltet.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
-bekommen die Agents, die main folgen, sie sofort; fixierte Agents und Forks behalten
+bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks behalten
 ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbeiten
 eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
 sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
