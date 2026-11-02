@@ -923,6 +923,7 @@ class SkillImprovementService:
             run.skill_id,
             await self._check_start(ctx, run, line, iteration, mode),
             source=CheckSource.SESSION,
+            exclude_conversations=await self._evidence_conversations(iteration),
         )
         await skill_improvement_repo.update_iteration(
             self.db, iteration=iteration, values={"skill_check_id": check.id}
@@ -950,6 +951,16 @@ class SkillImprovementService:
             candidate=CandidateText(description=description, content=content),
             mode=mode or CheckMode.QUICK,
         )
+
+    async def _evidence_conversations(self, iteration: SkillImprovementIteration) -> list[UUID]:
+        """The conversations the attempt's edits were written from, which its check never asks:
+        a change is not measured on the answers it was fitted to."""
+        assert iteration.batch_id is not None, "only an attempt with edits is checked"
+        batch = await authoring_repo.get_batch(
+            self.db, iteration.batch_id, organization_id=iteration.organization_id
+        )
+        assert batch is not None, "an attempt's batch goes with the attempt"
+        return list(batch.evidence_conversation_ids)
 
     async def _judge(self, run: SkillImprovementRun) -> None:
         """Carry the attempt's check into its result once every agent of the line is in."""
@@ -1074,7 +1085,10 @@ class SkillImprovementService:
         if run.status == Status.WAITING and run.stage == Stage.FILTERING:
             iteration = await self._iteration(run)
             check = await self.checks.estimate(
-                ctx, run.skill_id, await self._check_start(ctx, run, line, iteration, mode)
+                ctx,
+                run.skill_id,
+                await self._check_start(ctx, run, line, iteration, mode),
+                exclude_conversations=await self._evidence_conversations(iteration),
             )
             assert iteration.candidate_hash is not None, "a candidate that applies has a hash"
             return SkillContinuationEstimate(

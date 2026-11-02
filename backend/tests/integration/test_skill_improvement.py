@@ -72,6 +72,7 @@ from tests.integration.test_skill_bindings import _fork, _serving, _skill, _spec
 pytestmark = pytest.mark.anyio
 
 _PRICE = Decimal("0.05")
+_CONVERSATION = uuid.uuid4()
 _BODY = "Refunds take 14 days.\nAlways ask for the order number.\nBe polite."
 
 
@@ -210,7 +211,7 @@ async def _propose(
         request_id=request.id,
         source_started_at=request.created_at,
         expected_effect="Right refund window",
-        evidence_conversation_ids=[],
+        evidence_conversation_ids=[_CONVERSATION],
     )
     await authoring_repo.add_hunks(
         db, organization_id=ctx.organization_id, batch_id=batch.id, hunks=changes
@@ -989,6 +990,7 @@ class FakeChecks:
         self.calls: list[tuple[str, Any]] = []
         self.price = Decimal("0.30")
         self.refuse: Exception | None = None
+        self.excluded: list[list[uuid.UUID]] = []
 
     def _estimate(self, data: SkillCheckStart) -> SkillCheckEstimate:
         return SkillCheckEstimate(
@@ -1004,13 +1006,15 @@ class FakeChecks:
             affordable=True,
         )
 
-    async def estimate(self, ctx, skill_id, data):
+    async def estimate(self, ctx, skill_id, data, *, exclude_conversations=()):
         self.calls.append(("estimate", data))
+        self.excluded.append(list(exclude_conversations))
         return self._estimate(data)
 
-    async def start(self, ctx, skill_id, data, *, source=None):
+    async def start(self, ctx, skill_id, data, *, source=None, exclude_conversations=()):
         if self.refuse is not None:
             raise self.refuse
+        self.excluded.append(list(exclude_conversations))
         self.calls.append(("start", (data, source)))
         assert data.candidate is not None
         skill = await self.db.get(Skill, skill_id)
@@ -1153,6 +1157,7 @@ class TestCheckAndResult:
         [(_, (started, source))] = [call for call in fake.calls if call[0] == "start"]
         assert started.candidate.content.startswith("Refunds take 30 days.")
         assert (started.mode, source) == (CheckMode.THOROUGH, CheckSource.SESSION)
+        assert fake.excluded and all(item == [_CONVERSATION] for item in fake.excluded)
         assert (read.status, read.stage) == ("running", "evaluating")
         assert read.check is not None and read.check.status == "running"
         assert read.outcomes == []
