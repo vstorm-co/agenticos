@@ -1,7 +1,7 @@
 """Data access for the authoring assistant's requests, proposals and evidence."""
 
 import dataclasses
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -21,10 +21,12 @@ from app.db.models.authoring import (
     SpecProposalBatch,
     SpecProposalHunk,
 )
-from app.db.models.conversation import Message, ToolCall
+from app.db.models.conversation import Message
 from app.db.models.message_rating import MessageRating
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.db.models.skill_usage import RunSkillUse
+from app.repositories import skill_usage as skill_usage_repo
 from app.repositories.agent_run import served_runs
 
 if TYPE_CHECKING:
@@ -443,7 +445,9 @@ async def evidence_runs(
     organization_id: UUID,
     agent_id: UUID | None = None,
     agent_ids: Sequence[UUID] | None = None,
-    skill_name: str | None = None,
+    skill_id: UUID | None = None,
+    skill_versions: Collection[UUID] | None = None,
+    skill_agent_ids: Collection[UUID] | None = None,
     excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
     only_run_ids: Sequence[UUID] | None = None,
@@ -455,12 +459,12 @@ async def evidence_runs(
     then up-rated runs as the contrast, newest first within each; unrated runs
     that succeeded are not evidence of anything. `agent_id` narrows the runs to
     one agent's, `agent_ids` to several agents' - those binding a context file -
-    and `skill_name` to those whose model opened that skill.
+    and `skill_id` to those that used that skill, by their own agent or by an
+    agent they delegated to, as `run_skill_uses` recorded it; `skill_versions`
+    narrows that to uses of those versions, and `skill_agent_ids` to runs in
+    which no other agent used it. A run that only named the skill's workspace
+    folder counts here too, and its reader says it is probable.
     `excluded_message_ids` leaves out the runs that gave those answers.
-
-    A skill reaches a run as a deferred capability the model loads with
-    `load_capability`, a framework tool no binding can rename, so the call's
-    name and its `id` argument identify the skill on every run.
     """
     rating = (
         select(
@@ -525,17 +529,22 @@ async def evidence_runs(
             Message.run_id == AgentRun.id, Message.id.in_(list(excluded_message_ids))
         )
         statement = statement.where(~answered)
-    if skill_name is not None:
-        loaded = (
-            select(ToolCall.id)
-            .join(Message, Message.id == ToolCall.message_id)
-            .where(
-                Message.run_id == AgentRun.id,
-                ToolCall.tool_name == "load_capability",
-                ToolCall.args["id"].astext == skill_name,
-            )
+    if skill_id is not None:
+        uses = select(RunSkillUse.id).where(
+            RunSkillUse.run_id == AgentRun.id,
+            RunSkillUse.skill_id == skill_id,
+            or_(skill_usage_repo.used(), RunSkillUse.workspace_reads > 0),
         )
-        statement = statement.where(loaded.exists())
+        if skill_versions is not None:
+            uses = uses.where(RunSkillUse.skill_version_id.in_(list(skill_versions)))
+        statement = statement.where(uses.exists())
+        if skill_agent_ids is not None:
+            other = select(RunSkillUse.id).where(
+                RunSkillUse.run_id == AgentRun.id,
+                RunSkillUse.skill_id == skill_id,
+                RunSkillUse.agent_id.not_in(list(skill_agent_ids)),
+            )
+            statement = statement.where(~other.exists())
     if only_run_ids is not None:
         statement = statement.where(AgentRun.id.in_(only_run_ids))
     result = await db.execute(statement.order_by(rank, AgentRun.started_at.desc()).limit(limit))

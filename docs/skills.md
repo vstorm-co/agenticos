@@ -129,6 +129,29 @@ publishing an agent bound to a skill named that way.
 Enabling the capability with no skills bound is not useful — give the agent skills,
 or leave the capability off.
 
+### Which skills an answer used { #which-skills-an-answer-used }
+
+Binding a skill does not mean the model read it. Each run records the skills it
+actually used, by the skill's id: whether the model opened one with
+`load_capability`, and how many of its files it read with `read_skill_resource`.
+A run records this however it ends, including one that failed after opening the
+skill. A skill a delegate used is recorded on the run that delegated, under the
+delegate's own agent, because the answer a person rated is that run's.
+
+A tool call that names a path in a skill's workspace folder, such as
+`cat /workspace/skills/refund-policy/SKILL.md`, is counted apart as probable use.
+Listing the folder is not counted. A path a shell assembles, a glob over several
+skills, or a script that reads the file itself is not recognised.
+
+`GET /api/v1/skills/{id}/usage?days=30` returns, per agent, how many runs used the
+skill in that window, with the version each was served. Runs of evals and of the
+Builder's test panel are left out. The figures are read off runs, so they need
+`runs:view`; an agent the caller may not see is counted, never named.
+
+Runs from before this was recorded say "usage unknown", which is not the same as
+"not used". When a skill is improved, its evidence comes only from runs that used
+it, and the rated-down or failed runs that may have used it count apart as unknown.
+
 ## In a workspace, a skill is also files
 
 An agent that has both skills and a
