@@ -64,9 +64,8 @@ class Skill(Base, TimestampMixin):
     # which is a fine thing for a skill to be.
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    # `content`, `description`, `version` and `resources` mirror the newest main
-    # version (`latest_version_id`), which `SkillVersionService` keeps in step - see
-    # `app/db/models/skill_version.py`.
+    # `content`, `description`, `version` and `resources` mirror the newest main version
+    # (`latest_version_id`); only `SkillVersionService` moves them together.
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     latest_version_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

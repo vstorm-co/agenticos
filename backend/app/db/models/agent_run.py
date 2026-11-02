@@ -299,9 +299,8 @@ class AgentRun(Base, TimestampMixin):
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
-    # The skill versions this run served, resolved from its spec's bindings when it
-    # started - its inline specialists' included. Null for a run from before skills
-    # were versioned, which served whatever the skill said that day.
+    # The skill versions this run served, its inline specialists' included; null for
+    # a run from before skills were versioned.
     skill_version_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=True
     )

@@ -298,8 +298,6 @@ class SkillProposalService:
                 ctx, skill.id, files, source=source, proposal_id=proposal.id
             )
 
-        # A fork's agents are reached through their bindings, which `proposal_reach`
-        # reads by line once agents can be bound to a fork; a main change reaches main.
         reaches = (
             []
             if fork is not None
