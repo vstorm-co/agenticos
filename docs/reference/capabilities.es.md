@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "642b1efb690c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2344,7 +2344,7 @@ Hay tres clases de recordatorio, cada una con su propia cadencia:
 | Clase | Coste | Texto que inyecta |
 |---|---|---|
 | `reminders[]` | ninguno | Una línea fija que escribes tú |
-| `goal_reanchor` | ninguno | La primera petición del usuario en el run, reformulada como ancla |
+| `goal_reanchor` | ninguno | Una referencia a la primera petición del usuario en el run, sin repetir su texto |
 | `llm_reminder` | una llamada al modelo por disparo | Un empujón corto que un modelo escribe a partir de la transcripción reciente |
 
 Cada clase recibe `interval` (dispara cada N peticiones al modelo), `first_after` (el

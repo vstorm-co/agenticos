@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "642b1efb690c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2285,7 +2285,7 @@ Są trzy rodzaje przypomnień, każdy z własnym rytmem:
 | Rodzaj | Koszt | Tekst, który wstrzykuje |
 |---|---|---|
 | `reminders[]` | żaden | Stała linia, którą piszesz |
-| `goal_reanchor` | żaden | Pierwsza prośba użytkownika w tym runie, powtórzona jako kotwica |
+| `goal_reanchor` | żaden | Wskazanie pierwszej prośby użytkownika w tym runie, bez powtarzania jej treści |
 | `llm_reminder` | jedno wywołanie modelu na odpalenie | Krótkie ponaglenie, które model pisze z ostatniego zapisu rozmowy |
 
 Każdy rodzaj przyjmuje `interval` (odpalaj co N żądań do modelu), `first_after`

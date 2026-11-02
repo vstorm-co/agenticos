@@ -2187,7 +2187,7 @@ There are three reminder kinds, each with its own cadence:
 | Kind | Cost | Text it injects |
 |---|---|---|
 | `reminders[]` | none | A fixed line you write |
-| `goal_reanchor` | none | The run's first user request, re-stated as the anchor |
+| `goal_reanchor` | none | A pointer to the run's first user request, without repeating user text |
 | `llm_reminder` | one model call per fire | A short nudge a model writes from the recent transcript |
 
 Each kind takes `interval` (fire every N model requests), `first_after` (the

@@ -1,5 +1,5 @@
 ---
-source_sha: "30ec7731488d"
+source_sha: "642b1efb690c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2461,7 +2461,7 @@ Es gibt drei Arten von Erinnerungen, jede mit ihrem eigenen Takt:
 | Art | Kosten | Text, den sie einfügt |
 |---|---|---|
 | `reminders[]` | keine | Eine feste Zeile, die Sie schreiben |
-| `goal_reanchor` | keine | Die erste Nutzeranfrage des Runs, als Anker wiederholt |
+| `goal_reanchor` | keine | Ein Verweis auf die erste Nutzeranfrage des Runs, ohne ihren Text zu wiederholen |
 | `llm_reminder` | ein Modellaufruf pro Auslösung | Ein kurzer Hinweis, den ein Modell aus dem jüngsten Transkript schreibt |
 
 Jede Art nimmt `interval` (bei jeder N-ten Modellanfrage auslösen), `first_after`
