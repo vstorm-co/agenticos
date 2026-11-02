@@ -437,7 +437,8 @@ class ImprovementEvidenceItem(BaseSchema):
         "nothing is left to draft for it",
     )
     skills: list[EvidenceSkill] = Field(
-        default_factory=list, description="The skills its run used, by any agent"
+        default_factory=list,
+        description="The skills the agent itself used in its run, where the reader may see them",
     )
 
 
@@ -499,14 +500,15 @@ class ImprovementSkill(BaseSchema):
     skill_id: UUID
     name: str
     binding: SkillBindingRead | None = Field(
-        description="The version the agent reads now; null where the caller may not see the skill"
+        description="The version the agent's served version reads, or its draft's while none "
+        "is served; null where only an inline specialist binds the skill"
     )
     agents_on_line: int | None = Field(
         description="Agents the caller may see that read the line an Improve of this skill "
         "changes - the fork the agent follows, or main; null as `binding` is"
     )
     hidden_agents: int = Field(
-        default=0, description="Agents using the skill that the caller may not see"
+        default=0, description="Agents using the skill, on any line, that the caller may not see"
     )
     problems: list[ImprovementSkillProblem] = Field(default_factory=list)
     can_improve: bool = Field(description="The caller may edit the skill, so may improve it")

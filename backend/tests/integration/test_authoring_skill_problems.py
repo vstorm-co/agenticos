@@ -10,7 +10,7 @@ from app.db.models.agent import Agent
 from app.db.models.skill import Skill
 from app.repositories import skill_usage_repo
 from app.schemas.skill_usage import SkillUseRecord
-from tests.integration.test_authoring import COMMENT, Improver, _improve, _rated, _setup
+from tests.integration.test_authoring import COMMENT, Improver, _clerk, _improve, _rated, _setup
 from tests.integration.test_authoring import _environment as _environment
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
@@ -54,9 +54,11 @@ async def test_a_problem_is_kept_only_for_a_bound_skill_the_cited_runs_used(db: 
     returns = await _skill(db, ctx, "returns-policy", RETURNS)
     shipping = await _skill(db, ctx, "shipping", "Ship within two days.")
     await _bound(db, agent, returns, shipping)
+    # A delegate opened shipping in the same run: that is the delegate's use, not the agent's.
+    delegate = await _clerk(db, ctx)
     await skill_usage_repo.record_uses(
         db,
-        [_use(returns, agent)],
+        [_use(returns, agent), _use(shipping, delegate)],
         organization_id=ctx.organization_id,
         run_id=run.id,
         started_at=run.started_at,
@@ -68,7 +70,7 @@ async def test_a_problem_is_kept_only_for_a_bound_skill_the_cited_runs_used(db: 
             "summary": "The returns skill states the wrong window",
             "expected_effect": "Answers say 30 days",
             "skill_problems": [
-                {"skill": "returns-policy", "problem": "It says ninety days", "evidence": cited},
+                {"skill": "Returns-Policy", "problem": "It says ninety days", "evidence": cited},
                 {"skill": "no-such-skill", "problem": "Missing", "evidence": cited},
                 {"skill": "shipping", "problem": "Never opened", "evidence": cited},
                 {

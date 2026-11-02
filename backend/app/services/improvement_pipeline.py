@@ -133,6 +133,7 @@ from app.schemas.improvement import (
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
+from app.services.access import SKILL, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
 from app.services.api_key import job_context
@@ -747,7 +748,7 @@ class ImprovementPipelineService:
         covering = await knowledge_gap_repo.covering_documents(
             self.db, list(set(topics.values())), organization_id=ctx.organization_id
         )
-        skills_of = await self._skills_of_runs(ctx, [item.run_id for item in pack.runs])
+        skills_of = await self._skills_of_runs(ctx, agent.id, [item.run_id for item in pack.runs])
         items: list[ImprovementEvidenceItem] = []
         for item in pack.runs:
             cause = causes.get(messages[item.run_id]) if item.run_id in messages else None
@@ -864,15 +865,20 @@ class ImprovementPipelineService:
         return await ImprovementSkillService(self.db).seed(ctx, agent, row.id, skill_id)
 
     async def _skills_of_runs(
-        self, ctx: AuthContext, run_ids: list[UUID]
+        self, ctx: AuthContext, agent_id: UUID, run_ids: list[UUID]
     ) -> dict[UUID, list[EvidenceSkill]]:
-        """The skills each run used, named, for the examples Understand shows."""
+        """The skills the agent itself used in each run, named where the caller may see them."""
         used = await skill_usage_repo.skills_in_runs(
-            self.db, organization_id=ctx.organization_id, run_ids=run_ids
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id, run_ids=run_ids
         )
         named = await skill_repo.get_many(self.db, list(used), organization_id=ctx.organization_id)
+        visible = await accessible_ids(
+            self.db, ctx, list(named.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
         found: dict[UUID, list[EvidenceSkill]] = {}
         for skill in sorted(named.values(), key=lambda skill: skill.name):
+            if skill.id not in visible:
+                continue
             for run_id in used[skill.id]:
                 found.setdefault(run_id, []).append(
                     EvidenceSkill(skill_id=skill.id, name=skill.name)

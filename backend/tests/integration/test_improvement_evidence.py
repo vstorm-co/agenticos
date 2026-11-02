@@ -14,8 +14,8 @@ from app.db.models.conversation import Message
 from app.db.models.knowledge_gap import KnowledgeGapClassification
 from app.repositories import knowledge_gap_repo
 from app.services.improvement_pipeline import ImprovementPipelineService
+from tests.integration.test_authoring import _clerk, _rated
 from tests.integration.test_authoring import _environment as _environment
-from tests.integration.test_authoring import _rated
 from tests.integration.test_improvement_pipeline import _started
 from tests.integration.test_knowledge_gaps import _knowledge_base
 
@@ -226,6 +226,7 @@ async def test_each_example_names_the_skills_its_run_used(db):
     from app.schemas.skill_usage import SkillUseRecord
 
     ctx, agent, _dataset, session = await _started(db)
+    delegate = await _clerk(db, ctx)
     service = ImprovementPipelineService(db)
     [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
     assert item.skills == []
@@ -238,13 +239,15 @@ async def test_each_example_names_the_skills_its_run_used(db):
             content=f"How {name} works",
             visibility="org",
         )
-        for name in ("shipping", "refunds")
+        for name in ("shipping", "refunds", "delegated")
     ]
     db.add_all(skills)
     await db.flush()
     await skill_usage_repo.record_uses(
         db,
-        [SkillUseRecord(agent_id=agent.id, skill_id=skill.id, loaded=True) for skill in skills],
+        [SkillUseRecord(agent_id=agent.id, skill_id=skill.id, loaded=True) for skill in skills[:2]]
+        # A delegate's use is the delegate's, not this agent's.
+        + [SkillUseRecord(agent_id=delegate.id, skill_id=skills[2].id, loaded=True)],
         organization_id=ctx.organization_id,
         run_id=item.run_id,
         started_at=datetime.now(UTC),
@@ -253,3 +256,17 @@ async def test_each_example_names_the_skills_its_run_used(db):
     [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
 
     assert [skill.name for skill in item.skills] == ["refunds", "shipping"]
+    no_skills = replace(
+        ctx,
+        key_scopes=frozenset(
+            {Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.DATASETS_VIEW, Perm.DATASETS_RUN}
+        ),
+    )
+    [item] = (await service.evidence(no_skills, agent.id, run_id=session.id)).items
+    assert item.skills == []
+    assert (
+        await skill_usage_repo.skills_in_runs(
+            db, organization_id=ctx.organization_id, agent_id=agent.id, run_ids=[]
+        )
+        == {}
+    )

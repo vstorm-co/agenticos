@@ -186,14 +186,18 @@ async def uses_in_runs(
 
 
 async def skills_in_runs(
-    db: AsyncSession, *, organization_id: UUID, run_ids: Collection[UUID]
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, run_ids: Collection[UUID]
 ) -> dict[UUID, set[UUID]]:
-    """For each skill these runs used, by any agent and from a workspace path too, the runs."""
+    """For each skill the agent itself used in these runs, from a workspace path too, the runs.
+
+    A delegate's use is the delegate's: it is not counted for the agent that delegated.
+    """
     if not run_ids:
         return {}
     rows = await db.execute(
         select(RunSkillUse.skill_id, RunSkillUse.run_id).where(
             RunSkillUse.organization_id == organization_id,
+            RunSkillUse.agent_id == agent_id,
             RunSkillUse.run_id.in_(list(run_ids)),
             or_(used(), RunSkillUse.workspace_reads > 0),
         )
