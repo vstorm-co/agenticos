@@ -1,5 +1,5 @@
 ---
-source_sha: "1303ae05877d"
+source_sha: "9c0bc30e9da8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2160,13 +2160,13 @@ step, or a batch, without replacing the plan.*
 `add_subtask`, `set_dependency`, `get_available_tasks` — *dependency-aware planning,
 offered only under `enable_subtasks`.*
 
-Lista kontrolna, którą model prowadzi dla siebie w trakcie pracy: co zrobione, co w
-toku, co zostało. Przy pracy wieloetapowej model radzi sobie lepiej, gdy najpierw
-zapisze kroki i trzyma je przed sobą, więc bieżący plan jest przywoływany co turę
-jako **przypomnienie w ogonie, bezpieczne dla cache'u** — doklejane za punktem
-cache'owania, tak by stabilny prefiks promptu pozostawał bajt w bajt taki sam i by
-co turę czytany był ponownie tylko zmienny plan. Plan nigdy nie ląduje w prompcie
-systemowym.
+Model prowadzi listę ukończonych, aktywnych i pozostałych kroków. Narzędzia
+zmieniające plan zwracają go w ramce `<plan_reminder>`. Gdy widoczny plan różni
+się od magazynu, np. po kompakcji lub na początku runa, harness zapisuje go jako
+treść kanału użytkownika w historii runa. Plan nie staje się promptem systemowym.
+Cache kontrolują ustawienia modelu. Jeśli agent używał `planning.cache_ttl`,
+przenieś czas przechowywania do ustawienia modelu `cache`, np. `cache: "1h"`;
+poprzednie pole capability nadal jest akceptowane, ale ignorowane.
 
 Nakłada się to na [Delegowanie](#delegation) tak, jak plan nakłada się na zespół:
 planowanie decyduje, *jakie* są kroki, delegowanie decyduje, *kto* je wykonuje. Są
@@ -2176,7 +2176,7 @@ narzędzi plus otoczka runa — więc agent może wiązać oba, jedno albo żadn
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `enable_subtasks` | `false` | dodaje trzy narzędzia do podzadań i zależności oraz status `blocked` |
-| `cache_ttl` | `5m` | `5m`, `1h` — jak długo może się cache'ować prefiks przed przypomnieniem |
+| `cache_ttl` | `5m` | Poprzednie pole: akceptowane, ale ignorowane; skonfiguruj `cache` w ustawieniach modelu |
 
 **Żadne z dziewięciu narzędzi nie działa na świat.** Każde zmienia listę kontrolną,
 którą model prowadzi dla siebie, więc nie ma tu czego zatwierdzać i capability
@@ -2285,7 +2285,7 @@ Są trzy rodzaje przypomnień, każdy z własnym rytmem:
 | Rodzaj | Koszt | Tekst, który wstrzykuje |
 |---|---|---|
 | `reminders[]` | żaden | Stała linia, którą piszesz |
-| `goal_reanchor` | żaden | Pierwsza prośba użytkownika w tym runie, powtórzona jako kotwica |
+| `goal_reanchor` | żaden | Wskazanie pierwszej prośby użytkownika w tym runie, bez powtarzania jej treści |
 | `llm_reminder` | jedno wywołanie modelu na odpalenie | Krótkie ponaglenie, które model pisze z ostatniego zapisu rozmowy |
 
 Każdy rodzaj przyjmuje `interval` (odpalaj co N żądań do modelu), `first_after`
