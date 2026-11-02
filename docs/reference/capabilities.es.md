@@ -1,5 +1,5 @@
 ---
-source_sha: "32f262ea9dc8"
+source_sha: "5bddf06f5881"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2772,6 +2772,14 @@ es la plataforma funcionando y un operador que filtre buscando problemas deberí
 encontrarlo en lugar de que se lea como cualquier respuesta completada. Consulta
 [Gobernanza](../governance.md).
 
+**El mensaje de un turno bloqueado no se vuelve a leer.** Cada comprobación lee solo
+lo nuevo de su propio turno, así que el historial de un turno posterior no reproduce
+el mensaje de un run `guardrail_blocked`, sea cual sea la comprobación que lo detuvo.
+En su lugar, el modelo lee una nota breve de que un guardrail detuvo ese turno, sin
+el texto del mensaje ni lo que añadieron los archivos enviados con él. La
+conversación sigue mostrando a la persona lo que escribió. La búsqueda en
+conversaciones anteriores (`conversation_search`) todavía no filtra estos mensajes.
+
 **Una comprobación de salida filtra la respuesta antes de que nadie la vea.** Todas
 las superficies transmiten en streaming: el chat web y el widget incrustado envían la
 respuesta mientras se escribe, y un bot de canal edita su respuesta según llega el
@@ -2823,9 +2831,16 @@ que un turno que el borde bloquea no escribe nada, y un turno posterior en un
 workspace con alcance `conversation`, `user` o `agent` no tiene ningún archivo
 rechazado que abrir. El borde solo lee esas primeras líneas, así que un término
 bloqueado más abajo en el archivo no se detecta aquí; para eso está la revisión de
-los resultados de las herramientas. Una imagen enviada en línea es la excepción: el
-borde también lee sus bytes, y un bloqueo que causan esos bytes no se prevé, así que
-esa imagen se sigue escribiendo.
+los resultados de las herramientas. Una imagen enviada en línea no es texto, así que
+el borde no la lee: en un prompt con una imagen el borde revisa solo las palabras,
+nunca los bytes de la imagen, y una censura reescribe esas palabras y conserva la
+imagen. Un prompt construido en código también puede
+llevar un archivo de texto, que se revisa como el texto UTF-8 que recibe el
+modelo; un archivo que declara otro juego de caracteres o que no es válido en el
+que declara bloquea el turno. Un prompt así también puede llevar un enlace, que también se
+revisa: una censura no se puede escribir en un enlace sin romperlo, así que una
+coincidencia en él bloquea. Como los bytes ya no deciden, la revisión previa a
+la escritura prevé un turno con imagen igual que cualquier otro.
 
 **El filtrado de los resultados de herramienta es la razón de que este borde sea el que
 más importa.** Es la única guarda sobre el contenido no confiable que entra en el

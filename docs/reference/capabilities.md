@@ -2590,6 +2590,14 @@ beside `budget_exceeded`, because a refusal is the platform working and an opera
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
 
+**A blocked turn's message is not read back.** A check reads only what is new in
+its own turn, so a later turn's history does not replay the message of a
+`guardrail_blocked` run, whichever check stopped it. In its place the model reads a
+short note that a guardrail stopped that turn, without the message's text or what
+the files sent with it added. The conversation still shows the person what they
+typed. Search over past conversations (`conversation_search`) does not filter these
+messages yet.
+
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
 a channel bot edits its reply as the text arrives. When any output check is
@@ -2634,9 +2642,16 @@ a workspace has that text screened before the file is copied to `uploads/`, so a
 turn the edge blocks writes nothing, and a later turn in a `conversation`-, `user`-
 or `agent`-scoped workspace has no refused file to open. The edge reads only those
 opening lines, so a blocked term further down the file is not caught here; screen
-tool results for that. A picture sent inline is the exception: the edge also reads
-its bytes, and a block those bytes cause is not foreseen, so that picture is still
-written.
+tool results for that. A picture sent inline is not text, so the edge does not read
+it: on a prompt with a picture the edge screens the words alone, never the picture's
+bytes, and a redaction rewrites those words and keeps the picture. A prompt built in
+code may also carry a text file inline, which is
+screened as the UTF-8 text a model is sent; a file that declares another
+character set or is not valid in the one it declares blocks the turn. Such a prompt
+may also carry a link, which is screened too: a redaction cannot be written
+into a link without breaking it, so a match there blocks. Because the bytes
+no longer decide, the check before the write predicts a turn with a picture as it
+does any other.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's

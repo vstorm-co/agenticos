@@ -479,13 +479,16 @@ async def _run_ingestion(
 
     try:
         async with get_worker_db_context() as db:
-            await RAGDocumentService(db).complete_ingestion(
+            documents = RAGDocumentService(db)
+            recorded = await documents.complete_ingestion(
                 rag_document_id,
                 vector_document_id=result.document_id,
                 chunk_count=result.chunk_count,
                 replaced_document_id=result.replaced_document_id,
                 attempt=attempt,
             )
+            if not recorded:
+                await documents.discard_untracked(collection_name, result.document_id, scope=scope)
     except Exception as exc:
         logger.exception("Indexed %s but could not record it", source_path)
         await _fail_document(
@@ -494,6 +497,10 @@ async def _run_ingestion(
             attempt=attempt,
         )
         raise
+
+    if not recorded:
+        logger.info("Document %s was deleted while indexing", rag_document_id)
+        return {"status": "deleted", "filename": source_path}
 
     logger.info("Ingestion complete: %s", source_path)
     return {"status": "done", "document_id": result.document_id, "filename": source_path}
@@ -692,9 +699,14 @@ async def _run_sync(
                 # Either way, which is the other half of #997: a file that failed
                 # to parse used to leave no row and no reason, so a sync log
                 # saying four of forty failed named none of the four.
-                await _settle_document_row(row_id, result)
+                settled = await _settle_document_row(
+                    row_id, result, ingester=ingester, collection_name=collection_name
+                )
 
-                if result.status is IngestionStatus.DONE:
+                if not settled:
+                    # Deleted while it indexed: not a file this sync ingested (#2565).
+                    pass
+                elif result.status is IngestionStatus.DONE:
                     if result.replaced_document_id:
                         updated += 1
                     else:
@@ -882,9 +894,14 @@ async def _open_document_row(
 
 
 async def _settle_document_row(
-    row_id: str, result: IngestionResult, *, inherited: frozenset[UUID] = frozenset()
-) -> None:
-    """Move an open row to what the ingest actually did.
+    row_id: str,
+    result: IngestionResult,
+    *,
+    ingester: IngestionService,
+    collection_name: str,
+    inherited: frozenset[UUID] = frozenset(),
+) -> bool:
+    """Move an open row to what the ingest actually did; `False` if the row is gone.
 
     The failure branch is not an afterthought: a document that failed to parse
     is the one a reader most needs to see, and its reason is a `failure_summary`
@@ -895,6 +912,10 @@ async def _settle_document_row(
     at the same address (`_reconcile_stale_rows`). They claim the row once it
     settles, never while it is `PROCESSING`: a stale row is found by its
     claim, and another source's run must not take this one's for its own.
+
+    `ingester` and `collection_name` are what wrote the chunks: a row deleted
+    while they were written is settled by queueing their removal (#2565), and
+    the sync counts it as nothing - neither ingested nor failed.
     """
     from app.services.rag_document import RAGDocumentService
 
@@ -906,13 +927,18 @@ async def _settle_document_row(
             # column's own default; re-syncing the same source another night
             # opens another row rather than resubmitting this one.
             if result.status is IngestionStatus.DONE and result.document_id:
-                await documents.complete_ingestion(
+                if not await documents.complete_ingestion(
                     row_id,
                     vector_document_id=result.document_id,
                     chunk_count=result.chunk_count,
                     replaced_document_id=result.replaced_document_id,
                     attempt=1,
-                )
+                ):
+                    await documents.discard_untracked(
+                        collection_name, result.document_id, scope=ingester.scope
+                    )
+                    logger.info("Document %s was deleted while indexing", row_id)
+                    return False
             else:
                 await documents.fail_ingestion(
                     row_id, result.error_message or "Ingestion failed", attempt=1
@@ -923,6 +949,8 @@ async def _settle_document_row(
         # The base was deleted mid-sync and took the row with it (#2561). Raising
         # here escaped the per-file loop's own handler and failed the whole run.
         logger.info("Document %s is gone; nothing to settle", row_id)
+        return False
+    return True
 
 
 async def _notify_sync_start_failure(
@@ -1530,13 +1558,18 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                 organizational_unit=source.organizational_unit,
                             )
 
-                        await _settle_document_row(
+                        settled = await _settle_document_row(
                             row_id,
                             result,
+                            ingester=ingester,
+                            collection_name=collection_name,
                             inherited=inherited.get(remote_file.source_path, frozenset()),
                         )
 
-                        if result.status is IngestionStatus.DONE:
+                        if not settled:
+                            # Deleted while it indexed: not a file this sync ingested.
+                            pass
+                        elif result.status is IngestionStatus.DONE:
                             if result.replaced_document_id:
                                 updated += 1
                             else:
@@ -1569,6 +1602,8 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                                     status=IngestionStatus.ERROR,
                                     error_message=failure_summary(e, stage=IngestionStage.INGEST),
                                 ),
+                                ingester=ingester,
+                                collection_name=collection_name,
                                 inherited=inherited.get(remote_file.source_path, frozenset()),
                             )
 

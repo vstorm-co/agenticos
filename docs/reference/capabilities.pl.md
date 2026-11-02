@@ -1,5 +1,5 @@
 ---
-source_sha: "32f262ea9dc8"
+source_sha: "5bddf06f5881"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2702,6 +2702,14 @@ platformą działającą poprawnie, a operator filtrujący problemy powinien mó
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
 
+**Wiadomość z zablokowanej tury nie wraca do modelu.** Każde sprawdzenie czyta
+tylko to, co nowe w jego własnej turze, więc historia kolejnej tury nie odtwarza
+wiadomości z runa `guardrail_blocked`, niezależnie od tego, które sprawdzenie go
+zatrzymało. W jej miejscu model czyta krótką notkę, że guardrail zatrzymał tę turę,
+bez treści wiadomości i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
+pokazuje osobie to, co wpisała. Wyszukiwanie w dawnych rozmowach
+(`conversation_search`) jeszcze nie pomija tych wiadomości.
+
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
 w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przychodzi
@@ -2752,9 +2760,16 @@ tekst sprawdzony, zanim plik zostanie skopiowany do `uploads/`, więc tura
 zablokowana przez krawędź nic nie zapisuje, a późniejsza tura w workspace'ie o
 zakresie `conversation`, `user` lub `agent` nie ma odrzuconego pliku do otwarcia.
 Krawędź czyta tylko te początkowe linie, więc zablokowane słowo dalej w pliku nie
-jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Wyjątkiem jest
-obraz wysłany bezpośrednio: krawędź czyta też jego bajty, a blokada, którą wywołują
-te bajty, nie jest przewidywana, więc taki obraz nadal zostaje zapisany.
+jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Obraz wysłany
+bezpośrednio nie jest tekstem, więc krawędź go nie czyta: w prompcie z obrazem
+krawędź sprawdza same słowa, nigdy bajty obrazu, a redakcja zmienia te słowa i
+zostawia obraz. Prompt zbudowany w kodzie może też nieść
+plik tekstowy, sprawdzany jako tekst UTF-8, który dostaje model; plik, który
+deklaruje inne kodowanie znaków albo nie jest poprawny w zadeklarowanym, blokuje
+turę. Taki prompt może też nieść link, który też jest sprawdzany:
+redakcji nie da się wpisać w link bez jego zepsucia, więc dopasowanie w linku
+blokuje. Ponieważ bajty już nie decydują, sprawdzenie przed
+zapisem przewiduje turę z obrazem tak samo jak każdą inną.
 
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —
