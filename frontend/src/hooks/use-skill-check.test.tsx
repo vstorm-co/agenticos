@@ -3,13 +3,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SKILL_CHECK_POLL_MS, useOpenSkillCheck, useSkillCheck } from "./use-skill-check";
+import { SKILL_CHECK_POLL_MS, useSkillCheck } from "./use-skill-check";
 import * as api from "@/lib/skill-checks-api";
 import type { SkillCheck } from "@/types/skill-checks";
 
 vi.mock("@/lib/skill-checks-api", () => ({
   cancelSkillCheck: vi.fn(),
-  listSkillChecks: vi.fn(),
   estimateSkillCheck: vi.fn(),
   startSkillCheck: vi.fn(),
   getSkillCheck: vi.fn(),
@@ -64,20 +63,12 @@ describe("useSkillCheck", () => {
     vi.useRealTimers();
   });
 
-  it("finds the open check of one change, and stops a running one", async () => {
-    vi.mocked(api.listSkillChecks).mockResolvedValue([
-      { id: "c-old", proposal_id: "p-1", status: "applied" },
-      { id: "c-other", proposal_id: "p-2", status: "running" },
-      { id: "c-open", proposal_id: "p-1", status: "done" },
-    ] as SkillCheck[]);
+  it("stops a running check", async () => {
     vi.mocked(api.cancelSkillCheck).mockResolvedValue({} as SkillCheck);
-    const open = renderHook(() => useOpenSkillCheck("s-1", null, "p-1"), { wrapper });
-    const none = renderHook(() => useOpenSkillCheck("s-1", "f-1", "p-9"), { wrapper });
     const { result } = renderHook(() => useSkillCheck("s-1", "c-open"), { wrapper });
 
-    await waitFor(() => expect(open.result.current.data?.id).toBe("c-open"));
-    await waitFor(() => expect(none.result.current.data).toBeNull());
     await act(() => result.current.cancel.mutateAsync());
+
     expect(api.cancelSkillCheck).toHaveBeenCalledWith("s-1", "c-open");
   });
 

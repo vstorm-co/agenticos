@@ -165,6 +165,22 @@ async def running(db: AsyncSession, *, limit: int) -> list[tuple[UUID, UUID]]:
     return [(org, check) for org, check in rows.all()]
 
 
+async def running_since(
+    db: AsyncSession, *, before: datetime, limit: int
+) -> list[tuple[UUID, UUID]]:
+    """Checks started before `before` and still running, in every organization.
+
+    The sweep's own read, as `running` is.
+    """
+    rows = await db.execute(
+        select(SkillCheck.organization_id, SkillCheck.id)
+        .where(SkillCheck.status == CheckStatus.RUNNING.value, SkillCheck.created_at < before)
+        .order_by(SkillCheck.created_at)
+        .limit(limit)
+    )
+    return [(org, check) for org, check in rows.all()]
+
+
 async def loaded_cases(
     db: AsyncSession,
     *,

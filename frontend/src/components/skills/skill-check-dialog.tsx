@@ -13,8 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { useOpenSkillCheck, useSkillCheck } from "@/hooks/use-skill-check";
-import { getErrorMessage } from "@/lib/api-error";
+import { useSkillCheck } from "@/hooks/use-skill-check";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { CheckAgents } from "./check-agents";
 import { CheckDecision } from "./check-decision";
@@ -39,18 +39,18 @@ export function SkillCheckDialog({
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
-  const [started, setStarted] = useState<string | null>(null);
-  const earlier = useOpenSkillCheck(skillId, forkId, proposalId);
-  const checkId = started ?? earlier.data?.id ?? null;
+  const [checkId, setCheckId] = useState<string | null>(null);
   const { check, estimate, start, apply, discard, cancel } = useSkillCheck(skillId, checkId);
   const body = { fork_id: forkId, proposal_id: proposalId };
   const { mutate: price } = estimate;
-  // Priced only when no earlier check of this change is still open to go back to.
-  const fresh = earlier.isSuccess && earlier.data === null;
-  useEffect(() => {
-    if (fresh) price({ fork_id: forkId, proposal_id: proposalId });
-  }, [fresh, price, forkId, proposalId]);
+  useEffect(() => price({ fork_id: forkId, proposal_id: proposalId }), [price, forkId, proposalId]);
   const failed = (error: unknown) => toast.error(getErrorMessage(error, tErrors));
+  // The server knows whether this very text is checked already, and says which check.
+  const resumeOrFail = (error: unknown) => {
+    const open = error instanceof ApiError ? error.details?.check_id : undefined;
+    if (typeof open === "string") setCheckId(open);
+    else failed(error);
+  };
   const shown = check ?? estimate.data ?? null;
 
   return (
@@ -77,7 +77,10 @@ export function SkillCheckDialog({
             <Button
               disabled={start.isPending || !estimate.data.affordable}
               onClick={() =>
-                start.mutate(body, { onSuccess: (made) => setStarted(made.id), onError: failed })
+                start.mutate(body, {
+                  onSuccess: (made) => setCheckId(made.id),
+                  onError: resumeOrFail,
+                })
               }
             >
               {t("start")}
