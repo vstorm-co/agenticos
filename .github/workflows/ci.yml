@@ -365,7 +365,7 @@ jobs:
         # target writes the count and the list to the job summary and to
         # `backend/security-tests.txt`, which the next step uploads, so a security
         # review can read which refusals the suite holds rather than take the
-        # claim on faith. A report, not a gate - it only lists, and `always()` so
+        # claim on faith. A report, not a gate - it only lists, and `!cancelled()` so
         # it still runs when a test above failed. `test_ci_parity.py` exempts it.
         if: ${{ !cancelled() }}
         run: make security-report
