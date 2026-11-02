@@ -35,7 +35,7 @@ export function MobileHeader() {
   if (onChat) return null;
 
   return (
-    <header className="bg-background sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
+    <header className="bg-background sticky top-0 z-40 flex h-12 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
       <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={toggle}>
         <Menu className="h-5 w-5" />
         <span className="sr-only">{t("toggleMenu")}</span>

@@ -44,7 +44,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden pb-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-4 sm:gap-6">
       <PageHeader
         className="mb-0 shrink-0 md:mb-0"
         breadcrumbs={[

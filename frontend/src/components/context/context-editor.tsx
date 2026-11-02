@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertTriangle, SlidersHorizontal } from "lucide-react";
 
 import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -68,17 +68,6 @@ export function ContextEditor({
           sentence in a 20rem column beside three narrow controls wraps to three
           lines and pushes the pane down - it needs the width, and the controls
           do not. */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-fit shrink-0 md:hidden"
-        aria-expanded={metadataOpen}
-        aria-controls={metadataId}
-        onClick={() => setMetadataOpen(!metadataOpen)}
-      >
-        {t("description")}
-        <ChevronDown className={cn(metadataOpen && "rotate-180")} aria-hidden />
-      </Button>
       <div
         id={metadataId}
         className={cn(
@@ -108,6 +97,19 @@ export function ContextEditor({
         content={content}
         canEdit={canEdit}
         onChange={setContent}
+        toolbar={
+          <Button
+            variant={metadataOpen ? "secondary" : "ghost"}
+            size="icon"
+            className="shrink-0 md:hidden"
+            aria-expanded={metadataOpen}
+            aria-controls={metadataId}
+            onClick={() => setMetadataOpen(!metadataOpen)}
+          >
+            <SlidersHorizontal aria-hidden className="size-4" />
+            <span className="sr-only">{t("description")}</span>
+          </Button>
+        }
       />
 
       {changed && (

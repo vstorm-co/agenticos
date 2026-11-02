@@ -2868,7 +2868,7 @@ body .tour-spotlight {
 @media (max-width: 767px) {
   :root {
     --dialog-available-height: calc(
-      var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px)
+      var(--app-height, 100dvh) - var(--shell-inset-top, 0px) - var(--safe-bottom, 0px) - 1.5rem
     );
   }
 }

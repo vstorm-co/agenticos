@@ -70,9 +70,9 @@ export function PageHeader({
     };
   }, [secondaryOpen]);
   return (
-    <div ref={header} className={cn("mb-4 shrink-0 sm:mb-6", className)}>
+    <div ref={header} className={cn("mb-3 shrink-0 sm:mb-6", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav aria-label={t("breadcrumb")} className="mb-3">
+        <nav aria-label={t("breadcrumb")} className="mb-1 sm:mb-3">
           <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
             {breadcrumbs.map((c, i) => {
               const last = i === breadcrumbs.length - 1;
@@ -81,7 +81,7 @@ export function PageHeader({
                   {c.href && !last ? (
                     <Link
                       href={c.href}
-                      className="hover:text-foreground touch:min-h-11 focus-visible:outline-ring inline-flex items-center rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                      className="hover:text-foreground touch:min-h-8 focus-visible:outline-ring inline-flex items-center rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
                       {c.label}
                     </Link>
@@ -102,10 +102,10 @@ export function PageHeader({
       )}
 
       {/* Keep the primary actions beside the title; wrap naturally on a narrow screen. */}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1 basis-80">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 sm:gap-x-6 sm:gap-y-3">
+        <div className="min-w-0 flex-1 basis-auto md:basis-80">
           <div className="flex min-h-9 items-center gap-2 sm:gap-3">
-            <h1 className="text-foreground min-w-0 text-xl leading-tight font-semibold tracking-tight text-balance md:text-2xl">
+            <h1 className="text-foreground min-w-0 text-lg leading-tight font-semibold tracking-tight text-balance sm:text-xl md:text-2xl">
               {title}
             </h1>
             {description && descriptionMode === "help" && <ContextHelp>{description}</ContextHelp>}
@@ -122,7 +122,7 @@ export function PageHeader({
             <div
               role="group"
               aria-label={t("pageStatus")}
-              className="mt-2 flex flex-wrap items-center gap-2 whitespace-nowrap"
+              className="mt-1 flex flex-wrap items-center gap-2 whitespace-nowrap sm:mt-2"
             >
               {badges}
             </div>
@@ -135,7 +135,12 @@ export function PageHeader({
         )}
         {/* Wrapped on a phone: scrolled sideways, the Builder's last actions
             sat past the screen's edge with nothing saying they were there. */}
-        <div className="page-actions order-2 flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:w-auto md:justify-end">
+        <div
+          className={cn(
+            "page-actions order-2 flex w-auto max-w-full min-w-0 flex-wrap items-center gap-2 md:order-1 md:justify-end",
+            secondaryOpen && "max-md:w-full",
+          )}
+        >
           {secondaryActions && (
             <>
               <Button

@@ -883,7 +883,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-6">
+      <div className="min-w-0 flex-1 space-y-3 sm:space-y-6">
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">

@@ -38,6 +38,7 @@ export function FileEditor({
   onDelete,
   footer,
   header,
+  toolbar,
   initialMode = "source",
   placeholder,
   className,
@@ -52,6 +53,8 @@ export function FileEditor({
   footer?: ReactNode;
   /** Anything the owner wants above the content - the body's own fields. */
   header?: ReactNode;
+  /** Owner controls that belong beside source/preview, rather than above the editor. */
+  toolbar?: ReactNode;
   /**
    * Which half opens first. A browser of files somebody else wrote opens on the
    * preview; a pane somebody came to *write* in opens on the source, where a
@@ -77,6 +80,7 @@ export function FileEditor({
     <div className={cn("flex min-h-0 flex-1 flex-col rounded-md border", className)}>
       <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
+        {!expanded && toolbar}
         <MarkdownModeToggle mode={mode} onChange={setMode} />
         {!expanded && (
           <Button
