@@ -15,7 +15,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -977,8 +977,15 @@ async def test_a_key_started_run_cannot_mint_private_chat_provenance(db: AsyncSe
     for keyed in (
         replace(ctx, api_key_id=uuid.uuid4()),
         replace(ctx, key_scopes=frozenset({Perm.AGENTS_RUN})),
+        replace(ctx, subject_is_publisher_fallback=True),
+        replace(ctx, fired_as_creator="schedule"),
+        replace(ctx, fired_as_creator="event"),
+        replace(ctx, routine_id=uuid.uuid4()),
     ):
         raw = await ApiKeyService(db).issue_for_run(keyed, conversation_id=conversation.id)
+        if keyed.subject_is_publisher_fallback:
+            assert raw is None
+            continue
         assert raw is not None
         assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None
 
@@ -996,4 +1003,18 @@ async def test_an_external_key_never_supplies_private_chat_provenance(db: AsyncS
     row = (await db.execute(select(ApiKey).where(ApiKey.prefix == raw[:12]))).scalar_one()
     row.internal = False
     await db.flush()
+    assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None
+
+
+@pytest.mark.security
+async def test_impersonation_never_mints_private_routine_authority(db: AsyncSession) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    conversation = Conversation(organization_id=organization.id, user_id=owner.id, title="Chat")
+    db.add(conversation)
+    await db.flush()
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    with patch("app.services.api_key.current_impersonator", return_value=uuid.uuid4()):
+        raw = await ApiKeyService(db).issue_for_run(ctx, conversation_id=conversation.id)
+    assert raw is not None
     assert (await ApiKeyService(db).authenticate(raw)).context.source_conversation_id is None

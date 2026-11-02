@@ -51,6 +51,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Private-chat authority is not transferable to background work.** Routine/workflow runs, public or group audiences, API keys and impersonation cannot mint the private source hint that permits a routine to act as a person. Approval continuations retain the original audience, so resuming a group turn never turns it into private standing consent.
+
 - **Routine authorization is checked before every tool.** Root runs, delegates and approval continuations refuse subsequent tools after pause, deletion, expiry, personal-consent withdrawal, role changes or revoked run grants. The actor remains the original creator. Immutable run provenance survives deletion so a parked routine cannot lose its guard when its reporting FK clears; unverifiable old parked schedules are refused. Migration `0260_routine_run_origin`.
 
 - **Platform model calls no longer claim to have executed the starter agent's version.** Their role remains recorded and the run manifest contains the actual platform instructions; the unrelated agent version is left empty.

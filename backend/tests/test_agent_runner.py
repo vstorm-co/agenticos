@@ -7645,3 +7645,44 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         if isinstance(item, RoutineGuard)
     ]
     assert len(guards) == 1 and guards[0].check is check and guards[0].agent_id == agent.id
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("kind", ["private", "group", "background"])
+async def test_preparation_only_mints_source_provenance_for_private_human_chat(kind: str) -> None:
+    ctx = _ctx()
+    if kind == "background":
+        ctx = replace(ctx, fired_as_creator="schedule")
+    conversation = uuid.uuid4()
+    service = AgentRunnerService(_db())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    spec = AgentSpec(name="Chat")
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+        ),
+        patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        patch.object(
+            service, "_platform_credential", new=AsyncMock(return_value=None)
+        ) as credential,
+        patch(
+            "app.services.agent_runner.agent_run_repo.create_run",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ),
+        patch("app.services.agent_runner.build_agent", return_value=MagicMock()),
+    ):
+        await service.prepare(
+            ctx,
+            agent.id,
+            conversation_id=conversation,
+            surface=RunSurface.SCHEDULE if kind == "background" else RunSurface.SLACK,
+            memory_room_key="room:slack:C123" if kind == "group" else None,
+        )
+    assert credential.await_args.kwargs["conversation_id"] == (
+        conversation if kind == "private" else None
+    )

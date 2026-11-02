@@ -18,7 +18,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthenticationError, InternalError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -297,7 +297,14 @@ class ApiKeyService:
         provenance: dict[str, UUID] = {}
         if agent_id is not None:
             provenance["source_agent_id"] = agent_id
-        if conversation_id is not None and ctx.api_key_id is None and ctx.key_scopes is None:
+        if (
+            conversation_id is not None
+            and ctx.api_key_id is None
+            and ctx.key_scopes is None
+            and ctx.fired_as_creator is None
+            and ctx.routine_id is None
+            and current_impersonator() is None
+        ):
             provenance["source_conversation_id"] = conversation_id
         if provenance:
             await api_key_repo.update(self.db, key=_row, update_data=provenance)

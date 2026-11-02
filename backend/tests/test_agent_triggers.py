@@ -35,6 +35,7 @@ from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import (
     AgentTriggerService,
     EventFireDecision,
+    _acts_as_themselves,
     _next_fire_from,
     _update_action,
 )
@@ -4807,3 +4808,17 @@ async def test_editing_a_routines_conversation_keeps_the_authorized_target() -> 
             TriggerUpdate(answer_to="conversation", delivery_conversation_id=destination),
         )
     assert repo.update.await_args.kwargs["update_data"]["delivery_conversation_id"] == destination
+
+
+@pytest.mark.parametrize("kind", ["publisher", "schedule", "event", "routine"])
+def test_a_background_actor_is_not_the_person_granting_standing_authority(kind: str) -> None:
+    ctx = _ctx()
+    if kind == "publisher":
+        ctx = replace(ctx, subject_is_publisher_fallback=True)
+    if kind == "schedule":
+        ctx = replace(ctx, fired_as_creator="schedule")
+    if kind == "event":
+        ctx = replace(ctx, fired_as_creator="event")
+    if kind == "routine":
+        ctx = replace(ctx, routine_id=uuid.uuid4())
+    assert not _acts_as_themselves(ctx, _CALLER)

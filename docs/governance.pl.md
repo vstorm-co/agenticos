@@ -1,5 +1,5 @@
 ---
-source_sha: "36361ca6f556"
+source_sha: "31c75d9d27ef"
 ---
 
 # Governance { #governance }
@@ -57,7 +57,8 @@ Dziennik uruchomień pozostaje dostępny w Routines.
 Ustaw `ends_at` z przesunięciem UTC dla pracy ograniczonej w czasie oraz
 `monthly_budget_usd` dla niższego limitu miesięcznego. Narzędzie aktualizacji
 MCP pozwala usunąć oba ustawienia. Zwykły klucz API nie może upoważnić rutyny
-do korzystania z osobistych kont jego wystawcy.
+do korzystania z osobistych kont jego wystawcy. Takiej zgody nie nadają też uruchomienia
+w tle, podszywanie się ani wznowione tury grupowe lub publiczne.
 
 Wybór wersji pozwala śledzić domyślną opublikowaną wersję albo przypiąć jedną niezmienną wersję. Publikacja nie przesuwa pinu. Usuń go, aby ponownie śledzić wersję domyślną. Nazwane środowisko i pin wersji wzajemnie się wykluczają; nadal obowiązują bieżące uprawnienia, budżety i zatwierdzenia.
 

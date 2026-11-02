@@ -1,5 +1,5 @@
 ---
-source_sha: "36361ca6f556"
+source_sha: "31c75d9d27ef"
 ---
 
 # Governance { #governance }
@@ -59,7 +59,9 @@ und Entfernen. Das Ausführungsprotokoll bleibt unter Routines verfügbar.
 Setzen Sie `ends_at` mit UTC-Offset für zeitlich begrenzte Aufgaben und
 `monthly_budget_usd` für ein engeres Monatslimit. Das MCP-Aktualisierungstool kann
 beide Einstellungen entfernen. Ein gewöhnlicher API-Schlüssel kann keine Routine
-zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen.
+zur Nutzung der persönlichen Konten seines Ausstellers ermächtigen. Hintergrundläufe,
+Identitätsübernahmen und fortgesetzte Gruppen- oder öffentliche Runden erteilen
+ebenfalls keine solche Zustimmung.
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 

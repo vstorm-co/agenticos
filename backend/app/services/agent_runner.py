@@ -1923,6 +1923,47 @@ _CHANNEL_SURFACES = frozenset(
     }
 )
 
+
+def _routine_source(
+    ctx: AuthContext,
+    *,
+    surface: RunSurface,
+    conversation_id: UUID | None,
+    memory_room_key: str | None,
+    audience: RunAudience | None,
+    public_origin: bool,
+    impersonated: bool,
+    existing_run: AgentRun | None,
+) -> UUID | None:
+    """A private human interaction, never a background run lending its actor as a person."""
+    person = ctx.user_id if existing_run is None else existing_run.user_id
+    if (
+        conversation_id is None
+        or person is None
+        or (surface is not RunSurface.WEB and surface not in _CHANNEL_SURFACES)
+        or memory_room_key is not None
+        or public_origin
+        or impersonated
+        or ctx.subject_is_publisher_fallback
+        or ctx.fired_as_creator is not None
+        or ctx.routine_id is not None
+        or ctx.api_key_id is not None
+        or ctx.key_scopes is not None
+        or (
+            existing_run is not None
+            and (
+                existing_run.initiated_by_publisher_fallback
+                or existing_run.key_scopes is not None
+                or existing_run.routine_origin_id is not None
+                or existing_run.surface != surface.value
+            )
+        )
+        or (audience is not None and (not audience.private or audience.user_id != person))
+    ):
+        return None
+    return conversation_id
+
+
 _INTERRUPTED = frozenset(
     {
         RunStatus.FAILED,
@@ -3570,7 +3611,16 @@ class AgentRunnerService:
                 ctx,
                 existing_run,
                 agent_id=agent.id,
-                conversation_id=conversation_id if memory_room_key is None else None,
+                conversation_id=_routine_source(
+                    ctx,
+                    surface=surface,
+                    conversation_id=conversation_id,
+                    memory_room_key=memory_room_key,
+                    audience=restored_audience,
+                    public_origin=public_origin,
+                    impersonated=impersonated or current_impersonator() is not None,
+                    existing_run=existing_run,
+                ),
             ),
         )
         spec_toolsets = resolved.toolsets

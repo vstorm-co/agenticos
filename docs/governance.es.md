@@ -1,5 +1,5 @@
 ---
-source_sha: "36361ca6f556"
+source_sha: "31c75d9d27ef"
 ---
 
 # Governance { #governance }
@@ -57,7 +57,7 @@ El registro de ejecuciones sigue disponible en Routines.
 Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitada y
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
 actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
-autorizar a una rutina a usar las cuentas personales de quien la emitió.
+autorizar a una rutina a usar las cuentas personales de quien la emitió. Tampoco conceden esa autoridad los runs en segundo plano, las suplantaciones ni los turnos grupales o públicos reanudados.
 
 La política de versiones permite seguir la versión publicada predeterminada o fijar una versión inmutable. Una publicación no cambia la versión fijada. Elimina la fijación para volver a seguir la predeterminada. Un entorno con nombre y una versión fijada se excluyen mutuamente; siguen vigentes los permisos, presupuestos y aprobaciones actuales.
 

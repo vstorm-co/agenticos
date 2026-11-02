@@ -319,6 +319,9 @@ def _acts_as_themselves(ctx: AuthContext, person: UUID | None) -> bool:
     return (
         person is not None
         and ctx.user_id == person
+        and not ctx.subject_is_publisher_fallback
+        and ctx.fired_as_creator is None
+        and ctx.routine_id is None
         and (ctx.api_key_id is None or ctx.source_conversation_id is not None)
         and current_impersonator() is None
     )

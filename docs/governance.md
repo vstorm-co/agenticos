@@ -50,7 +50,7 @@ The run log remains available under Routines.
 
 Set `ends_at` with a UTC offset for time-bounded work, and `monthly_budget_usd`
 for a tighter monthly limit. The MCP update tool can clear either setting.
-An ordinary API key cannot authorize a routine to use its issuer's personal accounts.
+An ordinary API key cannot authorize a routine to use its issuer's personal accounts. Background runs, impersonation and resumed group or public turns cannot grant that personal authority either.
 
 Use the version policy to follow the default published version or pin one immutable version. A pin does not move on publication. Clear it to follow again. A named environment and a version pin are mutually exclusive; current access, budgets and approvals still apply.
 
