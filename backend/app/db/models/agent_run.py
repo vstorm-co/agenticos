@@ -232,6 +232,9 @@ class AgentRun(Base, TimestampMixin):
     routine_kind: Mapped[str] = mapped_column(
         String(16), nullable=False, default="trigger", server_default="trigger"
     )
+    routine_activation_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     routine_policy: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

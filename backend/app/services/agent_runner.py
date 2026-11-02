@@ -3690,6 +3690,9 @@ class AgentRunnerService:
                 routine_policy=(
                     None if watch_sources is None else watch_sources.model_dump(mode="json")
                 ),
+                routine_activation_at=None
+                if watch_receipt is None
+                else watch_receipt.activation_at,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 key_scopes=(
                     None
@@ -5657,8 +5660,9 @@ class AgentRunnerService:
         direction of silence.
         """
         notifications = NotificationService(self.db)
+        budget_recipients: set[UUID] = set()
         if status is RunStatus.BUDGET_EXCEEDED:
-            await notifications.budget_exceeded(
+            budget_recipients = await notifications.budget_exceeded(
                 run,
                 agent=agent,
                 spec=spec,
@@ -5693,6 +5697,7 @@ class AgentRunnerService:
                 await notifications.run_failed(run, agent=agent, error=error)
         # Whatever the outcome: a failed run spent money too.
         await notifications.department_budget_warnings(run)
+        await notifications.routine_result(run, budget_recipients=budget_recipients)
 
     async def execute(
         self,

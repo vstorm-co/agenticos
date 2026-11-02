@@ -1,6 +1,7 @@
 """Live routine delivery limits, shared by notification creation and retry delivery."""
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,21 +43,27 @@ async def allowed_channels(
     except ValueError:
         return set()
     if kind == "watch":
-        watch = await watch_repo.get_by_id(db, origin)
+        watch = await watch_repo.get_by_id(db, origin, fresh=True)
         if watch is None or watch.organization_id != organization_id:
             return set()
-        owner, active, selected = watch.user_id, watch.is_active, watch.notification_channels
+        owner, active, selected, end = (
+            watch.user_id,
+            watch.is_active,
+            watch.notification_channels,
+            watch.ends_at,
+        )
     else:
-        trigger = await agent_trigger_repo.get_by_id(db, origin)
+        trigger = await agent_trigger_repo.get_by_id(db, origin, fresh=True)
         if trigger is None or trigger.organization_id != organization_id:
             return set()
-        owner, active, selected = (
+        owner, active, selected, end = (
             trigger.created_by_user_id,
             trigger.is_active,
             trigger.notification_channels,
+            trigger.ends_at,
         )
     if owner != recipient_user_id:
         return None
-    if not active:
+    if not active or (end is not None and end <= datetime.now(UTC)):
         return {NotificationChannel.IN_APP}
     return channels(read_channels(selected))

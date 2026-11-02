@@ -1,5 +1,6 @@
 """Routine delivery limits never enable a channel or change another recipient's choice."""
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -45,7 +46,18 @@ async def test_absent_context_inherits_and_malformed_references_cannot_enable_de
 
 @pytest.mark.parametrize("kind", ["watch", "trigger"])
 @pytest.mark.parametrize(
-    "change", ["inherit", "disabled", "email", "paused", "gone", "tenant", "other-recipient"]
+    "change",
+    [
+        "inherit",
+        "disabled",
+        "email",
+        "paused",
+        "expired",
+        "future",
+        "gone",
+        "tenant",
+        "other-recipient",
+    ],
 )
 async def test_live_routine_state_limits_only_its_own_person(kind, change):
     owner, org, identifier = uuid4(), uuid4(), uuid4()
@@ -55,6 +67,11 @@ async def test_live_routine_state_limits_only_its_own_person(kind, change):
         created_by_user_id=owner,
         organization_id=uuid4() if change == "tenant" else org,
         is_active=change != "paused",
+        ends_at=datetime.now(UTC) + timedelta(days=1)
+        if change == "future"
+        else datetime.now(UTC) - timedelta(days=1)
+        if change == "expired"
+        else None,
         notification_channels=selected,
     )
     repo = "watch_repo" if kind == "watch" else "agent_trigger_repo"
@@ -71,7 +88,7 @@ async def test_live_routine_state_limits_only_its_own_person(kind, change):
         set()
         if change in {"gone", "tenant"}
         else {NotificationChannel.IN_APP}
-        if change in {"disabled", "paused"}
+        if change in {"disabled", "paused", "expired"}
         else {NotificationChannel.IN_APP, NotificationChannel.EMAIL}
         if change == "email"
         else None

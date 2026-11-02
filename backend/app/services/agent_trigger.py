@@ -1266,10 +1266,16 @@ class AgentTriggerService:
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""
         trigger = await self._owned(ctx, agent_id, trigger_id)
+        locked = await agent_trigger_repo.get_by_id(
+            self.db, trigger.id, fresh=True, for_update=True
+        )
+        if locked is None:
+            raise NotFoundError(message="Trigger not found")
+        trigger = locked
         # Take the provider hook down first, so a deleted trigger stops receiving
         # deliveries; best-effort, never blocking the delete.
         await self._deregister_webhook(ctx, trigger)
-        await OutcomeService(self.db).resolve_routine_budget(
+        await OutcomeService(self.db).resolve_routine_attention(
             organization_id=trigger.organization_id,
             user_id=trigger.created_by_user_id,
             routine_id=trigger.id,
@@ -2262,8 +2268,25 @@ class AgentTriggerService:
                 # sweep bounds a `running` remainder.
                 return
 
+        current = await agent_trigger_repo.get_by_id(
+            self.db, trigger.id, fresh=True, for_update=True
+        )
+        if current is None:
+            return
+        trigger = current
+        if (
+            trigger.is_active
+            and trigger.ends_at is not None
+            and trigger.ends_at <= datetime.now(UTC)
+        ):
+            await self._disable(trigger, reason="ended")
+        delivery_allowed = trigger.is_active and (
+            trigger.ends_at is None or trigger.ends_at > datetime.now(UTC)
+        )
+
         if (
             trigger.teams_conversation_id is not None
+            and delivery_allowed
             and run.status == RunStatus.COMPLETED.value
             and answer
         ):
@@ -2277,8 +2300,38 @@ class AgentTriggerService:
         if run.status == RunStatus.COMPLETED.value:
             delivery = (
                 await self._deliver(trigger, agent=agent, run=run, answer=answer)
-                if answer
-                else AnswerDelivery(TriggerDeliveryStatus.NO_ANSWER)
+                if answer and delivery_allowed
+                else AnswerDelivery(
+                    TriggerDeliveryStatus.NO_ANSWER
+                    if not answer
+                    else TriggerDeliveryStatus.UNAVAILABLE
+                )
+            )
+        observation = run.ended_at or run.started_at
+        if (
+            delivery.status is TriggerDeliveryStatus.UNAVAILABLE
+            and observation is not None
+            and delivery_allowed
+        ):
+            await NotificationService(self.db).routine_blocked(
+                organization_id=trigger.organization_id,
+                owner_user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+                reason="delivery",
+                name=trigger.name or agent.name,
+                detail="Its answer is in Activity, but its chosen chat is unavailable.",
+                observed_at=observation,
+                run=run,
+            )
+        elif delivery.status is TriggerDeliveryStatus.DELIVERED or trigger.answer_to == "run_log":
+            await OutcomeService(self.db).resolve_routine_failure(
+                organization_id=trigger.organization_id,
+                user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+                reason="delivery",
+                recovered_at=observation,
             )
         trigger.last_delivery_status = delivery.status.value
         trigger.last_run_id = run.id
@@ -2378,6 +2431,13 @@ class AgentTriggerService:
         """
         trigger.is_active = False
         await self.db.flush()
+        if reason == "ended":
+            await OutcomeService(self.db).resolve_routine_attention(
+                organization_id=trigger.organization_id,
+                user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+            )
         await record_audit(
             self.db,
             actor_user_id=None,
@@ -2536,8 +2596,17 @@ class AgentTriggerService:
             return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
         if trigger.created_by_user_id is None:
             return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+        opened = False
         try:
             async with self.db.begin_nested():
+                opened = True
+                current = await agent_trigger_repo.get_by_id(self.db, trigger.id, fresh=True)
+                if (
+                    current is None
+                    or not current.is_active
+                    or (current.ends_at is not None and current.ends_at <= datetime.now(UTC))
+                ):
+                    return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
                 membership = await member_repo.get_active(
                     self.db,
                     organization_id=trigger.organization_id,
@@ -2592,7 +2661,7 @@ class AgentTriggerService:
         except NotFoundError, AuthorizationError:
             logger.info("trigger_delivery_access_lost", extra={"trigger_id": str(trigger.id)})
         except SQLAlchemyError as error:
-            if not self.db.is_active:
+            if not opened or not self.db.is_active:
                 # begin_nested flushes pending outer writes before opening its savepoint.
                 raise
             logger.warning(

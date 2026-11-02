@@ -51,6 +51,7 @@ def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallb
     run = MagicMock()
     run.id = uuid.uuid4()
     run.routine_origin_id = None
+    run.parent_run_id = None
     run.routine_kind = "trigger"
     run.organization_id = org_id or uuid.uuid4()
     run.user_id = user_id
@@ -2065,3 +2066,16 @@ async def test_an_urgent_finding_inside_a_requested_report_does_not_send_a_secon
         )
     assert written.calls[0]["channels"] == {NotificationChannel.IN_APP}
     assert written.calls[0]["render_context"]["routine_kind"] == "watch"
+
+
+@pytest.mark.anyio
+async def test_routine_health_does_not_hide_a_failure_before_its_savepoint_opens():
+    from sqlalchemy.exc import SQLAlchemyError
+
+    db = MagicMock(is_active=True)
+    db.begin_nested.side_effect = SQLAlchemyError("savepoint could not open")
+    run = _run()
+    run.routine_origin_id = uuid.uuid4()
+    run.status = "failed"
+    with pytest.raises(SQLAlchemyError):
+        await NotificationService(db).routine_result(run)

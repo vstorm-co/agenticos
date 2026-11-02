@@ -1,5 +1,5 @@
 ---
-source_sha: "b6402dee267c"
+source_sha: "6e7c2eb26531"
 ---
 
 # Governance { #governance }
@@ -674,6 +674,39 @@ pendientes. Cuando la siguiente activación vuelve a tener presupuesto o se
 elimina la responsabilidad, sus casos presupuestarios abiertos se resuelven y
 se cancelan las entregas pendientes. Cambiar el límite permite otro aviso al
 alcanzarlo; un caso silenciado sigue silenciado durante ese mes.
+
+### Incidentes de ejecución { #routine-failure-incidents }
+
+Una rutina fallida, una fuente de vigilancia inaccesible o un chat de destino
+no disponible abre un caso para su propietario. Los errores continuados
+actualizan la última causa y ejecución sin otro aviso. Confirmar mantiene el
+caso pendiente y en silencio; silenciar esa causa sigue vigente tras la
+recuperación. Un fallo nuevo después de una recuperación confirmada reabre el
+mismo caso y envía un aviso nuevo.
+
+El runner compartido informa de ejecuciones iniciales, reanudadas y cerradas
+tras detectar la caída del proceso. Entre resultados terminales, solo la última
+ejecución principal iniciada cambia el estado de la rutina; las delegadas y
+los resultados tardíos de ejecuciones anteriores no lo sustituyen. Una vigilancia
+se recupera tras una lectura verificada de la fuente; terminar el modelo no
+basta. Las comprobaciones tardías conservan por separado el intento más reciente
+y la última lectura correcta. Detectar la caducidad o eliminar la responsabilidad resuelve
+sus bloqueos y cancela las entregas pendientes. Las rutinas pausadas, caducadas o
+eliminadas no escriben una respuesta terminada en su chat de destino.
+
+Los tiempos de observación y recuperación protegen las decisiones frente a
+reintentos del callback y resultados antiguos. Un fallo al guardar el aviso
+permite reintentar el incidente nuevo. Los límites del agente y de la ejecución comparten el incidente del propietario
+sin otro correo de error. Los avisos de presupuesto de organización y departamento
+siguen siendo alertas financieras independientes, también si el propietario es
+administrador. Su incidente queda en la aplicación cuando el aviso financiero
+ya le informa. Se respetan las preferencias presupuestarias.
+
+`0266_routine_activation_clock.py` añade los tiempos sin inventar intentos
+históricos. Conserva los identificadores existentes de fallos de vigilancia.
+Actualice la API y los workers juntos: el worker de entrega debe comprender los
+nuevos metadatos presupuestarios. Un downgrade elimina los tiempos, pero conserva
+los casos, avisos y decisiones.
 
 ### Agentes de sistema { #system-agents }
 

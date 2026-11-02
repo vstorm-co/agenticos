@@ -1,5 +1,5 @@
 ---
-source_sha: "b6402dee267c"
+source_sha: "6e7c2eb26531"
 ---
 
 # Governance { #governance }
@@ -712,6 +712,39 @@ storniert ausstehende Zustellungen. Hat die nächste Aktivierung wieder Budget
 oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
 ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
+
+### Störungsfälle { #routine-failure-incidents }
+
+Ein fehlgeschlagener Routinenlauf, eine unzugängliche Beobachtungsquelle oder
+ein fehlender Zielchat öffnet einen Fall für die besitzende Person. Weitere
+Fehler aktualisieren dessen letzte Ursache und Lauf ohne erneuten Alarm.
+Bestätigen lässt ihn bearbeitbar und still; Stummschalten gilt für diese Ursache
+auch nach einer Erholung. Ein neuer Fehler nach bestätigter Erholung öffnet
+denselben Fall erneut und sendet eine neue Meldung.
+
+Der gemeinsame Runner meldet erste, fortgesetzte und nach einem Prozessabsturz
+beendete Läufe. Unter terminalen Ergebnissen bestimmt nur der zuletzt gestartete
+Hauptlauf den Zustand einer Routine; delegierte Unterläufe und verspätete
+Abschlüsse älterer Läufe überschreiben ihn nicht. Eine Beobachtung erholt
+sich erst nach einem bestätigten Quellenabruf; ein abgeschlossener Modelllauf
+allein genügt nicht. Verspätete Prüfungen erhalten den neuesten Versuch und den
+letzten erfolgreichen Abruf unabhängig voneinander. Erkannter Ablauf oder Entfernung
+erledigt offene Blockaden und storniert Zustellungen. Pausierte, abgelaufene oder
+gelöschte Routinen schreiben keine fertige Antwort in ihren Zielchat.
+
+Beobachtungs- und Erholungszeiten schützen Entscheidungen vor Callback-Retries
+und älteren Ergebnissen. Scheitert das Speichern einer Benachrichtigung, bleibt der neue Vorfall
+erneut meldbar. Agenten- und Lauflimits teilen den Vorfall der besitzenden Person ohne eine
+zweite Fehlermail. Organisations- und Abteilungsbudgets bleiben unabhängige
+Finanzmeldungen, auch wenn die besitzende Person administriert. Ihr Routinenfall
+bleibt in der App, wenn die Finanzmeldung sie bereits informiert. Die
+Budgetpräferenzen gelten weiterhin.
+
+`0266_routine_activation_clock.py` ergänzt die Zeiten ohne erfundene historische
+Versuche. Vorhandene Fall-IDs für Beobachtungsfehler bleiben erhalten. API und
+Worker werden gemeinsam aktualisiert: Der Zustellungsworker muss die neuen
+Budgetmetadaten verstehen. Ein Downgrade entfernt die Zeiten, erhält aber Fälle,
+Benachrichtigungen und Entscheidungen.
 
 ### Systemagenten { #system-agents }
 

@@ -7713,7 +7713,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     approved = approve_sources(spec, source)
     published = spec.model_copy(update={"collection_ids": [*spec.collection_ids, uuid.uuid4()]})
     authority = SimpleNamespace(check=AsyncMock(), sources=approved)
-    receipt = WatchReadReceipt()
+    receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
     with (
         patch.object(
             service.registry,
@@ -7749,6 +7749,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     assert create.await_args.kwargs["trigger_id"] is None
     assert create.await_args.kwargs["routine_origin_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"] == approved.model_dump(mode="json")
+    assert create.await_args.kwargs["routine_activation_at"] == receipt.activation_at
     assert mcp.await_args.kwargs["personal_sources"] == {source.id: approved.endpoint_hash}
     assert receipt.check == authority.check
     assert any(

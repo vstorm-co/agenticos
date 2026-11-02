@@ -677,6 +677,7 @@ class TestChangingASchedule:
         service = _service(agent)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.get = AsyncMock(return_value=_trigger(agent_id=uuid.uuid4()))
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             with pytest.raises(NotFoundError):
                 await service.delete(_ctx(), agent.id, uuid.uuid4())
@@ -700,6 +701,7 @@ class TestChangingASchedule:
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
             repo.get = AsyncMock(return_value=_trigger(agent_id=agent.id))
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, repo.get.return_value.id)
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
@@ -714,6 +716,7 @@ class TestChangingASchedule:
             patch("app.services.agent_trigger.record_audit", new=audit),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         repo.delete.assert_awaited_once_with(service.db, trigger)
@@ -850,6 +853,7 @@ class TestManagingAnotherMembersTrigger:
             patch("app.services.agent_trigger.resolve_access", new=AsyncMock(return_value=False)),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             with pytest.raises(NotFoundError):
                 await service.delete(_ctx(), agent.id, trigger.id)
@@ -865,6 +869,7 @@ class TestManagingAnotherMembersTrigger:
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         repo.delete.assert_awaited_once_with(service.db, trigger)
@@ -881,6 +886,7 @@ class TestManagingAnotherMembersTrigger:
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         resolve.assert_not_awaited()
@@ -926,12 +932,18 @@ def routine_notices(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     notices.budget_paused = AsyncMock()
     monkeypatch.setattr(
         "app.services.agent_trigger.OutcomeService",
-        lambda _db: MagicMock(resolve_routine_budget=AsyncMock()),
+        lambda _db: MagicMock(
+            resolve_routine_budget=AsyncMock(),
+            resolve_routine_failure=AsyncMock(),
+            resolve_routine_attention=AsyncMock(),
+        ),
     )
     monkeypatch.setattr(
         "app.services.agent_trigger.NotificationService",
         lambda _db: MagicMock(
-            routine_finished=notices, routine_budget_paused=notices.budget_paused
+            routine_finished=notices,
+            routine_budget_paused=notices.budget_paused,
+            routine_blocked=AsyncMock(),
         ),
     )
     return notices
@@ -3302,6 +3314,7 @@ class TestDeletingDeregistersItsWebhook:
             patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         adapter.delete_webhook.assert_awaited_once()
@@ -3317,6 +3330,7 @@ class TestDeletingDeregistersItsWebhook:
             patch("app.services.agent_trigger.portals.get_adapter") as get_adapter,
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         get_adapter.assert_not_called()
@@ -3331,6 +3345,7 @@ class TestDeletingDeregistersItsWebhook:
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         repo.delete.assert_awaited_once()
@@ -3348,6 +3363,7 @@ class TestDeletingDeregistersItsWebhook:
             patch("app.services.agent_trigger.portals.get_adapter", return_value=adapter),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         adapter.delete_webhook.assert_not_awaited()
@@ -3367,6 +3383,7 @@ class TestDeletingDeregistersItsWebhook:
             ),
         ):
             repo.get = AsyncMock(return_value=trigger)
+            repo.get_by_id = AsyncMock(return_value=repo.get.return_value)
             repo.delete = AsyncMock()
             await service.delete(_ctx(), agent.id, trigger.id)
         repo.delete.assert_awaited_once()
@@ -4888,6 +4905,10 @@ async def test_a_completed_routine_does_not_post_after_source_chat_access_is_rev
     trigger = _trigger(answer_to="conversation", delivery_conversation_id=uuid.uuid4())
     service = _service()
     with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
+            new=AsyncMock(return_value=trigger),
+        ),
         patch(
             "app.services.agent_trigger.member_repo.get_active",
             new=AsyncMock(return_value=MagicMock(role="member")),

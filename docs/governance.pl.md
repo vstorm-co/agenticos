@@ -1,5 +1,5 @@
 ---
-source_sha: "b6402dee267c"
+source_sha: "6e7c2eb26531"
 ---
 
 # Governance { #governance }
@@ -661,6 +661,38 @@ wysyłki. Gdy następna aktywacja znów ma budżet albo zadanie zostaje usunięt
 otwarte sprawy budżetowe zamykają się i anulują oczekujące wysyłki. Zmiana limitu
 pozwala wysłać nowy komunikat po jego wykorzystaniu; sprawa wyciszona pozostaje
 wyciszona przez dany miesiąc.
+
+### Sprawy dotyczące awarii { #routine-failure-incidents }
+
+Nieudany przebieg rutyny, niedostępne źródło obserwacji lub brak rozmowy docelowej
+otwierają jedną sprawę właściciela. Kolejne błędy aktualizują jej ostatnią
+przyczynę i przebieg bez następnego alertu. Potwierdzenie pozostawia sprawę do
+załatwienia i wycisza alerty; wyciszenie przyczyny obowiązuje również po
+odzyskaniu sprawności. Nowa awaria po potwierdzonej poprawie ponownie otwiera tę
+samą sprawę i wysyła jedno nowe powiadomienie.
+
+Wspólny runner obsługuje pierwsze i wznowione przebiegi oraz awarie wykryte po
+śmierci procesu. Spośród wyników terminalnych stan rutyny zmienia tylko ostatnio
+rozpoczęty przebieg główny; delegowane podzadania i spóźnione zakończenia starszych
+przebiegów go nie nadpisują. Obserwacja odzyskuje sprawność po
+zweryfikowanym odczycie źródła; samo zakończenie modelu nie wystarcza. Spóźnione
+sprawdzenia zachowują niezależnie najnowszą próbę i ostatni poprawny odczyt.
+Wykrycie wygaśnięcia lub usunięcie zamyka otwarte blokady i anuluje oczekujące wysyłki.
+Rutyny wstrzymane, wygasłe i usunięte nie zapisują gotowej odpowiedzi w wybranym
+czacie.
+
+Zegary obserwacji i poprawnego wykonania chronią decyzję osoby przed retry
+callbacka i starszym wynikiem. Błąd zapisu powiadomienia pozwala ponowić nowy
+incydent. Limity agenta i przebiegu łączą alert właściciela z jego sprawą zamiast tworzyć
+drugi e-mail o błędzie. Alerty budżetowe organizacji i działu pozostają osobnymi
+powiadomieniami finansowymi, również gdy właściciel jest administratorem. Jego
+sprawa rutyny pozostaje w aplikacji, gdy powiadomienie finansowe już go informuje.
+Nadal obowiązują preferencje budżetowe.
+
+`0266_routine_activation_clock.py` dodaje zegary bez zgadywania dawnych prób.
+Identyfikatory istniejących spraw awarii obserwacji pozostają zachowane. Wdrażaj
+API i workery razem: worker dostarczający musi rozumieć nowe metadane alertów
+budżetowych. Downgrade usuwa zegary, pozostawiając sprawy, powiadomienia i decyzje.
 
 ### Agenci systemowi { #system-agents }
 

@@ -73,6 +73,12 @@ class Outcome(Base, TimestampMixin):
         index=True,
     )
     """The chat it came from, where the card belongs."""
+    last_observed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_recovered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     settled_via: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """Where it was settled - `inbox`, `chat`, `approval` - so a later phone call can say."""

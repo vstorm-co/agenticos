@@ -619,6 +619,36 @@ next activation has budget again, or the responsibility is removed, its open
 budget cases resolve and pending sends are cancelled. Changing the configured
 limit allows a new breach notice; a muted case stays muted for that month.
 
+### Failure incidents { #routine-failure-incidents }
+
+A failed routine run, unavailable watch source or missing console destination
+opens one case for its owner. Continuing failures update the case's latest reason
+and run without another alert. Acknowledging keeps it actionable and quiet;
+muting keeps that cause muted, including after recovery. A new failure after a
+confirmed recovery reopens the same case and sends one new notice.
+
+The shared runner reports initial, resumed and crash-reaped runs. Among terminal
+results, only the latest admitted root run changes a routine's health; delegated
+children and late completion of older runs cannot override it. A watch recovers after a verified source
+reading; model completion alone is insufficient. Late checks retain the newest
+attempt and last successful reading independently. An expiry check or removal closes
+outstanding blockers and cancels pending sends. Paused, expired or deleted
+routines do not post a completed answer into their chosen chat.
+
+Observation and recovery clocks keep callback retries and older results from
+undoing a person's decision. A failed notification write leaves a new incident
+retryable. Agent and run limits share the owner’s incident instead of creating a second
+failure email. Organization and department budget notices remain independent
+financial alerts, including for an owner who is also an administrator. Their
+routine incident stays in the app when the financial notice already tells them.
+Budget preferences still apply.
+
+`0266_routine_activation_clock.py` adds these clocks without guessing historical
+attempts. Existing watch-failure case IDs are retained. Deploy the API and
+workers together: the delivery worker must understand the new budget-notice
+metadata. Downgrade removes the clocks and retains the existing cases,
+notifications and decisions.
+
 ### System agents { #system-agents }
 
 Some work is the platform's own and still needs a model. A **system role** gives it

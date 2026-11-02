@@ -160,11 +160,15 @@ class WatchLook:
             return 0
         if watch.ends_at is not None and watch.ends_at <= now:
             await watch_repo.update_fields(self.db, watch=watch, changes={"is_active": False})
+            await OutcomeService(self.db).resolve_routine_attention(
+                organization_id=watch.organization_id,
+                user_id=watch.user_id,
+                routine_id=watch.id,
+                routine_kind="watch",
+            )
             return 0
         if watch.agent_id is None or watch.approved_sources is None:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.NEEDS_AGENT
-            )
+            await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.NEEDS_AGENT)
             return 0
         organization = await organization_repo.get_by_id(self.db, watch.organization_id)
         connection = await mcp_connection_repo.get_by_id(self.db, watch.connection_id)
@@ -180,18 +184,14 @@ class WatchLook:
             or not user.is_active
             or stopped_by(organization, connection) is not None
         ):
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
-            )
+            await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED)
             return 0
         if (
             connection.scope != "user"
             or connection.purpose != "mcp"
             or connection.user_id != watch.user_id
         ):
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
-            )
+            await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED)
             return 0
         period_start = month_start()
         spent = await agent_run_repo.proactive_spend_since(
@@ -202,8 +202,8 @@ class WatchLook:
         )
         remaining = organization.proactive_limit_usd - spent
         if remaining <= 0:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.BUDGET_PAUSED
+            await self._mark_attempt(
+                watch=watch, at=now, status=WatchAttemptStatus.BUDGET_PAUSED, notify=False
             )
             await NotificationService(self.db).routine_budget_paused(
                 organization_id=watch.organization_id,
@@ -243,7 +243,7 @@ class WatchLook:
             routine_id=watch.id,
             routine_kind="watch",
         )
-        receipt = WatchReadReceipt()
+        receipt = WatchReadReceipt(activation_at=now)
         structured: list[dict[str, object]] = []
         try:
             _, run = await self.runner.execute(
@@ -271,27 +271,29 @@ class WatchLook:
                     if run.status == RunStatus.BUDGET_EXCEEDED.value
                     else WatchAttemptStatus.NOT_COMPLETED
                 )
-                await watch_repo.mark_attempt(self.db, watch=watch, at=now, status=status)
+                await self._mark_attempt(
+                    watch=watch,
+                    at=now,
+                    status=status,
+                    run=run,
+                    notify=run.status == RunStatus.COMPLETED.value,
+                )
                 return 0
             reading = WatchReading.model_validate(structured[-1])
             if receipt.check is None:
                 raise RuntimeError("A watch run did not retain its authorization check")
             await receipt.check(watch.agent_id)
         except AuthorizationError, NotFoundError:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
-            )
+            await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED)
             return 0
         except BadRequestError:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
+            await self._mark_attempt(
+                watch=watch, at=now, status=WatchAttemptStatus.SOURCE_UNAVAILABLE
             )
             return 0
         except RunFailedError, PydanticValidationError:
             logger.warning("watch_reading_incomplete", extra={"watch_id": str(watch.id)})
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.NOT_COMPLETED
-            )
+            await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.NOT_COMPLETED)
             return 0
         try:
             async with self.db.begin_nested():
@@ -307,16 +309,46 @@ class WatchLook:
                     scheduled_for=scheduled_for or now,
                 )
         except AuthorizationError:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED
-            )
+            await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED)
             return 0
-        await watch_repo.mark_ran(self.db, watch=watch, at=now)
+        current = await watch_repo.mark_ran(self.db, watch=watch, at=now)
+        if current:
+            await OutcomeService(self.db).resolve_routine_failure(
+                organization_id=watch.organization_id,
+                user_id=watch.user_id,
+                routine_id=watch.id,
+                routine_kind="watch",
+                reason="check",
+                recovered_at=now,
+            )
         if delivery_blocked:
-            await watch_repo.mark_attempt(
-                self.db, watch=watch, at=now, status=WatchAttemptStatus.DELIVERY_UNAVAILABLE
+            await self._mark_attempt(
+                watch=watch, at=now, status=WatchAttemptStatus.DELIVERY_UNAVAILABLE
+            )
+        elif current:
+            await OutcomeService(self.db).resolve_routine_failure(
+                organization_id=watch.organization_id,
+                user_id=watch.user_id,
+                routine_id=watch.id,
+                routine_kind="watch",
+                reason="delivery",
+                recovered_at=now,
             )
         return recorded
+
+    async def _mark_attempt(
+        self,
+        *,
+        watch: Watch,
+        at: datetime,
+        status: WatchAttemptStatus,
+        run: AgentRun | None = None,
+        notify: bool = True,
+    ) -> bool:
+        current = await watch_repo.mark_attempt(self.db, watch=watch, at=at, status=status)
+        if current and notify:
+            await NotificationService(self.db).watch_blocked(watch, status, run=run, observed_at=at)
+        return current
 
     async def _record(
         self,

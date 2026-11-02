@@ -5,8 +5,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.watch import Watch, WatchAttemptStatus
 
@@ -91,8 +92,12 @@ async def get_own(
     return result.scalar_one_or_none()
 
 
-async def get_by_id(db: AsyncSession, watch_id: UUID) -> Watch | None:
-    return await db.get(Watch, watch_id)
+async def get_by_id(
+    db: AsyncSession, watch_id: UUID, *, fresh: bool = False, for_update: bool = False
+) -> Watch | None:
+    return await db.get(
+        Watch, watch_id, populate_existing=fresh or for_update, with_for_update=for_update
+    )
 
 
 async def update_fields(db: AsyncSession, *, watch: Watch, changes: dict[str, Any]) -> Watch:
@@ -125,18 +130,42 @@ async def schedule(db: AsyncSession, *, watch_id: UUID, next_run_at: datetime) -
     await db.execute(update(Watch).where(Watch.id == watch_id).values(next_run_at=next_run_at))
 
 
-async def mark_ran(db: AsyncSession, *, watch: Watch, at: datetime) -> None:
-    await mark_attempt(db, watch=watch, at=at, status=WatchAttemptStatus.COMPLETED)
+async def mark_ran(db: AsyncSession, *, watch: Watch, at: datetime) -> bool:
+    return await mark_attempt(db, watch=watch, at=at, status=WatchAttemptStatus.COMPLETED)
 
 
 async def mark_attempt(
     db: AsyncSession, *, watch: Watch, at: datetime, status: WatchAttemptStatus
-) -> None:
-    """Keep unsuccessful checks distinct from the last successful source reading."""
-    values: dict[str, object] = {"last_attempt_at": at, "last_attempt_status": status}
+) -> bool:
+    """Retain the newest attempt and successful reading despite out-of-order completion."""
+    newest = or_(Watch.last_attempt_at.is_(None), Watch.last_attempt_at <= at)
+    values: dict[str, object] = {
+        "last_attempt_at": case((newest, at), else_=Watch.last_attempt_at),
+        "last_attempt_status": case((newest, status.value), else_=Watch.last_attempt_status),
+    }
     if status == WatchAttemptStatus.COMPLETED:
-        values["last_run_at"] = at
-    await db.execute(update(Watch).where(Watch.id == watch.id).values(**values))
+        values["last_run_at"] = case(
+            (or_(Watch.last_run_at.is_(None), Watch.last_run_at <= at), at), else_=Watch.last_run_at
+        )
+    result = await db.execute(
+        update(Watch)
+        .where(Watch.id == watch.id)
+        .execution_options(synchronize_session=False)
+        .values(**values)
+        .returning(
+            Watch.last_attempt_at, Watch.last_attempt_status, Watch.last_run_at, Watch.is_active
+        )
+    )
+    row = result.tuples().one_or_none()
+    if row is None:
+        return False
+    latest_at, latest_status, successful_at, active = row
+    # Cache the atomic result without scheduling a later, unconditional ORM write.
+    set_committed_value(watch, "last_attempt_at", latest_at)
+    set_committed_value(watch, "last_attempt_status", latest_status)
+    set_committed_value(watch, "last_run_at", successful_at)
+    set_committed_value(watch, "is_active", active)
+    return latest_at == at
 
 
 async def claim_report_activation(

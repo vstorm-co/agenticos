@@ -41,14 +41,23 @@ async def get(db: AsyncSession, trigger_id: UUID, *, organization_id: UUID) -> A
     return result.scalar_one_or_none()
 
 
-async def get_by_id(db: AsyncSession, trigger_id: UUID) -> AgentTrigger | None:
+async def get_by_id(
+    db: AsyncSession, trigger_id: UUID, *, fresh: bool = False, for_update: bool = False
+) -> AgentTrigger | None:
     """The trigger by id alone, for the worker: a flow has an id and no tenant.
 
     Not organization-scoped, because a scheduled flow is dispatched with a
     trigger id and there is no ambient tenant in a worker - the organization is
     read off the row this returns, and every later query is scoped by it.
     """
-    result = await db.execute(select(AgentTrigger).where(AgentTrigger.id == trigger_id))
+    query = (
+        select(AgentTrigger)
+        .where(AgentTrigger.id == trigger_id)
+        .execution_options(populate_existing=fresh)
+    )
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 

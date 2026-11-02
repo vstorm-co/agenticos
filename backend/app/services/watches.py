@@ -321,7 +321,7 @@ class WatchService:
         await OutcomeService(self.db).resolve_watch_findings(
             organization_id=ctx.organization_id, user_id=self._person(ctx), watch_id=watch.id
         )
-        await OutcomeService(self.db).resolve_routine_budget(
+        await OutcomeService(self.db).resolve_routine_attention(
             organization_id=watch.organization_id,
             user_id=watch.user_id,
             routine_id=watch.id,

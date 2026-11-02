@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Routine and watch failures share a recoverable owner incident. Continuing
+  errors stay quiet, retries cannot undo decisions, and terminal callbacks cover
+  resumed runs. Current source readings and delivery recover their own blockers;
+  expiry or removal closes them. Agent-budget incidents reuse the owner’s alert; organization and department
+  budget alerts remain independent financial notices.
+
 - Routine and watch budget pauses notify their owner once per monthly limit
   and open a shared case. Available budget or removal resolves the case and
   cancels pending sends; existing budget preferences and routine channels apply.

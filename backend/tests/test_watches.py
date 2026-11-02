@@ -422,7 +422,7 @@ class TestChangingOne:
             patch(f"{SERVICE}.watch_repo.get_own", new=AsyncMock(side_effect=[None, watch])),
             patch(f"{SERVICE}.watch_repo.delete", new=delete),
             patch(f"{SERVICE}.OutcomeService.resolve_watch_findings", new=AsyncMock()) as resolve,
-            patch(f"{SERVICE}.OutcomeService.resolve_routine_budget", new=AsyncMock()),
+            patch(f"{SERVICE}.OutcomeService.resolve_routine_attention", new=AsyncMock()),
         ):
             with pytest.raises(NotFoundError):
                 await WatchService(MagicMock()).delete(_ctx(), uuid.uuid4())
@@ -507,7 +507,7 @@ class TestOneLook:
         return (
             patch(f"{LOOK}.watch_repo.get_by_id", new=AsyncMock(return_value=watch)),
             patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()),
-            patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()),
+            patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock(return_value=True)),
             patch(f"{LOOK}.watch_repo.claim_report_activation", new=AsyncMock(return_value=True)),
             patch(
                 f"{LOOK}.organization_repo.get_by_id",
@@ -539,6 +539,9 @@ class TestOneLook:
             patch(f"{LOOK}.suggestion_repo.propose", new=AsyncMock(return_value=None)),
             patch(f"{LOOK}.OutcomeService.track_finding", new=AsyncMock()),
             patch(f"{LOOK}.OutcomeService.resolve_routine_budget", new=AsyncMock()),
+            patch(f"{LOOK}.OutcomeService.resolve_routine_failure", new=AsyncMock()),
+            patch(f"{LOOK}.OutcomeService.resolve_routine_attention", new=AsyncMock()),
+            patch(f"{LOOK}.NotificationService.watch_blocked", new=AsyncMock()),
             patch(f"{LOOK}.NotificationService.routine_budget_paused", new=AsyncMock()),
             patch(
                 f"{LOOK}.conversation_repo.get_conversation_by_id",
@@ -602,7 +605,10 @@ class TestOneLook:
                 stack.enter_context(each)
             stack.enter_context(patch(f"{LOOK}.suggestion_repo.propose", new=propose))
             stack.enter_context(
-                patch(f"{LOOK}.NotificationService", return_value=MagicMock(finding=finding))
+                patch(
+                    f"{LOOK}.NotificationService",
+                    return_value=MagicMock(finding=finding, watch_blocked=AsyncMock()),
+                )
             )
             assert await WatchLook(MagicMock()).look(watch.id) == 2
         first, second, _ = (call.kwargs for call in propose.await_args_list)
@@ -626,7 +632,10 @@ class TestOneLook:
                 )
             )
             stack.enter_context(
-                patch(f"{LOOK}.NotificationService", return_value=MagicMock(finding=finding))
+                patch(
+                    f"{LOOK}.NotificationService",
+                    return_value=MagicMock(finding=finding, watch_blocked=AsyncMock()),
+                )
             )
             assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 1
         finding.assert_not_awaited()
@@ -1138,7 +1147,10 @@ async def test_a_requested_no_change_report_is_delivered_only_after_a_successful
             patch(f"{LOOK}.agent_repo.get", new=AsyncMock(return_value=MagicMock(id=AGENT)))
         )
         stack.enter_context(
-            patch(f"{LOOK}.NotificationService", return_value=MagicMock(routine_finished=report))
+            patch(
+                f"{LOOK}.NotificationService",
+                return_value=MagicMock(routine_finished=report, watch_blocked=AsyncMock()),
+            )
         )
         assert await WatchLook(MagicMock()).look(watch.id) == 0
     if mode == "every_check" and source_reads:

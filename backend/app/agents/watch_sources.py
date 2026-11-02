@@ -3,6 +3,7 @@
 import hashlib
 import json
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from pydantic import JsonValue, TypeAdapter
 from pydantic_ai import RunContext
@@ -19,6 +20,7 @@ class WatchReadReceipt:
     completed_calls: int = 0
     check: RoutineCheck | None = None
     failed_requests: set[str] = field(default_factory=set)
+    activation_at: datetime | None = None
 
 
 _ARGUMENTS = TypeAdapter(dict[str, JsonValue])

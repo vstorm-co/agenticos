@@ -226,3 +226,45 @@ async def open_for_cause_prefix(
         .execution_options(populate_existing=True)
     )
     return list(result.all())
+
+
+async def for_cause(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    dedupe_key: str,
+) -> Outcome | None:
+    """Serialize a producer or recovery against the person's current case decision."""
+    return await db.scalar(
+        select(Outcome)
+        .where(
+            Outcome.organization_id == organization_id,
+            Outcome.user_id == user_id,
+            Outcome.dedupe_key == dedupe_key,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
+async def observe_failure(
+    db: AsyncSession,
+    *,
+    outcome: Outcome,
+    at: datetime,
+    run_id: UUID | None = None,
+    summary: str,
+) -> None:
+    """The caller holds the case lock; retries cannot move its evidence backward."""
+    if outcome.last_observed_at is None or at > outcome.last_observed_at:
+        outcome.last_observed_at = at
+        outcome.summary = summary
+        outcome.source_run_id = run_id
+        await db.flush()
+
+
+async def observe_recovery(db: AsyncSession, *, outcome: Outcome, at: datetime) -> None:
+    if outcome.last_recovered_at is None or at > outcome.last_recovered_at:
+        outcome.last_recovered_at = at
+        await db.flush()

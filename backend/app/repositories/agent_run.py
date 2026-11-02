@@ -72,12 +72,14 @@ async def create_run(
     routine_origin_id: UUID | None = None,
     routine_kind: str = "trigger",
     routine_policy: dict[str, object] | None = None,
+    routine_activation_at: datetime | None = None,
 ) -> AgentRun:
     run = AgentRun(
         trigger_id=trigger_id,
         routine_origin_id=routine_origin_id or trigger_id,
         routine_kind=routine_kind,
         routine_policy=routine_policy,
+        routine_activation_at=routine_activation_at,
         key_scopes=key_scopes,
         system_role=system_role,
         organization_id=organization_id,
@@ -2412,3 +2414,40 @@ async def record_attachment_lookup(db: AsyncSession, run: AgentRun) -> None:
     run.earlier_attachments_checked = True
     db.add(run)
     await db.flush()
+
+
+async def latest_terminal_for_trigger(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    trigger_id: UUID,
+) -> UUID | None:
+    """Use the latest admitted root run, independent of callback or rescue order."""
+    return await db.scalar(
+        select(AgentRun.id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.parent_run_id.is_(None),
+            or_(
+                AgentRun.trigger_id == trigger_id,
+                and_(AgentRun.routine_kind == "trigger", AgentRun.routine_origin_id == trigger_id),
+            ),
+            AgentRun.status.in_(
+                [
+                    RunStatus.COMPLETED.value,
+                    RunStatus.FAILED.value,
+                    RunStatus.LOOP_STOPPED.value,
+                    RunStatus.BUDGET_EXCEEDED.value,
+                    RunStatus.GUARDRAIL_BLOCKED.value,
+                ]
+            ),
+        )
+        .order_by(
+            func.coalesce(AgentRun.routine_activation_at, AgentRun.started_at, AgentRun.ended_at)
+            .desc()
+            .nulls_last(),
+            AgentRun.ended_at.desc().nulls_last(),
+            AgentRun.id.desc(),
+        )
+        .limit(1)
+    )
