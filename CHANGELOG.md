@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.36.1] - 2026-11-02
+
 ### Fixed
 
 - Hide message action rows on phones until the More button beside the user or agent is tapped, saving room in the transcript. Keep desktop hover actions. Release the full-screen file reader when its listing fails and move focus into an auto-opened reader, restoring it to the file on return.
@@ -19720,7 +19722,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...HEAD
+[1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
 [1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0
 [1.35.5]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...v1.35.5
 [1.35.4]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...v1.35.4
