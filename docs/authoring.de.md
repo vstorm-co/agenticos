@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "b5a5a777ac99"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -534,6 +534,14 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er wartet unter **Zu prüfen** in der Gruppe Neue Skills mit vollständigem Text. **Verwerfen** verschiebt ihn nach **Entschieden**, und Rückgängig holt ihn zurück. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+### Wenn der Fehler im Skill liegt { #when-the-fault-is-in-a-skill }
+
+Andere Agents können denselben Skill lesen, deshalb ändert Agent-Improve nie einen Skill. Der Helfer liest die Skills des Agents: Name, Beschreibung und Version jedes Skills sowie den vollen Text der Skills, die die Belege genutzt haben. Zeigen die Runs, dass ein Skill falsch ist, meldet der Helfer das Problem für diesen Skill. Er schreibt den Text des Skills nicht in die Anweisungen des Agents.
+
+Eine Änderung, die eine Passage von 200 Zeichen eines gebundenen Skills wiederholt, wird abgelehnt, ebenso ein neuer Skill mit dem Namen oder Text eines gebundenen Skills. Ein gemeldetes Problem bleibt nur, wenn es einen Skill des Agents nennt und einen Run zitiert, der ihn genutzt hat.
+
+Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann. Liegt der Agent hinter Main, öffnet eine Karte **Auf vN aktualisieren** oder **Fork auf Main bringen** die Seite des Skills.
 
 ### Einen Wissensentwurf prüfen { #checking-a-knowledge-draft }
 

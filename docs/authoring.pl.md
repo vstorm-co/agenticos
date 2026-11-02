@@ -1,5 +1,5 @@
 ---
-source_sha: "e2344fe1861a"
+source_sha: "b5a5a777ac99"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -506,6 +506,14 @@ Asystent może zaproponować **Warto utworzyć skill**, gdy procedura występuje
 Procedura z mniej niż trzech różnych odpowiedzi nie trafia do sugestii. Czeka w zakładce **Do decyzji**, w grupie Nowe skille, z pełną treścią. **Odrzuć** przenosi go do **Zdecydowane**, a Cofnij przywraca. **Create skill** otwiera podgląd: nazwę, opis i treść można edytować, a ostrzeżenie mówi, na ilu odpowiedziach się opiera. **Create skill** w podglądzie tworzy skill w bibliotece i przypina go do wersji roboczej agenta, nigdy do opublikowanej wersji. Wymaga tych samych uprawnień co Accept i nie wywołuje modelu. Drugie kliknięcie zwraca już utworzony skill.
 
 Szacowany koszt uwzględnia pełną proponowaną treść dla każdej odpowiedzi kandydata i jej powtórzeń potwierdzających, oprócz historycznego kosztu odpowiedzi.
+
+### Gdy błąd jest w skillu { #when-the-fault-is-in-a-skill }
+
+Ten sam skill mogą czytać inni agenci, więc agent Improve nigdy go nie zmienia. Pomocnik czyta skille agenta: nazwę, opis i wersję każdego z nich oraz pełny tekst tych, których użyły dowody. Gdy runy pokazują, że skill jest błędny, pomocnik zgłasza problem dla tego skilla. Nie przepisuje tekstu skilla do instrukcji agenta.
+
+Zmiana, która powtarza 200-znakowy fragment przypiętego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem przypiętego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który go użył.
+
+Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić. Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera stronę skilla.
 
 ### Sprawdzanie szkicu wiedzy { #checking-a-knowledge-draft }
 
