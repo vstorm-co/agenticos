@@ -209,7 +209,7 @@ class CodingAgentConfig(BaseModel):
     category="analysis",
     description=(
         "Hand software work to Claude Code or Codex, which work on it in the agent's "
-        "sandbox while you watch."
+        "sandbox or an approved folder on this computer while you watch."
     ),
     tools=(CapabilityToolInfo(id="run_coding_agent", description=RUN_DESCRIPTION),),
     config_schema=CodingAgentConfig,

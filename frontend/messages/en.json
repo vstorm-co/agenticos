@@ -10549,11 +10549,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
+      "does": "Hands software work to Claude Code or Codex, in the agent's sandbox or on this computer, while you watch each step in the chat.",
       "example1": "Fix a failing test in a repository the agent cloned",
       "example2": "Explain how a module works, read-only",
-      "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
-      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
+      "needs": "For a sandbox: the Sandbox capability, a connection and a provider key or sign-in in the vault. On this computer: the desktop app, a signed-in coding agent and an approved full-access folder.",
+      "never": "Local tasks require a full-access folder grant and native start confirmation. Set Human approval to Always ask to also approve each task in the chat."
     },
     "compaction": {
       "name": "Long conversations",
