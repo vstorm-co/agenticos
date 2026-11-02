@@ -1,5 +1,5 @@
 ---
-source_sha: "247f4c421c6c"
+source_sha: "75c4cfd2c660"
 ---
 
 # Skille { #skills }
@@ -466,6 +466,36 @@ main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji
 i kategoria należą do main, więc edycja forka zmienia tylko jego opis i instrukcje.
 Przywróć i Zmień wersję widzą tylko osoby, które mogą tę zmianę zrobić; pozostali
 otwierają skill tylko do odczytu.
+
+### Ulepszanie skilla { #improving-a-skill }
+
+**Ulepsz** na stronie skilla otwiera sesję dla widocznej linii - main albo forka
+wybranego w chipach - w tych samych pięciu krokach co [ulepszanie
+agenta](authoring.md#the-improve-wizard): Zrozum, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
+się dla Ciebie po Zrozum, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
+nie zaakceptujesz.
+
+Przed startem wymienia każdego agenta linii, na którym sprawdzi zmianę, i tych,
+których nie da się sprawdzić, z powodem - brak pytań testowych, brak prawa do
+uruchomienia, wyczerpany budget albo brak opublikowanej wersji. Agentów, których
+nie widzisz, liczy.
+
+Wynik ma wiersz dla każdego agenta: lepiej, bez zmian, w granicach szumu, gorzej
+albo nie wiadomo, z agentami do obejrzenia na górze, z pytaniami, które naprawił i
+zepsuł, i linkiem do runu. Agent sprawdzony tylko na własnych pytaniach skilla, bo
+nie miał swoich tam, gdzie wczytał skill, mówi o tym.
+
+To, co proponuje Akceptacja, wynika z wyniku:
+
+- **Nikt gorzej**, a ktoś lepiej: zastosuj jako następną wersję linii.
+- **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji, zrób
+  fork ze zmianą dla agentów, którym pomogła, popraw dalej albo odrzuć. Na forku
+  zostają tylko poprawianie dalej i odrzucenie, bo forka nie da się przypiąć ani
+  rozwidlić ponownie.
+- **Agentów „nie wiadomo”** trzeba potwierdzić, zanim cokolwiek zostanie
+  zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
+  odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich
+  sprawdzić.
 
 ## Skille czy wiedza? { #skills-or-knowledge }
 

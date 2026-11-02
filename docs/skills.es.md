@@ -1,5 +1,5 @@
 ---
-source_sha: "247f4c421c6c"
+source_sha: "75c4cfd2c660"
 ---
 
 # Skills { #skills }
@@ -483,6 +483,36 @@ siguen main la reciben de inmediato; los agents fijados y los forks conservan su
 versión. Los archivos y la categoría son de main, así que editar un fork cambia solo
 su descripción e instrucciones. Restaurar y Cambiar versión solo se muestran a
 quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
+
+### Mejorar un skill { #improving-a-skill }
+
+**Mejorar** en la página de un skill abre una sesión para la línea en pantalla -
+main, o el fork elegido en los chips - con los mismos cinco pasos que [mejorar un
+agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resultado y Aceptar. Se
+detiene para ti después de Entender, después de Cambios y en el resultado, y no
+cambia nada hasta que aceptas.
+
+Antes de empezar nombra cada agent de la línea en el que comprobará el cambio, y
+los que no puede comprobar, con el motivo - sin preguntas de prueba, sin permiso
+para ejecutarlo, sin budget o sin versión publicada. Los agents que no puedes ver
+se cuentan.
+
+El resultado tiene una fila por agent: mejor, sin cambios, dentro del ruido, peor
+o desconocido, con los que hay que mirar primero arriba, las preguntas que arregló
+y estropeó y un enlace a su run. Un agent comprobado solo con las preguntas propias
+del skill, porque no tenía las suyas donde cargó el skill, lo indica.
+
+Lo que ofrece Aceptar depende del resultado:
+
+- **Nadie peor** y alguien mejor: aplícalo como la siguiente versión de la línea.
+- **Alguien peor:** aplícalo y deja a esos agents fijados en su versión, crea un
+  fork con el cambio para los agents a los que ayudó, sigue mejorándolo o
+  descártalo. En un fork solo quedan seguir mejorando y descartar, porque un fork
+  no se puede fijar ni bifurcar de nuevo.
+- **Los agents desconocidos** hay que confirmarlos antes de aplicar nada. **Añadir
+  preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
+  de respuestas en las que los agents lo cargaron, para poder comprobarlos la
+  próxima vez.
 
 ## ¿Skills o conocimiento? { #skills-or-knowledge }
 

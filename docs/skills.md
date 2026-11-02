@@ -459,6 +459,33 @@ category belong to main, so editing a fork changes only its description and
 instructions. Restore and Change version are shown only to people who may make
 that change; anybody else opens the skill read-only.
 
+### Improving a skill
+
+**Improve** on a skill's page opens a session for the line on screen - main, or the
+fork picked in the chips - in the same five steps as [improving an agent](authoring.md#the-improve-wizard):
+Understand, Changes, Check, Result and Accept. It stops for you after Understand,
+after Changes and at the result, and changes nothing until you accept.
+
+Before it starts, it names every agent of the line it will check the change on,
+and the ones it cannot, with the reason - no test questions, no permission to run
+it, no budget left or no published version. Agents you cannot see are counted.
+
+The result has a row for each agent: better, no change, within noise, worse or
+unknown, the agents to look at first on top, with the questions it fixed and broke
+and a link to its run. An agent checked only on the skill's own questions, because
+it had none of its own where it loaded the skill, says so.
+
+What Accept offers comes from the result:
+
+- **Nobody worse** and somebody better: apply it as the line's next version.
+- **Somebody worse:** apply it and keep those agents pinned on the version they
+  have, make a fork with the change for the agents it helped, improve it further,
+  or discard it. On a fork only improving further and discarding are offered,
+  since a fork cannot be pinned or forked again.
+- **Unknown agents** have to be acknowledged before anything is applied. **Add
+  test questions** beside them writes the skill's own questions from answers
+  where agents loaded it, so they can be checked next time.
+
 ## Skills or knowledge?
 
 They answer different questions, and the difference matters when an agent gets the

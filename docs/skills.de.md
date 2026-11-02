@@ -1,5 +1,5 @@
 ---
-source_sha: "247f4c421c6c"
+source_sha: "75c4cfd2c660"
 ---
 
 # Skills { #skills }
@@ -506,6 +506,37 @@ ihre Version. Dateien und Kategorie gehören zu main, deshalb ändert das Bearbe
 eines Forks nur seine Beschreibung und Anweisungen. Wiederherstellen und Version ändern
 sehen nur Personen, die diese Änderung vornehmen dürfen; alle anderen öffnen den
 Skill nur lesend.
+
+### Einen Skill verbessern { #improving-a-skill }
+
+**Verbessern** auf der Seite eines Skills öffnet eine Sitzung für die angezeigte
+Linie - main oder den in den Chips gewählten Fork - in denselben fünf Schritten wie
+das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Änderungen, Prüfung,
+Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
+für Sie an und ändert nichts, bevor Sie annehmen.
+
+Vor dem Start nennt sie jeden Agent der Linie, auf dem die Änderung geprüft wird,
+und die, bei denen das nicht geht, mit Grund - keine Testfragen, kein Recht zum
+Ausführen, kein Budget mehr oder keine veröffentlichte Version. Agents, die Sie
+nicht sehen, werden gezählt.
+
+Das Ergebnis hat eine Zeile pro Agent: besser, unverändert, im Rauschen, schlechter
+oder unbekannt, die wichtigsten zuerst, mit den behobenen und verschlechterten
+Fragen und einem Link zu seinem Run. Ein Agent, der nur auf den eigenen Fragen des
+Skills geprüft wurde, weil er keine eigenen hatte, bei denen er den Skill geladen
+hat, sagt das.
+
+Was Annehmen anbietet, folgt aus dem Ergebnis:
+
+- **Niemand schlechter** und jemand besser: als nächste Version der Linie anwenden.
+- **Jemand schlechter:** anwenden und diese Agents auf ihrer Version fixieren,
+  einen Fork mit der Änderung für die Agents anlegen, denen sie half, weiter
+  verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern und
+  Verwerfen, weil ein Fork weder fixiert noch erneut geforkt werden kann.
+- **Unbekannte Agents** müssen bestätigt werden, bevor etwas angewendet wird.
+  **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
+  Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
+  geprüft werden können.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 
