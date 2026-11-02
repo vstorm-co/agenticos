@@ -52,6 +52,8 @@ from app.agents.spec import (
     CodeModeSpec,
     LoopGuardSpec,
     NotificationSpec,
+    SkillBindingSpec,
+    SpecialistSpec,
     VoiceSpec,
 )
 from app.agents.tool_repair import CountedRepair
@@ -1308,8 +1310,82 @@ class TestVoiceSpec:
             VoiceSpec(max_call_seconds=3001)
 
     def test_the_spec_version_did_not_move(self):
-        # 13 is the browser's fold (#2127); an optional section with a default adds none.
-        assert SPEC_VERSION == 13
+        # 14 is the skill binding; an optional section with a default adds none.
+        assert SPEC_VERSION == 14
+
+
+class TestSkillBindings:
+    """Which version of a bound skill an agent reads - main's newest unless it says."""
+
+    SKILL = uuid.UUID("2f1d0c6e-5b4a-4c3d-9e8f-7a6b5c4d3e2f")
+    FORK = uuid.UUID("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d")
+
+    def test_a_version_13_document_reads_every_skill_from_main(self):
+        """Stored before skills had versions, and loaded exactly as it was written."""
+        spec = AgentSpec.from_yaml(
+            "spec_version: 13\n"
+            "name: Clerk\n"
+            "instructions: Answer briefly.\n"
+            f"skill_ids:\n  - {self.SKILL}\n"
+        )
+
+        assert spec.skill_ids == [self.SKILL]
+        assert spec.skill_bindings == []
+
+    def test_a_pin_and_a_fork_survive_the_round_trip(self):
+        spec = AgentSpec(
+            name="Clerk",
+            skill_ids=[self.SKILL, self.FORK],
+            skill_bindings=[
+                SkillBindingSpec(skill_id=self.SKILL, version=7),
+                SkillBindingSpec(skill_id=self.FORK, fork_id=self.FORK),
+            ],
+        )
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    @pytest.mark.parametrize("line", [{}, {"version": 3, "fork_id": FORK}])
+    def test_a_binding_names_a_version_or_a_fork(self, line):
+        with pytest.raises(ValidationError, match="one of the two"):
+            SkillBindingSpec(skill_id=self.SKILL, **line)
+
+    def test_a_skill_bound_to_two_versions_is_refused(self):
+        with pytest.raises(ValidationError, match="more than one version"):
+            AgentSpec(
+                name="Clerk",
+                skill_ids=[self.SKILL],
+                skill_bindings=[
+                    SkillBindingSpec(skill_id=self.SKILL, version=1),
+                    SkillBindingSpec(skill_id=self.SKILL, version=2),
+                ],
+            )
+
+    def test_unbinding_a_skill_drops_its_version_and_reading_it_again_changes_nothing(self):
+        """The Builder saves a draft as it is; an unticked skill's pin goes with it."""
+        spec = AgentSpec(
+            name="Clerk",
+            skill_ids=[self.FORK],
+            skill_bindings=[SkillBindingSpec(skill_id=self.SKILL, version=7)],
+        )
+
+        assert spec.skill_bindings == []
+        assert AgentSpec.model_validate(spec.model_dump(mode="json")) == spec
+
+    def test_a_specialist_binds_its_own_skills_the_same_way(self):
+        specialist = SpecialistSpec(
+            name="returns",
+            description="Handles returns.",
+            instructions="Handle returns.",
+            skill_ids=[self.SKILL],
+            skill_bindings=[
+                SkillBindingSpec(skill_id=self.SKILL, fork_id=self.FORK),
+                SkillBindingSpec(skill_id=self.FORK, version=2),
+            ],
+        )
+
+        assert specialist.skill_bindings == [
+            SkillBindingSpec(skill_id=self.SKILL, fork_id=self.FORK)
+        ]
 
 
 @pytest.mark.parametrize(
