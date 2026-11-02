@@ -335,7 +335,7 @@ const ME_SECTIONS: SectionDef[] = [
       // under its figure and legend, which said nothing either.
       { widget: "my-quality", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
-      { widget: "tables", span: "s6", rows: "r3" },
+      { widget: "tables", span: "s6", rows: "r4" },
       { widget: "workflows", span: "s6", rows: "r4" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read. Four rows, so a

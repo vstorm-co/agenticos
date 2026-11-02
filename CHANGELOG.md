@@ -43,6 +43,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Tables and Workflows cards have the same default height on the dashboard.
 - Desktop chat settings open in a larger dialog with Tools & files and Preferences tabs. Selecting a local coding agent prepares an approved full-access folder automatically; cancelling preserves the previous choice. Finished coding tasks no longer leave a duplicate status panel below the answer.
 - The desktop console can list local coding agents and skills and open coding-agent sign-in. Their native commands are declared and granted to the main console, fixing the `Command not found` refusal.
 - Local Claude Code read-only tasks disable bypass permissions and expose reading tools only. Local Codex read-only is available in the Builder and selects its native read-only mode. Launch consent has a five-minute interaction timeout, and local skill counts follow the enabled sources.

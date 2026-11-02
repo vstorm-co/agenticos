@@ -276,7 +276,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     id: "tables",
     gate: holds(Perm.tablesView),
     defaultSpan: "s4",
-    defaultRows: "r2",
+    defaultRows: "r4",
     category: "attention",
     seeAll: ROUTES.TABLES,
   },
