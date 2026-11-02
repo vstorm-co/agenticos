@@ -25,8 +25,9 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization
 from app.db.models.skill import Skill
+from app.db.models.skill_version import SkillVersionSource
 from app.db.models.user import User
-from app.repositories import authoring_repo, skill_usage_repo
+from app.repositories import authoring_repo, skill_usage_repo, skill_version_repo
 from app.schemas.skill_usage import SkillUseRecord
 
 pytestmark = pytest.mark.anyio
@@ -138,6 +139,25 @@ async def _skill(db: AsyncSession, org: Organization, name: str) -> Skill:
     return skill
 
 
+async def _version(db: AsyncSession, skill: Skill, number: int) -> uuid.UUID:
+    version = await skill_version_repo.create_version(
+        db,
+        organization_id=skill.organization_id,
+        skill_id=skill.id,
+        fork_id=None,
+        number=number,
+        description=skill.description,
+        content=skill.content,
+        resources={},
+        source=SkillVersionSource.EDIT,
+        restored_from_id=None,
+        proposal_id=None,
+        library_fingerprint=None,
+        created_by_user_id=None,
+    )
+    return version.id
+
+
 async def _use(
     db: AsyncSession,
     run: AgentRun,
@@ -226,7 +246,7 @@ class TestEvidence:
         delegate = await _agent(db, org, user)
         refunds = await _skill(db, org, "refunds")
         shipping = await _skill(db, org, "shipping")
-        v2 = uuid.uuid4()
+        v2 = await _version(db, refunds, 2)
         loaded = await _run(db, org, agent, user, rating=-1, started_at=_DAYS_AGO)
         await _use(db, loaded, refunds)
         # Newer runs that used the skill rank below the rated-down one rather
