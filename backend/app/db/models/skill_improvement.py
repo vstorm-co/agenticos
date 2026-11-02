@@ -24,8 +24,8 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
-from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -141,9 +141,7 @@ class SkillImprovementRun(Base):
     window_days: Mapped[int] = mapped_column(Integer, nullable=False)
     # What an agent's own session found wrong in this skill, when it handed the skill
     # over: `{agent_id, run_ids, problems, quotes}`, read on the server, never sent.
-    seed: Mapped[dict[str, JsonValue] | None] = mapped_column(
-        JSONB(none_as_null=True), nullable=True
-    )
+    seed: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     analysis_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL", use_alter=True),

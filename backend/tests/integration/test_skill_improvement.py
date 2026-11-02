@@ -63,10 +63,11 @@ from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, PackedRun
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
+from app.services.personal_data import PersonalDataService
 from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
-from tests.integration.test_authoring import _member, _owner, _published
+from tests.integration.test_authoring import _member, _owner, _published, _rated
 from tests.integration.test_skill_bindings import _fork, _serving, _skill, _spec
 
 pytestmark = pytest.mark.anyio
@@ -1421,3 +1422,61 @@ class TestHandedOver:
 
         with pytest.raises(BadRequestError):
             await SkillImprovementService(db).start(ctx, skill.id, _start(from_run=uuid.uuid4()))
+
+
+class TestErasingAPerson:
+    async def test_their_quotes_go_from_an_open_sessions_problems_and_its_seed(self, db, evidence):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        person = await _member(db, ctx, OrgRoleName.BUILDER)
+        agent = (await SkillImprovementService(db).skill_agents.line_agents(skill, None))[0].agent
+        theirs = await _rated(db, person, agent)
+        others = await _rated(db, ctx, agent, comment=None)
+        run = await _at_understand(db, ctx, skill)
+        assert run.analysis_request_id is not None
+        await _finish(
+            db,
+            run.analysis_request_id,
+            {
+                "problems": [
+                    {
+                        "title": "Wrong window",
+                        "summary": "",
+                        "cause": "skill",
+                        "run_ids": [str(theirs.id), str(others.id)],
+                        "evidence": [
+                            {"run_id": str(theirs.id), "quote": "My refund is late"},
+                            {"run_id": str(others.id), "quote": "Where is my parcel?"},
+                        ],
+                    }
+                ]
+            },
+        )
+        other_session = await _row(
+            db,
+            await SkillImprovementService(db).start(
+                ctx, (await _skill_on_main(db, ctx)).id, _start()
+            ),
+        )
+        for session, cited in ((run, theirs), (other_session, others)):
+            session.seed = {
+                "agent_id": str(agent.id),
+                "run_ids": [str(cited.id)],
+                "problems": ["The window is wrong"],
+                "quotes": ["Quoted from that run"],
+            }
+        await db.flush()
+
+        await PersonalDataService(db).purge(person.user_id)
+
+        request = await db.get(AuthoringRequest, run.analysis_request_id)
+        assert request is not None
+        await db.refresh(request)
+        await db.refresh(run)
+        await db.refresh(other_session)
+        [problem] = request.report["problems"]
+        assert [quote["quote"] for quote in problem["evidence"]] == ["Where is my parcel?"]
+        assert run.seed is not None and run.seed["quotes"] == []
+        assert run.seed["problems"] == ["The window is wrong"]
+        assert other_session.seed is not None
+        assert other_session.seed["quotes"] == ["Quoted from that run"]
