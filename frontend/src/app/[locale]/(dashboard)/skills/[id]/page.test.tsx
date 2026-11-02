@@ -69,6 +69,7 @@ function usage(
     environments: [],
     draft_differs: false,
     can_change: true,
+    can_publish: true,
     ...extra,
   };
 }
@@ -131,7 +132,7 @@ async function serveOnce(path: string): Promise<unknown> {
       content: "# Returns",
       category: null,
       version: 12,
-      latest_version: { id: "m12", number: 12 },
+      latest_version_id: "m12",
       forks: 1,
       can_edit: skill.canEdit,
       visibility: "org",

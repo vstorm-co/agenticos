@@ -40,6 +40,8 @@ export interface SkillVersionResource {
   name: string;
   description: string | null;
   size_bytes: number;
+  /** The SHA-256 of the file's content: equal digests, same content. */
+  digest: string;
 }
 
 export interface SkillVersionRead extends SkillVersionSummary {
@@ -102,8 +104,10 @@ export interface SkillAgentUsage {
   /** Only the environments whose binding differs from `binding`. */
   environments: { id: string; name: string; agent_version: number; binding: SkillBinding }[];
   draft_differs: boolean;
-  /** Whether the caller may change this agent's binding. */
+  /** Whether the caller may change this agent's binding, in its draft at least. */
   can_change: boolean;
+  /** Whether the change also goes live, as a new published version of the agent. */
+  can_publish: boolean;
 }
 
 export interface SkillAgentList {

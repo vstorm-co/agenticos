@@ -45,11 +45,17 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("fileChanges", () => {
   it("names the files added, removed and changed between two versions", () => {
-    const file = (name: string, size_bytes: number) => ({ name, description: null, size_bytes });
+    const file = (name: string, digest: string) => ({
+      name,
+      description: null,
+      size_bytes: 10,
+      digest,
+    });
+    // b.md keeps its size and changes its content: only the digest can tell.
     expect(
       fileChanges(
-        [file("a.md", 10), file("b.md", 20), file("c.md", 30)],
-        [file("a.md", 10), file("b.md", 25), file("d.md", 5)],
+        [file("a.md", "aa"), file("b.md", "b1"), file("c.md", "cc")],
+        [file("a.md", "aa"), file("b.md", "b2"), file("d.md", "dd")],
       ),
     ).toEqual({ added: ["d.md"], removed: ["c.md"], changed: ["b.md"] });
   });
@@ -61,7 +67,7 @@ describe("VersionDiff", () => {
       path.endsWith("/m2")
         ? read("m2", {
             content: "Refund within 14 days.",
-            resources: [{ name: "form.pdf", description: null, size_bytes: 3 }],
+            resources: [{ name: "form.pdf", description: null, size_bytes: 3, digest: "f1" }],
           })
         : read("m1", {}),
     );
@@ -76,7 +82,9 @@ describe("VersionDiff", () => {
   it("says when only the files changed", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
       path.endsWith("/m2")
-        ? read("m2", { resources: [{ name: "form.pdf", description: null, size_bytes: 3 }] })
+        ? read("m2", {
+            resources: [{ name: "form.pdf", description: null, size_bytes: 3, digest: "f1" }],
+          })
         : read("m1", {}),
     );
     mount("m2", "m1");

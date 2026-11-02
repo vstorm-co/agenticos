@@ -29,6 +29,7 @@ function agent(
     environments: [],
     draft_differs: false,
     can_change: true,
+    can_publish: true,
   };
 }
 

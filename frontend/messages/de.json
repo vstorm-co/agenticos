@@ -8280,7 +8280,9 @@
         "submit": "Ändern und veröffentlichen",
         "published": "Veröffentlicht. {count, plural, =0 {{name} hat eine neue Version.} other {Die neue Version von {name} läuft jetzt in: {environments}.}}",
         "savedInDraft": "Im Entwurf von {name} gespeichert. Veröffentlichen Sie ihn im Builder.",
-        "openBuilder": "Builder öffnen"
+        "openBuilder": "Builder öffnen",
+        "savesToDraft": "Sie dürfen {name} bearbeiten, aber nicht veröffentlichen, deshalb geht diese Änderung in seinen Entwurf. Wer veröffentlichen darf, tut das im Builder.",
+        "submitDraft": "Im Entwurf speichern"
       },
       "history": {
         "title": "Verlauf: {line}",
@@ -8338,7 +8340,8 @@
         "warnMain": "Speichern erzeugt v{number} auf main. {count, plural, =0 {Noch folgt kein Agent main.} =1 {1 Agent, der main folgt, erhält sie sofort.} other {# Agents, die main folgen, erhalten sie sofort.}} Fixierte Agents und Forks behalten ihre Version.",
         "warnFork": "Speichern erzeugt v{number} von Fork „{name}“. {count, plural, =0 {Noch nutzt kein Agent den Fork.} =1 {Sein 1 Agent erhält sie sofort.} other {Seine # Agents erhalten sie sofort.}}",
         "lineMoved": "Seit Sie dies geöffnet haben, hat jemand eine neuere Version gespeichert. Ihr Text ist noch hier: kopieren Sie ihn, schließen Sie und öffnen Sie die neueste Version, um ihn dort einzufügen.",
-        "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet."
+        "forkFiles": "Nur Beschreibung und Anweisungen gehören zum Fork. Seine Dateien stammen aus der main-Version, bei der er begann, und Dateien werden auf main bearbeitet.",
+        "noBase": "Dieser Skill hat noch keine gespeicherte Version, auf die geschrieben werden kann. Laden Sie die Seite neu und versuchen Sie es erneut."
       }
     }
   },

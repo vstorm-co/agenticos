@@ -28,7 +28,7 @@ const SKILL: Skill = {
   content: "Refund within 30 days.",
   category: null,
   version: 12,
-  latest_version: { id: "m12", number: 12 },
+  latest_version_id: "m12",
   can_edit: true,
   visibility: "org",
   owner_user_id: null,
@@ -190,6 +190,31 @@ describe("EditSkillDialog", () => {
       "/skills/s1/versions",
       expect.objectContaining({ fork_id: "f1", base_version_id: "m7" }),
     );
+  });
+
+  it("refuses a text save when the skill has no version to write over", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <EditSkillDialog
+        skill={{ ...SKILL, latest_version_id: null }}
+        fork={null}
+        followers={0}
+        onClose={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    await userEvent.clear(description());
+    await userEvent.type(description(), "Mine.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByText(/no saved version to write over yet/)).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it("closes when cancelled", async () => {

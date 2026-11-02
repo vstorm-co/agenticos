@@ -51,14 +51,14 @@ export function EditSkillDialog({
   const { categories, suggestedCategories } = useSkills({ limit: 1 });
   const { save } = useSkill(skill.id);
   const { edit } = useSkillVersionWrites(skill.id);
-  const [base] = useState(() =>
-    fork === null ? skill.latest_version : (fork.latest ?? fork.base),
+  const [baseId] = useState(() =>
+    fork === null ? skill.latest_version_id : (fork.latest?.id ?? fork.base.id),
   );
   const [next] = useState(() =>
-    fork === null ? skill.latest_version.number + 1 : (fork.latest?.number ?? 0) + 1,
+    fork === null ? skill.version + 1 : (fork.latest?.number ?? 0) + 1,
   );
   const [refusal, setRefusal] = useState<string | null>(null);
-  const forkText = useSkillVersion(skill.id, fork === null ? null : base.id);
+  const forkText = useSkillVersion(skill.id, fork === null ? null : baseId);
   const shown =
     fork === null || forkText.version === undefined
       ? skill
@@ -75,9 +75,13 @@ export function EditSkillDialog({
       const textChanged =
         change.description !== shown.description || change.content !== shown.content;
       if (textChanged) {
+        if (baseId === null) {
+          setRefusal(t("noBase"));
+          return;
+        }
         await edit.mutateAsync({
           forkId: fork?.id ?? null,
-          baseVersionId: base.id,
+          baseVersionId: baseId,
           description: change.description,
           content: change.content,
         });
@@ -117,7 +121,7 @@ export function EditSkillDialog({
           <Skeleton className="min-h-[22rem] w-full" />
         ) : (
           <SkillWorkbench
-            key={`${skill.id}:${base.id}`}
+            key={`${skill.id}:${baseId}`}
             skill={shown}
             fork={fork !== null}
             canEdit={skill.can_edit === true}

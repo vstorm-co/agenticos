@@ -49,6 +49,7 @@ const HR: SkillAgentUsage = {
   environments: [],
   draft_differs: false,
   can_change: true,
+  can_publish: true,
 };
 
 function renderDialog() {
@@ -214,5 +215,38 @@ describe("ChangeVersionDialog's pin", () => {
     const { onClose } = renderDialog();
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("ChangeVersionDialog without publish", () => {
+  it("says the change goes into the draft, and saves it there", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: false,
+      agent_version: null,
+      environments: [],
+      usage: HR,
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <ChangeVersionDialog
+        skillId="s1"
+        skillName="returns-policy"
+        usage={{ ...HR, can_publish: false }}
+        forks={[RETURNS]}
+        onClose={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+
+    expect(screen.getByText(/You may edit HR bot but not publish it/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
+    await userEvent.click(screen.getByRole("button", { name: "Save to the draft" }));
+
+    expect(apiClient.put).toHaveBeenCalledWith("/skills/s1/agents/a1/binding", { state: "main" });
   });
 });

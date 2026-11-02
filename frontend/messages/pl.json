@@ -8162,7 +8162,9 @@
         "submit": "Zmień i opublikuj",
         "published": "Opublikowano. {count, plural, =0 {{name} ma nową wersję.} other {Nową wersję {name} serwuje teraz: {environments}.}}",
         "savedInDraft": "Zapisano w drafcie {name}. Opublikuj go w Builderze.",
-        "openBuilder": "Otwórz Builder"
+        "openBuilder": "Otwórz Builder",
+        "savesToDraft": "Możesz edytować {name}, ale nie możesz go publikować, więc ta zmiana trafi do jego draftu. Opublikuje ją w Builderze ktoś, kto ma takie prawo.",
+        "submitDraft": "Zapisz w drafcie"
       },
       "history": {
         "title": "Historia: {line}",
@@ -8220,7 +8222,8 @@
         "warnMain": "Zapis tworzy v{number} na main. {count, plural, =0 {Żaden agent jeszcze nie podąża za main.} one {# agent podążający za main dostanie ją od razu.} few {# agentów podążających za main dostanie ją od razu.} many {# agentów podążających za main dostanie ją od razu.} other {# agenta podążającego za main dostanie ją od razu.}} Przypięci agenci i forki zostają przy swojej wersji.",
         "warnFork": "Zapis tworzy v{number} forka „{name}”. {count, plural, =0 {Żaden agent jeszcze nie używa forka.} one {Jego # agent dostanie ją od razu.} few {Jego # agentów dostanie ją od razu.} many {Jego # agentów dostanie ją od razu.} other {Jego # agenta dostanie ją od razu.}}",
         "lineMoved": "Ktoś zapisał nowszą wersję, odkąd to otworzyłeś. Twój tekst nadal tu jest: skopiuj go, zamknij i otwórz najnowszą wersję, żeby go tam wprowadzić.",
-        "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main."
+        "forkFiles": "Do forka należą tylko opis i instrukcje. Jego pliki pochodzą z wersji main, od której wystartował, a pliki edytuje się na main.",
+        "noBase": "Ten skill nie ma jeszcze zapisanej wersji, na której można zapisać zmianę. Odśwież stronę i spróbuj ponownie."
       }
     }
   },

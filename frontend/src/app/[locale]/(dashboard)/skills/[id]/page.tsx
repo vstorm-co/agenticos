@@ -107,7 +107,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             skillId={id}
             forkId={fork?.id ?? null}
             forkName={fork?.name ?? null}
-            latestId={fork === null ? skill.latest_version.id : (fork.latest?.id ?? null)}
+            latestId={fork === null ? skill.latest_version_id : (fork.latest?.id ?? null)}
             canEdit={skill.can_edit === true}
             forks={forks}
             onLine={(next) => setShowParam(next === null ? "main" : `fork:${next}`)}
@@ -115,7 +115,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree
-            mainLatest={skill.latest_version.number}
+            mainLatest={skill.version}
             forks={forks}
             agents={agents.agents?.items ?? []}
             error={agents.error}

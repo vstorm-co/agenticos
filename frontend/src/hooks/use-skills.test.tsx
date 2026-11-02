@@ -156,7 +156,7 @@ const BODY = {
   description: "How refunds work",
   content: "# Refunds",
   version: 1,
-  latest_version: { id: "v1", number: 1 },
+  latest_version_id: "v1",
   visibility: "organization",
   owner_user_id: null,
 };

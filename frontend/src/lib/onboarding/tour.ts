@@ -665,7 +665,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "skill-change-version",
     page: SKILL_DETAIL,
     target: "skill-change-version",
-    permission: Perm.agentsPublish,
+    permission: Perm.agentsEdit,
     optional: true,
   },
   { id: "skill-edit", page: SKILL_DETAIL, target: "skill-edit", permission: Perm.skillsView },

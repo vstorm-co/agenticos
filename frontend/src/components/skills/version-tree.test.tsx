@@ -20,6 +20,7 @@ function onMain(name: string): SkillAgentUsage {
     environments: [],
     draft_differs: false,
     can_change: false,
+    can_publish: false,
   };
 }
 

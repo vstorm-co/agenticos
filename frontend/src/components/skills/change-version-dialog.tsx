@@ -192,7 +192,9 @@ export function ChangeVersionDialog({
             </AlertDescription>
           </Alert>
         )}
-        <p className="text-muted-foreground text-sm">{t("publishes", { name })}</p>
+        <p className="text-muted-foreground text-sm">
+          {usage.can_publish ? t("publishes", { name }) : t("savesToDraft", { name })}
+        </p>
         {error !== null && (
           <p role="alert" className="text-destructive text-sm">
             {error}
@@ -207,7 +209,7 @@ export function ChangeVersionDialog({
             disabled={unchanged || !understood}
             loading={changeBinding.isPending}
           >
-            {t("submit")}
+            {usage.can_publish ? t("submit") : t("submitDraft")}
           </Button>
         </DialogFooter>
       </DialogContent>

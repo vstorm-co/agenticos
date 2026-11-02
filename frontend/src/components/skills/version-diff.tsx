@@ -21,7 +21,7 @@ export function fileChanges(
     changed: after
       .filter((file) => {
         const was = old.get(file.name);
-        return was !== undefined && was.size_bytes !== file.size_bytes;
+        return was !== undefined && was.digest !== file.digest;
       })
       .map((file) => file.name),
   };

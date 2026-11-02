@@ -32,6 +32,7 @@ function onMain(name: string, extra: Partial<SkillAgentUsage> = {}): SkillAgentU
     environments: [],
     draft_differs: false,
     can_change: true,
+    can_publish: true,
     ...extra,
   };
 }
