@@ -12,26 +12,34 @@ harness guardrail only reads the finished one (agenticos#1900).
 """
 
 from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass, replace
 from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai import Agent
-from pydantic_ai.capabilities import CombinedCapability
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapModelRequestHandler
 from pydantic_ai.messages import (
     AgentStreamEvent,
+    BinaryContent,
+    CachePoint,
+    ImageUrl,
     ModelMessage,
+    ModelRequest,
     ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    TextContent,
     TextPart,
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
     ToolCallPartDelta,
+    UserContent,
     UserPromptPart,
 )
+from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.models.function import (
     AgentInfo,
     DeltaThinkingCalls,
@@ -40,6 +48,7 @@ from pydantic_ai.models.function import (
     DeltaToolCalls,
     FunctionModel,
 )
+from pydantic_ai.tools import RunContext
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
@@ -57,6 +66,7 @@ from app.agents.capabilities.guardrails import (
 )
 from app.agents.capabilities.guardrails._capability import (
     WITHHELD_REASONING,
+    ScreenedPrompt,
     ScreenedStream,
     ScreenedToolArgs,
     _edge_detector,
@@ -223,7 +233,9 @@ def test_each_configured_edge_attaches_its_harness_capability():
     )
     assert isinstance(combined, CombinedCapability)
     kinds = {type(edge) for edge in combined.capabilities}
-    assert kinds == {InputGuardrail, OutputGuardrail, ScreenedStream, ToolGuardrail}
+    assert kinds == {ScreenedPrompt, OutputGuardrail, ScreenedStream, ToolGuardrail}
+    # Still the harness's input edge: plain-text prompts take its path unchanged.
+    assert issubclass(ScreenedPrompt, InputGuardrail)
 
 
 def test_only_the_configured_edge_is_attached():
@@ -258,6 +270,188 @@ async def test_input_pii_redaction_hides_a_phone_number_from_the_model():
         "My email is [redacted:email], my card number is [redacted:credit_card], "
         "my SSN is [redacted:us_ssn], and my phone number is [redacted:phone]."
     )
+
+
+# A picture whose bytes are a long run of digits: read as text, it is past the
+# phone detector's digit ceiling and holds `png` and `BinaryContent` in its repr.
+PICTURE = BinaryContent(data=b"0123456789" * 2_000, media_type="image/png")
+
+
+def _records_prompt(seen: list[str | Sequence[UserContent]]) -> FunctionModel:
+    """Answer `ok`, recording the content of the last user prompt the model was handed."""
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        for message in messages:
+            for part in getattr(message, "parts", []):
+                if isinstance(part, UserPromptPart):
+                    seen.append(part.content)
+        return ModelResponse(parts=[TextPart("ok")])
+
+    return FunctionModel(respond)
+
+
+async def test_a_picture_under_pii_redaction_is_redacted_around_not_refused():
+    """The bytes are not text the person wrote, so they neither trip the phone
+    detector's ceiling nor stop the redaction of the text beside them (#2566)."""
+    seen: list[str | Sequence[UserContent]] = []
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _records_prompt(seen))
+    result = await agent.run(["call me on 415-555-0132", PICTURE])
+    assert result.output == "ok"
+    assert seen == [["call me on [redacted:phone]", PICTURE]]
+
+
+async def test_a_blocked_keyword_in_the_text_of_a_picture_prompt_still_blocks():
+    agent = _agent(GuardrailsConfig(blocked_keywords_in="classified"), _answers("hi"))
+    with pytest.raises(GuardrailBlocked) as exc:
+        await agent.run(["this is classified", PICTURE])
+    assert exc.value.edge == "input"
+
+
+async def test_a_keyword_only_the_pictures_repr_spells_does_not_block():
+    seen: list[str | Sequence[UserContent]] = []
+    agent = _agent(
+        GuardrailsConfig(blocked_keywords_in="png, BinaryContent, image"),
+        _records_prompt(seen),
+    )
+    result = await agent.run(["what is in this?", PICTURE])
+    assert result.output == "ok"
+    assert seen == [["what is in this?", PICTURE]]
+
+
+async def test_a_picture_with_no_text_passes_untouched():
+    seen: list[str | Sequence[UserContent]] = []
+    agent = _agent(GuardrailsConfig(redact_pii_in=True), _records_prompt(seen))
+    await agent.run([PICTURE])
+    assert seen == [[PICTURE]]
+
+
+async def test_each_text_part_is_screened_and_the_others_kept_in_place():
+    """A tagged text part keeps its metadata; a URL and a cache marker are not text."""
+    seen: list[str | Sequence[UserContent]] = []
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompt(seen))
+    url = ImageUrl(url="https://example.com/cat.png")
+    await agent.run(
+        [
+            "first",
+            TextContent(content=f"key {SECRET}", metadata={"from": "api"}),
+            url,
+            CachePoint(),
+            f"again {SECRET}",
+        ]
+    )
+    assert seen == [
+        [
+            "first",
+            TextContent(content="key [redacted:anthropic_key]", metadata={"from": "api"}),
+            url,
+            CachePoint(),
+            "again [redacted:anthropic_key]",
+        ]
+    ]
+
+
+@dataclass
+class _SendsACopy(AbstractCapability[object]):
+    """Send the model a copy of the prompt part, as an outer capability may.
+
+    `as_text` makes the history's original plain text while the copy is a list.
+    """
+
+    as_text: bool = False
+
+    async def wrap_model_request(
+        self,
+        ctx: RunContext[object],
+        *,
+        request_context: ModelRequestContext,
+        handler: WrapModelRequestHandler,
+    ) -> ModelResponse:
+        messages: list[ModelMessage] = []
+        for message in request_context.messages:
+            if isinstance(message, ModelRequest):
+                parts = [
+                    replace(part, content=list(part.content))
+                    if isinstance(part, UserPromptPart) and not isinstance(part.content, str)
+                    else part
+                    for part in message.parts
+                ]
+                if self.as_text:
+                    for part in message.parts:
+                        if isinstance(part, UserPromptPart):
+                            part.content = f"text {SECRET}"
+                message = replace(message, parts=parts)
+            messages.append(message)
+        request_context.messages = messages
+        return await handler(request_context)
+
+
+@pytest.mark.parametrize("as_text", [False, True])
+async def test_a_copy_and_its_history_original_are_both_redacted(as_text: bool):
+    """The model reads the copy; the history - replayed on later turns - holds the original."""
+    seen: list[str | Sequence[UserContent]] = []
+    capability = build_guardrails(GuardrailsConfig(redact_secrets_in=True))
+    assert capability is not None
+    agent: Agent = Agent(
+        model=_records_prompt(seen),
+        capabilities=[_SendsACopy(as_text=as_text), capability],
+    )
+    result = await agent.run([f"key {SECRET}", PICTURE])
+    assert seen == [["key [redacted:anthropic_key]", PICTURE]]
+    stored = next(
+        part
+        for message in result.all_messages()
+        for part in message.parts
+        if isinstance(part, UserPromptPart)
+    )
+    assert stored.content == (
+        "text [redacted:anthropic_key]" if as_text else ["key [redacted:anthropic_key]", PICTURE]
+    )
+
+
+async def test_the_prompt_is_screened_once_not_again_after_a_tool_call():
+    seen: list[str | Sequence[UserContent]] = []
+    calls: list[str] = []
+
+    def guard(text: str) -> GuardrailResult:
+        calls.append(text)
+        return GuardrailResult.allow()
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        seen.append("step")
+        if len(seen) == 1:
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name="fetch", args={}, tool_call_id="c1")]
+            )
+        return ModelResponse(parts=[TextPart("done")])
+
+    agent: Agent = Agent(model=FunctionModel(respond), capabilities=[ScreenedPrompt(guard=guard)])
+
+    @agent.tool_plain
+    def fetch() -> str:
+        return "fetched"
+
+    result = await agent.run(["look", PICTURE])
+    assert result.output == "done"
+    assert calls == ["look"]
+
+
+async def test_a_resumed_request_of_several_prompt_parts_is_screened_by_the_harness():
+    """A resumed run reports them as one prompt; the harness screens them together."""
+    agent = _agent(GuardrailsConfig(blocked_keywords_in="classified"), _answers("hi"))
+    history: list[ModelMessage] = [
+        ModelRequest(parts=[UserPromptPart("classified"), UserPromptPart(["look", PICTURE])])
+    ]
+    with pytest.raises(GuardrailBlocked):
+        await agent.run(message_history=history)
+
+
+async def test_a_tagged_text_part_with_nothing_to_redact_is_kept_as_it_was():
+    seen: list[str | Sequence[UserContent]] = []
+    agent = _agent(GuardrailsConfig(redact_secrets_in=True), _records_prompt(seen))
+    tagged = TextContent(content="nothing here", metadata={"from": "api"})
+    await agent.run([tagged, PICTURE])
+    assert seen == [[tagged, PICTURE]]
+    assert not isinstance(seen[0], str) and seen[0][0] is tagged
 
 
 async def test_output_pii_redaction_removes_a_phone_number_from_the_answer():

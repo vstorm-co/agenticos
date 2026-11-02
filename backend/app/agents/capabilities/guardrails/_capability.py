@@ -31,37 +31,50 @@ a redacted key was on screen, and in the stored turn, before the redaction ran
 (agenticos#1900). :class:`ScreenedStream` holds each text and reasoning part back
 from whoever consumes the stream until the part is complete, and releases it
 through the same detector the output guardrail runs.
+
+**The input edge reads a picture's words, not its bytes.** The harness renders a
+prompt with an attached picture as the list's `repr`, bytes included, and cannot
+write a redaction back over it. :class:`ScreenedPrompt` screens such a prompt's
+text parts instead, one by one, and leaves the rest of it as it was (#2566).
 """
 
 import logging
 import re
-from collections.abc import AsyncIterable, Callable
+from collections.abc import AsyncIterable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
-from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapModelRequestHandler
 from pydantic_ai.messages import (
     AgentStreamEvent,
     ModelResponse,
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    TextContent,
     TextPart,
     TextPartDelta,
     ThinkingPart,
     ThinkingPartDelta,
     ToolCallPart,
     ToolCallPartDelta,
+    UserContent,
 )
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.tools import RunContext
+from pydantic_ai_harness._background_completion import get_background_completion
 from pydantic_ai_harness.guardrails import (
     GuardrailResult,
     InputGuardrail,
     OutputGuardrail,
     ToolGuardrail,
 )
+
+# Private, and on purpose: `ScreenedPrompt` must find the prompt - and the copies of
+# it an outer capability sent - exactly as the guardrail it extends does.
+from pydantic_ai_harness.guardrails._capability import _find_prompt_part, _history_prompt_parts
+from pydantic_ai_harness.guardrails._shared import trace_redaction
 from pydantic_ai_harness.guardrails.detectors import (
     blocked_keywords,
     for_text,
@@ -526,6 +539,98 @@ class ScreenedToolArgs(AbstractCapability[object]):
                     yield event
 
 
+type PromptContent = str | Sequence[UserContent]
+
+
+@dataclass
+class ScreenedPrompt(InputGuardrail[object]):
+    """The harness's input guardrail, reading only the text of a multimodal prompt.
+
+    The harness hands its guard a prompt built from several parts as the list's
+    `repr` - an attached picture's bytes included - so a long digit run in them
+    passed the PII redactor's size limit and a keyword such as `png` matched,
+    neither of it anything the person wrote; and it refuses to write a redaction
+    back over such a prompt, so the turn failed (#2566). Here each text part of
+    such a prompt - a plain string or a `TextContent` - is screened on its own,
+    a redaction is written back over that part, and every other part (a picture,
+    a URL, a cache marker) is left where it was. The harness finds the prompt -
+    the history's part, and any copy an outer capability sent the model - and
+    runs the guard chain, so a block and a refused verdict behave as they do for
+    a plain-text prompt, which takes the harness's path unchanged.
+
+    `AttachmentRouter` screens the turn's text with the same detector before a
+    file is written, and that text is the prompt's one text part when a picture
+    rides beside it, so what it predicts holds for a turn with a picture too.
+
+    Sequential only: `build_guardrails` never sets `parallel`, and a redaction
+    cannot be written over a prompt the model has already been sent.
+    """
+
+    async def wrap_model_request(
+        self,
+        ctx: RunContext[object],
+        *,
+        request_context: ModelRequestContext,
+        handler: WrapModelRequestHandler,
+    ) -> ModelResponse:
+        """Screen a multimodal prompt's text parts before the first model request."""
+        if ctx.run_step > 1:
+            return await handler(request_context)
+        parts, original = _find_prompt_part(ctx, request_context.messages)
+        if (
+            not parts
+            or not _is_multimodal(parts[0].content)
+            # A resumed run reports several prompt parts as one `ctx.prompt`.
+            or (ctx.prompt is not None and _history_prompt_parts(ctx) > 1)
+        ):
+            return await super().wrap_model_request(
+                ctx, request_context=request_context, handler=handler
+            )
+        targets = [*parts, *([] if original is None else [original])]
+        # Every part screened before any is rewritten, so a block rewrites nothing.
+        screened = [await self._screened(ctx, target.content) for target in targets]
+        for target, content in zip(targets, screened, strict=True):
+            if content is not None:
+                target.content = content
+        if (
+            changed := next((content for content in screened if content is not None), None)
+        ) is not None:
+            trace_redaction(ctx, direction="input", replacement=changed)
+        return await handler(request_context)
+
+    async def _screened(
+        self, ctx: RunContext[object], content: PromptContent
+    ) -> PromptContent | None:
+        """`content` with each text part as the guard leaves it, or `None` when unchanged.
+
+        Plain text is screened whole: the history's original of a copy the model
+        was sent need not have the copy's shape.
+        """
+        if isinstance(content, str):
+            cleaned = await self._cleaned(ctx, content)
+            return None if cleaned == content else cleaned
+        result: list[UserContent] = []
+        for item in content:
+            if isinstance(item, str):
+                result.append(await self._cleaned(ctx, item))
+            elif isinstance(item, TextContent):
+                cleaned = await self._cleaned(ctx, item.content)
+                result.append(item if cleaned == item.content else replace(item, content=cleaned))
+            else:
+                result.append(item)
+        return None if result == list(content) else result
+
+    async def _cleaned(self, ctx: RunContext[object], text: str) -> str:
+        """`text` as the guard chain leaves it; a block, a retry and an approval raise."""
+        verdict, _ = await self._screen(ctx, text)
+        return text if verdict.action == "allow" else str(verdict.replacement)
+
+
+def _is_multimodal(content: PromptContent) -> bool:
+    """A prompt of several parts - not plain text, and not a background task's result."""
+    return not isinstance(content, str) and get_background_completion(content) is None
+
+
 def input_screen(config: GuardrailsConfig) -> TextDetector | None:
     """The input edge's detector, for words that reach the model past the first message.
 
@@ -599,7 +704,7 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
 
     input_detector = input_screen(config)
     if input_detector is not None:
-        edges.append(InputGuardrail(guard=input_detector))
+        edges.append(ScreenedPrompt(guard=input_detector))
 
     stream = output_screen(config)
     if stream is not None:
