@@ -110,3 +110,22 @@ jobs:
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}
+
+  checked-source:
+    name: Record the checked source
+    needs: analyze
+    if: ${{ !cancelled() && needs.analyze.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The run API reports the PR head SHA, whereas checkout analyzes the
+      # synthetic merge SHA. Reuse must prove the tree actually checked.
+      - name: Record the checkout commit
+        run: printf '%s\n' "$GITHUB_SHA" > checked-source.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: checked-source
+          path: checked-source.txt
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30

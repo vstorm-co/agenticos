@@ -357,7 +357,10 @@ Both CI and CodeQL recognize cuts by their actual git trees. Only CHANGELOG and
 application versions may differ; dependencies, configuration, file modes and all
 other source must match a prior successful full run. CI requires all three heavy
 suites to have succeeded, and CodeQL requires all four analyses. Skipped jobs are
-not evidence. The last 30 successful runs are searched; missing evidence or API
+not evidence. PR evidence records the synthetic merge SHA actually checked,
+rather than trusting the run API’s branch-head SHA.
+
+The last 30 successful runs are searched; missing evidence or API
 failure runs full checks. This applies to the cut PR and its merge on `main`.
 Ordinary source changes run the existing checks, and scheduled CodeQL stays full.
 The ruleset and code-scanning merge protection remain enabled.

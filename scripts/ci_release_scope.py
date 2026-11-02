@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 FILES = (
@@ -89,6 +90,40 @@ def api(endpoint: str) -> object:
     return json.loads(command("gh", "api", endpoint))
 
 
+def checked_commit(repository: str, run: dict[str, object], fallback: str) -> str:
+    """PR checkout uses the synthetic merge SHA, not the run API's head SHA."""
+    event = run.get("event")
+    if event in {"push", "schedule", "workflow_dispatch"}:
+        return fallback
+    if event != "pull_request":
+        raise ValueError("Unrecognized run event")
+    run_id = run["id"]
+    with tempfile.TemporaryDirectory(prefix="agenticos-checked-source-") as directory:
+        command(
+            "gh",
+            "run",
+            "download",
+            str(run_id),
+            "--repo",
+            repository,
+            "--name",
+            "checked-source",
+            "--dir",
+            directory,
+        )
+        sha = (Path(directory) / "checked-source.txt").read_text().strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ValueError("Invalid checked source SHA")
+    return sha
+
+
+def fetch_commit(sha: str) -> None:
+    try:
+        command("git", "cat-file", "-e", f"{sha}^{{commit}}")
+    except subprocess.CalledProcessError:
+        command("git", "fetch", "--no-tags", "--depth=1", "origin", sha)
+
+
 def checked_source(repository: str, workflow: str, head: str) -> bool:
     runs = records(
         api(f"repos/{repository}/actions/workflows/{workflow}/runs?status=success&per_page=30"),
@@ -110,10 +145,7 @@ def checked_source(repository: str, workflow: str, head: str) -> bool:
             or not isinstance(run_id, int)
         ):
             continue
-        try:
-            command("git", "cat-file", "-e", f"{sha}^{{commit}}")
-        except subprocess.CalledProcessError:
-            command("git", "fetch", "--no-tags", "--depth=1", "origin", sha)
+        fetch_commit(sha)
         if not equivalent(sha, head):
             continue
         jobs = records(api(f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100"), "jobs")
@@ -123,6 +155,14 @@ def checked_source(repository: str, workflow: str, head: str) -> bool:
             if job.get("conclusion") == "success" and isinstance(job.get("name"), str)
         }
         if required <= passed:
+            try:
+                checked = checked_commit(repository, run, sha)
+                fetch_commit(checked)
+                if not equivalent(checked, head):
+                    continue
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                print(f"Cannot reuse run {run_id}: {error}", file=sys.stderr)
+                continue
             print(f"Reusing full {workflow} run {run_id} at {sha}", file=sys.stderr)
             return True
     return False

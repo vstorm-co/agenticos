@@ -36,7 +36,7 @@ def git(*args: str) -> str:
 @pytest.fixture
 def repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str, str]:
     monkeypatch.chdir(tmp_path)
-    git("init", "-q")
+    git("init", "-q", "--initial-branch=fixture-source")
     git("config", "user.name", "Release test")
     git("config", "user.email", "test@example.com")
     files = {
@@ -103,7 +103,7 @@ def test_evidence_requires_real_successful_suites(
 
     def api(endpoint: str) -> object:
         if "/runs?" in endpoint:
-            return {"workflow_runs": [{"head_sha": base, "id": 42}]}
+            return {"workflow_runs": [{"head_sha": base, "id": 42, "event": "push"}]}
         return {
             "jobs": [
                 {"name": name, "conclusion": "skipped" if name == missing else "success"}
@@ -260,7 +260,7 @@ def test_codeql_reuse_needs_all_languages(
 
     def api(endpoint: str) -> object:
         if "/runs?" in endpoint:
-            return {"workflow_runs": [{"head_sha": base, "id": 42}]}
+            return {"workflow_runs": [{"head_sha": base, "id": 42, "event": "push"}]}
         return {
             "jobs": [
                 {"name": f"analyze {language}", "conclusion": "success"}
@@ -311,3 +311,50 @@ esac
     assert set(git("diff", "--name-only", base, new).splitlines()) == set(cut.FILES)
     assert scope.is_cut(base, new)
     assert git("tag", "--list") == ""
+
+
+def test_pr_evidence_checks_the_actual_merge_tree(
+    repository: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base, head = repository
+    Path("source.py").write_text("print('different base merged during checks')\n")
+    git("add", ".")
+    git("commit", "-qm", "synthetic merge")
+    merged = git("rev-parse", "HEAD")
+
+    def api(endpoint: str) -> object:
+        if "/runs?" in endpoint:
+            return {"workflow_runs": [{"head_sha": base, "id": 42, "event": "pull_request"}]}
+        return {
+            "jobs": [
+                {"name": name, "conclusion": "success"} for name in ("test", "test-frontend", "e2e")
+            ]
+        }
+
+    monkeypatch.setattr(scope, "api", api)
+    monkeypatch.setattr(scope, "checked_commit", lambda *_: merged)
+    assert not scope.checked_source("owner/repo", "ci.yml", head)
+    monkeypatch.setattr(scope, "checked_commit", lambda *_: base)
+    assert scope.checked_source("owner/repo", "ci.yml", head)
+
+
+def test_pr_without_checkout_evidence_cannot_be_reused(
+    repository: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base, head = repository
+
+    def api(endpoint: str) -> object:
+        if "/runs?" in endpoint:
+            return {"workflow_runs": [{"head_sha": base, "id": 42, "event": "pull_request"}]}
+        return {
+            "jobs": [
+                {"name": name, "conclusion": "success"} for name in ("test", "test-frontend", "e2e")
+            ]
+        }
+
+    def missing(*_: object) -> str:
+        raise subprocess.CalledProcessError(1, "gh run download")
+
+    monkeypatch.setattr(scope, "api", api)
+    monkeypatch.setattr(scope, "checked_commit", missing)
+    assert not scope.checked_source("owner/repo", "ci.yml", head)

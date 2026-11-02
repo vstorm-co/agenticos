@@ -953,3 +953,22 @@ jobs:
       # installs - in the `test` job it skips for want of `pymdownx`.
       - name: Check the slug rule against the real renderer
         run: make docs-slug-check
+
+  checked-source:
+    name: Record the checked source
+    needs: [test, test-frontend, e2e]
+    if: ${{ !cancelled() && needs.test.result == 'success' && needs.test-frontend.result == 'success' && needs.e2e.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The run API reports the PR head SHA, whereas checkout analyzes the
+      # synthetic merge SHA. Reuse must prove the tree actually checked.
+      - name: Record the checkout commit
+        run: printf '%s\n' "$GITHUB_SHA" > checked-source.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: checked-source
+          path: checked-source.txt
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30

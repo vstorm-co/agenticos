@@ -1,5 +1,5 @@
 ---
-source_sha: "26ff53af0c11"
+source_sha: "67be83d81d42"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -382,7 +382,10 @@ CI y CodeQL reconocen el corte mediante los árboles reales de git. Solo pueden
 variar CHANGELOG y las versiones de aplicación; dependencias, configuración,
 modos de archivo y demás código deben coincidir con una ejecución completa
 correcta anterior. CI exige las tres suites grandes correctas y CodeQL los cuatro
-análisis. Los jobs omitidos no sirven de prueba. Se buscan las últimas 30
+análisis. Los jobs omitidos no sirven de prueba. Para PR se registra el SHA del merge
+sintético realmente comprobado, no el SHA de la rama informado por la API.
+
+Se buscan las últimas 30
 ejecuciones correctas; sin prueba o ante errores de API se ejecutan las comprobaciones
 completas. Se aplica al PR de corte y a su merge en `main`. Los cambios normales
 mantienen sus comprobaciones y CodeQL programado sigue siendo completo.

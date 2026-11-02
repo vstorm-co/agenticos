@@ -1,5 +1,5 @@
 ---
-source_sha: "26ff53af0c11"
+source_sha: "67be83d81d42"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -386,7 +386,10 @@ CI i CodeQL rozpoznają cut przez rzeczywiste drzewa git. Różnić mogą się t
 CHANGELOG i wersje aplikacji; zależności, konfiguracja, tryby plików i pozostały
 kod muszą odpowiadać wcześniejszemu pełnemu udanemu przebiegowi. CI wymaga sukcesu
 wszystkich trzech ciężkich zestawów testów, a CodeQL wszystkich czterech analiz.
-Pominięte zadania nie są dowodem. Sprawdzanych jest 30 ostatnich udanych przebiegów;
+Pominięte zadania nie są dowodem. Dla PR-a zapisywany jest SHA faktycznie
+sprawdzonego próbnego merge’a, zamiast SHA gałęzi raportowanego przez API przebiegu.
+
+Sprawdzanych jest 30 ostatnich udanych przebiegów;
 brak dowodu lub błąd API oznacza pełne kontrole. Dotyczy to PR-a cut i jego merge'a
 na `main`. Zwykłe zmiany zachowują dotychczasowe kontrole, a zaplanowany CodeQL
 pozostaje pełny. Ruleset i ochrona merge przez code scanning pozostają aktywne.

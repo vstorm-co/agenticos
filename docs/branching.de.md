@@ -1,5 +1,5 @@
 ---
-source_sha: "26ff53af0c11"
+source_sha: "67be83d81d42"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -396,7 +396,10 @@ CI und CodeQL erkennen Cuts anhand der tatsächlichen Git-Bäume. Nur CHANGELOG 
 Anwendungsversionen dürfen abweichen; Abhängigkeiten, Konfiguration, Dateimodi und
 übriger Quellcode müssen einem erfolgreichen vollständigen Lauf entsprechen.
 CI verlangt drei erfolgreiche große Testsuiten, CodeQL alle vier Analysen.
-Übersprungene Jobs zählen nicht als Nachweis. Geprüft werden die letzten 30
+Übersprungene Jobs zählen nicht als Nachweis. Bei PRs wird die tatsächlich
+geprüfte synthetische Merge-SHA gespeichert, nicht die Branch-Head-SHA der Run-API.
+
+Geprüft werden die letzten 30
 erfolgreichen Läufe; fehlende Nachweise oder API-Fehler starten vollständige
 Prüfungen. Das gilt für Cut-PR und Merge auf `main`. Normale Änderungen behalten
 ihre Prüfungen, geplante CodeQL-Läufe bleiben vollständig. Ruleset und
