@@ -128,7 +128,7 @@ colleague's account must not delete the agent the team depends on.
 
 !!! warning "What erasure does not reach, and the docs say so rather than the deployment finding out"
 
-    **Memories in a removed mem0 integration.** A deployment that used mem0 (removed in #2090) still has those memories in the mem0 service. The upgrade removed the bindings and the credentials that reached it, so forgetting a person or clearing an agent here no longer touches them; erase them in mem0 itself.
+    **Memories in a removed mem0 integration.** A deployment that used mem0 (removed in #2090) may retain those memories in the external service. The upgrade removes the stored bindings but does not delete encrypted credentials from the vault or erase/import mem0 data. Forgetting a person or clearing an agent here no longer reaches that service. Review unused vault keys, revoke retired provider credentials and handle the external memories separately. See the [upgrade checklist](deploy.md#native-memory-upgrade).
 
     **Backups.** A deletion removes rows from the live database. Whatever backup
     schedule a deployment runs keeps them until it rolls over, and no

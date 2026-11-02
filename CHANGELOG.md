@@ -53,6 +53,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Document native-memory and routine-continuity upgrade/rollback steps. Correct the mem0 retirement guidance: removing agent bindings does not delete encrypted vault credentials or import/erase memories at the old provider.
+
 - Creating or changing a private-account watch requires the person's own signed-in session or trusted private-chat credential. Ordinary API keys, publisher/background contexts and impersonation cannot establish or expand standing account access.
 
 - Watches show unavailable sources, lost access and incomplete model checks separately from successful no-change readings. Failed attempts no longer advance the successful-reading timestamp. Workers recheck that the connection still belongs to the watch owner before resolving credentials. Migration `0261_watch_attempt_status.py`.

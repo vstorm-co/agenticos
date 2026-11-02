@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd15584abde"
+source_sha: "5496bfe74d57"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -471,6 +471,47 @@ demonio a través de una *conexión* de sandbox que alguien crea en la consola, 
     (#1506). Por eso el script lee el token en vez de aceptar un flag.
 
 ## Desplegar un cambio { #deploying-a-change }
+
+### Memoria nativa y continuidad de rutinas { #native-memory-upgrade }
+
+Antes de actualizar, crea [copias de la base, los medios y las claves del vault](#backups)
+y coordina el despliegue de API y workers. Usa el paso normal de migración del
+despliegue; no copies filas ni crees horarios sustitutos manualmente.
+
+- `0248_drop_memory_mem0.py` elimina `memory_mem0` de borradores guardados y specs
+  publicadas. No importa ni borra recuerdos externos y no elimina las
+  credenciales cifradas del vault. Exporta o borra los datos en mem0 según
+  corresponda, revisa claves del vault sin uso y revoca las credenciales
+  retiradas en el proveedor. Revertir esta revisión no reconstruye los vínculos
+  eliminados; conserva la copia anterior para ello.
+- `0251_primary_conversations.py` y `0258_primary_channel_history.py` establecen
+  chats privados principales. Una asignación existente prevalece. Solo se adopta
+  una vez el historial demostrablemente privado de un canal vinculado; los
+  historiales de proyecto, grupo o dudosos siguen separados. No repitas la carga
+  después de que una persona vacíe su chat principal.
+- Se conservan los ID de rutinas, horarios y registros existentes.
+  `0255_trigger_delivery.py` asigna `run_log` a las rutinas antiguas; las nuevas
+  usan por defecto el chat principal o su conversación de origen de confianza.
+  Revisa destino, persona actuante, fin y presupuesto en **Rutinas**, en lugar
+  de crear copias.
+- `0259_trigger_version_pin.py` permite fijar versiones inmutables. Un pin y un
+  entorno con nombre se excluyen. Retira el pin antes de borrar su versión.
+  Un run aparcado conserva su versión admitida; `0260_routine_run_origin.py`
+  conserva su origen para que borrar la rutina no libere su control de acceso.
+- `0261_watch_attempt_status.py` comienza el registro explícito de intentos sin
+  inventar éxitos o fallos anteriores. Una comprobación no disponible o
+  incompleta no avanza la fecha de éxito. Revisa las observaciones existentes
+  y su acceso a cuentas: las filas históricas no prueban cómo se otorgó el
+  consentimiento original.
+
+Elige explícitamente un modelo antes de activar el mantenimiento de memoria;
+el briefing diario conserva los ajustes de modelo/presupuesto de la organización.
+Las observaciones aún usan ese modelo de proactividad; la ejecución por el
+agente seleccionado todavía no está implementada. Revisa
+[gobernanza](governance.md#proactive-work) y la [configuración de canales](channels.md#sms),
+incluidos `PUBLIC_BASE_URL` y los vínculos SMS caducados. En una organización de
+prueba verifica un chat privado, Actividad/entrega de una rutina, pausa/caducidad
+y una observación con fuente no disponible antes de ampliar el despliegue.
 
 ### El límite del formato del historial en 1.25.0 { #retry-history-upgrade }
 

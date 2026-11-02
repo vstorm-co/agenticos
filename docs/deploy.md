@@ -446,6 +446,43 @@ deployment's own.
 
 ## Deploying a change
 
+### Native memory and routine continuity { #native-memory-upgrade }
+
+Before this upgrade, take the [database, media and vault-key backups](#backups)
+and coordinate the API and worker rollout. Use the deployment's normal migration
+step; do not copy rows or create replacement schedules manually.
+
+- `0248_drop_memory_mem0.py` removes `memory_mem0` from stored drafts and published
+  specs. It neither imports nor erases the external memories, and does not delete
+  the encrypted credentials in the vault. Export or erase that data in mem0 as
+  needed, review unused vault keys, and revoke retired credentials at the
+  provider. Downgrading this revision cannot reconstruct the removed bindings;
+  retain the pre-upgrade backup for that purpose.
+- `0251_primary_conversations.py` and `0258_primary_channel_history.py` establish
+  primary private chats. An existing mapping wins. Only demonstrably private,
+  linked channel history is adopted once; project/group and ambiguous histories
+  remain separate. Do not rerun the backfill after somebody clears a primary chat.
+- Existing routine IDs, schedules and logs remain in place. The delivery migration
+  `0255_trigger_delivery.py` gives old routines `run_log`; new routines default to
+  a primary chat or their trusted source conversation. Review the destination,
+  acting person, end and budget under **Routines**, rather than creating copies.
+- `0259_trigger_version_pin.py` supports immutable version pins. A pin and a named
+  environment are exclusive. Clear a pin before deleting its version. A parked
+  run retains its admitted version; `0260_routine_run_origin.py` retains its
+  origin so deleting a routine does not release its authorization guard.
+- `0261_watch_attempt_status.py` starts explicit attempt tracking without guessing
+  older success/failure history. An unavailable or incomplete check does not
+  advance the success timestamp. Review existing watches and their account
+  access: historical rows do not prove how consent was originally given.
+
+Choose a model explicitly before enabling memory maintenance; the daily briefing
+keeps the existing organization model/budget settings. Watches still use that
+proactivity model; selected-agent watch execution is not implemented yet. Check
+[governance](governance.md#proactive-work) and the [channel setup](channels.md#sms),
+including `PUBLIC_BASE_URL` and expired SMS identity links. In a test organization,
+verify one private chat, one routine's Activity/delivery, pause/expiry and one
+unavailable-source watch before enabling a wider rollout.
+
 ### The retry-history boundary in 1.25.0 { #retry-history-upgrade }
 
 Version 1.25.0 adopts Pydantic AI 2.61's `retried` tool outcomes and separate

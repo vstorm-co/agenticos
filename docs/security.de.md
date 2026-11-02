@@ -1,5 +1,5 @@
 ---
-source_sha: "8402d7706800"
+source_sha: "040c929428ad"
 ---
 
 # Sicherheit { #security }
@@ -144,7 +144,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 
 !!! warning "Was die Löschung nicht erreicht — und die Doku sagt es, statt dass ein Deployment es herausfindet"
 
-    **Erinnerungen in einer entfernten mem0-Integration.** Ein Deployment, das mem0 nutzte (in #2090 entfernt), hat diese Erinnerungen weiterhin im mem0-Dienst. Das Upgrade hat die Bindungen und die Zugangsdaten entfernt, die ihn erreichten, deshalb berührt das Vergessen einer Person oder das Leeren eines Agents hier sie nicht mehr; löschen Sie sie in mem0 selbst.
+    **Erinnerungen in einer entfernten mem0-Integration.** Ein Deployment, das mem0 nutzte (in #2090 entfernt), kann diese Erinnerungen weiterhin im externen Dienst halten. Das Upgrade entfernt gespeicherte Bindungen, löscht aber weder verschlüsselte Vault-Zugangsdaten noch mem0-Daten und importiert diese auch nicht. Das Vergessen einer Person oder Leeren eines Agents erreicht diesen Dienst nicht mehr. Prüfe ungenutzte Vault-Schlüssel, widerrufe ausgemusterte Anbieter-Zugangsdaten und behandle externe Erinnerungen getrennt. Siehe die [Upgrade-Checkliste](deploy.md#native-memory-upgrade).
 
     **Backups.** Eine Löschung entfernt Zeilen aus der laufenden Datenbank. Der
     Backup-Zeitplan eines Deployments behält sie bis zu seiner Rotation, und
