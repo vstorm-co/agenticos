@@ -77,6 +77,21 @@ async def create_request(
     return request
 
 
+async def requests_of_improvement(
+    db: AsyncSession, improvement_run_id: UUID, *, organization_id: UUID
+) -> list[AuthoringRequest]:
+    """The requests an Improve session's attempts made, newest first."""
+    result = await db.execute(
+        select(AuthoringRequest)
+        .where(
+            AuthoringRequest.organization_id == organization_id,
+            AuthoringRequest.improvement_run_id == improvement_run_id,
+        )
+        .order_by(AuthoringRequest.created_at.desc(), AuthoringRequest.id)
+    )
+    return list(result.scalars().all())
+
+
 async def get_request(
     db: AsyncSession, request_id: UUID, *, organization_id: UUID
 ) -> AuthoringRequest | None:

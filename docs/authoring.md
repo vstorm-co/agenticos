@@ -489,6 +489,14 @@ A procedure drawn from fewer than three distinct answers is not proposed as a su
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
 
+### When the fault is in a skill { #when-the-fault-is-in-a-skill }
+
+Other agents may read the same skill, so agent Improve never changes one. The helper reads the agent's skills: each one's name, description and version, and the full text of those the evidence used. When the runs show that a skill is wrong, the helper reports the problem for that skill. It does not write the skill's text into the agent's instructions.
+
+A change that repeats a 200-character passage of a bound skill is refused, and so is a new skill with a bound skill's name or text. A reported problem is kept only when it names one of the agent's skills and quotes a run that used it.
+
+The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it. When the agent is behind main, an **Update to vN** or **Catch up the fork** card opens the skill's page.
+
 ### Checking a knowledge draft { #checking-a-knowledge-draft }
 
 In a finished session, choose a draft and independent questions about its topic. The estimate and confirmation are separate from accepting the agent changes. The test compares **A**, the selected agent changes, with **B**, the same changes plus the draft. Its result appears separately and says **assuming search finds this passage**: this stage injects the passage as context and does not test retrieval.

@@ -19,7 +19,7 @@ import difflib
 import json
 import logging
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -63,6 +63,7 @@ from app.repositories import (
     context_repo,
     skill_proposal_repo,
     skill_repo,
+    skill_usage_repo,
 )
 from app.schemas.authoring import (
     MAX_REJECTED,
@@ -75,6 +76,7 @@ from app.schemas.authoring import (
     Rejection,
     RunFindings,
     SkillImprovement,
+    SkillProblem,
     ToolChange,
     VerifyFinding,
     VerifyReport,
@@ -92,6 +94,7 @@ from app.services.authoring_evidence import (
     render_runs,
 )
 from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.skills import SkillService
 from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
@@ -225,6 +228,7 @@ def _improve_prompt(
     pack: EvidencePack,
     digests: Sequence[RunFindings] | None,
     note: str | None = None,
+    skills: str = "",
 ) -> str:
     tools = _tool_lines(spec)
     asked = (
@@ -238,12 +242,49 @@ def _improve_prompt(
         f"# Its current instructions\n<instructions>\n{spec.instructions}\n</instructions>\n\n"
         f"# Its tools (capability_id / tool_id: name - description)\n{tools or '(none)'}\n\n"
         f"{configuration}\n\n"
+        f"{skills}"
         "Propose a new skill only for a reusable procedure repeated in at least three "
         "distinct answers. Cite exact passages from those answers. Skills contain written "
         "instructions only: they cannot grant tools or widen access. Propose any required "
         "capability changes separately, with writing tools requiring approval.\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
         f"{asked}"
+    )
+
+
+SKILL_PROBLEM = "skill_problem"
+"""How a report names a skill problem it did not keep, beside the hunk kinds."""
+
+SKILL_BODY_CHARS = 4000
+"""How much of one skill's body the agent's improver reads."""
+
+
+def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[UUID]) -> str:
+    """The agent's skills, with the bodies of those the runs used, and what not to do with them."""
+    if not skills:
+        return ""
+    bindings = {binding.skill_id: binding for binding in spec.skill_bindings}
+
+    def line(skill: Skill) -> str:
+        binding = bindings.get(skill.id)
+        if binding is None:
+            return "main"
+        return "a fork" if binding.version is None else f"pinned to v{binding.version}"
+
+    listed = "\n".join(f"- {skill.name} ({line(skill)}): {skill.description}" for skill in skills)
+    bodies = "".join(
+        f'<skill name="{skill.name}">\n{skill.content[:SKILL_BODY_CHARS]}\n</skill>\n'
+        for skill in skills
+        if skill.id in used
+    )
+    return (
+        "# Its skills\n"
+        "Each skill is a resource of its own that other agents may read too. Never copy "
+        "a skill's text into the instructions, and never propose a new skill that repeats "
+        "one. Where the runs show that a skill is wrong or misses a step, report it under "
+        "skill_problems, naming the skill, and change nothing in the agent for it.\n"
+        f"{listed}\n\n"
+        + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
     )
 
 
@@ -590,17 +631,29 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, spec)
+        skills, used = await self._skills(spec, pack)
         proposal = await self._ask(
-            _improve_prompt(agent.name, spec, configuration, pack, digests, note),
+            _improve_prompt(
+                agent.name,
+                spec,
+                configuration,
+                pack,
+                digests,
+                note,
+                skills=_skills_section(spec, skills, used),
+            ),
             ImprovementProposal,
         )
         pack = await self.evidence.forget_erased(pack)
         hunks = [
-            *self._instruction_hunks(spec, pack, proposal.instructions, HunkOrigin.IMPROVE),
+            *self._instruction_hunks(
+                spec, pack, proposal.instructions, HunkOrigin.IMPROVE, skills=skills
+            ),
             *self._tool_hunks(spec, pack, proposal.tools, HunkOrigin.IMPROVE),
             *await self._field_hunks(agent.id, spec, pack, proposal.fields, HunkOrigin.IMPROVE),
-            *self._new_skill_hunks(pack, proposal.new_skills),
+            *self._new_skill_hunks(pack, proposal.new_skills, skills=skills),
         ]
+        problems = self._skill_problems(pack, proposal.skill_problems, skills, used)
         recorded = await self._supersede_with(agent.id, pack, proposal.expected_effect, hunks)
         await self._finish(
             {
@@ -611,6 +664,7 @@ class AuthoringRun:
                 + len(proposal.fields)
                 + len(proposal.new_skills),
                 "recorded": recorded,
+                "skill_problems": problems,
                 **self._rejections(),
             }
         )
@@ -638,6 +692,7 @@ class AuthoringRun:
         self._record_evidence(pack)
         digests = await self._digests(pack, f'the agent "{agent.name}"')
         configuration = await self.configuration.describe(self.ctx, draft)
+        skills, _ = await self._skills(draft, pack)
         report = await self._ask(
             _verify_prompt(agent.name, published, draft, configuration, pack, digests),
             VerifyReport,
@@ -645,7 +700,9 @@ class AuthoringRun:
         pack = await self.evidence.forget_erased(pack)
         findings = self._findings(report.findings, pack, _edited(published, draft))
         hunks = [
-            *self._instruction_hunks(draft, pack, report.instructions, HunkOrigin.VERIFY),
+            *self._instruction_hunks(
+                draft, pack, report.instructions, HunkOrigin.VERIFY, skills=skills
+            ),
             *self._tool_hunks(draft, pack, report.tools, HunkOrigin.VERIFY),
             *await self._field_hunks(agent.id, draft, pack, report.fields, HunkOrigin.VERIFY),
         ]
@@ -937,7 +994,11 @@ class AuthoringRun:
             )
 
     def _new_skill_hunks(
-        self, pack: EvidencePack, changes: Sequence[NewSkillChange]
+        self,
+        pack: EvidencePack,
+        changes: Sequence[NewSkillChange],
+        *,
+        skills: Sequence[Skill] = (),
     ) -> list[dict[str, object]]:
         hunks: list[dict[str, object]] = []
         for change in changes:
@@ -951,7 +1012,15 @@ class AuthoringRun:
             refusal = (
                 Rejection.INSUFFICIENT_EVIDENCE
                 if len(cited) < 3
-                else (Rejection.INVALID_CONFIG if skill_name_refusal(change.name) else None)
+                else Rejection.INVALID_CONFIG
+                if skill_name_refusal(change.name)
+                else Rejection.DUPLICATES_SKILL
+                if any(
+                    skill.name.casefold() == change.name.casefold()
+                    or authoring_hunks.copies(change.content, skill.content)
+                    for skill in skills
+                )
+                else None
             )
             if refusal is not None:
                 # The skill as written stays, so a person may still create it by hand.
@@ -991,10 +1060,17 @@ class AuthoringRun:
         pack: EvidencePack,
         changes: Sequence[InstructionChange],
         origin: HunkOrigin,
+        *,
+        skills: Sequence[Skill] = (),
     ) -> list[dict[str, Any]]:
         hunks: list[dict[str, Any]] = []
         for change in changes:
             columns = authoring_hunks.anchor_change(spec.instructions, change)
+            if not isinstance(columns, Rejection) and any(
+                authoring_hunks.copies(change.new_text, skill.content, already=spec.instructions)
+                for skill in skills
+            ):
+                columns = Rejection.COPIES_SKILL
             if isinstance(columns, Rejection):
                 self._reject(
                     HunkKind.INSTRUCTIONS,
@@ -1135,6 +1211,54 @@ class AuthoringRun:
                 }
             )
         return kept_findings
+
+    async def _skills(
+        self, spec: AgentSpec, pack: EvidencePack
+    ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
+        """The skills the agent reads, as its bindings name them, and which runs used each."""
+        skills = await SkillService(self.db).resolve_for_agent(
+            self.ctx, spec.skill_ids, bindings=spec.skill_bindings
+        )
+        used = await skill_usage_repo.skills_in_runs(
+            self.db,
+            organization_id=self.ctx.organization_id,
+            run_ids=[run.run_id for run in pack.runs],
+        )
+        return skills, used
+
+    def _skill_problems(
+        self,
+        pack: EvidencePack,
+        problems: Sequence[SkillProblem],
+        skills: Sequence[Skill],
+        used: Mapping[UUID, set[UUID]],
+    ) -> list[dict[str, object]]:
+        """The problems that name one of the agent's skills and cite runs that used it."""
+        by_name = {skill.name: skill for skill in skills}
+        found: list[dict[str, object]] = []
+        for problem in problems:
+            change = {"skill": problem.skill, "problem": problem.problem}
+            skill = by_name.get(problem.skill)
+            if skill is None:
+                self._reject(SKILL_PROBLEM, Rejection.UNKNOWN_SKILL, change)
+                continue
+            kept, dropped = pack.verify(problem.evidence)
+            if not kept:
+                self._reject(SKILL_PROBLEM, Rejection.INSUFFICIENT_EVIDENCE, change)
+                continue
+            if not {UUID(item["run_id"]) for item in kept} & used.get(skill.id, set()):
+                self._reject(SKILL_PROBLEM, Rejection.SKILL_NOT_USED, change)
+                continue
+            found.append(
+                {
+                    "skill_id": str(skill.id),
+                    "skill_name": skill.name,
+                    "problem": problem.problem,
+                    "evidence": kept,
+                    "evidence_dropped": dropped,
+                }
+            )
+        return found
 
     def _reject(self, kind: str, reason: Rejection, change: dict[str, Any]) -> None:
         self.rejected.append({"kind": kind, "reason": reason.value, "change": change})

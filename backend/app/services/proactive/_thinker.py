@@ -155,6 +155,9 @@ class ProactiveThinker:
             provider=request.provider,
             secret_id=request.secret_id,
             started_at=datetime.now(UTC),
+            # A proactive run is served no skills, and never reaches the runner's
+            # terminal write that records them.
+            skill_uses_recorded=True,
         )
         # Committed before the provider is called, as the other run paths do: a
         # worker killed mid-call must leave a run behind, or the spend check and

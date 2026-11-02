@@ -717,6 +717,7 @@ it("describes every stage of an improvement on its own page", () => {
       "improvement-evidence",
       "improvement-test-questions",
       "improvement-changes",
+      "improvement-skill-handoffs",
       "improvement-next-step",
       "improvement-check",
       "improvement-open-check",

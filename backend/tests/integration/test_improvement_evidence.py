@@ -1,6 +1,7 @@
 """A session reads pinned, still-readable evidence without another model call."""
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -217,3 +218,38 @@ async def test_a_knowledge_document_set_aside_stays_aside_for_the_session(db):
     assert back.deferred_topic_ids == []
     with pytest.raises(NotFoundError, match="topic not found"):
         await service.defer_topic(ctx, agent.id, session.id, uuid4(), TopicDeferral(later=True))
+
+
+async def test_each_example_names_the_skills_its_run_used(db):
+    from app.db.models.skill import Skill
+    from app.repositories import skill_usage_repo
+    from app.schemas.skill_usage import SkillUseRecord
+
+    ctx, agent, _dataset, session = await _started(db)
+    service = ImprovementPipelineService(db)
+    [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
+    assert item.skills == []
+    skills = [
+        Skill(
+            id=uuid4(),
+            organization_id=ctx.organization_id,
+            name=name,
+            description=name,
+            content=f"How {name} works",
+            visibility="org",
+        )
+        for name in ("shipping", "refunds")
+    ]
+    db.add_all(skills)
+    await db.flush()
+    await skill_usage_repo.record_uses(
+        db,
+        [SkillUseRecord(agent_id=agent.id, skill_id=skill.id, loaded=True) for skill in skills],
+        organization_id=ctx.organization_id,
+        run_id=item.run_id,
+        started_at=datetime.now(UTC),
+    )
+
+    [item] = (await service.evidence(ctx, agent.id, run_id=session.id)).items
+
+    assert [skill.name for skill in item.skills] == ["refunds", "shipping"]

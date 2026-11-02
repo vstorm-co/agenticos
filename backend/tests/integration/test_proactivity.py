@@ -794,3 +794,67 @@ async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
             if not task.done():
                 task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_a_failed_proactive_run_is_not_an_unknown_use_of_its_agents_skills(
+    db: AsyncSession,
+) -> None:
+    """The thinker serves no skills, so its failures say nothing about a skill's agents."""
+    from pydantic_ai.exceptions import UnexpectedModelBehavior
+    from pydantic_ai.messages import ModelMessage, ModelResponse
+    from pydantic_ai.models.function import AgentInfo, FunctionModel
+
+    from app.db.models.skill import Skill
+    from app.repositories import skill_usage_repo
+    from app.services.proactive._thinker import ProactiveThinker
+
+    user = await _person(db)
+    organization = await _organization(db, user)
+    agent = await _agent(db, organization)
+    skill = Skill(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        name="returns-policy",
+        description="How returns work",
+        content="# Returns",
+        visibility="org",
+    )
+    db.add(skill)
+    version = await db.get(AgentVersion, agent.current_version_id)
+    assert version is not None
+    version.spec = {"name": agent.name, "skill_ids": [str(skill.id)]}
+    await db.commit()
+    ctx = AuthContext(user_id=user.id, organization_id=organization.id, role="owner")
+
+    def broken(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        raise UnexpectedModelBehavior("The provider answered nonsense")
+
+    request = SimpleNamespace(
+        build=lambda: FunctionModel(broken),
+        label="Test",
+        model="test",
+        provider="test",
+        secret_id=None,
+    )
+    with (
+        patch.object(ProactiveThinker, "allowance", AsyncMock(return_value=uuid.uuid4())),
+        patch(
+            "app.services.proactive._thinker.ModelProfileService.resolve",
+            AsyncMock(return_value=request),
+        ),
+    ):
+        answer = await ProactiveThinker(db).think(
+            ctx, feature="watches", output_type=str, instructions="Read.", prompt="Read."
+        )
+
+    run = (await db.scalars(select(AgentRun).where(AgentRun.agent_id == agent.id))).one()
+    assert (answer, run.status) == (None, RunStatus.FAILED.value)
+    assert (
+        await skill_usage_repo.unknown_runs(
+            db,
+            organization_id=organization.id,
+            skill_id=skill.id,
+            since=datetime.now(UTC) - timedelta(days=1),
+        )
+        == {}
+    )
