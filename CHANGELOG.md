@@ -23,6 +23,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone (a text file sent inline as text, and a link, where a match blocks because a link cannot be rewritten), a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace. An inline text file is screened as the UTF-8 a model is sent, and one that declares another character set or is not valid UTF-8 blocks the turn instead of being screened as different text. The size limits of a resumed request count the text of all its prompt parts together (#2566).
 
+## [1.35.3] - 2026-11-02
+
+### Security
+
+- A link in an agent's answer that leads to another site now opens in a new tab, whatever its address looks like. A link written without `https://` - `//evil.example`, `https:evil.example`, `HTTPS:/evil.example` - was rendered as an in-page link, so a click took the console's own tab to that site. The chat decides a link is off-site by where the browser resolves it against the console, and opens it in a new tab with `rel="noopener noreferrer"`. Console links, including the Architect's links that point at a control, still open in place.
+
 ## [1.35.2] - 2026-11-02
 
 ### Changed
@@ -19682,7 +19688,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...HEAD
+[1.35.3]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...v1.35.3
 [1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
 [1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
 [1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
