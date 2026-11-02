@@ -318,10 +318,12 @@ describe("rendering an answer", () => {
     expect(container.querySelector(".lucide-external-link")).toBeNull();
   });
 
-  it("leaves a console link that points at a control in this tab", () => {
-    markdown("[Create a routine](/routines?highlight=routines-create)");
+  it("still opens an absolute address on this console in a new tab", () => {
+    markdown(`[settings](${window.location.origin}/settings/profile)`);
 
-    expect(screen.getByRole("link", { name: "Create a routine" })).not.toHaveAttribute("target");
+    const link = screen.getByRole("link", { name: /settings/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   it("leaves an in-app link in this tab", () => {

@@ -263,9 +263,10 @@ export const MarkdownContent = memo(function MarkdownContent({
         // name rather than the forty characters of its address; a page on a
         // service the reader knows leads with that service's logo.
         const app = !!href && isAppLink(href, window.location.origin);
-        // Off-site by where the browser resolves it (#2550): `//host` and
-        // `/\host` leave the console too, and without a target they leave in
-        // this tab. An absolute address here still opens in a new one, as before.
+        // Off-site by where the browser resolves it (#2550): `//host`, and
+        // `https:host` on an `http:` console, leave it without starting
+        // `https://`, and with no target they leave in this tab. An absolute `http(s)://` address on this
+        // console still opens in a new tab, as before.
         const external =
           app || !href
             ? null
