@@ -4,6 +4,7 @@ node_modules
 .pnp.js
 
 # Testing
+.vitest-reports/
 coverage
 
 # Playwright

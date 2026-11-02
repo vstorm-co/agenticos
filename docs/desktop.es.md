@@ -1,5 +1,5 @@
 ---
-source_sha: "8d5ef23b70de"
+source_sha: "b709427c03d4"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -575,3 +575,9 @@ cuentas del operador; no pueden verificarse con un build local sin firma.
 Quick Ask admite hasta ocho pestañas independientes por ventana. Cada una conserva su borrador, adjuntos, agente y respuestas en curso. Conversaciones recientes abre una lista con búsqueda y reutiliza una pestaña ya abierta; los chats guardados recuperan mensajes e historial anterior. Las pestañas inactivas no capturan archivos, atajos de dictado ni el foco. Conversaciones recientes muestra avatares de agentes en una sección desplegable que ocupa solo el espacio necesario. Nuevo chat es la única acción para abrir una pestaña nueva. La barra lateral del navegador ofrece la descarga de escritorio; cerrar el aviso lo silencia durante 14 días para esa cuenta en ese navegador.
 
 Quick Ask tiene un botón de micrófono para iniciar el dictado con un clic, además del atajo de mantener pulsado. Las llamadas usan los mismos controles que el chat, con el transporte configurado del agente seleccionado, subtítulos, aprobaciones y preguntas. Los turnos hablados se guardan en la conversación. El envío de texto y el dictado esperan durante una llamada. Cambiar de pestaña o agente finaliza la llamada y libera el micrófono.
+
+Los builds de versiones de escritorio se ejecutan en paralelo. Cada uno sube
+sus paquetes firmados; un job final valida los cuatro targets nativos y publica
+`latest.json`. Las cachés de Cargo se separan por sistema operativo, arquitectura,
+compilador, target y perfil de build. Un build fallido impide publicar el manifiesto
+de actualización.
